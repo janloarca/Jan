@@ -19,7 +19,7 @@ const labels = {
     portfolioHoldings: 'Portfolio Holdings',
     recentSnapshots: 'Recent Snapshots',
     recentTransactions: 'Recent Transactions',
-    netWorthOverTime: 'Net Worth Over Time',
+    portfolioGrowth: 'Portfolio Growth',
     allocation: 'Asset Allocation',
     symbol: 'Symbol',
     name: 'Name',
@@ -58,7 +58,7 @@ const labels = {
     portfolioHoldings: 'Posiciones del Portafolio',
     recentSnapshots: 'Snapshots Recientes',
     recentTransactions: 'Transacciones Recientes',
-    netWorthOverTime: 'Patrimonio Neto en el Tiempo',
+    portfolioGrowth: 'Crecimiento del Portafolio',
     allocation: 'Distribucion de Activos',
     symbol: 'Simbolo',
     name: 'Nombre',
@@ -150,85 +150,271 @@ const TYPE_COLORS = {
   other: { bg: 'bg-pink-500', light: 'bg-pink-50', text: 'text-pink-700', border: 'border-pink-200' },
 }
 
-// SVG sparkline chart for Net Worth
-function NetWorthChart({ snapshots, height = 200 }) {
-  if (!snapshots || snapshots.length < 2) return null
+// Portfolio Growth Chart with time filters and hover tooltip
+function PortfolioGrowthChart({ snapshots, lang }) {
+  const [period, setPeriod] = useState('ALL')
+  const [hoverIdx, setHoverIdx] = useState(null)
 
-  const values = snapshots.map((s) => s.netWorthUSD ?? s.totalActivosUSD ?? 0)
-  const min = Math.min(...values)
-  const max = Math.max(...values)
+  const periods = [
+    { key: '3M', months: 3 },
+    { key: '6M', months: 6 },
+    { key: '1Y', months: 12 },
+    { key: 'YTD', months: null },
+    { key: 'ALL', months: null },
+  ]
+
+  const filtered = useMemo(() => {
+    if (!snapshots || snapshots.length < 2) return []
+    if (period === 'ALL') return snapshots
+    if (period === 'YTD') {
+      const year = new Date().getFullYear()
+      return snapshots.filter((s) => new Date(s.date).getFullYear() >= year)
+    }
+    const p = periods.find((pp) => pp.key === period)
+    if (!p?.months) return snapshots
+    const cutoff = new Date()
+    cutoff.setMonth(cutoff.getMonth() - p.months)
+    return snapshots.filter((s) => new Date(s.date) >= cutoff)
+  }, [snapshots, period])
+
+  if (!filtered || filtered.length < 2) return null
+
+  const values = filtered.map((s) => s.netWorthUSD ?? s.totalActivosUSD ?? 0)
+  const assetsValues = filtered.map((s) => s.totalActivosUSD ?? 0)
+  const min = Math.min(...values, ...assetsValues) * 0.95
+  const max = Math.max(...values, ...assetsValues) * 1.02
   const range = max - min || 1
 
-  const padding = { top: 20, right: 16, bottom: 40, left: 60 }
+  const firstVal = values[0]
+  const lastVal = values[values.length - 1]
+  const growthPct = firstVal > 0 ? ((lastVal - firstVal) / firstVal) * 100 : 0
+  const growthAbs = lastVal - firstVal
+  const isPositive = growthPct >= 0
+
+  const lineColor = isPositive ? '#10b981' : '#ef4444'
+  const lineColorLight = isPositive ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.08)'
+
+  const height = 260
+  const padding = { top: 24, right: 20, bottom: 44, left: 56 }
   const width = 700
   const chartWidth = width - padding.left - padding.right
   const chartHeight = height - padding.top - padding.bottom
 
-  const points = values.map((v, i) => {
-    const x = padding.left + (i / (values.length - 1)) * chartWidth
-    const y = padding.top + chartHeight - ((v - min) / range) * chartHeight
-    return { x, y, v }
-  })
+  const toPoint = (vals) =>
+    vals.map((v, i) => ({
+      x: padding.left + (i / (vals.length - 1)) * chartWidth,
+      y: padding.top + chartHeight - ((v - min) / range) * chartHeight,
+      v,
+    }))
 
-  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
-  const areaPath = `${linePath} L ${points[points.length - 1].x} ${padding.top + chartHeight} L ${points[0].x} ${padding.top + chartHeight} Z`
+  const netPoints = toPoint(values)
+  const assetPoints = toPoint(assetsValues)
 
-  // Y-axis labels (5 ticks)
-  const yTicks = Array.from({ length: 5 }, (_, i) => {
-    const val = min + (range * i) / 4
-    const y = padding.top + chartHeight - (i / 4) * chartHeight
+  // Smooth curve using cardinal spline
+  function smoothPath(pts) {
+    if (pts.length < 3) return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+    const tension = 0.3
+    let d = `M ${pts[0].x} ${pts[0].y}`
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[Math.max(0, i - 1)]
+      const p1 = pts[i]
+      const p2 = pts[i + 1]
+      const p3 = pts[Math.min(pts.length - 1, i + 2)]
+      const cp1x = p1.x + ((p2.x - p0.x) * tension) / 3
+      const cp1y = p1.y + ((p2.y - p0.y) * tension) / 3
+      const cp2x = p2.x - ((p3.x - p1.x) * tension) / 3
+      const cp2y = p2.y - ((p3.y - p1.y) * tension) / 3
+      d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`
+    }
+    return d
+  }
+
+  const netLine = smoothPath(netPoints)
+  const assetLine = smoothPath(assetPoints)
+  const areaPath = `${netLine} L ${netPoints[netPoints.length - 1].x} ${padding.top + chartHeight} L ${netPoints[0].x} ${padding.top + chartHeight} Z`
+
+  // Y-axis ticks
+  const yTickCount = 5
+  const yTicks = Array.from({ length: yTickCount }, (_, i) => {
+    const val = min + (range * i) / (yTickCount - 1)
+    const y = padding.top + chartHeight - (i / (yTickCount - 1)) * chartHeight
     return { val, y }
   })
 
-  // X-axis labels (show every few snapshots)
-  const step = Math.max(1, Math.floor(snapshots.length / 6))
-  const xLabels = snapshots
-    .map((s, i) => ({ label: formatShortDate(s.date), x: points[i]?.x, i }))
-    .filter((_, i) => i % step === 0 || i === snapshots.length - 1)
+  // X-axis labels
+  const step = Math.max(1, Math.floor(filtered.length / 7))
+  const xLabels = filtered
+    .map((s, i) => ({ label: formatShortDate(s.date), x: netPoints[i]?.x, i }))
+    .filter((_, i) => i % step === 0 || i === filtered.length - 1)
+
+  const hoverSnap = hoverIdx != null ? filtered[hoverIdx] : null
+  const hoverPoint = hoverIdx != null ? netPoints[hoverIdx] : null
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="w-full" preserveAspectRatio="xMidYMid meet">
-      {/* Grid lines */}
-      {yTicks.map((tick, i) => (
-        <g key={i}>
-          <line
-            x1={padding.left}
-            y1={tick.y}
-            x2={width - padding.right}
-            y2={tick.y}
-            stroke="#e5e7eb"
-            strokeDasharray="4 4"
-          />
-          <text x={padding.left - 8} y={tick.y + 4} textAnchor="end" className="fill-gray-400" fontSize="11">
-            {formatCompact(tick.val)}
-          </text>
-        </g>
-      ))}
+    <div>
+      {/* Header row: growth stats + period buttons */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-4">
+        <div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-gray-900">{formatCurrency(lastVal)}</span>
+            <span className={`text-sm font-semibold ${isPositive ? 'text-emerald-600' : 'text-red-500'}`}>
+              {isPositive ? '+' : ''}{growthPct.toFixed(1)}%
+            </span>
+            <span className={`text-xs ${isPositive ? 'text-emerald-500' : 'text-red-400'}`}>
+              ({isPositive ? '+' : ''}{formatCurrency(growthAbs)})
+            </span>
+          </div>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {formatShortDate(filtered[0]?.date)} — {formatShortDate(filtered[filtered.length - 1]?.date)}
+          </p>
+        </div>
+        <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
+          {periods.map((p) => (
+            <button
+              key={p.key}
+              onClick={() => setPeriod(p.key)}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                period === p.key
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {p.key}
+            </button>
+          ))}
+        </div>
+      </div>
 
-      {/* Area fill */}
-      <defs>
-        <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.2" />
-          <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.02" />
-        </linearGradient>
-      </defs>
-      <path d={areaPath} fill="url(#areaGradient)" />
+      {/* Chart */}
+      <div className="relative">
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          className="w-full"
+          preserveAspectRatio="xMidYMid meet"
+          onMouseLeave={() => setHoverIdx(null)}
+          onMouseMove={(e) => {
+            const svg = e.currentTarget
+            const rect = svg.getBoundingClientRect()
+            const mouseX = ((e.clientX - rect.left) / rect.width) * width
+            let closest = 0
+            let closestDist = Infinity
+            netPoints.forEach((p, i) => {
+              const dist = Math.abs(p.x - mouseX)
+              if (dist < closestDist) {
+                closestDist = dist
+                closest = i
+              }
+            })
+            setHoverIdx(closest)
+          }}
+        >
+          {/* Grid lines */}
+          {yTicks.map((tick, i) => (
+            <g key={i}>
+              <line
+                x1={padding.left}
+                y1={tick.y}
+                x2={width - padding.right}
+                y2={tick.y}
+                stroke="#f3f4f6"
+                strokeWidth="1"
+              />
+              <text x={padding.left - 10} y={tick.y + 4} textAnchor="end" fill="#9ca3af" fontSize="10" fontFamily="system-ui">
+                {formatCompact(tick.val)}
+              </text>
+            </g>
+          ))}
 
-      {/* Line */}
-      <path d={linePath} fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinejoin="round" />
+          {/* Area gradient */}
+          <defs>
+            <linearGradient id="growthAreaGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={lineColor} stopOpacity="0.15" />
+              <stop offset="100%" stopColor={lineColor} stopOpacity="0.01" />
+            </linearGradient>
+          </defs>
+          <path d={areaPath} fill="url(#growthAreaGrad)" />
 
-      {/* Data points */}
-      {points.map((p, i) => (
-        <circle key={i} cx={p.x} cy={p.y} r="3" fill="#3b82f6" stroke="#fff" strokeWidth="1.5" />
-      ))}
+          {/* Total Assets line (secondary, dashed) */}
+          {assetsValues.some((v, i) => Math.abs(v - values[i]) > 1) && (
+            <path
+              d={assetLine}
+              fill="none"
+              stroke="#94a3b8"
+              strokeWidth="1.5"
+              strokeDasharray="6 4"
+              opacity="0.5"
+            />
+          )}
 
-      {/* X-axis labels */}
-      {xLabels.map((xl, i) => (
-        <text key={i} x={xl.x} y={height - 8} textAnchor="middle" className="fill-gray-400" fontSize="10">
-          {xl.label}
-        </text>
-      ))}
-    </svg>
+          {/* Net Worth line (primary) */}
+          <path d={netLine} fill="none" stroke={lineColor} strokeWidth="2.5" strokeLinecap="round" />
+
+          {/* Hover vertical line + point */}
+          {hoverPoint && (
+            <g>
+              <line
+                x1={hoverPoint.x}
+                y1={padding.top}
+                x2={hoverPoint.x}
+                y2={padding.top + chartHeight}
+                stroke="#d1d5db"
+                strokeWidth="1"
+                strokeDasharray="4 3"
+              />
+              <circle cx={hoverPoint.x} cy={hoverPoint.y} r="5" fill={lineColor} stroke="#fff" strokeWidth="2" />
+            </g>
+          )}
+
+          {/* X-axis labels */}
+          {xLabels.map((xl, i) => (
+            <text key={i} x={xl.x} y={height - 10} textAnchor="middle" fill="#9ca3af" fontSize="10" fontFamily="system-ui">
+              {xl.label}
+            </text>
+          ))}
+
+          {/* Invisible hover zones for better interaction */}
+          {netPoints.map((p, i) => (
+            <rect
+              key={i}
+              x={p.x - chartWidth / filtered.length / 2}
+              y={padding.top}
+              width={chartWidth / filtered.length}
+              height={chartHeight}
+              fill="transparent"
+              onMouseEnter={() => setHoverIdx(i)}
+            />
+          ))}
+        </svg>
+
+        {/* Hover tooltip */}
+        {hoverSnap && hoverPoint && (
+          <div
+            className="absolute pointer-events-none bg-gray-900 text-white text-xs rounded-lg px-3 py-2 shadow-lg"
+            style={{
+              left: `${(hoverPoint.x / width) * 100}%`,
+              top: `${(hoverPoint.y / height) * 100 - 14}%`,
+              transform: 'translate(-50%, -100%)',
+            }}
+          >
+            <div className="font-semibold">{formatCurrency(hoverSnap.netWorthUSD ?? hoverSnap.totalActivosUSD)}</div>
+            <div className="text-gray-300">{formatDate(hoverSnap.date)}</div>
+            {hoverSnap.note && <div className="text-gray-400 text-[10px]">{hoverSnap.note}</div>}
+          </div>
+        )}
+      </div>
+
+      {/* Legend */}
+      <div className="flex items-center gap-4 mt-3 text-xs text-gray-400">
+        <div className="flex items-center gap-1.5">
+          <div className="w-4 h-0.5 rounded" style={{ backgroundColor: lineColor }} />
+          <span>{lang === 'es' ? 'Patrimonio Neto' : 'Net Worth'}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-4 h-0.5 rounded border-b border-dashed border-gray-400" />
+          <span>{lang === 'es' ? 'Total Activos' : 'Total Assets'}</span>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -496,13 +682,13 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-6">
           {/* Net Worth Chart */}
           <section className="lg:col-span-2 bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">{t.netWorthOverTime}</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">{t.portfolioGrowth}</h2>
             {snapshots.length < 2 ? (
               <div className="flex items-center justify-center h-48 text-gray-400 text-sm">
                 {t.noChartData}
               </div>
             ) : (
-              <NetWorthChart snapshots={snapshots} height={220} />
+              <PortfolioGrowthChart snapshots={snapshots} lang={lang} />
             )}
           </section>
 
