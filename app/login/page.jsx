@@ -1,8 +1,6 @@
 'use client'
 
-import { useState } from 'react'
-import { auth } from '@/lib/firebase'
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
 export default function LoginPage() {
@@ -11,7 +9,10 @@ export default function LoginPage() {
   const [isSignUp, setIsSignUp] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const router = useRouter()
+
+  useEffect(() => { setMounted(true) }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -19,6 +20,9 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
+      const { auth } = await import('@/lib/firebase')
+      const { signInWithEmailAndPassword, createUserWithEmailAndPassword } = await import('firebase/auth')
+      if (!auth) throw new Error('Firebase not initialized')
       if (isSignUp) {
         await createUserWithEmailAndPassword(auth, email, password)
       } else {
