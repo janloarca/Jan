@@ -2,8 +2,6 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { auth } from '@/lib/firebase'
-import { onAuthStateChanged, signOut } from 'firebase/auth'
 import { useFirestoreItems } from '@/hooks/useFirestoreItems'
 
 import Header from '@/components/dashboard/Header'
@@ -24,14 +22,21 @@ export default function DashboardPage() {
   const [lang, setLang] = useState('es')
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      if (!currentUser) {
-        router.push('/login')
-      } else {
-        setUser(currentUser)
-      }
-      setAuthLoading(false)
-    })
+    let unsubscribe = () => {}
+    async function initAuth() {
+      const { auth } = await import('@/lib/firebase')
+      const { onAuthStateChanged } = await import('firebase/auth')
+      if (!auth) { setAuthLoading(false); router.push('/login'); return }
+      unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+        if (!currentUser) {
+          router.push('/login')
+        } else {
+          setUser(currentUser)
+        }
+        setAuthLoading(false)
+      })
+    }
+    initAuth()
     return () => unsubscribe()
   }, [router])
 
@@ -50,7 +55,9 @@ export default function DashboardPage() {
   } = useFirestoreItems()
 
   const handleSignOut = async () => {
-    await signOut(auth)
+    const { auth } = await import('@/lib/firebase')
+    const { signOut } = await import('firebase/auth')
+    if (auth) await signOut(auth)
     router.push('/login')
   }
 
