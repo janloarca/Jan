@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { useFirestoreItems } from '@/hooks/useFirestoreItems'
 
+import FileImportModal from '@/components/FileImportModal'
 import Header from '@/components/dashboard/Header'
 import NetWorthCard from '@/components/dashboard/NetWorthCard'
 import PortfolioGrowthChart from '@/components/dashboard/PortfolioGrowthChart'
@@ -165,24 +166,13 @@ export default function DashboardPage() {
         </div>
       </main>
 
-      {/* Import Modal Placeholder */}
       {showImportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setShowImportModal(false)}>
-          <div className="bg-[#131c2e] border border-[#1e2d45] rounded-xl shadow-2xl max-w-lg w-full mx-4 p-6" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-bold text-white mb-3">
-              {lang === 'es' ? 'Importar Datos' : 'Import Data'}
-            </h2>
-            <p className="text-slate-400 text-sm mb-4">
-              {lang === 'es'
-                ? 'El modulo de importacion esta en desarrollo.'
-                : 'Import module is under development.'}
-            </p>
-            <button onClick={() => setShowImportModal(false)}
-              className="w-full py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition-colors">
-              {lang === 'es' ? 'Cerrar' : 'Close'}
-            </button>
-          </div>
-        </div>
+        <FileImportModal
+          onClose={() => setShowImportModal(false)}
+          onImportItems={addItem}
+          onImportTransaction={addTransaction}
+          lang={lang}
+        />
       )}
     </div>
   )
