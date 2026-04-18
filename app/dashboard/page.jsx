@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useFirestoreItems } from '@/hooks/useFirestoreItems'
 
 import FileImportModal from '@/components/FileImportModal'
+import AddAccountModal from '@/components/AddAccountModal'
+import AddTransactionModal from '@/components/AddTransactionModal'
 import Header from '@/components/dashboard/Header'
 import NetWorthCard from '@/components/dashboard/NetWorthCard'
 import PortfolioGrowthChart from '@/components/dashboard/PortfolioGrowthChart'
@@ -19,8 +21,21 @@ export default function DashboardPage() {
   const router = useRouter()
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
-  const [showImportModal, setShowImportModal] = useState(false)
+  const [modal, setModal] = useState(null)
   const [lang, setLang] = useState('es')
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('chispudo-lang')
+      if (saved === 'en' || saved === 'es') setLang(saved)
+    }
+  }, [])
+
+  const handleSetLang = useCallback((newLang) => {
+    const next = newLang === 'toggle' ? (lang === 'en' ? 'es' : 'en') : newLang
+    setLang(next)
+    if (typeof window !== 'undefined') localStorage.setItem('chispudo-lang', next)
+  }, [lang])
 
   useEffect(() => {
     let unsubscribe = () => {}
@@ -62,10 +77,32 @@ export default function DashboardPage() {
     router.push('/login')
   }
 
-  // Computed values
+  const handleExport = useCallback(async () => {
+    if (items.length === 0) return
+    const XLSX = await import('xlsx')
+    const ws = XLSX.utils.json_to_sheet(items.map((it) => ({
+      Symbol: it.symbol, Name: it.name, Type: it.type,
+      Quantity: it.quantity, Price: it.purchasePrice, Institution: it.institution,
+      Value: (it.quantity || 0) * (it.purchasePrice || 0),
+    })))
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Portfolio')
+    if (transactions.length > 0) {
+      const wsTx = XLSX.utils.json_to_sheet(transactions.map((tx) => ({
+        Date: tx.date, Type: tx.type, Symbol: tx.symbol,
+        Quantity: tx.quantity, Price: tx.pricePerUnit, Total: tx.totalAmount,
+        Description: tx.description,
+      })))
+      XLSX.utils.book_append_sheet(wb, wsTx, 'Transactions')
+    }
+    XLSX.writeFile(wb, `chispudo-portfolio-${new Date().toISOString().split('T')[0]}.xlsx`)
+  }, [items, transactions])
+
   const latestSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null
   const prevSnapshot = snapshots.length > 1 ? snapshots[snapshots.length - 2] : null
-  const totalAssets = latestSnapshot?.totalActivosUSD ?? 0
+
+  const totalFromItems = useMemo(() => items.reduce((s, it) => s + (it.quantity || 0) * (it.purchasePrice || 0), 0), [items])
+  const totalAssets = latestSnapshot?.totalActivosUSD ?? totalFromItems
   const netWorth = latestSnapshot?.netWorthUSD ?? totalAssets
 
   const monthlyChange = useMemo(() => {
@@ -87,16 +124,20 @@ export default function DashboardPage() {
   const returnYTD = startVal > 0 ? ((netWorth - startVal) / startVal) * 100 : 0
   const ytdChange = netWorth - startVal
 
-  // Data status
   const dataAge = latestSnapshot ? Math.round((Date.now() - new Date(latestSnapshot.date).getTime()) / 86400000) : null
 
-  // Loading
   if (authLoading || (user && dataLoading)) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#0b1120]">
         <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" />
-          <p className="mt-4 text-slate-500">{lang === 'es' ? 'Cargando...' : 'Loading...'}</p>
+          <div className="inline-flex items-center gap-2 mb-4">
+            <span className="text-emerald-400 text-2xl">⚡</span>
+            <span className="text-lg font-bold text-emerald-400">Chispudo</span>
+          </div>
+          <div className="block">
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" />
+          </div>
+          <p className="mt-4 text-slate-500 text-sm">{lang === 'es' ? 'Cargando tu portfolio...' : 'Loading your portfolio...'}</p>
         </div>
       </div>
     )
@@ -109,24 +150,21 @@ export default function DashboardPage() {
       <Header
         user={user}
         lang={lang}
-        setLang={setLang}
-        onImport={() => setShowImportModal(true)}
+        setLang={() => handleSetLang('toggle')}
+        onImport={() => setModal('import')}
         onSignOut={handleSignOut}
         onRefresh={() => window.location.reload()}
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
-        {/* Data freshness indicator */}
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-emerald-400 pulse-dot" />
           <span className="text-[11px] text-slate-500">
-            Data: {dataAge != null ? (dataAge === 0 ? 'today' : `${dataAge}d ago`) : 'no data'}
+            {lang === 'es' ? 'Datos' : 'Data'}: {dataAge != null ? (dataAge === 0 ? (lang === 'es' ? 'hoy' : 'today') : `${dataAge}d`) : (lang === 'es' ? 'sin datos' : 'no data')}
           </span>
         </div>
 
-        {/* Top row: Net Worth + Portfolio Growth */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6">
-          {/* Left column: Net Worth + Top Movers + Dividends + Health */}
           <div className="lg:col-span-2 space-y-4">
             <NetWorthCard
               netWorth={netWorth}
@@ -137,40 +175,51 @@ export default function DashboardPage() {
               lang={lang}
             />
             <TopMovers items={items} lang={lang} />
-            <FinancialHealth items={items} netWorth={netWorth} totalAssets={totalAssets} lang={lang} />
+            <FinancialHealth items={items} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} />
           </div>
 
-          {/* Right column: Portfolio Growth */}
           <div className="lg:col-span-3">
             <PortfolioGrowthChart snapshots={snapshots} lang={lang} />
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <ActionButtons onImport={() => setShowImportModal(true)} itemCount={items.length} lang={lang} />
+        <ActionButtons
+          onImport={() => setModal('import')}
+          onAddAccount={() => setModal('account')}
+          onAddTransaction={() => setModal('transaction')}
+          onExport={handleExport}
+          itemCount={items.length}
+          lang={lang}
+        />
 
-        {/* Monthly Performance */}
         <MonthlyPerformance snapshots={snapshots} lang={lang} />
 
-        {/* Accounts & Instruments */}
-        <AccountsTable items={items} lang={lang} />
+        <AccountsTable items={items} lang={lang} onDeleteItem={deleteItem} />
 
-        {/* Recent Transactions */}
         <RecentTransactions transactions={transactions} lang={lang} />
-
-        {/* Generate Report */}
-        <div className="text-center py-6">
-          <button className="px-6 py-3 text-sm font-medium text-slate-300 bg-[#131c2e] border border-[#1e2d45] rounded-xl hover:bg-[#1a2540] transition-colors inline-flex items-center gap-2">
-            📄 {lang === 'es' ? 'Generar Reporte' : 'Generate Report'}
-          </button>
-        </div>
       </main>
 
-      {showImportModal && (
+      {modal === 'import' && (
         <FileImportModal
-          onClose={() => setShowImportModal(false)}
+          onClose={() => setModal(null)}
           onImportItems={addItem}
           onImportTransaction={addTransaction}
+          lang={lang}
+        />
+      )}
+
+      {modal === 'account' && (
+        <AddAccountModal
+          onClose={() => setModal(null)}
+          onAdd={addItem}
+          lang={lang}
+        />
+      )}
+
+      {modal === 'transaction' && (
+        <AddTransactionModal
+          onClose={() => setModal(null)}
+          onAdd={addTransaction}
           lang={lang}
         />
       )}
