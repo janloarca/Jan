@@ -9,10 +9,19 @@ export default function LoginPage() {
   const [isSignUp, setIsSignUp] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [mounted, setMounted] = useState(false)
   const router = useRouter()
 
-  useEffect(() => { setMounted(true) }, [])
+  useEffect(() => {
+    let unsub = () => {}
+    async function check() {
+      const { auth } = await import('@/lib/firebase')
+      const { onAuthStateChanged } = await import('firebase/auth')
+      if (!auth) return
+      unsub = onAuthStateChanged(auth, (u) => { if (u) router.push('/dashboard') })
+    }
+    check()
+    return () => unsub()
+  }, [router])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -30,59 +39,86 @@ export default function LoginPage() {
       }
       router.push('/dashboard')
     } catch (err) {
-      setError(err.message)
+      const msg = err.code === 'auth/wrong-password' ? 'Contraseña incorrecta'
+        : err.code === 'auth/user-not-found' ? 'No existe una cuenta con ese email'
+        : err.code === 'auth/email-already-in-use' ? 'Ese email ya está registrado'
+        : err.code === 'auth/weak-password' ? 'La contraseña debe tener al menos 6 caracteres'
+        : err.code === 'auth/invalid-email' ? 'Email inválido'
+        : err.code === 'auth/invalid-credential' ? 'Email o contraseña incorrectos'
+        : err.message
+      setError(msg)
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50">
-      <div className="w-full max-w-md p-8 bg-white rounded-lg shadow-md">
-        <h1 className="text-2xl font-bold text-center mb-6">
-          {isSignUp ? 'Create Account' : 'Sign In'}
-        </h1>
-
-        {error && (
-          <div className="mb-4 p-3 bg-red-100 text-red-700 rounded text-sm">
-            {error}
+    <div className="flex items-center justify-center min-h-screen bg-[#0b1120]">
+      <div className="w-full max-w-md px-6">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center gap-2 mb-2">
+            <span className="text-emerald-400 text-3xl">⚡</span>
+            <h1 className="text-3xl font-bold text-emerald-400">Chispudo</h1>
           </div>
-        )}
+          <p className="text-slate-500 text-sm">Tu panel de patrimonio privado</p>
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            required
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            required
-          />
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
-          >
-            {loading ? 'Loading...' : (isSignUp ? 'Sign Up' : 'Sign In')}
-          </button>
-        </form>
+        <div className="bg-[#131c2e] border border-[#1e2d45] rounded-xl p-6">
+          <h2 className="text-lg font-semibold text-white text-center mb-5">
+            {isSignUp ? 'Crear cuenta' : 'Iniciar sesión'}
+          </h2>
 
-        <p className="mt-4 text-center text-sm text-gray-600">
-          {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
-          <button
-            onClick={() => setIsSignUp(!isSignUp)}
-            className="text-blue-500 hover:underline"
-          >
-            {isSignUp ? 'Sign In' : 'Sign Up'}
-          </button>
+          {error && (
+            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="text-xs text-slate-400 mb-1.5 block">Email</label>
+              <input
+                type="email"
+                placeholder="tu@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-2.5 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 text-sm"
+                required
+              />
+            </div>
+            <div>
+              <label className="text-xs text-slate-400 mb-1.5 block">Password</label>
+              <input
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-2.5 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 text-sm"
+                required
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-50 transition-colors font-medium text-sm"
+            >
+              {loading ? 'Cargando...' : (isSignUp ? 'Crear cuenta' : 'Iniciar sesión')}
+            </button>
+          </form>
+
+          <p className="mt-5 text-center text-sm text-slate-500">
+            {isSignUp ? '¿Ya tienes cuenta?' : '¿No tienes cuenta?'}{' '}
+            <button
+              onClick={() => { setIsSignUp(!isSignUp); setError('') }}
+              className="text-emerald-400 hover:text-emerald-300 font-medium"
+            >
+              {isSignUp ? 'Inicia sesión' : 'Regístrate'}
+            </button>
+          </p>
+        </div>
+
+        <p className="text-center text-[10px] text-slate-600 mt-6">
+          Powered by Chispudo
         </p>
       </div>
     </div>

@@ -18,6 +18,7 @@ export function useFirestoreItems() {
   const [items, setItems] = useState([])
   const [snapshots, setSnapshots] = useState([])
   const [transactions, setTransactions] = useState([])
+  const [goals, setGoals] = useState(null)
   const [loading, setLoading] = useState(true)
   const [uid, setUid] = useState(null)
 
@@ -49,6 +50,11 @@ export function useFirestoreItems() {
           setLoading(false)
         }
       )
+
+      try {
+        const goalsDoc = await fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'goals'))
+        if (goalsDoc.exists()) setGoals(goalsDoc.data())
+      } catch {}
     }
 
     init()
@@ -58,8 +64,10 @@ export function useFirestoreItems() {
   const addItem = useCallback(async (item) => {
     if (!uid) return
     const { db, fs } = await getFirebase()
-    const id = item.symbol?.replace(/[^a-zA-Z0-9]/g, '_') || Date.now().toString()
-    await fs.setDoc(fs.doc(db, `users/${uid}/items`, id), { ...item, createdAt: new Date().toISOString() })
+    const sym = (item.symbol || '').replace(/[^a-zA-Z0-9]/g, '_')
+    const inst = (item.institution || '').replace(/[^a-zA-Z0-9]/g, '_')
+    const id = sym ? `${sym}${inst ? '_' + inst : ''}` : Date.now().toString()
+    await fs.setDoc(fs.doc(db, `users/${uid}/items`, id), { ...item, createdAt: new Date().toISOString() }, { merge: true })
   }, [uid])
 
   const deleteItem = useCallback(async (itemId) => {
@@ -105,10 +113,18 @@ export function useFirestoreItems() {
     await Promise.all(snap.docs.map((d) => fs.deleteDoc(d.ref)))
   }, [uid])
 
+  const saveGoals = useCallback(async (goalsData) => {
+    if (!uid) return
+    const { db, fs } = await getFirebase()
+    await fs.setDoc(fs.doc(db, `users/${uid}/settings`, 'goals'), { ...goalsData, updatedAt: new Date().toISOString() })
+    setGoals(goalsData)
+  }, [uid])
+
   return {
-    items, snapshots, transactions, loading,
+    items, snapshots, transactions, goals, loading,
     addItem, deleteItem, deleteAllItems,
     saveSnapshot, deleteAllSnapshots,
     addTransaction, deleteAllTransactions,
+    saveGoals,
   }
 }
