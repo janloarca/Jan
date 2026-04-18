@@ -16,6 +16,11 @@ import ActionButtons from '@/components/dashboard/ActionButtons'
 import MonthlyPerformance from '@/components/dashboard/MonthlyPerformance'
 import AccountsTable from '@/components/dashboard/AccountsTable'
 import RecentTransactions from '@/components/dashboard/RecentTransactions'
+import AssetAllocation from '@/components/dashboard/AssetAllocation'
+import PerformanceSummary from '@/components/dashboard/PerformanceSummary'
+import DividendIncome from '@/components/dashboard/DividendIncome'
+import ValueBreakdown from '@/components/dashboard/ValueBreakdown'
+import ConcentrationRisk from '@/components/dashboard/ConcentrationRisk'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -164,6 +169,7 @@ export default function DashboardPage() {
           </span>
         </div>
 
+        {/* Row 1: Net Worth + Portfolio Growth */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6">
           <div className="lg:col-span-2 space-y-4">
             <NetWorthCard
@@ -178,11 +184,16 @@ export default function DashboardPage() {
             <FinancialHealth items={items} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} />
           </div>
 
-          <div className="lg:col-span-3">
+          <div className="lg:col-span-3 space-y-4">
             <PortfolioGrowthChart snapshots={snapshots} lang={lang} />
+            <AssetAllocation items={items} lang={lang} />
           </div>
         </div>
 
+        {/* Performance Summary */}
+        <PerformanceSummary snapshots={snapshots} lang={lang} />
+
+        {/* Action Buttons */}
         <ActionButtons
           onImport={() => setModal('import')}
           onAddAccount={() => setModal('account')}
@@ -192,10 +203,22 @@ export default function DashboardPage() {
           lang={lang}
         />
 
+        {/* Monthly Performance */}
         <MonthlyPerformance snapshots={snapshots} lang={lang} />
 
+        {/* Row 2: Dividend Income + Value Breakdown */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+          <DividendIncome transactions={transactions} lang={lang} />
+          <ConcentrationRisk items={items} lang={lang} />
+        </div>
+
+        {/* Accounts & Instruments */}
         <AccountsTable items={items} lang={lang} onDeleteItem={deleteItem} />
 
+        {/* Value Breakdown */}
+        <ValueBreakdown items={items} lang={lang} />
+
+        {/* Recent Transactions */}
         <RecentTransactions transactions={transactions} lang={lang} />
       </main>
 
