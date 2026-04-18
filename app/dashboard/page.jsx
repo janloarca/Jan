@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useFirestoreItems } from '@/hooks/useFirestoreItems'
+import { useMarketPrices } from '@/hooks/useMarketPrices'
 
 import FileImportModal from '@/components/FileImportModal'
 import AddAccountModal from '@/components/AddAccountModal'
@@ -21,6 +22,7 @@ import PerformanceSummary from '@/components/dashboard/PerformanceSummary'
 import DividendIncome from '@/components/dashboard/DividendIncome'
 import ValueBreakdown from '@/components/dashboard/ValueBreakdown'
 import ConcentrationRisk from '@/components/dashboard/ConcentrationRisk'
+import GoalTracker from '@/components/dashboard/GoalTracker'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -65,6 +67,7 @@ export default function DashboardPage() {
     items,
     snapshots,
     transactions,
+    goals,
     loading: dataLoading,
     addItem,
     deleteItem,
@@ -73,7 +76,10 @@ export default function DashboardPage() {
     deleteAllSnapshots,
     addTransaction,
     deleteAllTransactions,
+    saveGoals,
   } = useFirestoreItems()
+
+  const { enrichedItems, loading: pricesLoading, lastUpdate: pricesUpdate, refresh: refreshPrices } = useMarketPrices(items)
 
   const handleSignOut = async () => {
     const { auth } = await import('@/lib/firebase')
@@ -85,10 +91,11 @@ export default function DashboardPage() {
   const handleExport = useCallback(async () => {
     if (items.length === 0) return
     const XLSX = await import('xlsx')
-    const ws = XLSX.utils.json_to_sheet(items.map((it) => ({
+    const ws = XLSX.utils.json_to_sheet(enrichedItems.map((it) => ({
       Symbol: it.symbol, Name: it.name, Type: it.type,
-      Quantity: it.quantity, Price: it.purchasePrice, Institution: it.institution,
-      Value: (it.quantity || 0) * (it.purchasePrice || 0),
+      Quantity: it.quantity, 'Purchase Price': it.purchasePrice,
+      'Current Price': it.currentPrice || '', Institution: it.institution,
+      Value: (it.quantity || 0) * (it.currentPrice || it.purchasePrice || 0),
     })))
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Portfolio')
@@ -101,12 +108,23 @@ export default function DashboardPage() {
       XLSX.utils.book_append_sheet(wb, wsTx, 'Transactions')
     }
     XLSX.writeFile(wb, `chispudo-portfolio-${new Date().toISOString().split('T')[0]}.xlsx`)
-  }, [items, transactions])
+  }, [enrichedItems, transactions])
+
+  const handleReport = useCallback(async () => {
+    const { generateReport } = await import('@/lib/generateReport')
+    await generateReport({
+      items: enrichedItems, snapshots, transactions,
+      netWorth, totalAssets, lang,
+    })
+  }, [enrichedItems, snapshots, transactions, lang])
 
   const latestSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null
   const prevSnapshot = snapshots.length > 1 ? snapshots[snapshots.length - 2] : null
 
-  const totalFromItems = useMemo(() => items.reduce((s, it) => s + (it.quantity || 0) * (it.purchasePrice || 0), 0), [items])
+  const totalFromItems = useMemo(() =>
+    enrichedItems.reduce((s, it) => s + (it.quantity || 0) * (it.currentPrice || it.purchasePrice || 0), 0),
+    [enrichedItems]
+  )
   const totalAssets = latestSnapshot?.totalActivosUSD ?? totalFromItems
   const netWorth = latestSnapshot?.netWorthUSD ?? totalAssets
 
@@ -128,6 +146,11 @@ export default function DashboardPage() {
   const startVal = yearStart?.netWorthUSD ?? yearStart?.totalActivosUSD ?? netWorth
   const returnYTD = startVal > 0 ? ((netWorth - startVal) / startVal) * 100 : 0
   const ytdChange = netWorth - startVal
+
+  const annualDividends = useMemo(() => {
+    const divs = (transactions || []).filter((tx) => (tx.type || '').toUpperCase() === 'DIVIDEND')
+    return divs.reduce((s, tx) => s + (tx.totalAmount ?? tx.amount ?? 0), 0)
+  }, [transactions])
 
   const dataAge = latestSnapshot ? Math.round((Date.now() - new Date(latestSnapshot.date).getTime()) / 86400000) : null
 
@@ -158,15 +181,22 @@ export default function DashboardPage() {
         setLang={() => handleSetLang('toggle')}
         onImport={() => setModal('import')}
         onSignOut={handleSignOut}
-        onRefresh={() => window.location.reload()}
+        onRefresh={refreshPrices}
+        pricesLoading={pricesLoading}
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <span className="w-2 h-2 rounded-full bg-emerald-400 pulse-dot" />
           <span className="text-[11px] text-slate-500">
             {lang === 'es' ? 'Datos' : 'Data'}: {dataAge != null ? (dataAge === 0 ? (lang === 'es' ? 'hoy' : 'today') : `${dataAge}d`) : (lang === 'es' ? 'sin datos' : 'no data')}
           </span>
+          {pricesUpdate && (
+            <span className="text-[10px] text-slate-600">
+              {lang === 'es' ? 'Precios:' : 'Prices:'} {new Date(pricesUpdate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
+          {pricesLoading && <span className="text-[10px] text-emerald-500 animate-pulse">{lang === 'es' ? 'Actualizando...' : 'Updating...'}</span>}
         </div>
 
         {/* Row 1: Net Worth + Portfolio Growth */}
@@ -180,13 +210,20 @@ export default function DashboardPage() {
               monthlyChange={monthlyChange}
               lang={lang}
             />
-            <TopMovers items={items} lang={lang} />
-            <FinancialHealth items={items} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} />
+            <TopMovers items={enrichedItems} lang={lang} />
+            <GoalTracker
+              netWorth={netWorth}
+              annualDividends={annualDividends}
+              goals={goals}
+              onSaveGoals={saveGoals}
+              lang={lang}
+            />
+            <FinancialHealth items={enrichedItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} />
           </div>
 
           <div className="lg:col-span-3 space-y-4">
             <PortfolioGrowthChart snapshots={snapshots} lang={lang} />
-            <AssetAllocation items={items} lang={lang} />
+            <AssetAllocation items={enrichedItems} lang={lang} />
           </div>
         </div>
 
@@ -199,27 +236,35 @@ export default function DashboardPage() {
           onAddAccount={() => setModal('account')}
           onAddTransaction={() => setModal('transaction')}
           onExport={handleExport}
-          itemCount={items.length}
+          itemCount={enrichedItems.length}
           lang={lang}
         />
 
         {/* Monthly Performance */}
         <MonthlyPerformance snapshots={snapshots} lang={lang} />
 
-        {/* Row 2: Dividend Income + Value Breakdown */}
+        {/* Row 2: Dividend Income + Concentration Risk */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           <DividendIncome transactions={transactions} lang={lang} />
-          <ConcentrationRisk items={items} lang={lang} />
+          <ConcentrationRisk items={enrichedItems} lang={lang} />
         </div>
 
         {/* Accounts & Instruments */}
-        <AccountsTable items={items} lang={lang} onDeleteItem={deleteItem} />
+        <AccountsTable items={enrichedItems} lang={lang} onDeleteItem={deleteItem} />
 
         {/* Value Breakdown */}
-        <ValueBreakdown items={items} lang={lang} />
+        <ValueBreakdown items={enrichedItems} lang={lang} />
 
         {/* Recent Transactions */}
         <RecentTransactions transactions={transactions} lang={lang} />
+
+        {/* Generate Report */}
+        <div className="text-center py-6">
+          <button onClick={handleReport}
+            className="px-6 py-3 text-sm font-medium text-slate-300 bg-[#131c2e] border border-[#1e2d45] rounded-xl hover:bg-[#1a2540] hover:text-white transition-colors inline-flex items-center gap-2">
+            {lang === 'es' ? 'Generar Reporte PDF' : 'Generate PDF Report'}
+          </button>
+        </div>
       </main>
 
       {modal === 'import' && (
