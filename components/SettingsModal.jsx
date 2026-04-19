@@ -19,7 +19,7 @@ const CURRENCIES = [
   { code: 'CNY', name: 'Chinese Yuan', symbol: '¥' },
 ]
 
-export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, lang = 'es' }) {
+export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, theme, onToggleTheme, lang = 'es' }) {
   const [baseCurrency, setBaseCurrency] = useState(settings?.baseCurrency || 'USD')
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(null)
@@ -89,6 +89,27 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
         <div className="flex-1 overflow-y-auto p-6">
           {tab === 'general' && (
             <div className="space-y-5">
+              {/* Theme toggle */}
+              <div>
+                <label className="text-xs text-slate-400 mb-2 block font-medium">{t('Tema', 'Theme')}</label>
+                <div className="flex gap-2">
+                  {[
+                    { key: 'dark', label: t('Oscuro', 'Dark'), icon: '🌙' },
+                    { key: 'light', label: t('Claro', 'Light'), icon: '☀️' },
+                  ].map((opt) => (
+                    <button key={opt.key} onClick={() => onToggleTheme(opt.key)}
+                      className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg transition-all ${
+                        theme === opt.key
+                          ? 'bg-emerald-500/15 border border-emerald-500/40 text-emerald-400'
+                          : 'bg-[#0b1120] border border-[#1e2d45] text-slate-300 hover:border-slate-500'
+                      }`}>
+                      <span className="text-lg">{opt.icon}</span>
+                      <span className="text-sm font-medium">{opt.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div>
                 <label className="text-xs text-slate-400 mb-2 block font-medium">{t('Moneda principal', 'Base currency')}</label>
                 <p className="text-[10px] text-slate-600 mb-3">{t('Todos los valores se mostrarán en esta moneda.', 'All values will be displayed in this currency.')}</p>

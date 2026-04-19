@@ -6,6 +6,7 @@
   --bg-primary: #0b1120;
   --bg-card: #131c2e;
   --bg-card-hover: #1a2540;
+  --bg-input: #0b1120;
   --border-color: #1e2d45;
   --text-primary: #f1f5f9;
   --text-secondary: #94a3b8;
@@ -18,6 +19,17 @@
   --accent-cyan: #06b6d4;
 }
 
+[data-theme="light"] {
+  --bg-primary: #f8fafc;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f1f5f9;
+  --bg-input: #f1f5f9;
+  --border-color: #e2e8f0;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -27,7 +39,30 @@ body {
   color: var(--text-primary);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.3s, color 0.3s;
 }
+
+/* Theme-aware overrides */
+[data-theme="light"] .bg-\[\#0b1120\] { background-color: var(--bg-primary) !important; }
+[data-theme="light"] .bg-\[\#131c2e\] { background-color: var(--bg-card) !important; }
+[data-theme="light"] .bg-\[\#1a2540\] { background-color: var(--bg-card-hover) !important; }
+[data-theme="light"] .border-\[\#1e2d45\] { border-color: var(--border-color) !important; }
+[data-theme="light"] .border-\[\#1e2d45\]\/30 { border-color: rgba(226, 232, 240, 0.3) !important; }
+[data-theme="light"] .border-\[\#1e2d45\]\/50 { border-color: rgba(226, 232, 240, 0.5) !important; }
+[data-theme="light"] .text-white { color: var(--text-primary) !important; }
+[data-theme="light"] .text-slate-300 { color: #334155 !important; }
+[data-theme="light"] .text-slate-400 { color: var(--text-secondary) !important; }
+[data-theme="light"] .text-slate-500 { color: var(--text-muted) !important; }
+[data-theme="light"] .text-slate-600 { color: #94a3b8 !important; }
+[data-theme="light"] .bg-slate-700\/30 { background-color: rgba(226, 232, 240, 0.5) !important; }
+[data-theme="light"] .bg-slate-700\/50 { background-color: rgba(226, 232, 240, 0.6) !important; }
+[data-theme="light"] .bg-slate-700 { background-color: #e2e8f0 !important; }
+[data-theme="light"] .bg-slate-800 { background-color: #f1f5f9 !important; }
+[data-theme="light"] .bg-slate-600 { background-color: #cbd5e1 !important; }
+[data-theme="light"] .hover\:bg-\[\#1a2540\]:hover { background-color: var(--bg-card-hover) !important; }
+[data-theme="light"] .bg-\[\#0b1120\]\/95 { background-color: rgba(248, 250, 252, 0.95) !important; }
+[data-theme="light"] .bg-black\/60 { background-color: rgba(0, 0, 0, 0.3) !important; }
+[data-theme="light"] .border-slate-600\/50 { border-color: rgba(203, 213, 225, 0.5) !important; }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
@@ -43,6 +78,13 @@ body {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #2a3f5f;
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 /* Green dot pulse animation */
