@@ -1,14 +1,14 @@
 'use client'
 
 import { useMemo } from 'react'
-import { getTypeCategory, TYPE_COLORS } from './utils'
+import { getTypeCategory, TYPE_COLORS, getItemValue } from './utils'
 
 export default function ConcentrationRisk({ items, lang }) {
   const data = useMemo(() => {
     const groups = {}
     let total = 0
     items.forEach((it) => {
-      const val = (it.quantity || 0) * (it.purchasePrice || 0)
+      const val = getItemValue(it)
       const cat = getTypeCategory(it.type)
       groups[cat] = (groups[cat] || 0) + val
       total += val

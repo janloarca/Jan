@@ -44,6 +44,14 @@ export const TYPE_COLORS = {
   other: { bg: '#ec4899', badge: 'bg-pink-500/20 text-pink-400' },
 }
 
+export function getItemPrice(item) {
+  return item.currentPrice || item.purchasePrice || item.price || item.cost || item.averagePrice || 0
+}
+
+export function getItemValue(item) {
+  return (item.quantity || 0) * getItemPrice(item)
+}
+
 export const TYPE_ICONS = {
   stocks: '📈',
   crypto: '₿',

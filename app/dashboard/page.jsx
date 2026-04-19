@@ -116,7 +116,7 @@ export default function DashboardPage() {
       items: enrichedItems, snapshots, transactions,
       netWorth, totalAssets, lang,
     })
-  }, [enrichedItems, snapshots, transactions, lang])
+  }, [enrichedItems, snapshots, transactions, lang, netWorth, totalAssets])
 
   const latestSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null
   const prevSnapshot = snapshots.length > 1 ? snapshots[snapshots.length - 2] : null
@@ -200,8 +200,8 @@ export default function DashboardPage() {
         </div>
 
         {/* Row 1: Net Worth + Portfolio Growth */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6">
-          <div className="lg:col-span-2 space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6 items-start">
+          <div className="lg:col-span-2 flex flex-col gap-4">
             <NetWorthCard
               netWorth={netWorth}
               totalAssets={totalAssets}
@@ -221,7 +221,7 @@ export default function DashboardPage() {
             <FinancialHealth items={enrichedItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} />
           </div>
 
-          <div className="lg:col-span-3 space-y-4">
+          <div className="lg:col-span-3 flex flex-col gap-4">
             <PortfolioGrowthChart snapshots={snapshots} lang={lang} />
             <AssetAllocation items={enrichedItems} lang={lang} />
           </div>

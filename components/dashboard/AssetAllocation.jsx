@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { formatCurrency, getTypeCategory, TYPE_COLORS } from './utils'
+import { formatCurrency, getTypeCategory, TYPE_COLORS, getItemValue } from './utils'
 
 const DONUT_COLORS = [
   '#3b82f6', '#f59e0b', '#10b981', '#a855f7', '#ec4899',
@@ -14,7 +14,7 @@ export default function AssetAllocation({ items, lang }) {
     let total = 0
     items.forEach((it) => {
       const cat = getTypeCategory(it.type)
-      const val = (it.quantity || 0) * (it.purchasePrice || 0)
+      const val = getItemValue(it)
       byType[cat] = (byType[cat] || 0) + val
       total += val
     })
@@ -28,7 +28,7 @@ export default function AssetAllocation({ items, lang }) {
       .sort((a, b) => b.value - a.value)
   }, [items])
 
-  const totalValue = useMemo(() => items.reduce((s, it) => s + (it.quantity || 0) * (it.purchasePrice || 0), 0), [items])
+  const totalValue = useMemo(() => items.reduce((s, it) => s + getItemValue(it), 0), [items])
 
   if (items.length === 0) return null
 

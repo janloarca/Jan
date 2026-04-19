@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { formatCurrency } from './utils'
+import { formatCurrency, getItemValue } from './utils'
 
 const SECTOR_COLORS = [
   '#10b981', '#f59e0b', '#3b82f6', '#a855f7', '#ec4899',
@@ -21,7 +21,7 @@ export default function ValueBreakdown({ items, lang }) {
     const groups = {}
     let total = 0
     items.forEach((it) => {
-      const val = (it.quantity || 0) * (it.purchasePrice || 0)
+      const val = getItemValue(it)
       let key
       if (view === 'type') {
         key = it.type || 'Other'

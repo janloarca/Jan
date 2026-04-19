@@ -29,7 +29,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
               {lang === 'en' ? 'ES' : 'EN'}
             </button>
             <button onClick={onImport}
-              className="px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-500 transition-colors hidden sm:block">
+              className="px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-500 transition-colors">
               {lang === 'es' ? 'Importar' : 'Import'}
             </button>
             <button onClick={onSignOut}

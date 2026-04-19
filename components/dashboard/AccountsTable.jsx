@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { formatCurrency, getTypeCategory, TYPE_COLORS } from './utils'
+import { formatCurrency, getTypeCategory, TYPE_COLORS, getItemValue, getItemPrice } from './utils'
 
 export default function AccountsTable({ items, lang, onDeleteItem }) {
   const [filter, setFilter] = useState('all')
@@ -24,14 +24,14 @@ export default function AccountsTable({ items, lang, onDeleteItem }) {
   const filtered = useMemo(() => {
     let list = filter === 'all' ? items : items.filter((it) => getTypeCategory(it.type) === filter)
     return [...list].sort((a, b) => {
-      const va = (a.quantity || 0) * (a.purchasePrice || 0)
-      const vb = (b.quantity || 0) * (b.purchasePrice || 0)
+      const va = getItemValue(a)
+      const vb = getItemValue(b)
       if (sortBy === 'name') return (a.name || a.symbol || '').localeCompare(b.name || b.symbol || '')
       return sortBy === 'value' ? vb - va : va - vb
     })
   }, [items, filter, sortBy])
 
-  const totalValue = useMemo(() => items.reduce((s, it) => s + (it.quantity || 0) * (it.purchasePrice || 0), 0), [items])
+  const totalValue = useMemo(() => items.reduce((s, it) => s + getItemValue(it), 0), [items])
   const displayItems = showAll ? filtered : filtered.slice(0, 10)
 
   const breakdownData = useMemo(() => {
@@ -40,7 +40,7 @@ export default function AccountsTable({ items, lang, onDeleteItem }) {
     let total = 0
     items.forEach((it) => {
       const key = breakdown === 'type' ? (it.type || 'Other') : (it.institution || (lang === 'es' ? 'Sin institución' : 'No institution'))
-      const val = (it.quantity || 0) * (it.purchasePrice || 0)
+      const val = getItemValue(it)
       if (!groups[key]) groups[key] = { count: 0, value: 0 }
       groups[key].count++
       groups[key].value += val
@@ -157,7 +157,7 @@ export default function AccountsTable({ items, lang, onDeleteItem }) {
               {displayItems.map((item) => {
                 const cat = getTypeCategory(item.type)
                 const colors = TYPE_COLORS[cat] || TYPE_COLORS.other
-                const value = (item.quantity || 0) * (item.purchasePrice || 0)
+                const value = getItemValue(item)
                 const pctPort = totalValue > 0 ? (value / totalValue) * 100 : 0
                 const abbr = (item.symbol || '??').slice(0, 4).toUpperCase()
 
@@ -187,7 +187,7 @@ export default function AccountsTable({ items, lang, onDeleteItem }) {
                             )}
                           </div>
                           <div className="text-slate-500 text-[10px]">
-                            {item.institution ? `${item.institution} · ` : ''}{item.quantity?.toLocaleString(undefined, { maximumFractionDigits: 4 })} @ {formatCurrency(item.purchasePrice)}
+                            {item.institution ? `${item.institution} · ` : ''}{item.quantity?.toLocaleString(undefined, { maximumFractionDigits: 4 })} @ {formatCurrency(getItemPrice(item))}
                           </div>
                         </div>
                       </div>
