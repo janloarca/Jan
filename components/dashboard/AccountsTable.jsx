@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { formatCurrency, getTypeCategory, TYPE_COLORS, getItemValue, getItemPrice } from './utils'
+import { formatCurrency, getTypeCategory, TYPE_COLORS, getItemValue, getItemPrice, getBaseCurrency } from './utils'
 
 export default function AccountsTable({ items, lang, onDeleteItem }) {
   const [filter, setFilter] = useState('all')
@@ -187,7 +187,10 @@ export default function AccountsTable({ items, lang, onDeleteItem }) {
                             )}
                           </div>
                           <div className="text-slate-500 text-[10px]">
-                            {item.institution ? `${item.institution} · ` : ''}{item.quantity?.toLocaleString(undefined, { maximumFractionDigits: 4 })} @ {formatCurrency(getItemPrice(item))}
+                            {item.institution ? `${item.institution} · ` : ''}{item.quantity?.toLocaleString(undefined, { maximumFractionDigits: 4 })} @ {formatCurrency(getItemPrice(item), item.currency)}
+                            {item.currency && item.currency !== getBaseCurrency() && (
+                              <span className="ml-1 text-[8px] px-1 py-0.5 rounded bg-slate-700 text-slate-400">{item.currency}</span>
+                            )}
                           </div>
                         </div>
                       </div>

@@ -5,7 +5,7 @@ import { useState } from 'react'
 export default function AddTransactionModal({ onClose, onAdd, lang = 'es' }) {
   const [form, setForm] = useState({
     type: 'BUY', symbol: '', description: '', date: new Date().toISOString().split('T')[0],
-    quantity: '', pricePerUnit: '', totalAmount: '',
+    quantity: '', pricePerUnit: '', totalAmount: '', currency: 'USD',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -32,6 +32,7 @@ export default function AddTransactionModal({ onClose, onAdd, lang = 'es' }) {
         quantity: qty,
         pricePerUnit: price,
         totalAmount: total,
+        currency: form.currency,
       })
       onClose()
     } catch (err) {
@@ -97,7 +98,7 @@ export default function AddTransactionModal({ onClose, onAdd, lang = 'es' }) {
               className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-4 gap-3">
             <div>
               <label className="text-xs text-slate-400 mb-1 block">{t('Cantidad', 'Qty')}</label>
               <input value={form.quantity} onChange={(e) => set('quantity', e.target.value)}
@@ -113,6 +114,15 @@ export default function AddTransactionModal({ onClose, onAdd, lang = 'es' }) {
               <input value={form.totalAmount} onChange={(e) => set('totalAmount', e.target.value)}
                 placeholder={form.quantity && form.pricePerUnit ? (parseFloat(form.quantity) * parseFloat(form.pricePerUnit)).toFixed(2) : '1500'}
                 type="number" step="any" className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+            </div>
+            <div>
+              <label className="text-xs text-slate-400 mb-1 block">{t('Moneda', 'Currency')}</label>
+              <select value={form.currency} onChange={(e) => set('currency', e.target.value)}
+                className="w-full px-2 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50">
+                {['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY'].map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
             </div>
           </div>
 
