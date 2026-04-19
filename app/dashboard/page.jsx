@@ -8,6 +8,8 @@ import { useMarketPrices } from '@/hooks/useMarketPrices'
 import FileImportModal from '@/components/FileImportModal'
 import AddAccountModal from '@/components/AddAccountModal'
 import AddTransactionModal from '@/components/AddTransactionModal'
+import SettingsModal from '@/components/SettingsModal'
+import { setBaseCurrency } from '@/components/dashboard/utils'
 import Header from '@/components/dashboard/Header'
 import NetWorthCard from '@/components/dashboard/NetWorthCard'
 import PortfolioGrowthChart from '@/components/dashboard/PortfolioGrowthChart'
@@ -68,6 +70,7 @@ export default function DashboardPage() {
     snapshots,
     transactions,
     goals,
+    settings,
     loading: dataLoading,
     addItem,
     deleteItem,
@@ -77,7 +80,12 @@ export default function DashboardPage() {
     addTransaction,
     deleteAllTransactions,
     saveGoals,
+    saveSettings,
   } = useFirestoreItems()
+
+  useEffect(() => {
+    if (settings?.baseCurrency) setBaseCurrency(settings.baseCurrency)
+  }, [settings?.baseCurrency])
 
   const { enrichedItems, loading: pricesLoading, lastUpdate: pricesUpdate, refresh: refreshPrices } = useMarketPrices(items)
 
@@ -180,6 +188,7 @@ export default function DashboardPage() {
         lang={lang}
         setLang={() => handleSetLang('toggle')}
         onImport={() => setModal('import')}
+        onSettings={() => setModal('settings')}
         onSignOut={handleSignOut}
         onRefresh={refreshPrices}
         pricesLoading={pricesLoading}
@@ -288,6 +297,18 @@ export default function DashboardPage() {
         <AddTransactionModal
           onClose={() => setModal(null)}
           onAdd={addTransaction}
+          lang={lang}
+        />
+      )}
+
+      {modal === 'settings' && (
+        <SettingsModal
+          onClose={() => setModal(null)}
+          settings={settings}
+          onSaveSettings={saveSettings}
+          onDeleteAllItems={deleteAllItems}
+          onDeleteAllSnapshots={deleteAllSnapshots}
+          onDeleteAllTransactions={deleteAllTransactions}
           lang={lang}
         />
       )}
