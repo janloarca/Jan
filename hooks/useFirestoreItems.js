@@ -14,6 +14,17 @@ async function getFirebase() {
   return { db, auth, fs }
 }
 
+async function waitForAuth(auth) {
+  if (auth.currentUser) return auth.currentUser
+  const { onAuthStateChanged } = await import('firebase/auth')
+  return new Promise((resolve) => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      unsub()
+      resolve(user)
+    })
+  })
+}
+
 export function useFirestoreItems() {
   const [items, setItems] = useState([])
   const [snapshots, setSnapshots] = useState([])
@@ -26,39 +37,47 @@ export function useFirestoreItems() {
     let unsubItems = () => {}
     let unsubSnapshots = () => {}
     let unsubTransactions = () => {}
+    let cancelled = false
 
     async function init() {
       const { db, auth, fs } = await getFirebase()
       if (!auth || !db) { setLoading(false); return }
 
-      const currentUid = auth.currentUser?.uid
-      if (!currentUid) { setLoading(false); return }
+      const user = await waitForAuth(auth)
+      if (cancelled) return
+      if (!user) { setLoading(false); return }
+
+      const currentUid = user.uid
       setUid(currentUid)
 
       unsubItems = fs.onSnapshot(
         fs.collection(db, `users/${currentUid}/items`),
-        (snap) => setItems(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+        (snap) => { if (!cancelled) setItems(snap.docs.map((d) => ({ id: d.id, ...d.data() }))) }
       )
       unsubSnapshots = fs.onSnapshot(
         fs.query(fs.collection(db, `users/${currentUid}/snapshots`), fs.orderBy('date')),
-        (snap) => setSnapshots(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+        (snap) => { if (!cancelled) setSnapshots(snap.docs.map((d) => ({ id: d.id, ...d.data() }))) }
       )
       unsubTransactions = fs.onSnapshot(
         fs.query(fs.collection(db, `users/${currentUid}/transactions`), fs.orderBy('date')),
         (snap) => {
-          setTransactions(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-          setLoading(false)
+          if (!cancelled) {
+            setTransactions(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+            setLoading(false)
+          }
         }
       )
 
       try {
         const goalsDoc = await fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'goals'))
-        if (goalsDoc.exists()) setGoals(goalsDoc.data())
+        if (!cancelled && goalsDoc.exists()) setGoals(goalsDoc.data())
       } catch {}
+
+      if (!cancelled) setLoading(false)
     }
 
     init()
-    return () => { unsubItems(); unsubSnapshots(); unsubTransactions() }
+    return () => { cancelled = true; unsubItems(); unsubSnapshots(); unsubTransactions() }
   }, [])
 
   const addItem = useCallback(async (item) => {
