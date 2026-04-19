@@ -141,6 +141,19 @@ export default function DashboardPage() {
     router.push('/login')
   }
 
+  const latestSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null
+  const prevSnapshot = snapshots.length > 1 ? snapshots[snapshots.length - 2] : null
+
+  const totalFromItems = useMemo(() =>
+    enrichedItems.reduce((s, it) => s + (it.quantity || 0) * (it.currentPrice || it.purchasePrice || 0), 0),
+    [enrichedItems]
+  )
+
+  const convertSnapshot = useCallback((val) => convert(val, 'USD', baseCurrency), [convert, baseCurrency])
+
+  const totalAssets = latestSnapshot ? convertSnapshot(latestSnapshot.totalActivosUSD ?? 0) : totalFromItems
+  const netWorth = latestSnapshot ? convertSnapshot(latestSnapshot.netWorthUSD ?? 0) : totalAssets
+
   const handleExport = useCallback(async () => {
     if (items.length === 0) return
     const XLSX = await import('xlsx')
@@ -171,19 +184,6 @@ export default function DashboardPage() {
       netWorth, totalAssets, lang,
     })
   }, [enrichedItems, snapshots, transactions, lang, netWorth, totalAssets])
-
-  const latestSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null
-  const prevSnapshot = snapshots.length > 1 ? snapshots[snapshots.length - 2] : null
-
-  const totalFromItems = useMemo(() =>
-    enrichedItems.reduce((s, it) => s + (it.quantity || 0) * (it.currentPrice || it.purchasePrice || 0), 0),
-    [enrichedItems]
-  )
-
-  const convertSnapshot = useCallback((val) => convert(val, 'USD', baseCurrency), [convert, baseCurrency])
-
-  const totalAssets = latestSnapshot ? convertSnapshot(latestSnapshot.totalActivosUSD ?? 0) : totalFromItems
-  const netWorth = latestSnapshot ? convertSnapshot(latestSnapshot.netWorthUSD ?? 0) : totalAssets
 
   const monthlyChange = useMemo(() => {
     if (!latestSnapshot || !prevSnapshot) return null
