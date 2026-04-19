@@ -44,11 +44,12 @@ export function formatShortDate(dateStr) {
 export function getTypeCategory(type) {
   if (!type) return 'other'
   const t = type.toLowerCase()
-  if (/stock|accion/i.test(t)) return 'stocks'
-  if (/crypto|cripto|blockchain/i.test(t)) return 'crypto'
-  if (/bond|bono|instrumento|inversion|deuda|debt/i.test(t)) return 'bonds'
-  if (/fund|fondo|etf/i.test(t)) return 'funds'
-  if (/bank|banco|cash|saving/i.test(t)) return 'banks'
+  if (/stock|accion|equity|reit/i.test(t)) return 'stocks'
+  if (/crypto|cripto|blockchain|bitcoin|btc|eth/i.test(t)) return 'crypto'
+  if (/bond|bono|instrumento|inversion|deuda|debt|cdt|plazo|treasury|letra|pagare/i.test(t)) return 'bonds'
+  if (/fund|fondo|etf|index|mutual/i.test(t)) return 'funds'
+  if (/bank|banco|cash|saving|checking|cuenta|ahorro/i.test(t)) return 'banks'
+  if (/real.?estate|propiedad|inmueble|property/i.test(t)) return 'other'
   return 'other'
 }
 
@@ -66,7 +67,9 @@ export function getItemPrice(item) {
 }
 
 export function getItemValue(item) {
-  return (item.quantity || 0) * getItemPrice(item)
+  const qtyBased = (item.quantity || 0) * getItemPrice(item)
+  if (qtyBased > 0) return qtyBased
+  return item.value || item.balance || item.amount || item.totalValue || 0
 }
 
 export const TYPE_ICONS = {
