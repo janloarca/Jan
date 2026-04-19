@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import { formatCurrency, getTypeCategory, TYPE_COLORS, getItemValue, getItemPrice, getBaseCurrency } from './utils'
 
-export default function AccountsTable({ items, lang, onDeleteItem }) {
+export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, onViewItem }) {
   const [filter, setFilter] = useState('all')
   const [sortBy, setSortBy] = useState('value')
   const [showAll, setShowAll] = useState(false)
@@ -150,7 +150,7 @@ export default function AccountsTable({ items, lang, onDeleteItem }) {
                   onClick={() => setSortBy(sortBy === 'value' ? 'value-asc' : 'value')}>
                   {t('Valor $', 'Value $')} {sortBy === 'value' ? '▼' : sortBy === 'value-asc' ? '▲' : ''}
                 </th>
-                {onDeleteItem && <th className="w-8" />}
+                <th className="w-16" />
               </tr>
             </thead>
             <tbody>
@@ -218,16 +218,33 @@ export default function AccountsTable({ items, lang, onDeleteItem }) {
                       )}
                     </td>
                     <td className="text-right py-3">
-                      <span className="text-emerald-400 font-medium">{formatCurrency(value)}</span>
+                      <span className="text-emerald-400 font-medium cursor-pointer hover:underline"
+                        onClick={() => onViewItem && onViewItem(item)}>
+                        {formatCurrency(value)}
+                      </span>
                     </td>
-                    {onDeleteItem && (
-                      <td className="text-right py-3">
-                        <button onClick={() => onDeleteItem(item.id)}
-                          className="text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all text-sm">
-                          ×
-                        </button>
-                      </td>
-                    )}
+                    <td className="text-right py-3 w-16">
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                        {onViewItem && (
+                          <button onClick={() => onViewItem(item)}
+                            className="text-slate-600 hover:text-cyan-400 text-xs" title={lang === 'es' ? 'Ver detalle' : 'View detail'}>
+                            📊
+                          </button>
+                        )}
+                        {onEditItem && (
+                          <button onClick={() => onEditItem(item)}
+                            className="text-slate-600 hover:text-emerald-400 text-xs" title={lang === 'es' ? 'Editar' : 'Edit'}>
+                            ✏️
+                          </button>
+                        )}
+                        {onDeleteItem && (
+                          <button onClick={() => onDeleteItem(item.id)}
+                            className="text-slate-600 hover:text-red-400 text-sm">
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 )
               })}

@@ -26,18 +26,37 @@ import DividendIncome from '@/components/dashboard/DividendIncome'
 import ValueBreakdown from '@/components/dashboard/ValueBreakdown'
 import ConcentrationRisk from '@/components/dashboard/ConcentrationRisk'
 import GoalTracker from '@/components/dashboard/GoalTracker'
+import ProjectionSimulator from '@/components/dashboard/ProjectionSimulator'
+import EditAccountModal from '@/components/EditAccountModal'
+import AssetDetailModal from '@/components/dashboard/AssetDetailModal'
 
 export default function DashboardPage() {
   const router = useRouter()
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [modal, setModal] = useState(null)
+  const [editItem, setEditItem] = useState(null)
+  const [detailItem, setDetailItem] = useState(null)
+  const [theme, setTheme] = useState('dark')
   const [lang, setLang] = useState('es')
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('chispudo-lang')
       if (saved === 'en' || saved === 'es') setLang(saved)
+      const savedTheme = localStorage.getItem('chispudo-theme')
+      if (savedTheme === 'light' || savedTheme === 'dark') {
+        setTheme(savedTheme)
+        document.documentElement.setAttribute('data-theme', savedTheme)
+      }
+    }
+  }, [])
+
+  const handleSetTheme = useCallback((newTheme) => {
+    setTheme(newTheme)
+    if (typeof window !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', newTheme)
+      localStorage.setItem('chispudo-theme', newTheme)
     }
   }, [])
 
@@ -295,10 +314,14 @@ export default function DashboardPage() {
         </div>
 
         {/* Accounts & Instruments */}
-        <AccountsTable items={enrichedItems} lang={lang} onDeleteItem={deleteItem} />
+        <AccountsTable items={enrichedItems} lang={lang} onDeleteItem={deleteItem}
+          onEditItem={(item) => setEditItem(item)} onViewItem={(item) => setDetailItem(item)} />
 
         {/* Value Breakdown */}
         <ValueBreakdown items={enrichedItems} lang={lang} />
+
+        {/* Projection Simulator */}
+        <ProjectionSimulator netWorth={netWorth} lang={lang} />
 
         {/* Recent Transactions */}
         <RecentTransactions transactions={transactions} lang={lang} />
@@ -345,6 +368,26 @@ export default function DashboardPage() {
           onDeleteAllItems={deleteAllItems}
           onDeleteAllSnapshots={deleteAllSnapshots}
           onDeleteAllTransactions={deleteAllTransactions}
+          theme={theme}
+          onToggleTheme={handleSetTheme}
+          lang={lang}
+        />
+      )}
+
+      {editItem && (
+        <EditAccountModal
+          item={editItem}
+          onClose={() => setEditItem(null)}
+          onSave={addItem}
+          onDelete={deleteItem}
+          lang={lang}
+        />
+      )}
+
+      {detailItem && (
+        <AssetDetailModal
+          item={detailItem}
+          onClose={() => setDetailItem(null)}
           lang={lang}
         />
       )}
