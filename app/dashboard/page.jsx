@@ -4,10 +4,13 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useFirestoreItems } from '@/hooks/useFirestoreItems'
 import { useMarketPrices } from '@/hooks/useMarketPrices'
+import { useExchangeRates } from '@/hooks/useExchangeRates'
 
 import FileImportModal from '@/components/FileImportModal'
 import AddAccountModal from '@/components/AddAccountModal'
 import AddTransactionModal from '@/components/AddTransactionModal'
+import SettingsModal from '@/components/SettingsModal'
+import { setBaseCurrency } from '@/components/dashboard/utils'
 import Header from '@/components/dashboard/Header'
 import NetWorthCard from '@/components/dashboard/NetWorthCard'
 import PortfolioGrowthChart from '@/components/dashboard/PortfolioGrowthChart'
@@ -68,6 +71,7 @@ export default function DashboardPage() {
     snapshots,
     transactions,
     goals,
+    settings,
     loading: dataLoading,
     addItem,
     deleteItem,
@@ -77,9 +81,39 @@ export default function DashboardPage() {
     addTransaction,
     deleteAllTransactions,
     saveGoals,
+    saveSettings,
   } = useFirestoreItems()
 
-  const { enrichedItems, loading: pricesLoading, lastUpdate: pricesUpdate, refresh: refreshPrices } = useMarketPrices(items)
+  const baseCurrency = settings?.baseCurrency || 'USD'
+
+  useEffect(() => {
+    setBaseCurrency(baseCurrency)
+  }, [baseCurrency])
+
+  const { enrichedItems: rawEnriched, loading: pricesLoading, lastUpdate: pricesUpdate, refresh: refreshPrices } = useMarketPrices(items)
+  const { convert, convertItemValue, loading: ratesLoading, lastUpdate: ratesUpdate, refresh: refreshRates } = useExchangeRates(baseCurrency)
+
+  const enrichedItems = useMemo(() => {
+    return rawEnriched.map((it) => {
+      const itemCurrency = it.marketCurrency || it.currency || 'USD'
+      const price = it.currentPrice || it.purchasePrice || it.price || it.cost || 0
+      const convertedPrice = convert(price, itemCurrency, baseCurrency)
+      const purchaseConverted = it.purchasePrice ? convert(it.purchasePrice, it.currency || 'USD', baseCurrency) : 0
+      return {
+        ...it,
+        currentPrice: convertedPrice,
+        purchasePrice: purchaseConverted || it.purchasePrice,
+        _originalPrice: price,
+        _originalCurrency: itemCurrency,
+        _displayCurrency: baseCurrency,
+      }
+    })
+  }, [rawEnriched, convert, baseCurrency])
+
+  const handleRefresh = useCallback(() => {
+    refreshPrices()
+    refreshRates()
+  }, [refreshPrices, refreshRates])
 
   const handleSignOut = async () => {
     const { auth } = await import('@/lib/firebase')
@@ -95,6 +129,7 @@ export default function DashboardPage() {
       Symbol: it.symbol, Name: it.name, Type: it.type,
       Quantity: it.quantity, 'Purchase Price': it.purchasePrice,
       'Current Price': it.currentPrice || '', Institution: it.institution,
+      Currency: it._displayCurrency || baseCurrency,
       Value: (it.quantity || 0) * (it.currentPrice || it.purchasePrice || 0),
     })))
     const wb = XLSX.utils.book_new()
@@ -103,12 +138,12 @@ export default function DashboardPage() {
       const wsTx = XLSX.utils.json_to_sheet(transactions.map((tx) => ({
         Date: tx.date, Type: tx.type, Symbol: tx.symbol,
         Quantity: tx.quantity, Price: tx.pricePerUnit, Total: tx.totalAmount,
-        Description: tx.description,
+        Currency: tx.currency || 'USD', Description: tx.description,
       })))
       XLSX.utils.book_append_sheet(wb, wsTx, 'Transactions')
     }
     XLSX.writeFile(wb, `chispudo-portfolio-${new Date().toISOString().split('T')[0]}.xlsx`)
-  }, [enrichedItems, transactions])
+  }, [enrichedItems, transactions, baseCurrency])
 
   const handleReport = useCallback(async () => {
     const { generateReport } = await import('@/lib/generateReport')
@@ -116,7 +151,7 @@ export default function DashboardPage() {
       items: enrichedItems, snapshots, transactions,
       netWorth, totalAssets, lang,
     })
-  }, [enrichedItems, snapshots, transactions, lang])
+  }, [enrichedItems, snapshots, transactions, lang, netWorth, totalAssets])
 
   const latestSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null
   const prevSnapshot = snapshots.length > 1 ? snapshots[snapshots.length - 2] : null
@@ -125,16 +160,19 @@ export default function DashboardPage() {
     enrichedItems.reduce((s, it) => s + (it.quantity || 0) * (it.currentPrice || it.purchasePrice || 0), 0),
     [enrichedItems]
   )
-  const totalAssets = latestSnapshot?.totalActivosUSD ?? totalFromItems
-  const netWorth = latestSnapshot?.netWorthUSD ?? totalAssets
+
+  const convertSnapshot = useCallback((val) => convert(val, 'USD', baseCurrency), [convert, baseCurrency])
+
+  const totalAssets = latestSnapshot ? convertSnapshot(latestSnapshot.totalActivosUSD ?? 0) : totalFromItems
+  const netWorth = latestSnapshot ? convertSnapshot(latestSnapshot.netWorthUSD ?? 0) : totalAssets
 
   const monthlyChange = useMemo(() => {
     if (!latestSnapshot || !prevSnapshot) return null
-    const prev = prevSnapshot.netWorthUSD ?? prevSnapshot.totalActivosUSD ?? 0
+    const prev = convertSnapshot(prevSnapshot.netWorthUSD ?? prevSnapshot.totalActivosUSD ?? 0)
     const curr = netWorth
     if (prev === 0) return null
     return ((curr - prev) / prev) * 100
-  }, [latestSnapshot, prevSnapshot, netWorth])
+  }, [latestSnapshot, prevSnapshot, netWorth, convertSnapshot])
 
   const yearStart = useMemo(() => {
     return snapshots.find((s) => {
@@ -143,14 +181,17 @@ export default function DashboardPage() {
     })
   }, [snapshots])
 
-  const startVal = yearStart?.netWorthUSD ?? yearStart?.totalActivosUSD ?? netWorth
+  const startVal = yearStart ? convertSnapshot(yearStart.netWorthUSD ?? yearStart.totalActivosUSD ?? 0) : netWorth
   const returnYTD = startVal > 0 ? ((netWorth - startVal) / startVal) * 100 : 0
   const ytdChange = netWorth - startVal
 
   const annualDividends = useMemo(() => {
     const divs = (transactions || []).filter((tx) => (tx.type || '').toUpperCase() === 'DIVIDEND')
-    return divs.reduce((s, tx) => s + (tx.totalAmount ?? tx.amount ?? 0), 0)
-  }, [transactions])
+    return divs.reduce((s, tx) => {
+      const amt = tx.totalAmount ?? tx.amount ?? 0
+      return s + convert(amt, tx.currency || 'USD', baseCurrency)
+    }, 0)
+  }, [transactions, convert, baseCurrency])
 
   const dataAge = latestSnapshot ? Math.round((Date.now() - new Date(latestSnapshot.date).getTime()) / 86400000) : null
 
@@ -180,9 +221,10 @@ export default function DashboardPage() {
         lang={lang}
         setLang={() => handleSetLang('toggle')}
         onImport={() => setModal('import')}
+        onSettings={() => setModal('settings')}
         onSignOut={handleSignOut}
-        onRefresh={refreshPrices}
-        pricesLoading={pricesLoading}
+        onRefresh={handleRefresh}
+        pricesLoading={pricesLoading || ratesLoading}
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
@@ -196,12 +238,15 @@ export default function DashboardPage() {
               {lang === 'es' ? 'Precios:' : 'Prices:'} {new Date(pricesUpdate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
-          {pricesLoading && <span className="text-[10px] text-emerald-500 animate-pulse">{lang === 'es' ? 'Actualizando...' : 'Updating...'}</span>}
+          {baseCurrency !== 'USD' && (
+            <span className="text-[10px] text-cyan-500/70">{baseCurrency}</span>
+          )}
+          {(pricesLoading || ratesLoading) && <span className="text-[10px] text-emerald-500 animate-pulse">{lang === 'es' ? 'Actualizando...' : 'Updating...'}</span>}
         </div>
 
         {/* Row 1: Net Worth + Portfolio Growth */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6">
-          <div className="lg:col-span-2 space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6 items-start">
+          <div className="lg:col-span-2 flex flex-col gap-4">
             <NetWorthCard
               netWorth={netWorth}
               totalAssets={totalAssets}
@@ -221,7 +266,7 @@ export default function DashboardPage() {
             <FinancialHealth items={enrichedItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} />
           </div>
 
-          <div className="lg:col-span-3 space-y-4">
+          <div className="lg:col-span-3 flex flex-col gap-4">
             <PortfolioGrowthChart snapshots={snapshots} lang={lang} />
             <AssetAllocation items={enrichedItems} lang={lang} />
           </div>
@@ -288,6 +333,18 @@ export default function DashboardPage() {
         <AddTransactionModal
           onClose={() => setModal(null)}
           onAdd={addTransaction}
+          lang={lang}
+        />
+      )}
+
+      {modal === 'settings' && (
+        <SettingsModal
+          onClose={() => setModal(null)}
+          settings={settings}
+          onSaveSettings={saveSettings}
+          onDeleteAllItems={deleteAllItems}
+          onDeleteAllSnapshots={deleteAllSnapshots}
+          onDeleteAllTransactions={deleteAllTransactions}
           lang={lang}
         />
       )}

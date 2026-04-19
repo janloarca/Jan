@@ -1,13 +1,30 @@
-export function formatCurrency(value) {
-  if (value == null || isNaN(value)) return '$0.00'
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(value)
+const CURRENCY_SYMBOLS = {
+  USD: '$', EUR: '€', GBP: '£', MXN: '$', GTQ: 'Q', COP: '$',
+  CLP: '$', ARS: '$', BRL: 'R$', PEN: 'S/', CAD: '$', CHF: 'CHF',
+  JPY: '¥', CNY: '¥',
 }
 
-export function formatCompact(value) {
+let _baseCurrency = 'USD'
+export function setBaseCurrency(code) { _baseCurrency = code || 'USD' }
+export function getBaseCurrency() { return _baseCurrency }
+
+export function formatCurrency(value, currency) {
+  if (value == null || isNaN(value)) return '$0.00'
+  const cur = currency || _baseCurrency
+  try {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: cur, minimumFractionDigits: 2 }).format(value)
+  } catch {
+    const sym = CURRENCY_SYMBOLS[cur] || '$'
+    return `${sym}${value.toFixed(2)}`
+  }
+}
+
+export function formatCompact(value, currency) {
   if (value == null || isNaN(value)) return '$0'
-  if (Math.abs(value) >= 1000000) return '$' + (value / 1000000).toFixed(1) + 'M'
-  if (Math.abs(value) >= 1000) return '$' + (value / 1000).toFixed(1) + 'K'
-  return '$' + value.toFixed(0)
+  const sym = CURRENCY_SYMBOLS[currency || _baseCurrency] || '$'
+  if (Math.abs(value) >= 1000000) return sym + (value / 1000000).toFixed(1) + 'M'
+  if (Math.abs(value) >= 1000) return sym + (value / 1000).toFixed(1) + 'K'
+  return sym + value.toFixed(0)
 }
 
 export function formatDate(dateStr) {
@@ -42,6 +59,14 @@ export const TYPE_COLORS = {
   funds: { bg: '#a855f7', badge: 'bg-purple-500/20 text-purple-400' },
   banks: { bg: '#6b7280', badge: 'bg-gray-500/20 text-gray-400' },
   other: { bg: '#ec4899', badge: 'bg-pink-500/20 text-pink-400' },
+}
+
+export function getItemPrice(item) {
+  return item.currentPrice || item.purchasePrice || item.price || item.cost || item.averagePrice || 0
+}
+
+export function getItemValue(item) {
+  return (item.quantity || 0) * getItemPrice(item)
 }
 
 export const TYPE_ICONS = {

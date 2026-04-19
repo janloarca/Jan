@@ -30,6 +30,7 @@ export function useFirestoreItems() {
   const [snapshots, setSnapshots] = useState([])
   const [transactions, setTransactions] = useState([])
   const [goals, setGoals] = useState(null)
+  const [settings, setSettings] = useState(null)
   const [loading, setLoading] = useState(true)
   const [uid, setUid] = useState(null)
 
@@ -71,6 +72,8 @@ export function useFirestoreItems() {
       try {
         const goalsDoc = await fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'goals'))
         if (!cancelled && goalsDoc.exists()) setGoals(goalsDoc.data())
+        const prefsDoc = await fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'preferences'))
+        if (!cancelled && prefsDoc.exists()) setSettings(prefsDoc.data())
       } catch {}
 
       if (!cancelled) setLoading(false)
@@ -139,11 +142,18 @@ export function useFirestoreItems() {
     setGoals(goalsData)
   }, [uid])
 
+  const saveSettings = useCallback(async (prefsData) => {
+    if (!uid) return
+    const { db, fs } = await getFirebase()
+    await fs.setDoc(fs.doc(db, `users/${uid}/settings`, 'preferences'), { ...prefsData, updatedAt: new Date().toISOString() }, { merge: true })
+    setSettings((prev) => ({ ...prev, ...prefsData }))
+  }, [uid])
+
   return {
-    items, snapshots, transactions, goals, loading,
+    items, snapshots, transactions, goals, settings, loading,
     addItem, deleteItem, deleteAllItems,
     saveSnapshot, deleteAllSnapshots,
     addTransaction, deleteAllTransactions,
-    saveGoals,
+    saveGoals, saveSettings,
   }
 }

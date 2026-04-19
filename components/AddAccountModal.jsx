@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 export default function AddAccountModal({ onClose, onAdd, lang = 'es' }) {
   const [form, setForm] = useState({
-    symbol: '', name: '', type: 'Stock', quantity: '', purchasePrice: '', institution: '',
+    symbol: '', name: '', type: 'Stock', quantity: '', purchasePrice: '', institution: '', currency: 'USD',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -27,6 +27,7 @@ export default function AddAccountModal({ onClose, onAdd, lang = 'es' }) {
         quantity: parseFloat(form.quantity) || 0,
         purchasePrice: parseFloat(form.purchasePrice) || 0,
         institution: form.institution.trim(),
+        currency: form.currency,
       })
       onClose()
     } catch (err) {
@@ -79,7 +80,7 @@ export default function AddAccountModal({ onClose, onAdd, lang = 'es' }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="text-xs text-slate-400 mb-1 block">{t('Cantidad', 'Quantity')} *</label>
               <input value={form.quantity} onChange={(e) => set('quantity', e.target.value)}
@@ -89,6 +90,26 @@ export default function AddAccountModal({ onClose, onAdd, lang = 'es' }) {
               <label className="text-xs text-slate-400 mb-1 block">{t('Precio unitario', 'Unit price')} *</label>
               <input value={form.purchasePrice} onChange={(e) => set('purchasePrice', e.target.value)}
                 placeholder="150.00" type="number" step="any" className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+            </div>
+            <div>
+              <label className="text-xs text-slate-400 mb-1 block">{t('Moneda', 'Currency')}</label>
+              <select value={form.currency} onChange={(e) => set('currency', e.target.value)}
+                className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50">
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+                <option value="GBP">GBP</option>
+                <option value="MXN">MXN</option>
+                <option value="GTQ">GTQ</option>
+                <option value="COP">COP</option>
+                <option value="CLP">CLP</option>
+                <option value="ARS">ARS</option>
+                <option value="BRL">BRL</option>
+                <option value="PEN">PEN</option>
+                <option value="CAD">CAD</option>
+                <option value="CHF">CHF</option>
+                <option value="JPY">JPY</option>
+                <option value="CNY">CNY</option>
+              </select>
             </div>
           </div>
 

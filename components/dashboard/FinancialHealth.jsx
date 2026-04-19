@@ -1,17 +1,17 @@
 'use client'
 
 import { useMemo } from 'react'
-import { getTypeCategory } from './utils'
+import { getTypeCategory, getItemValue } from './utils'
 
 export default function FinancialHealth({ items, netWorth, totalAssets, snapshots, lang }) {
   const scores = useMemo(() => {
     const debtItems = items.filter((it) => /deuda|debt|loan|prestamo|credit|credito|payable|hipoteca|mortgage/i.test(it.type || ''))
-    const totalDebt = debtItems.reduce((s, it) => s + Math.abs((it.quantity || 0) * (it.purchasePrice || 0)), 0)
+    const totalDebt = debtItems.reduce((s, it) => s + Math.abs(getItemValue(it)), 0)
     const debtRatio = totalAssets > 0 ? (totalDebt / totalAssets) * 100 : 0
     const debtScore = debtRatio === 0 ? 25 : debtRatio < 10 ? 22 : debtRatio < 30 ? 18 : debtRatio < 50 ? 12 : 5
 
     const liquidItems = items.filter((it) => /bank|banco|cash|saving|liquid|fondo|fund|money.?market|efectivo|checking/i.test(it.type || ''))
-    const liquidValue = liquidItems.reduce((s, it) => s + (it.quantity || 0) * (it.purchasePrice || 0), 0)
+    const liquidValue = liquidItems.reduce((s, it) => s + getItemValue(it), 0)
     const liquidPct = totalAssets > 0 ? (liquidValue / totalAssets) * 100 : 0
     const liquidScore = liquidPct > 20 ? 25 : liquidPct > 10 ? 20 : liquidPct > 5 ? 15 : liquidPct > 0 ? 10 : 5
 
