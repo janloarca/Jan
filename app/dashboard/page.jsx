@@ -185,13 +185,16 @@ export default function DashboardPage() {
     })
   }, [enrichedItems, snapshots, transactions, lang, netWorth, totalAssets])
 
-  const monthlyChange = useMemo(() => {
-    if (!latestSnapshot || !prevSnapshot) return null
-    const prev = convertSnapshot(prevSnapshot.netWorthUSD ?? prevSnapshot.totalActivosUSD ?? 0)
-    const curr = netWorth
+  const yearlyChange = useMemo(() => {
+    if (snapshots.length < 2) return null
+    const oneYearAgo = new Date()
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
+    const yearAgoSnapshot = [...snapshots].reverse().find((s) => s.date && new Date(s.date) <= oneYearAgo)
+    if (!yearAgoSnapshot) return null
+    const prev = convertSnapshot(yearAgoSnapshot.netWorthUSD ?? yearAgoSnapshot.totalActivosUSD ?? 0)
     if (prev === 0) return null
-    return ((curr - prev) / prev) * 100
-  }, [latestSnapshot, prevSnapshot, netWorth, convertSnapshot])
+    return ((netWorth - prev) / prev) * 100
+  }, [snapshots, netWorth, convertSnapshot])
 
   const yearStart = useMemo(() => {
     return snapshots.find((s) => {
@@ -268,10 +271,10 @@ export default function DashboardPage() {
           <div className="lg:col-span-2 flex flex-col gap-4">
             <NetWorthCard
               netWorth={netWorth}
-              totalAssets={totalAssets}
               returnYTD={returnYTD}
               ytdChange={ytdChange}
-              monthlyChange={monthlyChange}
+              yearlyChange={yearlyChange}
+              convert={convert}
               lang={lang}
             />
             <TopMovers items={enrichedItems} lang={lang} />

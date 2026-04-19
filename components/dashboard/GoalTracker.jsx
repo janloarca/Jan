@@ -60,7 +60,7 @@ export default function GoalTracker({ netWorth, annualDividends, goals, onSaveGo
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[10px] text-slate-500 mb-1 block">{t('Meta ingreso anual', 'Annual income goal')}</label>
+              <label className="text-[10px] text-slate-500 mb-1 block">{t('Meta de ingreso pasivo anual', 'Annual passive income goal')}</label>
               <input value={form.incomeGoal} onChange={(e) => setForm({ ...form, incomeGoal: e.target.value })}
                 type="number" step="1000" placeholder="12000"
                 className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50" />
