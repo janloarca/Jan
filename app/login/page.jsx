@@ -60,7 +60,7 @@ export default function LoginPage() {
             <span className="text-emerald-400 text-3xl">⚡</span>
             <h1 className="text-3xl font-bold text-emerald-400">Chispudo</h1>
           </div>
-          <p className="text-slate-500 text-sm">Tu panel de patrimonio privado</p>
+          <p className="text-slate-500 text-sm">Tu control financiero personal</p>
         </div>
 
         <div className="bg-[#131c2e] border border-[#1e2d45] rounded-xl p-6">
