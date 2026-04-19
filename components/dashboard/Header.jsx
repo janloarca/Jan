@@ -14,7 +14,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
             <div>
               <h1 className="text-base font-bold text-emerald-400 leading-tight">Chispudo</h1>
               <p className="text-[9px] text-slate-500 hidden sm:block leading-none">
-                {lang === 'es' ? 'Panel de patrimonio' : 'Net worth dashboard'}
+                {lang === 'es' ? 'Control financiero' : 'Financial control'}
               </p>
             </div>
           </div>
