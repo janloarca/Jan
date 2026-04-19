@@ -5,9 +5,11 @@ import { formatCurrency, formatCompact, formatShortDate, formatDate } from './ut
 
 export default function PortfolioGrowthChart({ snapshots, lang }) {
   const [period, setPeriod] = useState('ALL')
+  const [mode, setMode] = useState('growth')
   const [hoverIdx, setHoverIdx] = useState(null)
 
   const periods = ['MTD', '3M', 'YTD', '1Y', 'ALL']
+  const t = (es, en) => lang === 'es' ? es : en
 
   const filtered = useMemo(() => {
     if (!snapshots || snapshots.length === 0) return []
@@ -27,6 +29,16 @@ export default function PortfolioGrowthChart({ snapshots, lang }) {
     return result.length >= 2 ? result : valid
   }, [snapshots, period])
 
+  const twrData = useMemo(() => {
+    if (filtered.length < 2) return []
+    const base = filtered[0].netWorthUSD ?? filtered[0].totalActivosUSD ?? 0
+    if (base === 0) return filtered.map(() => 0)
+    return filtered.map((s) => {
+      const val = s.netWorthUSD ?? s.totalActivosUSD ?? 0
+      return ((val / base) - 1) * 100
+    })
+  }, [filtered])
+
   if (!filtered || filtered.length < 2) {
     return (
       <div className="bg-[#131c2e] rounded-xl border border-[#1e2d45] p-5 h-full flex flex-col">
@@ -35,23 +47,27 @@ export default function PortfolioGrowthChart({ snapshots, lang }) {
           Portfolio Growth
         </h3>
         <div className="flex-1 flex items-center justify-center min-h-[200px] text-slate-500 text-sm">
-          {lang === 'es' ? 'Necesitas al menos 2 snapshots para ver la gráfica.' : 'Need at least 2 snapshots to show chart.'}
+          {t('Necesitas al menos 2 snapshots para ver la gráfica.', 'Need at least 2 snapshots to show chart.')}
         </div>
       </div>
     )
   }
 
-  const values = filtered.map((s) => s.netWorthUSD ?? s.totalActivosUSD ?? 0)
-  const firstVal = values[0]
-  const lastVal = values[values.length - 1]
+  const rawValues = filtered.map((s) => s.netWorthUSD ?? s.totalActivosUSD ?? 0)
+  const values = mode === 'return' ? twrData : rawValues
+
+  const firstVal = rawValues[0]
+  const lastVal = rawValues[rawValues.length - 1]
   const growthPct = firstVal > 0 ? ((lastVal - firstVal) / firstVal) * 100 : 0
   const growthAbs = lastVal - firstVal
   const isPositive = growthPct >= 0
   const lineColor = isPositive ? '#10b981' : '#ef4444'
 
-  const min = Math.min(...values) * 0.95
-  const max = Math.max(...values) * 1.02
-  const range = max - min || 1
+  const min = Math.min(...values) * (mode === 'return' ? 1 : 0.95)
+  const max = Math.max(...values) * (mode === 'return' ? 1 : 1.02)
+  const adjustedMin = mode === 'return' ? Math.min(min, 0) : min
+  const adjustedMax = mode === 'return' ? Math.max(max, 0) : max
+  const range = adjustedMax - adjustedMin || 1
 
   const height = 240
   const padding = { top: 20, right: 16, bottom: 36, left: 50 }
@@ -61,29 +77,32 @@ export default function PortfolioGrowthChart({ snapshots, lang }) {
 
   const points = values.map((v, i) => ({
     x: padding.left + (i / Math.max(values.length - 1, 1)) * cw,
-    y: padding.top + ch - ((v - min) / range) * ch,
+    y: padding.top + ch - ((v - adjustedMin) / range) * ch,
     v,
   }))
 
   function smooth(pts) {
     if (pts.length < 3) return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
-    const t = 0.3
+    const tension = 0.3
     let d = `M ${pts[0].x} ${pts[0].y}`
     for (let i = 0; i < pts.length - 1; i++) {
       const p0 = pts[Math.max(0, i - 1)]
       const p1 = pts[i]
       const p2 = pts[i + 1]
       const p3 = pts[Math.min(pts.length - 1, i + 2)]
-      d += ` C ${p1.x + (p2.x - p0.x) * t / 3} ${p1.y + (p2.y - p0.y) * t / 3}, ${p2.x - (p3.x - p1.x) * t / 3} ${p2.y - (p3.y - p1.y) * t / 3}, ${p2.x} ${p2.y}`
+      d += ` C ${p1.x + (p2.x - p0.x) * tension / 3} ${p1.y + (p2.y - p0.y) * tension / 3}, ${p2.x - (p3.x - p1.x) * tension / 3} ${p2.y - (p3.y - p1.y) * tension / 3}, ${p2.x} ${p2.y}`
     }
     return d
   }
 
   const line = smooth(points)
-  const area = `${line} L ${points[points.length - 1].x} ${padding.top + ch} L ${points[0].x} ${padding.top + ch} Z`
+  const baselineY = mode === 'return'
+    ? padding.top + ch - ((0 - adjustedMin) / range) * ch
+    : padding.top + ch
+  const area = `${line} L ${points[points.length - 1].x} ${baselineY} L ${points[0].x} ${baselineY} Z`
 
   const yTicks = Array.from({ length: 5 }, (_, i) => ({
-    val: min + (range * i) / 4,
+    val: adjustedMin + (range * i) / 4,
     y: padding.top + ch - (i / 4) * ch,
   }))
 
@@ -92,44 +111,75 @@ export default function PortfolioGrowthChart({ snapshots, lang }) {
     .map((s, i) => ({ label: formatShortDate(s.date), x: points[i]?.x }))
     .filter((_, i) => i % step === 0 || i === filtered.length - 1)
 
-  const maxVal = Math.max(...values)
-  const minVal = Math.min(...values)
-  const athIdx = values.indexOf(maxVal)
-  const mddIdx = values.indexOf(minVal)
+  const maxVal = Math.max(...rawValues)
+  const minVal = Math.min(...rawValues)
+  const athIdx = rawValues.indexOf(maxVal)
+  const mddIdx = rawValues.indexOf(minVal)
 
   const hp = hoverIdx != null ? points[hoverIdx] : null
   const hs = hoverIdx != null ? filtered[hoverIdx] : null
+
+  const lastTwr = twrData.length > 0 ? twrData[twrData.length - 1] : 0
 
   return (
     <div className="bg-[#131c2e] rounded-xl border border-[#1e2d45] p-5 h-full flex flex-col">
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-3">
         <div>
-          <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 pulse-dot" />
-            Portfolio Growth
-            <span className="text-slate-600 text-xs">
-              {formatShortDate(filtered[0]?.date)} → {formatShortDate(filtered[filtered.length - 1]?.date)}
-            </span>
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 pulse-dot" />
+              {mode === 'growth' ? 'Portfolio Growth' : 'Portfolio Return'}
+              <span className="text-slate-600 text-xs">
+                {formatShortDate(filtered[0]?.date)} → {formatShortDate(filtered[filtered.length - 1]?.date)}
+              </span>
+            </h3>
+          </div>
           <div className="flex items-center gap-2 sm:gap-3 mt-2">
-            <span className={`text-2xl font-bold ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
-              {isPositive ? '+' : ''}{growthPct.toFixed(2)}%
-            </span>
-            <span className={`text-sm ${isPositive ? 'text-emerald-500' : 'text-red-500'}`}>
-              {isPositive ? '+' : ''}{formatCurrency(growthAbs)}
-            </span>
+            {mode === 'growth' ? (
+              <>
+                <span className={`text-2xl font-bold ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {isPositive ? '+' : ''}{growthPct.toFixed(2)}%
+                </span>
+                <span className={`text-sm ${isPositive ? 'text-emerald-500' : 'text-red-500'}`}>
+                  {isPositive ? '+' : ''}{formatCurrency(growthAbs)}
+                </span>
+              </>
+            ) : (
+              <>
+                <span className={`text-2xl font-bold ${lastTwr >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {lastTwr >= 0 ? '+' : ''}{lastTwr.toFixed(2)}%
+                </span>
+                <span className="text-xs text-slate-500">TWR</span>
+              </>
+            )}
             <span className="text-xs text-slate-500">{period}</span>
           </div>
         </div>
-        <div className="flex gap-0.5 bg-[#0b1120] rounded-lg p-0.5">
-          {periods.map((p) => (
-            <button key={p} onClick={() => setPeriod(p)}
-              className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-all ${
-                period === p ? 'bg-emerald-500 text-white' : 'text-slate-500 hover:text-slate-300'
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex gap-0.5 bg-[#0b1120] rounded-lg p-0.5">
+            {periods.map((p) => (
+              <button key={p} onClick={() => setPeriod(p)}
+                className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-all ${
+                  period === p ? 'bg-emerald-500 text-white' : 'text-slate-500 hover:text-slate-300'
+                }`}>
+                {p}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-0.5 bg-[#0b1120] rounded-lg p-0.5">
+            <button onClick={() => setMode('growth')}
+              className={`px-2.5 py-1 text-[10px] font-medium rounded-md transition-all ${
+                mode === 'growth' ? 'bg-cyan-500 text-white' : 'text-slate-500 hover:text-slate-300'
               }`}>
-              {p}
+              Growth
             </button>
-          ))}
+            <button onClick={() => setMode('return')}
+              className={`px-2.5 py-1 text-[10px] font-medium rounded-md transition-all ${
+                mode === 'return' ? 'bg-cyan-500 text-white' : 'text-slate-500 hover:text-slate-300'
+              }`}>
+              Return (TWR)
+            </button>
+          </div>
         </div>
       </div>
 
@@ -143,14 +193,18 @@ export default function PortfolioGrowthChart({ snapshots, lang }) {
             points.forEach((p, i) => { const d = Math.abs(p.x - mx); if (d < minD) { minD = d; closest = i } })
             setHoverIdx(closest)
           }}>
-          {yTicks.map((t, i) => (
+          {yTicks.map((tk, i) => (
             <g key={i}>
-              <line x1={padding.left} y1={t.y} x2={width - padding.right} y2={t.y} stroke="#1e2d45" strokeDasharray="4 4" />
-              <text x={padding.left - 8} y={t.y + 4} textAnchor="end" fill="#475569" fontSize="9" fontFamily="system-ui">
-                {formatCompact(t.val)}
+              <line x1={padding.left} y1={tk.y} x2={width - padding.right} y2={tk.y} stroke="#1e2d45" strokeDasharray="4 4" />
+              <text x={padding.left - 8} y={tk.y + 4} textAnchor="end" fill="#475569" fontSize="9" fontFamily="system-ui">
+                {mode === 'return' ? `${tk.val.toFixed(0)}%` : formatCompact(tk.val)}
               </text>
             </g>
           ))}
+          {mode === 'return' && (
+            <line x1={padding.left} y1={baselineY} x2={width - padding.right} y2={baselineY}
+              stroke="#475569" strokeWidth="1" strokeDasharray="6 3" />
+          )}
           <defs>
             <linearGradient id="growthGrad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={lineColor} stopOpacity="0.2" />
@@ -159,10 +213,10 @@ export default function PortfolioGrowthChart({ snapshots, lang }) {
           </defs>
           <path d={area} fill="url(#growthGrad)" />
           <path d={line} fill="none" stroke={lineColor} strokeWidth="2" strokeLinecap="round" />
-          {athIdx > 0 && athIdx < values.length - 1 && (
+          {mode === 'growth' && athIdx > 0 && athIdx < rawValues.length - 1 && (
             <text x={points[athIdx].x} y={points[athIdx].y - 10} textAnchor="middle" fill="#10b981" fontSize="9" fontWeight="bold">ATH</text>
           )}
-          {mddIdx > 0 && mddIdx < values.length - 1 && (
+          {mode === 'growth' && mddIdx > 0 && mddIdx < rawValues.length - 1 && (
             <text x={points[mddIdx].x} y={points[mddIdx].y + 16} textAnchor="middle" fill="#ef4444" fontSize="9" fontWeight="bold">MDD</text>
           )}
           {hp && (
@@ -178,16 +232,35 @@ export default function PortfolioGrowthChart({ snapshots, lang }) {
         {hs && hp && (
           <div className="absolute pointer-events-none bg-slate-800 border border-slate-600 text-white text-xs rounded-lg px-3 py-2 shadow-xl"
             style={{ left: `${(hp.x / width) * 100}%`, top: `${(hp.y / height) * 100 - 12}%`, transform: 'translate(-50%, -100%)' }}>
-            <div className="font-bold">{formatCurrency(hs.netWorthUSD ?? hs.totalActivosUSD)}</div>
-            <div className="text-slate-400">{formatDate(hs.date)}</div>
+            {mode === 'growth' ? (
+              <>
+                <div className="font-bold">{formatCurrency(hs.netWorthUSD ?? hs.totalActivosUSD)}</div>
+                <div className="text-slate-400">{formatDate(hs.date)}</div>
+              </>
+            ) : (
+              <>
+                <div className="font-bold">{twrData[hoverIdx] >= 0 ? '+' : ''}{twrData[hoverIdx]?.toFixed(2)}%</div>
+                <div className="text-slate-400">{formatCurrency(hs.netWorthUSD ?? hs.totalActivosUSD)}</div>
+                <div className="text-slate-500">{formatDate(hs.date)}</div>
+              </>
+            )}
           </div>
         )}
       </div>
       <div className="flex items-center gap-4 mt-2 text-[10px] text-slate-500">
         <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: lineColor }} /> Portfolio</span>
-        <span>Max {formatCompact(maxVal)}</span>
-        <span>Min {formatCompact(minVal)}</span>
-        <span>{filtered.length} {lang === 'es' ? 'puntos' : 'points'}</span>
+        {mode === 'growth' ? (
+          <>
+            <span>Max {formatCompact(maxVal)}</span>
+            <span>Min {formatCompact(minVal)}</span>
+          </>
+        ) : (
+          <>
+            <span>Max {Math.max(...twrData).toFixed(1)}%</span>
+            <span>Min {Math.min(...twrData).toFixed(1)}%</span>
+          </>
+        )}
+        <span>{filtered.length} {t('puntos', 'points')}</span>
       </div>
     </div>
   )
