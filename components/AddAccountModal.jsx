@@ -18,6 +18,7 @@ export default function AddAccountModal({ onClose, onAdd, lang = 'es' }) {
   const [form, setForm] = useState({
     symbol: '', name: '', quantity: '', purchasePrice: '', currentPrice: '',
     institution: '', currency: 'USD', acquisitionDate: '',
+    incomeAmount: '', incomeFrequency: 'monthly', incomePayDay: '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -28,6 +29,7 @@ export default function AddAccountModal({ onClose, onAdd, lang = 'es' }) {
   const isMarketAsset = type === 'Stock' || type === 'Crypto' || type === 'Fund'
   const isProperty = type === 'Inmueble'
   const isBank = type === 'Bank'
+  const hasIncome = !isMarketAsset
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -75,6 +77,12 @@ export default function AddAccountModal({ onClose, onAdd, lang = 'es' }) {
         item.quantity = parseFloat(form.quantity) || 1
         item.purchasePrice = parseFloat(form.purchasePrice) || 0
         if (form.currentPrice) item.currentPrice = parseFloat(form.currentPrice)
+      }
+
+      if (hasIncome && form.incomeAmount) {
+        item.incomeAmount = parseFloat(form.incomeAmount) || 0
+        item.incomeFrequency = form.incomeFrequency
+        item.incomePayDay = parseInt(form.incomePayDay) || 1
       }
 
       await onAdd(item)
@@ -270,6 +278,47 @@ export default function AddAccountModal({ onClose, onAdd, lang = 'es' }) {
                 className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50">
                 {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
+            </div>
+          )}
+
+          {/* Income / Dividends for non-market assets */}
+          {hasIncome && (
+            <div className="border border-[#1e2d45] rounded-lg p-3 space-y-3">
+              <label className="text-xs text-emerald-400 font-medium flex items-center gap-1.5">
+                💰 {isProperty ? t('Ingreso por renta', 'Rental income') : isBank ? t('Intereses', 'Interest') : t('Rendimiento / Dividendos', 'Yield / Dividends')}
+                <span className="text-slate-600 font-normal">({t('opcional', 'optional')})</span>
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-[10px] text-slate-500 mb-1 block">
+                    {isProperty ? t('Monto por pago', 'Amount per payment') : t('Monto por pago', 'Amount per payment')}
+                  </label>
+                  <input value={form.incomeAmount} onChange={(e) => set('incomeAmount', e.target.value)}
+                    placeholder={isProperty ? '800' : '50'} type="number" step="any"
+                    className="w-full px-2.5 py-1.5 bg-[#0b1120] border border-[#1e2d45] rounded text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-500 mb-1 block">{t('Frecuencia', 'Frequency')}</label>
+                  <select value={form.incomeFrequency} onChange={(e) => set('incomeFrequency', e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-[#0b1120] border border-[#1e2d45] rounded text-sm text-white focus:outline-none focus:border-emerald-500/50">
+                    <option value="monthly">{t('Mensual', 'Monthly')}</option>
+                    <option value="quarterly">{t('Trimestral', 'Quarterly')}</option>
+                    <option value="semiannual">{t('Semestral', 'Semi-annual')}</option>
+                    <option value="annual">{t('Anual', 'Annual')}</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-500 mb-1 block">{t('Día de pago', 'Pay day')}</label>
+                  <input value={form.incomePayDay} onChange={(e) => set('incomePayDay', e.target.value)}
+                    placeholder="15" type="number" min="1" max="31"
+                    className="w-full px-2.5 py-1.5 bg-[#0b1120] border border-[#1e2d45] rounded text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+                </div>
+              </div>
+              <p className="text-[9px] text-slate-600">
+                {isProperty
+                  ? t('Se registrarán automáticamente como dividendo cada periodo.', 'Will be auto-recorded as dividend each period.')
+                  : t('Se registrarán automáticamente como dividendo en la fecha indicada.', 'Will be auto-recorded as dividend on the indicated date.')}
+              </p>
             </div>
           )}
 
