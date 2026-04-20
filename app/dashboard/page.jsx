@@ -192,9 +192,25 @@ export default function DashboardPage() {
         _auto: true,
       })
 
+      if (it.incomeDestination) {
+        const dest = items.find((d) => (d.id || d.symbol) === it.incomeDestination)
+        if (dest) {
+          const destPrice = (dest.currentPrice || dest.purchasePrice || 0) + it.incomeAmount
+          addItem({ ...dest, currentPrice: destPrice, purchasePrice: destPrice })
+        }
+      }
+
       if (it.capitalReturn > 0) {
         const newPrice = Math.max(0, (it.currentPrice || it.purchasePrice || 0) - it.capitalReturn)
         addItem({ ...it, currentPrice: newPrice, purchasePrice: newPrice })
+
+        if (it.capitalDestination) {
+          const dest = items.find((d) => (d.id || d.symbol) === it.capitalDestination)
+          if (dest) {
+            const destPrice = (dest.currentPrice || dest.purchasePrice || 0) + it.capitalReturn
+            addItem({ ...dest, currentPrice: destPrice, purchasePrice: destPrice })
+          }
+        }
       }
     })
 
@@ -424,6 +440,7 @@ export default function DashboardPage() {
         <AddAccountModal
           onClose={() => setModal(null)}
           onAdd={addItem}
+          existingItems={items}
           lang={lang}
         />
       )}
