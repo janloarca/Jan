@@ -94,19 +94,19 @@ export default function AddAccountModal({ onClose, onAdd, existingItems = [], la
           item.dividendAction = form.dividendAction || 'cash'
         }
       } else if (isProperty) {
-        item.symbol = form.symbol.trim() || form.name.trim().replace(/\s+/g, '-').toUpperCase().slice(0, 12)
+        item.symbol = form.symbol.trim() || form.name.trim().replace(/\s+/g, '-').toUpperCase()
         item.name = form.name.trim()
         item.quantity = 1
         item.purchasePrice = parseFloat(form.purchasePrice) || 0
         if (form.currentPrice) item.currentPrice = parseFloat(form.currentPrice)
       } else if (isBank) {
-        item.symbol = form.symbol.trim() || form.institution.trim().replace(/\s+/g, '-').toUpperCase().slice(0, 8)
+        item.symbol = form.symbol.trim() || `${form.institution.trim().replace(/\s+/g, '-').toUpperCase()}-${(form.name.trim() || 'CUENTA').replace(/\s+/g, '-').toUpperCase()}`
         item.name = form.name.trim() || `${form.institution.trim()} - ${t('Cuenta', 'Account')}`
         item.quantity = 1
         item.purchasePrice = parseFloat(form.purchasePrice) || 0
         item.currentPrice = parseFloat(form.purchasePrice) || 0
       } else {
-        item.symbol = form.symbol.trim() || form.name.trim().replace(/\s+/g, '-').toUpperCase().slice(0, 12)
+        item.symbol = form.symbol.trim() || form.name.trim().replace(/\s+/g, '-').toUpperCase()
         item.name = form.name.trim()
         item.quantity = parseFloat(form.quantity) || 1
         item.purchasePrice = parseFloat(form.purchasePrice) || 0
@@ -126,6 +126,23 @@ export default function AddAccountModal({ onClose, onAdd, existingItems = [], la
         if (form.capitalReturn) {
           item.capitalReturn = parseFloat(form.capitalReturn) || 0
           if (form.capitalDestination) item.capitalDestination = form.capitalDestination
+        }
+      }
+
+      if (isMarketAsset) {
+        const existing = existingItems.find(
+          (ei) => (ei.symbol || '').toUpperCase() === item.symbol &&
+                  (ei.institution || '').toLowerCase() === (item.institution || '').toLowerCase()
+        )
+        if (existing && item.quantity > 0) {
+          const oldQty = existing.quantity || 0
+          const oldPrice = existing.purchasePrice || 0
+          const newQty = item.quantity
+          const newPrice = item.purchasePrice || 0
+          item.quantity = oldQty + newQty
+          item.purchasePrice = oldQty + newQty > 0
+            ? (oldQty * oldPrice + newQty * newPrice) / (oldQty + newQty)
+            : oldPrice
         }
       }
 

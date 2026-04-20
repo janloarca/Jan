@@ -86,9 +86,13 @@ export function useFirestoreItems() {
   const addItem = useCallback(async (item) => {
     if (!uid) return
     const { db, fs } = await getFirebase()
-    const sym = (item.symbol || '').replace(/[^a-zA-Z0-9]/g, '_')
-    const inst = (item.institution || '').replace(/[^a-zA-Z0-9]/g, '_')
-    const id = sym ? `${sym}${inst ? '_' + inst : ''}` : Date.now().toString()
+    const clean = (s) => (s || '').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30)
+    const sym = clean(item.symbol)
+    const inst = clean(item.institution)
+    const cur = (item.currency || '').replace(/[^a-zA-Z]/g, '')
+    const name = clean(item.name)
+    const parts = [sym, inst, cur, name].filter(Boolean)
+    const id = parts.length > 0 ? parts.join('_') : Date.now().toString()
     await fs.setDoc(fs.doc(db, `users/${uid}/items`, id), { ...item, createdAt: new Date().toISOString() }, { merge: true })
   }, [uid])
 
