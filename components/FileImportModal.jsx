@@ -6,10 +6,12 @@ const FIELD_MAP = {
   symbol: ['symbol', 'ticker', 'simbolo', 'código', 'codigo', 'sym'],
   name: ['name', 'nombre', 'description', 'descripcion', 'instrument', 'instrumento', 'asset'],
   type: ['type', 'tipo', 'category', 'categoria', 'asset_type', 'asset type'],
-  quantity: ['quantity', 'cantidad', 'qty', 'shares', 'acciones', 'units', 'unidades', 'amount'],
-  purchasePrice: ['price', 'precio', 'purchase_price', 'purchaseprice', 'cost', 'costo', 'unit_price', 'avg_price', 'average price', 'precio promedio'],
+  quantity: ['quantity', 'cantidad', 'qty', 'shares', 'acciones', 'units', 'unidades'],
+  purchasePrice: ['precio de compra', 'purchase_price', 'purchaseprice', 'cost', 'costo', 'unit_price', 'avg_price', 'average price', 'precio promedio', 'precio compra'],
+  currentPrice: ['precio actual', 'current_price', 'currentprice', 'market_price', 'valor actual', 'price', 'precio'],
   institution: ['institution', 'institucion', 'broker', 'exchange', 'platform', 'plataforma', 'cuenta', 'account'],
   currency: ['currency', 'moneda', 'ccy'],
+  acquisitionDate: ['fecha', 'fecha de compra', 'date', 'acquisition_date', 'purchase_date', 'fecha compra', 'fecha adquisicion'],
 }
 
 function guessMapping(headers) {
@@ -43,7 +45,7 @@ function parseNumber(val) {
   return isNaN(num) ? 0 : num
 }
 
-export default function FileImportModal({ onClose, onImportItems, onImportTransaction, lang = 'es' }) {
+export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, lang = 'es' }) {
   const [mode, setMode] = useState('file')
   const [step, setStep] = useState('upload')
   const [rawData, setRawData] = useState([])
@@ -61,19 +63,63 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     symbol: '', name: '', type: 'Stock', quantity: '', purchasePrice: '', institution: '',
   })
 
+  const [extraSheets, setExtraSheets] = useState({ snapshots: [], transactions: [] })
+
   const handleFile = useCallback(async (file) => {
     setError('')
     try {
       const XLSX = await import('xlsx')
       const data = await file.arrayBuffer()
       const wb = XLSX.read(data, { type: 'array' })
-      const ws = wb.Sheets[wb.SheetNames[0]]
-      const json = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+
+      const sheetNames = wb.SheetNames.map((n) => n.toLowerCase())
+      const assetsIdx = sheetNames.findIndex((n) => /activos|assets|portfolio|holdings/i.test(n))
+      const histIdx = sheetNames.findIndex((n) => /historial|history|snapshots/i.test(n))
+      const txIdx = sheetNames.findIndex((n) => /transacciones|transactions/i.test(n))
+
+      const mainSheet = wb.Sheets[wb.SheetNames[assetsIdx >= 0 ? assetsIdx : 0]]
+      const json = XLSX.utils.sheet_to_json(mainSheet, { header: 1, defval: '' })
 
       if (json.length < 2) {
         setError(lang === 'es' ? 'El archivo no tiene datos suficientes.' : 'File has insufficient data.')
         return
       }
+
+      const parsed = { snapshots: [], transactions: [] }
+
+      if (histIdx >= 0) {
+        const histRows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[histIdx]], { header: 1, defval: '' })
+        for (let i = 1; i < histRows.length; i++) {
+          const r = histRows[i]
+          const date = r[0] ? r[0].toString().trim() : ''
+          const totalAssets = parseNumber(r[1])
+          const totalDebt = parseNumber(r[2])
+          const netWorth = parseNumber(r[3]) || (totalAssets - totalDebt)
+          if (date && (totalAssets > 0 || netWorth > 0)) {
+            parsed.snapshots.push({ date, totalActivosUSD: totalAssets, netWorthUSD: netWorth })
+          }
+        }
+      }
+
+      if (txIdx >= 0) {
+        const txRows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[txIdx]], { header: 1, defval: '' })
+        for (let i = 1; i < txRows.length; i++) {
+          const r = txRows[i]
+          const date = r[0] ? r[0].toString().trim() : ''
+          const type = (r[1] || '').toString().trim().toUpperCase()
+          if (date && type) {
+            parsed.transactions.push({
+              date, type,
+              symbol: (r[2] || '').toString().trim().toUpperCase(),
+              description: (r[3] || '').toString().trim(),
+              totalAmount: parseNumber(r[4]),
+              currency: (r[5] || 'USD').toString().trim(),
+            })
+          }
+        }
+      }
+
+      setExtraSheets(parsed)
 
       const hdrs = json[0].map((h) => (h || '').toString().trim())
       const rows = json.slice(1).filter((r) => r.some((cell) => cell !== ''))
@@ -106,15 +152,26 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   }, [pasteText, lang])
 
   const buildPreview = useCallback(() => {
-    const items = rawData.map((row) => ({
-      symbol: mapping.symbol != null ? (row[mapping.symbol] || '').toString().trim() : '',
-      name: mapping.name != null ? (row[mapping.name] || '').toString().trim() : '',
-      type: mapping.type != null ? (row[mapping.type] || '').toString().trim() : inferType(row, mapping),
-      quantity: parseNumber(mapping.quantity != null ? row[mapping.quantity] : 0),
-      purchasePrice: parseNumber(mapping.purchasePrice != null ? row[mapping.purchasePrice] : 0),
-      institution: mapping.institution != null ? (row[mapping.institution] || '').toString().trim() : '',
-      currency: mapping.currency != null ? (row[mapping.currency] || 'USD').toString().trim() : 'USD',
-    })).filter((item) => item.symbol || item.name)
+    const items = rawData.map((row) => {
+      const item = {
+        symbol: mapping.symbol != null ? (row[mapping.symbol] || '').toString().trim() : '',
+        name: mapping.name != null ? (row[mapping.name] || '').toString().trim() : '',
+        type: mapping.type != null ? (row[mapping.type] || '').toString().trim() : inferType(row, mapping),
+        quantity: parseNumber(mapping.quantity != null ? row[mapping.quantity] : 0),
+        purchasePrice: parseNumber(mapping.purchasePrice != null ? row[mapping.purchasePrice] : 0),
+        institution: mapping.institution != null ? (row[mapping.institution] || '').toString().trim() : '',
+        currency: mapping.currency != null ? (row[mapping.currency] || 'USD').toString().trim() : 'USD',
+      }
+      if (mapping.currentPrice != null) {
+        const cp = parseNumber(row[mapping.currentPrice])
+        if (cp > 0) item.currentPrice = cp
+      }
+      if (mapping.acquisitionDate != null) {
+        const d = (row[mapping.acquisitionDate] || '').toString().trim()
+        if (d) item.acquisitionDate = d
+      }
+      return item
+    }).filter((item) => item.symbol || item.name)
 
     setPreview(items)
     setStep('preview')
@@ -125,6 +182,8 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     setError('')
     let success = 0
     let failed = 0
+    let snapCount = 0
+    let txCount = 0
 
     for (const item of preview) {
       try {
@@ -135,10 +194,28 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       }
     }
 
-    setResult({ success, failed, total: preview.length })
+    if (onImportSnapshot && extraSheets.snapshots.length > 0) {
+      for (const snap of extraSheets.snapshots) {
+        try {
+          await onImportSnapshot(snap)
+          snapCount++
+        } catch {}
+      }
+    }
+
+    if (onImportTransaction && extraSheets.transactions.length > 0) {
+      for (const tx of extraSheets.transactions) {
+        try {
+          await onImportTransaction(tx)
+          txCount++
+        } catch {}
+      }
+    }
+
+    setResult({ success, failed, total: preview.length, snapCount, txCount })
     setStep('done')
     setImporting(false)
-  }, [preview, onImportItems])
+  }, [preview, onImportItems, onImportSnapshot, onImportTransaction, extraSheets])
 
   const doManualImport = useCallback(async () => {
     if (!manual.symbol && !manual.name) {
@@ -225,13 +302,16 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                   onChange={(e) => e.target.files[0] && handleFile(e.target.files[0])}
                 />
               </div>
-              <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-                <p className="text-blue-400 text-xs font-medium mb-1">{t('Formato esperado:', 'Expected format:')}</p>
-                <p className="text-slate-400 text-xs">{t(
-                  'Columnas: Symbol, Name, Type, Quantity, Price, Institution',
-                  'Columns: Symbol, Name, Type, Quantity, Price, Institution'
-                )}</p>
-              </div>
+              <button onClick={async () => {
+                  const { generateTemplate } = await import('@/lib/generateTemplate')
+                  await generateTemplate()
+                }}
+                className="mt-4 w-full py-3 bg-cyan-600/20 border border-cyan-500/30 text-cyan-400 rounded-lg hover:bg-cyan-600/30 transition-colors text-sm font-medium flex items-center justify-center gap-2">
+                <span>📥</span> {t('Descargar plantilla de ejemplo', 'Download example template')}
+              </button>
+              <p className="mt-2 text-[10px] text-slate-500 text-center">
+                {t('Excel con 3 hojas: Activos, Historial anual, Transacciones + instrucciones', 'Excel with 3 sheets: Assets, Annual History, Transactions + instructions')}
+              </p>
             </div>
           )}
 
@@ -340,6 +420,17 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                   ))}
                 </div>
               </div>
+              {(extraSheets.snapshots.length > 0 || extraSheets.transactions.length > 0) && (
+                <div className="mt-4 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                  <p className="text-emerald-400 text-xs font-medium mb-1">{t('Hojas detectadas:', 'Sheets detected:')}</p>
+                  {extraSheets.snapshots.length > 0 && (
+                    <p className="text-slate-400 text-xs">📊 {t('Historial:', 'History:')} {extraSheets.snapshots.length} {t('periodos', 'periods')}</p>
+                  )}
+                  {extraSheets.transactions.length > 0 && (
+                    <p className="text-slate-400 text-xs">💰 {t('Transacciones:', 'Transactions:')} {extraSheets.transactions.length}</p>
+                  )}
+                </div>
+              )}
               <div className="flex gap-3 mt-4">
                 <button onClick={() => setStep('upload')} className="flex-1 py-2.5 border border-[#1e2d45] text-slate-300 rounded-lg hover:bg-[#1a2540] transition-colors text-sm">
                   {t('Atrás', 'Back')}
@@ -406,9 +497,15 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                   : t('Importación parcial', 'Partial import')}
               </p>
               <p className="text-slate-400 text-sm">
-                {result.success} {t('importados', 'imported')}
+                {result.success} {t('activos importados', 'assets imported')}
                 {result.failed > 0 && <>, {result.failed} {t('fallidos', 'failed')}</>}
               </p>
+              {result.snapCount > 0 && (
+                <p className="text-cyan-400 text-xs mt-1">📊 {result.snapCount} {t('periodos de historial', 'history periods')}</p>
+              )}
+              {result.txCount > 0 && (
+                <p className="text-emerald-400 text-xs mt-1">💰 {result.txCount} {t('transacciones', 'transactions')}</p>
+              )}
               <button onClick={onClose}
                 className="mt-6 px-8 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition-colors text-sm font-medium">
                 {t('Cerrar', 'Close')}
