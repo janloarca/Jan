@@ -32,7 +32,7 @@ export default function PortfolioGrowthChart({ snapshots, transactions, lang }) 
   const twrData = useMemo(() => {
     if (filtered.length < 2) return []
 
-    const flowTypes = { DEPOSIT: 1, BUY: 1, WITHDRAWAL: -1, SELL: -1 }
+    const flowTypes = { DEPOSIT: 1, WITHDRAWAL: -1 }
     const txList = (transactions || [])
       .filter((tx) => tx.date && flowTypes[(tx.type || '').toUpperCase()] != null)
       .map((tx) => ({

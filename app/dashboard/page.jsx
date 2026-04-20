@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useFirestoreItems } from '@/hooks/useFirestoreItems'
 import { useMarketPrices } from '@/hooks/useMarketPrices'
@@ -128,6 +128,28 @@ export default function DashboardPage() {
       }
     })
   }, [rawEnriched, convert, baseCurrency])
+
+  const snapshotSavedRef = useRef(false)
+
+  useEffect(() => {
+    if (snapshotSavedRef.current) return
+    if (!user || dataLoading || pricesLoading || ratesLoading) return
+    if (enrichedItems.length === 0) return
+
+    const todayStr = new Date().toISOString().split('T')[0]
+    const alreadyExists = snapshots.some((s) => s.date === todayStr || s.id === todayStr)
+    if (alreadyExists) { snapshotSavedRef.current = true; return }
+
+    const totalUSD = enrichedItems.reduce((sum, it) => {
+      const value = (it.quantity || 0) * (it.currentPrice || it.purchasePrice || 0)
+      return sum + convert(value, baseCurrency, 'USD')
+    }, 0)
+
+    if (totalUSD > 0) {
+      saveSnapshot({ date: todayStr, totalActivosUSD: totalUSD, netWorthUSD: totalUSD })
+      snapshotSavedRef.current = true
+    }
+  }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, snapshots, saveSnapshot, convert, baseCurrency])
 
   const handleRefresh = useCallback(() => {
     refreshPrices()
