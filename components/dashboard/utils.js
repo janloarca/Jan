@@ -43,13 +43,12 @@ export function formatShortDate(dateStr) {
 
 export function getTypeCategory(type) {
   if (!type) return 'other'
-  const t = type.toLowerCase()
-  if (/stock|accion|equity|reit/i.test(t)) return 'stocks'
-  if (/crypto|cripto|blockchain|bitcoin|btc|eth/i.test(t)) return 'crypto'
-  if (/bond|bono|instrumento|inversion|deuda|debt|cdt|plazo|treasury|letra|pagare/i.test(t)) return 'bonds'
+  const t = type.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  if (/stock|accion|equity|reit|share/i.test(t)) return 'stocks'
+  if (/crypto|cripto|blockchain|bitcoin|btc|eth|token|coin/i.test(t)) return 'crypto'
+  if (/bond|bono|instrumento|inversion|deuda|debt|cdt|plazo|treasury|letra|pagare|deposito|certificado/i.test(t)) return 'bonds'
   if (/fund|fondo|etf|index|mutual/i.test(t)) return 'funds'
-  if (/bank|banco|cash|saving|checking|cuenta|ahorro/i.test(t)) return 'banks'
-  if (/real.?estate|propiedad|inmueble|property/i.test(t)) return 'other'
+  if (/bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i.test(t)) return 'banks'
   return 'other'
 }
 
@@ -67,9 +66,7 @@ export function getItemPrice(item) {
 }
 
 export function getItemValue(item) {
-  const qtyBased = (item.quantity || 0) * getItemPrice(item)
-  if (qtyBased > 0) return qtyBased
-  return item.value || item.balance || item.amount || item.totalValue || 0
+  return (item.quantity || 0) * getItemPrice(item)
 }
 
 export const TYPE_ICONS = {
