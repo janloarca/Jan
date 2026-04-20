@@ -151,6 +151,52 @@ export default function DashboardPage() {
     }
   }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, snapshots, saveSnapshot, convert, baseCurrency])
 
+  const dividendsProcessedRef = useRef(false)
+
+  useEffect(() => {
+    if (dividendsProcessedRef.current) return
+    if (!user || dataLoading) return
+    if (items.length === 0) return
+
+    const scheduled = items.filter((it) => it.incomeAmount > 0 && it.incomeFrequency)
+    if (scheduled.length === 0) return
+
+    const today = new Date()
+    const todayDay = today.getDate()
+    const todayKey = today.toISOString().split('T')[0]
+
+    const freqMonths = { monthly: 1, quarterly: 3, semiannual: 6, annual: 12 }
+
+    scheduled.forEach((it) => {
+      const payDay = it.incomePayDay || 1
+      if (todayDay !== payDay) return
+
+      const freq = freqMonths[it.incomeFrequency] || 1
+      const currentMonth = today.getMonth()
+      if (freq > 1 && currentMonth % freq !== 0) return
+
+      const alreadyPaid = transactions.some((tx) =>
+        tx.date === todayKey &&
+        (tx.type || '').toUpperCase() === 'DIVIDEND' &&
+        (tx.symbol || '').toUpperCase() === (it.symbol || '').toUpperCase() &&
+        tx._auto === true
+      )
+      if (alreadyPaid) return
+
+      addTransaction({
+        type: 'DIVIDEND',
+        symbol: (it.symbol || '').toUpperCase(),
+        description: `${it.name || it.symbol} - ${it.incomeFrequency}`,
+        date: todayKey,
+        totalAmount: it.incomeAmount,
+        currency: it.currency || 'USD',
+        _auto: true,
+      })
+    })
+
+    dividendsProcessedRef.current = true
+  }, [user, dataLoading, items, transactions, addTransaction])
+
   const handleRefresh = useCallback(() => {
     refreshPrices()
     refreshRates()
