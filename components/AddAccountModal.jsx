@@ -18,7 +18,8 @@ export default function AddAccountModal({ onClose, onAdd, lang = 'es' }) {
   const [form, setForm] = useState({
     symbol: '', name: '', quantity: '', purchasePrice: '', currentPrice: '',
     institution: '', currency: 'USD', acquisitionDate: '',
-    incomeAmount: '', incomeFrequency: 'monthly', incomePayDay: '',
+    incomeAmount: '', incomePayDay: '', incomeMonths: [],
+    capitalReturn: '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -81,8 +82,9 @@ export default function AddAccountModal({ onClose, onAdd, lang = 'es' }) {
 
       if (hasIncome && form.incomeAmount) {
         item.incomeAmount = parseFloat(form.incomeAmount) || 0
-        item.incomeFrequency = form.incomeFrequency
         item.incomePayDay = parseInt(form.incomePayDay) || 1
+        item.incomeMonths = form.incomeMonths.length > 0 ? form.incomeMonths : [0,1,2,3,4,5,6,7,8,9,10,11]
+        if (form.capitalReturn) item.capitalReturn = parseFloat(form.capitalReturn) || 0
       }
 
       await onAdd(item)
@@ -288,36 +290,62 @@ export default function AddAccountModal({ onClose, onAdd, lang = 'es' }) {
                 💰 {isProperty ? t('Ingreso por renta', 'Rental income') : isBank ? t('Intereses', 'Interest') : t('Rendimiento / Dividendos', 'Yield / Dividends')}
                 <span className="text-slate-600 font-normal">({t('opcional', 'optional')})</span>
               </label>
-              <div className="grid grid-cols-3 gap-2">
+
+              <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-[10px] text-slate-500 mb-1 block">
-                    {isProperty ? t('Monto por pago', 'Amount per payment') : t('Monto por pago', 'Amount per payment')}
-                  </label>
+                  <label className="text-[10px] text-slate-500 mb-1 block">{t('Intereses por pago', 'Interest per payment')}</label>
                   <input value={form.incomeAmount} onChange={(e) => set('incomeAmount', e.target.value)}
-                    placeholder={isProperty ? '800' : '50'} type="number" step="any"
+                    placeholder={isProperty ? '800' : '48'} type="number" step="any"
                     className="w-full px-2.5 py-1.5 bg-[#0b1120] border border-[#1e2d45] rounded text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
-                </div>
-                <div>
-                  <label className="text-[10px] text-slate-500 mb-1 block">{t('Frecuencia', 'Frequency')}</label>
-                  <select value={form.incomeFrequency} onChange={(e) => set('incomeFrequency', e.target.value)}
-                    className="w-full px-2.5 py-1.5 bg-[#0b1120] border border-[#1e2d45] rounded text-sm text-white focus:outline-none focus:border-emerald-500/50">
-                    <option value="monthly">{t('Mensual', 'Monthly')}</option>
-                    <option value="quarterly">{t('Trimestral', 'Quarterly')}</option>
-                    <option value="semiannual">{t('Semestral', 'Semi-annual')}</option>
-                    <option value="annual">{t('Anual', 'Annual')}</option>
-                  </select>
                 </div>
                 <div>
                   <label className="text-[10px] text-slate-500 mb-1 block">{t('Día de pago', 'Pay day')}</label>
                   <input value={form.incomePayDay} onChange={(e) => set('incomePayDay', e.target.value)}
-                    placeholder="15" type="number" min="1" max="31"
+                    placeholder="10" type="number" min="1" max="31"
                     className="w-full px-2.5 py-1.5 bg-[#0b1120] border border-[#1e2d45] rounded text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
                 </div>
               </div>
+
+              <div>
+                <label className="text-[10px] text-slate-500 mb-1.5 block">{t('Meses de pago', 'Payment months')}</label>
+                <div className="flex flex-wrap gap-1">
+                  {[
+                    { m: 0, l: 'Ene' }, { m: 1, l: 'Feb' }, { m: 2, l: 'Mar' }, { m: 3, l: 'Abr' },
+                    { m: 4, l: 'May' }, { m: 5, l: 'Jun' }, { m: 6, l: 'Jul' }, { m: 7, l: 'Ago' },
+                    { m: 8, l: 'Sep' }, { m: 9, l: 'Oct' }, { m: 10, l: 'Nov' }, { m: 11, l: 'Dic' },
+                  ].map(({ m, l }) => {
+                    const active = form.incomeMonths.includes(m)
+                    return (
+                      <button key={m} type="button"
+                        onClick={() => set('incomeMonths', active ? form.incomeMonths.filter((x) => x !== m) : [...form.incomeMonths, m].sort((a, b) => a - b))}
+                        className={`px-2 py-1 text-[10px] font-medium rounded transition-all ${
+                          active ? 'bg-emerald-500/25 text-emerald-400 border border-emerald-500/40' : 'bg-[#0b1120] text-slate-500 border border-[#1e2d45] hover:text-slate-300'
+                        }`}>
+                        {l}
+                      </button>
+                    )
+                  })}
+                </div>
+                <div className="flex gap-2 mt-1.5">
+                  <button type="button" onClick={() => set('incomeMonths', [0,1,2,3,4,5,6,7,8,9,10,11])}
+                    className="text-[9px] text-slate-500 hover:text-emerald-400 transition-colors">{t('Todos', 'All')}</button>
+                  <button type="button" onClick={() => set('incomeMonths', [])}
+                    className="text-[9px] text-slate-500 hover:text-emerald-400 transition-colors">{t('Ninguno', 'None')}</button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] text-slate-500 mb-1 block">
+                  {t('Capital devuelto por pago', 'Capital returned per payment')}
+                  <span className="text-slate-600 ml-1">({t('opcional', 'optional')})</span>
+                </label>
+                <input value={form.capitalReturn} onChange={(e) => set('capitalReturn', e.target.value)}
+                  placeholder={t('50 (reduce tu inversión cada pago)', '50 (reduces your investment each payment)')} type="number" step="any"
+                  className="w-full px-2.5 py-1.5 bg-[#0b1120] border border-[#1e2d45] rounded text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+              </div>
+
               <p className="text-[9px] text-slate-600">
-                {isProperty
-                  ? t('Se registrarán automáticamente como dividendo cada periodo.', 'Will be auto-recorded as dividend each period.')
-                  : t('Se registrarán automáticamente como dividendo en la fecha indicada.', 'Will be auto-recorded as dividend on the indicated date.')}
+                {t('Se registran automáticamente en los meses seleccionados. Si hay capital devuelto, el valor de la inversión baja automáticamente.', 'Auto-recorded on selected months. If capital is returned, the investment value decreases automatically.')}
               </p>
             </div>
           )}
