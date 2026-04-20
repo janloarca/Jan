@@ -289,7 +289,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="lg:col-span-3 flex flex-col gap-4">
-            <PortfolioGrowthChart snapshots={snapshots} lang={lang} />
+            <PortfolioGrowthChart snapshots={snapshots} transactions={transactions} lang={lang} />
             <AssetAllocation items={enrichedItems} lang={lang} />
           </div>
         </div>

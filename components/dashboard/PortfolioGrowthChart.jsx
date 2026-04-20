@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import { formatCurrency, formatCompact, formatShortDate, formatDate } from './utils'
 
-export default function PortfolioGrowthChart({ snapshots, lang }) {
+export default function PortfolioGrowthChart({ snapshots, transactions, lang }) {
   const [period, setPeriod] = useState('ALL')
   const [mode, setMode] = useState('growth')
   const [hoverIdx, setHoverIdx] = useState(null)
@@ -31,13 +31,36 @@ export default function PortfolioGrowthChart({ snapshots, lang }) {
 
   const twrData = useMemo(() => {
     if (filtered.length < 2) return []
-    const base = filtered[0].netWorthUSD ?? filtered[0].totalActivosUSD ?? 0
-    if (base === 0) return filtered.map(() => 0)
-    return filtered.map((s) => {
-      const val = s.netWorthUSD ?? s.totalActivosUSD ?? 0
-      return ((val / base) - 1) * 100
-    })
-  }, [filtered])
+
+    const flowTypes = { DEPOSIT: 1, BUY: 1, WITHDRAWAL: -1, SELL: -1 }
+    const txList = (transactions || [])
+      .filter((tx) => tx.date && flowTypes[(tx.type || '').toUpperCase()] != null)
+      .map((tx) => ({
+        date: new Date(tx.date),
+        flow: (tx.totalAmount ?? 0) * flowTypes[(tx.type || '').toUpperCase()],
+      }))
+
+    let cumReturn = 1
+    const result = [0]
+
+    for (let i = 1; i < filtered.length; i++) {
+      const prevVal = filtered[i - 1].netWorthUSD ?? filtered[i - 1].totalActivosUSD ?? 0
+      const currVal = filtered[i].netWorthUSD ?? filtered[i].totalActivosUSD ?? 0
+      const prevDate = new Date(filtered[i - 1].date)
+      const currDate = new Date(filtered[i].date)
+
+      const periodFlows = txList.filter((tx) => tx.date > prevDate && tx.date <= currDate)
+      const netFlow = periodFlows.reduce((s, tx) => s + tx.flow, 0)
+
+      const adjustedPrev = prevVal + netFlow
+      const periodReturn = adjustedPrev > 0 ? currVal / adjustedPrev : 1
+
+      cumReturn *= periodReturn
+      result.push((cumReturn - 1) * 100)
+    }
+
+    return result
+  }, [filtered, transactions])
 
   if (!filtered || filtered.length < 2) {
     return (
