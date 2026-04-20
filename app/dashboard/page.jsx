@@ -210,7 +210,7 @@ export default function DashboardPage() {
   const annualDividends = useMemo(() => {
     const divs = (transactions || []).filter((tx) => (tx.type || '').toUpperCase() === 'DIVIDEND')
     return divs.reduce((s, tx) => {
-      const amt = tx.totalAmount ?? tx.amount ?? 0
+      const amt = tx.totalAmount ?? 0
       return s + convert(amt, tx.currency || 'USD', baseCurrency)
     }, 0)
   }, [transactions, convert, baseCurrency])
@@ -312,7 +312,7 @@ export default function DashboardPage() {
 
         {/* Row 2: Dividend Income + Concentration Risk */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-          <DividendIncome transactions={transactions} lang={lang} />
+          <DividendIncome transactions={transactions} convert={convert} baseCurrency={baseCurrency} lang={lang} />
           <ConcentrationRisk items={enrichedItems} lang={lang} />
         </div>
 

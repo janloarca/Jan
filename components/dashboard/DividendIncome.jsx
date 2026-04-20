@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import { formatCurrency } from './utils'
 
-export default function DividendIncome({ transactions, lang }) {
+export default function DividendIncome({ transactions, convert, baseCurrency, lang }) {
   const stats = useMemo(() => {
     const divs = (transactions || []).filter((tx) => (tx.type || '').toUpperCase() === 'DIVIDEND')
     if (divs.length === 0) return null
@@ -16,10 +16,14 @@ export default function DividendIncome({ transactions, lang }) {
     let totalYTD = 0
     let totalThisMonth = 0
     const byMonth = {}
+    const bySymbol = {}
 
     divs.forEach((tx) => {
-      const amt = tx.totalAmount ?? tx.amount ?? tx.pricePerUnit ?? 0
+      const rawAmt = tx.totalAmount ?? 0
+      const amt = convert ? convert(rawAmt, tx.currency || 'USD', baseCurrency || 'USD') : rawAmt
       totalAll += amt
+      const sym = tx.symbol || tx.description || 'Other'
+      bySymbol[sym] = (bySymbol[sym] || 0) + amt
       const d = tx.date ? new Date(tx.date) : null
       if (d) {
         const y = d.getFullYear()
@@ -41,11 +45,16 @@ export default function DividendIncome({ transactions, lang }) {
     const last6 = monthKeys.slice(-6)
     const maxBar = Math.max(...last6.map((k) => byMonth[k]), 1)
 
+    const topPayers = Object.entries(bySymbol)
+      .map(([symbol, total]) => ({ symbol, total }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5)
+
     return {
       totalAll, totalYTD, totalThisMonth, avgMonthly, estAnnual, dailyAvg,
-      divCount: divs.length, byMonth, last6, maxBar,
+      divCount: divs.length, byMonth, last6, maxBar, topPayers,
     }
-  }, [transactions])
+  }, [transactions, convert, baseCurrency])
 
   if (!stats) return null
 
@@ -110,6 +119,27 @@ export default function DividendIncome({ transactions, lang }) {
                     <div className="w-full h-full bg-emerald-500/60 rounded-t" />
                   </div>
                   <span className="text-[8px] text-slate-500">{monthLabel}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Top dividend payers */}
+      {stats.topPayers && stats.topPayers.length > 0 && (
+        <div className="mt-4">
+          <span className="text-[10px] text-slate-500 mb-2 block">{t('Mayores pagadores', 'Top payers')}</span>
+          <div className="space-y-1.5">
+            {stats.topPayers.map((p) => {
+              const pct = stats.totalAll > 0 ? (p.total / stats.totalAll) * 100 : 0
+              return (
+                <div key={p.symbol} className="flex items-center gap-2">
+                  <span className="text-[11px] text-white font-medium w-16 truncate">{p.symbol}</span>
+                  <div className="flex-1 h-1.5 bg-slate-700/30 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full bg-emerald-500/60" style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className="text-[10px] text-slate-400 w-16 text-right">{formatCurrency(p.total)}</span>
                 </div>
               )
             })}
