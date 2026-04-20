@@ -18,7 +18,8 @@ export default function AddAccountModal({ onClose, onAdd, existingItems = [], la
   const [form, setForm] = useState({
     symbol: '', name: '', quantity: '', purchasePrice: '', currentPrice: '',
     institution: '', currency: 'USD', acquisitionDate: '',
-    incomeAmount: '', incomePayDay: '', incomeMonths: [],
+    incomeAmount: '', incomeMode: 'fixed', incomeRate: '',
+    incomePayDay: '', incomeMonths: [],
     capitalReturn: '', incomeDestination: '', capitalDestination: '',
   })
   const [saving, setSaving] = useState(false)
@@ -80,8 +81,13 @@ export default function AddAccountModal({ onClose, onAdd, existingItems = [], la
         if (form.currentPrice) item.currentPrice = parseFloat(form.currentPrice)
       }
 
-      if (hasIncome && form.incomeAmount) {
-        item.incomeAmount = parseFloat(form.incomeAmount) || 0
+      if (hasIncome && (form.incomeAmount || form.incomeRate)) {
+        item.incomeMode = form.incomeMode
+        if (form.incomeMode === 'percent') {
+          item.incomeRate = parseFloat(form.incomeRate) || 0
+        } else {
+          item.incomeAmount = parseFloat(form.incomeAmount) || 0
+        }
         item.incomePayDay = parseInt(form.incomePayDay) || 1
         item.incomeMonths = form.incomeMonths.length > 0 ? form.incomeMonths : [0,1,2,3,4,5,6,7,8,9,10,11]
         if (form.incomeDestination) item.incomeDestination = form.incomeDestination
@@ -295,12 +301,35 @@ export default function AddAccountModal({ onClose, onAdd, existingItems = [], la
                 <span className="text-slate-600 font-normal">({t('opcional', 'optional')})</span>
               </label>
 
+              <div className="flex gap-1 mb-2">
+                <button type="button" onClick={() => set('incomeMode', 'fixed')}
+                  className={`flex-1 px-2 py-1.5 text-[10px] font-medium rounded transition-all ${
+                    form.incomeMode === 'fixed' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-[#0b1120] text-slate-500 border border-[#1e2d45]'
+                  }`}>{t('Monto fijo', 'Fixed amount')}</button>
+                <button type="button" onClick={() => set('incomeMode', 'percent')}
+                  className={`flex-1 px-2 py-1.5 text-[10px] font-medium rounded transition-all ${
+                    form.incomeMode === 'percent' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-[#0b1120] text-slate-500 border border-[#1e2d45]'
+                  }`}>{t('% del saldo', '% of balance')}</button>
+              </div>
+
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-[10px] text-slate-500 mb-1 block">{t('Intereses por pago', 'Interest per payment')}</label>
-                  <input value={form.incomeAmount} onChange={(e) => set('incomeAmount', e.target.value)}
-                    placeholder={isProperty ? '800' : '48'} type="number" step="any"
-                    className="w-full px-2.5 py-1.5 bg-[#0b1120] border border-[#1e2d45] rounded text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+                  {form.incomeMode === 'fixed' ? (
+                    <>
+                      <label className="text-[10px] text-slate-500 mb-1 block">{t('Monto por pago', 'Amount per payment')}</label>
+                      <input value={form.incomeAmount} onChange={(e) => set('incomeAmount', e.target.value)}
+                        placeholder={isProperty ? '800' : '48'} type="number" step="any"
+                        className="w-full px-2.5 py-1.5 bg-[#0b1120] border border-[#1e2d45] rounded text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+                    </>
+                  ) : (
+                    <>
+                      <label className="text-[10px] text-slate-500 mb-1 block">{t('Tasa anual %', 'Annual rate %')}</label>
+                      <input value={form.incomeRate} onChange={(e) => set('incomeRate', e.target.value)}
+                        placeholder="5.5" type="number" step="any"
+                        className="w-full px-2.5 py-1.5 bg-[#0b1120] border border-[#1e2d45] rounded text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+                      <p className="text-[9px] text-slate-600 mt-0.5">{t('Se divide entre los meses seleccionados', 'Divided among selected months')}</p>
+                    </>
+                  )}
                 </div>
                 <div>
                   <label className="text-[10px] text-slate-500 mb-1 block">{t('Día de pago', 'Pay day')}</label>

@@ -158,7 +158,7 @@ export default function DashboardPage() {
     if (!user || dataLoading) return
     if (items.length === 0) return
 
-    const scheduled = items.filter((it) => it.incomeAmount > 0 && it.incomeMonths)
+    const scheduled = items.filter((it) => (it.incomeAmount > 0 || it.incomeRate > 0) && it.incomeMonths)
     if (scheduled.length === 0) return
 
     const today = new Date()
@@ -182,12 +182,20 @@ export default function DashboardPage() {
       )
       if (alreadyPaid) return
 
+      let paymentAmount = it.incomeAmount || 0
+      if (it.incomeMode === 'percent' && it.incomeRate > 0) {
+        const balance = (it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0)
+        const payMonths = (it.incomeMonths || []).length || 12
+        paymentAmount = (balance * (it.incomeRate / 100)) / payMonths
+      }
+      if (paymentAmount <= 0) return
+
       addTransaction({
         type: 'DIVIDEND',
         symbol: sym,
-        description: `${it.name || it.symbol} - ${it.incomeAmount} ${it.currency || 'USD'}`,
+        description: `${it.name || it.symbol} - ${paymentAmount.toFixed(2)} ${it.currency || 'USD'}`,
         date: todayKey,
-        totalAmount: it.incomeAmount,
+        totalAmount: Math.round(paymentAmount * 100) / 100,
         currency: it.currency || 'USD',
         _auto: true,
       })
@@ -195,7 +203,7 @@ export default function DashboardPage() {
       if (it.incomeDestination) {
         const dest = items.find((d) => (d.id || d.symbol) === it.incomeDestination)
         if (dest) {
-          const destPrice = (dest.currentPrice || dest.purchasePrice || 0) + it.incomeAmount
+          const destPrice = (dest.currentPrice || dest.purchasePrice || 0) + paymentAmount
           addItem({ ...dest, currentPrice: destPrice, purchasePrice: destPrice })
         }
       }
