@@ -13,13 +13,13 @@ const TYPES = [
   { key: 'Inversion', icon: '🏛', es: 'Inversión', en: 'Investment' },
 ]
 
-export default function AddAccountModal({ onClose, onAdd, lang = 'es' }) {
+export default function AddAccountModal({ onClose, onAdd, existingItems = [], lang = 'es' }) {
   const [type, setType] = useState('Stock')
   const [form, setForm] = useState({
     symbol: '', name: '', quantity: '', purchasePrice: '', currentPrice: '',
     institution: '', currency: 'USD', acquisitionDate: '',
     incomeAmount: '', incomePayDay: '', incomeMonths: [],
-    capitalReturn: '',
+    capitalReturn: '', incomeDestination: '', capitalDestination: '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -84,7 +84,11 @@ export default function AddAccountModal({ onClose, onAdd, lang = 'es' }) {
         item.incomeAmount = parseFloat(form.incomeAmount) || 0
         item.incomePayDay = parseInt(form.incomePayDay) || 1
         item.incomeMonths = form.incomeMonths.length > 0 ? form.incomeMonths : [0,1,2,3,4,5,6,7,8,9,10,11]
-        if (form.capitalReturn) item.capitalReturn = parseFloat(form.capitalReturn) || 0
+        if (form.incomeDestination) item.incomeDestination = form.incomeDestination
+        if (form.capitalReturn) {
+          item.capitalReturn = parseFloat(form.capitalReturn) || 0
+          if (form.capitalDestination) item.capitalDestination = form.capitalDestination
+        }
       }
 
       await onAdd(item)
@@ -344,9 +348,42 @@ export default function AddAccountModal({ onClose, onAdd, lang = 'es' }) {
                   className="w-full px-2.5 py-1.5 bg-[#0b1120] border border-[#1e2d45] rounded text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
               </div>
 
-              <p className="text-[9px] text-slate-600">
-                {t('Se registran automáticamente en los meses seleccionados. Si hay capital devuelto, el valor de la inversión baja automáticamente.', 'Auto-recorded on selected months. If capital is returned, the investment value decreases automatically.')}
-              </p>
+              {/* Destination accounts */}
+              {existingItems.length > 0 && (
+                <div className="space-y-2 pt-1 border-t border-[#1e2d45]/50">
+                  <label className="text-[10px] text-slate-500 font-medium">{t('Destino de pagos', 'Payment destination')}</label>
+                  <div>
+                    <label className="text-[10px] text-slate-500 mb-1 block">
+                      {t('Intereses/dividendos van a:', 'Interest/dividends go to:')}
+                    </label>
+                    <select value={form.incomeDestination} onChange={(e) => set('incomeDestination', e.target.value)}
+                      className="w-full px-2.5 py-1.5 bg-[#0b1120] border border-[#1e2d45] rounded text-sm text-white focus:outline-none focus:border-emerald-500/50">
+                      <option value="">{t('-- Sin asignar --', '-- Not assigned --')}</option>
+                      {existingItems.map((it) => (
+                        <option key={it.id || it.symbol} value={it.id || it.symbol}>
+                          {it.name || it.symbol} {it.institution ? `(${it.institution})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {form.capitalReturn && (
+                    <div>
+                      <label className="text-[10px] text-slate-500 mb-1 block">
+                        {t('Capital devuelto va a:', 'Returned capital goes to:')}
+                      </label>
+                      <select value={form.capitalDestination} onChange={(e) => set('capitalDestination', e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-[#0b1120] border border-[#1e2d45] rounded text-sm text-white focus:outline-none focus:border-emerald-500/50">
+                        <option value="">{t('-- Sin asignar --', '-- Not assigned --')}</option>
+                        {existingItems.map((it) => (
+                          <option key={it.id || it.symbol} value={it.id || it.symbol}>
+                            {it.name || it.symbol} {it.institution ? `(${it.institution})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
