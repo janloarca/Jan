@@ -378,41 +378,51 @@ export default function AddAccountModal({ onClose, onAdd, existingItems = [], la
               </div>
 
               {/* Destination accounts */}
-              {existingItems.length > 0 && (
-                <div className="space-y-2 pt-1 border-t border-[#1e2d45]/50">
-                  <label className="text-[10px] text-slate-500 font-medium">{t('Destino de pagos', 'Payment destination')}</label>
-                  <div>
-                    <label className="text-[10px] text-slate-500 mb-1 block">
-                      {t('Intereses/dividendos van a:', 'Interest/dividends go to:')}
-                    </label>
+              <div className="space-y-2 pt-2 border-t border-[#1e2d45]/50">
+                <label className="text-[10px] text-cyan-400 font-medium">{t('¿A dónde van los pagos?', 'Where do payments go?')}</label>
+                <div>
+                  <label className="text-[10px] text-slate-500 mb-1 block">
+                    {isProperty ? t('Renta se deposita en:', 'Rent deposited to:') : t('Intereses/dividendos van a:', 'Interest/dividends go to:')}
+                  </label>
+                  {existingItems.length > 0 ? (
                     <select value={form.incomeDestination} onChange={(e) => set('incomeDestination', e.target.value)}
                       className="w-full px-2.5 py-1.5 bg-[#0b1120] border border-[#1e2d45] rounded text-sm text-white focus:outline-none focus:border-emerald-500/50">
-                      <option value="">{t('-- Sin asignar --', '-- Not assigned --')}</option>
+                      <option value="">{t('-- Selecciona cuenta --', '-- Select account --')}</option>
                       {existingItems.map((it) => (
                         <option key={it.id || it.symbol} value={it.id || it.symbol}>
                           {it.name || it.symbol} {it.institution ? `(${it.institution})` : ''}
                         </option>
                       ))}
                     </select>
-                  </div>
-                  {form.capitalReturn && (
-                    <div>
-                      <label className="text-[10px] text-slate-500 mb-1 block">
-                        {t('Capital devuelto va a:', 'Returned capital goes to:')}
-                      </label>
+                  ) : (
+                    <p className="text-[10px] text-amber-400/80 bg-amber-500/10 border border-amber-500/20 rounded px-2.5 py-1.5">
+                      {t('Agrega primero una cuenta de banco o fondo para seleccionarla como destino.', 'Add a bank account or fund first to select it as destination.')}
+                    </p>
+                  )}
+                </div>
+                {form.capitalReturn && (
+                  <div>
+                    <label className="text-[10px] text-slate-500 mb-1 block">
+                      {t('Capital devuelto va a:', 'Returned capital goes to:')}
+                    </label>
+                    {existingItems.length > 0 ? (
                       <select value={form.capitalDestination} onChange={(e) => set('capitalDestination', e.target.value)}
                         className="w-full px-2.5 py-1.5 bg-[#0b1120] border border-[#1e2d45] rounded text-sm text-white focus:outline-none focus:border-emerald-500/50">
-                        <option value="">{t('-- Sin asignar --', '-- Not assigned --')}</option>
+                        <option value="">{t('-- Selecciona cuenta --', '-- Select account --')}</option>
                         {existingItems.map((it) => (
                           <option key={it.id || it.symbol} value={it.id || it.symbol}>
                             {it.name || it.symbol} {it.institution ? `(${it.institution})` : ''}
                           </option>
                         ))}
                       </select>
-                    </div>
-                  )}
-                </div>
-              )}
+                    ) : (
+                      <p className="text-[10px] text-amber-400/80 bg-amber-500/10 border border-amber-500/20 rounded px-2.5 py-1.5">
+                        {t('Agrega primero una cuenta de banco.', 'Add a bank account first.')}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
