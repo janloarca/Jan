@@ -200,7 +200,13 @@ export default function DashboardPage() {
         _auto: true,
       })
 
-      if (it.incomeDestination) {
+      if (it.dividendAction === 'reinvest') {
+        const sharePrice = it.currentPrice || it.purchasePrice || 0
+        if (sharePrice > 0) {
+          const newShares = paymentAmount / sharePrice
+          addItem({ ...it, quantity: (it.quantity || 0) + newShares })
+        }
+      } else if (it.incomeDestination) {
         const dest = items.find((d) => (d.id || d.symbol) === it.incomeDestination)
         if (dest) {
           const destPrice = (dest.currentPrice || dest.purchasePrice || 0) + paymentAmount
