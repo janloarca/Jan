@@ -343,6 +343,7 @@ export default function DashboardPage() {
           onClose={() => setModal(null)}
           onImportItems={addItem}
           onImportTransaction={addTransaction}
+          onImportSnapshot={saveSnapshot}
           lang={lang}
         />
       )}
