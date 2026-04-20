@@ -2,33 +2,82 @@
 
 import { useState } from 'react'
 
+const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
+
+const TYPES = [
+  { key: 'Stock', icon: '📈', es: 'Acción', en: 'Stock' },
+  { key: 'Crypto', icon: '₿', es: 'Crypto', en: 'Crypto' },
+  { key: 'Fund', icon: '💼', es: 'Fondo/ETF', en: 'Fund/ETF' },
+  { key: 'Inmueble', icon: '🏠', es: 'Inmueble', en: 'Real Estate' },
+  { key: 'Bank', icon: '🏦', es: 'Banco', en: 'Bank' },
+  { key: 'Inversion', icon: '🏛', es: 'Inversión', en: 'Investment' },
+]
+
 export default function AddAccountModal({ onClose, onAdd, lang = 'es' }) {
+  const [type, setType] = useState('Stock')
   const [form, setForm] = useState({
-    symbol: '', name: '', type: 'Stock', quantity: '', purchasePrice: '', institution: '', currency: 'USD',
+    symbol: '', name: '', quantity: '', purchasePrice: '', currentPrice: '',
+    institution: '', currency: 'USD', acquisitionDate: '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   const t = (es, en) => lang === 'es' ? es : en
+  const set = (k, v) => setForm({ ...form, [k]: v })
+
+  const isMarketAsset = type === 'Stock' || type === 'Crypto' || type === 'Fund'
+  const isProperty = type === 'Inmueble'
+  const isBank = type === 'Bank'
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!form.symbol && !form.name) {
-      setError(t('Ingresa al menos el símbolo o nombre.', 'Enter at least symbol or name.'))
+    setError('')
+
+    if (isMarketAsset && !form.symbol) {
+      setError(t('Ingresa el símbolo (ej: AAPL, BTC, VOO)', 'Enter the symbol (e.g. AAPL, BTC, VOO)'))
       return
     }
+    if (!isMarketAsset && !form.name) {
+      setError(t('Ingresa el nombre del activo', 'Enter the asset name'))
+      return
+    }
+
     setSaving(true)
-    setError('')
     try {
-      await onAdd({
-        symbol: form.symbol.trim(),
-        name: form.name.trim(),
-        type: form.type,
-        quantity: parseFloat(form.quantity) || 0,
-        purchasePrice: parseFloat(form.purchasePrice) || 0,
-        institution: form.institution.trim(),
+      const item = {
+        type,
         currency: form.currency,
-      })
+        institution: form.institution.trim(),
+      }
+
+      if (form.acquisitionDate) item.acquisitionDate = form.acquisitionDate
+
+      if (isMarketAsset) {
+        item.symbol = form.symbol.trim().toUpperCase()
+        item.name = form.name.trim() || item.symbol
+        item.quantity = parseFloat(form.quantity) || 0
+        item.purchasePrice = parseFloat(form.purchasePrice) || 0
+      } else if (isProperty) {
+        item.symbol = form.symbol.trim() || form.name.trim().replace(/\s+/g, '-').toUpperCase().slice(0, 12)
+        item.name = form.name.trim()
+        item.quantity = 1
+        item.purchasePrice = parseFloat(form.purchasePrice) || 0
+        if (form.currentPrice) item.currentPrice = parseFloat(form.currentPrice)
+      } else if (isBank) {
+        item.symbol = form.symbol.trim() || form.institution.trim().replace(/\s+/g, '-').toUpperCase().slice(0, 8)
+        item.name = form.name.trim() || `${form.institution.trim()} - ${t('Cuenta', 'Account')}`
+        item.quantity = 1
+        item.purchasePrice = parseFloat(form.purchasePrice) || 0
+        item.currentPrice = parseFloat(form.purchasePrice) || 0
+      } else {
+        item.symbol = form.symbol.trim() || form.name.trim().replace(/\s+/g, '-').toUpperCase().slice(0, 12)
+        item.name = form.name.trim()
+        item.quantity = parseFloat(form.quantity) || 1
+        item.purchasePrice = parseFloat(form.purchasePrice) || 0
+        if (form.currentPrice) item.currentPrice = parseFloat(form.currentPrice)
+      }
+
+      await onAdd(item)
       onClose()
     } catch (err) {
       setError(err.message)
@@ -36,81 +85,200 @@ export default function AddAccountModal({ onClose, onAdd, lang = 'es' }) {
     setSaving(false)
   }
 
-  const set = (k, v) => setForm({ ...form, [k]: v })
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="bg-[#131c2e] border border-[#1e2d45] rounded-xl shadow-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-[#131c2e] border border-[#1e2d45] rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#1e2d45]">
-          <h2 className="text-lg font-bold text-white">{t('Nueva Cuenta', 'New Account')}</h2>
+          <h2 className="text-lg font-bold text-white">{t('Agregar Activo', 'Add Asset')}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-3">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-sm">{error}</div>}
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs text-slate-400 mb-1 block">{t('Símbolo', 'Symbol')} *</label>
-              <input value={form.symbol} onChange={(e) => set('symbol', e.target.value)}
-                placeholder="AAPL" className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
-            </div>
-            <div>
-              <label className="text-xs text-slate-400 mb-1 block">{t('Nombre', 'Name')}</label>
-              <input value={form.name} onChange={(e) => set('name', e.target.value)}
-                placeholder="Apple Inc" className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs text-slate-400 mb-1 block">{t('Tipo', 'Type')}</label>
-              <select value={form.type} onChange={(e) => set('type', e.target.value)}
-                className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50">
-                <option value="Stock">Stock</option>
-                <option value="Crypto">Crypto</option>
-                <option value="Bond">{t('Bono/Instrumento', 'Bond')}</option>
-                <option value="Fund">{t('Fondo/ETF', 'Fund/ETF')}</option>
-                <option value="Bank">{t('Banco/Cash', 'Bank/Cash')}</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs text-slate-400 mb-1 block">{t('Institución', 'Institution')}</label>
-              <input value={form.institution} onChange={(e) => set('institution', e.target.value)}
-                placeholder="IBKR" className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+          {/* Type selector */}
+          <div>
+            <label className="text-xs text-slate-400 mb-2 block font-medium">{t('Tipo de activo', 'Asset type')}</label>
+            <div className="grid grid-cols-3 gap-2">
+              {TYPES.map((tp) => (
+                <button key={tp.key} type="button" onClick={() => setType(tp.key)}
+                  className={`flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg transition-all text-center ${
+                    type === tp.key
+                      ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-400'
+                      : 'bg-[#0b1120] border border-[#1e2d45] text-slate-400 hover:border-slate-500'
+                  }`}>
+                  <span className="text-lg">{tp.icon}</span>
+                  <span className="text-[10px] font-medium">{lang === 'es' ? tp.es : tp.en}</span>
+                </button>
+              ))}
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="text-xs text-slate-400 mb-1 block">{t('Cantidad', 'Quantity')} *</label>
-              <input value={form.quantity} onChange={(e) => set('quantity', e.target.value)}
-                placeholder="10" type="number" step="any" className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+          {/* Market assets: Symbol + Name */}
+          {isMarketAsset && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">
+                  {t('Símbolo', 'Symbol')} *
+                  <span className="text-slate-600 ml-1">
+                    {type === 'Stock' ? '(AAPL, MSFT)' : type === 'Crypto' ? '(BTC, ETH)' : '(VOO, VTI)'}
+                  </span>
+                </label>
+                <input value={form.symbol} onChange={(e) => set('symbol', e.target.value)}
+                  placeholder={type === 'Stock' ? 'AAPL' : type === 'Crypto' ? 'BTC-USD' : 'VOO'}
+                  className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">{t('Nombre', 'Name')}</label>
+                <input value={form.name} onChange={(e) => set('name', e.target.value)}
+                  placeholder={type === 'Stock' ? 'Apple Inc' : type === 'Crypto' ? 'Bitcoin' : 'Vanguard S&P 500'}
+                  className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+              </div>
             </div>
-            <div>
-              <label className="text-xs text-slate-400 mb-1 block">{t('Precio unitario', 'Unit price')} *</label>
-              <input value={form.purchasePrice} onChange={(e) => set('purchasePrice', e.target.value)}
-                placeholder="150.00" type="number" step="any" className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+          )}
+
+          {/* Market assets: Qty + Purchase Price */}
+          {isMarketAsset && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">{t('Cantidad', 'Quantity')} *</label>
+                <input value={form.quantity} onChange={(e) => set('quantity', e.target.value)}
+                  placeholder={type === 'Crypto' ? '0.5' : '10'} type="number" step="any"
+                  className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">{t('Precio de entrada', 'Entry price')} *</label>
+                <input value={form.purchasePrice} onChange={(e) => set('purchasePrice', e.target.value)}
+                  placeholder="150.00" type="number" step="any"
+                  className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+              </div>
             </div>
+          )}
+          {isMarketAsset && (
+            <p className="text-[10px] text-slate-600 -mt-2">
+              {t('El precio actual se actualiza automáticamente del mercado.', 'Current price updates automatically from market data.')}
+            </p>
+          )}
+
+          {/* Real estate */}
+          {isProperty && (
+            <>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">{t('Nombre / Descripción', 'Name / Description')} *</label>
+                <input value={form.name} onChange={(e) => set('name', e.target.value)}
+                  placeholder={t('Apartamento Centro Zona 10', 'Downtown Apartment')}
+                  className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">{t('Valor de compra', 'Purchase value')} *</label>
+                  <input value={form.purchasePrice} onChange={(e) => set('purchasePrice', e.target.value)}
+                    placeholder="85000" type="number" step="any"
+                    className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">{t('Valor actual estimado', 'Est. current value')}</label>
+                  <input value={form.currentPrice} onChange={(e) => set('currentPrice', e.target.value)}
+                    placeholder="95000" type="number" step="any"
+                    className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-600 -mt-2">
+                {t('Si no pones valor actual, se usa el valor de compra. Puedes editarlo después.', 'If blank, purchase value is used. You can edit it later.')}
+              </p>
+            </>
+          )}
+
+          {/* Bank account */}
+          {isBank && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">{t('Banco', 'Bank')} *</label>
+                  <input value={form.institution} onChange={(e) => set('institution', e.target.value)}
+                    placeholder={t('BAM, BI, Banrural...', 'Chase, BoA...')}
+                    className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">{t('Nombre de cuenta', 'Account name')}</label>
+                  <input value={form.name} onChange={(e) => set('name', e.target.value)}
+                    placeholder={t('Cuenta de ahorro', 'Savings account')}
+                    className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">{t('Saldo actual', 'Current balance')} *</label>
+                <input value={form.purchasePrice} onChange={(e) => set('purchasePrice', e.target.value)}
+                  placeholder="5000" type="number" step="any"
+                  className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+              </div>
+              <p className="text-[10px] text-slate-600 -mt-2">
+                {t('Puedes actualizar el saldo en cualquier momento editando la cuenta.', 'You can update the balance anytime by editing the account.')}
+              </p>
+            </>
+          )}
+
+          {/* Investment (bonds, CDs, etc) */}
+          {type === 'Inversion' && (
+            <>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">{t('Nombre', 'Name')} *</label>
+                <input value={form.name} onChange={(e) => set('name', e.target.value)}
+                  placeholder={t('CDT Banco Industrial', 'Certificate of Deposit')}
+                  className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">{t('Monto invertido', 'Amount invested')} *</label>
+                  <input value={form.purchasePrice} onChange={(e) => set('purchasePrice', e.target.value)}
+                    placeholder="10000" type="number" step="any"
+                    className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">{t('Valor actual', 'Current value')}</label>
+                  <input value={form.currentPrice} onChange={(e) => set('currentPrice', e.target.value)}
+                    placeholder="10800" type="number" step="any"
+                    className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Institution (for non-bank types that don't already show it) */}
+          {!isBank && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">{t('Institución', 'Institution')}</label>
+                <input value={form.institution} onChange={(e) => set('institution', e.target.value)}
+                  placeholder={isProperty ? t('N/A', 'N/A') : 'IBKR, Binance...'}
+                  className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">{t('Moneda', 'Currency')}</label>
+                <select value={form.currency} onChange={(e) => set('currency', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50">
+                  {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+            </div>
+          )}
+
+          {/* Currency for bank (separate since institution is already shown) */}
+          {isBank && (
             <div>
               <label className="text-xs text-slate-400 mb-1 block">{t('Moneda', 'Currency')}</label>
               <select value={form.currency} onChange={(e) => set('currency', e.target.value)}
                 className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50">
-                <option value="USD">USD</option>
-                <option value="EUR">EUR</option>
-                <option value="GBP">GBP</option>
-                <option value="MXN">MXN</option>
-                <option value="GTQ">GTQ</option>
-                <option value="COP">COP</option>
-                <option value="CLP">CLP</option>
-                <option value="ARS">ARS</option>
-                <option value="BRL">BRL</option>
-                <option value="PEN">PEN</option>
-                <option value="CAD">CAD</option>
-                <option value="CHF">CHF</option>
-                <option value="JPY">JPY</option>
-                <option value="CNY">CNY</option>
+                {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
+          )}
+
+          {/* Acquisition date */}
+          <div>
+            <label className="text-xs text-slate-400 mb-1 block">{t('Fecha de compra', 'Purchase date')}</label>
+            <input value={form.acquisitionDate} onChange={(e) => set('acquisitionDate', e.target.value)}
+              type="date"
+              className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50" />
           </div>
 
           <div className="flex gap-3 pt-2">

@@ -173,8 +173,8 @@ export default function DashboardPage() {
 
   const convertSnapshot = useCallback((val) => convert(val, 'USD', baseCurrency), [convert, baseCurrency])
 
-  const totalAssets = latestSnapshot ? convertSnapshot(latestSnapshot.totalActivosUSD ?? 0) : totalFromItems
-  const netWorth = latestSnapshot ? convertSnapshot(latestSnapshot.netWorthUSD ?? 0) : totalAssets
+  const totalAssets = totalFromItems > 0 ? totalFromItems : (latestSnapshot ? convertSnapshot(latestSnapshot.totalActivosUSD ?? 0) : 0)
+  const netWorth = totalAssets
 
   const handleExport = useCallback(async () => {
     if (items.length === 0) return
