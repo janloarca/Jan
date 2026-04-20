@@ -98,33 +98,52 @@ export default function AddTransactionModal({ onClose, onAdd, lang = 'es' }) {
               className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
           </div>
 
-          <div className="grid grid-cols-4 gap-3">
-            <div>
-              <label className="text-xs text-slate-400 mb-1 block">{t('Cantidad', 'Qty')}</label>
-              <input value={form.quantity} onChange={(e) => set('quantity', e.target.value)}
-                placeholder="10" type="number" step="any" className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+          {form.type === 'DIVIDEND' || form.type === 'DEPOSIT' || form.type === 'WITHDRAWAL' ? (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">{t('Monto', 'Amount')}</label>
+                <input value={form.totalAmount} onChange={(e) => set('totalAmount', e.target.value)}
+                  placeholder="500" type="number" step="any" className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">{t('Moneda', 'Currency')}</label>
+                <select value={form.currency} onChange={(e) => set('currency', e.target.value)}
+                  className="w-full px-2 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50">
+                  {['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY'].map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="text-xs text-slate-400 mb-1 block">{t('Precio', 'Price')}</label>
-              <input value={form.pricePerUnit} onChange={(e) => set('pricePerUnit', e.target.value)}
-                placeholder="150" type="number" step="any" className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+          ) : (
+            <div className="grid grid-cols-4 gap-3">
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">{t('Cantidad', 'Qty')}</label>
+                <input value={form.quantity} onChange={(e) => set('quantity', e.target.value)}
+                  placeholder="10" type="number" step="any" className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">{t('Precio', 'Price')}</label>
+                <input value={form.pricePerUnit} onChange={(e) => set('pricePerUnit', e.target.value)}
+                  placeholder="150" type="number" step="any" className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">Total</label>
+                <input value={form.totalAmount} onChange={(e) => set('totalAmount', e.target.value)}
+                  placeholder={form.quantity && form.pricePerUnit ? (parseFloat(form.quantity) * parseFloat(form.pricePerUnit)).toFixed(2) : '1500'}
+                  type="number" step="any" className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">{t('Moneda', 'Currency')}</label>
+                <select value={form.currency} onChange={(e) => set('currency', e.target.value)}
+                  className="w-full px-2 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50">
+                  {['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY'].map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="text-xs text-slate-400 mb-1 block">Total</label>
-              <input value={form.totalAmount} onChange={(e) => set('totalAmount', e.target.value)}
-                placeholder={form.quantity && form.pricePerUnit ? (parseFloat(form.quantity) * parseFloat(form.pricePerUnit)).toFixed(2) : '1500'}
-                type="number" step="any" className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
-            </div>
-            <div>
-              <label className="text-xs text-slate-400 mb-1 block">{t('Moneda', 'Currency')}</label>
-              <select value={form.currency} onChange={(e) => set('currency', e.target.value)}
-                className="w-full px-2 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50">
-                {['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY'].map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </div>
-          </div>
+          )}
 
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose}

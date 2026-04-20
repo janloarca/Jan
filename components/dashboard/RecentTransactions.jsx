@@ -70,7 +70,7 @@ export default function RecentTransactions({ transactions, lang }) {
                     (tx.type || '').toUpperCase() === 'SELL' || (tx.type || '').toUpperCase() === 'WITHDRAWAL'
                       ? 'text-red-400' : 'text-emerald-400'
                   }`}>
-                    {formatCurrency(tx.totalAmount ?? tx.amount ?? tx.pricePerUnit ?? 0)}
+                    {formatCurrency(tx.totalAmount ?? 0)}
                   </span>
                   {tx.quantity > 0 && (
                     <div className="text-[10px] text-slate-500">
