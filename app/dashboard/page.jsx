@@ -158,44 +158,48 @@ export default function DashboardPage() {
     if (!user || dataLoading) return
     if (items.length === 0) return
 
-    const scheduled = items.filter((it) => it.incomeAmount > 0 && it.incomeFrequency)
+    const scheduled = items.filter((it) => it.incomeAmount > 0 && it.incomeMonths)
     if (scheduled.length === 0) return
 
     const today = new Date()
     const todayDay = today.getDate()
+    const currentMonth = today.getMonth()
     const todayKey = today.toISOString().split('T')[0]
-
-    const freqMonths = { monthly: 1, quarterly: 3, semiannual: 6, annual: 12 }
 
     scheduled.forEach((it) => {
       const payDay = it.incomePayDay || 1
       if (todayDay !== payDay) return
 
-      const freq = freqMonths[it.incomeFrequency] || 1
-      const currentMonth = today.getMonth()
-      if (freq > 1 && currentMonth % freq !== 0) return
+      const months = it.incomeMonths || [0,1,2,3,4,5,6,7,8,9,10,11]
+      if (!months.includes(currentMonth)) return
 
+      const sym = (it.symbol || '').toUpperCase()
       const alreadyPaid = transactions.some((tx) =>
         tx.date === todayKey &&
         (tx.type || '').toUpperCase() === 'DIVIDEND' &&
-        (tx.symbol || '').toUpperCase() === (it.symbol || '').toUpperCase() &&
+        (tx.symbol || '').toUpperCase() === sym &&
         tx._auto === true
       )
       if (alreadyPaid) return
 
       addTransaction({
         type: 'DIVIDEND',
-        symbol: (it.symbol || '').toUpperCase(),
-        description: `${it.name || it.symbol} - ${it.incomeFrequency}`,
+        symbol: sym,
+        description: `${it.name || it.symbol} - ${it.incomeAmount} ${it.currency || 'USD'}`,
         date: todayKey,
         totalAmount: it.incomeAmount,
         currency: it.currency || 'USD',
         _auto: true,
       })
+
+      if (it.capitalReturn > 0) {
+        const newPrice = Math.max(0, (it.currentPrice || it.purchasePrice || 0) - it.capitalReturn)
+        addItem({ ...it, currentPrice: newPrice, purchasePrice: newPrice })
+      }
     })
 
     dividendsProcessedRef.current = true
-  }, [user, dataLoading, items, transactions, addTransaction])
+  }, [user, dataLoading, items, transactions, addTransaction, addItem])
 
   const handleRefresh = useCallback(() => {
     refreshPrices()
