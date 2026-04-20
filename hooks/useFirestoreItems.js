@@ -109,8 +109,7 @@ export function useFirestoreItems() {
     if (!uid) return
     const { db, fs } = await getFirebase()
     const dateStr = snapshot.date || new Date().toISOString().split('T')[0]
-    const timeStr = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)
-    const id = `${dateStr}-${timeStr}`
+    const id = dateStr
     await fs.setDoc(fs.doc(db, `users/${uid}/snapshots`, id), { ...snapshot, createdAt: new Date().toISOString() })
   }, [uid])
 
