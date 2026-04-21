@@ -8,7 +8,7 @@ import { useExchangeRates } from '@/hooks/useExchangeRates'
 
 import FileImportModal from '@/components/FileImportModal'
 import AddAccountModal from '@/components/AddAccountModal'
-import AddTransactionModal from '@/components/AddTransactionModal'
+
 import SettingsModal from '@/components/SettingsModal'
 import { setBaseCurrency } from '@/components/dashboard/utils'
 import Header from '@/components/dashboard/Header'
@@ -443,7 +443,6 @@ export default function DashboardPage() {
         <ActionButtons
           onImport={() => setModal('import')}
           onAddAccount={() => setModal('account')}
-          onAddTransaction={() => setModal('transaction')}
           onExport={handleExport}
           itemCount={enrichedItems.length}
           lang={lang}
@@ -496,14 +495,6 @@ export default function DashboardPage() {
           onAdd={addItem}
           onAddTransaction={addTransaction}
           existingItems={items}
-          lang={lang}
-        />
-      )}
-
-      {modal === 'transaction' && (
-        <AddTransactionModal
-          onClose={() => setModal(null)}
-          onAdd={addTransaction}
           lang={lang}
         />
       )}
