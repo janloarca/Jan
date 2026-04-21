@@ -298,16 +298,47 @@ export default function DashboardPage() {
     return ((netWorth - prev) / prev) * 100
   }, [snapshots, netWorth, convertSnapshot])
 
-  const yearStart = useMemo(() => {
-    return snapshots.find((s) => {
-      if (!s.date) return false
-      return new Date(s.date).getFullYear() === new Date().getFullYear()
-    })
-  }, [snapshots])
+  const [jan1Value, setJan1Value] = useState(null)
 
-  const startVal = yearStart ? convertSnapshot(yearStart.netWorthUSD ?? yearStart.totalActivosUSD ?? 0) : netWorth
-  const returnYTD = startVal > 0 ? ((netWorth - startVal) / startVal) * 100 : 0
-  const ytdChange = netWorth - startVal
+  useEffect(() => {
+    if (!enrichedItems || enrichedItems.length === 0) return
+    let cancelled = false
+    async function fetchJan1() {
+      try {
+        const res = await fetch('/api/prices/portfolio-history', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items: enrichedItems.map((it) => ({
+              symbol: it.symbol, type: it.type, quantity: it.quantity,
+              currentPrice: it.currentPrice, purchasePrice: it.purchasePrice,
+            })),
+            period: 'YTD',
+          }),
+        })
+        if (!res.ok || cancelled) return
+        const data = await res.json()
+        const pts = data.dataPoints || []
+        if (pts.length > 0) {
+          if (!cancelled) setJan1Value(pts[0].total)
+        }
+      } catch {}
+    }
+    fetchJan1()
+    return () => { cancelled = true }
+  }, [enrichedItems])
+
+  const ytdDividends = useMemo(() => {
+    const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0]
+    return (transactions || [])
+      .filter((tx) => (tx.type || '').toUpperCase() === 'DIVIDEND' && tx.date >= yearStart)
+      .reduce((s, tx) => s + convert(tx.totalAmount ?? 0, tx.currency || 'USD', baseCurrency), 0)
+  }, [transactions, convert, baseCurrency])
+
+  const startVal = jan1Value != null ? jan1Value : netWorth
+  const ytdGain = (netWorth - startVal) + ytdDividends
+  const returnYTD = startVal > 0 ? (ytdGain / startVal) * 100 : 0
+  const ytdChange = ytdGain
 
   const annualDividends = useMemo(() => {
     const divs = (transactions || []).filter((tx) => (tx.type || '').toUpperCase() === 'DIVIDEND')
