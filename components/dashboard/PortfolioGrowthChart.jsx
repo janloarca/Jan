@@ -25,6 +25,7 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
           items: items.map((it) => ({
             symbol: it.symbol, type: it.type, quantity: it.quantity,
             currentPrice: it.currentPrice, purchasePrice: it.purchasePrice,
+            acquisitionDate: it.acquisitionDate,
           })),
           period,
         }),
