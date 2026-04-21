@@ -129,20 +129,27 @@ export default function AddAccountModal({ onClose, onAdd, existingItems = [], la
         }
       }
 
-      if (isMarketAsset) {
-        const existing = existingItems.find(
-          (ei) => (ei.symbol || '').toUpperCase() === item.symbol &&
-                  (ei.institution || '').toLowerCase() === (item.institution || '').toLowerCase()
-        )
-        if (existing && item.quantity > 0) {
-          const oldQty = existing.quantity || 0
-          const oldPrice = existing.purchasePrice || 0
-          const newQty = item.quantity
-          const newPrice = item.purchasePrice || 0
-          item.quantity = oldQty + newQty
-          item.purchasePrice = oldQty + newQty > 0
-            ? (oldQty * oldPrice + newQty * newPrice) / (oldQty + newQty)
-            : oldPrice
+      {
+        const existing = existingItems.find((ei) => {
+          const symMatch = (ei.symbol || '').toUpperCase() === (item.symbol || '').toUpperCase()
+          const instMatch = (ei.institution || '').toLowerCase() === (item.institution || '').toLowerCase()
+          const curMatch = (ei.currency || '') === (item.currency || '')
+          const nameMatch = (ei.name || '').toLowerCase() === (item.name || '').toLowerCase()
+          if (isMarketAsset) return symMatch && instMatch
+          return nameMatch && instMatch && curMatch
+        })
+        if (existing) {
+          item.id = existing.id
+          if (isMarketAsset && item.quantity > 0) {
+            const oldQty = existing.quantity || 0
+            const oldPrice = existing.purchasePrice || 0
+            const newQty = item.quantity
+            const newPrice = item.purchasePrice || 0
+            item.quantity = oldQty + newQty
+            item.purchasePrice = oldQty + newQty > 0
+              ? (oldQty * oldPrice + newQty * newPrice) / (oldQty + newQty)
+              : oldPrice
+          }
         }
       }
 
