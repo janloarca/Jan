@@ -329,17 +329,25 @@ export default function DashboardPage() {
     return () => { cancelled = true }
   }, [enrichedItems])
 
-  const ytdDividends = useMemo(() => {
+  const { ytdDeposits, ytdWithdrawals } = useMemo(() => {
     const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0]
-    return (transactions || [])
-      .filter((tx) => (tx.type || '').toUpperCase() === 'DIVIDEND' && tx.date >= yearStart)
-      .reduce((s, tx) => s + convert(tx.totalAmount ?? 0, tx.currency || 'USD', baseCurrency), 0)
+    let deps = 0, withs = 0
+    ;(transactions || []).forEach((tx) => {
+      if (!tx.date || tx.date < yearStart) return
+      const t = (tx.type || '').toUpperCase()
+      const amt = convert(tx.totalAmount ?? 0, tx.currency || 'USD', baseCurrency)
+      if (t === 'DEPOSIT') deps += amt
+      else if (t === 'WITHDRAWAL') withs += amt
+    })
+    return { ytdDeposits: deps, ytdWithdrawals: withs }
   }, [transactions, convert, baseCurrency])
 
+  const netNewMoney = ytdDeposits - ytdWithdrawals
+
   const startVal = jan1Value != null ? jan1Value : netWorth
-  const ytdGain = (netWorth - startVal) + ytdDividends
-  const returnYTD = startVal > 0 ? (ytdGain / startVal) * 100 : 0
-  const ytdChange = ytdGain
+  const realGain = netWorth - startVal - netNewMoney
+  const returnYTD = startVal > 0 ? (realGain / startVal) * 100 : 0
+  const ytdChange = realGain
 
   const annualDividends = useMemo(() => {
     const divs = (transactions || []).filter((tx) => (tx.type || '').toUpperCase() === 'DIVIDEND')
@@ -486,6 +494,7 @@ export default function DashboardPage() {
         <AddAccountModal
           onClose={() => setModal(null)}
           onAdd={addItem}
+          onAddTransaction={addTransaction}
           existingItems={items}
           lang={lang}
         />
