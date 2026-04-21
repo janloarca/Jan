@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
 
@@ -21,9 +21,12 @@ export default function AddAccountModal({ onClose, onAdd, existingItems = [], la
     incomeAmount: '', incomeMode: 'fixed', incomeRate: '',
     incomePayDay: '', incomeMonths: [],
     capitalReturn: '', incomeDestination: '', capitalDestination: '',
+    dividendAction: 'cash',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [divInfo, setDivInfo] = useState(null)
+  const [divLoading, setDivLoading] = useState(false)
 
   const t = (es, en) => lang === 'es' ? es : en
   const set = (k, v) => setForm({ ...form, [k]: v })
@@ -32,6 +35,27 @@ export default function AddAccountModal({ onClose, onAdd, existingItems = [], la
   const isProperty = type === 'Inmueble'
   const isBank = type === 'Bank'
   const hasIncome = !isMarketAsset
+
+  useEffect(() => {
+    if (!isMarketAsset || !form.symbol || form.symbol.length < 1) {
+      setDivInfo(null)
+      return
+    }
+    const timer = setTimeout(async () => {
+      const sym = form.symbol.trim().toUpperCase()
+      if (sym.length < 1) return
+      setDivLoading(true)
+      try {
+        const res = await fetch(`/api/prices/dividends?symbol=${encodeURIComponent(sym)}`)
+        if (res.ok) {
+          const data = await res.json()
+          setDivInfo(data)
+        }
+      } catch {}
+      setDivLoading(false)
+    }, 800)
+    return () => clearTimeout(timer)
+  }, [form.symbol, isMarketAsset])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -61,20 +85,28 @@ export default function AddAccountModal({ onClose, onAdd, existingItems = [], la
         item.name = form.name.trim() || item.symbol
         item.quantity = parseFloat(form.quantity) || 0
         item.purchasePrice = parseFloat(form.purchasePrice) || 0
+
+        if (divInfo && divInfo.hasDividend) {
+          item.incomeAmount = divInfo.lastAmount || 0
+          item.incomeMonths = divInfo.paymentMonths || []
+          item.incomeFrequency = divInfo.frequency
+          item.dividendYield = divInfo.dividendYield
+          item.dividendAction = form.dividendAction || 'cash'
+        }
       } else if (isProperty) {
-        item.symbol = form.symbol.trim() || form.name.trim().replace(/\s+/g, '-').toUpperCase().slice(0, 12)
+        item.symbol = form.symbol.trim() || form.name.trim().replace(/\s+/g, '-').toUpperCase()
         item.name = form.name.trim()
         item.quantity = 1
         item.purchasePrice = parseFloat(form.purchasePrice) || 0
         if (form.currentPrice) item.currentPrice = parseFloat(form.currentPrice)
       } else if (isBank) {
-        item.symbol = form.symbol.trim() || form.institution.trim().replace(/\s+/g, '-').toUpperCase().slice(0, 8)
+        item.symbol = form.symbol.trim() || `${form.institution.trim().replace(/\s+/g, '-').toUpperCase()}-${(form.name.trim() || 'CUENTA').replace(/\s+/g, '-').toUpperCase()}`
         item.name = form.name.trim() || `${form.institution.trim()} - ${t('Cuenta', 'Account')}`
         item.quantity = 1
         item.purchasePrice = parseFloat(form.purchasePrice) || 0
         item.currentPrice = parseFloat(form.purchasePrice) || 0
       } else {
-        item.symbol = form.symbol.trim() || form.name.trim().replace(/\s+/g, '-').toUpperCase().slice(0, 12)
+        item.symbol = form.symbol.trim() || form.name.trim().replace(/\s+/g, '-').toUpperCase()
         item.name = form.name.trim()
         item.quantity = parseFloat(form.quantity) || 1
         item.purchasePrice = parseFloat(form.purchasePrice) || 0
@@ -95,6 +127,52 @@ export default function AddAccountModal({ onClose, onAdd, existingItems = [], la
           item.capitalReturn = parseFloat(form.capitalReturn) || 0
           if (form.capitalDestination) item.capitalDestination = form.capitalDestination
         }
+      }
+
+      {
+        const existing = existingItems.find((ei) => {
+          const symMatch = (ei.symbol || '').toUpperCase() === (item.symbol || '').toUpperCase()
+          const instMatch = (ei.institution || '').toLowerCase() === (item.institution || '').toLowerCase()
+          const curMatch = (ei.currency || '') === (item.currency || '')
+          const nameMatch = (ei.name || '').toLowerCase() === (item.name || '').toLowerCase()
+          if (isMarketAsset) return symMatch && instMatch
+          return nameMatch && instMatch && curMatch
+        })
+        if (existing) {
+          item.id = existing.id
+          if (isMarketAsset && item.quantity > 0) {
+            const oldQty = existing.quantity || 0
+            const oldPrice = existing.purchasePrice || 0
+            const newQty = item.quantity
+            const newPrice = item.purchasePrice || 0
+            item.quantity = oldQty + newQty
+            item.purchasePrice = oldQty + newQty > 0
+              ? (oldQty * oldPrice + newQty * newPrice) / (oldQty + newQty)
+              : oldPrice
+          }
+        }
+      }
+
+      if (isMarketAsset && divInfo?.hasDividend && form.dividendAction === 'cash' && form.institution.trim()) {
+        const inst = form.institution.trim()
+        const cashSymbol = `${inst.replace(/\s+/g, '').toUpperCase()}-CASH`
+        const cashExists = existingItems.some(
+          (ei) => (ei.symbol || '').toUpperCase() === cashSymbol ||
+                  ((ei.type || '').toLowerCase() === 'bank' && (ei.institution || '').toLowerCase() === inst.toLowerCase() && /cash/i.test(ei.name || ei.symbol || ''))
+        )
+        if (!cashExists) {
+          await onAdd({
+            type: 'Bank',
+            symbol: cashSymbol,
+            name: `${inst} - Cash`,
+            institution: inst,
+            currency: form.currency,
+            quantity: 1,
+            purchasePrice: 0,
+            currentPrice: 0,
+          })
+        }
+        item.incomeDestination = cashSymbol
       }
 
       await onAdd(item)
@@ -176,6 +254,77 @@ export default function AddAccountModal({ onClose, onAdd, existingItems = [], la
           {isMarketAsset && (
             <p className="text-[10px] text-slate-600 -mt-2">
               {t('El precio actual se actualiza automáticamente del mercado.', 'Current price updates automatically from market data.')}
+            </p>
+          )}
+
+          {/* Dividend info for market assets */}
+          {isMarketAsset && divLoading && (
+            <div className="flex items-center gap-2 text-xs text-slate-500 py-1">
+              <div className="w-3 h-3 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
+              {t('Buscando dividendos...', 'Looking up dividends...')}
+            </div>
+          )}
+          {isMarketAsset && divInfo && divInfo.hasDividend && (
+            <div className="border border-emerald-500/20 bg-emerald-500/5 rounded-lg p-3 space-y-3">
+              <div className="flex items-center gap-1.5">
+                <span className="text-emerald-400 text-xs font-medium">💰 {t('Dividendo detectado', 'Dividend detected')}</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div>
+                  <p className="text-[10px] text-slate-500">{t('Rendimiento', 'Yield')}</p>
+                  <p className="text-sm font-semibold text-emerald-400">{divInfo.dividendYield}%</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-500">{t('Frecuencia', 'Frequency')}</p>
+                  <p className="text-sm font-semibold text-white capitalize">
+                    {{ monthly: t('Mensual','Monthly'), quarterly: t('Trimestral','Quarterly'), semiannual: t('Semestral','Semiannual'), annual: t('Anual','Annual') }[divInfo.frequency] || divInfo.frequency}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-500">{t('Próximo pago', 'Next payment')}</p>
+                  <p className="text-sm font-semibold text-white">{divInfo.nextPaymentDate?.slice(5)}</p>
+                </div>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-500 mb-1">{t('Meses de pago:', 'Payment months:')}</p>
+                <div className="flex flex-wrap gap-1">
+                  {['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'].map((label, i) => (
+                    <span key={i} className={`px-1.5 py-0.5 text-[10px] rounded ${
+                      divInfo.paymentMonths?.includes(i)
+                        ? 'bg-emerald-500/25 text-emerald-400 border border-emerald-500/40'
+                        : 'bg-[#0b1120] text-slate-600 border border-[#1e2d45]'
+                    }`}>{label}</span>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-500 mb-1.5">{t('¿Qué hacer con los dividendos?', 'What to do with dividends?')}</p>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => set('dividendAction', 'cash')}
+                    className={`flex-1 px-2 py-1.5 text-[10px] font-medium rounded transition-all ${
+                      form.dividendAction === 'cash' ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40' : 'bg-[#0b1120] text-slate-500 border border-[#1e2d45]'
+                    }`}>💵 {t('Efectivo', 'Cash')}</button>
+                  <button type="button" onClick={() => set('dividendAction', 'reinvest')}
+                    className={`flex-1 px-2 py-1.5 text-[10px] font-medium rounded transition-all ${
+                      form.dividendAction === 'reinvest' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-[#0b1120] text-slate-500 border border-[#1e2d45]'
+                    }`}>🔄 {t('Reinvertir', 'Reinvest')}</button>
+                </div>
+                {form.dividendAction === 'cash' && (
+                  <p className="text-[9px] text-slate-600 mt-1">
+                    {t('Se depositan en tu cuenta cash del broker automáticamente.', 'Deposited to your broker cash account automatically.')}
+                  </p>
+                )}
+                {form.dividendAction === 'reinvest' && (
+                  <p className="text-[9px] text-slate-600 mt-1">
+                    {t('Se compran más acciones automáticamente (DRIP).', 'More shares purchased automatically (DRIP).')}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+          {isMarketAsset && divInfo && !divInfo.hasDividend && !divLoading && form.symbol && (
+            <p className="text-[10px] text-slate-500 -mt-1">
+              {t('Este activo no paga dividendos.', 'This asset does not pay dividends.')}
             </p>
           )}
 

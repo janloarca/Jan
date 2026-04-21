@@ -1,55 +1,87 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { formatCurrency, formatCompact, formatShortDate, formatDate } from './utils'
 
-export default function PortfolioGrowthChart({ snapshots, transactions, lang }) {
-  const [period, setPeriod] = useState('ALL')
+export default function PortfolioGrowthChart({ items, transactions, lang, convert, baseCurrency }) {
+  const [period, setPeriod] = useState('YTD')
   const [mode, setMode] = useState('growth')
   const [hoverIdx, setHoverIdx] = useState(null)
+  const [dataPoints, setDataPoints] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [staticTotal, setStaticTotal] = useState(0)
 
-  const periods = ['MTD', '3M', 'YTD', '1Y', 'ALL']
+  const periods = ['DAY', '1W', '1M', '3M', '6M', 'YTD', '1Y', 'ALL']
   const t = (es, en) => lang === 'es' ? es : en
 
-  const filtered = useMemo(() => {
-    if (!snapshots || snapshots.length === 0) return []
-    const valid = snapshots.filter((s) => s.date && (s.netWorthUSD ?? s.totalActivosUSD) != null)
-    if (valid.length === 0) return []
-    if (period === 'ALL') return valid
-    if (period === 'YTD') {
-      const year = new Date().getFullYear()
-      const ytd = valid.filter((s) => new Date(s.date).getFullYear() >= year)
-      return ytd.length >= 2 ? ytd : valid
+  const fetchHistory = useCallback(async () => {
+    if (!items || items.length === 0) return
+    setLoading(true)
+    try {
+      const res = await fetch('/api/prices/portfolio-history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: items.map((it) => ({
+            symbol: it.symbol, type: it.type, quantity: it.quantity,
+            currentPrice: it.currentPrice, purchasePrice: it.purchasePrice,
+          })),
+          period,
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setDataPoints(data.dataPoints || [])
+        setStaticTotal(data.staticTotal || 0)
+      }
+    } catch {}
+    setLoading(false)
+  }, [items, period])
+
+  useEffect(() => {
+    fetchHistory()
+  }, [fetchHistory])
+
+  const currentTotal = useMemo(() => {
+    if (!items) return 0
+    return items.reduce((s, it) => s + (it.quantity || 0) * (it.currentPrice || it.purchasePrice || 0), 0)
+  }, [items])
+
+  const chartData = useMemo(() => {
+    if (dataPoints.length === 0) return []
+    const pts = dataPoints.map((dp) => ({
+      ts: dp.ts,
+      date: new Date(dp.ts),
+      value: dp.total,
+    }))
+    const last = pts[pts.length - 1]
+    if (last && currentTotal > 0 && Math.abs(last.value - currentTotal) > 1) {
+      pts.push({ ts: Date.now(), date: new Date(), value: currentTotal })
     }
-    const monthsMap = { 'MTD': 1, '3M': 3, '1Y': 12 }
-    const months = monthsMap[period] || 12
-    const cutoff = new Date()
-    cutoff.setMonth(cutoff.getMonth() - months)
-    const result = valid.filter((s) => new Date(s.date) >= cutoff)
-    return result.length >= 2 ? result : valid
-  }, [snapshots, period])
+    return pts
+  }, [dataPoints, currentTotal])
 
   const twrData = useMemo(() => {
-    if (filtered.length < 2) return []
+    if (chartData.length < 2) return []
 
     const flowTypes = { DEPOSIT: 1, WITHDRAWAL: -1 }
     const txList = (transactions || [])
       .filter((tx) => tx.date && flowTypes[(tx.type || '').toUpperCase()] != null)
       .map((tx) => ({
-        date: new Date(tx.date),
+        date: new Date(tx.date).getTime(),
         flow: (tx.totalAmount ?? 0) * flowTypes[(tx.type || '').toUpperCase()],
       }))
 
     let cumReturn = 1
     const result = [0]
 
-    for (let i = 1; i < filtered.length; i++) {
-      const prevVal = filtered[i - 1].netWorthUSD ?? filtered[i - 1].totalActivosUSD ?? 0
-      const currVal = filtered[i].netWorthUSD ?? filtered[i].totalActivosUSD ?? 0
-      const prevDate = new Date(filtered[i - 1].date)
-      const currDate = new Date(filtered[i].date)
+    for (let i = 1; i < chartData.length; i++) {
+      const prevVal = chartData[i - 1].value
+      const currVal = chartData[i].value
+      const prevTs = chartData[i - 1].ts
+      const currTs = chartData[i].ts
 
-      const periodFlows = txList.filter((tx) => tx.date > prevDate && tx.date <= currDate)
+      const periodFlows = txList.filter((tx) => tx.date > prevTs && tx.date <= currTs)
       const netFlow = periodFlows.reduce((s, tx) => s + tx.flow, 0)
 
       const adjustedPrev = prevVal + netFlow
@@ -60,47 +92,85 @@ export default function PortfolioGrowthChart({ snapshots, transactions, lang }) 
     }
 
     return result
-  }, [filtered, transactions])
+  }, [chartData, transactions])
 
-  if (!filtered || filtered.length < 2) {
+  if (loading) {
     return (
       <div className="bg-[#131c2e] rounded-xl border border-[#1e2d45] p-5 h-full flex flex-col">
-        <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-400" />
-          Portfolio Growth
-        </h3>
-        <div className="flex-1 flex items-center justify-center min-h-[200px] text-slate-500 text-sm">
-          {t('Necesitas al menos 2 snapshots para ver la gráfica.', 'Need at least 2 snapshots to show chart.')}
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 pulse-dot" />
+            {mode === 'growth' ? 'Portfolio Growth' : 'Portfolio Return'}
+          </h3>
+          <div className="flex gap-0.5 bg-[#0b1120] rounded-lg p-0.5">
+            {periods.map((p) => (
+              <button key={p} onClick={() => setPeriod(p)}
+                className={`px-2 py-1 text-[11px] font-medium rounded-md transition-all ${
+                  period === p ? 'bg-emerald-500 text-white' : 'text-slate-500 hover:text-slate-300'
+                }`}>{p}</button>
+            ))}
+          </div>
+        </div>
+        <div className="flex-1 flex items-center justify-center min-h-[200px]">
+          <div className="flex items-center gap-2 text-slate-500 text-sm">
+            <div className="w-4 h-4 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
+            {t('Cargando datos...', 'Loading data...')}
+          </div>
         </div>
       </div>
     )
   }
 
-  const rawValues = filtered.map((s) => s.netWorthUSD ?? s.totalActivosUSD ?? 0)
-  const values = mode === 'return' ? twrData : rawValues
+  if (chartData.length < 2) {
+    return (
+      <div className="bg-[#131c2e] rounded-xl border border-[#1e2d45] p-5 h-full flex flex-col">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 pulse-dot" />
+            {mode === 'growth' ? 'Portfolio Growth' : 'Portfolio Return'}
+          </h3>
+          <div className="flex gap-0.5 bg-[#0b1120] rounded-lg p-0.5">
+            {periods.map((p) => (
+              <button key={p} onClick={() => setPeriod(p)}
+                className={`px-2 py-1 text-[11px] font-medium rounded-md transition-all ${
+                  period === p ? 'bg-emerald-500 text-white' : 'text-slate-500 hover:text-slate-300'
+                }`}>{p}</button>
+            ))}
+          </div>
+        </div>
+        <div className="flex-1 flex items-center justify-center min-h-[200px] text-slate-500 text-sm">
+          {t('Agrega activos para ver la gráfica.', 'Add assets to see the chart.')}
+        </div>
+      </div>
+    )
+  }
 
-  const firstVal = rawValues[0]
-  const lastVal = rawValues[rawValues.length - 1]
-  const growthPct = firstVal > 0 ? ((lastVal - firstVal) / firstVal) * 100 : 0
+  const values = mode === 'return' ? twrData : chartData.map((d) => d.value)
+  const firstVal = chartData[0].value
+  const lastVal = chartData[chartData.length - 1].value
   const growthAbs = lastVal - firstVal
-  const isPositive = growthPct >= 0
+  const growthPct = firstVal > 0 ? (growthAbs / firstVal) * 100 : 0
+  const isPositive = mode === 'return'
+    ? (twrData.length > 0 ? twrData[twrData.length - 1] >= 0 : true)
+    : growthPct >= 0
   const lineColor = isPositive ? '#10b981' : '#ef4444'
 
-  const min = Math.min(...values) * (mode === 'return' ? 1 : 0.95)
-  const max = Math.max(...values) * (mode === 'return' ? 1 : 1.02)
-  const adjustedMin = mode === 'return' ? Math.min(min, 0) : min
-  const adjustedMax = mode === 'return' ? Math.max(max, 0) : max
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const padding_val = mode === 'return' ? 0 : (max - min) * 0.05
+  const adjustedMin = mode === 'return' ? Math.min(min, 0) - Math.abs(min) * 0.1 : min - padding_val
+  const adjustedMax = mode === 'return' ? Math.max(max, 0) + Math.abs(max) * 0.1 : max + padding_val
   const range = adjustedMax - adjustedMin || 1
 
   const height = 240
-  const padding = { top: 20, right: 16, bottom: 36, left: 50 }
+  const pad = { top: 20, right: 16, bottom: 36, left: 50 }
   const width = 650
-  const cw = width - padding.left - padding.right
-  const ch = height - padding.top - padding.bottom
+  const cw = width - pad.left - pad.right
+  const ch = height - pad.top - pad.bottom
 
   const points = values.map((v, i) => ({
-    x: padding.left + (i / Math.max(values.length - 1, 1)) * cw,
-    y: padding.top + ch - ((v - adjustedMin) / range) * ch,
+    x: pad.left + (i / Math.max(values.length - 1, 1)) * cw,
+    y: pad.top + ch - ((v - adjustedMin) / range) * ch,
     v,
   }))
 
@@ -120,29 +190,34 @@ export default function PortfolioGrowthChart({ snapshots, transactions, lang }) 
 
   const line = smooth(points)
   const baselineY = mode === 'return'
-    ? padding.top + ch - ((0 - adjustedMin) / range) * ch
-    : padding.top + ch
+    ? pad.top + ch - ((0 - adjustedMin) / range) * ch
+    : pad.top + ch
   const area = `${line} L ${points[points.length - 1].x} ${baselineY} L ${points[0].x} ${baselineY} Z`
 
   const yTicks = Array.from({ length: 5 }, (_, i) => ({
     val: adjustedMin + (range * i) / 4,
-    y: padding.top + ch - (i / 4) * ch,
+    y: pad.top + ch - (i / 4) * ch,
   }))
 
-  const step = Math.max(1, Math.floor(filtered.length / 6))
-  const xLabels = filtered
-    .map((s, i) => ({ label: formatShortDate(s.date), x: points[i]?.x }))
-    .filter((_, i) => i % step === 0 || i === filtered.length - 1)
-
-  const maxVal = Math.max(...rawValues)
-  const minVal = Math.min(...rawValues)
-  const athIdx = rawValues.indexOf(maxVal)
-  const mddIdx = rawValues.indexOf(minVal)
+  const step = Math.max(1, Math.floor(chartData.length / 6))
+  const xLabels = chartData
+    .map((d, i) => {
+      const dt = d.date
+      const label = period === 'DAY'
+        ? `${dt.getHours().toString().padStart(2, '0')}:${dt.getMinutes().toString().padStart(2, '0')}`
+        : formatShortDate(dt.toISOString())
+      return { label, x: points[i]?.x }
+    })
+    .filter((_, i) => i % step === 0 || i === chartData.length - 1)
 
   const hp = hoverIdx != null ? points[hoverIdx] : null
-  const hs = hoverIdx != null ? filtered[hoverIdx] : null
+  const hd = hoverIdx != null ? chartData[hoverIdx] : null
 
   const lastTwr = twrData.length > 0 ? twrData[twrData.length - 1] : 0
+
+  const dateRange = chartData.length >= 2
+    ? `${formatShortDate(chartData[0].date.toISOString())} → ${formatShortDate(chartData[chartData.length - 1].date.toISOString())}`
+    : ''
 
   return (
     <div className="bg-[#131c2e] rounded-xl border border-[#1e2d45] p-5 h-full flex flex-col">
@@ -152,9 +227,7 @@ export default function PortfolioGrowthChart({ snapshots, transactions, lang }) 
             <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-400 pulse-dot" />
               {mode === 'growth' ? 'Portfolio Growth' : 'Portfolio Return'}
-              <span className="text-slate-600 text-xs">
-                {formatShortDate(filtered[0]?.date)} → {formatShortDate(filtered[filtered.length - 1]?.date)}
-              </span>
+              <span className="text-slate-600 text-xs">{dateRange}</span>
             </h3>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 mt-2">
@@ -164,7 +237,7 @@ export default function PortfolioGrowthChart({ snapshots, transactions, lang }) 
                   {isPositive ? '+' : ''}{growthPct.toFixed(2)}%
                 </span>
                 <span className={`text-sm ${isPositive ? 'text-emerald-500' : 'text-red-500'}`}>
-                  {isPositive ? '+' : ''}{formatCurrency(growthAbs)}
+                  {isPositive ? '+' : ''}{formatCompact(growthAbs)}
                 </span>
               </>
             ) : (
@@ -182,26 +255,20 @@ export default function PortfolioGrowthChart({ snapshots, transactions, lang }) 
           <div className="flex gap-0.5 bg-[#0b1120] rounded-lg p-0.5">
             {periods.map((p) => (
               <button key={p} onClick={() => setPeriod(p)}
-                className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-all ${
+                className={`px-2 py-1 text-[11px] font-medium rounded-md transition-all ${
                   period === p ? 'bg-emerald-500 text-white' : 'text-slate-500 hover:text-slate-300'
-                }`}>
-                {p}
-              </button>
+                }`}>{p}</button>
             ))}
           </div>
           <div className="flex gap-0.5 bg-[#0b1120] rounded-lg p-0.5">
             <button onClick={() => setMode('growth')}
               className={`px-2.5 py-1 text-[10px] font-medium rounded-md transition-all ${
                 mode === 'growth' ? 'bg-cyan-500 text-white' : 'text-slate-500 hover:text-slate-300'
-              }`}>
-              Growth
-            </button>
+              }`}>Growth</button>
             <button onClick={() => setMode('return')}
               className={`px-2.5 py-1 text-[10px] font-medium rounded-md transition-all ${
                 mode === 'return' ? 'bg-cyan-500 text-white' : 'text-slate-500 hover:text-slate-300'
-              }`}>
-              Return (TWR)
-            </button>
+              }`}>Return (TWR)</button>
           </div>
         </div>
       </div>
@@ -218,33 +285,27 @@ export default function PortfolioGrowthChart({ snapshots, transactions, lang }) 
           }}>
           {yTicks.map((tk, i) => (
             <g key={i}>
-              <line x1={padding.left} y1={tk.y} x2={width - padding.right} y2={tk.y} stroke="#1e2d45" strokeDasharray="4 4" />
-              <text x={padding.left - 8} y={tk.y + 4} textAnchor="end" fill="#475569" fontSize="9" fontFamily="system-ui">
-                {mode === 'return' ? `${tk.val.toFixed(0)}%` : formatCompact(tk.val)}
+              <line x1={pad.left} y1={tk.y} x2={width - pad.right} y2={tk.y} stroke="#1e2d45" strokeDasharray="4 4" />
+              <text x={pad.left - 8} y={tk.y + 4} textAnchor="end" fill="#475569" fontSize="9" fontFamily="system-ui">
+                {mode === 'return' ? `${tk.val.toFixed(1)}%` : formatCompact(tk.val)}
               </text>
             </g>
           ))}
           {mode === 'return' && (
-            <line x1={padding.left} y1={baselineY} x2={width - padding.right} y2={baselineY}
+            <line x1={pad.left} y1={baselineY} x2={width - pad.right} y2={baselineY}
               stroke="#475569" strokeWidth="1" strokeDasharray="6 3" />
           )}
           <defs>
             <linearGradient id="growthGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={lineColor} stopOpacity="0.2" />
-              <stop offset="100%" stopColor={lineColor} stopOpacity="0.02" />
+              <stop offset="0%" stopColor={lineColor} stopOpacity="0.15" />
+              <stop offset="100%" stopColor={lineColor} stopOpacity="0.01" />
             </linearGradient>
           </defs>
           <path d={area} fill="url(#growthGrad)" />
           <path d={line} fill="none" stroke={lineColor} strokeWidth="2" strokeLinecap="round" />
-          {mode === 'growth' && athIdx > 0 && athIdx < rawValues.length - 1 && (
-            <text x={points[athIdx].x} y={points[athIdx].y - 10} textAnchor="middle" fill="#10b981" fontSize="9" fontWeight="bold">ATH</text>
-          )}
-          {mode === 'growth' && mddIdx > 0 && mddIdx < rawValues.length - 1 && (
-            <text x={points[mddIdx].x} y={points[mddIdx].y + 16} textAnchor="middle" fill="#ef4444" fontSize="9" fontWeight="bold">MDD</text>
-          )}
           {hp && (
             <g>
-              <line x1={hp.x} y1={padding.top} x2={hp.x} y2={padding.top + ch} stroke="#334155" strokeDasharray="4 3" />
+              <line x1={hp.x} y1={pad.top} x2={hp.x} y2={pad.top + ch} stroke="#334155" strokeDasharray="4 3" />
               <circle cx={hp.x} cy={hp.y} r="4" fill={lineColor} stroke="#0b1120" strokeWidth="2" />
             </g>
           )}
@@ -252,19 +313,27 @@ export default function PortfolioGrowthChart({ snapshots, transactions, lang }) 
             <text key={i} x={xl.x} y={height - 8} textAnchor="middle" fill="#475569" fontSize="9" fontFamily="system-ui">{xl.label}</text>
           ))}
         </svg>
-        {hs && hp && (
-          <div className="absolute pointer-events-none bg-slate-800 border border-slate-600 text-white text-xs rounded-lg px-3 py-2 shadow-xl"
+        {hd && hp && (
+          <div className="absolute pointer-events-none bg-slate-800 border border-slate-600 text-white text-xs rounded-lg px-3 py-2 shadow-xl z-10"
             style={{ left: `${(hp.x / width) * 100}%`, top: `${(hp.y / height) * 100 - 12}%`, transform: 'translate(-50%, -100%)' }}>
             {mode === 'growth' ? (
               <>
-                <div className="font-bold">{formatCurrency(hs.netWorthUSD ?? hs.totalActivosUSD)}</div>
-                <div className="text-slate-400">{formatDate(hs.date)}</div>
+                <div className="font-bold">{formatCurrency(hd.value)}</div>
+                <div className="text-slate-400">
+                  {period === 'DAY'
+                    ? `${hd.date.getHours().toString().padStart(2, '0')}:${hd.date.getMinutes().toString().padStart(2, '0')}`
+                    : formatDate(hd.date.toISOString())}
+                </div>
               </>
             ) : (
               <>
                 <div className="font-bold">{twrData[hoverIdx] >= 0 ? '+' : ''}{twrData[hoverIdx]?.toFixed(2)}%</div>
-                <div className="text-slate-400">{formatCurrency(hs.netWorthUSD ?? hs.totalActivosUSD)}</div>
-                <div className="text-slate-500">{formatDate(hs.date)}</div>
+                <div className="text-slate-400">{formatCurrency(hd.value)}</div>
+                <div className="text-slate-500">
+                  {period === 'DAY'
+                    ? `${hd.date.getHours().toString().padStart(2, '0')}:${hd.date.getMinutes().toString().padStart(2, '0')}`
+                    : formatDate(hd.date.toISOString())}
+                </div>
               </>
             )}
           </div>
@@ -274,8 +343,8 @@ export default function PortfolioGrowthChart({ snapshots, transactions, lang }) 
         <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: lineColor }} /> Portfolio</span>
         {mode === 'growth' ? (
           <>
-            <span>Max {formatCompact(maxVal)}</span>
-            <span>Min {formatCompact(minVal)}</span>
+            <span>Max {formatCompact(Math.max(...chartData.map((d) => d.value)))}</span>
+            <span>Min {formatCompact(Math.min(...chartData.map((d) => d.value)))}</span>
           </>
         ) : (
           <>
@@ -283,7 +352,7 @@ export default function PortfolioGrowthChart({ snapshots, transactions, lang }) 
             <span>Min {Math.min(...twrData).toFixed(1)}%</span>
           </>
         )}
-        <span>{filtered.length} {t('puntos', 'points')}</span>
+        <span>{chartData.length} {t('puntos', 'points')}</span>
       </div>
     </div>
   )
