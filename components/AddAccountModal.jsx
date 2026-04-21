@@ -13,7 +13,7 @@ const TYPES = [
   { key: 'Inversion', icon: '🏛', es: 'Inversión', en: 'Investment' },
 ]
 
-export default function AddAccountModal({ onClose, onAdd, existingItems = [], lang = 'es' }) {
+export default function AddAccountModal({ onClose, onAdd, onAddTransaction, existingItems = [], lang = 'es' }) {
   const [type, setType] = useState('Stock')
   const [form, setForm] = useState({
     symbol: '', name: '', quantity: '', purchasePrice: '', currentPrice: '',
@@ -23,6 +23,7 @@ export default function AddAccountModal({ onClose, onAdd, existingItems = [], la
     capitalReturn: '', incomeDestination: '', capitalDestination: '',
     dividendAction: 'cash',
   })
+  const [isNewMoney, setIsNewMoney] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [divInfo, setDivInfo] = useState(null)
@@ -176,6 +177,21 @@ export default function AddAccountModal({ onClose, onAdd, existingItems = [], la
       }
 
       await onAdd(item)
+
+      if (isNewMoney && onAddTransaction) {
+        const totalValue = (item.quantity || 1) * (item.purchasePrice || 0)
+        if (totalValue > 0) {
+          await onAddTransaction({
+            type: 'DEPOSIT',
+            symbol: item.symbol || '',
+            description: `${item.name || item.symbol} - ${t('Dinero nuevo', 'New money')}`,
+            date: form.acquisitionDate || new Date().toISOString().split('T')[0],
+            totalAmount: Math.round(totalValue * 100) / 100,
+            currency: item.currency || 'USD',
+          })
+        }
+      }
+
       onClose()
     } catch (err) {
       setError(err.message)
@@ -581,6 +597,30 @@ export default function AddAccountModal({ onClose, onAdd, existingItems = [], la
             <input value={form.acquisitionDate} onChange={(e) => set('acquisitionDate', e.target.value)}
               type="date"
               className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50" />
+          </div>
+
+          {/* New money toggle */}
+          <div className="border border-[#1e2d45] rounded-lg p-3">
+            <label className="text-xs text-slate-400 mb-2 block font-medium">{t('¿Es dinero nuevo?', 'Is this new money?')}</label>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setIsNewMoney(true)}
+                className={`flex-1 px-2 py-2 text-[11px] font-medium rounded-lg transition-all ${
+                  isNewMoney ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#0b1120] text-slate-500 border border-[#1e2d45]'
+                }`}>
+                💵 {t('Sí, dinero nuevo', 'Yes, new money')}
+              </button>
+              <button type="button" onClick={() => setIsNewMoney(false)}
+                className={`flex-1 px-2 py-2 text-[11px] font-medium rounded-lg transition-all ${
+                  !isNewMoney ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-[#0b1120] text-slate-500 border border-[#1e2d45]'
+                }`}>
+                🔄 {t('Ya estaba en el portafolio', 'Already in portfolio')}
+              </button>
+            </div>
+            <p className="text-[9px] text-slate-600 mt-1.5">
+              {isNewMoney
+                ? t('Dinero que entra de afuera (salario, regalo, etc). No cuenta como rendimiento.', 'Money coming from outside (salary, gift, etc). Not counted as return.')
+                : t('Dinero que ya estaba invertido en otro lado. No afecta el cálculo de rendimiento.', 'Money already invested elsewhere. Does not affect return calculation.')}
+            </p>
           </div>
 
           <div className="flex gap-3 pt-2">
