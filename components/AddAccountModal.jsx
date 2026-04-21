@@ -75,6 +75,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
 
         const salePrice = parseFloat(form.purchasePrice) || 0
         const totalSale = qtySell * salePrice
+        const saleDate = form.acquisitionDate || new Date().toISOString().split('T')[0]
         const newQty = (existing.quantity || 0) - qtySell
 
         if (newQty <= 0.0001) {
@@ -88,10 +89,29 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
             type: 'SELL',
             symbol: existing.symbol || '',
             description: `${t('Venta', 'Sale')} ${qtySell} ${existing.name || existing.symbol} @ ${salePrice}`,
-            date: form.acquisitionDate || new Date().toISOString().split('T')[0],
+            date: saleDate,
             totalAmount: Math.round(totalSale * 100) / 100,
             currency: existing.currency || 'USD',
           })
+        }
+
+        if (form.incomeDestination === '__exit__') {
+          if (onAddTransaction) {
+            await onAddTransaction({
+              type: 'WITHDRAWAL',
+              symbol: existing.symbol || '',
+              description: `${t('Retiro', 'Withdrawal')} - ${existing.name || existing.symbol}`,
+              date: saleDate,
+              totalAmount: Math.round(totalSale * 100) / 100,
+              currency: existing.currency || 'USD',
+            })
+          }
+        } else if (form.incomeDestination) {
+          const dest = existingItems.find((it) => it.id === form.incomeDestination)
+          if (dest) {
+            const destBal = (dest.currentPrice || dest.purchasePrice || 0) + totalSale
+            await onAdd({ ...dest, currentPrice: destBal, purchasePrice: destBal })
+          }
         }
 
         onClose()
@@ -216,17 +236,23 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
 
       await onAdd(item)
 
-      if (isNewMoney && onAddTransaction) {
-        const totalValue = (item.quantity || 1) * (item.purchasePrice || 0)
-        if (totalValue > 0) {
-          await onAddTransaction({
-            type: 'DEPOSIT',
-            symbol: item.symbol || '',
-            description: `${item.name || item.symbol} - ${t('Dinero nuevo', 'New money')}`,
-            date: form.acquisitionDate || new Date().toISOString().split('T')[0],
-            totalAmount: Math.round(totalValue * 100) / 100,
-            currency: item.currency || 'USD',
-          })
+      const totalValue = (item.quantity || 1) * (item.purchasePrice || 0)
+      if (isNewMoney && onAddTransaction && totalValue > 0) {
+        await onAddTransaction({
+          type: 'DEPOSIT',
+          symbol: item.symbol || '',
+          description: `${item.name || item.symbol} - ${t('Dinero nuevo', 'New money')}`,
+          date: form.acquisitionDate || new Date().toISOString().split('T')[0],
+          totalAmount: Math.round(totalValue * 100) / 100,
+          currency: item.currency || 'USD',
+        })
+      }
+
+      if (!isNewMoney && form.capitalDestination && totalValue > 0) {
+        const source = existingItems.find((it) => it.id === form.capitalDestination)
+        if (source) {
+          const srcBal = (source.currentPrice || source.purchasePrice || 0) - totalValue
+          await onAdd({ ...source, currentPrice: Math.max(0, srcBal), purchasePrice: Math.max(0, srcBal) })
         }
       }
 
@@ -309,6 +335,43 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                     className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
                 </div>
               </div>
+
+              {/* Where does the money go? */}
+              <div className="border border-[#1e2d45] rounded-lg p-3 space-y-2">
+                <label className="text-xs text-slate-400 font-medium">{t('¿A dónde va el dinero?', 'Where does the money go?')}</label>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => set('incomeDestination', '__exit__')}
+                    className={`flex-1 px-2 py-2 text-[11px] font-medium rounded-lg transition-all ${
+                      form.incomeDestination === '__exit__' ? 'bg-red-500/20 text-red-400 border border-red-500/40' : 'bg-[#0b1120] text-slate-500 border border-[#1e2d45]'
+                    }`}>
+                    ↗ {t('Sale del portafolio', 'Exits portfolio')}
+                  </button>
+                  <button type="button" onClick={() => set('incomeDestination', '')}
+                    className={`flex-1 px-2 py-2 text-[11px] font-medium rounded-lg transition-all ${
+                      form.incomeDestination !== '__exit__' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-[#0b1120] text-slate-500 border border-[#1e2d45]'
+                    }`}>
+                    🔄 {t('Queda en el portafolio', 'Stays in portfolio')}
+                  </button>
+                </div>
+                {form.incomeDestination === '__exit__' && (
+                  <p className="text-[9px] text-red-400/70">{t('El dinero sale completamente. Se registra como retiro.', 'Money leaves completely. Recorded as withdrawal.')}</p>
+                )}
+                {form.incomeDestination !== '__exit__' && (
+                  <>
+                    <select value={form.incomeDestination} onChange={(e) => set('incomeDestination', e.target.value)}
+                      className="w-full px-2.5 py-1.5 bg-[#0b1120] border border-[#1e2d45] rounded text-sm text-white focus:outline-none focus:border-emerald-500/50">
+                      <option value="">{t('-- Selecciona cuenta destino --', '-- Select destination --')}</option>
+                      {existingItems.filter((it) => it.id !== form.symbol).map((it) => (
+                        <option key={it.id} value={it.id}>
+                          {it.name || it.symbol} {it.institution ? `(${it.institution})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[9px] text-emerald-400/70">{t('El dinero se mueve dentro del portafolio. No afecta el rendimiento.', 'Money moves within portfolio. Does not affect return.')}</p>
+                  </>
+                )}
+              </div>
+
               <div>
                 <label className="text-xs text-slate-400 mb-1 block">{t('Fecha de venta', 'Sale date')}</label>
                 <input value={form.acquisitionDate} onChange={(e) => set('acquisitionDate', e.target.value)}
@@ -703,7 +766,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
           </div>
 
           {/* New money toggle */}
-          <div className="border border-[#1e2d45] rounded-lg p-3">
+          <div className="border border-[#1e2d45] rounded-lg p-3 space-y-2">
             <label className="text-xs text-slate-400 mb-2 block font-medium">{t('¿Es dinero nuevo?', 'Is this new money?')}</label>
             <div className="flex gap-2">
               <button type="button" onClick={() => setIsNewMoney(true)}
@@ -719,11 +782,25 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                 🔄 {t('Ya estaba en el portafolio', 'Already in portfolio')}
               </button>
             </div>
-            <p className="text-[9px] text-slate-600 mt-1.5">
+            <p className="text-[9px] text-slate-600 mt-1">
               {isNewMoney
                 ? t('Dinero que entra de afuera (salario, regalo, etc). No cuenta como rendimiento.', 'Money coming from outside (salary, gift, etc). Not counted as return.')
                 : t('Dinero que ya estaba invertido en otro lado. No afecta el cálculo de rendimiento.', 'Money already invested elsewhere. Does not affect return calculation.')}
             </p>
+            {!isNewMoney && existingItems.length > 0 && (
+              <div>
+                <label className="text-[10px] text-slate-500 mb-1 block">{t('¿De qué cuenta sale el dinero?', 'Which account is the source?')}</label>
+                <select value={form.capitalDestination} onChange={(e) => set('capitalDestination', e.target.value)}
+                  className="w-full px-2.5 py-1.5 bg-[#0b1120] border border-[#1e2d45] rounded text-sm text-white focus:outline-none focus:border-emerald-500/50">
+                  <option value="">{t('-- Selecciona origen --', '-- Select source --')}</option>
+                  {existingItems.map((it) => (
+                    <option key={it.id} value={it.id}>
+                      {it.name || it.symbol} {it.institution ? `(${it.institution})` : ''} - {it.currency}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           <div className="flex gap-3 pt-2">
