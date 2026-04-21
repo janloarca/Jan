@@ -14,6 +14,7 @@ const TYPES = [
 ]
 
 export default function AddAccountModal({ onClose, onAdd, onAddTransaction, existingItems = [], lang = 'es' }) {
+  const [action, setAction] = useState('buy')
   const [type, setType] = useState('Stock')
   const [form, setForm] = useState({
     symbol: '', name: '', quantity: '', purchasePrice: '', currentPrice: '',
@@ -61,6 +62,43 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
+
+    if (action === 'sell') {
+      if (!form.symbol) { setError(t('Selecciona un activo', 'Select an asset')); return }
+      const qtySell = parseFloat(form.quantity) || 0
+      if (qtySell <= 0) { setError(t('Ingresa la cantidad a vender', 'Enter quantity to sell')); return }
+
+      setSaving(true)
+      try {
+        const existing = existingItems.find((it) => it.id === form.symbol)
+        if (!existing) { setError(t('Activo no encontrado', 'Asset not found')); setSaving(false); return }
+
+        const salePrice = parseFloat(form.purchasePrice) || 0
+        const totalSale = qtySell * salePrice
+        const newQty = (existing.quantity || 0) - qtySell
+
+        if (newQty <= 0.0001) {
+          await onAdd({ ...existing, quantity: 0, currentPrice: 0, purchasePrice: 0 })
+        } else {
+          await onAdd({ ...existing, quantity: newQty })
+        }
+
+        if (onAddTransaction) {
+          await onAddTransaction({
+            type: 'SELL',
+            symbol: existing.symbol || '',
+            description: `${t('Venta', 'Sale')} ${qtySell} ${existing.name || existing.symbol} @ ${salePrice}`,
+            date: form.acquisitionDate || new Date().toISOString().split('T')[0],
+            totalAmount: Math.round(totalSale * 100) / 100,
+            currency: existing.currency || 'USD',
+          })
+        }
+
+        onClose()
+      } catch (err) { setError(err.message) }
+      setSaving(false)
+      return
+    }
 
     if (isMarketAsset && !form.symbol) {
       setError(t('Ingresa el símbolo (ej: AAPL, BTC, VOO)', 'Enter the symbol (e.g. AAPL, BTC, VOO)'))
@@ -203,11 +241,23 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
       <div className="bg-[#131c2e] border border-[#1e2d45] rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#1e2d45]">
-          <h2 className="text-lg font-bold text-white">{t('Agregar Activo', 'Add Asset')}</h2>
+          <h2 className="text-lg font-bold text-white">{t('Registro de Activos', 'Asset Registry')}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-sm">{error}</div>}
+
+          {/* Buy / Sell toggle */}
+          <div className="flex gap-1 bg-[#0b1120] rounded-lg p-1">
+            <button type="button" onClick={() => setAction('buy')}
+              className={`flex-1 py-2 text-xs font-medium rounded-md transition-all ${
+                action === 'buy' ? 'bg-emerald-500 text-white' : 'text-slate-500 hover:text-slate-300'
+              }`}>{t('Compra / Nuevo', 'Buy / New')}</button>
+            <button type="button" onClick={() => setAction('sell')}
+              className={`flex-1 py-2 text-xs font-medium rounded-md transition-all ${
+                action === 'sell' ? 'bg-red-500 text-white' : 'text-slate-500 hover:text-slate-300'
+              }`}>{t('Venta', 'Sell')}</button>
+          </div>
 
           {/* Type selector */}
           <div>
@@ -227,6 +277,59 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
             </div>
           </div>
 
+          {/* === SELL MODE === */}
+          {action === 'sell' && (
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">{t('Activo a vender', 'Asset to sell')}</label>
+                <select value={form.symbol} onChange={(e) => {
+                  const sel = existingItems.find((it) => it.id === e.target.value)
+                  if (sel) setForm({ ...form, symbol: sel.id, name: sel.name || sel.symbol, currency: sel.currency || 'USD', institution: sel.institution || '' })
+                }}
+                  className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50">
+                  <option value="">{t('-- Selecciona activo --', '-- Select asset --')}</option>
+                  {existingItems.map((it) => (
+                    <option key={it.id} value={it.id}>
+                      {it.symbol} - {it.name || it.symbol} ({it.quantity} @ {it.currency})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">{t('Cantidad a vender', 'Quantity to sell')}</label>
+                  <input value={form.quantity} onChange={(e) => set('quantity', e.target.value)}
+                    placeholder="10" type="number" step="any"
+                    className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">{t('Precio de venta', 'Sale price')}</label>
+                  <input value={form.purchasePrice} onChange={(e) => set('purchasePrice', e.target.value)}
+                    placeholder="150.00" type="number" step="any"
+                    className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">{t('Fecha de venta', 'Sale date')}</label>
+                <input value={form.acquisitionDate} onChange={(e) => set('acquisitionDate', e.target.value)}
+                  type="date"
+                  className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50" />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={onClose}
+                  className="flex-1 py-2.5 border border-[#1e2d45] text-slate-300 rounded-lg hover:bg-[#1a2540] transition-colors text-sm">
+                  {t('Cancelar', 'Cancel')}
+                </button>
+                <button type="submit" disabled={saving}
+                  className="flex-1 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-500 disabled:opacity-50 transition-colors text-sm font-medium">
+                  {saving ? '...' : t('Registrar Venta', 'Record Sale')}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* === BUY MODE === */}
+          {action === 'buy' && (<>
           {/* Market assets: Symbol + Name */}
           {isMarketAsset && (
             <div className="grid grid-cols-2 gap-3">
@@ -630,9 +733,10 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
             </button>
             <button type="submit" disabled={saving}
               className="flex-1 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-50 transition-colors text-sm font-medium">
-              {saving ? '...' : t('Agregar', 'Add')}
+              {saving ? '...' : t('Registrar', 'Register')}
             </button>
           </div>
+          </>)}
         </form>
       </div>
     </div>
