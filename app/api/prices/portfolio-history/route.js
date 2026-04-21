@@ -67,54 +67,60 @@ export async function POST(request) {
     const { range, interval } = RANGE_MAP[per] || RANGE_MAP.YTD
 
     const skipTypes = /inmueble|bank|banco|real.?estate|property/i
-    const stocks = []
-    const cryptos = []
-    const staticAssets = []
+    const marketItems = []
+    const cryptoItems = []
+    const staticItems = []
 
     items.forEach((it) => {
       const sym = (it.symbol || '').toUpperCase().trim()
       if (!sym) return
       const type = (it.type || '').toLowerCase()
       if (skipTypes.test(type)) {
-        staticAssets.push(it)
+        staticItems.push(it)
       } else if (/crypto|cripto|blockchain/i.test(type) || CRYPTO_MAP[sym]) {
-        cryptos.push(it)
+        cryptoItems.push(it)
       } else {
-        stocks.push(it)
+        marketItems.push(it)
       }
     })
 
     const allTimeSeries = {}
 
     const stockBatches = []
-    for (let i = 0; i < stocks.length; i += 5) stockBatches.push(stocks.slice(i, i + 5))
+    for (let i = 0; i < marketItems.length; i += 5) stockBatches.push(marketItems.slice(i, i + 5))
     for (const batch of stockBatches) {
       await Promise.all(batch.map(async (it) => {
         const sym = it.symbol.toUpperCase()
         const history = await fetchYahooHistory(sym, range, interval)
         if (history.length > 0) {
-          allTimeSeries[sym] = { history, qty: it.quantity || 0 }
+          allTimeSeries[sym] = {
+            history,
+            qty: it.quantity || 0,
+            acquiredTs: it.acquisitionDate ? new Date(it.acquisitionDate).getTime() : 0,
+            costBasis: (it.quantity || 0) * (it.purchasePrice || 0),
+          }
         }
       }))
     }
 
-    await Promise.all(cryptos.map(async (it) => {
+    await Promise.all(cryptoItems.map(async (it) => {
       const sym = it.symbol.toUpperCase()
       const id = CRYPTO_MAP[sym]
       if (!id) return
       const days = CRYPTO_DAYS[per] || 365
       const history = await fetchCryptoHistory(id, days)
       if (history.length > 0) {
-        allTimeSeries[sym] = { history, qty: it.quantity || 0 }
+        allTimeSeries[sym] = {
+          history,
+          qty: it.quantity || 0,
+          acquiredTs: it.acquisitionDate ? new Date(it.acquisitionDate).getTime() : 0,
+          costBasis: (it.quantity || 0) * (it.purchasePrice || 0),
+        }
       }
     }))
 
-    const staticTotal = staticAssets.reduce((s, it) => {
-      return s + (it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0)
-    }, 0)
-
-    if (Object.keys(allTimeSeries).length === 0) {
-      return NextResponse.json({ dataPoints: [], staticTotal })
+    if (Object.keys(allTimeSeries).length === 0 && staticItems.length === 0) {
+      return NextResponse.json({ dataPoints: [], staticTotal: 0 })
     }
 
     const allTs = new Set()
@@ -124,17 +130,32 @@ export async function POST(request) {
     const sortedTs = [...allTs].sort((a, b) => a - b)
 
     const dataPoints = sortedTs.map((ts) => {
-      let total = staticTotal
-      Object.entries(allTimeSeries).forEach(([, { history, qty }]) => {
-        let price = null
-        for (let i = history.length - 1; i >= 0; i--) {
-          if (history[i].ts <= ts) { price = history[i].close; break }
+      let total = 0
+
+      staticItems.forEach((it) => {
+        const acqTs = it.acquisitionDate ? new Date(it.acquisitionDate).getTime() : 0
+        if (ts >= acqTs) {
+          total += (it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0)
         }
-        if (price == null && history.length > 0) price = history[0].close
-        total += (qty || 0) * (price || 0)
       })
+
+      Object.entries(allTimeSeries).forEach(([, data]) => {
+        if (ts < data.acquiredTs) return
+
+        let price = null
+        for (let i = data.history.length - 1; i >= 0; i--) {
+          if (data.history[i].ts <= ts) { price = data.history[i].close; break }
+        }
+        if (price == null && data.history.length > 0) price = data.history[0].close
+        total += (data.qty || 0) * (price || 0)
+      })
+
       return { ts, total: Math.round(total * 100) / 100 }
     })
+
+    const staticTotal = staticItems.reduce((s, it) => {
+      return s + (it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0)
+    }, 0)
 
     return NextResponse.json({ dataPoints, staticTotal })
   } catch (err) {

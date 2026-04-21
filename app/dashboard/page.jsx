@@ -312,6 +312,7 @@ export default function DashboardPage() {
             items: enrichedItems.map((it) => ({
               symbol: it.symbol, type: it.type, quantity: it.quantity,
               currentPrice: it.currentPrice, purchasePrice: it.purchasePrice,
+              acquisitionDate: it.acquisitionDate,
             })),
             period: 'YTD',
           }),

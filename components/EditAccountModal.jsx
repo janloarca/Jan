@@ -9,8 +9,10 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, lang
     type: item.type || 'Stock',
     quantity: item.quantity?.toString() || '',
     purchasePrice: item.purchasePrice?.toString() || '',
+    currentPrice: item.currentPrice?.toString() || '',
     institution: item.institution || '',
     currency: item.currency || 'USD',
+    acquisitionDate: item.acquisitionDate || '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -19,12 +21,15 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, lang
   const t = (es, en) => lang === 'es' ? es : en
   const set = (k, v) => setForm({ ...form, [k]: v })
 
+  const isMarket = /stock|crypto|fund|etf/i.test(form.type)
+  const isBank = /bank|banco/i.test(form.type)
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setSaving(true)
     setError('')
     try {
-      await onSave({
+      const updated = {
         ...item,
         symbol: form.symbol.trim(),
         name: form.name.trim(),
@@ -33,7 +38,15 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, lang
         purchasePrice: parseFloat(form.purchasePrice) || 0,
         institution: form.institution.trim(),
         currency: form.currency,
-      })
+        acquisitionDate: form.acquisitionDate || '',
+      }
+      if (form.currentPrice && !isMarket) {
+        updated.currentPrice = parseFloat(form.currentPrice) || 0
+      }
+      if (isBank) {
+        updated.currentPrice = parseFloat(form.purchasePrice) || 0
+      }
+      await onSave(updated)
       onClose()
     } catch (err) {
       setError(err.message)
@@ -63,7 +76,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, lang
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-slate-400 mb-1 block">{t('Simbolo', 'Symbol')}</label>
+              <label className="text-xs text-slate-400 mb-1 block">{t('Símbolo', 'Symbol')}</label>
               <input value={form.symbol} onChange={(e) => set('symbol', e.target.value)}
                 className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50" />
             </div>
@@ -81,13 +94,14 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, lang
                 className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50">
                 <option value="Stock">Stock</option>
                 <option value="Crypto">Crypto</option>
-                <option value="Bond">{t('Bono/Instrumento', 'Bond')}</option>
                 <option value="Fund">{t('Fondo/ETF', 'Fund/ETF')}</option>
+                <option value="Inmueble">{t('Inmueble', 'Real Estate')}</option>
                 <option value="Bank">{t('Banco/Cash', 'Bank/Cash')}</option>
+                <option value="Inversion">{t('Inversión', 'Investment')}</option>
               </select>
             </div>
             <div>
-              <label className="text-xs text-slate-400 mb-1 block">{t('Institucion', 'Institution')}</label>
+              <label className="text-xs text-slate-400 mb-1 block">{t('Institución', 'Institution')}</label>
               <input value={form.institution} onChange={(e) => set('institution', e.target.value)}
                 className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50" />
             </div>
@@ -95,12 +109,16 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, lang
 
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="text-xs text-slate-400 mb-1 block">{t('Cantidad', 'Quantity')}</label>
+              <label className="text-xs text-slate-400 mb-1 block">
+                {isBank ? t('Saldo', 'Balance') : t('Cantidad', 'Quantity')}
+              </label>
               <input value={form.quantity} onChange={(e) => set('quantity', e.target.value)}
                 type="number" step="any" className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50" />
             </div>
             <div>
-              <label className="text-xs text-slate-400 mb-1 block">{t('Precio', 'Price')}</label>
+              <label className="text-xs text-slate-400 mb-1 block">
+                {isBank ? t('Saldo', 'Balance') : t('Precio compra', 'Buy price')}
+              </label>
               <input value={form.purchasePrice} onChange={(e) => set('purchasePrice', e.target.value)}
                 type="number" step="any" className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50" />
             </div>
@@ -113,6 +131,22 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, lang
                 ))}
               </select>
             </div>
+          </div>
+
+          {!isMarket && !isBank && (
+            <div>
+              <label className="text-xs text-slate-400 mb-1 block">{t('Valor actual', 'Current value')}</label>
+              <input value={form.currentPrice} onChange={(e) => set('currentPrice', e.target.value)}
+                type="number" step="any" placeholder={t('Dejar vacío para usar precio de compra', 'Leave empty to use purchase price')}
+                className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+            </div>
+          )}
+
+          <div>
+            <label className="text-xs text-slate-400 mb-1 block">{t('Fecha de adquisición', 'Acquisition date')}</label>
+            <input value={form.acquisitionDate} onChange={(e) => set('acquisitionDate', e.target.value)}
+              type="date"
+              className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50" />
           </div>
 
           <div className="flex gap-3 pt-2">
