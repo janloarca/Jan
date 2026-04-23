@@ -455,7 +455,7 @@ export default function DashboardPage() {
 
         {/* Row 2: Dividend Income + Concentration Risk */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-          <DividendIncome transactions={transactions} convert={convert} baseCurrency={baseCurrency} lang={lang} />
+          <DividendIncome transactions={transactions} items={enrichedItems} convert={convert} baseCurrency={baseCurrency} lang={lang} />
           <ConcentrationRisk items={enrichedItems} lang={lang} />
         </div>
 

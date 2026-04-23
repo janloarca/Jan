@@ -145,8 +145,14 @@ export async function POST(request) {
       const allDates = items
         .map((it) => it.acquisitionDate ? new Date(it.acquisitionDate).getTime() : 0)
         .filter((d) => d > 0)
-      if (allDates.length > 0) {
-        const earliest = Math.min(...allDates)
+
+      let earliest = allDates.length > 0 ? Math.min(...allDates) : 0
+
+      if (earliest === 0 && allTs.size > 0) {
+        earliest = Math.min(...allTs)
+      }
+
+      if (earliest > 0) {
         const dayBefore = earliest - 86400000
         allTs.add(dayBefore)
       }
