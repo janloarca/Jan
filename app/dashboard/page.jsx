@@ -28,6 +28,7 @@ import ConcentrationRisk from '@/components/dashboard/ConcentrationRisk'
 import GoalTracker from '@/components/dashboard/GoalTracker'
 import ProjectionSimulator from '@/components/dashboard/ProjectionSimulator'
 import EditAccountModal from '@/components/EditAccountModal'
+import OptimizeModal from '@/components/OptimizeModal'
 import AssetDetailModal from '@/components/dashboard/AssetDetailModal'
 
 export default function DashboardPage() {
@@ -443,6 +444,7 @@ export default function DashboardPage() {
         <ActionButtons
           onImport={() => setModal('import')}
           onAddAccount={() => setModal('account')}
+          onOptimize={() => setModal('optimize')}
           onExport={handleExport}
           itemCount={enrichedItems.length}
           lang={lang}
@@ -495,6 +497,16 @@ export default function DashboardPage() {
           onAdd={addItem}
           onAddTransaction={addTransaction}
           existingItems={items}
+          lang={lang}
+        />
+      )}
+
+      {modal === 'optimize' && (
+        <OptimizeModal
+          items={items}
+          onClose={() => setModal(null)}
+          onSave={addItem}
+          onDelete={deleteItem}
           lang={lang}
         />
       )}
