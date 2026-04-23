@@ -140,6 +140,18 @@ export async function POST(request) {
     Object.values(allTimeSeries).forEach(({ history }) => {
       history.forEach((p) => allTs.add(p.ts))
     })
+
+    if (per === 'ALL') {
+      const allDates = items
+        .map((it) => it.acquisitionDate ? new Date(it.acquisitionDate).getTime() : 0)
+        .filter((d) => d > 0)
+      if (allDates.length > 0) {
+        const earliest = Math.min(...allDates)
+        const dayBefore = earliest - 86400000
+        allTs.add(dayBefore)
+      }
+    }
+
     const sortedTs = [...allTs].sort((a, b) => a - b)
 
     const dataPoints = sortedTs.map((ts) => {
