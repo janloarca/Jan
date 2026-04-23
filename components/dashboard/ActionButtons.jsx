@@ -1,6 +1,6 @@
 'use client'
 
-export default function ActionButtons({ onImport, onAddAccount, onExport, itemCount, lang }) {
+export default function ActionButtons({ onImport, onAddAccount, onOptimize, onExport, itemCount, lang }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <button onClick={onImport}
@@ -11,6 +11,12 @@ export default function ActionButtons({ onImport, onAddAccount, onExport, itemCo
         className="px-4 py-2 text-xs font-medium bg-[#131c2e] border border-[#1e2d45] text-emerald-400 rounded-lg hover:bg-[#1a2540] transition-colors">
         + {lang === 'es' ? 'Registro de Activos' : 'Asset Registry'}
       </button>
+      {itemCount > 0 && (
+        <button onClick={onOptimize}
+          className="px-4 py-2 text-xs font-medium bg-[#131c2e] border border-[#1e2d45] text-amber-400 rounded-lg hover:bg-[#1a2540] transition-colors flex items-center gap-1">
+          ✨ {lang === 'es' ? 'Optimizar' : 'Optimize'}
+        </button>
+      )}
       <div className="ml-auto flex items-center gap-2">
         <button onClick={onExport}
           className="px-3 py-2 text-xs font-medium bg-[#131c2e] border border-[#1e2d45] text-slate-400 rounded-lg hover:bg-[#1a2540] transition-colors">
