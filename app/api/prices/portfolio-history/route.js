@@ -66,7 +66,7 @@ export async function POST(request) {
     const per = period || 'YTD'
     const { range, interval } = RANGE_MAP[per] || RANGE_MAP.YTD
 
-    const skipTypes = /inmueble|bank|banco|real.?estate|property/i
+    const skipTypes = /inmueble|bank|banco|real.?estate|property|inversion|inversión|bono|bond|deposito|certificado/i
     const marketItems = []
     const cryptoItems = []
     const staticItems = []
@@ -118,6 +118,19 @@ export async function POST(request) {
         }
       }
     }))
+
+    marketItems.forEach((it) => {
+      const sym = (it.symbol || '').toUpperCase()
+      if (!allTimeSeries[sym]) {
+        staticItems.push(it)
+      }
+    })
+    cryptoItems.forEach((it) => {
+      const sym = (it.symbol || '').toUpperCase()
+      if (!allTimeSeries[sym]) {
+        staticItems.push(it)
+      }
+    })
 
     if (Object.keys(allTimeSeries).length === 0 && staticItems.length === 0) {
       return NextResponse.json({ dataPoints: [], staticTotal: 0 })
