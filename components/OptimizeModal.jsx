@@ -2,53 +2,63 @@
 
 import { useState, useMemo } from 'react'
 
+const TYPE_ICONS = { Stock: '📈', Crypto: '₿', Fund: '💼', Inmueble: '🏠', Bank: '🏦', Inversion: '🏛' }
+const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
+
 function generateQuestions(items, t) {
   const questions = []
 
   items.forEach((it) => {
     if (!it.acquisitionDate) {
-      questions.push({
-        id: `date_${it.id}`, item: it, priority: 1,
-        title: t('Fecha de adquisición faltante', 'Missing acquisition date'),
-        description: t('Sin fecha no podemos calcular rendimiento correctamente.', 'Without a date we cannot calculate returns correctly.'),
-        fields: [
-          { key: 'acquisitionDate', label: t('Fecha de compra', 'Purchase date'), type: 'date', current: '' },
-        ],
+      questions.push({ id: `date_${it.id}`, item: it, priority: 1, category: 'fecha',
+        title: t('¿Cuándo adquiriste este activo?', 'When did you acquire this asset?'),
+        subtitle: t('Sin fecha, el rendimiento no se puede calcular bien.', 'Without a date, returns cannot be calculated properly.'),
       })
     }
   })
 
   items.forEach((it) => {
-    if (!it.institution && !/bank|banco/i.test(it.type || '')) {
-      questions.push({
-        id: `inst_${it.id}`, item: it, priority: 2,
-        title: t('Institución faltante', 'Missing institution'),
-        description: t('¿En qué broker, banco o plataforma tienes este activo?', 'Which broker, bank or platform holds this asset?'),
-        fields: [
-          { key: 'institution', label: t('Institución', 'Institution'), type: 'text', current: '', placeholder: 'IBKR, Fidelity, BAM...' },
-        ],
+    if (!it.institution) {
+      questions.push({ id: `inst_${it.id}`, item: it, priority: 2, category: 'institucion',
+        title: t('¿Dónde está este activo?', 'Where is this asset held?'),
+        subtitle: t('Saber la institución ayuda a organizar tu portafolio.', 'Knowing the institution helps organize your portfolio.'),
       })
     }
   })
 
-  const skipPrice = /bank|banco|inmueble|real.?estate|property|inversion|inversión|bono|bond/i
+  const isBank = (it) => /bank|banco/i.test(it.type || '')
+  const isProperty = (it) => /inmueble|real.?estate|property/i.test(it.type || '')
+  const isInvestment = (it) => /inversion|inversión|bono|bond/i.test(it.type || '')
+  const isMarket = (it) => /stock|crypto|fund|etf/i.test(it.type || '')
+
   items.forEach((it) => {
-    if (skipPrice.test(it.type || '')) {
-      const val = it.currentPrice || it.purchasePrice || 0
-      if (val > 0) {
-        questions.push({
-          id: `bal_${it.id}`, item: it, priority: 3,
-          title: /inmueble|real.?estate|property/i.test(it.type || '')
-            ? t('Verificar valor del inmueble', 'Verify property value')
-            : /inversion|inversión|bono|bond/i.test(it.type || '')
-            ? t('Verificar valor de inversión', 'Verify investment value')
-            : t('Verificar saldo bancario', 'Verify bank balance'),
-          description: t('¿Este saldo sigue siendo correcto?', 'Is this balance still correct?'),
-          fields: [
-            { key: 'currentPrice', label: t('Valor actual', 'Current value'), type: 'number', current: val },
-          ],
-        })
-      }
+    if (isBank(it) || isProperty(it) || isInvestment(it)) {
+      questions.push({ id: `bal_${it.id}`, item: it, priority: 3, category: 'saldo',
+        title: isProperty(it)
+          ? t('¿Cuánto vale este inmueble hoy?', 'What is this property worth today?')
+          : isInvestment(it)
+          ? t('¿Cuál es el valor actual de esta inversión?', 'What is the current value of this investment?')
+          : t('¿Cuál es tu saldo actual?', 'What is your current balance?'),
+        subtitle: t('Mantener el saldo actualizado mejora la precisión.', 'Keeping the balance updated improves accuracy.'),
+      })
+    }
+  })
+
+  items.forEach((it) => {
+    if (isMarket(it) && it.incomeAmount > 0) {
+      questions.push({ id: `div_${it.id}`, item: it, priority: 3, category: 'dividendo',
+        title: t(`¿${it.name || it.symbol} te pagó dividendos recientemente?`, `Did ${it.name || it.symbol} pay dividends recently?`),
+        subtitle: t('Confirma si recibiste el último pago programado.', 'Confirm if you received the last scheduled payment.'),
+      })
+    }
+  })
+
+  items.forEach((it) => {
+    if ((isInvestment(it) || isBank(it)) && (it.incomeAmount > 0 || it.incomeRate > 0)) {
+      questions.push({ id: `rate_${it.id}`, item: it, priority: 3, category: 'tasa',
+        title: t('¿Cambió la tasa o el monto de intereses?', 'Did the interest rate or amount change?'),
+        subtitle: t('Las tasas cambian. Mantén tus datos actualizados.', 'Rates change. Keep your data current.'),
+      })
     }
   })
 
@@ -56,56 +66,41 @@ function generateQuestions(items, t) {
     const qty = it.quantity || 0
     const price = it.currentPrice || it.purchasePrice || 0
     if (qty <= 0 || price <= 0) {
-      questions.push({
-        id: `zero_${it.id}`, item: it, priority: 1,
-        title: t('Activo con valor $0', 'Asset with $0 value'),
-        description: t('Este activo no tiene valor registrado. ¿Actualizas o lo eliminamos?', 'This asset has no recorded value. Update or remove?'),
-        fields: [
-          { key: 'quantity', label: t('Cantidad', 'Quantity'), type: 'number', current: qty },
-          { key: 'purchasePrice', label: t('Precio', 'Price'), type: 'number', current: price },
-        ],
-        canDelete: true,
+      questions.push({ id: `zero_${it.id}`, item: it, priority: 1, category: 'cero',
+        title: t('Este activo tiene valor $0', 'This asset has $0 value'),
+        subtitle: t('¿Lo actualizamos o lo eliminamos?', 'Should we update or remove it?'),
       })
     }
   })
 
-  items.forEach((it) => {
-    if (it.acquisitionDate) {
-      const ageMonths = (Date.now() - new Date(it.acquisitionDate).getTime()) / (1000 * 60 * 60 * 24 * 30)
-      if (ageMonths > 24) {
-        const val = (it.quantity || 0) * (it.currentPrice || it.purchasePrice || 0)
-        questions.push({
-          id: `old_${it.id}`, item: it, priority: 4,
-          title: t(`Activo de hace ${Math.round(ageMonths / 12)} años`, `Asset from ${Math.round(ageMonths / 12)} years ago`),
-          description: t('¿Los datos siguen siendo correctos?', 'Is the data still correct?'),
-          fields: [
-            { key: 'quantity', label: t('Cantidad', 'Quantity'), type: 'number', current: it.quantity || 0 },
-            { key: 'purchasePrice', label: t('Precio compra', 'Buy price'), type: 'number', current: it.purchasePrice || 0 },
-            { key: 'acquisitionDate', label: t('Fecha', 'Date'), type: 'date', current: it.acquisitionDate || '' },
-          ],
-          canDelete: true,
-        })
-      }
-    }
-  })
-
-  questions.sort((a, b) => a.priority - b.priority)
-  const shuffled = questions.sort((a, b) => {
+  questions.sort((a, b) => {
     if (a.priority !== b.priority) return a.priority - b.priority
     return Math.random() - 0.5
   })
-  return shuffled.slice(0, 5)
+  return questions.slice(0, 5)
 }
-
-const TYPE_ICONS = { Stock: '📈', Crypto: '₿', Fund: '💼', Inmueble: '🏠', Bank: '🏦', Inversion: '🏛' }
 
 export default function OptimizeModal({ items, onClose, onSave, onDelete, lang = 'es' }) {
   const t = (es, en) => lang === 'es' ? es : en
   const questions = useMemo(() => generateQuestions(items, t), [items])
-
   const [step, setStep] = useState(0)
-  const [edits, setEdits] = useState({})
+  const [form, setForm] = useState({})
   const [saving, setSaving] = useState(false)
+
+  const initForm = (q) => {
+    const it = q.item
+    return {
+      acquisitionDate: it.acquisitionDate || '',
+      institution: it.institution || '',
+      quantity: it.quantity?.toString() || '',
+      purchasePrice: it.purchasePrice?.toString() || '',
+      currentPrice: (it.currentPrice || it.purchasePrice || '').toString(),
+      currency: it.currency || 'USD',
+      incomeAmount: it.incomeAmount?.toString() || '',
+      incomeRate: it.incomeRate?.toString() || '',
+      incomeMode: it.incomeMode || 'fixed',
+    }
+  }
 
   if (questions.length === 0) {
     return (
@@ -114,9 +109,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
           <div className="text-4xl mb-3">✅</div>
           <h3 className="text-lg font-bold text-white mb-2">{t('Todo en orden', 'All good')}</h3>
           <p className="text-sm text-slate-400 mb-4">{t('Tu portafolio tiene toda la información completa.', 'Your portfolio data is complete.')}</p>
-          <button onClick={onClose} className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 text-sm font-medium">
-            {t('Cerrar', 'Close')}
-          </button>
+          <button onClick={onClose} className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 text-sm font-medium">{t('Cerrar', 'Close')}</button>
         </div>
       </div>
     )
@@ -125,40 +118,34 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
   const isDone = step >= questions.length
   const q = !isDone ? questions[step] : null
 
-  const getVal = (fieldKey) => {
-    const editKey = `${q.id}_${fieldKey}`
-    if (edits[editKey] !== undefined) return edits[editKey]
-    const field = q.fields.find((f) => f.key === fieldKey)
-    return field?.current ?? ''
-  }
+  if (!q && !isDone) return null
 
-  const setVal = (fieldKey, value) => {
-    setEdits({ ...edits, [`${q.id}_${fieldKey}`]: value })
-  }
+  const currentForm = form[step] || (q ? initForm(q) : {})
+  const set = (k, v) => setForm({ ...form, [step]: { ...currentForm, [k]: v } })
 
-  const hasChanges = () => {
-    if (!q) return false
-    return q.fields.some((f) => {
-      const editKey = `${q.id}_${f.key}`
-      return edits[editKey] !== undefined && edits[editKey] !== '' && String(edits[editKey]) !== String(f.current)
-    })
-  }
+  const isBank = /bank|banco/i.test(q?.item?.type || '')
+  const isProperty = /inmueble|real.?estate|property/i.test(q?.item?.type || '')
+  const isInvestment = /inversion|inversión|bono|bond/i.test(q?.item?.type || '')
+  const isMarket = /stock|crypto|fund|etf/i.test(q?.item?.type || '')
 
   const handleSave = async () => {
     if (!q) return
     setSaving(true)
     try {
       const updated = { ...q.item }
-      q.fields.forEach((f) => {
-        const val = getVal(f.key)
-        if (val === '' || val === undefined) return
-        if (f.type === 'number') {
-          updated[f.key] = parseFloat(val) || 0
-          if (f.key === 'currentPrice') updated.purchasePrice = updated.currentPrice
-        } else {
-          updated[f.key] = val
-        }
-      })
+      const f = currentForm
+      if (f.acquisitionDate) updated.acquisitionDate = f.acquisitionDate
+      if (f.institution) updated.institution = f.institution
+      if (f.currency) updated.currency = f.currency
+      if (f.quantity !== '' && f.quantity !== undefined) updated.quantity = parseFloat(f.quantity) || 0
+      if (f.purchasePrice !== '' && f.purchasePrice !== undefined) updated.purchasePrice = parseFloat(f.purchasePrice) || 0
+      if (f.currentPrice !== '' && f.currentPrice !== undefined) {
+        updated.currentPrice = parseFloat(f.currentPrice) || 0
+        if (isBank) updated.purchasePrice = updated.currentPrice
+      }
+      if (f.incomeMode) updated.incomeMode = f.incomeMode
+      if (f.incomeAmount !== '' && f.incomeAmount !== undefined) updated.incomeAmount = parseFloat(f.incomeAmount) || 0
+      if (f.incomeRate !== '' && f.incomeRate !== undefined) updated.incomeRate = parseFloat(f.incomeRate) || 0
       await onSave(updated)
     } catch {}
     setSaving(false)
@@ -168,9 +155,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
   const handleDelete = async () => {
     if (!q) return
     setSaving(true)
-    try {
-      await onDelete(q.item.id)
-    } catch {}
+    try { await onDelete(q.item.id) } catch {}
     setSaving(false)
     setStep((s) => s + 1)
   }
@@ -182,23 +167,23 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
           <div className="text-4xl mb-3">🎉</div>
           <h3 className="text-lg font-bold text-white mb-2">{t('¡Listo!', 'Done!')}</h3>
           <p className="text-sm text-slate-400 mb-4">{t('Tu portafolio está más actualizado.', 'Your portfolio is more up to date.')}</p>
-          <button onClick={onClose} className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 text-sm font-medium">
-            {t('Cerrar', 'Close')}
-          </button>
+          <button onClick={onClose} className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 text-sm font-medium">{t('Cerrar', 'Close')}</button>
         </div>
       </div>
     )
   }
 
-  const itemValue = (q.item.quantity || 0) * (q.item.currentPrice || q.item.purchasePrice || 0)
+  const itemValue = isBank
+    ? (q.item.currentPrice || q.item.purchasePrice || 0)
+    : (q.item.quantity || 0) * (q.item.currentPrice || q.item.purchasePrice || 0)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="bg-[#131c2e] border border-[#1e2d45] rounded-xl shadow-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-[#131c2e] border border-[#1e2d45] rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#1e2d45]">
           <div className="flex items-center gap-2">
             <span className="text-lg">✨</span>
-            <h2 className="text-sm font-bold text-white">{t('Optimizar Información', 'Optimize Info')}</h2>
+            <h2 className="text-sm font-bold text-white">{t('Optimizar', 'Optimize')}</h2>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs text-slate-500">{step + 1} / {questions.length}</span>
@@ -225,50 +210,166 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-sm font-semibold text-white">${itemValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                <p className="text-[10px] text-slate-500">{q.item.quantity || 0} × ${(q.item.currentPrice || q.item.purchasePrice || 0).toLocaleString()}</p>
+                <p className="text-sm font-semibold text-white">${itemValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
+                {!isBank && <p className="text-[10px] text-slate-500">{q.item.quantity || 0} {t('unidades', 'units')}</p>}
               </div>
             </div>
             {q.item.acquisitionDate && (
               <p className="text-[10px] text-slate-500 mt-2 pt-2 border-t border-[#1e2d45]">
-                {t('Comprado:', 'Bought:')} {q.item.acquisitionDate}
+                {t('Registrado:', 'Recorded:')} {q.item.acquisitionDate}
               </p>
             )}
           </div>
 
-          {/* Question */}
           <div>
             <p className="text-sm font-medium text-white">{q.title}</p>
-            <p className="text-xs text-slate-400 mt-0.5">{q.description}</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">{q.subtitle}</p>
           </div>
 
-          {/* Editable fields */}
-          <div className="space-y-2">
-            {q.fields.map((f) => (
-              <div key={f.key}>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-[10px] text-slate-500">{f.label}</label>
-                  {f.current !== '' && f.current !== 0 && (
-                    <span className="text-[10px] text-slate-600">
-                      {t('Actual:', 'Current:')} {f.type === 'number' ? Number(f.current).toLocaleString() : f.current}
-                    </span>
+          {/* === Category-specific fields === */}
+
+          {q.category === 'fecha' && (
+            <div>
+              <label className="text-[10px] text-slate-500 mb-1 block">{t('Fecha de adquisición', 'Acquisition date')}</label>
+              <input type="date" value={currentForm.acquisitionDate}
+                onChange={(e) => set('acquisitionDate', e.target.value)}
+                className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50" />
+            </div>
+          )}
+
+          {q.category === 'institucion' && (
+            <div>
+              <label className="text-[10px] text-slate-500 mb-1 block">{t('Institución / Broker / Banco', 'Institution / Broker / Bank')}</label>
+              <input type="text" value={currentForm.institution} placeholder="IBKR, Fidelity, BAM, BI..."
+                onChange={(e) => set('institution', e.target.value)}
+                className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+            </div>
+          )}
+
+          {q.category === 'saldo' && (
+            <div className="space-y-2">
+              <div>
+                <div className="flex justify-between mb-1">
+                  <label className="text-[10px] text-slate-500">
+                    {isBank ? t('Saldo actual', 'Current balance') : t('Valor actual', 'Current value')}
+                  </label>
+                  <span className="text-[10px] text-slate-600">
+                    {t('Registrado:', 'Recorded:')} {Number(q.item.currentPrice || q.item.purchasePrice || 0).toLocaleString()} {q.item.currency}
+                  </span>
+                </div>
+                <input type="number" step="any" value={currentForm.currentPrice}
+                  onChange={(e) => set('currentPrice', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50" />
+              </div>
+              <div>
+                <label className="text-[10px] text-slate-500 mb-1 block">{t('Moneda', 'Currency')}</label>
+                <select value={currentForm.currency} onChange={(e) => set('currency', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50">
+                  {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+            </div>
+          )}
+
+          {q.category === 'dividendo' && (
+            <div className="space-y-3">
+              <div className="bg-[#0b1120] rounded-lg p-3 border border-[#1e2d45]/50">
+                <p className="text-[10px] text-slate-500 mb-1">{t('Dividendo registrado', 'Recorded dividend')}</p>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-semibold text-emerald-400">
+                    ${(q.item.incomeAmount || 0).toFixed(2)} / {t('pago', 'payment')}
+                  </span>
+                  {q.item.dividendYield > 0 && (
+                    <span className="text-xs text-slate-400">({q.item.dividendYield}% {t('anual', 'annual')})</span>
                   )}
                 </div>
-                <input
-                  type={f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : 'text'}
-                  step={f.type === 'number' ? 'any' : undefined}
-                  placeholder={f.placeholder || (f.current !== '' ? String(f.current) : '')}
-                  value={getVal(f.key)}
-                  onChange={(e) => setVal(f.key, e.target.value)}
-                  className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50"
-                />
+                {q.item.incomeFrequency && (
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    {{ monthly: t('Mensual','Monthly'), quarterly: t('Trimestral','Quarterly'), semiannual: t('Semestral','Semiannual'), annual: t('Anual','Annual') }[q.item.incomeFrequency] || q.item.incomeFrequency}
+                  </p>
+                )}
               </div>
-            ))}
-          </div>
+              <div>
+                <label className="text-[10px] text-slate-500 mb-1 block">{t('Nuevo monto por pago (si cambió)', 'New amount per payment (if changed)')}</label>
+                <input type="number" step="any" value={currentForm.incomeAmount}
+                  placeholder={(q.item.incomeAmount || 0).toString()}
+                  onChange={(e) => set('incomeAmount', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+              </div>
+            </div>
+          )}
+
+          {q.category === 'tasa' && (
+            <div className="space-y-3">
+              <div className="bg-[#0b1120] rounded-lg p-3 border border-[#1e2d45]/50">
+                <p className="text-[10px] text-slate-500 mb-1">{t('Configuración actual', 'Current setting')}</p>
+                {q.item.incomeMode === 'percent' ? (
+                  <span className="text-sm font-semibold text-emerald-400">{q.item.incomeRate || 0}% {t('anual', 'annual')}</span>
+                ) : (
+                  <span className="text-sm font-semibold text-emerald-400">${(q.item.incomeAmount || 0).toFixed(2)} / {t('pago', 'payment')}</span>
+                )}
+              </div>
+              <div className="flex gap-1 mb-1">
+                <button type="button" onClick={() => set('incomeMode', 'fixed')}
+                  className={`flex-1 px-2 py-1.5 text-[10px] font-medium rounded transition-all ${
+                    currentForm.incomeMode === 'fixed' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-[#0b1120] text-slate-500 border border-[#1e2d45]'
+                  }`}>{t('Monto fijo', 'Fixed amount')}</button>
+                <button type="button" onClick={() => set('incomeMode', 'percent')}
+                  className={`flex-1 px-2 py-1.5 text-[10px] font-medium rounded transition-all ${
+                    currentForm.incomeMode === 'percent' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-[#0b1120] text-slate-500 border border-[#1e2d45]'
+                  }`}>{t('% anual', '% annual')}</button>
+              </div>
+              {currentForm.incomeMode === 'fixed' ? (
+                <div>
+                  <label className="text-[10px] text-slate-500 mb-1 block">{t('Monto por pago', 'Amount per payment')}</label>
+                  <input type="number" step="any" value={currentForm.incomeAmount}
+                    placeholder={(q.item.incomeAmount || 0).toString()}
+                    onChange={(e) => set('incomeAmount', e.target.value)}
+                    className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+                </div>
+              ) : (
+                <div>
+                  <label className="text-[10px] text-slate-500 mb-1 block">{t('Tasa anual %', 'Annual rate %')}</label>
+                  <input type="number" step="any" value={currentForm.incomeRate}
+                    placeholder={(q.item.incomeRate || 0).toString()}
+                    onChange={(e) => set('incomeRate', e.target.value)}
+                    className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
+                </div>
+              )}
+            </div>
+          )}
+
+          {q.category === 'cero' && (
+            <div className="space-y-2">
+              {!isBank ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] text-slate-500 mb-1 block">{t('Cantidad', 'Quantity')}</label>
+                    <input type="number" step="any" value={currentForm.quantity}
+                      onChange={(e) => set('quantity', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-slate-500 mb-1 block">{t('Precio', 'Price')}</label>
+                    <input type="number" step="any" value={currentForm.purchasePrice}
+                      onChange={(e) => set('purchasePrice', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50" />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="text-[10px] text-slate-500 mb-1 block">{t('Saldo actual', 'Current balance')}</label>
+                  <input type="number" step="any" value={currentForm.currentPrice}
+                    onChange={(e) => set('currentPrice', e.target.value)}
+                    className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50" />
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex gap-2 pt-2">
-            {q.canDelete && (
+            {q.category === 'cero' && (
               <button type="button" onClick={handleDelete} disabled={saving}
                 className="px-3 py-2.5 text-xs font-medium border border-red-500/30 text-red-400 rounded-lg hover:bg-red-500/10 transition-colors disabled:opacity-50">
                 {t('Eliminar', 'Delete')}
@@ -277,11 +378,11 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
             <div className="flex-1" />
             <button type="button" onClick={() => setStep((s) => s + 1)}
               className="px-4 py-2.5 border border-[#1e2d45] text-slate-400 rounded-lg hover:bg-[#1a2540] transition-colors text-xs">
-              {t('Saltar', 'Skip')}
+              {t('Sin cambios →', 'No changes →')}
             </button>
-            <button type="button" onClick={handleSave} disabled={saving || !hasChanges()}
-              className="px-5 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-40 transition-colors text-xs font-medium">
-              {saving ? '...' : step < questions.length - 1 ? t('Guardar →', 'Save →') : t('Guardar ✓', 'Save ✓')}
+            <button type="button" onClick={handleSave} disabled={saving}
+              className="px-5 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-50 transition-colors text-xs font-medium">
+              {saving ? '...' : t('Guardar →', 'Save →')}
             </button>
           </div>
         </div>
