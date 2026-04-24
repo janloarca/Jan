@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { formatCurrency, formatCompact, formatShortDate, formatDate } from './utils'
+import { formatCurrency, formatCompact, formatShortDate, formatDate, computeModifiedDietz } from './utils'
 
 export default function PortfolioGrowthChart({ items, transactions, lang, convert, baseCurrency }) {
   const [period, setPeriod] = useState('YTD')
@@ -65,40 +65,21 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
   const returnData = useMemo(() => {
     if (chartData.length < 2) return []
 
-    const flowTypes = { DEPOSIT: 1, WITHDRAWAL: -1 }
-    const txList = (transactions || [])
-      .filter((tx) => tx.date && flowTypes[(tx.type || '').toUpperCase()] != null)
-      .map((tx) => ({
-        date: new Date(tx.date).getTime(),
-        flow: convert
-          ? convert((tx.totalAmount ?? 0) * flowTypes[(tx.type || '').toUpperCase()], tx.currency || 'USD', baseCurrency || 'USD')
-          : (tx.totalAmount ?? 0) * flowTypes[(tx.type || '').toUpperCase()],
-      }))
-
-    const startVal = chartData[0].value
     const startTs = chartData[0].ts
+    const startVal = chartData[0].value
     const result = [0]
 
     for (let i = 1; i < chartData.length; i++) {
-      const currVal = chartData[i].value
-      const currTs = chartData[i].ts
-      const totalMs = currTs - startTs
-
-      const flows = txList.filter((tx) => tx.date > startTs && tx.date <= currTs)
-      const sumFlows = flows.reduce((s, tx) => s + tx.flow, 0)
-
-      let weightedFlows = 0
-      if (totalMs > 0) {
-        flows.forEach((tx) => {
-          const w = (currTs - tx.date) / totalMs
-          weightedFlows += tx.flow * w
-        })
-      }
-
-      const weightedCapital = startVal + weightedFlows
-      const gain = currVal - startVal - sumFlows
-      const ret = weightedCapital > 0 ? (gain / weightedCapital) * 100 : 0
-      result.push(ret)
+      const { pct } = computeModifiedDietz({
+        startValue: startVal,
+        endValue: chartData[i].value,
+        startTs,
+        endTs: chartData[i].ts,
+        transactions,
+        convert,
+        baseCurrency,
+      })
+      result.push(pct)
     }
 
     return result

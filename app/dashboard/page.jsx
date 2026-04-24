@@ -10,7 +10,7 @@ import FileImportModal from '@/components/FileImportModal'
 import AddAccountModal from '@/components/AddAccountModal'
 
 import SettingsModal from '@/components/SettingsModal'
-import { setBaseCurrency } from '@/components/dashboard/utils'
+import { setBaseCurrency, computeModifiedDietz } from '@/components/dashboard/utils'
 import Header from '@/components/dashboard/Header'
 import NetWorthCard from '@/components/dashboard/NetWorthCard'
 import PortfolioGrowthChart from '@/components/dashboard/PortfolioGrowthChart'
@@ -332,40 +332,17 @@ export default function DashboardPage() {
 
   const { returnYTD, ytdChange } = useMemo(() => {
     if (jan1Value == null) return { returnYTD: 0, ytdChange: 0 }
-    const startVal = jan1Value
     const yearStart = new Date(new Date().getFullYear(), 0, 1).getTime()
-    const now = Date.now()
-    const totalMs = now - yearStart
-
-    const flowTypes = { DEPOSIT: 1, WITHDRAWAL: -1 }
-    const flows = (transactions || [])
-      .filter((tx) => {
-        if (!tx.date) return false
-        const t = (tx.type || '').toUpperCase()
-        return flowTypes[t] != null && new Date(tx.date).getTime() >= yearStart
-      })
-      .map((tx) => ({
-        date: new Date(tx.date).getTime(),
-        flow: convert(
-          (tx.totalAmount ?? 0) * flowTypes[(tx.type || '').toUpperCase()],
-          tx.currency || 'USD',
-          baseCurrency
-        ),
-      }))
-
-    const sumFlows = flows.reduce((s, f) => s + f.flow, 0)
-    let weightedFlows = 0
-    if (totalMs > 0) {
-      flows.forEach((f) => {
-        const w = (now - f.date) / totalMs
-        weightedFlows += f.flow * w
-      })
-    }
-
-    const weightedCapital = startVal + weightedFlows
-    const gain = netWorth - startVal - sumFlows
-    const ret = weightedCapital > 0 ? (gain / weightedCapital) * 100 : 0
-    return { returnYTD: ret, ytdChange: gain }
+    const { pct, abs } = computeModifiedDietz({
+      startValue: jan1Value,
+      endValue: netWorth,
+      startTs: yearStart,
+      endTs: Date.now(),
+      transactions,
+      convert,
+      baseCurrency,
+    })
+    return { returnYTD: pct, ytdChange: abs }
   }, [jan1Value, netWorth, transactions, convert, baseCurrency])
 
   const annualDividends = useMemo(() => {
@@ -456,7 +433,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Performance Summary */}
-        <PerformanceSummary snapshots={snapshots} lang={lang} />
+        <PerformanceSummary items={enrichedItems} transactions={transactions} convert={convert} baseCurrency={baseCurrency} netWorth={netWorth} lang={lang} />
 
         {/* Action Buttons */}
         <ActionButtons
