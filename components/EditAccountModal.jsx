@@ -107,31 +107,46 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, lang
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="text-xs text-slate-400 mb-1 block">
-                {isBank ? t('Saldo', 'Balance') : t('Cantidad', 'Quantity')}
-              </label>
-              <input value={form.quantity} onChange={(e) => set('quantity', e.target.value)}
-                type="number" step="any" className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50" />
+          {isBank ? (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">{t('Saldo actual', 'Current balance')}</label>
+                <input value={form.purchasePrice} onChange={(e) => { set('purchasePrice', e.target.value); set('quantity', '1') }}
+                  type="number" step="any" className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50" />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">{t('Moneda', 'Currency')}</label>
+                <select value={form.currency} onChange={(e) => set('currency', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50">
+                  {['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY'].map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="text-xs text-slate-400 mb-1 block">
-                {isBank ? t('Saldo', 'Balance') : t('Precio compra', 'Buy price')}
-              </label>
-              <input value={form.purchasePrice} onChange={(e) => set('purchasePrice', e.target.value)}
-                type="number" step="any" className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50" />
+          ) : (
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">{t('Cantidad', 'Quantity')}</label>
+                <input value={form.quantity} onChange={(e) => set('quantity', e.target.value)}
+                  type="number" step="any" className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50" />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">{t('Precio compra', 'Buy price')}</label>
+                <input value={form.purchasePrice} onChange={(e) => set('purchasePrice', e.target.value)}
+                  type="number" step="any" className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50" />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">{t('Moneda', 'Currency')}</label>
+                <select value={form.currency} onChange={(e) => set('currency', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50">
+                  {['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY'].map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="text-xs text-slate-400 mb-1 block">{t('Moneda', 'Currency')}</label>
-              <select value={form.currency} onChange={(e) => set('currency', e.target.value)}
-                className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50">
-                {['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY'].map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </div>
-          </div>
+          )}
 
           {!isMarket && !isBank && (
             <div>

@@ -5,14 +5,59 @@ import { useState, useMemo } from 'react'
 const TYPE_ICONS = { Stock: '📈', Crypto: '₿', Fund: '💼', Inmueble: '🏠', Bank: '🏦', Inversion: '🏛' }
 const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
 
+const INSTITUTION_CURRENCY = {
+  bi: 'GTQ', banrural: 'GTQ', bam: 'GTQ', industrial: 'GTQ', bantrab: 'GTQ',
+  'g&t': 'GTQ', gyt: 'GTQ', ficohsa: 'GTQ', promerica: 'GTQ',
+  banamex: 'MXN', banorte: 'MXN', azteca: 'MXN',
+  bancolombia: 'COP', davivienda: 'COP', nequi: 'COP',
+  bcp: 'PEN', interbank: 'PEN',
+  itau: 'BRL', bradesco: 'BRL', nubank: 'BRL',
+  'banco estado': 'CLP', bci: 'CLP',
+  chase: 'USD', 'wells fargo': 'USD', citi: 'USD', schwab: 'USD',
+  fidelity: 'USD', vanguard: 'USD', ibkr: 'USD',
+  barclays: 'GBP', lloyds: 'GBP',
+}
+
+function detectCurrency(institution) {
+  if (!institution) return null
+  const lower = institution.toLowerCase().trim()
+  for (const [key, cur] of Object.entries(INSTITUTION_CURRENCY)) {
+    if (lower.includes(key) || lower === key) return cur
+  }
+  return null
+}
+
 function generateQuestions(items, t) {
   const questions = []
+  const isBank = (it) => /bank|banco/i.test(it.type || '')
+  const isProperty = (it) => /inmueble|real.?estate|property/i.test(it.type || '')
+  const isInvestment = (it) => /inversion|inversión|bono|bond/i.test(it.type || '')
+  const isMarket = (it) => /stock|crypto|fund|etf/i.test(it.type || '')
+
+  items.forEach((it) => {
+    const inst = (it.institution || '').toLowerCase()
+    const suggested = detectCurrency(inst)
+    const current = it.currency || 'USD'
+    if (suggested && suggested !== current && (isBank(it) || isInvestment(it))) {
+      questions.push({ id: `cur_${it.id}`, item: it, priority: 0, category: 'moneda',
+        title: t(`¿${it.name || it.symbol} está en ${current}?`, `Is ${it.name || it.symbol} in ${current}?`),
+        subtitle: t(`Detectamos que ${it.institution} normalmente usa ${suggested}. Verifica la moneda.`,
+          `We detected ${it.institution} typically uses ${suggested}. Verify the currency.`),
+        suggestedCurrency: suggested,
+      })
+    }
+  })
 
   items.forEach((it) => {
     if (!it.acquisitionDate) {
       questions.push({ id: `date_${it.id}`, item: it, priority: 1, category: 'fecha',
-        title: t('¿Cuándo adquiriste este activo?', 'When did you acquire this asset?'),
-        subtitle: t('Sin fecha, el rendimiento no se puede calcular bien.', 'Without a date, returns cannot be calculated properly.'),
+        title: isBank(it)
+          ? t('¿Cuándo abriste esta cuenta?', 'When did you open this account?')
+          : isProperty(it)
+          ? t('¿Cuándo compraste este inmueble?', 'When did you buy this property?')
+          : t('¿Cuándo adquiriste este activo?', 'When did you acquire this asset?'),
+        subtitle: t('Sin esta fecha, las gráficas de rendimiento no arrancan bien. El sistema asume que existió desde siempre.',
+          'Without this date, performance charts start wrong. The system assumes it existed since the beginning.'),
       })
     }
   })
@@ -21,32 +66,35 @@ function generateQuestions(items, t) {
     if (!it.institution) {
       questions.push({ id: `inst_${it.id}`, item: it, priority: 2, category: 'institucion',
         title: t('¿Dónde está este activo?', 'Where is this asset held?'),
-        subtitle: t('Saber la institución ayuda a organizar tu portafolio.', 'Knowing the institution helps organize your portfolio.'),
+        subtitle: t('Saber la institución ayuda a organizar y detectar la moneda correcta.',
+          'Knowing the institution helps organize and detect the correct currency.'),
       })
     }
   })
 
-  const isBank = (it) => /bank|banco/i.test(it.type || '')
-  const isProperty = (it) => /inmueble|real.?estate|property/i.test(it.type || '')
-  const isInvestment = (it) => /inversion|inversión|bono|bond/i.test(it.type || '')
-  const isMarket = (it) => /stock|crypto|fund|etf/i.test(it.type || '')
-
   items.forEach((it) => {
     if (isBank(it) || isProperty(it) || isInvestment(it)) {
-      questions.push({ id: `bal_${it.id}`, item: it, priority: 3, category: 'saldo',
-        title: isProperty(it)
-          ? t('¿Cuánto vale este inmueble hoy?', 'What is this property worth today?')
-          : isInvestment(it)
-          ? t('¿Cuál es el valor actual de esta inversión?', 'What is the current value of this investment?')
-          : t('¿Cuál es tu saldo actual?', 'What is your current balance?'),
-        subtitle: t('Mantener el saldo actualizado mejora la precisión.', 'Keeping the balance updated improves accuracy.'),
-      })
+      const updatedAt = it.updatedAt || it.createdAt
+      const daysSinceUpdate = updatedAt ? Math.floor((Date.now() - new Date(updatedAt).getTime()) / 86400000) : 999
+      if (daysSinceUpdate > 30) {
+        questions.push({ id: `bal_${it.id}`, item: it, priority: 3, category: 'saldo',
+          title: isProperty(it)
+            ? t('¿Cuánto vale este inmueble hoy?', 'What is this property worth today?')
+            : isInvestment(it)
+            ? t('¿Cuál es el valor actual de esta inversión?', 'What is the current value of this investment?')
+            : t('¿Cuál es tu saldo actual?', 'What is your current balance?'),
+          subtitle: daysSinceUpdate < 999
+            ? t(`Último cambio hace ${daysSinceUpdate} días. Actualiza para mejorar la precisión.`,
+                `Last changed ${daysSinceUpdate} days ago. Update to improve accuracy.`)
+            : t('Mantener el saldo actualizado mejora la precisión.', 'Keeping the balance updated improves accuracy.'),
+        })
+      }
     }
   })
 
   items.forEach((it) => {
     if (isMarket(it) && it.incomeAmount > 0) {
-      questions.push({ id: `div_${it.id}`, item: it, priority: 3, category: 'dividendo',
+      questions.push({ id: `div_${it.id}`, item: it, priority: 4, category: 'dividendo',
         title: t(`¿${it.name || it.symbol} te pagó dividendos recientemente?`, `Did ${it.name || it.symbol} pay dividends recently?`),
         subtitle: t('Confirma si recibiste el último pago programado.', 'Confirm if you received the last scheduled payment.'),
       })
@@ -55,7 +103,7 @@ function generateQuestions(items, t) {
 
   items.forEach((it) => {
     if ((isInvestment(it) || isBank(it)) && (it.incomeAmount > 0 || it.incomeRate > 0)) {
-      questions.push({ id: `rate_${it.id}`, item: it, priority: 3, category: 'tasa',
+      questions.push({ id: `rate_${it.id}`, item: it, priority: 4, category: 'tasa',
         title: t('¿Cambió la tasa o el monto de intereses?', 'Did the interest rate or amount change?'),
         subtitle: t('Las tasas cambian. Mantén tus datos actualizados.', 'Rates change. Keep your data current.'),
       })
@@ -77,7 +125,7 @@ function generateQuestions(items, t) {
     if (a.priority !== b.priority) return a.priority - b.priority
     return Math.random() - 0.5
   })
-  return questions.slice(0, 5)
+  return questions.slice(0, 8)
 }
 
 export default function OptimizeModal({ items, onClose, onSave, onDelete, lang = 'es' }) {
@@ -95,7 +143,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
       quantity: it.quantity?.toString() || '',
       purchasePrice: it.purchasePrice?.toString() || '',
       currentPrice: (it.currentPrice || it.purchasePrice || '').toString(),
-      currency: it.currency || 'USD',
+      currency: q.category === 'moneda' && q.suggestedCurrency ? q.suggestedCurrency : (it.currency || 'USD'),
       incomeAmount: it.incomeAmount?.toString() || '',
       incomeRate: it.incomeRate?.toString() || '',
       incomeMode: it.incomeMode || 'fixed',
@@ -123,10 +171,9 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
   const currentForm = form[step] || (q ? initForm(q) : {})
   const set = (k, v) => setForm({ ...form, [step]: { ...currentForm, [k]: v } })
 
-  const isBank = /bank|banco/i.test(q?.item?.type || '')
-  const isProperty = /inmueble|real.?estate|property/i.test(q?.item?.type || '')
-  const isInvestment = /inversion|inversión|bono|bond/i.test(q?.item?.type || '')
-  const isMarket = /stock|crypto|fund|etf/i.test(q?.item?.type || '')
+  const isBankItem = /bank|banco/i.test(q?.item?.type || '')
+  const isPropertyItem = /inmueble|real.?estate|property/i.test(q?.item?.type || '')
+  const isInvestmentItem = /inversion|inversión|bono|bond/i.test(q?.item?.type || '')
 
   const handleSave = async () => {
     if (!q) return
@@ -141,11 +188,12 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
       if (f.purchasePrice !== '' && f.purchasePrice !== undefined) updated.purchasePrice = parseFloat(f.purchasePrice) || 0
       if (f.currentPrice !== '' && f.currentPrice !== undefined) {
         updated.currentPrice = parseFloat(f.currentPrice) || 0
-        if (isBank) updated.purchasePrice = updated.currentPrice
+        if (isBankItem) updated.purchasePrice = updated.currentPrice
       }
       if (f.incomeMode) updated.incomeMode = f.incomeMode
       if (f.incomeAmount !== '' && f.incomeAmount !== undefined) updated.incomeAmount = parseFloat(f.incomeAmount) || 0
       if (f.incomeRate !== '' && f.incomeRate !== undefined) updated.incomeRate = parseFloat(f.incomeRate) || 0
+      updated.updatedAt = new Date().toISOString()
       await onSave(updated)
     } catch {}
     setSaving(false)
@@ -173,7 +221,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
     )
   }
 
-  const itemValue = isBank
+  const itemValue = isBankItem
     ? (q.item.currentPrice || q.item.purchasePrice || 0)
     : (q.item.quantity || 0) * (q.item.currentPrice || q.item.purchasePrice || 0)
 
@@ -206,18 +254,27 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-white truncate">{q.item.name || q.item.symbol}</p>
                 <p className="text-[10px] text-slate-500">
-                  {q.item.symbol} {q.item.institution ? `• ${q.item.institution}` : ''} • {q.item.currency || 'USD'}
+                  {q.item.symbol} {q.item.institution ? `• ${q.item.institution}` : ''}
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-sm font-semibold text-white">${itemValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
-                {!isBank && <p className="text-[10px] text-slate-500">{q.item.quantity || 0} {t('unidades', 'units')}</p>}
+                <p className="text-sm font-semibold text-white">
+                  {itemValue.toLocaleString(undefined, { maximumFractionDigits: 2 })} {q.item.currency || 'USD'}
+                </p>
+                {!isBankItem && <p className="text-[10px] text-slate-500">{q.item.quantity || 0} {t('unidades', 'units')}</p>}
+                {q.item.acquisitionDate && <p className="text-[10px] text-slate-600">{q.item.acquisitionDate}</p>}
               </div>
             </div>
-            {q.item.acquisitionDate && (
-              <p className="text-[10px] text-slate-500 mt-2 pt-2 border-t border-[#1e2d45]">
-                {t('Registrado:', 'Recorded:')} {q.item.acquisitionDate}
-              </p>
+
+            {/* Inline currency selector on all cards */}
+            {q.category !== 'moneda' && (
+              <div className="flex items-center gap-2 mt-2 pt-2 border-t border-[#1e2d45]/50">
+                <span className="text-[10px] text-slate-500">{t('Moneda:', 'Currency:')}</span>
+                <select value={currentForm.currency} onChange={(e) => set('currency', e.target.value)}
+                  className="px-2 py-0.5 bg-[#131c2e] border border-[#1e2d45] rounded text-[11px] text-white focus:outline-none focus:border-emerald-500/50">
+                  {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
             )}
           </div>
 
@@ -228,9 +285,45 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
 
           {/* === Category-specific fields === */}
 
+          {q.category === 'moneda' && (
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <button type="button" onClick={() => set('currency', q.suggestedCurrency)}
+                  className={`flex-1 px-3 py-3 rounded-lg border text-sm font-medium transition-all ${
+                    currentForm.currency === q.suggestedCurrency
+                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                      : 'bg-[#0b1120] text-slate-400 border-[#1e2d45] hover:border-slate-500'
+                  }`}>
+                  {q.suggestedCurrency}
+                  <span className="block text-[10px] text-slate-500 mt-0.5">{t('Sugerido', 'Suggested')}</span>
+                </button>
+                <button type="button" onClick={() => set('currency', q.item.currency || 'USD')}
+                  className={`flex-1 px-3 py-3 rounded-lg border text-sm font-medium transition-all ${
+                    currentForm.currency === (q.item.currency || 'USD')
+                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                      : 'bg-[#0b1120] text-slate-400 border-[#1e2d45] hover:border-slate-500'
+                  }`}>
+                  {q.item.currency || 'USD'}
+                  <span className="block text-[10px] text-slate-500 mt-0.5">{t('Actual', 'Current')}</span>
+                </button>
+              </div>
+              <div>
+                <label className="text-[10px] text-slate-500 mb-1 block">{t('O elige otra', 'Or choose another')}</label>
+                <select value={currentForm.currency} onChange={(e) => set('currency', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50">
+                  {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+            </div>
+          )}
+
           {q.category === 'fecha' && (
             <div>
-              <label className="text-[10px] text-slate-500 mb-1 block">{t('Fecha de adquisición', 'Acquisition date')}</label>
+              <label className="text-[10px] text-slate-500 mb-1 block">
+                {isBankItem ? t('Fecha de apertura', 'Opening date')
+                  : isPropertyItem ? t('Fecha de compra', 'Purchase date')
+                  : t('Fecha de adquisición', 'Acquisition date')}
+              </label>
               <input type="date" value={currentForm.acquisitionDate}
                 onChange={(e) => set('acquisitionDate', e.target.value)}
                 className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50" />
@@ -241,7 +334,11 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
             <div>
               <label className="text-[10px] text-slate-500 mb-1 block">{t('Institución / Broker / Banco', 'Institution / Broker / Bank')}</label>
               <input type="text" value={currentForm.institution} placeholder="IBKR, Fidelity, BAM, BI..."
-                onChange={(e) => set('institution', e.target.value)}
+                onChange={(e) => {
+                  set('institution', e.target.value)
+                  const hint = detectCurrency(e.target.value)
+                  if (hint) set('currency', hint)
+                }}
                 className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
             </div>
           )}
@@ -251,22 +348,15 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
               <div>
                 <div className="flex justify-between mb-1">
                   <label className="text-[10px] text-slate-500">
-                    {isBank ? t('Saldo actual', 'Current balance') : t('Valor actual', 'Current value')}
+                    {isBankItem ? t('Saldo actual', 'Current balance') : t('Valor actual', 'Current value')}
                   </label>
                   <span className="text-[10px] text-slate-600">
-                    {t('Registrado:', 'Recorded:')} {Number(q.item.currentPrice || q.item.purchasePrice || 0).toLocaleString()} {q.item.currency}
+                    {t('Registrado:', 'Recorded:')} {Number(q.item.currentPrice || q.item.purchasePrice || 0).toLocaleString()} {currentForm.currency}
                   </span>
                 </div>
                 <input type="number" step="any" value={currentForm.currentPrice}
                   onChange={(e) => set('currentPrice', e.target.value)}
                   className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50" />
-              </div>
-              <div>
-                <label className="text-[10px] text-slate-500 mb-1 block">{t('Moneda', 'Currency')}</label>
-                <select value={currentForm.currency} onChange={(e) => set('currency', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50">
-                  {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
               </div>
             </div>
           )}
@@ -341,7 +431,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
 
           {q.category === 'cero' && (
             <div className="space-y-2">
-              {!isBank ? (
+              {!isBankItem ? (
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="text-[10px] text-slate-500 mb-1 block">{t('Cantidad', 'Quantity')}</label>
