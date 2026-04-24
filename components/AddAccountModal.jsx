@@ -4,6 +4,28 @@ import { useState, useEffect } from 'react'
 
 const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
 
+const INSTITUTION_CURRENCY = {
+  bi: 'GTQ', banrural: 'GTQ', bam: 'GTQ', industrial: 'GTQ', bantrab: 'GTQ',
+  'g&t': 'GTQ', gyt: 'GTQ', ficohsa: 'GTQ', promerica: 'GTQ',
+  banamex: 'MXN', banorte: 'MXN', azteca: 'MXN', 'hsbc mx': 'MXN',
+  bancolombia: 'COP', davivienda: 'COP', 'bbva co': 'COP', nequi: 'COP',
+  bcp: 'PEN', interbank: 'PEN', scotiabank: 'PEN',
+  itau: 'BRL', bradesco: 'BRL', nubank: 'BRL',
+  'banco estado': 'CLP', bci: 'CLP', 'santander cl': 'CLP',
+  chase: 'USD', 'wells fargo': 'USD', citi: 'USD', bofa: 'USD',
+  schwab: 'USD', fidelity: 'USD', vanguard: 'USD', ibkr: 'USD',
+  barclays: 'GBP', lloyds: 'GBP', 'hsbc uk': 'GBP',
+}
+
+function detectCurrency(institution) {
+  if (!institution) return null
+  const lower = institution.toLowerCase().trim()
+  for (const [key, cur] of Object.entries(INSTITUTION_CURRENCY)) {
+    if (lower.includes(key) || lower === key) return cur
+  }
+  return null
+}
+
 const TYPES = [
   { key: 'Stock', icon: '📈', es: 'Acción', en: 'Stock' },
   { key: 'Crypto', icon: '₿', es: 'Crypto', en: 'Crypto' },
@@ -551,7 +573,11 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-slate-400 mb-1 block">{t('Banco', 'Bank')} *</label>
-                  <input value={form.institution} onChange={(e) => set('institution', e.target.value)}
+                  <input value={form.institution} onChange={(e) => {
+                      set('institution', e.target.value)
+                      const hint = detectCurrency(e.target.value)
+                      if (hint && form.currency === 'USD') set('currency', hint)
+                    }}
                     placeholder={t('BAM, BI, Banrural...', 'Chase, BoA...')}
                     className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50" />
                 </div>
@@ -765,10 +791,18 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
 
           {/* Acquisition date */}
           <div>
-            <label className="text-xs text-slate-400 mb-1 block">{t('Fecha de compra', 'Purchase date')}</label>
+            <label className="text-xs text-slate-400 mb-1 block">
+              {isBank ? t('¿Cuándo abriste esta cuenta?', 'When did you open this account?')
+                : isProperty ? t('¿Cuándo compraste este inmueble?', 'When did you buy this property?')
+                : t('Fecha de compra', 'Purchase date')}
+              {' '}<span className="text-amber-400">*</span>
+            </label>
             <input value={form.acquisitionDate} onChange={(e) => set('acquisitionDate', e.target.value)}
               type="date"
               className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50" />
+            {!form.acquisitionDate && (
+              <p className="text-[9px] text-amber-400/70 mt-1">{t('Sin fecha, el rendimiento no se calcula correctamente', 'Without a date, returns cannot be calculated correctly')}</p>
+            )}
           </div>
 
           {/* New money toggle */}
