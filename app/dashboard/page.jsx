@@ -330,25 +330,43 @@ export default function DashboardPage() {
     return () => { cancelled = true }
   }, [enrichedItems])
 
-  const { ytdDeposits, ytdWithdrawals } = useMemo(() => {
-    const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0]
-    let deps = 0, withs = 0
-    ;(transactions || []).forEach((tx) => {
-      if (!tx.date || tx.date < yearStart) return
-      const t = (tx.type || '').toUpperCase()
-      const amt = convert(tx.totalAmount ?? 0, tx.currency || 'USD', baseCurrency)
-      if (t === 'DEPOSIT') deps += amt
-      else if (t === 'WITHDRAWAL') withs += amt
-    })
-    return { ytdDeposits: deps, ytdWithdrawals: withs }
-  }, [transactions, convert, baseCurrency])
+  const { returnYTD, ytdChange } = useMemo(() => {
+    if (jan1Value == null) return { returnYTD: 0, ytdChange: 0 }
+    const startVal = jan1Value
+    const yearStart = new Date(new Date().getFullYear(), 0, 1).getTime()
+    const now = Date.now()
+    const totalMs = now - yearStart
 
-  const netNewMoney = ytdDeposits - ytdWithdrawals
+    const flowTypes = { DEPOSIT: 1, WITHDRAWAL: -1 }
+    const flows = (transactions || [])
+      .filter((tx) => {
+        if (!tx.date) return false
+        const t = (tx.type || '').toUpperCase()
+        return flowTypes[t] != null && new Date(tx.date).getTime() >= yearStart
+      })
+      .map((tx) => ({
+        date: new Date(tx.date).getTime(),
+        flow: convert(
+          (tx.totalAmount ?? 0) * flowTypes[(tx.type || '').toUpperCase()],
+          tx.currency || 'USD',
+          baseCurrency
+        ),
+      }))
 
-  const startVal = jan1Value != null ? jan1Value : netWorth
-  const realGain = netWorth - startVal - netNewMoney
-  const returnYTD = startVal > 0 ? (realGain / startVal) * 100 : 0
-  const ytdChange = realGain
+    const sumFlows = flows.reduce((s, f) => s + f.flow, 0)
+    let weightedFlows = 0
+    if (totalMs > 0) {
+      flows.forEach((f) => {
+        const w = (now - f.date) / totalMs
+        weightedFlows += f.flow * w
+      })
+    }
+
+    const weightedCapital = startVal + weightedFlows
+    const gain = netWorth - startVal - sumFlows
+    const ret = weightedCapital > 0 ? (gain / weightedCapital) * 100 : 0
+    return { returnYTD: ret, ytdChange: gain }
+  }, [jan1Value, netWorth, transactions, convert, baseCurrency])
 
   const annualDividends = useMemo(() => {
     const divs = (transactions || []).filter((tx) => (tx.type || '').toUpperCase() === 'DIVIDEND')
