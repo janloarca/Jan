@@ -62,7 +62,7 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
     return pts
   }, [dataPoints, currentTotal])
 
-  const twrData = useMemo(() => {
+  const returnData = useMemo(() => {
     if (chartData.length < 2) return []
 
     const flowTypes = { DEPOSIT: 1, WITHDRAWAL: -1 }
@@ -70,30 +70,39 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
       .filter((tx) => tx.date && flowTypes[(tx.type || '').toUpperCase()] != null)
       .map((tx) => ({
         date: new Date(tx.date).getTime(),
-        flow: (tx.totalAmount ?? 0) * flowTypes[(tx.type || '').toUpperCase()],
+        flow: convert
+          ? convert((tx.totalAmount ?? 0) * flowTypes[(tx.type || '').toUpperCase()], tx.currency || 'USD', baseCurrency || 'USD')
+          : (tx.totalAmount ?? 0) * flowTypes[(tx.type || '').toUpperCase()],
       }))
 
-    let cumReturn = 1
+    const startVal = chartData[0].value
+    const startTs = chartData[0].ts
     const result = [0]
 
     for (let i = 1; i < chartData.length; i++) {
-      const prevVal = chartData[i - 1].value
       const currVal = chartData[i].value
-      const prevTs = chartData[i - 1].ts
       const currTs = chartData[i].ts
+      const totalMs = currTs - startTs
 
-      const periodFlows = txList.filter((tx) => tx.date > prevTs && tx.date <= currTs)
-      const netFlow = periodFlows.reduce((s, tx) => s + tx.flow, 0)
+      const flows = txList.filter((tx) => tx.date > startTs && tx.date <= currTs)
+      const sumFlows = flows.reduce((s, tx) => s + tx.flow, 0)
 
-      const adjustedPrev = prevVal + netFlow
-      const periodReturn = adjustedPrev > 0 ? currVal / adjustedPrev : 1
+      let weightedFlows = 0
+      if (totalMs > 0) {
+        flows.forEach((tx) => {
+          const w = (currTs - tx.date) / totalMs
+          weightedFlows += tx.flow * w
+        })
+      }
 
-      cumReturn *= periodReturn
-      result.push((cumReturn - 1) * 100)
+      const weightedCapital = startVal + weightedFlows
+      const gain = currVal - startVal - sumFlows
+      const ret = weightedCapital > 0 ? (gain / weightedCapital) * 100 : 0
+      result.push(ret)
     }
 
     return result
-  }, [chartData, transactions])
+  }, [chartData, transactions, convert, baseCurrency])
 
   if (loading) {
     return (
@@ -146,13 +155,13 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
     )
   }
 
-  const values = mode === 'return' ? twrData : chartData.map((d) => d.value)
+  const values = mode === 'return' ? returnData : chartData.map((d) => d.value)
   const firstVal = chartData[0].value
   const lastVal = chartData[chartData.length - 1].value
   const growthAbs = lastVal - firstVal
   const growthPct = firstVal > 0 ? (growthAbs / firstVal) * 100 : 0
   const isPositive = mode === 'return'
-    ? (twrData.length > 0 ? twrData[twrData.length - 1] >= 0 : true)
+    ? (returnData.length > 0 ? returnData[returnData.length - 1] >= 0 : true)
     : growthPct >= 0
   const lineColor = isPositive ? '#10b981' : '#ef4444'
 
@@ -214,7 +223,7 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
   const hp = hoverIdx != null ? points[hoverIdx] : null
   const hd = hoverIdx != null ? chartData[hoverIdx] : null
 
-  const lastTwr = twrData.length > 0 ? twrData[twrData.length - 1] : 0
+  const lastReturn = returnData.length > 0 ? returnData[returnData.length - 1] : 0
 
   const dateRange = chartData.length >= 2
     ? `${formatShortDate(chartData[0].date.toISOString())} → ${formatShortDate(chartData[chartData.length - 1].date.toISOString())}`
@@ -243,10 +252,10 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
               </>
             ) : (
               <>
-                <span className={`text-2xl font-bold ${lastTwr >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {lastTwr >= 0 ? '+' : ''}{lastTwr.toFixed(2)}%
+                <span className={`text-2xl font-bold ${lastReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {lastReturn >= 0 ? '+' : ''}{lastReturn.toFixed(2)}%
                 </span>
-                <span className="text-xs text-slate-500">TWR</span>
+                <span className="text-xs text-slate-500">WA</span>
               </>
             )}
             <span className="text-xs text-slate-500">{period}</span>
@@ -269,7 +278,7 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
             <button onClick={() => setMode('return')}
               className={`px-2.5 py-1 text-[10px] font-medium rounded-md transition-all ${
                 mode === 'return' ? 'bg-cyan-500 text-white' : 'text-slate-500 hover:text-slate-300'
-              }`}>Return (TWR)</button>
+              }`}>Return</button>
           </div>
         </div>
       </div>
@@ -328,7 +337,7 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
               </>
             ) : (
               <>
-                <div className="font-bold">{twrData[hoverIdx] >= 0 ? '+' : ''}{twrData[hoverIdx]?.toFixed(2)}%</div>
+                <div className="font-bold">{returnData[hoverIdx] >= 0 ? '+' : ''}{returnData[hoverIdx]?.toFixed(2)}%</div>
                 <div className="text-slate-400">{formatCurrency(hd.value)}</div>
                 <div className="text-slate-500">
                   {period === 'DAY'
@@ -349,8 +358,8 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
           </>
         ) : (
           <>
-            <span>Max {Math.max(...twrData).toFixed(1)}%</span>
-            <span>Min {Math.min(...twrData).toFixed(1)}%</span>
+            <span>Max {Math.max(...returnData).toFixed(1)}%</span>
+            <span>Min {Math.min(...returnData).toFixed(1)}%</span>
           </>
         )}
         <span>{chartData.length} {t('puntos', 'points')}</span>
