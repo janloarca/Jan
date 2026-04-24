@@ -16,30 +16,32 @@ export function useMarketPrices(items) {
 
     setLoading(true)
     try {
-      const res = await fetch('/api/prices', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: symbols }),
-      })
-      if (res.ok) {
-        const data = await res.json()
+      const stockSyms = symbols.filter((s) => !/crypto|cripto|blockchain/i.test(s.type || ''))
+
+      const [priceRes, divRes] = await Promise.all([
+        fetch('/api/prices', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: symbols }),
+        }),
+        stockSyms.length > 0
+          ? fetch('/api/prices/dividends', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ symbols: stockSyms }),
+            })
+          : null,
+      ])
+
+      if (priceRes.ok) {
+        const data = await priceRes.json()
         setPrices(data.prices || {})
         setLastUpdate(data.timestamp)
       }
 
-      const stockSyms = symbols.filter((s) => !/crypto|cripto|blockchain/i.test(s.type || ''))
-      if (stockSyms.length > 0) {
-        try {
-          const divRes = await fetch('/api/prices/dividends', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ symbols: stockSyms }),
-          })
-          if (divRes.ok) {
-            const divData = await divRes.json()
-            setDividends(divData.dividends || {})
-          }
-        } catch {}
+      if (divRes?.ok) {
+        const divData = await divRes.json()
+        setDividends(divData.dividends || {})
       }
     } catch {}
     setLoading(false)
@@ -49,7 +51,7 @@ export function useMarketPrices(items) {
     if (items && items.length > 0) {
       fetchPrices()
     }
-  }, [items.length])
+  }, [fetchPrices])
 
   const enrichedItems = items.map((it) => {
     const sym = (it.symbol || '').toUpperCase()

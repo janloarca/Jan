@@ -109,8 +109,14 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
         } else if (form.incomeDestination) {
           const dest = existingItems.find((it) => it.id === form.incomeDestination)
           if (dest) {
-            const destBal = (dest.currentPrice || dest.purchasePrice || 0) + totalSale
-            await onAdd({ ...dest, currentPrice: destBal, purchasePrice: destBal })
+            const isBankDest = /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i.test(dest.type || '')
+            if (isBankDest) {
+              const destBal = (dest.currentPrice || dest.purchasePrice || 0) + totalSale
+              await onAdd({ ...dest, currentPrice: destBal, purchasePrice: destBal })
+            } else {
+              const newQty = (dest.quantity || 0) + (totalSale / (dest.currentPrice || dest.purchasePrice || 1))
+              await onAdd({ ...dest, quantity: newQty })
+            }
           }
         }
 

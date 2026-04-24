@@ -88,9 +88,13 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
 
     const monthKeys = Object.keys(byMonth).sort()
     const avgMonthly = monthKeys.length > 0 ? totalAll / monthKeys.length : 0
-    const dailyAvg = totalAll / Math.max(1, divs.length > 1
-      ? Math.ceil((new Date(divs[divs.length - 1].date) - new Date(divs[0].date)) / 86400000)
-      : 30)
+    let daySpan = 30
+    if (divs.length > 1) {
+      const first = new Date(divs[0].date).getTime()
+      const last = new Date(divs[divs.length - 1].date).getTime()
+      if (!isNaN(first) && !isNaN(last) && last > first) daySpan = Math.ceil((last - first) / 86400000)
+    }
+    const dailyAvg = totalAll / Math.max(1, daySpan)
 
     const last6 = monthKeys.slice(-6)
     const maxBar = Math.max(...last6.map((k) => byMonth[k]), 1)
