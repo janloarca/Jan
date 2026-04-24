@@ -318,7 +318,7 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
               </>
             ) : (
               <>
-                <div className="font-bold">{returnData[hoverIdx] >= 0 ? '+' : ''}{returnData[hoverIdx]?.toFixed(2)}%</div>
+                <div className="font-bold">{(returnData[hoverIdx] ?? 0) >= 0 ? '+' : ''}{(returnData[hoverIdx] ?? 0).toFixed(2)}%</div>
                 <div className="text-slate-400">{formatCurrency(hd.value)}</div>
                 <div className="text-slate-500">
                   {period === 'DAY'
