@@ -77,3 +77,37 @@ export const TYPE_ICONS = {
   banks: '🏦',
   other: '📊',
 }
+
+export function computeModifiedDietz({ startValue, endValue, startTs, endTs, transactions, convert, baseCurrency }) {
+  const totalMs = endTs - startTs
+  if (totalMs <= 0 || startValue <= 0) return { pct: 0, abs: 0 }
+
+  const flowTypes = { DEPOSIT: 1, WITHDRAWAL: -1 }
+  const flows = (transactions || [])
+    .filter((tx) => {
+      if (!tx.date) return false
+      const t = (tx.type || '').toUpperCase()
+      if (flowTypes[t] == null) return false
+      const txTs = new Date(tx.date).getTime()
+      return txTs >= startTs && txTs <= endTs
+    })
+    .map((tx) => {
+      const sign = flowTypes[(tx.type || '').toUpperCase()]
+      const amt = convert
+        ? convert((tx.totalAmount ?? 0) * sign, tx.currency || 'USD', baseCurrency || 'USD')
+        : (tx.totalAmount ?? 0) * sign
+      return { date: new Date(tx.date).getTime(), flow: amt }
+    })
+
+  const sumFlows = flows.reduce((s, f) => s + f.flow, 0)
+  let weightedFlows = 0
+  flows.forEach((f) => {
+    const w = (endTs - f.date) / totalMs
+    weightedFlows += f.flow * w
+  })
+
+  const weightedCapital = startValue + weightedFlows
+  const gain = endValue - startValue - sumFlows
+  const pct = weightedCapital > 0 ? (gain / weightedCapital) * 100 : 0
+  return { pct, abs: gain }
+}
