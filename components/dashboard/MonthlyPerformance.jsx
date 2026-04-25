@@ -1,55 +1,77 @@
 'use client'
 
-export default function MonthlyPerformance({ snapshots, lang }) {
+import { computeModifiedDietz } from './utils'
+
+export default function MonthlyPerformance({ snapshots, transactions, convert, baseCurrency, lang }) {
   if (!snapshots || snapshots.length < 2) return null
 
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-  // Group snapshots by year, compute monthly returns
+  const sorted = [...snapshots]
+    .map((s) => ({ ...s, ts: new Date(s.date).getTime(), value: s.netWorthUSD ?? s.totalActivosUSD ?? 0 }))
+    .filter((s) => !isNaN(s.ts) && s.value > 0)
+    .sort((a, b) => a.ts - b.ts)
+
   const byYear = {}
-  snapshots.forEach((s) => {
+  sorted.forEach((s) => {
     const d = new Date(s.date)
     const year = d.getFullYear()
     const month = d.getMonth()
     if (!byYear[year]) byYear[year] = {}
-    byYear[year][month] = s.netWorthUSD ?? s.totalActivosUSD ?? 0
+    if (!byYear[year][month] || s.ts > byYear[year][month].ts) {
+      byYear[year][month] = s
+    }
   })
 
   const years = Object.keys(byYear).sort()
-  const allValues = snapshots.map((s) => s.netWorthUSD ?? s.totalActivosUSD ?? 0)
 
-  // Compute monthly % changes
   const rows = years.map((year) => {
     const data = byYear[year]
     const monthlyReturns = []
-    let yearTotal = 0
 
     for (let m = 0; m < 12; m++) {
-      if (data[m] == null) {
+      if (!data[m]) {
         monthlyReturns.push(null)
         continue
       }
-      // Find previous month value
-      let prev = null
-      if (m > 0 && data[m - 1] != null) {
-        prev = data[m - 1]
+      let prevSnap = null
+      if (m > 0 && data[m - 1]) {
+        prevSnap = data[m - 1]
       } else if (m === 0) {
         const prevYear = byYear[parseInt(year) - 1]
-        if (prevYear && prevYear[11] != null) prev = prevYear[11]
+        if (prevYear && prevYear[11]) prevSnap = prevYear[11]
       }
-      if (prev && prev > 0) {
-        const ret = ((data[m] - prev) / prev) * 100
-        monthlyReturns.push(ret)
-        yearTotal = ((data[m] - (data[0] ?? prev)) / (data[0] ?? prev)) * 100
+      if (prevSnap && prevSnap.value > 0) {
+        if (transactions && convert) {
+          const { pct } = computeModifiedDietz({
+            startValue: prevSnap.value, endValue: data[m].value,
+            startTs: prevSnap.ts, endTs: data[m].ts,
+            transactions, convert, baseCurrency,
+          })
+          monthlyReturns.push(pct)
+        } else {
+          monthlyReturns.push(((data[m].value - prevSnap.value) / prevSnap.value) * 100)
+        }
       } else {
         monthlyReturns.push(null)
       }
     }
 
-    // Year total: first month of year vs last available
-    const monthValues = Object.values(data).filter(Boolean)
-    if (monthValues.length >= 2) {
-      yearTotal = ((monthValues[monthValues.length - 1] - monthValues[0]) / monthValues[0]) * 100
+    const monthKeys = Object.keys(data).map(Number).sort((a, b) => a - b)
+    let yearTotal = 0
+    if (monthKeys.length >= 2) {
+      const first = data[monthKeys[0]]
+      const last = data[monthKeys[monthKeys.length - 1]]
+      if (first.value > 0 && transactions && convert) {
+        const { pct } = computeModifiedDietz({
+          startValue: first.value, endValue: last.value,
+          startTs: first.ts, endTs: last.ts,
+          transactions, convert, baseCurrency,
+        })
+        yearTotal = pct
+      } else if (first.value > 0) {
+        yearTotal = ((last.value - first.value) / first.value) * 100
+      }
     }
 
     return { year, returns: monthlyReturns, total: yearTotal }

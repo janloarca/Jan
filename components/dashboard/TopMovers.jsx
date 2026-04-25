@@ -1,17 +1,47 @@
 'use client'
 
-import { formatCurrency, getTypeCategory, TYPE_COLORS } from './utils'
+import { useMemo } from 'react'
+import { formatCurrency, getTypeCategory, TYPE_COLORS, getEffectiveYield } from './utils'
 
-export default function TopMovers({ items, lang }) {
+export default function TopMovers({ items, transactions, lang }) {
   if (!items || items.length === 0) return null
+
+  const dividendsBySymbol = useMemo(() => {
+    const map = {}
+    if (!transactions) return map
+    transactions.forEach((tx) => {
+      if ((tx.type || '').toUpperCase() !== 'DIVIDEND') return
+      const sym = (tx.symbol || '').toUpperCase()
+      if (!sym) return
+      if (!map[sym]) map[sym] = { total: 0, entries: [] }
+      map[sym].total += tx.totalAmount ?? 0
+      map[sym].entries.push(tx)
+    })
+    return map
+  }, [transactions])
 
   const withValue = items
     .filter((it) => it.purchasePrice > 0 && it.quantity > 0)
     .map((it) => {
       const value = (it.currentPrice || it.purchasePrice) * it.quantity
       const cost = it.purchasePrice * it.quantity
-      const retPct = cost > 0 ? ((value - cost) / cost) * 100 : 0
-      return { ...it, value, cost, retPct }
+      const sym = (it.symbol || '').toUpperCase()
+      const acqDate = it.acquisitionDate ? new Date(it.acquisitionDate).getTime() : 0
+
+      let receivedDividends = 0
+      const divData = dividendsBySymbol[sym]
+      if (divData) {
+        divData.entries.forEach((tx) => {
+          const txDate = tx.date ? new Date(tx.date).getTime() : 0
+          if (!acqDate || txDate >= acqDate) {
+            receivedDividends += tx.totalAmount ?? 0
+          }
+        })
+      }
+
+      const totalReturn = cost > 0 ? ((value - cost) + receivedDividends) / cost * 100 : 0
+      const yld = getEffectiveYield(it)
+      return { ...it, value, cost, retPct: totalReturn, effectiveYield: yld }
     })
     .sort((a, b) => b.value - a.value)
 
@@ -44,7 +74,7 @@ export default function TopMovers({ items, lang }) {
                 {isPos ? '+' : ''}{it.retPct.toFixed(1)}%
               </span>
               <span className="text-[9px] text-slate-500 w-10 text-right">
-                {it.dividendYield ? `${it.dividendYield.toFixed(1)}%` : '---'}
+                {it.effectiveYield != null ? `${it.effectiveYield.toFixed(1)}%` : '---'}
               </span>
               <span className="text-[11px] text-emerald-400 font-medium w-16 text-right">{formatCurrency(it.value)}</span>
             </div>
@@ -52,8 +82,8 @@ export default function TopMovers({ items, lang }) {
         })}
       </div>
       <div className="flex items-center gap-4 mt-2 text-[8px] text-slate-600">
-        <span>{lang === 'es' ? 'Ret%' : 'Ret%'}</span>
-        <span>{lang === 'es' ? 'Yield%' : 'Yield%'}</span>
+        <span>Ret%</span>
+        <span>Yield%</span>
         <span>{lang === 'es' ? 'Valor' : 'Value'}</span>
       </div>
     </div>

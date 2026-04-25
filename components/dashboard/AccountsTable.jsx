@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { formatCurrency, getTypeCategory, TYPE_COLORS, getItemValue, getItemPrice, getBaseCurrency, formatHoldingPeriod } from './utils'
+import { formatCurrency, getTypeCategory, TYPE_COLORS, getItemValue, getItemPrice, getBaseCurrency, formatHoldingPeriod, getEffectiveYield } from './utils'
 
 export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, onViewItem }) {
   const [filter, setFilter] = useState('all')
@@ -229,7 +229,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                     </td>
                     <td className="text-center py-3">
                       <span className="text-[11px] text-slate-400">
-                        {item.dividendYield ? `${item.dividendYield.toFixed(1)}%` : '—'}
+                        {(() => { const y = getEffectiveYield(item); return y != null ? `${y.toFixed(1)}%` : '—' })()}
                       </span>
                     </td>
                     <td className="text-center py-3">

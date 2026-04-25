@@ -3,9 +3,9 @@
 import { useMemo } from 'react'
 import { computeSharpeRatio, computeVolatility, computeMaxDrawdown, computePeriodicReturns, computeBeta } from './analytics'
 
-export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang }) {
+export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, transactions, convert, baseCurrency }) {
   const metrics = useMemo(() => {
-    const returns = computePeriodicReturns(snapshots)
+    const returns = computePeriodicReturns(snapshots, transactions, convert, baseCurrency)
     const sharpeResult = computeSharpeRatio({ returns })
     const vol = computeVolatility({ returns })
 
@@ -16,19 +16,29 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang }
     const drawdown = computeMaxDrawdown(valueSeries)
 
     let beta = null
-    if (benchmarkData?.dataPoints?.length > 2) {
-      const bReturns = []
+    if (benchmarkData?.dataPoints?.length > 2 && valueSeries.length > 2) {
       const bPts = benchmarkData.dataPoints
-      for (let i = 1; i < bPts.length; i++) {
-        if (bPts[i - 1].close > 0) {
-          bReturns.push((bPts[i].close - bPts[i - 1].close) / bPts[i - 1].close)
+      const bReturns = []
+      for (let i = 1; i < valueSeries.length; i++) {
+        const targetTs = valueSeries[i].ts
+        const prevTargetTs = valueSeries[i - 1].ts
+        let closestCurr = null, closestPrev = null
+        let minDiffCurr = Infinity, minDiffPrev = Infinity
+        for (const bp of bPts) {
+          const diffCurr = Math.abs(bp.ts - targetTs)
+          const diffPrev = Math.abs(bp.ts - prevTargetTs)
+          if (diffCurr < minDiffCurr) { minDiffCurr = diffCurr; closestCurr = bp }
+          if (diffPrev < minDiffPrev) { minDiffPrev = diffPrev; closestPrev = bp }
+        }
+        if (closestCurr && closestPrev && closestPrev.close > 0) {
+          bReturns.push((closestCurr.close - closestPrev.close) / closestPrev.close)
         }
       }
       beta = computeBeta(returns, bReturns)
     }
 
     return { sharpe: sharpeResult.sharpe, vol, drawdown, beta }
-  }, [snapshots, benchmarkData])
+  }, [snapshots, benchmarkData, transactions, convert, baseCurrency])
 
   const hasData = snapshots && snapshots.length >= 3
   const t = (es, en) => lang === 'es' ? es : en
@@ -76,10 +86,10 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang }
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
             <div className="bg-[#0b1120] rounded-lg p-3 border border-[#1e2d45]/50 text-center">
               <span className="text-[9px] text-slate-500 block">Sharpe</span>
-              <span className={`text-lg font-bold block ${sharpeColor}`}>
+              <span className={`text-base sm:text-lg font-bold block ${sharpeColor}`}>
                 {metrics.sharpe != null ? metrics.sharpe.toFixed(2) : '---'}
               </span>
               <span className="text-[8px] text-slate-600">
@@ -89,7 +99,7 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang }
 
             <div className="bg-[#0b1120] rounded-lg p-3 border border-[#1e2d45]/50 text-center">
               <span className="text-[9px] text-slate-500 block">{t('Volatilidad', 'Volatility')}</span>
-              <span className={`text-lg font-bold block ${volColor}`}>
+              <span className={`text-base sm:text-lg font-bold block ${volColor}`}>
                 {metrics.vol != null ? `${metrics.vol.toFixed(1)}%` : '---'}
               </span>
               <span className="text-[8px] text-slate-600">{t('Anualizada', 'Annualized')}</span>
@@ -97,7 +107,7 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang }
 
             <div className="bg-[#0b1120] rounded-lg p-3 border border-[#1e2d45]/50 text-center">
               <span className="text-[9px] text-slate-500 block">Max Drawdown</span>
-              <span className={`text-lg font-bold block ${ddColor}`}>
+              <span className={`text-base sm:text-lg font-bold block ${ddColor}`}>
                 {metrics.drawdown.maxDrawdownPct > 0 ? `-${metrics.drawdown.maxDrawdownPct.toFixed(1)}%` : '0%'}
               </span>
               {metrics.drawdown.peakDate && (
@@ -109,7 +119,7 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang }
 
             <div className="bg-[#0b1120] rounded-lg p-3 border border-[#1e2d45]/50 text-center">
               <span className="text-[9px] text-slate-500 block">Beta</span>
-              <span className="text-lg font-bold text-slate-300 block">
+              <span className="text-base sm:text-lg font-bold text-slate-300 block">
                 {metrics.beta != null ? metrics.beta.toFixed(2) : 'N/A'}
               </span>
               <span className="text-[8px] text-slate-600">vs S&P 500</span>

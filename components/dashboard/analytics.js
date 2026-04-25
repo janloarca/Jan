@@ -1,4 +1,4 @@
-import { getTypeCategory, getItemValue } from './utils'
+import { getTypeCategory, getItemValue, computeModifiedDietz } from './utils'
 
 function mean(arr) {
   if (arr.length === 0) return 0
@@ -106,8 +106,8 @@ export function computeHHIByDimension(items, dimensionFn) {
     value,
     pct: total > 0 ? (value / total) * 100 : 0,
   }))
-  const { hhi, level } = computeHHI(positions)
-  return { hhi, level, groups: positions.sort((a, b) => b.value - a.value) }
+  const { hhi, level, equivalentPositions } = computeHHI(positions)
+  return { hhi, level, equivalentPositions, groups: positions.sort((a, b) => b.value - a.value) }
 }
 
 function boxMullerRandom() {
@@ -302,7 +302,7 @@ export function computeCAGR(startValue, endValue, years) {
   return (Math.pow(endValue / startValue, 1 / years) - 1) * 100
 }
 
-export function computePeriodicReturns(snapshots) {
+export function computePeriodicReturns(snapshots, transactions, convert, baseCurrency) {
   if (!snapshots || snapshots.length < 2) return []
   const sorted = [...snapshots].sort((a, b) => {
     const da = new Date(a.date).getTime()
@@ -314,7 +314,18 @@ export function computePeriodicReturns(snapshots) {
     const prev = sorted[i - 1].netWorthUSD ?? sorted[i - 1].totalActivosUSD ?? 0
     const curr = sorted[i].netWorthUSD ?? sorted[i].totalActivosUSD ?? 0
     if (prev > 0) {
-      returns.push((curr - prev) / prev)
+      if (transactions && convert) {
+        const prevTs = new Date(sorted[i - 1].date).getTime()
+        const currTs = new Date(sorted[i].date).getTime()
+        const { pct } = computeModifiedDietz({
+          startValue: prev, endValue: curr,
+          startTs: prevTs, endTs: currTs,
+          transactions, convert, baseCurrency,
+        })
+        returns.push(pct / 100)
+      } else {
+        returns.push((curr - prev) / prev)
+      }
     }
   }
   return returns

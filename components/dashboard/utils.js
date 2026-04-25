@@ -174,3 +174,14 @@ export function computeModifiedDietz({ startValue, endValue, startTs, endTs, tra
   const pct = weightedCapital > 0 ? (gain / weightedCapital) * 100 : 0
   return { pct, abs: gain }
 }
+
+export function getEffectiveYield(item) {
+  if (item.dividendYield > 0) return item.dividendYield
+  if (item.incomeMode === 'percent' && item.incomeRate > 0) return item.incomeRate
+  if (item.incomeAmount > 0 && item.incomeMonths) {
+    const payCount = Array.isArray(item.incomeMonths) ? item.incomeMonths.length : 12
+    const cost = (item.purchasePrice || 0) * (item.quantity || 1)
+    if (cost > 0) return (item.incomeAmount * payCount) / cost * 100
+  }
+  return null
+}

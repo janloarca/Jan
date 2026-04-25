@@ -100,18 +100,18 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
           <div className="w-4 h-4 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : (
-        <div className="grid grid-cols-5 gap-2">
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 sm:gap-2">
           {periods.map((p) => {
             const isPos = (p.pct ?? 0) >= 0
             return (
-              <div key={p.key} className="text-center p-3 bg-[#0b1120] rounded-lg border border-[#1e2d45]/50">
+              <div key={p.key} className="text-center p-2 sm:p-3 bg-[#0b1120] rounded-lg border border-[#1e2d45]/50">
                 <span className="text-[10px] text-slate-500 font-medium">{p.label}</span>
                 {p.pct != null ? (
                   <>
-                    <div className={`text-base font-bold mt-1 ${isPos ? 'text-emerald-400' : 'text-red-400'}`}>
+                    <div className={`text-sm sm:text-base font-bold mt-1 ${isPos ? 'text-emerald-400' : 'text-red-400'}`}>
                       {isPos ? '+' : ''}{p.pct.toFixed(2)}%
                     </div>
-                    <div className={`text-[10px] mt-0.5 ${isPos ? 'text-emerald-500/70' : 'text-red-500/70'}`}>
+                    <div className={`text-[9px] sm:text-[10px] mt-0.5 ${isPos ? 'text-emerald-500/70' : 'text-red-500/70'}`}>
                       {isPos ? '+' : ''}{formatCurrency(p.abs)}
                     </div>
                   </>

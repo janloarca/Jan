@@ -15,7 +15,7 @@ function compoundMonthlyNeeded(currentValue, goalValue, annualRate, years) {
   return (gap * r) / (Math.pow(1 + r, n) - 1)
 }
 
-export default function GoalTracker({ netWorth, annualDividends, goals, onSaveGoals, volatility, lang }) {
+export default function GoalTracker({ netWorth, annualDividends, estimatedAnnualIncome, goals, onSaveGoals, volatility, lang }) {
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({
     incomeGoal: goals?.incomeGoal || 12000,
@@ -30,7 +30,8 @@ export default function GoalTracker({ netWorth, annualDividends, goals, onSaveGo
   const targetYear = goals?.targetYear || form.targetYear
   const yearsLeft = Math.max(0, targetYear - new Date().getFullYear())
 
-  const incomePct = incomeGoal > 0 ? Math.min(100, (annualDividends / incomeGoal) * 100) : 0
+  const effectiveIncome = Math.max(annualDividends || 0, estimatedAnnualIncome || 0)
+  const incomePct = incomeGoal > 0 ? Math.min(100, (effectiveIncome / incomeGoal) * 100) : 0
   const portfolioPct = portfolioGoal > 0 ? Math.min(100, (netWorth / portfolioGoal) * 100) : 0
 
   const scenarios = useMemo(() => {
@@ -135,7 +136,7 @@ export default function GoalTracker({ netWorth, annualDividends, goals, onSaveGo
                 style={{ width: `${incomePct}%` }} />
             </div>
             <div className="flex justify-between mt-1">
-              <span className="text-[10px] text-slate-500">{formatCurrency(annualDividends)}</span>
+              <span className="text-[10px] text-slate-500">{formatCurrency(effectiveIncome)}</span>
               <span className="text-[10px] text-slate-500">{formatCurrency(incomeGoal)}</span>
             </div>
           </div>

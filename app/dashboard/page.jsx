@@ -357,6 +357,29 @@ export default function DashboardPage() {
     }, 0)
   }, [transactions, convert, baseCurrency])
 
+  const estimatedAnnualIncome = useMemo(() => {
+    let total = 0
+    enrichedItems.forEach((it) => {
+      const qty = it.quantity || 1
+      const price = it._originalPrice || it.currentPrice || it.purchasePrice || 0
+      const balance = qty * price
+      let annual = 0
+      if (it.incomeAmount > 0 && it.incomeMonths) {
+        const payCount = Array.isArray(it.incomeMonths) ? it.incomeMonths.length : 12
+        annual = it.incomeAmount * payCount
+      } else if (it.incomeMode === 'percent' && it.incomeRate > 0) {
+        annual = balance * (it.incomeRate / 100)
+      } else if (it.dividendYield > 0) {
+        annual = balance * (it.dividendYield / 100)
+      }
+      if (annual > 0) {
+        const cur = it.currency || it._originalCurrency || 'USD'
+        total += convert(annual, cur, baseCurrency)
+      }
+    })
+    return total
+  }, [enrichedItems, convert, baseCurrency])
+
   const { benchmarkData, benchmarkReturn, loading: benchmarkLoading } = useBenchmark('YTD')
 
   const netContributions = useMemo(() => {
@@ -364,7 +387,7 @@ export default function DashboardPage() {
   }, [transactions, convert, baseCurrency])
 
   const riskMetrics = useMemo(() => {
-    const returns = computePeriodicReturns(snapshots)
+    const returns = computePeriodicReturns(snapshots, transactions, convert, baseCurrency)
     const sharpeResult = computeSharpeRatio({ returns })
     const vol = computeVolatility({ returns })
     const valueSeries = (snapshots || [])
@@ -373,7 +396,7 @@ export default function DashboardPage() {
       .sort((a, b) => a.ts - b.ts)
     const drawdown = computeMaxDrawdown(valueSeries)
     return { sharpe: sharpeResult.sharpe, volatility: vol, maxDrawdown: drawdown.maxDrawdownPct }
-  }, [snapshots])
+  }, [snapshots, transactions, convert, baseCurrency])
 
   const insights = useMemo(() => {
     const hhiResult = computeHHI(enrichedItems.map((it) => ({ value: getItemValue(it) })))
@@ -458,7 +481,7 @@ export default function DashboardPage() {
               netContributions={netContributions}
             />
             <BenchmarkComparison benchmarkReturn={benchmarkReturn} portfolioReturn={returnYTD} lang={lang} />
-            <TopMovers items={enrichedItems} lang={lang} />
+            <TopMovers items={enrichedItems} transactions={transactions} lang={lang} />
           </div>
 
           <div className="lg:col-span-3 flex flex-col gap-4">
@@ -476,8 +499,8 @@ export default function DashboardPage() {
         </div>
 
         <PerformanceSummary items={enrichedItems} transactions={transactions} convert={convert} baseCurrency={baseCurrency} netWorth={netWorth} lang={lang} />
-        <RiskMetrics snapshots={snapshots} benchmarkData={benchmarkData} netWorth={netWorth} lang={lang} />
-        <MonthlyPerformance snapshots={snapshots} lang={lang} />
+        <RiskMetrics snapshots={snapshots} benchmarkData={benchmarkData} netWorth={netWorth} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} />
+        <MonthlyPerformance snapshots={snapshots} transactions={transactions} convert={convert} baseCurrency={baseCurrency} lang={lang} />
 
         {/* Action Buttons */}
         <ActionButtons
@@ -506,6 +529,7 @@ export default function DashboardPage() {
           <GoalTracker
             netWorth={netWorth}
             annualDividends={annualDividends}
+            estimatedAnnualIncome={estimatedAnnualIncome}
             goals={goals}
             onSaveGoals={saveGoals}
             volatility={riskMetrics.volatility}
