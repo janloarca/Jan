@@ -54,6 +54,58 @@ export default function FinancialHealth({ items, netWorth, totalAssets, snapshot
     { label: lang === 'es' ? 'Crecimiento' : 'Growth', score: scores.growthScore, max: 25, pct: Math.min(100, Math.abs(scores.growthPct)), color: scores.growthScore >= 18 ? 'bg-emerald-500' : scores.growthScore >= 14 ? 'bg-amber-500' : 'bg-red-500' },
   ]
 
+  const t = (es, en) => lang === 'es' ? es : en
+
+  const suggestions = useMemo(() => {
+    const tips = []
+    if (scores.numTypes < 5) {
+      const needed = 5 - scores.numTypes
+      const currentScore = scores.diverseScore
+      const targetScore = scores.numTypes + needed >= 5 ? 25 : scores.numTypes + needed >= 4 ? 22 : 18
+      const delta = targetScore - currentScore
+      if (delta > 0) {
+        tips.push({
+          textEs: `Agrega ${needed} tipo(s) de activo más`,
+          textEn: `Add ${needed} more asset type(s)`,
+          points: delta,
+        })
+      }
+    }
+    if (scores.liquidPct < 10) {
+      const targetScore = scores.liquidPct >= 5 ? 20 : 15
+      const delta = targetScore - scores.liquidScore
+      if (delta > 0) {
+        tips.push({
+          textEs: 'Aumenta reservas líquidas al 10%',
+          textEn: 'Increase liquid reserves to 10%',
+          points: delta,
+        })
+      }
+    }
+    if (scores.debtRatio > 30) {
+      const targetScore = scores.debtRatio > 50 ? 12 : 18
+      const delta = targetScore - scores.debtScore
+      if (delta > 0) {
+        tips.push({
+          textEs: 'Reduce deuda por debajo del 30%',
+          textEn: 'Reduce debt below 30%',
+          points: delta,
+        })
+      }
+    }
+    if (scores.growthPct < 10 && scores.growthPct >= 0) {
+      const delta = 18 - scores.growthScore
+      if (delta > 0) {
+        tips.push({
+          textEs: 'Crece tu portafolio +10% para más puntos',
+          textEn: 'Grow portfolio 10%+ for more points',
+          points: delta,
+        })
+      }
+    }
+    return tips.sort((a, b) => b.points - a.points).slice(0, 3)
+  }, [scores])
+
   return (
     <div className="bg-[#131c2e] rounded-xl border border-[#1e2d45] p-5">
       <div className="flex items-center justify-between mb-4">
@@ -77,6 +129,22 @@ export default function FinancialHealth({ items, netWorth, totalAssets, snapshot
           </div>
         ))}
       </div>
+
+      {suggestions.length > 0 && (
+        <div className="mt-4 pt-3 border-t border-[#1e2d45]/50">
+          <span className="text-[10px] text-slate-500 mb-2 block">{t('Cómo mejorar', 'How to improve')}</span>
+          <div className="space-y-1.5">
+            {suggestions.map((tip, i) => (
+              <div key={i} className="flex items-center justify-between">
+                <span className="text-[11px] text-slate-300">{lang === 'es' ? tip.textEs : tip.textEn}</span>
+                <span className="text-[10px] font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                  +{tip.points} pts
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

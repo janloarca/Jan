@@ -78,6 +78,69 @@ export const TYPE_ICONS = {
   other: '📊',
 }
 
+export function formatPercent(value) {
+  if (value == null || isNaN(value)) return '0.00%'
+  const sign = value >= 0 ? '+' : ''
+  return `${sign}${value.toFixed(2)}%`
+}
+
+export function formatHoldingPeriod(acquisitionDate, lang) {
+  if (!acquisitionDate) return '---'
+  const acq = new Date(acquisitionDate)
+  if (isNaN(acq.getTime())) return '---'
+  const diffMs = Date.now() - acq.getTime()
+  if (diffMs < 0) return '---'
+  const days = Math.floor(diffMs / 86400000)
+  const years = Math.floor(days / 365)
+  const months = Math.floor((days % 365) / 30)
+  if (years > 0) return lang === 'es' ? `${years}a ${months}m` : `${years}y ${months}m`
+  if (months > 0) return `${months}m`
+  return `${days}d`
+}
+
+const SECTOR_PATTERNS = [
+  [/tech|software|saas|cloud|semi/i, 'Technology'],
+  [/bank|financ|insurance|broker/i, 'Financials'],
+  [/health|pharma|biotech|medic/i, 'Healthcare'],
+  [/energy|oil|gas|petrol|solar|wind/i, 'Energy'],
+  [/consumer|retail|food|beverage/i, 'Consumer'],
+  [/industrial|manufactur|aerospace/i, 'Industrials'],
+  [/real.?estate|reit|inmueble|property/i, 'Real Estate'],
+  [/telecom|media|entertainment/i, 'Communication'],
+  [/material|mining|metal|chemical/i, 'Materials'],
+  [/util|electric|water/i, 'Utilities'],
+  [/crypto|bitcoin|blockchain|token|defi/i, 'Crypto'],
+]
+
+export function getSectorFromType(type) {
+  if (!type) return 'Unknown'
+  for (const [pattern, sector] of SECTOR_PATTERNS) {
+    if (pattern.test(type)) return sector
+  }
+  return 'Unknown'
+}
+
+const GEO_SUFFIXES = {
+  '.L': 'UK', '.TO': 'Canada', '.V': 'Canada', '.MX': 'Mexico',
+  '.SA': 'Brazil', '.BA': 'Argentina', '.SN': 'Chile',
+  '.DE': 'Germany', '.PA': 'France', '.MI': 'Italy', '.MC': 'Spain',
+  '.AS': 'Netherlands', '.SW': 'Switzerland', '.ST': 'Sweden',
+  '.HK': 'Hong Kong', '.T': 'Japan', '.SS': 'China', '.SZ': 'China',
+  '.KS': 'South Korea', '.AX': 'Australia', '.NS': 'India', '.BO': 'India',
+}
+
+const CRYPTO_SYMBOLS = new Set(['BTC', 'ETH', 'SOL', 'ADA', 'DOT', 'AVAX', 'MATIC', 'LINK', 'UNI', 'XRP', 'DOGE', 'BNB', 'ATOM', 'NEAR', 'LTC', 'USDT', 'USDC', 'AAVE', 'SHIB'])
+
+export function getGeographyFromSymbol(symbol) {
+  if (!symbol) return 'Unknown'
+  const upper = symbol.toUpperCase()
+  if (CRYPTO_SYMBOLS.has(upper)) return 'Global'
+  for (const [suffix, geo] of Object.entries(GEO_SUFFIXES)) {
+    if (symbol.endsWith(suffix)) return geo
+  }
+  return 'US'
+}
+
 export function computeModifiedDietz({ startValue, endValue, startTs, endTs, transactions, convert, baseCurrency }) {
   const totalMs = endTs - startTs
   if (totalMs <= 0 || startValue <= 0) return { pct: 0, abs: 0 }

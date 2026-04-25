@@ -1,9 +1,9 @@
 'use client'
 
 import { useMemo } from 'react'
-import { formatCurrency } from './utils'
+import { formatCurrency, getTypeCategory } from './utils'
 
-export default function DividendIncome({ transactions, items, convert, baseCurrency, lang }) {
+export default function DividendIncome({ transactions, items, convert, baseCurrency, lang, netWorth }) {
   const projected = useMemo(() => {
     if (!items || items.length === 0) return { annualTotal: 0, sources: [], upcoming: [] }
 
@@ -36,7 +36,9 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       const months = Array.isArray(it.incomeMonths) ? it.incomeMonths : [0,1,2,3,4,5,6,7,8,9,10,11]
       const payDay = it.incomePayDay || 1
 
-      sources.push({ symbol: sym, annual: converted, months, payDay, currency: cur })
+      const cat = getTypeCategory(it.type)
+      const incomeType = cat === 'bonds' ? 'coupon' : cat === 'banks' ? 'interest' : 'dividend'
+      sources.push({ symbol: sym, annual: converted, months, payDay, currency: cur, incomeType })
     })
 
     const upcoming = []
@@ -111,12 +113,36 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
   }, [transactions, convert, baseCurrency])
 
   const estAnnual = projected.annualTotal > 0 ? projected.annualTotal : (stats.avgMonthly * 12)
+  const portfolioYield = netWorth > 0 && estAnnual > 0 ? (estAnnual / netWorth) * 100 : 0
+
+  const incomeByType = useMemo(() => {
+    const types = { dividend: 0, coupon: 0, interest: 0 }
+    projected.sources.forEach((s) => {
+      types[s.incomeType || 'dividend'] = (types[s.incomeType || 'dividend'] || 0) + s.annual
+    })
+    return Object.entries(types).filter(([, v]) => v > 0).map(([type, annual]) => ({
+      type,
+      annual,
+      label: type === 'dividend' ? 'Dividendos' : type === 'coupon' ? 'Cupones' : 'Intereses',
+      labelEn: type === 'dividend' ? 'Dividends' : type === 'coupon' ? 'Coupons' : 'Interest',
+    }))
+  }, [projected.sources])
+
+  const incomeCalendar = useMemo(() => {
+    const monthTotals = Array(12).fill(0)
+    projected.sources.forEach((s) => {
+      const perPayment = s.annual / (s.months.length || 12)
+      s.months.forEach((m) => { monthTotals[m] += perPayment })
+    })
+    return monthTotals
+  }, [projected.sources])
 
   const hasData = stats.divCount > 0 || projected.annualTotal > 0
   if (!hasData) return null
 
   const t = (es, en) => lang === 'es' ? es : en
   const monthName = (m) => new Date(2024, m).toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short' })
+  const calendarMax = Math.max(...incomeCalendar, 1)
 
   return (
     <div className="bg-[#131c2e] rounded-xl border border-[#1e2d45] p-5">
@@ -125,19 +151,31 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
         {t('INGRESOS PASIVOS', 'PASSIVE INCOME')}
       </h3>
 
-      <div className="grid grid-cols-2 gap-4 mb-4">
+      <div className="grid grid-cols-3 gap-3 mb-4">
         <div>
-          <span className="text-[10px] text-slate-500 block">{t('Ingreso anual estimado', 'Est. Annual Income')}</span>
-          <span className="text-xl font-bold text-emerald-400">{formatCurrency(estAnnual)}</span>
-          {projected.annualTotal > 0 && (
-            <span className="text-[9px] text-slate-600 block">{t('Basado en datos del portafolio', 'Based on portfolio data')}</span>
-          )}
+          <span className="text-[10px] text-slate-500 block">{t('Ingreso anual est.', 'Est. Annual Income')}</span>
+          <span className="text-lg font-bold text-emerald-400">{formatCurrency(estAnnual)}</span>
+        </div>
+        <div className="text-center">
+          <span className="text-[10px] text-slate-500 block">Yield</span>
+          <span className="text-lg font-bold text-cyan-400">{portfolioYield.toFixed(2)}%</span>
         </div>
         <div className="text-right">
           <span className="text-[10px] text-slate-500 block">YTD {t('recibido', 'received')}</span>
-          <span className="text-xl font-bold text-white">{formatCurrency(stats.totalYTD)}</span>
+          <span className="text-lg font-bold text-white">{formatCurrency(stats.totalYTD)}</span>
         </div>
       </div>
+
+      {incomeByType.length > 1 && (
+        <div className="flex items-center gap-2 mb-3">
+          {incomeByType.map((bt) => (
+            <div key={bt.type} className="flex-1 bg-[#0b1120] rounded-lg p-2 border border-[#1e2d45]/50 text-center">
+              <span className="text-[9px] text-slate-500 block">{lang === 'es' ? bt.label : bt.labelEn}</span>
+              <span className="text-[11px] font-semibold text-white">{formatCurrency(bt.annual)}/yr</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-3 mb-4">
         <div className="bg-[#0b1120] rounded-lg p-3 border border-[#1e2d45]/50">
@@ -208,6 +246,28 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
                     <div className="h-full rounded-full bg-emerald-500/60" style={{ width: `${pct}%` }} />
                   </div>
                   <span className="text-[10px] text-slate-400 w-20 text-right">{formatCurrency(s.annual)}/yr</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 12-month income calendar */}
+      {projected.sources.length > 0 && (
+        <div className="mb-4">
+          <span className="text-[10px] text-slate-500 mb-2 block">{t('Calendario de ingresos', 'Income calendar')}</span>
+          <div className="grid grid-cols-6 gap-1">
+            {incomeCalendar.map((amt, m) => {
+              const intensity = calendarMax > 0 ? amt / calendarMax : 0
+              return (
+                <div key={m} className="text-center p-1.5 rounded" style={{
+                  backgroundColor: amt > 0 ? `rgba(16, 185, 129, ${0.1 + intensity * 0.3})` : 'rgba(30, 45, 69, 0.3)',
+                }}>
+                  <span className="text-[8px] text-slate-500 block">{monthName(m)}</span>
+                  <span className={`text-[9px] font-medium ${amt > 0 ? 'text-emerald-400' : 'text-slate-600'}`}>
+                    {amt > 0 ? formatCurrency(amt) : '—'}
+                  </span>
                 </div>
               )
             })}

@@ -1,7 +1,7 @@
 'use client'
 
-import { useMemo } from 'react'
-import { formatCurrency, getTypeCategory, TYPE_COLORS, getItemValue } from './utils'
+import { useState, useMemo } from 'react'
+import { formatCurrency, getTypeCategory, TYPE_COLORS, getItemValue, getSectorFromType, getGeographyFromSymbol } from './utils'
 
 const DONUT_COLORS = [
   '#3b82f6', '#f59e0b', '#10b981', '#a855f7', '#ec4899',
@@ -9,24 +9,35 @@ const DONUT_COLORS = [
 ]
 
 export default function AssetAllocation({ items, lang }) {
+  const [view, setView] = useState('type')
+
   const allocation = useMemo(() => {
-    const byType = {}
+    const groupFns = {
+      type: (it) => getTypeCategory(it.type),
+      sector: (it) => getSectorFromType(it.type),
+      geography: (it) => getGeographyFromSymbol(it.symbol),
+      currency: (it) => it._originalCurrency || it.currency || 'USD',
+      institution: (it) => it.institution || (lang === 'es' ? 'Sin institución' : 'No institution'),
+    }
+
+    const fn = groupFns[view] || groupFns.type
+    const byGroup = {}
     let total = 0
     items.forEach((it) => {
-      const cat = getTypeCategory(it.type)
+      const key = fn(it)
       const val = getItemValue(it)
-      byType[cat] = (byType[cat] || 0) + val
+      byGroup[key] = (byGroup[key] || 0) + val
       total += val
     })
-    return Object.entries(byType)
-      .map(([type, value], i) => ({
-        type,
+    return Object.entries(byGroup)
+      .map(([name, value], i) => ({
+        name,
         value,
         pct: total > 0 ? (value / total) * 100 : 0,
-        color: TYPE_COLORS[type]?.bg || DONUT_COLORS[i % DONUT_COLORS.length],
+        color: view === 'type' ? (TYPE_COLORS[name]?.bg || DONUT_COLORS[i % DONUT_COLORS.length]) : DONUT_COLORS[i % DONUT_COLORS.length],
       }))
       .sort((a, b) => b.value - a.value)
-  }, [items])
+  }, [items, view, lang])
 
   const totalValue = useMemo(() => items.reduce((s, it) => s + getItemValue(it), 0), [items])
 
@@ -38,15 +49,39 @@ export default function AssetAllocation({ items, lang }) {
   const circumference = 2 * Math.PI * radius
   let offset = 0
 
+  const t = (es, en) => lang === 'es' ? es : en
+
+  const views = [
+    { key: 'type', label: t('Tipo', 'Type') },
+    { key: 'sector', label: t('Sector', 'Sector') },
+    { key: 'geography', label: t('Geo', 'Geo') },
+    { key: 'currency', label: t('Moneda', 'Currency') },
+    { key: 'institution', label: t('Inst.', 'Inst.') },
+  ]
+
   return (
     <div className="bg-[#131c2e] rounded-xl border border-[#1e2d45] p-5">
-      <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
-        <span className="w-2 h-2 rounded-full bg-blue-400" />
-        {lang === 'es' ? 'ASSET ALLOCATION' : 'ASSET ALLOCATION'}
-      </h3>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-blue-400" />
+          ASSET ALLOCATION
+        </h3>
+      </div>
+
+      <div className="flex items-center gap-1.5 mb-4">
+        {views.map((v) => (
+          <button key={v.key} onClick={() => setView(v.key)}
+            className={`px-2 py-1 text-[10px] font-medium rounded-md transition-colors ${
+              view === v.key
+                ? 'bg-slate-600 text-white'
+                : 'text-slate-400 border border-slate-600/50 hover:bg-[#1a2540]'
+            }`}>
+            {v.label}
+          </button>
+        ))}
+      </div>
 
       <div className="flex items-center gap-6">
-        {/* Donut */}
         <div className="relative shrink-0">
           <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
             <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#1e2d45" strokeWidth={strokeWidth} />
@@ -57,7 +92,7 @@ export default function AssetAllocation({ items, lang }) {
               offset += dash
               return (
                 <circle
-                  key={seg.type}
+                  key={seg.name}
                   cx={size / 2}
                   cy={size / 2}
                   r={radius}
@@ -73,18 +108,17 @@ export default function AssetAllocation({ items, lang }) {
             })}
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-[10px] text-slate-500">{lang === 'es' ? 'Total' : 'Total'}</span>
+            <span className="text-[10px] text-slate-500">Total</span>
             <span className="text-sm font-bold text-white">{formatCurrency(totalValue)}</span>
           </div>
         </div>
 
-        {/* Legend */}
-        <div className="flex-1 space-y-1.5">
+        <div className="flex-1 space-y-1.5 max-h-40 overflow-y-auto">
           {allocation.map((seg) => (
-            <div key={seg.type} className="flex items-center justify-between">
+            <div key={seg.name} className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: seg.color }} />
-                <span className="text-xs text-slate-300 capitalize">{seg.type}</span>
+                <span className="text-xs text-slate-300 capitalize truncate max-w-[100px]">{seg.name}</span>
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-[11px] text-slate-400">{seg.pct.toFixed(1)}%</span>
