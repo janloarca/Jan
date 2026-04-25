@@ -5,7 +5,7 @@ import { formatCurrency, getBaseCurrency } from './utils'
 
 const QUICK_CURRENCIES = ['USD', 'EUR', 'GBP', 'MXN', 'GTQ', 'COP', 'BRL', 'CAD']
 
-export default function NetWorthCard({ netWorth, returnYTD, ytdChange, yearlyChange, convert, lang }) {
+export default function NetWorthCard({ netWorth, returnYTD, ytdChange, yearlyChange, convert, lang, netContributions }) {
   const isYTDPositive = returnYTD >= 0
   const isYearlyPositive = (yearlyChange ?? 0) >= 0
   const baseCur = getBaseCurrency()
@@ -52,6 +52,32 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, yearlyCha
         <p className={`text-[10px] mt-1 ${isYearlyPositive ? 'text-emerald-400' : 'text-red-400'}`}>
           {isYearlyPositive ? '▲' : '▼'} {Math.abs(yearlyChange).toFixed(1)}% {lang === 'es' ? 'vs año anterior' : 'vs last year'}
         </p>
+      )}
+
+      {netContributions != null && netContributions > 0 && (
+        <div className="mt-3 pt-3 border-t border-[#1e2d45]/50">
+          <div className="flex items-center justify-between text-[10px] mb-1.5">
+            <span className="text-slate-500">{lang === 'es' ? 'Aportes' : 'Contributed'}: <span className="text-slate-300 font-medium">{formatCurrency(netContributions)}</span></span>
+            <span className="text-slate-500">{lang === 'es' ? 'Ganancia' : 'Gains'}: <span className={`font-medium ${displayValue - netContributions >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatCurrency(displayValue - netContributions)}</span></span>
+          </div>
+          <div className="w-full h-1.5 bg-slate-700/30 rounded-full overflow-hidden flex">
+            {(() => {
+              const contribPct = netContributions > 0 && displayValue > 0
+                ? Math.min((netContributions / displayValue) * 100, 100)
+                : 100
+              return (
+                <>
+                  <div className="h-full bg-blue-500/60 rounded-l-full" style={{ width: `${contribPct}%` }} />
+                  <div className="h-full bg-emerald-500/60 rounded-r-full" style={{ width: `${Math.max(0, 100 - contribPct)}%` }} />
+                </>
+              )
+            })()}
+          </div>
+          <div className="flex items-center gap-3 mt-1 text-[8px] text-slate-600">
+            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-500/60" />{lang === 'es' ? 'Aportes' : 'Contributions'}</span>
+            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500/60" />{lang === 'es' ? 'Ganancias' : 'Gains'}</span>
+          </div>
+        </div>
       )}
     </div>
   )

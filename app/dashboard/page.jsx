@@ -10,7 +10,9 @@ import FileImportModal from '@/components/FileImportModal'
 import AddAccountModal from '@/components/AddAccountModal'
 
 import SettingsModal from '@/components/SettingsModal'
-import { setBaseCurrency, computeModifiedDietz } from '@/components/dashboard/utils'
+import { setBaseCurrency, computeModifiedDietz, getItemValue } from '@/components/dashboard/utils'
+import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights } from '@/components/dashboard/analytics'
+import { useBenchmark } from '@/hooks/useBenchmark'
 import Header from '@/components/dashboard/Header'
 import NetWorthCard from '@/components/dashboard/NetWorthCard'
 import PortfolioGrowthChart from '@/components/dashboard/PortfolioGrowthChart'
@@ -23,10 +25,12 @@ import RecentTransactions from '@/components/dashboard/RecentTransactions'
 import AssetAllocation from '@/components/dashboard/AssetAllocation'
 import PerformanceSummary from '@/components/dashboard/PerformanceSummary'
 import DividendIncome from '@/components/dashboard/DividendIncome'
-import ValueBreakdown from '@/components/dashboard/ValueBreakdown'
 import ConcentrationRisk from '@/components/dashboard/ConcentrationRisk'
 import GoalTracker from '@/components/dashboard/GoalTracker'
 import ProjectionSimulator from '@/components/dashboard/ProjectionSimulator'
+import RiskMetrics from '@/components/dashboard/RiskMetrics'
+import BenchmarkComparison from '@/components/dashboard/BenchmarkComparison'
+import InsightsBanner from '@/components/dashboard/InsightsBanner'
 import EditAccountModal from '@/components/EditAccountModal'
 import OptimizeModal from '@/components/OptimizeModal'
 import AssetDetailModal from '@/components/dashboard/AssetDetailModal'
@@ -353,6 +357,40 @@ export default function DashboardPage() {
     }, 0)
   }, [transactions, convert, baseCurrency])
 
+  const { benchmarkData, benchmarkReturn, loading: benchmarkLoading } = useBenchmark('YTD')
+
+  const netContributions = useMemo(() => {
+    return computeNetContributions(transactions, convert, baseCurrency).netContributions
+  }, [transactions, convert, baseCurrency])
+
+  const riskMetrics = useMemo(() => {
+    const returns = computePeriodicReturns(snapshots)
+    const sharpeResult = computeSharpeRatio({ returns })
+    const vol = computeVolatility({ returns })
+    const valueSeries = (snapshots || [])
+      .map((s) => ({ ts: new Date(s.date).getTime(), value: s.netWorthUSD ?? s.totalActivosUSD ?? 0 }))
+      .filter((p) => !isNaN(p.ts) && p.value > 0)
+      .sort((a, b) => a.ts - b.ts)
+    const drawdown = computeMaxDrawdown(valueSeries)
+    return { sharpe: sharpeResult.sharpe, volatility: vol, maxDrawdown: drawdown.maxDrawdownPct }
+  }, [snapshots])
+
+  const insights = useMemo(() => {
+    const hhiResult = computeHHI(enrichedItems.map((it) => ({ value: getItemValue(it) })))
+    const incomeYield = netWorth > 0 && annualDividends > 0 ? (annualDividends / netWorth) * 100 : 0
+    return generateInsights({
+      netWorth,
+      benchmarkReturn,
+      portfolioReturn: returnYTD,
+      sharpe: riskMetrics.sharpe,
+      volatility: riskMetrics.volatility,
+      maxDrawdown: riskMetrics.maxDrawdown,
+      hhi: hhiResult.hhi,
+      incomeYield,
+      goals,
+    })
+  }, [netWorth, benchmarkReturn, returnYTD, riskMetrics, enrichedItems, annualDividends, goals])
+
   const dataAge = latestSnapshot ? Math.round((Date.now() - new Date(latestSnapshot.date).getTime()) / 86400000) : null
 
   if (authLoading || (user && dataLoading)) {
@@ -404,7 +442,10 @@ export default function DashboardPage() {
           {(pricesLoading || ratesLoading) && <span className="text-[10px] text-emerald-500 animate-pulse">{lang === 'es' ? 'Actualizando...' : 'Updating...'}</span>}
         </div>
 
-        {/* Row 1: Net Worth + Portfolio Growth */}
+        {/* Insights Banner */}
+        <InsightsBanner insights={insights} lang={lang} />
+
+        {/* ═══ OVERVIEW ═══ */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6 items-start">
           <div className="lg:col-span-2 flex flex-col gap-4">
             <NetWorthCard
@@ -414,16 +455,10 @@ export default function DashboardPage() {
               yearlyChange={yearlyChange}
               convert={convert}
               lang={lang}
+              netContributions={netContributions}
             />
+            <BenchmarkComparison benchmarkReturn={benchmarkReturn} portfolioReturn={returnYTD} lang={lang} />
             <TopMovers items={enrichedItems} lang={lang} />
-            <GoalTracker
-              netWorth={netWorth}
-              annualDividends={annualDividends}
-              goals={goals}
-              onSaveGoals={saveGoals}
-              lang={lang}
-            />
-            <FinancialHealth items={enrichedItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} />
           </div>
 
           <div className="lg:col-span-3 flex flex-col gap-4">
@@ -432,8 +467,17 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Performance Summary */}
+        {/* ═══ PERFORMANCE & RISK ═══ */}
+        <div className="flex items-center gap-3 pt-2">
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+            {lang === 'es' ? 'Rendimiento y Riesgo' : 'Performance & Risk'}
+          </span>
+          <div className="flex-1 h-px bg-[#1e2d45]" />
+        </div>
+
         <PerformanceSummary items={enrichedItems} transactions={transactions} convert={convert} baseCurrency={baseCurrency} netWorth={netWorth} lang={lang} />
+        <RiskMetrics snapshots={snapshots} benchmarkData={benchmarkData} netWorth={netWorth} lang={lang} />
+        <MonthlyPerformance snapshots={snapshots} lang={lang} />
 
         {/* Action Buttons */}
         <ActionButtons
@@ -445,26 +489,44 @@ export default function DashboardPage() {
           lang={lang}
         />
 
-        {/* Monthly Performance */}
-        <MonthlyPerformance snapshots={snapshots} lang={lang} />
+        {/* ═══ INCOME & GOALS ═══ */}
+        <div className="flex items-center gap-3 pt-2">
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+            {lang === 'es' ? 'Ingresos y Metas' : 'Income & Goals'}
+          </span>
+          <div className="flex-1 h-px bg-[#1e2d45]" />
+        </div>
 
-        {/* Row 2: Dividend Income + Concentration Risk */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-          <DividendIncome transactions={transactions} items={enrichedItems} convert={convert} baseCurrency={baseCurrency} lang={lang} />
+          <DividendIncome transactions={transactions} items={enrichedItems} convert={convert} baseCurrency={baseCurrency} lang={lang} netWorth={netWorth} />
           <ConcentrationRisk items={enrichedItems} lang={lang} />
         </div>
 
-        {/* Accounts & Instruments */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+          <GoalTracker
+            netWorth={netWorth}
+            annualDividends={annualDividends}
+            goals={goals}
+            onSaveGoals={saveGoals}
+            volatility={riskMetrics.volatility}
+            lang={lang}
+          />
+          <FinancialHealth items={enrichedItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} />
+        </div>
+
+        <ProjectionSimulator netWorth={netWorth} lang={lang} volatility={riskMetrics.volatility} goalValue={goals?.portfolioGoal} />
+
+        {/* ═══ HOLDINGS ═══ */}
+        <div className="flex items-center gap-3 pt-2">
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+            {lang === 'es' ? 'Posiciones' : 'Holdings'}
+          </span>
+          <div className="flex-1 h-px bg-[#1e2d45]" />
+        </div>
+
         <AccountsTable items={enrichedItems} lang={lang} onDeleteItem={deleteItem}
           onEditItem={(item) => setEditItem(item)} onViewItem={(item) => setDetailItem(item)} />
 
-        {/* Value Breakdown */}
-        <ValueBreakdown items={enrichedItems} lang={lang} />
-
-        {/* Projection Simulator */}
-        <ProjectionSimulator netWorth={netWorth} lang={lang} />
-
-        {/* Recent Transactions */}
         <RecentTransactions transactions={transactions} lang={lang} />
 
         {/* Generate Report */}

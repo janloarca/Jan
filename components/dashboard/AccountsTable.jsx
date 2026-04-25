@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { formatCurrency, getTypeCategory, TYPE_COLORS, getItemValue, getItemPrice, getBaseCurrency } from './utils'
+import { formatCurrency, getTypeCategory, TYPE_COLORS, getItemValue, getItemPrice, getBaseCurrency, formatHoldingPeriod } from './utils'
 
 export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, onViewItem }) {
   const [filter, setFilter] = useState('all')
@@ -145,7 +145,10 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                   {t('Instrumento', 'Instrument')} {sortBy === 'name' ? '↕' : ''}
                 </th>
                 <th className="text-center py-2 font-medium">% Port.</th>
-                <th className="text-center py-2 font-medium">Ret %</th>
+                <th className="text-right py-2 font-medium">{t('Costo', 'Avg Cost')}</th>
+                <th className="text-center py-2 font-medium">P&L</th>
+                <th className="text-center py-2 font-medium">Yield</th>
+                <th className="text-center py-2 font-medium">{t('Periodo', 'Holding')}</th>
                 <th className="text-right py-2 font-medium cursor-pointer hover:text-slate-300"
                   onClick={() => setSortBy(sortBy === 'value' ? 'value-asc' : 'value')}>
                   {t('Valor $', 'Value $')} {sortBy === 'value' ? '▼' : sortBy === 'value-asc' ? '▲' : ''}
@@ -203,19 +206,36 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                         <span className="text-slate-400 text-[10px] w-8">{pctPort.toFixed(1)}%</span>
                       </div>
                     </td>
+                    <td className="text-right py-3">
+                      {item.purchasePrice > 0 ? (
+                        <span className="text-slate-400 text-[11px]">{formatCurrency(item.purchasePrice)}</span>
+                      ) : (
+                        <span className="text-slate-600">—</span>
+                      )}
+                    </td>
                     <td className="text-center py-3">
                       {retPct != null ? (
                         <div>
                           <span className={`text-xs font-medium ${retPct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                            {retPct >= 0 ? '+' : ''}{retPct.toFixed(2)}%
+                            {retPct >= 0 ? '+' : ''}{formatCurrency(retAbs)}
                           </span>
                           <div className={`text-[9px] ${retPct >= 0 ? 'text-emerald-500/70' : 'text-red-500/70'}`}>
-                            {retPct >= 0 ? '+' : ''}{formatCurrency(retAbs)}
+                            {retPct >= 0 ? '+' : ''}{retPct.toFixed(1)}%
                           </div>
                         </div>
                       ) : (
                         <span className="text-slate-600">—</span>
                       )}
+                    </td>
+                    <td className="text-center py-3">
+                      <span className="text-[11px] text-slate-400">
+                        {item.dividendYield ? `${item.dividendYield.toFixed(1)}%` : '—'}
+                      </span>
+                    </td>
+                    <td className="text-center py-3">
+                      <span className="text-[11px] text-slate-400">
+                        {formatHoldingPeriod(item.acquisitionDate, lang)}
+                      </span>
                     </td>
                     <td className="text-right py-3">
                       <span className="text-emerald-400 font-medium cursor-pointer hover:underline"
