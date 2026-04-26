@@ -86,7 +86,7 @@ export default function MonthlyPerformance({ snapshots, transactions, convert, b
   }
 
   return (
-    <div className="bg-[#131c2e] rounded-xl border border-[#1e2d45] p-5">
+    <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-5">
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
         <span className="w-2 h-2 rounded-full bg-amber-400" />
         MONTHLY PERFORMANCE

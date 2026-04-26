@@ -92,7 +92,7 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
   const t = (es, en) => lang === 'es' ? es : en
 
   return (
-    <div className="bg-[#131c2e] rounded-xl border border-[#1e2d45] p-5">
+    <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-5">
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
         <span className="w-2 h-2 rounded-full bg-purple-400" />
         {t('RENDIMIENTO', 'PERFORMANCE SUMMARY')}
@@ -106,7 +106,7 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
           {periods.map((p) => {
             const isPos = (p.pct ?? 0) >= 0
             return (
-              <div key={p.key} className="text-center p-2 sm:p-3 bg-[#0b1120] rounded-lg border border-[#1e2d45]/50">
+              <div key={p.key} className="text-center p-2 sm:p-3 bg-[#0f172a] rounded-lg border border-[#334155]/50">
                 <span className="text-[10px] text-slate-500 font-medium">{p.label}</span>
                 {p.pct != null ? (
                   <>

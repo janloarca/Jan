@@ -8,18 +8,18 @@ export default function ActionButtons({ onImport, onAddAccount, onOptimize, onEx
         <span>📁</span> {lang === 'es' ? 'Importar' : 'Import'}
       </button>
       <button onClick={onAddAccount}
-        className="px-4 py-2 text-xs font-medium bg-[#131c2e] border border-[#1e2d45] text-blue-400 rounded-lg hover:bg-[#1a2540] transition-colors">
+        className="px-4 py-2 text-xs font-medium bg-[#1e293b] border border-[#334155] text-blue-400 rounded-lg hover:bg-[#283548] transition-colors">
         + {lang === 'es' ? 'Registro de Activos' : 'Asset Registry'}
       </button>
       {itemCount > 0 && (
         <button onClick={onOptimize}
-          className="px-4 py-2 text-xs font-medium bg-[#131c2e] border border-[#1e2d45] text-amber-400 rounded-lg hover:bg-[#1a2540] transition-colors flex items-center gap-1">
+          className="px-4 py-2 text-xs font-medium bg-[#1e293b] border border-[#334155] text-amber-400 rounded-lg hover:bg-[#283548] transition-colors flex items-center gap-1">
           ✨ {lang === 'es' ? 'Optimizar' : 'Optimize'}
         </button>
       )}
       <div className="ml-auto flex items-center gap-2">
         <button onClick={onExport}
-          className="px-3 py-2 text-xs font-medium bg-[#131c2e] border border-[#1e2d45] text-slate-400 rounded-lg hover:bg-[#1a2540] transition-colors">
+          className="px-3 py-2 text-xs font-medium bg-[#1e293b] border border-[#334155] text-slate-400 rounded-lg hover:bg-[#283548] transition-colors">
           ↓ Export
         </button>
         <span className="text-xs text-slate-500">

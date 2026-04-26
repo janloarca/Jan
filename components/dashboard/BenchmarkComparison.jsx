@@ -8,7 +8,7 @@ export default function BenchmarkComparison({ benchmarkReturn, portfolioReturn, 
   const isOut = delta >= 0
 
   return (
-    <div className="bg-[#131c2e] rounded-xl border border-[#1e2d45] p-4">
+    <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-4">
       <div className="flex items-center justify-between mb-2">
         <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">
           {t('Benchmark', 'Benchmark')}

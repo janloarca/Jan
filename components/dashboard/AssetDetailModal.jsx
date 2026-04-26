@@ -82,8 +82,8 @@ export default function AssetDetailModal({ item, onClose, lang = 'es' }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="bg-[#131c2e] border border-[#1e2d45] rounded-xl shadow-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#1e2d45]">
+      <div className="bg-[#1e293b] border border-[#334155] rounded-xl shadow-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#334155]">
           <div>
             <h2 className="text-lg font-bold text-white">{item.name || item.symbol}</h2>
             <span className="text-xs text-slate-500">{item.symbol} · {item.type} {item.institution ? `· ${item.institution}` : ''}</span>
@@ -94,15 +94,15 @@ export default function AssetDetailModal({ item, onClose, lang = 'es' }) {
         <div className="p-6 space-y-5">
           {/* Stats row */}
           <div className="grid grid-cols-3 gap-3">
-            <div className="bg-[#0b1120] rounded-lg p-3 border border-[#1e2d45]/50">
+            <div className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]/50">
               <span className="text-[10px] text-slate-500 block">{t('Precio actual', 'Current price')}</span>
               <span className="text-lg font-bold text-white">{formatCurrency(currentPrice)}</span>
             </div>
-            <div className="bg-[#0b1120] rounded-lg p-3 border border-[#1e2d45]/50">
+            <div className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]/50">
               <span className="text-[10px] text-slate-500 block">{t('Valor total', 'Total value')}</span>
               <span className="text-lg font-bold text-white">{formatCurrency(totalValue)}</span>
             </div>
-            <div className="bg-[#0b1120] rounded-lg p-3 border border-[#1e2d45]/50">
+            <div className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]/50">
               <span className="text-[10px] text-slate-500 block">P&L</span>
               <span className={`text-lg font-bold ${pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                 {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}
@@ -128,7 +128,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es' }) {
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs text-slate-500">{t('Historico de precio', 'Price history')}</span>
-              <div className="flex gap-0.5 bg-[#0b1120] rounded-lg p-0.5">
+              <div className="flex gap-0.5 bg-[#0f172a] rounded-lg p-0.5">
                 {ranges.map((r) => (
                   <button key={r} onClick={() => setRange(r)}
                     className={`px-2 py-1 text-[10px] font-medium rounded-md transition-all ${
@@ -141,7 +141,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es' }) {
             </div>
 
             {loading ? (
-              <div className="h-[200px] bg-[#0b1120] rounded-lg animate-pulse flex items-center justify-center">
+              <div className="h-[200px] bg-[#0f172a] rounded-lg animate-pulse flex items-center justify-center">
                 <span className="text-slate-600 text-sm">{t('Cargando...', 'Loading...')}</span>
               </div>
             ) : points ? (
@@ -166,8 +166,8 @@ export default function AssetDetailModal({ item, onClose, lang = 'es' }) {
                   <path d={smoothPath(points)} fill="none" stroke={lineColor} strokeWidth="2" strokeLinecap="round" />
                   {hp && (
                     <g>
-                      <line x1={hp.x} y1={16} x2={hp.x} y2={192} stroke="#334155" strokeDasharray="4 3" />
-                      <circle cx={hp.x} cy={hp.y} r="4" fill={lineColor} stroke="#0b1120" strokeWidth="2" />
+                      <line x1={hp.x} y1={16} x2={hp.x} y2={192} stroke="#475569" strokeDasharray="4 3" />
+                      <circle cx={hp.x} cy={hp.y} r="4" fill={lineColor} stroke="#0f172a" strokeWidth="2" />
                     </g>
                   )}
                 </svg>
@@ -180,7 +180,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es' }) {
                 )}
               </div>
             ) : (
-              <div className="h-[200px] bg-[#0b1120] rounded-lg flex items-center justify-center">
+              <div className="h-[200px] bg-[#0f172a] rounded-lg flex items-center justify-center">
                 <span className="text-slate-600 text-sm">{t('Sin datos de precio disponibles', 'No price data available')}</span>
               </div>
             )}

@@ -29,7 +29,7 @@ export default function RecentTransactions({ transactions, lang }) {
   }
 
   return (
-    <div className="bg-[#131c2e] rounded-xl border border-[#1e2d45] p-5">
+    <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-base font-semibold text-white">
           {lang === 'es' ? 'Transacciones Recientes' : 'Recent Transactions'}
@@ -50,7 +50,7 @@ export default function RecentTransactions({ transactions, lang }) {
         <>
           <div className="space-y-0">
             {display.map((tx, i) => (
-              <div key={tx.id || i} className="flex items-center justify-between py-3 border-b border-[#1e2d45]/30 last:border-0 hover:bg-[#1a2540]/30 transition-colors -mx-2 px-2 rounded">
+              <div key={tx.id || i} className="flex items-center justify-between py-3 border-b border-[#334155]/30 last:border-0 hover:bg-[#283548]/30 transition-colors -mx-2 px-2 rounded">
                 <div className="flex items-center gap-3">
                   <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold ${typeBadge(tx.type)}`}>
                     {typeIcon(tx.type)}
@@ -83,7 +83,7 @@ export default function RecentTransactions({ transactions, lang }) {
           </div>
           {all.length > 5 && (
             <button onClick={() => setShowAll(!showAll)}
-              className="w-full mt-3 py-2 text-xs text-slate-400 hover:text-emerald-400 border border-[#1e2d45]/50 rounded-lg hover:bg-[#1a2540] transition-colors">
+              className="w-full mt-3 py-2 text-xs text-slate-400 hover:text-emerald-400 border border-[#334155]/50 rounded-lg hover:bg-[#283548] transition-colors">
               {showAll
                 ? (lang === 'es' ? 'Mostrar menos' : 'Show less')
                 : (lang === 'es' ? `Ver todas (${all.length})` : `View all (${all.length})`)}

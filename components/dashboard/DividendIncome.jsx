@@ -145,7 +145,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
   const calendarMax = Math.max(...incomeCalendar, 1)
 
   return (
-    <div className="bg-[#131c2e] rounded-xl border border-[#1e2d45] p-5">
+    <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-5">
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
         <span className="w-2 h-2 rounded-full bg-emerald-400" />
         {t('INGRESOS PASIVOS', 'PASSIVE INCOME')}
@@ -169,7 +169,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       {incomeByType.length > 1 && (
         <div className="flex items-center gap-2 mb-3">
           {incomeByType.map((bt) => (
-            <div key={bt.type} className="flex-1 bg-[#0b1120] rounded-lg p-2 border border-[#1e2d45]/50 text-center">
+            <div key={bt.type} className="flex-1 bg-[#0f172a] rounded-lg p-2 border border-[#334155]/50 text-center">
               <span className="text-[9px] text-slate-500 block">{lang === 'es' ? bt.label : bt.labelEn}</span>
               <span className="text-[11px] font-semibold text-white">{formatCurrency(bt.annual)}/yr</span>
             </div>
@@ -178,15 +178,15 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       )}
 
       <div className="grid grid-cols-3 gap-3 mb-4">
-        <div className="bg-[#0b1120] rounded-lg p-3 border border-[#1e2d45]/50">
+        <div className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]/50">
           <span className="text-[10px] text-slate-500">{t('Mensual est.', 'Monthly est.')}</span>
           <span className="text-sm font-semibold text-white block">{formatCurrency(estAnnual / 12)}</span>
         </div>
-        <div className="bg-[#0b1120] rounded-lg p-3 border border-[#1e2d45]/50">
+        <div className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]/50">
           <span className="text-[10px] text-slate-500">{t('Este mes', 'This month')}</span>
           <span className="text-sm font-semibold text-white block">{formatCurrency(stats.totalThisMonth)}</span>
         </div>
-        <div className="bg-[#0b1120] rounded-lg p-3 border border-[#1e2d45]/50">
+        <div className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]/50">
           <span className="text-[10px] text-slate-500">{t('Pagos', 'Payments')}</span>
           <span className="text-sm font-semibold text-white block">{stats.divCount}</span>
         </div>
@@ -198,7 +198,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
           <span className="text-[10px] text-slate-500 mb-2 block">{t('Próximos pagos esperados', 'Upcoming expected payments')}</span>
           <div className="space-y-1">
             {projected.upcoming.map((u, i) => (
-              <div key={i} className="flex items-center justify-between text-[11px] py-1 px-2 rounded bg-[#0b1120]/60">
+              <div key={i} className="flex items-center justify-between text-[11px] py-1 px-2 rounded bg-[#0f172a]/60">
                 <span className="text-slate-400 font-medium w-16 truncate">{u.symbol}</span>
                 <span className="text-slate-500">{monthName(u.month)} {u.day}</span>
                 <span className="text-emerald-400 font-medium">{formatCurrency(u.amount)}</span>
@@ -262,7 +262,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
               const intensity = calendarMax > 0 ? amt / calendarMax : 0
               return (
                 <div key={m} className="text-center p-1.5 rounded" style={{
-                  backgroundColor: amt > 0 ? `rgba(16, 185, 129, ${0.1 + intensity * 0.3})` : 'rgba(30, 45, 69, 0.3)',
+                  backgroundColor: amt > 0 ? `rgba(16, 185, 129, ${0.1 + intensity * 0.3})` : 'rgba(51, 65, 85, 0.3)',
                 }}>
                   <span className="text-[8px] text-slate-500 block">{monthName(m)}</span>
                   <span className={`text-[9px] font-medium ${amt > 0 ? 'text-emerald-400' : 'text-slate-600'}`}>

@@ -425,7 +425,7 @@ export default function DashboardPage() {
 
   if (authLoading || (user && dataLoading)) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#0b1120]">
+      <div className="flex items-center justify-center min-h-screen bg-[#0f172a]">
         <div className="text-center">
           <div className="inline-flex items-center gap-2 mb-4">
             <span className="text-blue-400 text-2xl">⚡</span>
@@ -443,7 +443,7 @@ export default function DashboardPage() {
   if (!user) return null
 
   return (
-    <div className="min-h-screen bg-[#0b1120]">
+    <div className="min-h-screen bg-[#0f172a]">
       <Header
         user={user}
         lang={lang}
@@ -502,7 +502,7 @@ export default function DashboardPage() {
           <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
             {lang === 'es' ? 'Rendimiento y Riesgo' : 'Performance & Risk'}
           </span>
-          <div className="flex-1 h-px bg-[#1e2d45]" />
+          <div className="flex-1 h-px bg-[#334155]" />
         </div>
 
         <PerformanceSummary items={enrichedItems} transactions={transactions} convert={convert} baseCurrency={baseCurrency} netWorth={netWorth} lang={lang} />
@@ -525,7 +525,7 @@ export default function DashboardPage() {
           <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
             {lang === 'es' ? 'Ingresos y Metas' : 'Income & Goals'}
           </span>
-          <div className="flex-1 h-px bg-[#1e2d45]" />
+          <div className="flex-1 h-px bg-[#334155]" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
@@ -553,7 +553,7 @@ export default function DashboardPage() {
           <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
             {lang === 'es' ? 'Posiciones' : 'Holdings'}
           </span>
-          <div className="flex-1 h-px bg-[#1e2d45]" />
+          <div className="flex-1 h-px bg-[#334155]" />
         </div>
 
         <AccountsTable items={enrichedItems} lang={lang} onDeleteItem={deleteItem}
@@ -564,7 +564,7 @@ export default function DashboardPage() {
         {/* Generate Report */}
         <div className="text-center py-6">
           <button onClick={handleReport}
-            className="px-6 py-3 text-sm font-medium text-slate-300 bg-[#131c2e] border border-[#1e2d45] rounded-xl hover:bg-[#1a2540] hover:text-white transition-colors inline-flex items-center gap-2">
+            className="px-6 py-3 text-sm font-medium text-slate-300 bg-[#1e293b] border border-[#334155] rounded-xl hover:bg-[#283548] hover:text-white transition-colors inline-flex items-center gap-2">
             {lang === 'es' ? 'Generar Reporte PDF' : 'Generate PDF Report'}
           </button>
         </div>

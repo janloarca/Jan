@@ -53,7 +53,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-[#0b1120]">
+    <div className="flex items-center justify-center min-h-screen bg-[#0f172a]">
       <div className="w-full max-w-md px-6">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-2">
@@ -63,7 +63,7 @@ export default function LoginPage() {
           <p className="text-slate-500 text-sm">Tu control financiero personal</p>
         </div>
 
-        <div className="bg-[#131c2e] border border-[#1e2d45] rounded-xl p-6">
+        <div className="bg-[#1e293b] border border-[#334155] rounded-xl p-6">
           <h2 className="text-lg font-semibold text-white text-center mb-5">
             {isSignUp ? 'Crear cuenta' : 'Iniciar sesión'}
           </h2>
@@ -82,7 +82,7 @@ export default function LoginPage() {
                 placeholder="tu@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2.5 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 text-sm"
+                className="w-full px-4 py-2.5 bg-[#0f172a] border border-[#334155] rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 text-sm"
                 required
               />
             </div>
@@ -93,7 +93,7 @@ export default function LoginPage() {
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2.5 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 text-sm"
+                className="w-full px-4 py-2.5 bg-[#0f172a] border border-[#334155] rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 text-sm"
                 required
               />
             </div>

@@ -6,7 +6,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
   })
 
   return (
-    <header className="border-b border-[#1e2d45] sticky top-0 z-20 bg-[#0b1120]/95 backdrop-blur-sm">
+    <header className="border-b border-[#334155] sticky top-0 z-20 bg-[#0f172a]/95 backdrop-blur-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14">
           <div className="flex items-center gap-2">
@@ -25,7 +25,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
               <span className={pricesLoading ? 'animate-spin inline-block' : ''}>↻</span>
             </button>
             <button onClick={setLang}
-              className="px-2 py-1.5 text-xs text-slate-400 border border-slate-600/50 rounded-lg hover:bg-[#1a2540] transition-colors font-medium">
+              className="px-2 py-1.5 text-xs text-slate-400 border border-slate-600/50 rounded-lg hover:bg-[#283548] transition-colors font-medium">
               {lang === 'en' ? 'ES' : 'EN'}
             </button>
             <button onClick={onImport}
@@ -33,7 +33,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
               {lang === 'es' ? 'Importar' : 'Import'}
             </button>
             <button onClick={onSettings}
-              className="px-2 py-1.5 text-slate-400 border border-slate-600/50 rounded-lg hover:bg-[#1a2540] hover:text-white transition-colors"
+              className="px-2 py-1.5 text-slate-400 border border-slate-600/50 rounded-lg hover:bg-[#283548] hover:text-white transition-colors"
               title={lang === 'es' ? 'Configuracion' : 'Settings'}>
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -41,7 +41,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
               </svg>
             </button>
             <button onClick={onSignOut}
-              className="px-2 py-1.5 text-xs text-slate-400 border border-slate-600/50 rounded-lg hover:bg-[#1a2540] transition-colors">
+              className="px-2 py-1.5 text-xs text-slate-400 border border-slate-600/50 rounded-lg hover:bg-[#283548] transition-colors">
               {lang === 'es' ? 'Salir' : 'Log out'}
             </button>
           </div>

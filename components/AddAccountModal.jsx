@@ -293,8 +293,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="bg-[#131c2e] border border-[#1e2d45] rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#1e2d45]">
+      <div className="bg-[#1e293b] border border-[#334155] rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#334155]">
           <h2 className="text-lg font-bold text-white">{t('Registro de Activos', 'Asset Registry')}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
         </div>
@@ -302,7 +302,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
           {error && <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-sm">{error}</div>}
 
           {/* Buy / Sell toggle */}
-          <div className="flex gap-1 bg-[#0b1120] rounded-lg p-1">
+          <div className="flex gap-1 bg-[#0f172a] rounded-lg p-1">
             <button type="button" onClick={() => setAction('buy')}
               className={`flex-1 py-2 text-xs font-medium rounded-md transition-all ${
                 action === 'buy' ? 'bg-blue-500 text-white' : 'text-slate-500 hover:text-slate-300'
@@ -322,7 +322,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                   className={`flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg transition-all text-center ${
                     type === tp.key
                       ? 'bg-blue-500/20 border border-blue-500/40 text-blue-400'
-                      : 'bg-[#0b1120] border border-[#1e2d45] text-slate-400 hover:border-slate-500'
+                      : 'bg-[#0f172a] border border-[#334155] text-slate-400 hover:border-slate-500'
                   }`}>
                   <span className="text-lg">{tp.icon}</span>
                   <span className="text-[10px] font-medium">{lang === 'es' ? tp.es : tp.en}</span>
@@ -340,7 +340,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                   const sel = existingItems.find((it) => it.id === e.target.value)
                   if (sel) setForm({ ...form, symbol: sel.id, name: sel.name || sel.symbol, currency: sel.currency || 'USD', institution: sel.institution || '' })
                 }}
-                  className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
+                  className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
                   <option value="">{t('-- Selecciona activo --', '-- Select asset --')}</option>
                   {existingItems.map((it) => (
                     <option key={it.id} value={it.id}>
@@ -354,29 +354,29 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                   <label className="text-xs text-slate-400 mb-1 block">{t('Cantidad a vender', 'Quantity to sell')}</label>
                   <input value={form.quantity} onChange={(e) => set('quantity', e.target.value)}
                     placeholder="10" type="number" step="any"
-                    className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                    className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
                 </div>
                 <div>
                   <label className="text-xs text-slate-400 mb-1 block">{t('Precio de venta', 'Sale price')}</label>
                   <input value={form.purchasePrice} onChange={(e) => set('purchasePrice', e.target.value)}
                     placeholder="150.00" type="number" step="any"
-                    className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                    className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
                 </div>
               </div>
 
               {/* Where does the money go? */}
-              <div className="border border-[#1e2d45] rounded-lg p-3 space-y-2">
+              <div className="border border-[#334155] rounded-lg p-3 space-y-2">
                 <label className="text-xs text-slate-400 font-medium">{t('¿A dónde va el dinero?', 'Where does the money go?')}</label>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => set('incomeDestination', '__exit__')}
                     className={`flex-1 px-2 py-2 text-[11px] font-medium rounded-lg transition-all ${
-                      form.incomeDestination === '__exit__' ? 'bg-red-500/20 text-red-400 border border-red-500/40' : 'bg-[#0b1120] text-slate-500 border border-[#1e2d45]'
+                      form.incomeDestination === '__exit__' ? 'bg-red-500/20 text-red-400 border border-red-500/40' : 'bg-[#0f172a] text-slate-500 border border-[#334155]'
                     }`}>
                     ↗ {t('Sale del portafolio', 'Exits portfolio')}
                   </button>
                   <button type="button" onClick={() => set('incomeDestination', '')}
                     className={`flex-1 px-2 py-2 text-[11px] font-medium rounded-lg transition-all ${
-                      form.incomeDestination !== '__exit__' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#0b1120] text-slate-500 border border-[#1e2d45]'
+                      form.incomeDestination !== '__exit__' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#0f172a] text-slate-500 border border-[#334155]'
                     }`}>
                     🔄 {t('Queda en el portafolio', 'Stays in portfolio')}
                   </button>
@@ -387,7 +387,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                 {form.incomeDestination !== '__exit__' && (
                   <>
                     <select value={form.incomeDestination} onChange={(e) => set('incomeDestination', e.target.value)}
-                      className="w-full px-2.5 py-1.5 bg-[#0b1120] border border-[#1e2d45] rounded text-sm text-white focus:outline-none focus:border-blue-500/50">
+                      className="w-full px-2.5 py-1.5 bg-[#0f172a] border border-[#334155] rounded text-sm text-white focus:outline-none focus:border-blue-500/50">
                       <option value="">{t('-- Selecciona cuenta destino --', '-- Select destination --')}</option>
                       {existingItems.filter((it) => it.id !== form.symbol).map((it) => (
                         <option key={it.id} value={it.id}>
@@ -404,11 +404,11 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                 <label className="text-xs text-slate-400 mb-1 block">{t('Fecha de venta', 'Sale date')}</label>
                 <input value={form.acquisitionDate} onChange={(e) => set('acquisitionDate', e.target.value)}
                   type="date"
-                  className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
+                  className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={onClose}
-                  className="flex-1 py-2.5 border border-[#1e2d45] text-slate-300 rounded-lg hover:bg-[#1a2540] transition-colors text-sm">
+                  className="flex-1 py-2.5 border border-[#334155] text-slate-300 rounded-lg hover:bg-[#283548] transition-colors text-sm">
                   {t('Cancelar', 'Cancel')}
                 </button>
                 <button type="submit" disabled={saving}
@@ -433,13 +433,13 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                 </label>
                 <input value={form.symbol} onChange={(e) => set('symbol', e.target.value)}
                   placeholder={type === 'Stock' ? 'AAPL' : type === 'Crypto' ? 'BTC-USD' : 'VOO'}
-                  className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                  className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
               </div>
               <div>
                 <label className="text-xs text-slate-400 mb-1 block">{t('Nombre', 'Name')}</label>
                 <input value={form.name} onChange={(e) => set('name', e.target.value)}
                   placeholder={type === 'Stock' ? 'Apple Inc' : type === 'Crypto' ? 'Bitcoin' : 'Vanguard S&P 500'}
-                  className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                  className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
               </div>
             </div>
           )}
@@ -451,13 +451,13 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                 <label className="text-xs text-slate-400 mb-1 block">{t('Cantidad', 'Quantity')} *</label>
                 <input value={form.quantity} onChange={(e) => set('quantity', e.target.value)}
                   placeholder={type === 'Crypto' ? '0.5' : '10'} type="number" step="any"
-                  className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                  className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
               </div>
               <div>
                 <label className="text-xs text-slate-400 mb-1 block">{t('Precio de entrada', 'Entry price')} *</label>
                 <input value={form.purchasePrice} onChange={(e) => set('purchasePrice', e.target.value)}
                   placeholder="150.00" type="number" step="any"
-                  className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                  className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
               </div>
             </div>
           )}
@@ -502,7 +502,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                     <span key={i} className={`px-1.5 py-0.5 text-[10px] rounded ${
                       divInfo.paymentMonths?.includes(i)
                         ? 'bg-blue-500/25 text-blue-400 border border-blue-500/40'
-                        : 'bg-[#0b1120] text-slate-600 border border-[#1e2d45]'
+                        : 'bg-[#0f172a] text-slate-600 border border-[#334155]'
                     }`}>{label}</span>
                   ))}
                 </div>
@@ -512,11 +512,11 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                 <div className="flex gap-2">
                   <button type="button" onClick={() => set('dividendAction', 'cash')}
                     className={`flex-1 px-2 py-1.5 text-[10px] font-medium rounded transition-all ${
-                      form.dividendAction === 'cash' ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40' : 'bg-[#0b1120] text-slate-500 border border-[#1e2d45]'
+                      form.dividendAction === 'cash' ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40' : 'bg-[#0f172a] text-slate-500 border border-[#334155]'
                     }`}>💵 {t('Efectivo', 'Cash')}</button>
                   <button type="button" onClick={() => set('dividendAction', 'reinvest')}
                     className={`flex-1 px-2 py-1.5 text-[10px] font-medium rounded transition-all ${
-                      form.dividendAction === 'reinvest' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#0b1120] text-slate-500 border border-[#1e2d45]'
+                      form.dividendAction === 'reinvest' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#0f172a] text-slate-500 border border-[#334155]'
                     }`}>🔄 {t('Reinvertir', 'Reinvest')}</button>
                 </div>
                 {form.dividendAction === 'cash' && (
@@ -545,20 +545,20 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                 <label className="text-xs text-slate-400 mb-1 block">{t('Nombre / Descripción', 'Name / Description')} *</label>
                 <input value={form.name} onChange={(e) => set('name', e.target.value)}
                   placeholder={t('Apartamento Centro Zona 10', 'Downtown Apartment')}
-                  className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                  className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-slate-400 mb-1 block">{t('Valor de compra', 'Purchase value')} *</label>
                   <input value={form.purchasePrice} onChange={(e) => set('purchasePrice', e.target.value)}
                     placeholder="85000" type="number" step="any"
-                    className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                    className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
                 </div>
                 <div>
                   <label className="text-xs text-slate-400 mb-1 block">{t('Valor actual estimado', 'Est. current value')}</label>
                   <input value={form.currentPrice} onChange={(e) => set('currentPrice', e.target.value)}
                     placeholder="95000" type="number" step="any"
-                    className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                    className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
                 </div>
               </div>
               <p className="text-[10px] text-slate-600 -mt-2">
@@ -579,20 +579,20 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                       if (hint && form.currency === 'USD') set('currency', hint)
                     }}
                     placeholder={t('BAM, BI, Banrural...', 'Chase, BoA...')}
-                    className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                    className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
                 </div>
                 <div>
                   <label className="text-xs text-slate-400 mb-1 block">{t('Nombre de cuenta', 'Account name')}</label>
                   <input value={form.name} onChange={(e) => set('name', e.target.value)}
                     placeholder={t('Cuenta de ahorro', 'Savings account')}
-                    className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                    className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
                 </div>
               </div>
               <div>
                 <label className="text-xs text-slate-400 mb-1 block">{t('Saldo actual', 'Current balance')} *</label>
                 <input value={form.purchasePrice} onChange={(e) => set('purchasePrice', e.target.value)}
                   placeholder="5000" type="number" step="any"
-                  className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                  className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
               </div>
               <p className="text-[10px] text-slate-600 -mt-2">
                 {t('Puedes actualizar el saldo en cualquier momento editando la cuenta.', 'You can update the balance anytime by editing the account.')}
@@ -607,20 +607,20 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                 <label className="text-xs text-slate-400 mb-1 block">{t('Nombre', 'Name')} *</label>
                 <input value={form.name} onChange={(e) => set('name', e.target.value)}
                   placeholder={t('CDT Banco Industrial', 'Certificate of Deposit')}
-                  className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                  className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-slate-400 mb-1 block">{t('Monto invertido', 'Amount invested')} *</label>
                   <input value={form.purchasePrice} onChange={(e) => set('purchasePrice', e.target.value)}
                     placeholder="10000" type="number" step="any"
-                    className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                    className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
                 </div>
                 <div>
                   <label className="text-xs text-slate-400 mb-1 block">{t('Valor actual', 'Current value')}</label>
                   <input value={form.currentPrice} onChange={(e) => set('currentPrice', e.target.value)}
                     placeholder="10800" type="number" step="any"
-                    className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                    className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
                 </div>
               </div>
             </>
@@ -633,12 +633,12 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                 <label className="text-xs text-slate-400 mb-1 block">{t('Institución', 'Institution')}</label>
                 <input value={form.institution} onChange={(e) => set('institution', e.target.value)}
                   placeholder={isProperty ? t('N/A', 'N/A') : 'IBKR, Binance...'}
-                  className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                  className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
               </div>
               <div>
                 <label className="text-xs text-slate-400 mb-1 block">{t('Moneda', 'Currency')}</label>
                 <select value={form.currency} onChange={(e) => set('currency', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
+                  className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
                   {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
@@ -650,7 +650,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
             <div>
               <label className="text-xs text-slate-400 mb-1 block">{t('Moneda', 'Currency')}</label>
               <select value={form.currency} onChange={(e) => set('currency', e.target.value)}
-                className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
+                className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
                 {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
@@ -658,7 +658,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
 
           {/* Income / Dividends for non-market assets */}
           {hasIncome && (
-            <div className="border border-[#1e2d45] rounded-lg p-3 space-y-3">
+            <div className="border border-[#334155] rounded-lg p-3 space-y-3">
               <label className="text-xs text-emerald-400 font-medium flex items-center gap-1.5">
                 💰 {isProperty ? t('Ingreso por renta', 'Rental income') : isBank ? t('Intereses', 'Interest') : t('Rendimiento / Dividendos', 'Yield / Dividends')}
                 <span className="text-slate-600 font-normal">({t('opcional', 'optional')})</span>
@@ -667,11 +667,11 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
               <div className="flex gap-1 mb-2">
                 <button type="button" onClick={() => set('incomeMode', 'fixed')}
                   className={`flex-1 px-2 py-1.5 text-[10px] font-medium rounded transition-all ${
-                    form.incomeMode === 'fixed' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#0b1120] text-slate-500 border border-[#1e2d45]'
+                    form.incomeMode === 'fixed' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#0f172a] text-slate-500 border border-[#334155]'
                   }`}>{t('Monto fijo', 'Fixed amount')}</button>
                 <button type="button" onClick={() => set('incomeMode', 'percent')}
                   className={`flex-1 px-2 py-1.5 text-[10px] font-medium rounded transition-all ${
-                    form.incomeMode === 'percent' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#0b1120] text-slate-500 border border-[#1e2d45]'
+                    form.incomeMode === 'percent' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#0f172a] text-slate-500 border border-[#334155]'
                   }`}>{t('% del saldo', '% of balance')}</button>
               </div>
 
@@ -682,14 +682,14 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                       <label className="text-[10px] text-slate-500 mb-1 block">{t('Monto por pago', 'Amount per payment')}</label>
                       <input value={form.incomeAmount} onChange={(e) => set('incomeAmount', e.target.value)}
                         placeholder={isProperty ? '800' : '48'} type="number" step="any"
-                        className="w-full px-2.5 py-1.5 bg-[#0b1120] border border-[#1e2d45] rounded text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                        className="w-full px-2.5 py-1.5 bg-[#0f172a] border border-[#334155] rounded text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
                     </>
                   ) : (
                     <>
                       <label className="text-[10px] text-slate-500 mb-1 block">{t('Tasa anual %', 'Annual rate %')}</label>
                       <input value={form.incomeRate} onChange={(e) => set('incomeRate', e.target.value)}
                         placeholder="5.5" type="number" step="any"
-                        className="w-full px-2.5 py-1.5 bg-[#0b1120] border border-[#1e2d45] rounded text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                        className="w-full px-2.5 py-1.5 bg-[#0f172a] border border-[#334155] rounded text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
                       <p className="text-[9px] text-slate-600 mt-0.5">{t('Se divide entre los meses seleccionados', 'Divided among selected months')}</p>
                     </>
                   )}
@@ -698,7 +698,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                   <label className="text-[10px] text-slate-500 mb-1 block">{t('Día de pago', 'Pay day')}</label>
                   <input value={form.incomePayDay} onChange={(e) => set('incomePayDay', e.target.value)}
                     placeholder="10" type="number" min="1" max="31"
-                    className="w-full px-2.5 py-1.5 bg-[#0b1120] border border-[#1e2d45] rounded text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                    className="w-full px-2.5 py-1.5 bg-[#0f172a] border border-[#334155] rounded text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
                 </div>
               </div>
 
@@ -715,7 +715,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                       <button key={m} type="button"
                         onClick={() => set('incomeMonths', active ? form.incomeMonths.filter((x) => x !== m) : [...form.incomeMonths, m].sort((a, b) => a - b))}
                         className={`px-2 py-1 text-[10px] font-medium rounded transition-all ${
-                          active ? 'bg-blue-500/25 text-blue-400 border border-blue-500/40' : 'bg-[#0b1120] text-slate-500 border border-[#1e2d45] hover:text-slate-300'
+                          active ? 'bg-blue-500/25 text-blue-400 border border-blue-500/40' : 'bg-[#0f172a] text-slate-500 border border-[#334155] hover:text-slate-300'
                         }`}>
                         {l}
                       </button>
@@ -737,11 +737,11 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                 </label>
                 <input value={form.capitalReturn} onChange={(e) => set('capitalReturn', e.target.value)}
                   placeholder={t('50 (reduce tu inversión cada pago)', '50 (reduces your investment each payment)')} type="number" step="any"
-                  className="w-full px-2.5 py-1.5 bg-[#0b1120] border border-[#1e2d45] rounded text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                  className="w-full px-2.5 py-1.5 bg-[#0f172a] border border-[#334155] rounded text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
               </div>
 
               {/* Destination accounts */}
-              <div className="space-y-2 pt-2 border-t border-[#1e2d45]/50">
+              <div className="space-y-2 pt-2 border-t border-[#334155]/50">
                 <label className="text-[10px] text-cyan-400 font-medium">{t('¿A dónde van los pagos?', 'Where do payments go?')}</label>
                 <div>
                   <label className="text-[10px] text-slate-500 mb-1 block">
@@ -749,7 +749,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                   </label>
                   {existingItems.length > 0 ? (
                     <select value={form.incomeDestination} onChange={(e) => set('incomeDestination', e.target.value)}
-                      className="w-full px-2.5 py-1.5 bg-[#0b1120] border border-[#1e2d45] rounded text-sm text-white focus:outline-none focus:border-blue-500/50">
+                      className="w-full px-2.5 py-1.5 bg-[#0f172a] border border-[#334155] rounded text-sm text-white focus:outline-none focus:border-blue-500/50">
                       <option value="">{t('-- Selecciona cuenta --', '-- Select account --')}</option>
                       {existingItems.map((it) => (
                         <option key={it.id || it.symbol} value={it.id || it.symbol}>
@@ -770,7 +770,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                     </label>
                     {existingItems.length > 0 ? (
                       <select value={form.capitalDestination} onChange={(e) => set('capitalDestination', e.target.value)}
-                        className="w-full px-2.5 py-1.5 bg-[#0b1120] border border-[#1e2d45] rounded text-sm text-white focus:outline-none focus:border-blue-500/50">
+                        className="w-full px-2.5 py-1.5 bg-[#0f172a] border border-[#334155] rounded text-sm text-white focus:outline-none focus:border-blue-500/50">
                         <option value="">{t('-- Selecciona cuenta --', '-- Select account --')}</option>
                         {existingItems.map((it) => (
                           <option key={it.id || it.symbol} value={it.id || it.symbol}>
@@ -799,25 +799,25 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
             </label>
             <input value={form.acquisitionDate} onChange={(e) => set('acquisitionDate', e.target.value)}
               type="date"
-              className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
+              className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
             {!form.acquisitionDate && (
               <p className="text-[9px] text-amber-400/70 mt-1">{t('Sin fecha, el rendimiento no se calcula correctamente', 'Without a date, returns cannot be calculated correctly')}</p>
             )}
           </div>
 
           {/* New money toggle */}
-          <div className="border border-[#1e2d45] rounded-lg p-3 space-y-2">
+          <div className="border border-[#334155] rounded-lg p-3 space-y-2">
             <label className="text-xs text-slate-400 mb-2 block font-medium">{t('¿Es dinero nuevo?', 'Is this new money?')}</label>
             <div className="flex gap-2">
               <button type="button" onClick={() => setIsNewMoney(true)}
                 className={`flex-1 px-2 py-2 text-[11px] font-medium rounded-lg transition-all ${
-                  isNewMoney ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#0b1120] text-slate-500 border border-[#1e2d45]'
+                  isNewMoney ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#0f172a] text-slate-500 border border-[#334155]'
                 }`}>
                 💵 {t('Sí, dinero nuevo', 'Yes, new money')}
               </button>
               <button type="button" onClick={() => setIsNewMoney(false)}
                 className={`flex-1 px-2 py-2 text-[11px] font-medium rounded-lg transition-all ${
-                  !isNewMoney ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#0b1120] text-slate-500 border border-[#1e2d45]'
+                  !isNewMoney ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#0f172a] text-slate-500 border border-[#334155]'
                 }`}>
                 🔄 {t('Ya estaba en el portafolio', 'Already in portfolio')}
               </button>
@@ -831,7 +831,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
               <div>
                 <label className="text-[10px] text-slate-500 mb-1 block">{t('¿De qué cuenta sale el dinero?', 'Which account is the source?')}</label>
                 <select value={form.capitalDestination} onChange={(e) => set('capitalDestination', e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-[#0b1120] border border-[#1e2d45] rounded text-sm text-white focus:outline-none focus:border-blue-500/50">
+                  className="w-full px-2.5 py-1.5 bg-[#0f172a] border border-[#334155] rounded text-sm text-white focus:outline-none focus:border-blue-500/50">
                   <option value="">{t('-- Selecciona origen --', '-- Select source --')}</option>
                   {existingItems.map((it) => (
                     <option key={it.id} value={it.id}>
@@ -845,7 +845,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
 
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose}
-              className="flex-1 py-2.5 border border-[#1e2d45] text-slate-300 rounded-lg hover:bg-[#1a2540] transition-colors text-sm">
+              className="flex-1 py-2.5 border border-[#334155] text-slate-300 rounded-lg hover:bg-[#283548] transition-colors text-sm">
               {t('Cancelar', 'Cancel')}
             </button>
             <button type="submit" disabled={saving}

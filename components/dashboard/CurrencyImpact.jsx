@@ -65,7 +65,7 @@ export default function CurrencyImpact({ items, convert, baseCurrency, rates, la
   const baseRate = rates[baseCurrency] || 1
 
   return (
-    <div className="bg-[#131c2e] rounded-xl border border-[#1e2d45] p-5">
+    <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-5">
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
         <span className="w-2 h-2 rounded-full bg-blue-400" />
         {t('IMPACTO CAMBIARIO', 'CURRENCY IMPACT')}
@@ -85,7 +85,7 @@ export default function CurrencyImpact({ items, convert, baseCurrency, rates, la
             className="h-full first:rounded-l-full last:rounded-r-full transition-all"
             style={{
               width: `${Math.max(g.pct, 1)}%`,
-              backgroundColor: g.currency === baseCurrency ? '#334155' : PALETTE[i % PALETTE.length],
+              backgroundColor: g.currency === baseCurrency ? '#475569' : PALETTE[i % PALETTE.length],
             }}
           />
         ))}
@@ -97,7 +97,7 @@ export default function CurrencyImpact({ items, convert, baseCurrency, rates, la
           <span key={g.currency} className="flex items-center gap-1 text-[10px] text-slate-400">
             <span
               className="w-2 h-2 rounded-full shrink-0"
-              style={{ backgroundColor: g.currency === baseCurrency ? '#334155' : PALETTE[i % PALETTE.length] }}
+              style={{ backgroundColor: g.currency === baseCurrency ? '#475569' : PALETTE[i % PALETTE.length] }}
             />
             {g.currency} {g.pct.toFixed(0)}%
           </span>
@@ -113,7 +113,7 @@ export default function CurrencyImpact({ items, convert, baseCurrency, rates, la
           {sensitivity.map((s) => {
             const isNeg = s.impact < 0
             return (
-              <div key={s.pct} className="bg-[#0b1120] rounded-lg px-3 py-2 border border-[#1e2d45]/50">
+              <div key={s.pct} className="bg-[#0f172a] rounded-lg px-3 py-2 border border-[#334155]/50">
                 <span className="text-[9px] text-slate-500 block">
                   {s.pct > 0
                     ? t(`${baseCurrency} se debilita ${s.pct}%`, `${baseCurrency} weakens ${s.pct}%`)
@@ -141,7 +141,7 @@ export default function CurrencyImpact({ items, convert, baseCurrency, rates, la
             {foreignGroups.map((g, i) => {
               const rate = rates[g.currency] ? (baseRate / rates[g.currency]) : null
               return (
-                <div key={g.currency} className="bg-[#0b1120] rounded-lg p-3 border border-[#1e2d45]/50">
+                <div key={g.currency} className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]/50">
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-2">
                       <span
@@ -165,7 +165,7 @@ export default function CurrencyImpact({ items, convert, baseCurrency, rates, la
                   )}
                   <div className="flex flex-wrap gap-1.5">
                     {g.items.map((item) => (
-                      <span key={item.symbol} className="text-[9px] text-slate-400 bg-[#131c2e] px-1.5 py-0.5 rounded">
+                      <span key={item.symbol} className="text-[9px] text-slate-400 bg-[#1e293b] px-1.5 py-0.5 rounded">
                         {item.symbol}
                       </span>
                     ))}

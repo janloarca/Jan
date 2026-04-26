@@ -42,7 +42,7 @@ function MiniChart({ points, height, width, pad, lineColor, baselineY, mode, yTi
         }}>
         {yTicks.map((tk, i) => (
           <g key={i}>
-            <line x1={pad.left} y1={tk.y} x2={width - pad.right} y2={tk.y} stroke="#1e2d45" strokeDasharray="4 4" />
+            <line x1={pad.left} y1={tk.y} x2={width - pad.right} y2={tk.y} stroke="#334155" strokeDasharray="4 4" />
             <text x={pad.left - 8} y={tk.y + 4} textAnchor="end" fill="#475569" fontSize="9" fontFamily="system-ui">
               {mode === 'return' ? `${tk.val.toFixed(1)}%` : formatCompact(tk.val)}
             </text>
@@ -62,8 +62,8 @@ function MiniChart({ points, height, width, pad, lineColor, baselineY, mode, yTi
         <path d={line} fill="none" stroke={lineColor} strokeWidth="2" strokeLinecap="round" />
         {hp && (
           <g>
-            <line x1={hp.x} y1={pad.top} x2={hp.x} y2={height - pad.bottom} stroke="#334155" strokeDasharray="4 3" />
-            <circle cx={hp.x} cy={hp.y} r="4" fill={lineColor} stroke="#0b1120" strokeWidth="2" />
+            <line x1={hp.x} y1={pad.top} x2={hp.x} y2={height - pad.bottom} stroke="#475569" strokeDasharray="4 3" />
+            <circle cx={hp.x} cy={hp.y} r="4" fill={lineColor} stroke="#0f172a" strokeWidth="2" />
           </g>
         )}
         {showXLabels && xLabels.map((xl, i) => (
@@ -256,7 +256,7 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
   const returnColor = returnPositive ? '#3b82f6' : '#ef4444'
 
   const periodSelector = (
-    <div className="flex gap-0.5 bg-[#0b1120] rounded-lg p-0.5">
+    <div className="flex gap-0.5 bg-[#0f172a] rounded-lg p-0.5">
       {periods.map((p) => (
         <button key={p} onClick={() => setPeriod(p)}
           className={`px-2 py-1 text-[11px] font-medium rounded-md transition-all ${
@@ -268,7 +268,7 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
 
   if (loading) {
     return (
-      <div className="bg-[#131c2e] rounded-xl border border-[#1e2d45] p-4">
+      <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-blue-400 pulse-dot" />
@@ -288,7 +288,7 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
 
   if (chartData.length < 2) {
     return (
-      <div className="bg-[#131c2e] rounded-xl border border-[#1e2d45] p-4">
+      <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-blue-400 pulse-dot" />
@@ -304,7 +304,7 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
   }
 
   return (
-    <div className="bg-[#131c2e] rounded-xl border border-[#1e2d45] p-4">
+    <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-4">
       {/* Shared header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
@@ -337,7 +337,7 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
       )}
 
       {/* Divider */}
-      <div className="border-t border-dashed border-[#1e2d45] my-2" />
+      <div className="border-t border-dashed border-[#334155] my-2" />
 
       {/* Return section */}
       <div className="flex items-center gap-2 mb-1">

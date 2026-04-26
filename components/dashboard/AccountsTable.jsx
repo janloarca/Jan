@@ -62,7 +62,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
   const t = (es, en) => lang === 'es' ? es : en
 
   return (
-    <div className="bg-[#131c2e] rounded-xl border border-[#1e2d45] p-5">
+    <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-base font-semibold text-white">
           {t('Cuentas e Instrumentos', 'Accounts & Instruments')}
@@ -87,7 +87,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
             className={`px-3 py-1.5 text-[11px] font-medium rounded-full transition-colors ${
               filter === tab.key
                 ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                : 'text-slate-400 border border-slate-600/50 hover:bg-[#1a2540]'
+                : 'text-slate-400 border border-slate-600/50 hover:bg-[#283548]'
             }`}>
             {tab.icon} {tab.label}
           </button>
@@ -105,7 +105,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
             className={`px-2.5 py-1 text-[10px] font-medium rounded-md transition-colors ${
               breakdown === opt.key
                 ? 'bg-slate-600 text-white'
-                : 'text-slate-400 border border-slate-600/50 hover:bg-[#1a2540]'
+                : 'text-slate-400 border border-slate-600/50 hover:bg-[#283548]'
             }`}>
             {opt.label}
           </button>
@@ -114,7 +114,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
 
       {/* Breakdown summary */}
       {breakdownData && (
-        <div className="mb-4 p-3 bg-[#0b1120] rounded-lg border border-[#1e2d45]/50">
+        <div className="mb-4 p-3 bg-[#0f172a] rounded-lg border border-[#334155]/50">
           <div className="space-y-1.5">
             {breakdownData.map((row) => (
               <div key={row.name} className="flex items-center gap-3">
@@ -140,7 +140,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="text-slate-500 border-b border-[#1e2d45]">
+              <tr className="text-slate-500 border-b border-[#334155]">
                 <th className="text-left py-2 font-medium cursor-pointer hover:text-slate-300" onClick={() => setSortBy('name')}>
                   {t('Instrumento', 'Instrument')} {sortBy === 'name' ? '↕' : ''}
                 </th>
@@ -169,7 +169,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                 const retAbs = hasReturn ? (item.currentPrice - item.purchasePrice) * (item.quantity || 0) : null
 
                 return (
-                  <tr key={item.id || item.symbol} className="border-b border-[#1e2d45]/30 hover:bg-[#1a2540]/50 transition-colors group">
+                  <tr key={item.id || item.symbol} className="border-b border-[#334155]/30 hover:bg-[#283548]/50 transition-colors group">
                     <td className="py-3">
                       <div className="flex items-center gap-0">
                         {/* Left color bar */}
@@ -272,7 +272,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
           </table>
           {filtered.length > 10 && (
             <button onClick={() => setShowAll(!showAll)}
-              className="w-full mt-3 py-2 text-xs text-slate-400 hover:text-emerald-400 border border-[#1e2d45]/50 rounded-lg hover:bg-[#1a2540] transition-colors">
+              className="w-full mt-3 py-2 text-xs text-slate-400 hover:text-emerald-400 border border-[#334155]/50 rounded-lg hover:bg-[#283548] transition-colors">
               {showAll
                 ? t('Mostrar menos', 'Show less')
                 : t(`Ver todos (${filtered.length})`, `View all (${filtered.length})`)}
