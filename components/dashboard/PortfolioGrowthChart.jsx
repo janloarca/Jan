@@ -3,9 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { formatCurrency, formatCompact, formatShortDate, formatDate, computeModifiedDietz } from './utils'
 
-function MiniChart({ points, values, height, width, pad, lineColor, baselineY, mode, yTicks, xLabels, chartData, hoverIdx, setHoverIdx, returnData, period, lang, formatCompact }) {
-  const t = (es, en) => lang === 'es' ? es : en
-
+function MiniChart({ points, height, width, pad, lineColor, baselineY, mode, yTicks, xLabels, chartData, hoverIdx, setHoverIdx, returnData, period, lang, showXLabels = true }) {
   function smooth(pts) {
     if (pts.length < 3) return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
     const tension = 0.3
@@ -64,12 +62,12 @@ function MiniChart({ points, values, height, width, pad, lineColor, baselineY, m
         <path d={line} fill="none" stroke={lineColor} strokeWidth="2" strokeLinecap="round" />
         {hp && (
           <g>
-            <line x1={hp.x} y1={pad.top} x2={hp.x} y2={pad.top + (height - pad.top - pad.bottom)} stroke="#334155" strokeDasharray="4 3" />
+            <line x1={hp.x} y1={pad.top} x2={hp.x} y2={height - pad.bottom} stroke="#334155" strokeDasharray="4 3" />
             <circle cx={hp.x} cy={hp.y} r="4" fill={lineColor} stroke="#0b1120" strokeWidth="2" />
           </g>
         )}
-        {xLabels.map((xl, i) => (
-          <text key={i} x={xl.x} y={height - 8} textAnchor="middle" fill="#475569" fontSize="9" fontFamily="system-ui">{xl.label}</text>
+        {showXLabels && xLabels.map((xl, i) => (
+          <text key={i} x={xl.x} y={height - 6} textAnchor="middle" fill="#475569" fontSize="9" fontFamily="system-ui">{xl.label}</text>
         ))}
       </svg>
       {hd && hp && (
@@ -122,9 +120,9 @@ function buildChartGeometry(values, mode, height, width, pad) {
     ? pad.top + ch - ((0 - adjustedMin) / range) * ch
     : pad.top + ch
 
-  const yTicks = Array.from({ length: 5 }, (_, i) => ({
-    val: adjustedMin + (range * i) / 4,
-    y: pad.top + ch - (i / 4) * ch,
+  const yTicks = Array.from({ length: 4 }, (_, i) => ({
+    val: adjustedMin + (range * i) / 3,
+    y: pad.top + ch - (i / 3) * ch,
   }))
 
   return { points, baselineY, yTicks }
@@ -132,8 +130,7 @@ function buildChartGeometry(values, mode, height, width, pad) {
 
 export default function PortfolioGrowthChart({ items, transactions, lang, convert, baseCurrency }) {
   const [period, setPeriod] = useState('YTD')
-  const [hoverGrowth, setHoverGrowth] = useState(null)
-  const [hoverReturn, setHoverReturn] = useState(null)
+  const [hoverIdx, setHoverIdx] = useState(null)
   const [dataPoints, setDataPoints] = useState([])
   const [loading, setLoading] = useState(false)
   const [staticTotal, setStaticTotal] = useState(0)
@@ -209,9 +206,11 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
     return result
   }, [chartData, transactions, convert, baseCurrency])
 
-  const height = 200
-  const pad = { top: 16, right: 16, bottom: 30, left: 50 }
   const width = 650
+  const growthHeight = 140
+  const returnHeight = 140
+  const growthPad = { top: 12, right: 16, bottom: 10, left: 50 }
+  const returnPad = { top: 12, right: 16, bottom: 28, left: 50 }
 
   const step = Math.max(1, Math.floor(chartData.length / 6))
   const xLabels = useMemo(() => {
@@ -228,18 +227,13 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
   const growthValues = useMemo(() => chartData.map((d) => d.value), [chartData])
   const growthGeo = useMemo(() => {
     if (growthValues.length < 2) return null
-    return buildChartGeometry(growthValues, 'growth', height, width, pad)
+    return buildChartGeometry(growthValues, 'growth', growthHeight, width, growthPad)
   }, [growthValues])
 
   const returnGeo = useMemo(() => {
     if (returnData.length < 2) return null
-    return buildChartGeometry(returnData, 'return', height, width, pad)
+    return buildChartGeometry(returnData, 'return', returnHeight, width, returnPad)
   }, [returnData])
-
-  const growthXLabels = useMemo(() => {
-    if (!growthGeo) return []
-    return xLabels.map((xl) => ({ ...xl, x: growthGeo.points[xl.idx]?.x }))
-  }, [xLabels, growthGeo])
 
   const returnXLabels = useMemo(() => {
     if (!returnGeo) return []
@@ -256,6 +250,11 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
   const growthPct = firstVal > 0 ? (growthAbs / firstVal) * 100 : 0
   const lastReturn = returnData.length > 0 ? returnData[returnData.length - 1] : 0
 
+  const growthPositive = growthPct >= 0
+  const returnPositive = lastReturn >= 0
+  const growthColor = growthPositive ? '#10b981' : '#ef4444'
+  const returnColor = returnPositive ? '#3b82f6' : '#ef4444'
+
   const periodSelector = (
     <div className="flex gap-0.5 bg-[#0b1120] rounded-lg p-0.5">
       {periods.map((p) => (
@@ -269,15 +268,15 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
 
   if (loading) {
     return (
-      <div className="bg-[#131c2e] rounded-xl border border-[#1e2d45] p-5">
+      <div className="bg-[#131c2e] rounded-xl border border-[#1e2d45] p-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400 pulse-dot" />
-            Portfolio Growth
+            Portfolio
           </h3>
           {periodSelector}
         </div>
-        <div className="flex items-center justify-center min-h-[200px]">
+        <div className="flex items-center justify-center min-h-[160px]">
           <div className="flex items-center gap-2 text-slate-500 text-sm">
             <div className="w-4 h-4 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
             {t('Cargando datos...', 'Loading data...')}
@@ -289,86 +288,73 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
 
   if (chartData.length < 2) {
     return (
-      <div className="bg-[#131c2e] rounded-xl border border-[#1e2d45] p-5">
+      <div className="bg-[#131c2e] rounded-xl border border-[#1e2d45] p-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400 pulse-dot" />
-            Portfolio Growth
+            Portfolio
           </h3>
           {periodSelector}
         </div>
-        <div className="flex items-center justify-center min-h-[200px] text-slate-500 text-sm">
+        <div className="flex items-center justify-center min-h-[160px] text-slate-500 text-sm">
           {t('Agrega activos para ver la gráfica.', 'Add assets to see the chart.')}
         </div>
       </div>
     )
   }
 
-  const growthPositive = growthPct >= 0
-  const returnPositive = lastReturn >= 0
-  const growthColor = growthPositive ? '#10b981' : '#ef4444'
-  const returnColor = returnPositive ? '#3b82f6' : '#ef4444'
-
   return (
-    <div className="space-y-4">
-      {/* Portfolio Growth (AUM) */}
-      <div className="bg-[#131c2e] rounded-xl border border-[#1e2d45] p-5">
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 mb-2">
-          <div>
-            <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 pulse-dot" />
-              Portfolio Growth
-              <span className="text-slate-600 text-xs">{dateRange}</span>
-            </h3>
-            <div className="flex items-center gap-2 mt-1">
-              <span className={`text-xl font-bold ${growthPositive ? 'text-emerald-400' : 'text-red-400'}`}>
-                {growthPositive ? '+' : ''}{formatCompact(growthAbs)}
-              </span>
-              <span className={`text-sm ${growthPositive ? 'text-emerald-500/70' : 'text-red-500/70'}`}>
-                {growthPositive ? '+' : ''}{growthPct.toFixed(2)}%
-              </span>
-              <span className="text-xs text-slate-500">{period}</span>
-            </div>
-          </div>
-          {periodSelector}
-        </div>
-        {growthGeo && (
-          <MiniChart
-            points={growthGeo.points} values={growthValues} height={height} width={width} pad={pad}
-            lineColor={growthColor} baselineY={growthGeo.baselineY} mode="growth"
-            yTicks={growthGeo.yTicks} xLabels={growthXLabels} chartData={chartData}
-            hoverIdx={hoverGrowth} setHoverIdx={setHoverGrowth} returnData={returnData}
-            period={period} lang={lang} formatCompact={formatCompact}
-          />
-        )}
+    <div className="bg-[#131c2e] rounded-xl border border-[#1e2d45] p-4">
+      {/* Shared header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+        <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 pulse-dot" />
+          Portfolio
+          <span className="text-slate-600 text-[10px]">{dateRange}</span>
+        </h3>
+        {periodSelector}
       </div>
 
-      {/* Portfolio Return (%) */}
+      {/* Growth section */}
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Growth</span>
+        <span className={`text-sm font-bold ${growthPositive ? 'text-emerald-400' : 'text-red-400'}`}>
+          {growthPositive ? '+' : ''}{formatCompact(growthAbs)}
+        </span>
+        <span className={`text-[11px] ${growthPositive ? 'text-emerald-500/70' : 'text-red-500/70'}`}>
+          {growthPositive ? '+' : ''}{growthPct.toFixed(2)}%
+        </span>
+        <span className="text-[10px] text-slate-600">{period}</span>
+      </div>
+      {growthGeo && (
+        <MiniChart
+          points={growthGeo.points} height={growthHeight} width={width} pad={growthPad}
+          lineColor={growthColor} baselineY={growthGeo.baselineY} mode="growth"
+          yTicks={growthGeo.yTicks} xLabels={[]} chartData={chartData}
+          hoverIdx={hoverIdx} setHoverIdx={setHoverIdx} returnData={returnData}
+          period={period} lang={lang} showXLabels={false}
+        />
+      )}
+
+      {/* Divider */}
+      <div className="border-t border-dashed border-[#1e2d45] my-2" />
+
+      {/* Return section */}
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Return</span>
+        <span className={`text-sm font-bold ${returnPositive ? 'text-blue-400' : 'text-red-400'}`}>
+          {returnPositive ? '+' : ''}{lastReturn.toFixed(2)}%
+        </span>
+        <span className="text-[10px] text-slate-600">{period} · Modified Dietz</span>
+      </div>
       {returnGeo && (
-        <div className="bg-[#131c2e] rounded-xl border border-[#1e2d45] p-5">
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 mb-2">
-            <div>
-              <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-blue-400" />
-                Portfolio Return
-                <span className="text-slate-600 text-xs">{dateRange}</span>
-              </h3>
-              <div className="flex items-center gap-2 mt-1">
-                <span className={`text-xl font-bold ${returnPositive ? 'text-blue-400' : 'text-red-400'}`}>
-                  {returnPositive ? '+' : ''}{lastReturn.toFixed(2)}%
-                </span>
-                <span className="text-xs text-slate-500">{period} · Modified Dietz</span>
-              </div>
-            </div>
-          </div>
-          <MiniChart
-            points={returnGeo.points} values={returnData} height={height} width={width} pad={pad}
-            lineColor={returnColor} baselineY={returnGeo.baselineY} mode="return"
-            yTicks={returnGeo.yTicks} xLabels={returnXLabels} chartData={chartData}
-            hoverIdx={hoverReturn} setHoverIdx={setHoverReturn} returnData={returnData}
-            period={period} lang={lang} formatCompact={formatCompact}
-          />
-        </div>
+        <MiniChart
+          points={returnGeo.points} height={returnHeight} width={width} pad={returnPad}
+          lineColor={returnColor} baselineY={returnGeo.baselineY} mode="return"
+          yTicks={returnGeo.yTicks} xLabels={returnXLabels} chartData={chartData}
+          hoverIdx={hoverIdx} setHoverIdx={setHoverIdx} returnData={returnData}
+          period={period} lang={lang} showXLabels={true}
+        />
       )}
     </div>
   )
