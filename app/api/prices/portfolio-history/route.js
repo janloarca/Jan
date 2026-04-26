@@ -52,8 +52,14 @@ async function fetchCryptoHistory(id, days) {
   }
 }
 
-const CRYPTO_DAYS = {
-  DAY: 1, '1W': 7, '1M': 30, '3M': 90, '6M': 180, '1Y': 365, YTD: 365, ALL: 'max',
+function getCryptoDays(period) {
+  const map = { DAY: 1, '1W': 7, '1M': 30, '3M': 90, '6M': 180, '1Y': 365, ALL: 'max' }
+  if (period === 'YTD') {
+    const now = new Date()
+    const jan1 = new Date(now.getFullYear(), 0, 1)
+    return Math.ceil((now - jan1) / 86400000)
+  }
+  return map[period] || 365
 }
 
 export async function POST(request) {
@@ -107,7 +113,7 @@ export async function POST(request) {
       const sym = it.symbol.toUpperCase()
       const id = CRYPTO_MAP[sym]
       if (!id) return
-      const days = CRYPTO_DAYS[per] || 365
+      const days = getCryptoDays(per)
       const history = await fetchCryptoHistory(id, days)
       if (history.length > 0) {
         allTimeSeries[sym] = {
