@@ -156,10 +156,11 @@ export default function DashboardPage() {
     }
   }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, snapshots, saveSnapshot, convert, baseCurrency])
 
-  const dividendsProcessedRef = useRef(false)
+  const dividendsProcessedRef = useRef(null)
 
   useEffect(() => {
-    if (dividendsProcessedRef.current) return
+    const todayKey = new Date().toISOString().split('T')[0]
+    if (dividendsProcessedRef.current === todayKey) return
     if (!user || dataLoading) return
     if (items.length === 0) return
 
@@ -169,7 +170,6 @@ export default function DashboardPage() {
     const today = new Date()
     const todayDay = today.getDate()
     const currentMonth = today.getMonth()
-    const todayKey = today.toISOString().split('T')[0]
 
     scheduled.forEach((it) => {
       const payDay = it.incomePayDay || 1
@@ -233,7 +233,7 @@ export default function DashboardPage() {
       }
     })
 
-    dividendsProcessedRef.current = true
+    dividendsProcessedRef.current = new Date().toISOString().split('T')[0]
   }, [user, dataLoading, items, transactions, addTransaction, addItem])
 
   const handleRefresh = useCallback(() => {
@@ -258,7 +258,10 @@ export default function DashboardPage() {
 
   const convertSnapshot = useCallback((val) => convert(val, 'USD', baseCurrency), [convert, baseCurrency])
 
-  const totalAssets = totalFromItems > 0 ? totalFromItems : (latestSnapshot ? convertSnapshot(latestSnapshot.totalActivosUSD ?? 0) : 0)
+  const totalAssets = useMemo(() =>
+    totalFromItems > 0 ? totalFromItems : (latestSnapshot ? convertSnapshot(latestSnapshot.totalActivosUSD ?? 0) : 0),
+    [totalFromItems, latestSnapshot, convertSnapshot]
+  )
   const netWorth = totalAssets
 
   const handleExport = useCallback(async () => {
@@ -296,7 +299,10 @@ export default function DashboardPage() {
     if (snapshots.length < 2) return null
     const oneYearAgo = new Date()
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
-    const yearAgoSnapshot = [...snapshots].reverse().find((s) => s.date && new Date(s.date) <= oneYearAgo)
+    let yearAgoSnapshot = null
+    for (let i = snapshots.length - 1; i >= 0; i--) {
+      if (snapshots[i].date && new Date(snapshots[i].date) <= oneYearAgo) { yearAgoSnapshot = snapshots[i]; break }
+    }
     if (!yearAgoSnapshot) return null
     const prev = convertSnapshot(yearAgoSnapshot.netWorthUSD ?? yearAgoSnapshot.totalActivosUSD ?? 0)
     if (prev === 0) return null

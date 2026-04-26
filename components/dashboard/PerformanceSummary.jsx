@@ -31,7 +31,9 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
           const data = await res.json()
           setHistoryPoints(data.dataPoints || [])
         }
-      } catch {}
+      } catch (err) {
+        console.error('Failed to fetch performance history:', err)
+      }
       if (!cancelled) setLoading(false)
     }
     fetchHistory()

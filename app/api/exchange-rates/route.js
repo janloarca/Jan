@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 
-export const dynamic = 'force-dynamic'
-export const revalidate = 0
+export const revalidate = 600
 
 let cachedRates = null
 let cacheTime = 0
@@ -34,7 +33,9 @@ async function fetchRates() {
         cacheTime = now
         return rates
       }
-    } catch {}
+    } catch (err) {
+      console.error('Exchange rate source failed:', err.message)
+    }
   }
 
   return cachedRates || { USD: 1 }

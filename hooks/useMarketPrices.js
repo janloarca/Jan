@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 
 export function useMarketPrices(items) {
   const [prices, setPrices] = useState({})
@@ -43,7 +43,9 @@ export function useMarketPrices(items) {
         const divData = await divRes.json()
         setDividends(divData.dividends || {})
       }
-    } catch {}
+    } catch (err) {
+      console.error('Failed to fetch market prices:', err)
+    }
     setLoading(false)
   }, [items])
 
@@ -53,34 +55,36 @@ export function useMarketPrices(items) {
     }
   }, [fetchPrices])
 
-  const enrichedItems = items.map((it) => {
-    const sym = (it.symbol || '').toUpperCase()
-    const priceData = prices[sym] || prices[it.symbol]
-    const divData = dividends[sym]
-    const enriched = { ...it }
+  const enrichedItems = useMemo(() => {
+    return items.map((it) => {
+      const sym = (it.symbol || '').toUpperCase()
+      const priceData = prices[sym] || prices[it.symbol]
+      const divData = dividends[sym]
+      const enriched = { ...it }
 
-    if (priceData) {
-      enriched.currentPrice = priceData.price
-      enriched.change7d = priceData.change7d
-      enriched.marketCurrency = priceData.currency
-    }
+      if (priceData) {
+        enriched.currentPrice = priceData.price
+        enriched.change7d = priceData.change7d
+        enriched.marketCurrency = priceData.currency
+      }
 
-    if (divData?.hasDividend && !it.incomeAmount && !it.incomeRate) {
-      enriched.dividendYield = divData.dividendYield
-      enriched.annualDividend = divData.annualDividend
-      if (!it.incomeMonths || it.incomeMonths.length === 0) {
-        enriched.incomeMonths = divData.paymentMonths
+      if (divData?.hasDividend && !it.incomeAmount && !it.incomeRate) {
+        enriched.dividendYield = divData.dividendYield
+        enriched.annualDividend = divData.annualDividend
+        if (!it.incomeMonths || it.incomeMonths.length === 0) {
+          enriched.incomeMonths = divData.paymentMonths
+        }
+        if (!it.incomeFrequency) {
+          enriched.incomeFrequency = divData.frequency
+        }
+        if (!it.incomeAmount) {
+          enriched.incomeAmount = divData.lastAmount || 0
+        }
       }
-      if (!it.incomeFrequency) {
-        enriched.incomeFrequency = divData.frequency
-      }
-      if (!it.incomeAmount) {
-        enriched.incomeAmount = divData.lastAmount || 0
-      }
-    }
 
-    return enriched
-  })
+      return enriched
+    })
+  }, [items, prices, dividends])
 
   return { enrichedItems, prices, loading, lastUpdate, refresh: fetchPrices }
 }

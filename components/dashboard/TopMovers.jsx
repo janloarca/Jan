@@ -20,33 +20,36 @@ export default function TopMovers({ items, transactions, lang }) {
     return map
   }, [transactions])
 
-  const withValue = items
-    .filter((it) => it.purchasePrice > 0 && it.quantity > 0)
-    .map((it) => {
-      const value = (it.currentPrice || it.purchasePrice) * it.quantity
-      const cost = it.purchasePrice * it.quantity
-      const sym = (it.symbol || '').toUpperCase()
-      const acqDate = it.acquisitionDate ? new Date(it.acquisitionDate).getTime() : 0
+  const withValue = useMemo(() => {
+    return items
+      .filter((it) => it.purchasePrice > 0 && it.quantity > 0)
+      .map((it) => {
+        const value = (it.currentPrice || it.purchasePrice) * it.quantity
+        const cost = it.purchasePrice * it.quantity
+        const sym = (it.symbol || '').toUpperCase()
+        const acqDate = it.acquisitionDate ? new Date(it.acquisitionDate).getTime() : 0
 
-      let receivedDividends = 0
-      const divData = dividendsBySymbol[sym]
-      if (divData) {
-        divData.entries.forEach((tx) => {
-          const txDate = tx.date ? new Date(tx.date).getTime() : 0
-          if (!acqDate || txDate >= acqDate) {
-            receivedDividends += tx.totalAmount ?? 0
-          }
-        })
-      }
+        let receivedDividends = 0
+        const divData = dividendsBySymbol[sym]
+        if (divData) {
+          divData.entries.forEach((tx) => {
+            const txDate = tx.date ? new Date(tx.date).getTime() : 0
+            if (!acqDate || txDate >= acqDate) {
+              receivedDividends += tx.totalAmount ?? 0
+            }
+          })
+        }
 
-      const totalReturn = cost > 0 ? ((value - cost) + receivedDividends) / cost * 100 : 0
-      const yld = getEffectiveYield(it)
-      return { ...it, value, cost, retPct: totalReturn, effectiveYield: yld }
-    })
-    .sort((a, b) => b.value - a.value)
+        const totalReturn = cost > 0 ? ((value - cost) + receivedDividends) / cost * 100 : 0
+        const yld = getEffectiveYield(it)
+        return { ...it, value, cost, retPct: totalReturn, effectiveYield: yld }
+      })
+      .sort((a, b) => b.value - a.value)
+  }, [items, dividendsBySymbol])
 
   if (withValue.length === 0) return null
 
+  const totalVal = useMemo(() => withValue.reduce((s, x) => s + x.value, 0), [withValue])
   const top = withValue.slice(0, 5)
 
   return (
@@ -57,7 +60,6 @@ export default function TopMovers({ items, transactions, lang }) {
       </h3>
       <div className="space-y-2">
         {top.map((it, i) => {
-          const totalVal = withValue.reduce((s, x) => s + x.value, 0)
           const pct = totalVal > 0 ? (it.value / totalVal) * 100 : 0
           const cat = getTypeCategory(it.type)
           const colors = TYPE_COLORS[cat] || TYPE_COLORS.other

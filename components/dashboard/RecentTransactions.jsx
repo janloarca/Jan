@@ -1,11 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { formatCurrency, formatDate } from './utils'
 
 export default function RecentTransactions({ transactions, lang }) {
   const [showAll, setShowAll] = useState(false)
-  const all = [...(transactions || [])].reverse()
+  const all = useMemo(() => [...(transactions || [])].reverse(), [transactions])
   const display = showAll ? all : all.slice(0, 5)
 
   const typeBadge = (type) => {

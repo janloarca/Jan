@@ -35,7 +35,9 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
         setDataPoints(data.dataPoints || [])
         setStaticTotal(data.staticTotal || 0)
       }
-    } catch {}
+    } catch (err) {
+      console.error('Failed to fetch portfolio history:', err)
+    }
     setLoading(false)
   }, [items, period])
 
@@ -270,8 +272,13 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
           onMouseMove={(e) => {
             const rect = e.currentTarget.getBoundingClientRect()
             const mx = ((e.clientX - rect.left) / rect.width) * width
-            let closest = 0, minD = Infinity
-            points.forEach((p, i) => { const d = Math.abs(p.x - mx); if (d < minD) { minD = d; closest = i } })
+            if (points.length === 0) return
+            let lo = 0, hi = points.length - 1
+            while (lo < hi - 1) {
+              const mid = (lo + hi) >> 1
+              if (points[mid].x < mx) lo = mid; else hi = mid
+            }
+            const closest = Math.abs(points[lo].x - mx) <= Math.abs(points[hi].x - mx) ? lo : hi
             setHoverIdx(closest)
           }}>
           {yTicks.map((tk, i) => (

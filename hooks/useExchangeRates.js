@@ -14,7 +14,9 @@ export function useExchangeRates(baseCurrency) {
         setRates(data.rates || null)
         setLastUpdate(data.timestamp)
       }
-    } catch {}
+    } catch (err) {
+      console.error('Failed to fetch exchange rates:', err)
+    }
     setLoading(false)
   }, [])
 

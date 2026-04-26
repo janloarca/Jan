@@ -87,7 +87,7 @@ export async function POST(request) {
     const allTimeSeries = {}
 
     const stockBatches = []
-    for (let i = 0; i < marketItems.length; i += 5) stockBatches.push(marketItems.slice(i, i + 5))
+    for (let i = 0; i < marketItems.length; i += 10) stockBatches.push(marketItems.slice(i, i + 10))
     for (const batch of stockBatches) {
       await Promise.all(batch.map(async (it) => {
         const sym = it.symbol.toUpperCase()
