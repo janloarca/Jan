@@ -31,6 +31,7 @@ import ProjectionSimulator from '@/components/dashboard/ProjectionSimulator'
 import RiskMetrics from '@/components/dashboard/RiskMetrics'
 import BenchmarkComparison from '@/components/dashboard/BenchmarkComparison'
 import InsightsBanner from '@/components/dashboard/InsightsBanner'
+import CurrencyImpact from '@/components/dashboard/CurrencyImpact'
 import EditAccountModal from '@/components/EditAccountModal'
 import OptimizeModal from '@/components/OptimizeModal'
 import AssetDetailModal from '@/components/dashboard/AssetDetailModal'
@@ -115,7 +116,7 @@ export default function DashboardPage() {
   }, [baseCurrency])
 
   const { enrichedItems: rawEnriched, loading: pricesLoading, lastUpdate: pricesUpdate, refresh: refreshPrices } = useMarketPrices(items)
-  const { convert, convertItemValue, loading: ratesLoading, lastUpdate: ratesUpdate, refresh: refreshRates } = useExchangeRates(baseCurrency)
+  const { rates, convert, convertItemValue, loading: ratesLoading, lastUpdate: ratesUpdate, refresh: refreshRates } = useExchangeRates(baseCurrency)
 
   const enrichedItems = useMemo(() => {
     return rawEnriched.map((it) => {
@@ -151,7 +152,7 @@ export default function DashboardPage() {
     }, 0)
 
     if (totalUSD > 0) {
-      saveSnapshot({ date: todayStr, totalActivosUSD: totalUSD, netWorthUSD: totalUSD })
+      saveSnapshot({ date: todayStr, totalActivosUSD: totalUSD, netWorthUSD: totalUSD, rates: rates || {}, baseCurrency })
       snapshotSavedRef.current = true
     }
   }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, snapshots, saveSnapshot, convert, baseCurrency])
@@ -506,6 +507,7 @@ export default function DashboardPage() {
 
         <PerformanceSummary items={enrichedItems} transactions={transactions} convert={convert} baseCurrency={baseCurrency} netWorth={netWorth} lang={lang} />
         <RiskMetrics snapshots={snapshots} benchmarkData={benchmarkData} netWorth={netWorth} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} />
+        <CurrencyImpact items={enrichedItems} convert={convert} baseCurrency={baseCurrency} rates={rates} lang={lang} />
         <MonthlyPerformance snapshots={snapshots} transactions={transactions} convert={convert} baseCurrency={baseCurrency} lang={lang} />
 
         {/* Action Buttons */}
