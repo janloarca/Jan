@@ -9,7 +9,7 @@ export default function DashboardError({ error, reset }) {
         <p className="text-slate-400 text-sm mb-6">{error?.message || 'Error inesperado en el dashboard.'}</p>
         <button
           onClick={() => reset()}
-          className="px-6 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition-colors text-sm font-medium"
+          className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors text-sm font-medium"
         >
           Intentar de nuevo
         </button>

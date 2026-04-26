@@ -129,11 +129,11 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
         <div className="flex items-center gap-2">
           <div className="flex bg-[#0b1120] rounded-lg border border-[#1e2d45]/50 overflow-hidden">
             <button onClick={() => setMode('deterministic')}
-              className={`px-2 py-1 text-[9px] font-medium transition-colors ${mode === 'deterministic' ? 'bg-emerald-500/20 text-emerald-400' : 'text-slate-500'}`}>
+              className={`px-2 py-1 text-[9px] font-medium transition-colors ${mode === 'deterministic' ? 'bg-blue-500/20 text-blue-400' : 'text-slate-500'}`}>
               {t('Lineal', 'Linear')}
             </button>
             <button onClick={() => setMode('montecarlo')}
-              className={`px-2 py-1 text-[9px] font-medium transition-colors ${mode === 'montecarlo' ? 'bg-purple-500/20 text-purple-400' : 'text-slate-500'}`}>
+              className={`px-2 py-1 text-[9px] font-medium transition-colors ${mode === 'montecarlo' ? 'bg-blue-500/20 text-blue-400' : 'text-slate-500'}`}>
               Monte Carlo
             </button>
           </div>
@@ -150,19 +150,19 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
             <label className="text-[10px] text-slate-500 mb-1 block">{t('Inversión mensual', 'Monthly investment')}</label>
             <input value={monthly} onChange={(e) => setMonthly(parseFloat(e.target.value) || 0)}
               type="number" step="100"
-              className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50" />
+              className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
           </div>
           <div>
             <label className="text-[10px] text-slate-500 mb-1 block">{t('Años', 'Years')}</label>
             <input value={years} onChange={(e) => setYears(parseInt(e.target.value) || 1)}
               type="number" min="1" max="50"
-              className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50" />
+              className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
           </div>
           <div>
             <label className="text-[10px] text-slate-500 mb-1 block">{t('Retorno anual %', 'Annual return %')}</label>
             <input value={rate} onChange={(e) => setRate(parseFloat(e.target.value) || 0)}
               type="number" step="0.5" min="0" max="30"
-              className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50" />
+              className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
           </div>
         </div>
       )}

@@ -86,7 +86,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
           <button key={tab.key} onClick={() => setFilter(tab.key)}
             className={`px-3 py-1.5 text-[11px] font-medium rounded-full transition-colors ${
               filter === tab.key
-                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
                 : 'text-slate-400 border border-slate-600/50 hover:bg-[#1a2540]'
             }`}>
             {tab.icon} {tab.label}

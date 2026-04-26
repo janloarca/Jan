@@ -64,7 +64,7 @@ export default function ValueBreakdown({ items, lang }) {
           ].map((opt) => (
             <button key={opt.key} onClick={() => setView(opt.key)}
               className={`px-3 py-1 text-[11px] font-medium rounded-md transition-all ${
-                view === opt.key ? 'bg-emerald-500 text-white' : 'text-slate-500 hover:text-slate-300'
+                view === opt.key ? 'bg-blue-500 text-white' : 'text-slate-500 hover:text-slate-300'
               }`}>
               {opt.label}
             </button>

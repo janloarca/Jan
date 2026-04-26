@@ -87,11 +87,11 @@ body {
   background: #94a3b8;
 }
 
-/* Green dot pulse animation */
-@keyframes pulse-green {
+/* Status dot pulse animation */
+@keyframes pulse-dot {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
 }
 .pulse-dot {
-  animation: pulse-green 2s ease-in-out infinite;
+  animation: pulse-dot 2s ease-in-out infinite;
 }

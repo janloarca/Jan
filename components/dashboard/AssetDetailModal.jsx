@@ -132,7 +132,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es' }) {
                 {ranges.map((r) => (
                   <button key={r} onClick={() => setRange(r)}
                     className={`px-2 py-1 text-[10px] font-medium rounded-md transition-all ${
-                      range === r ? 'bg-emerald-500 text-white' : 'text-slate-500 hover:text-slate-300'
+                      range === r ? 'bg-blue-500 text-white' : 'text-slate-500 hover:text-slate-300'
                     }`}>
                     {r}
                   </button>

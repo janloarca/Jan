@@ -428,11 +428,11 @@ export default function DashboardPage() {
       <div className="flex items-center justify-center min-h-screen bg-[#0b1120]">
         <div className="text-center">
           <div className="inline-flex items-center gap-2 mb-4">
-            <span className="text-emerald-400 text-2xl">⚡</span>
-            <span className="text-lg font-bold text-emerald-400">Chispudo</span>
+            <span className="text-blue-400 text-2xl">⚡</span>
+            <span className="text-lg font-bold text-blue-400">Chispudo</span>
           </div>
           <div className="block">
-            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" />
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent" />
           </div>
           <p className="mt-4 text-slate-500 text-sm">{lang === 'es' ? 'Cargando tu portfolio...' : 'Loading your portfolio...'}</p>
         </div>
@@ -457,7 +457,7 @@ export default function DashboardPage() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
         <div className="flex items-center gap-3">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 pulse-dot" />
+          <span className="w-2 h-2 rounded-full bg-blue-400 pulse-dot" />
           <span className="text-[11px] text-slate-500">
             {lang === 'es' ? 'Datos' : 'Data'}: {dataAge != null ? (dataAge === 0 ? (lang === 'es' ? 'hoy' : 'today') : `${dataAge}d`) : (lang === 'es' ? 'sin datos' : 'no data')}
           </span>

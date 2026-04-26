@@ -10,9 +10,9 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14">
           <div className="flex items-center gap-2">
-            <span className="text-emerald-400 text-xl">⚡</span>
+            <span className="text-blue-400 text-xl">⚡</span>
             <div>
-              <h1 className="text-base font-bold text-emerald-400 leading-tight">Chispudo</h1>
+              <h1 className="text-base font-bold text-blue-400 leading-tight">Chispudo</h1>
               <p className="text-[9px] text-slate-500 hidden sm:block leading-none">
                 {lang === 'es' ? 'Control financiero' : 'Financial control'}
               </p>
@@ -21,7 +21,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
           <div className="flex items-center gap-1.5 sm:gap-2">
             <span className="text-[10px] text-slate-500 hidden lg:block">{today}</span>
             <button onClick={onRefresh} disabled={pricesLoading}
-              className="px-2 py-1.5 text-xs text-emerald-400 border border-emerald-400/30 rounded-lg hover:bg-emerald-400/10 transition-colors disabled:opacity-50">
+              className="px-2 py-1.5 text-xs text-blue-400 border border-blue-400/30 rounded-lg hover:bg-blue-400/10 transition-colors disabled:opacity-50">
               <span className={pricesLoading ? 'animate-spin inline-block' : ''}>↻</span>
             </button>
             <button onClick={setLang}
@@ -29,7 +29,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
               {lang === 'en' ? 'ES' : 'EN'}
             </button>
             <button onClick={onImport}
-              className="px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-500 transition-colors">
+              className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-500 transition-colors">
               {lang === 'es' ? 'Importar' : 'Import'}
             </button>
             <button onClick={onSettings}

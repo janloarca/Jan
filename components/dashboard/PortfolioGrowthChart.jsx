@@ -260,7 +260,7 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
       {periods.map((p) => (
         <button key={p} onClick={() => setPeriod(p)}
           className={`px-2 py-1 text-[11px] font-medium rounded-md transition-all ${
-            period === p ? 'bg-emerald-500 text-white' : 'text-slate-500 hover:text-slate-300'
+            period === p ? 'bg-blue-500 text-white' : 'text-slate-500 hover:text-slate-300'
           }`}>{p}</button>
       ))}
     </div>
@@ -271,7 +271,7 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
       <div className="bg-[#131c2e] rounded-xl border border-[#1e2d45] p-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 pulse-dot" />
+            <span className="w-2 h-2 rounded-full bg-blue-400 pulse-dot" />
             Portfolio
           </h3>
           {periodSelector}
@@ -291,7 +291,7 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
       <div className="bg-[#131c2e] rounded-xl border border-[#1e2d45] p-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 pulse-dot" />
+            <span className="w-2 h-2 rounded-full bg-blue-400 pulse-dot" />
             Portfolio
           </h3>
           {periodSelector}
@@ -308,7 +308,7 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
       {/* Shared header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 pulse-dot" />
+          <span className="w-2 h-2 rounded-full bg-blue-400 pulse-dot" />
           Portfolio
           <span className="text-slate-600 text-[10px]">{dateRange}</span>
         </h3>

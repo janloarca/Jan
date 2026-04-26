@@ -57,8 +57,8 @@ export default function LoginPage() {
       <div className="w-full max-w-md px-6">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-2">
-            <span className="text-emerald-400 text-3xl">⚡</span>
-            <h1 className="text-3xl font-bold text-emerald-400">Chispudo</h1>
+            <span className="text-blue-400 text-3xl">⚡</span>
+            <h1 className="text-3xl font-bold text-blue-400">Chispudo</h1>
           </div>
           <p className="text-slate-500 text-sm">Tu control financiero personal</p>
         </div>
@@ -82,7 +82,7 @@ export default function LoginPage() {
                 placeholder="tu@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2.5 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 text-sm"
+                className="w-full px-4 py-2.5 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 text-sm"
                 required
               />
             </div>
@@ -93,14 +93,14 @@ export default function LoginPage() {
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2.5 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 text-sm"
+                className="w-full px-4 py-2.5 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 text-sm"
                 required
               />
             </div>
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-50 transition-colors font-medium text-sm"
+              className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors font-medium text-sm"
             >
               {loading ? 'Cargando...' : (isSignUp ? 'Crear cuenta' : 'Iniciar sesión')}
             </button>
@@ -110,7 +110,7 @@ export default function LoginPage() {
             {isSignUp ? '¿Ya tienes cuenta?' : '¿No tienes cuenta?'}{' '}
             <button
               onClick={() => { setIsSignUp(!isSignUp); setError('') }}
-              className="text-emerald-400 hover:text-emerald-300 font-medium"
+              className="text-blue-400 hover:text-blue-300 font-medium"
             >
               {isSignUp ? 'Inicia sesión' : 'Regístrate'}
             </button>

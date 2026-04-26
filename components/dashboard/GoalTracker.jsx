@@ -87,7 +87,7 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
             </span>
           )}
           <button onClick={() => { setEditing(!editing); if (!editing) setForm({ incomeGoal, portfolioGoal, targetYear }) }}
-            className="text-[10px] text-emerald-400 hover:text-emerald-300 transition-colors">
+            className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors">
             {editing ? t('Cancelar', 'Cancel') : t('Editar', 'Edit')}
           </button>
         </div>
@@ -100,23 +100,23 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
               <label className="text-[10px] text-slate-500 mb-1 block">{t('Meta de ingreso pasivo anual', 'Annual passive income goal')}</label>
               <input value={form.incomeGoal} onChange={(e) => setForm({ ...form, incomeGoal: e.target.value })}
                 type="number" step="1000" placeholder="12000"
-                className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50" />
+                className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
             </div>
             <div>
               <label className="text-[10px] text-slate-500 mb-1 block">{t('Meta de portfolio', 'Portfolio goal')}</label>
               <input value={form.portfolioGoal} onChange={(e) => setForm({ ...form, portfolioGoal: e.target.value })}
                 type="number" step="10000" placeholder="100000"
-                className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50" />
+                className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
             </div>
           </div>
           <div>
             <label className="text-[10px] text-slate-500 mb-1 block">{t('Año objetivo', 'Target year')}</label>
             <input value={form.targetYear} onChange={(e) => setForm({ ...form, targetYear: e.target.value })}
               type="number" min={new Date().getFullYear()} max="2060" placeholder="2030"
-              className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50" />
+              className="w-full px-3 py-2 bg-[#0b1120] border border-[#1e2d45] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
           </div>
           <button onClick={handleSave}
-            className="w-full py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition-colors text-sm font-medium">
+            className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors text-sm font-medium">
             {t('Guardar metas', 'Save goals')}
           </button>
         </div>

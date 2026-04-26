@@ -5,13 +5,13 @@ export default function DashboardLoading() {
       <header className="border-b border-[#1e2d45] h-14 bg-[#0b1120]/95">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-14">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded bg-emerald-500/20 animate-pulse" />
+            <div className="w-6 h-6 rounded bg-blue-500/20 animate-pulse" />
             <div className="w-20 h-4 rounded bg-[#1e2d45] animate-pulse" />
           </div>
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-[#1e2d45] animate-pulse" />
             <div className="w-8 h-8 rounded-lg bg-[#1e2d45] animate-pulse" />
-            <div className="w-16 h-8 rounded-lg bg-emerald-600/30 animate-pulse" />
+            <div className="w-16 h-8 rounded-lg bg-blue-600/30 animate-pulse" />
           </div>
         </div>
       </header>
@@ -19,7 +19,7 @@ export default function DashboardLoading() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         {/* Status bar */}
         <div className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-emerald-400/30 animate-pulse" />
+          <div className="w-2 h-2 rounded-full bg-blue-400/30 animate-pulse" />
           <div className="w-24 h-3 rounded bg-[#1e2d45] animate-pulse" />
         </div>
 
@@ -31,7 +31,7 @@ export default function DashboardLoading() {
             <div className="bg-[#131c2e] rounded-xl border border-[#1e2d45] p-5">
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-20 h-3 rounded bg-[#1e2d45] animate-pulse" />
-                <div className="w-16 h-4 rounded-full bg-emerald-500/10 animate-pulse" />
+                <div className="w-16 h-4 rounded-full bg-blue-500/10 animate-pulse" />
               </div>
               <div className="w-48 h-8 rounded bg-[#1e2d45] animate-pulse mb-2" />
               <div className="w-24 h-3 rounded bg-[#1e2d45] animate-pulse" />

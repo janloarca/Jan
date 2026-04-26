@@ -100,7 +100,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                     <button key={opt.key} onClick={() => onToggleTheme(opt.key)}
                       className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg transition-all ${
                         theme === opt.key
-                          ? 'bg-emerald-500/15 border border-emerald-500/40 text-emerald-400'
+                          ? 'bg-blue-500/15 border border-blue-500/40 text-blue-400'
                           : 'bg-[#0b1120] border border-[#1e2d45] text-slate-300 hover:border-slate-500'
                       }`}>
                       <span className="text-lg">{opt.icon}</span>
@@ -118,7 +118,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                     <button key={c.code} onClick={() => setBaseCurrency(c.code)}
                       className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-left transition-all ${
                         baseCurrency === c.code
-                          ? 'bg-emerald-500/15 border border-emerald-500/40 text-emerald-400'
+                          ? 'bg-blue-500/15 border border-blue-500/40 text-blue-400'
                           : 'bg-[#0b1120] border border-[#1e2d45] text-slate-300 hover:border-slate-500'
                       }`}>
                       <span className="text-sm font-bold w-8">{c.symbol}</span>
@@ -127,7 +127,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                         <div className="text-[9px] text-slate-500 truncate">{c.name}</div>
                       </div>
                       {baseCurrency === c.code && (
-                        <svg className="w-4 h-4 ml-auto text-emerald-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <svg className="w-4 h-4 ml-auto text-blue-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
                       )}
@@ -137,7 +137,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               </div>
 
               <button onClick={handleSave} disabled={saving}
-                className="w-full py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-50 transition-colors text-sm font-medium">
+                className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium">
                 {saving ? '...' : t('Guardar configuracion', 'Save settings')}
               </button>
             </div>
