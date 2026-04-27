@@ -11,7 +11,7 @@ import AddAccountModal from '@/components/AddAccountModal'
 
 import SettingsModal from '@/components/SettingsModal'
 import { setBaseCurrency, computeModifiedDietz, getItemValue } from '@/components/dashboard/utils'
-import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights } from '@/components/dashboard/analytics'
+import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution } from '@/components/dashboard/analytics'
 import { useBenchmark } from '@/hooks/useBenchmark'
 import Header from '@/components/dashboard/Header'
 import NetWorthCard from '@/components/dashboard/NetWorthCard'
@@ -408,6 +408,9 @@ export default function DashboardPage() {
   const insights = useMemo(() => {
     const hhiResult = computeHHI(enrichedItems.map((it) => ({ value: getItemValue(it) })))
     const incomeYield = netWorth > 0 && annualDividends > 0 ? (annualDividends / netWorth) * 100 : 0
+    const attribution = computeAssetAttribution(enrichedItems)
+    const topContributor = attribution.length > 0 ? attribution[0] : null
+    const topDrag = attribution.length > 0 ? attribution[attribution.length - 1] : null
     return generateInsights({
       netWorth,
       benchmarkReturn,
@@ -418,6 +421,8 @@ export default function DashboardPage() {
       hhi: hhiResult.hhi,
       incomeYield,
       goals,
+      topContributor,
+      topDrag,
     })
   }, [netWorth, benchmarkReturn, returnYTD, riskMetrics, enrichedItems, annualDividends, goals])
 

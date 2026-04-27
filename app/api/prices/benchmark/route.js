@@ -3,6 +3,9 @@ import { NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 
 const RANGE_MAP = {
+  '1M': { range: '1mo', interval: '1d' },
+  '3M': { range: '3mo', interval: '1d' },
+  '6M': { range: '6mo', interval: '1d' },
   YTD: { range: 'ytd', interval: '1d' },
   '1Y': { range: '1y', interval: '1wk' },
   '3Y': { range: '3y', interval: '1mo' },

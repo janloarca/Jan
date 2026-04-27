@@ -205,7 +205,7 @@ export function computeNetContributions(transactions, convert, baseCurrency) {
   }
 }
 
-export function generateInsights({ netWorth, benchmarkReturn, portfolioReturn, sharpe, volatility, maxDrawdown, hhi, incomeYield, goals }) {
+export function generateInsights({ netWorth, benchmarkReturn, portfolioReturn, sharpe, volatility, maxDrawdown, hhi, incomeYield, goals, topContributor, topDrag }) {
   const insights = []
 
   if (benchmarkReturn != null && portfolioReturn != null) {
@@ -225,6 +225,24 @@ export function generateInsights({ netWorth, benchmarkReturn, portfolioReturn, s
         priority: 2,
       })
     }
+  }
+
+  if (topContributor && topContributor.contribution > 0.5) {
+    insights.push({
+      type: 'positive',
+      textEs: `${topContributor.symbol} es tu mayor impulsor: +${topContributor.contribution.toFixed(2)}% al portafolio`,
+      textEn: `${topContributor.symbol} is your top contributor: +${topContributor.contribution.toFixed(2)}% to portfolio`,
+      priority: 1.5,
+    })
+  }
+
+  if (topDrag && topDrag.contribution < -0.5) {
+    insights.push({
+      type: 'warning',
+      textEs: `${topDrag.symbol} es tu mayor lastre: ${topDrag.contribution.toFixed(2)}% al portafolio`,
+      textEn: `${topDrag.symbol} is your biggest drag: ${topDrag.contribution.toFixed(2)}% on portfolio`,
+      priority: 1.5,
+    })
   }
 
   if (sharpe != null) {
@@ -255,11 +273,20 @@ export function generateInsights({ netWorth, benchmarkReturn, portfolioReturn, s
   }
 
   if (hhi != null && hhi > 2500) {
+    const equivPos = hhi > 0 ? Math.round(10000 / hhi) : 0
     insights.push({
       type: 'warning',
-      textEs: `Portafolio altamente concentrado (HHI: ${hhi}). Diversifica para reducir riesgo.`,
-      textEn: `Highly concentrated portfolio (HHI: ${hhi}). Diversify to reduce risk.`,
+      textEs: `Portafolio concentrado (equivale a ${equivPos} posiciones). Diversifica para reducir riesgo.`,
+      textEn: `Concentrated portfolio (equivalent to ${equivPos} positions). Diversify to reduce risk.`,
       priority: 6,
+    })
+  } else if (hhi != null && hhi <= 1500 && hhi > 0) {
+    const equivPos = Math.round(10000 / hhi)
+    insights.push({
+      type: 'positive',
+      textEs: `Buena diversificación (equivale a ${equivPos} posiciones iguales)`,
+      textEn: `Well diversified (equivalent to ${equivPos} equal positions)`,
+      priority: 8,
     })
   }
 
@@ -281,7 +308,7 @@ export function generateInsights({ netWorth, benchmarkReturn, portfolioReturn, s
     })
   }
 
-  return insights.sort((a, b) => a.priority - b.priority).slice(0, 5)
+  return insights.sort((a, b) => a.priority - b.priority).slice(0, 6)
 }
 
 export function computeHoldingPeriod(acquisitionDate) {
@@ -353,4 +380,62 @@ export function computeBeta(portfolioReturns, benchmarkReturns) {
 
   if (bVariance === 0) return null
   return Math.round((covariance / bVariance) * 100) / 100
+}
+
+export function computeTWRSeries(chartData, transactions, convert, baseCurrency) {
+  if (!chartData || chartData.length < 2) return []
+
+  const flowTypes = { DEPOSIT: 1, WITHDRAWAL: -1 }
+  const flows = (transactions || [])
+    .filter((tx) => tx.date && flowTypes[(tx.type || '').toUpperCase()] != null)
+    .map((tx) => {
+      const sign = flowTypes[(tx.type || '').toUpperCase()]
+      const amt = convert
+        ? convert((tx.totalAmount ?? 0) * sign, tx.currency || 'USD', baseCurrency || 'USD')
+        : (tx.totalAmount ?? 0) * sign
+      return { ts: new Date(tx.date).getTime(), flow: amt }
+    })
+    .sort((a, b) => a.ts - b.ts)
+
+  let cumTWR = 1
+  const series = [0]
+
+  for (let i = 1; i < chartData.length; i++) {
+    const prevTs = chartData[i - 1].ts
+    const currTs = chartData[i].ts
+    const prevVal = chartData[i - 1].value ?? chartData[i - 1].total ?? 0
+    const currVal = chartData[i].value ?? chartData[i].total ?? 0
+
+    const netFlow = flows
+      .filter((f) => f.ts > prevTs && f.ts <= currTs)
+      .reduce((s, f) => s + f.flow, 0)
+
+    const adjustedStart = prevVal + netFlow
+    const subReturn = adjustedStart > 0 ? currVal / adjustedStart - 1 : 0
+    cumTWR *= 1 + subReturn
+    series.push((cumTWR - 1) * 100)
+  }
+
+  return series
+}
+
+export function computeAssetAttribution(items) {
+  if (!items || items.length === 0) return []
+  const totalValue = items.reduce((s, it) => s + (it.quantity || 0) * (it.currentPrice || it.purchasePrice || 0), 0)
+  if (totalValue <= 0) return []
+
+  return items.map((it) => {
+    const qty = it.quantity || 0
+    const cur = it.currentPrice || it.purchasePrice || 0
+    const cost = it._originalPurchasePrice || it.purchasePrice || cur
+    const value = qty * cur
+    const gain = value - qty * cost
+    return {
+      symbol: it.symbol || it.name || '',
+      value,
+      weight: (value / totalValue) * 100,
+      gain,
+      contribution: (gain / totalValue) * 100,
+    }
+  }).sort((a, b) => b.contribution - a.contribution)
 }

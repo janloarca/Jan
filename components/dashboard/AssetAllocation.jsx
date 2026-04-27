@@ -22,11 +22,15 @@ export default function AssetAllocation({ items, lang }) {
 
     const fn = groupFns[view] || groupFns.type
     const byGroup = {}
+    const gainByGroup = {}
     let total = 0
     items.forEach((it) => {
       const key = fn(it)
       const val = getItemValue(it)
+      const qty = it.quantity || 0
+      const cost = qty * (it._originalPurchasePrice || it.purchasePrice || it.currentPrice || 0)
       byGroup[key] = (byGroup[key] || 0) + val
+      gainByGroup[key] = (gainByGroup[key] || 0) + (val - cost)
       total += val
     })
     return Object.entries(byGroup)
@@ -34,6 +38,7 @@ export default function AssetAllocation({ items, lang }) {
         name,
         value,
         pct: total > 0 ? (value / total) * 100 : 0,
+        contribution: total > 0 ? ((gainByGroup[name] || 0) / total) * 100 : 0,
         color: view === 'type' ? (TYPE_COLORS[name]?.bg || DONUT_COLORS[i % DONUT_COLORS.length]) : DONUT_COLORS[i % DONUT_COLORS.length],
       }))
       .sort((a, b) => b.value - a.value)
@@ -120,8 +125,11 @@ export default function AssetAllocation({ items, lang }) {
                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: seg.color }} />
                 <span className="text-xs text-slate-300 capitalize truncate max-w-[100px]">{seg.name}</span>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <span className="text-[11px] text-slate-400">{seg.pct.toFixed(1)}%</span>
+                <span className={`text-[9px] w-10 text-right ${seg.contribution >= 0 ? 'text-emerald-500/70' : 'text-red-500/70'}`}>
+                  {seg.contribution >= 0 ? '+' : ''}{seg.contribution.toFixed(2)}%
+                </span>
                 <span className="text-[11px] text-white font-medium w-16 text-right">{formatCurrency(seg.value)}</span>
               </div>
             </div>

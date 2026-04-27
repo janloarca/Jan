@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { formatCurrency, formatCompact, formatShortDate, formatDate, computeModifiedDietz } from './utils'
+import { computeTWRSeries } from './analytics'
 
 function MiniChart({ points, height, width, pad, lineColor, baselineY, mode, yTicks, xLabels, chartData, hoverIdx, setHoverIdx, returnData, period, lang, showXLabels = true }) {
   function smooth(pts) {
@@ -134,9 +135,12 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
   const [dataPoints, setDataPoints] = useState([])
   const [loading, setLoading] = useState(false)
   const [staticTotal, setStaticTotal] = useState(0)
+  const [returnMode, setReturnMode] = useState('twr')
+  const [benchmarkPts, setBenchmarkPts] = useState(null)
 
   const periods = ['1W', '1M', '3M', '6M', 'YTD', '1Y', 'ALL']
   const t = (es, en) => lang === 'es' ? es : en
+  const benchmarkPeriodMap = { '1W': '1M', '1M': '1M', '3M': '3M', '6M': '6M', YTD: 'YTD', '1Y': '1Y', ALL: 'ALL' }
 
   const fetchHistory = useCallback(async () => {
     if (!items || items.length === 0) return
@@ -165,9 +169,17 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
     setLoading(false)
   }, [items, period])
 
+  useEffect(() => { fetchHistory() }, [fetchHistory])
+
   useEffect(() => {
-    fetchHistory()
-  }, [fetchHistory])
+    const bp = benchmarkPeriodMap[period] || 'YTD'
+    let cancelled = false
+    fetch(`/api/prices/benchmark?period=${encodeURIComponent(bp)}`)
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => { if (!cancelled && data) setBenchmarkPts(data.dataPoints || null) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [period])
 
   const currentTotal = useMemo(() => {
     if (!items) return 0
@@ -188,7 +200,7 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
     return pts
   }, [dataPoints, currentTotal])
 
-  const returnData = useMemo(() => {
+  const mwrData = useMemo(() => {
     if (chartData.length < 2) return []
     const startTs = chartData[0].ts
     const startVal = chartData[0].value
@@ -205,6 +217,27 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
     }
     return result
   }, [chartData, transactions, convert, baseCurrency])
+
+  const twrData = useMemo(() => {
+    if (chartData.length < 2) return []
+    return computeTWRSeries(chartData, transactions, convert, baseCurrency)
+  }, [chartData, transactions, convert, baseCurrency])
+
+  const returnData = returnMode === 'twr' ? twrData : mwrData
+
+  const benchmarkReturn = useMemo(() => {
+    if (!benchmarkPts || benchmarkPts.length < 2 || chartData.length < 2) return null
+    const startTs = chartData[0].ts
+    let bStart = null, bEnd = null
+    let minStartDiff = Infinity, minEndDiff = Infinity
+    for (const bp of benchmarkPts) {
+      const dS = Math.abs(bp.ts - startTs)
+      if (dS < minStartDiff) { minStartDiff = dS; bStart = bp.close }
+      const dE = Math.abs(bp.ts - chartData[chartData.length - 1].ts)
+      if (dE < minEndDiff) { minEndDiff = dE; bEnd = bp.close }
+    }
+    return bStart > 0 ? ((bEnd - bStart) / bStart) * 100 : null
+  }, [benchmarkPts, chartData])
 
   const width = 650
   const growthHeight = 140
@@ -254,6 +287,12 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
   const returnPositive = lastReturn >= 0
   const growthColor = growthPositive ? '#10b981' : '#ef4444'
   const returnColor = returnPositive ? '#3b82f6' : '#ef4444'
+
+  const microInsight = useMemo(() => {
+    if (benchmarkReturn == null || returnData.length < 2) return null
+    const delta = lastReturn - benchmarkReturn
+    return { portfolioRet: lastReturn, benchmarkRet: benchmarkReturn, delta, isOut: delta >= 0 }
+  }, [benchmarkReturn, lastReturn, returnData])
 
   const periodSelector = (
     <div className="flex gap-0.5 bg-[#0f172a] rounded-lg p-0.5">
@@ -315,6 +354,23 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
         {periodSelector}
       </div>
 
+      {/* Micro insight */}
+      {microInsight && (
+        <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[10px] mb-2 ${
+          microInsight.isOut ? 'bg-emerald-500/5 border border-emerald-500/20 text-emerald-400' : 'bg-red-500/5 border border-red-500/20 text-red-400'
+        }`}>
+          <span>{microInsight.isOut ? '▲' : '▼'}</span>
+          <span>
+            {t('Portafolio', 'Portfolio')} {microInsight.portfolioRet >= 0 ? '+' : ''}{microInsight.portfolioRet.toFixed(2)}%
+            {' vs S&P 500 '}{microInsight.benchmarkRet >= 0 ? '+' : ''}{microInsight.benchmarkRet.toFixed(2)}%
+            {' · '}{microInsight.isOut
+              ? t(`Superas por ${Math.abs(microInsight.delta).toFixed(2)}%`, `Outperforming by ${Math.abs(microInsight.delta).toFixed(2)}%`)
+              : t(`Debajo por ${Math.abs(microInsight.delta).toFixed(2)}%`, `Underperforming by ${Math.abs(microInsight.delta).toFixed(2)}%`)}
+          </span>
+          <span className="text-[9px] text-slate-600 ml-auto">{period} · TWR</span>
+        </div>
+      )}
+
       {/* Growth section */}
       <div className="flex items-center gap-2 mb-1">
         <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Growth</span>
@@ -342,10 +398,16 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
       {/* Return section */}
       <div className="flex items-center gap-2 mb-1">
         <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Return</span>
+        <div className="flex gap-0.5 bg-[#0f172a] rounded p-0.5">
+          <button onClick={() => setReturnMode('twr')}
+            className={`px-1.5 py-0.5 text-[9px] font-medium rounded transition-all ${returnMode === 'twr' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}>TWR</button>
+          <button onClick={() => setReturnMode('mwr')}
+            className={`px-1.5 py-0.5 text-[9px] font-medium rounded transition-all ${returnMode === 'mwr' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}>MWR</button>
+        </div>
         <span className={`text-sm font-bold ${returnPositive ? 'text-blue-400' : 'text-red-400'}`}>
           {returnPositive ? '+' : ''}{lastReturn.toFixed(2)}%
         </span>
-        <span className="text-[10px] text-slate-600">{period} · Modified Dietz</span>
+        <span className="text-[10px] text-slate-600">{period} · {returnMode === 'twr' ? t('Ponderado por tiempo', 'Time-Weighted') : 'Modified Dietz'}</span>
       </div>
       {returnGeo && (
         <MiniChart

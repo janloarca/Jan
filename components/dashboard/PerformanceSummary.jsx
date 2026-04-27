@@ -2,12 +2,14 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { formatCurrency, computeModifiedDietz } from './utils'
+import { computeTWRSeries } from './analytics'
 
 const DAY_MS = 86400000
 
 export default function PerformanceSummary({ items, transactions, convert, baseCurrency, netWorth, lang }) {
   const [historyPoints, setHistoryPoints] = useState([])
   const [loading, setLoading] = useState(false)
+  const [returnMode, setReturnMode] = useState('twr')
 
   useEffect(() => {
     if (!items || items.length === 0) return
@@ -73,7 +75,7 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
       const startPt = d.key === 'ALL' ? historyPoints[0] : findStartValue(d.targetTs)
       if (!startPt || startPt.total <= 0) return { ...d, pct: null, abs: null }
 
-      const { pct, abs } = computeModifiedDietz({
+      const { pct: mwrPct, abs } = computeModifiedDietz({
         startValue: startPt.total,
         endValue: endVal,
         startTs: startPt.ts,
@@ -83,9 +85,19 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
         baseCurrency,
       })
 
+      let pct = mwrPct
+      if (returnMode === 'twr') {
+        const slice = historyPoints.filter((pt) => pt.ts >= startPt.ts).map((pt) => ({ ts: pt.ts, value: pt.total }))
+        if (slice.length >= 2) {
+          if (Math.abs(slice[slice.length - 1].value - endVal) > 1) slice.push({ ts: now, value: endVal })
+          const twrSeries = computeTWRSeries(slice, transactions, convert, baseCurrency)
+          if (twrSeries.length > 0) pct = twrSeries[twrSeries.length - 1]
+        }
+      }
+
       return { ...d, pct, abs }
     })
-  }, [historyPoints, netWorth, transactions, convert, baseCurrency])
+  }, [historyPoints, netWorth, transactions, convert, baseCurrency, returnMode])
 
   if (periods.length === 0 && !loading) return null
 
@@ -93,15 +105,24 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
 
   return (
     <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-5">
-      <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
-        <span className="w-2 h-2 rounded-full bg-purple-400" />
-        {t('RENDIMIENTO', 'PERFORMANCE SUMMARY')}
-      </h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-purple-400" />
+          {t('RENDIMIENTO', 'PERFORMANCE SUMMARY')}
+        </h3>
+        <div className="flex gap-0.5 bg-[#0f172a] rounded p-0.5">
+          <button onClick={() => setReturnMode('twr')}
+            className={`px-1.5 py-0.5 text-[9px] font-medium rounded transition-all ${returnMode === 'twr' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}>TWR</button>
+          <button onClick={() => setReturnMode('mwr')}
+            className={`px-1.5 py-0.5 text-[9px] font-medium rounded transition-all ${returnMode === 'mwr' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}>MWR</button>
+        </div>
+      </div>
       {loading ? (
         <div className="flex items-center justify-center py-6">
           <div className="w-4 h-4 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : (
+        <>
         <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 sm:gap-2">
           {periods.map((p) => {
             const isPos = (p.pct ?? 0) >= 0
@@ -124,6 +145,10 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
             )
           })}
         </div>
+        <div className="text-[9px] text-slate-600 mt-2 text-right">
+          {returnMode === 'twr' ? t('Retorno ponderado por tiempo (TWR)', 'Time-Weighted Return (TWR)') : t('Retorno ponderado por dinero (MWR)', 'Money-Weighted Return (MWR)')}
+        </div>
+      </>
       )}
     </div>
   )
