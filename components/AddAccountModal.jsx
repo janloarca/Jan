@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 
 const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
 
@@ -51,6 +51,12 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
   const [error, setError] = useState('')
   const [divInfo, setDivInfo] = useState(null)
   const [divLoading, setDivLoading] = useState(false)
+  const [searchResults, setSearchResults] = useState([])
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [showDropdown, setShowDropdown] = useState(false)
+  const [fetchingQuote, setFetchingQuote] = useState(false)
+  const dropdownRef = useRef(null)
+  const inputRef = useRef(null)
 
   const t = (es, en) => lang === 'es' ? es : en
   const set = (k, v) => setForm({ ...form, [k]: v })
@@ -62,6 +68,68 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
   }, [onClose])
 
   const isMarketAsset = type === 'Stock' || type === 'Crypto' || type === 'Fund'
+
+  useEffect(() => {
+    if (!isMarketAsset || !form.symbol || form.symbol.length < 1) {
+      setSearchResults([])
+      setShowDropdown(false)
+      return
+    }
+    const timer = setTimeout(async () => {
+      const q = form.symbol.trim()
+      if (q.length < 1) return
+      setSearchLoading(true)
+      try {
+        const res = await fetch(`/api/prices/search?q=${encodeURIComponent(q)}`)
+        if (res.ok) {
+          const data = await res.json()
+          setSearchResults(data.results || [])
+          setShowDropdown(data.results?.length > 0)
+        }
+      } catch {}
+      setSearchLoading(false)
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [form.symbol, isMarketAsset])
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target) &&
+          inputRef.current && !inputRef.current.contains(e.target)) {
+        setShowDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const handleSelectSymbol = useCallback(async (result) => {
+    setShowDropdown(false)
+    setSearchResults([])
+    const newType = result.type === 'Crypto' ? 'Crypto' : result.type === 'Fund' ? 'Fund' : 'Stock'
+    setType(newType)
+    setForm((prev) => ({
+      ...prev,
+      symbol: result.symbol,
+      name: result.name || '',
+    }))
+
+    setFetchingQuote(true)
+    try {
+      const res = await fetch(`/api/prices/search?symbol=${encodeURIComponent(result.symbol)}&type=${encodeURIComponent(newType)}`)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.quote?.price) {
+          setForm((prev) => ({
+            ...prev,
+            purchasePrice: data.quote.price.toString(),
+            currency: data.quote.currency || prev.currency,
+          }))
+        }
+      }
+    } catch {}
+    setFetchingQuote(false)
+  }, [])
   const isProperty = type === 'Inmueble'
   const isBank = type === 'Bank'
   const hasIncome = !isMarketAsset
@@ -427,25 +495,70 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
 
           {/* === BUY MODE === */}
           {action === 'buy' && (<>
-          {/* Market assets: Symbol + Name */}
+          {/* Market assets: Symbol search + Name */}
           {isMarketAsset && (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
+            <div className="space-y-3">
+              <div className="relative">
                 <label className="text-xs text-slate-400 mb-1 block">
-                  {t('Símbolo', 'Symbol')} *
+                  {t('Buscar activo', 'Search asset')} *
                   <span className="text-slate-600 ml-1">
-                    {type === 'Stock' ? '(AAPL, MSFT)' : type === 'Crypto' ? '(BTC, ETH)' : '(VOO, VTI)'}
+                    {type === 'Stock' ? '(AAPL, Apple...)' : type === 'Crypto' ? '(BTC, Bitcoin...)' : '(VOO, Vanguard...)'}
                   </span>
                 </label>
-                <input value={form.symbol} onChange={(e) => set('symbol', e.target.value)}
-                  placeholder={type === 'Stock' ? 'AAPL' : type === 'Crypto' ? 'BTC-USD' : 'VOO'}
-                  className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                <div className="relative">
+                  <input ref={inputRef} value={form.symbol}
+                    onChange={(e) => { set('symbol', e.target.value); setShowDropdown(true) }}
+                    onFocus={() => { if (searchResults.length > 0) setShowDropdown(true) }}
+                    placeholder={type === 'Stock' ? 'AAPL' : type === 'Crypto' ? 'BTC' : 'VOO'}
+                    autoComplete="off"
+                    className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 pr-8" />
+                  {(searchLoading || fetchingQuote) && (
+                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                      <div className="w-3.5 h-3.5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  )}
+                </div>
+                {showDropdown && searchResults.length > 0 && (
+                  <div ref={dropdownRef} className="absolute z-50 w-full mt-1 bg-[#1e293b] border border-[#475569] rounded-lg shadow-xl max-h-56 overflow-y-auto">
+                    {searchResults.map((r, i) => (
+                      <button key={`${r.symbol}-${i}`} type="button"
+                        onClick={() => handleSelectSymbol(r)}
+                        className="w-full px-3 py-2.5 flex items-center justify-between hover:bg-[#283548] transition-colors text-left border-b border-[#334155]/50 last:border-0">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className={`text-xs font-bold shrink-0 px-1.5 py-0.5 rounded ${
+                            r.type === 'Crypto' ? 'bg-amber-500/20 text-amber-400' :
+                            r.type === 'Fund' ? 'bg-purple-500/20 text-purple-400' :
+                            'bg-blue-500/20 text-blue-400'
+                          }`}>{r.symbol}</span>
+                          <span className="text-xs text-slate-300 truncate">{r.name}</span>
+                        </div>
+                        <span className="text-[10px] text-slate-500 shrink-0 ml-2">{r.exchange}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-              <div>
-                <label className="text-xs text-slate-400 mb-1 block">{t('Nombre', 'Name')}</label>
-                <input value={form.name} onChange={(e) => set('name', e.target.value)}
-                  placeholder={type === 'Stock' ? 'Apple Inc' : type === 'Crypto' ? 'Bitcoin' : 'Vanguard S&P 500'}
-                  className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">{t('Nombre', 'Name')}</label>
+                  <input value={form.name} onChange={(e) => set('name', e.target.value)}
+                    placeholder={type === 'Stock' ? 'Apple Inc' : type === 'Crypto' ? 'Bitcoin' : 'Vanguard S&P 500'}
+                    className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                </div>
+                {fetchingQuote ? (
+                  <div className="flex items-end pb-2">
+                    <div className="flex items-center gap-2 text-xs text-blue-400">
+                      <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                      {t('Obteniendo precio...', 'Fetching price...')}
+                    </div>
+                  </div>
+                ) : form.purchasePrice && form.name ? (
+                  <div className="flex items-end pb-2">
+                    <span className="text-xs text-emerald-400 font-medium">
+                      {form.currency} {parseFloat(form.purchasePrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                ) : null}
               </div>
             </div>
           )}
