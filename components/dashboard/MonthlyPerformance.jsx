@@ -5,7 +5,9 @@ import { computeModifiedDietz } from './utils'
 export default function MonthlyPerformance({ snapshots, transactions, convert, baseCurrency, lang }) {
   if (!snapshots || snapshots.length < 2) return null
 
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const months = lang === 'es'
+    ? ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+    : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
   const sorted = [...snapshots]
     .map((s) => ({ ...s, ts: new Date(s.date).getTime(), value: s.netWorthUSD ?? s.totalActivosUSD ?? 0 }))

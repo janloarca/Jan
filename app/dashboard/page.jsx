@@ -10,7 +10,7 @@ import FileImportModal from '@/components/FileImportModal'
 import AddAccountModal from '@/components/AddAccountModal'
 
 import SettingsModal from '@/components/SettingsModal'
-import { setBaseCurrency, computeModifiedDietz, getItemValue } from '@/components/dashboard/utils'
+import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue } from '@/components/dashboard/utils'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution } from '@/components/dashboard/analytics'
 import { useBenchmark } from '@/hooks/useBenchmark'
 import Header from '@/components/dashboard/Header'
@@ -115,10 +115,15 @@ export default function DashboardPage() {
     setBaseCurrency(baseCurrency)
   }, [baseCurrency])
 
+  useEffect(() => {
+    setUtilsLang(lang)
+  }, [lang])
+
   const { enrichedItems: rawEnriched, loading: pricesLoading, lastUpdate: pricesUpdate, refresh: refreshPrices } = useMarketPrices(items)
   const { rates, convert, convertItemValue, loading: ratesLoading, lastUpdate: ratesUpdate, refresh: refreshRates } = useExchangeRates(baseCurrency)
 
   const enrichedItems = useMemo(() => {
+    if (!rates) return rawEnriched
     return rawEnriched.map((it) => {
       const itemCurrency = it.marketCurrency || it.currency || 'USD'
       const price = it.currentPrice || it.purchasePrice || it.price || it.cost || 0
@@ -129,11 +134,12 @@ export default function DashboardPage() {
         currentPrice: convertedPrice,
         purchasePrice: purchaseConverted || it.purchasePrice,
         _originalPrice: price,
+        _originalPurchasePrice: it.purchasePrice || 0,
         _originalCurrency: itemCurrency,
         _displayCurrency: baseCurrency,
       }
     })
-  }, [rawEnriched, convert, baseCurrency])
+  }, [rawEnriched, rates, convert, baseCurrency])
 
   const snapshotSavedRef = useRef(false)
 
@@ -147,8 +153,10 @@ export default function DashboardPage() {
     if (alreadyExists) { snapshotSavedRef.current = true; return }
 
     const totalUSD = enrichedItems.reduce((sum, it) => {
-      const value = (it.quantity || 0) * (it.currentPrice || it.purchasePrice || 0)
-      return sum + convert(value, baseCurrency, 'USD')
+      const originalPrice = it._originalPrice || it.currentPrice || it.purchasePrice || 0
+      const originalCurrency = it._originalCurrency || it.currency || 'USD'
+      const value = (it.quantity || 0) * originalPrice
+      return sum + convert(value, originalCurrency, 'USD')
     }, 0)
 
     if (totalUSD > 0) {
@@ -162,80 +170,83 @@ export default function DashboardPage() {
   useEffect(() => {
     const todayKey = new Date().toISOString().split('T')[0]
     if (dividendsProcessedRef.current === todayKey) return
-    if (!user || dataLoading) return
-    if (items.length === 0) return
+    if (!user || dataLoading || pricesLoading || ratesLoading) return
+    if (enrichedItems.length === 0) return
 
-    const scheduled = items.filter((it) => (it.incomeAmount > 0 || it.incomeRate > 0) && it.incomeMonths)
-    if (scheduled.length === 0) return
+    const scheduled = enrichedItems.filter((it) => (it.incomeAmount > 0 || it.incomeRate > 0) && it.incomeMonths)
+    if (scheduled.length === 0) { dividendsProcessedRef.current = todayKey; return }
 
     const today = new Date()
     const todayDay = today.getDate()
     const currentMonth = today.getMonth()
 
-    scheduled.forEach((it) => {
-      const payDay = it.incomePayDay || 1
-      if (todayDay !== payDay) return
+    async function processDividends() {
+      for (const it of scheduled) {
+        const payDay = it.incomePayDay || 1
+        if (todayDay !== payDay) continue
 
-      const months = it.incomeMonths || [0,1,2,3,4,5,6,7,8,9,10,11]
-      if (!months.includes(currentMonth)) return
+        const months = it.incomeMonths || [0,1,2,3,4,5,6,7,8,9,10,11]
+        if (!months.includes(currentMonth)) continue
 
-      const sym = (it.symbol || '').toUpperCase()
-      const alreadyPaid = transactions.some((tx) =>
-        tx.date === todayKey &&
-        (tx.type || '').toUpperCase() === 'DIVIDEND' &&
-        (tx.symbol || '').toUpperCase() === sym &&
-        tx._auto === true
-      )
-      if (alreadyPaid) return
+        const sym = (it.symbol || '').toUpperCase()
+        const alreadyPaid = transactions.some((tx) =>
+          tx.date === todayKey &&
+          (tx.type || '').toUpperCase() === 'DIVIDEND' &&
+          (tx.symbol || '').toUpperCase() === sym &&
+          tx._auto === true
+        )
+        if (alreadyPaid) continue
 
-      let paymentAmount = it.incomeAmount || 0
-      if (it.incomeMode === 'percent' && it.incomeRate > 0) {
-        const balance = (it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0)
-        const payMonths = (it.incomeMonths || []).length || 12
-        paymentAmount = (balance * (it.incomeRate / 100)) / payMonths
-      }
-      if (paymentAmount <= 0) return
-
-      addTransaction({
-        type: 'DIVIDEND',
-        symbol: sym,
-        description: `${it.name || it.symbol} - ${paymentAmount.toFixed(2)} ${it.currency || 'USD'}`,
-        date: todayKey,
-        totalAmount: Math.round(paymentAmount * 100) / 100,
-        currency: it.currency || 'USD',
-        _auto: true,
-      })
-
-      if (it.dividendAction === 'reinvest') {
-        const sharePrice = it.currentPrice || it.purchasePrice || 0
-        if (sharePrice > 0) {
-          const newShares = paymentAmount / sharePrice
-          addItem({ ...it, quantity: (it.quantity || 0) + newShares })
+        let paymentAmount = it.incomeAmount || 0
+        if (it.incomeMode === 'percent' && it.incomeRate > 0) {
+          const balance = (it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0)
+          const payMonths = (it.incomeMonths || []).length || 12
+          paymentAmount = (balance * (it.incomeRate / 100)) / payMonths
         }
-      } else if (it.incomeDestination) {
-        const dest = items.find((d) => (d.id || d.symbol) === it.incomeDestination)
-        if (dest) {
-          const destPrice = (dest.currentPrice || dest.purchasePrice || 0) + paymentAmount
-          addItem({ ...dest, currentPrice: destPrice, purchasePrice: destPrice })
-        }
-      }
+        if (paymentAmount <= 0) continue
 
-      if (it.capitalReturn > 0) {
-        const newPrice = Math.max(0, (it.currentPrice || it.purchasePrice || 0) - it.capitalReturn)
-        addItem({ ...it, currentPrice: newPrice, purchasePrice: newPrice })
+        await addTransaction({
+          type: 'DIVIDEND',
+          symbol: sym,
+          description: `${it.name || it.symbol} - ${paymentAmount.toFixed(2)} ${it._originalCurrency || it.currency || 'USD'}`,
+          date: todayKey,
+          totalAmount: Math.round(paymentAmount * 100) / 100,
+          currency: it._originalCurrency || it.currency || 'USD',
+          _auto: true,
+        })
 
-        if (it.capitalDestination) {
-          const dest = items.find((d) => (d.id || d.symbol) === it.capitalDestination)
+        if (it.dividendAction === 'reinvest') {
+          const sharePrice = it.currentPrice || it.purchasePrice || 0
+          if (sharePrice > 0) {
+            const newShares = paymentAmount / sharePrice
+            await addItem({ ...it, quantity: (it.quantity || 0) + newShares })
+          }
+        } else if (it.incomeDestination) {
+          const dest = enrichedItems.find((d) => (d.id || d.symbol) === it.incomeDestination)
           if (dest) {
-            const destPrice = (dest.currentPrice || dest.purchasePrice || 0) + it.capitalReturn
-            addItem({ ...dest, currentPrice: destPrice, purchasePrice: destPrice })
+            const destPrice = (dest.currentPrice || dest.purchasePrice || 0) + paymentAmount
+            await addItem({ ...dest, currentPrice: destPrice, purchasePrice: destPrice })
+          }
+        }
+
+        if (it.capitalReturn > 0) {
+          const newPrice = Math.max(0, (it.currentPrice || it.purchasePrice || 0) - it.capitalReturn)
+          await addItem({ ...it, currentPrice: newPrice, purchasePrice: newPrice })
+
+          if (it.capitalDestination) {
+            const dest = enrichedItems.find((d) => (d.id || d.symbol) === it.capitalDestination)
+            if (dest) {
+              const destPrice = (dest.currentPrice || dest.purchasePrice || 0) + it.capitalReturn
+              await addItem({ ...dest, currentPrice: destPrice, purchasePrice: destPrice })
+            }
           }
         }
       }
-    })
+      dividendsProcessedRef.current = todayKey
+    }
 
-    dividendsProcessedRef.current = new Date().toISOString().split('T')[0]
-  }, [user, dataLoading, items, transactions, addTransaction, addItem])
+    processDividends()
+  }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, transactions, addTransaction, addItem])
 
   const handleRefresh = useCallback(() => {
     refreshPrices()

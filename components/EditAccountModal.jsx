@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export default function EditAccountModal({ item, onClose, onSave, onDelete, lang = 'es' }) {
   const [form, setForm] = useState({
@@ -17,6 +17,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, lang
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
+
+  useEffect(() => {
+    const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handleEsc)
+    return () => window.removeEventListener('keydown', handleEsc)
+  }, [onClose])
 
   const t = (es, en) => lang === 'es' ? es : en
   const set = (k, v) => setForm({ ...form, [k]: v })

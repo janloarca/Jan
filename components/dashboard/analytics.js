@@ -378,7 +378,7 @@ export function computeBeta(portfolioReturns, benchmarkReturns) {
   covariance /= len - 1
   bVariance /= len - 1
 
-  if (bVariance === 0) return null
+  if (bVariance <= 0) return null
   return Math.round((covariance / bVariance) * 100) / 100
 }
 

@@ -8,11 +8,15 @@ let _baseCurrency = 'USD'
 export function setBaseCurrency(code) { _baseCurrency = code || 'USD' }
 export function getBaseCurrency() { return _baseCurrency }
 
+let _lang = 'en'
+export function setLang(code) { _lang = code || 'en' }
+
 export function formatCurrency(value, currency) {
   if (value == null || isNaN(value)) return '$0.00'
   const cur = currency || _baseCurrency
+  const locale = _lang === 'es' ? 'es-US' : 'en-US'
   try {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: cur, minimumFractionDigits: 2 }).format(value)
+    return new Intl.NumberFormat(locale, { style: 'currency', currency: cur, minimumFractionDigits: 2 }).format(value)
   } catch {
     const sym = CURRENCY_SYMBOLS[cur] || '$'
     return `${sym}${value.toFixed(2)}`
@@ -29,8 +33,9 @@ export function formatCompact(value, currency) {
 
 export function formatDate(dateStr) {
   if (!dateStr) return '-'
+  const locale = _lang === 'es' ? 'es' : 'en-US'
   try {
-    return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+    return new Date(dateStr).toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' })
   } catch { return dateStr }
 }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 const CURRENCIES = [
   { code: 'USD', name: 'US Dollar', symbol: '$' },
@@ -26,6 +26,12 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   const [tab, setTab] = useState('general')
 
   const t = (es, en) => lang === 'es' ? es : en
+
+  useEffect(() => {
+    const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handleEsc)
+    return () => window.removeEventListener('keydown', handleEsc)
+  }, [onClose])
 
   const handleSave = async () => {
     setSaving(true)

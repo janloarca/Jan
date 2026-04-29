@@ -60,7 +60,7 @@ export default function CurrencyImpact({ items, convert, baseCurrency, rates, la
   }, [exposure, baseCurrency])
 
   if (!exposure || exposure.foreignPct <= 0) return null
-  if (!rates) return null
+  if (!rates || Object.keys(rates).length === 0) return null
 
   const baseRate = rates[baseCurrency] || 1
 

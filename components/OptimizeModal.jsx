@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 
 const TYPE_ICONS = { Stock: '📈', Crypto: '₿', Fund: '💼', Inmueble: '🏠', Bank: '🏦', Inversion: '🏛' }
 const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
@@ -130,6 +130,13 @@ function generateQuestions(items, t) {
 
 export default function OptimizeModal({ items, onClose, onSave, onDelete, lang = 'es' }) {
   const t = (es, en) => lang === 'es' ? es : en
+
+  useEffect(() => {
+    const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handleEsc)
+    return () => window.removeEventListener('keydown', handleEsc)
+  }, [onClose])
+
   const questions = useMemo(() => generateQuestions(items, t), [items])
   const [step, setStep] = useState(0)
   const [form, setForm] = useState({})

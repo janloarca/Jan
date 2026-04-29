@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
 
@@ -54,6 +54,12 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
 
   const t = (es, en) => lang === 'es' ? es : en
   const set = (k, v) => setForm({ ...form, [k]: v })
+
+  useEffect(() => {
+    const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handleEsc)
+    return () => window.removeEventListener('keydown', handleEsc)
+  }, [onClose])
 
   const isMarketAsset = type === 'Stock' || type === 'Crypto' || type === 'Fund'
   const isProperty = type === 'Inmueble'

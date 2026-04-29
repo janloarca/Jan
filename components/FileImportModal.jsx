@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 
 const FIELD_MAP = {
   symbol: ['symbol', 'ticker', 'simbolo', 'código', 'codigo', 'sym'],
@@ -37,6 +37,26 @@ function inferType(row, mapping) {
   return 'Stock'
 }
 
+function parseCSVLine(line, sep) {
+  const fields = []
+  let current = ''
+  let inQuotes = false
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (inQuotes) {
+      if (ch === '"' && line[i + 1] === '"') { current += '"'; i++; continue }
+      if (ch === '"') { inQuotes = false; continue }
+      current += ch
+    } else {
+      if (ch === '"') { inQuotes = true; continue }
+      if (ch === sep) { fields.push(current.trim()); current = ''; continue }
+      current += ch
+    }
+  }
+  fields.push(current.trim())
+  return fields
+}
+
 function parseNumber(val) {
   if (val == null) return 0
   if (typeof val === 'number') return val
@@ -64,6 +84,12 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   })
 
   const [extraSheets, setExtraSheets] = useState({ snapshots: [], transactions: [] })
+
+  useEffect(() => {
+    const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handleEsc)
+    return () => window.removeEventListener('keydown', handleEsc)
+  }, [onClose])
 
   const handleFile = useCallback(async (file) => {
     setError('')
@@ -142,8 +168,8 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     }
 
     const sep = lines[0].includes('\t') ? '\t' : ','
-    const hdrs = lines[0].split(sep).map((h) => h.trim())
-    const rows = lines.slice(1).map((l) => l.split(sep).map((c) => c.trim())).filter((r) => r.some((c) => c !== ''))
+    const hdrs = parseCSVLine(lines[0], sep)
+    const rows = lines.slice(1).map((l) => parseCSVLine(l, sep)).filter((r) => r.some((c) => c !== ''))
 
     setHeaders(hdrs)
     setRawData(rows)

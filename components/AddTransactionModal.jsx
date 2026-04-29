@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export default function AddTransactionModal({ onClose, onAdd, lang = 'es' }) {
   const [form, setForm] = useState({
@@ -11,6 +11,12 @@ export default function AddTransactionModal({ onClose, onAdd, lang = 'es' }) {
   const [error, setError] = useState('')
 
   const t = (es, en) => lang === 'es' ? es : en
+
+  useEffect(() => {
+    const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handleEsc)
+    return () => window.removeEventListener('keydown', handleEsc)
+  }, [onClose])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
