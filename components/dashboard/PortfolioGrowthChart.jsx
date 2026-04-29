@@ -4,111 +4,29 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { formatCurrency, formatCompact, formatShortDate, formatDate, computeModifiedDietz } from './utils'
 import { computeTWRSeries } from './analytics'
 
-function MiniChart({ points, height, width, pad, lineColor, baselineY, mode, yTicks, xLabels, chartData, hoverIdx, setHoverIdx, returnData, period, lang, showXLabels = true }) {
-  function smooth(pts) {
-    if (pts.length < 3) return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
-    const tension = 0.3
-    let d = `M ${pts[0].x} ${pts[0].y}`
-    for (let i = 0; i < pts.length - 1; i++) {
-      const p0 = pts[Math.max(0, i - 1)]
-      const p1 = pts[i]
-      const p2 = pts[i + 1]
-      const p3 = pts[Math.min(pts.length - 1, i + 2)]
-      d += ` C ${p1.x + (p2.x - p0.x) * tension / 3} ${p1.y + (p2.y - p0.y) * tension / 3}, ${p2.x - (p3.x - p1.x) * tension / 3} ${p2.y - (p3.y - p1.y) * tension / 3}, ${p2.x} ${p2.y}`
-    }
-    return d
+function smooth(pts) {
+  if (pts.length < 3) return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+  const tension = 0.3
+  let d = `M ${pts[0].x} ${pts[0].y}`
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)]
+    const p1 = pts[i]
+    const p2 = pts[i + 1]
+    const p3 = pts[Math.min(pts.length - 1, i + 2)]
+    d += ` C ${p1.x + (p2.x - p0.x) * tension / 3} ${p1.y + (p2.y - p0.y) * tension / 3}, ${p2.x - (p3.x - p1.x) * tension / 3} ${p2.y - (p3.y - p1.y) * tension / 3}, ${p2.x} ${p2.y}`
   }
-
-  const gradId = `grad-${mode}`
-  const line = smooth(points)
-  const area = `${line} L ${points[points.length - 1].x} ${baselineY} L ${points[0].x} ${baselineY} Z`
-  const hp = hoverIdx != null ? points[hoverIdx] : null
-  const hd = hoverIdx != null ? chartData[hoverIdx] : null
-
-  return (
-    <div className="relative">
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full" preserveAspectRatio="xMidYMid meet"
-        onMouseLeave={() => setHoverIdx(null)}
-        onMouseMove={(e) => {
-          const rect = e.currentTarget.getBoundingClientRect()
-          const mx = ((e.clientX - rect.left) / rect.width) * width
-          if (points.length === 0) return
-          let lo = 0, hi = points.length - 1
-          while (lo < hi - 1) {
-            const mid = (lo + hi) >> 1
-            if (points[mid].x < mx) lo = mid; else hi = mid
-          }
-          const closest = Math.abs(points[lo].x - mx) <= Math.abs(points[hi].x - mx) ? lo : hi
-          setHoverIdx(closest)
-        }}>
-        {yTicks.map((tk, i) => (
-          <g key={i}>
-            <line x1={pad.left} y1={tk.y} x2={width - pad.right} y2={tk.y} stroke="#334155" strokeDasharray="4 4" />
-            <text x={pad.left - 8} y={tk.y + 4} textAnchor="end" fill="#475569" fontSize="9" fontFamily="system-ui">
-              {mode === 'return' ? `${tk.val.toFixed(1)}%` : formatCompact(tk.val)}
-            </text>
-          </g>
-        ))}
-        {mode === 'return' && (
-          <line x1={pad.left} y1={baselineY} x2={width - pad.right} y2={baselineY}
-            stroke="#475569" strokeWidth="1" strokeDasharray="6 3" />
-        )}
-        <defs>
-          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={lineColor} stopOpacity="0.15" />
-            <stop offset="100%" stopColor={lineColor} stopOpacity="0.01" />
-          </linearGradient>
-        </defs>
-        <path d={area} fill={`url(#${gradId})`} />
-        <path d={line} fill="none" stroke={lineColor} strokeWidth="2" strokeLinecap="round" />
-        {hp && (
-          <g>
-            <line x1={hp.x} y1={pad.top} x2={hp.x} y2={height - pad.bottom} stroke="#475569" strokeDasharray="4 3" />
-            <circle cx={hp.x} cy={hp.y} r="4" fill={lineColor} stroke="#0f172a" strokeWidth="2" />
-          </g>
-        )}
-        {showXLabels && xLabels.map((xl, i) => (
-          <text key={i} x={xl.x} y={height - 6} textAnchor="middle" fill="#475569" fontSize="9" fontFamily="system-ui">{xl.label}</text>
-        ))}
-      </svg>
-      {hd && hp && (
-        <div className="absolute pointer-events-none bg-slate-800 border border-slate-600 text-white text-xs rounded-lg px-3 py-2 shadow-xl z-10"
-          style={{ left: `${(hp.x / width) * 100}%`, top: `${(hp.y / height) * 100 - 12}%`, transform: 'translate(-50%, -100%)' }}>
-          {mode === 'growth' ? (
-            <>
-              <div className="font-bold">{formatCurrency(hd.value)}</div>
-              <div className="text-slate-400">
-                {period === 'DAY'
-                  ? `${hd.date.getHours().toString().padStart(2, '0')}:${hd.date.getMinutes().toString().padStart(2, '0')}`
-                  : formatDate(hd.date.toISOString())}
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="font-bold">{(returnData[hoverIdx] ?? 0) >= 0 ? '+' : ''}{(returnData[hoverIdx] ?? 0).toFixed(2)}%</div>
-              <div className="text-slate-400">{formatCurrency(hd.value)}</div>
-              <div className="text-slate-500">
-                {period === 'DAY'
-                  ? `${hd.date.getHours().toString().padStart(2, '0')}:${hd.date.getMinutes().toString().padStart(2, '0')}`
-                  : formatDate(hd.date.toISOString())}
-              </div>
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  )
+  return d
 }
 
-function buildChartGeometry(values, mode, height, width, pad) {
+function buildGeometry(values, mode, height, width, pad) {
   const ch = height - pad.top - pad.bottom
   const cw = width - pad.left - pad.right
 
   const min = Math.min(...values)
   const max = Math.max(...values)
-  const paddingVal = mode === 'return' ? 0 : (max - min) * 0.05
-  const adjustedMin = mode === 'return' ? Math.min(min, 0) - Math.abs(min) * 0.1 : min - paddingVal
-  const adjustedMax = mode === 'return' ? Math.max(max, 0) + Math.abs(max) * 0.1 : max + paddingVal
+  const paddingVal = mode === 'performance' ? 0 : (max - min) * 0.05
+  const adjustedMin = mode === 'performance' ? Math.min(min, 0) - Math.abs(min || 1) * 0.1 : min - paddingVal
+  const adjustedMax = mode === 'performance' ? Math.max(max, 0) + Math.abs(max || 1) * 0.1 : max + paddingVal
   const range = adjustedMax - adjustedMin || 1
 
   const points = values.map((v, i) => ({
@@ -117,16 +35,17 @@ function buildChartGeometry(values, mode, height, width, pad) {
     v,
   }))
 
-  const baselineY = mode === 'return'
+  const baselineY = mode === 'performance'
     ? pad.top + ch - ((0 - adjustedMin) / range) * ch
     : pad.top + ch
 
-  const yTicks = Array.from({ length: 4 }, (_, i) => ({
-    val: adjustedMin + (range * i) / 3,
-    y: pad.top + ch - (i / 3) * ch,
+  const tickCount = 5
+  const yTicks = Array.from({ length: tickCount }, (_, i) => ({
+    val: adjustedMin + (range * i) / (tickCount - 1),
+    y: pad.top + ch - (i / (tickCount - 1)) * ch,
   }))
 
-  return { points, baselineY, yTicks }
+  return { points, baselineY, yTicks, cw, ch }
 }
 
 export default function PortfolioGrowthChart({ items, transactions, lang, convert, baseCurrency }) {
@@ -135,17 +54,19 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
   const [dataPoints, setDataPoints] = useState([])
   const [loading, setLoading] = useState(false)
   const [staticTotal, setStaticTotal] = useState(0)
+  const [viewMode, setViewMode] = useState('value')
   const [returnMode, setReturnMode] = useState('twr')
   const [benchmarkPts, setBenchmarkPts] = useState(null)
 
-  const periods = ['1W', '1M', '3M', '6M', 'YTD', '1Y', 'ALL']
+  const periods = ['1W', 'MTD', '1M', '3M', 'YTD', '1Y', 'ALL']
   const t = (es, en) => lang === 'es' ? es : en
-  const benchmarkPeriodMap = { '1W': '1M', '1M': '1M', '3M': '3M', '6M': '6M', YTD: 'YTD', '1Y': '1Y', ALL: 'ALL' }
+  const benchmarkPeriodMap = { '1W': '1M', MTD: '1M', '1M': '1M', '3M': '3M', '6M': '6M', YTD: 'YTD', '1Y': '1Y', ALL: 'ALL' }
 
   const fetchHistory = useCallback(async () => {
     if (!items || items.length === 0) return
     setLoading(true)
     try {
+      const apiPeriod = period === 'MTD' ? '1M' : period
       const res = await fetch('/api/prices/portfolio-history', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -155,12 +76,17 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
             currentPrice: it.currentPrice, purchasePrice: it.purchasePrice,
             acquisitionDate: it.acquisitionDate,
           })),
-          period,
+          period: apiPeriod,
         }),
       })
       if (res.ok) {
         const data = await res.json()
-        setDataPoints(data.dataPoints || [])
+        let pts = data.dataPoints || []
+        if (period === 'MTD') {
+          const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime()
+          pts = pts.filter((dp) => dp.ts >= monthStart)
+        }
+        setDataPoints(pts)
         setStaticTotal(data.staticTotal || 0)
       }
     } catch (err) {
@@ -240,10 +166,8 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
   }, [benchmarkPts, chartData])
 
   const width = 650
-  const growthHeight = 140
-  const returnHeight = 140
-  const growthPad = { top: 12, right: 16, bottom: 10, left: 50 }
-  const returnPad = { top: 12, right: 16, bottom: 28, left: 50 }
+  const chartHeight = 260
+  const pad = { top: 16, right: 16, bottom: 32, left: 52 }
 
   const step = Math.max(1, Math.floor(chartData.length / 6))
   const xLabels = useMemo(() => {
@@ -258,35 +182,23 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
   }, [chartData, step, period])
 
   const growthValues = useMemo(() => chartData.map((d) => d.value), [chartData])
-  const growthGeo = useMemo(() => {
-    if (growthValues.length < 2) return null
-    return buildChartGeometry(growthValues, 'growth', growthHeight, width, growthPad)
-  }, [growthValues])
 
-  const returnGeo = useMemo(() => {
-    if (returnData.length < 2) return null
-    return buildChartGeometry(returnData, 'return', returnHeight, width, returnPad)
-  }, [returnData])
+  const geo = useMemo(() => {
+    const vals = viewMode === 'value' ? growthValues : returnData
+    if (vals.length < 2) return null
+    return buildGeometry(vals, viewMode === 'value' ? 'value' : 'performance', chartHeight, width, pad)
+  }, [viewMode, growthValues, returnData])
 
-  const returnXLabels = useMemo(() => {
-    if (!returnGeo) return []
-    return xLabels.map((xl) => ({ ...xl, x: returnGeo.points[xl.idx]?.x }))
-  }, [xLabels, returnGeo])
-
-  const dateRange = chartData.length >= 2
-    ? `${formatShortDate(chartData[0].date.toISOString())} → ${formatShortDate(chartData[chartData.length - 1].date.toISOString())}`
-    : ''
+  const resolvedXLabels = useMemo(() => {
+    if (!geo) return []
+    return xLabels.map((xl) => ({ ...xl, x: geo.points[xl.idx]?.x })).filter((xl) => xl.x != null)
+  }, [xLabels, geo])
 
   const firstVal = chartData.length > 0 ? chartData[0].value : 0
   const lastVal = chartData.length > 0 ? chartData[chartData.length - 1].value : 0
   const growthAbs = lastVal - firstVal
   const growthPct = firstVal > 0 ? (growthAbs / firstVal) * 100 : 0
   const lastReturn = returnData.length > 0 ? returnData[returnData.length - 1] : 0
-
-  const growthPositive = growthPct >= 0
-  const returnPositive = lastReturn >= 0
-  const growthColor = growthPositive ? '#10b981' : '#ef4444'
-  const returnColor = returnPositive ? '#3b82f6' : '#ef4444'
 
   const microInsight = useMemo(() => {
     if (benchmarkReturn == null || returnData.length < 2) return null
@@ -298,7 +210,7 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
     <div className="flex gap-0.5 bg-[#0f172a] rounded-lg p-0.5">
       {periods.map((p) => (
         <button key={p} onClick={() => setPeriod(p)}
-          className={`px-2 py-1 text-[11px] font-medium rounded-md transition-all ${
+          className={`px-2.5 py-1.5 text-[11px] font-medium rounded-md transition-all ${
             period === p ? 'bg-blue-500 text-white' : 'text-slate-500 hover:text-slate-300'
           }`}>{p}</button>
       ))}
@@ -307,15 +219,8 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
 
   if (loading) {
     return (
-      <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-blue-400 pulse-dot" />
-            Portfolio
-          </h3>
-          {periodSelector}
-        </div>
-        <div className="flex items-center justify-center min-h-[160px]">
+      <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-5">
+        <div className="flex items-center justify-center min-h-[260px]">
           <div className="flex items-center gap-2 text-slate-500 text-sm">
             <div className="w-4 h-4 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
             {t('Cargando datos...', 'Loading data...')}
@@ -327,36 +232,72 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
 
   if (chartData.length < 2) {
     return (
-      <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-blue-400 pulse-dot" />
-            Portfolio
-          </h3>
-          {periodSelector}
-        </div>
-        <div className="flex items-center justify-center min-h-[160px] text-slate-500 text-sm">
+      <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-5">
+        <div className="flex items-center justify-center min-h-[200px] text-slate-500 text-sm">
           {t('Agrega activos para ver la gráfica.', 'Add assets to see the chart.')}
         </div>
       </div>
     )
   }
 
+  const hp = hoverIdx != null && geo ? geo.points[hoverIdx] : null
+  const hd = hoverIdx != null ? chartData[hoverIdx] : null
+
   return (
-    <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-4">
-      {/* Shared header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
-        <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-blue-400 pulse-dot" />
-          Portfolio
-          <span className="text-slate-600 text-[10px]">{dateRange}</span>
-        </h3>
-        {periodSelector}
+    <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-5">
+      {/* Tab bar: Value | Performance */}
+      <div className="flex items-center gap-4 mb-4">
+        <button onClick={() => setViewMode('value')}
+          className={`text-sm font-medium pb-1 transition-all border-b-2 ${
+            viewMode === 'value'
+              ? 'text-white border-white'
+              : 'text-slate-500 border-transparent hover:text-slate-300'
+          }`}>
+          {t('Valor', 'Value')}
+        </button>
+        <button onClick={() => setViewMode('performance')}
+          className={`text-sm font-medium pb-1 transition-all border-b-2 ${
+            viewMode === 'performance'
+              ? 'text-white border-white'
+              : 'text-slate-500 border-transparent hover:text-slate-300'
+          }`}>
+          {t('Rendimiento', 'Performance')}
+        </button>
+        <div className="ml-auto flex items-center gap-2">
+          {viewMode === 'performance' && (
+            <div className="flex gap-0.5 bg-[#0f172a] rounded p-0.5">
+              <button onClick={() => setReturnMode('twr')}
+                className={`px-1.5 py-0.5 text-[9px] font-medium rounded transition-all ${returnMode === 'twr' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}>TWR</button>
+              <button onClick={() => setReturnMode('mwr')}
+                className={`px-1.5 py-0.5 text-[9px] font-medium rounded transition-all ${returnMode === 'mwr' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}>MWR</button>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Micro insight */}
-      {microInsight && (
-        <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[10px] mb-2 ${
+      {/* Header stats */}
+      {viewMode === 'value' ? (
+        <div className="mb-3">
+          <p className="text-3xl font-bold text-white">{formatCurrency(hd ? hd.value : currentTotal)}</p>
+          <p className={`text-sm mt-0.5 ${growthAbs >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+            {growthAbs >= 0 ? '+' : ''}{formatCurrency(growthAbs)} ({growthAbs >= 0 ? '+' : ''}{growthPct.toFixed(2)}%)
+            <span className="text-slate-500 ml-1">{period === 'YTD' ? t('este año', 'this year') : period}</span>
+          </p>
+        </div>
+      ) : (
+        <div className="mb-3">
+          <p className={`text-3xl font-bold ${lastReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+            {lastReturn >= 0 ? '+' : ''}{(hoverIdx != null && returnData[hoverIdx] != null ? returnData[hoverIdx] : lastReturn).toFixed(2)}%
+          </p>
+          <p className="text-sm text-slate-400 mt-0.5">
+            {period === 'YTD' ? t('Retorno total del año', 'Total return this year') : `${t('Retorno', 'Return')} ${period}`}
+          </p>
+        </div>
+      )}
+
+      {/* Benchmark insight (performance mode only) */}
+      {viewMode === 'performance' && microInsight && (
+        <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[10px] mb-3 ${
           microInsight.isOut ? 'bg-emerald-500/5 border border-emerald-500/20 text-emerald-400' : 'bg-red-500/5 border border-red-500/20 text-red-400'
         }`}>
           <span>{microInsight.isOut ? '▲' : '▼'}</span>
@@ -367,57 +308,156 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
               ? t(`Superas por ${Math.abs(microInsight.delta).toFixed(2)}%`, `Outperforming by ${Math.abs(microInsight.delta).toFixed(2)}%`)
               : t(`Debajo por ${Math.abs(microInsight.delta).toFixed(2)}%`, `Underperforming by ${Math.abs(microInsight.delta).toFixed(2)}%`)}
           </span>
-          <span className="text-[9px] text-slate-600 ml-auto">{period} · TWR</span>
         </div>
       )}
 
-      {/* Growth section */}
-      <div className="flex items-center gap-2 mb-1">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Growth</span>
-        <span className={`text-sm font-bold ${growthPositive ? 'text-emerald-400' : 'text-red-400'}`}>
-          {growthPositive ? '+' : ''}{formatCompact(growthAbs)}
-        </span>
-        <span className={`text-[11px] ${growthPositive ? 'text-emerald-500/70' : 'text-red-500/70'}`}>
-          {growthPositive ? '+' : ''}{growthPct.toFixed(2)}%
-        </span>
-        <span className="text-[10px] text-slate-600">{period}</span>
-      </div>
-      {growthGeo && (
-        <MiniChart
-          points={growthGeo.points} height={growthHeight} width={width} pad={growthPad}
-          lineColor={growthColor} baselineY={growthGeo.baselineY} mode="growth"
-          yTicks={growthGeo.yTicks} xLabels={[]} chartData={chartData}
-          hoverIdx={hoverIdx} setHoverIdx={setHoverIdx} returnData={returnData}
-          period={period} lang={lang} showXLabels={false}
-        />
-      )}
+      {/* Chart */}
+      {geo && (
+        <div className="relative">
+          <svg viewBox={`0 0 ${width} ${chartHeight}`} className="w-full" preserveAspectRatio="xMidYMid meet"
+            onMouseLeave={() => setHoverIdx(null)}
+            onTouchEnd={() => setHoverIdx(null)}
+            onMouseMove={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect()
+              const mx = ((e.clientX - rect.left) / rect.width) * width
+              if (geo.points.length === 0) return
+              let lo = 0, hi = geo.points.length - 1
+              while (lo < hi - 1) {
+                const mid = (lo + hi) >> 1
+                if (geo.points[mid].x < mx) lo = mid; else hi = mid
+              }
+              setHoverIdx(Math.abs(geo.points[lo].x - mx) <= Math.abs(geo.points[hi].x - mx) ? lo : hi)
+            }}
+            onTouchMove={(e) => {
+              const touch = e.touches[0]
+              if (!touch) return
+              const rect = e.currentTarget.getBoundingClientRect()
+              const mx = ((touch.clientX - rect.left) / rect.width) * width
+              if (geo.points.length === 0) return
+              let lo = 0, hi = geo.points.length - 1
+              while (lo < hi - 1) {
+                const mid = (lo + hi) >> 1
+                if (geo.points[mid].x < mx) lo = mid; else hi = mid
+              }
+              setHoverIdx(Math.abs(geo.points[lo].x - mx) <= Math.abs(geo.points[hi].x - mx) ? lo : hi)
+            }}>
 
-      {/* Divider */}
-      <div className="border-t border-dashed border-[#334155] my-2" />
+            {/* Y-axis grid lines and labels */}
+            {geo.yTicks.map((tk, i) => (
+              <g key={i}>
+                <line x1={pad.left} y1={tk.y} x2={width - pad.right} y2={tk.y} stroke="#334155" strokeDasharray="4 4" strokeOpacity="0.5" />
+                <text x={pad.left - 8} y={tk.y + 4} textAnchor="end" fill="#64748b" fontSize="10" fontFamily="system-ui">
+                  {viewMode === 'performance' ? `${tk.val >= 0 ? '+' : ''}${tk.val.toFixed(tk.val === 0 ? 0 : 2)}%` : formatCompact(tk.val)}
+                </text>
+              </g>
+            ))}
 
-      {/* Return section */}
-      <div className="flex items-center gap-2 mb-1">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Return</span>
-        <div className="flex gap-0.5 bg-[#0f172a] rounded p-0.5">
-          <button onClick={() => setReturnMode('twr')}
-            className={`px-1.5 py-0.5 text-[9px] font-medium rounded transition-all ${returnMode === 'twr' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}>TWR</button>
-          <button onClick={() => setReturnMode('mwr')}
-            className={`px-1.5 py-0.5 text-[9px] font-medium rounded transition-all ${returnMode === 'mwr' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}>MWR</button>
+            {viewMode === 'value' ? (
+              <>
+                {/* VALUE MODE: Blue line + blue gradient fill */}
+                <defs>
+                  <linearGradient id="grad-value" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.25" />
+                    <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.02" />
+                  </linearGradient>
+                </defs>
+                <path
+                  d={`${smooth(geo.points)} L ${geo.points[geo.points.length - 1].x} ${geo.baselineY} L ${geo.points[0].x} ${geo.baselineY} Z`}
+                  fill="url(#grad-value)" />
+                <path d={smooth(geo.points)} fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" />
+              </>
+            ) : (
+              <>
+                {/* PERFORMANCE MODE: Green above 0%, Red below 0% */}
+                <defs>
+                  <linearGradient id="grad-perf-green" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#10b981" stopOpacity="0.3" />
+                    <stop offset="100%" stopColor="#10b981" stopOpacity="0.02" />
+                  </linearGradient>
+                  <linearGradient id="grad-perf-red" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#ef4444" stopOpacity="0.02" />
+                    <stop offset="100%" stopColor="#ef4444" stopOpacity="0.3" />
+                  </linearGradient>
+                  <clipPath id="clip-above-baseline">
+                    <rect x={pad.left} y={pad.top} width={geo.cw} height={Math.max(0, geo.baselineY - pad.top)} />
+                  </clipPath>
+                  <clipPath id="clip-below-baseline">
+                    <rect x={pad.left} y={geo.baselineY} width={geo.cw} height={Math.max(0, chartHeight - pad.bottom - geo.baselineY)} />
+                  </clipPath>
+                </defs>
+
+                {/* 0% baseline */}
+                <line x1={pad.left} y1={geo.baselineY} x2={width - pad.right} y2={geo.baselineY}
+                  stroke="#64748b" strokeWidth="1" strokeDasharray="6 4" />
+                <text x={pad.left - 8} y={geo.baselineY + 4} textAnchor="end" fill="#94a3b8" fontSize="10" fontFamily="system-ui" fontWeight="600">0%</text>
+
+                {/* Green area (above baseline) */}
+                <path
+                  d={`${smooth(geo.points)} L ${geo.points[geo.points.length - 1].x} ${geo.baselineY} L ${geo.points[0].x} ${geo.baselineY} Z`}
+                  fill="url(#grad-perf-green)" clipPath="url(#clip-above-baseline)" />
+
+                {/* Red area (below baseline) */}
+                <path
+                  d={`${smooth(geo.points)} L ${geo.points[geo.points.length - 1].x} ${geo.baselineY} L ${geo.points[0].x} ${geo.baselineY} Z`}
+                  fill="url(#grad-perf-red)" clipPath="url(#clip-below-baseline)" />
+
+                {/* Green line (above baseline) */}
+                <path d={smooth(geo.points)} fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round"
+                  clipPath="url(#clip-above-baseline)" />
+
+                {/* Red line (below baseline) */}
+                <path d={smooth(geo.points)} fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round"
+                  clipPath="url(#clip-below-baseline)" />
+              </>
+            )}
+
+            {/* X-axis labels */}
+            {resolvedXLabels.map((xl, i) => (
+              <text key={i} x={xl.x} y={chartHeight - 8} textAnchor="middle" fill="#64748b" fontSize="10" fontFamily="system-ui">{xl.label}</text>
+            ))}
+
+            {/* Hover crosshair */}
+            {hp && (
+              <g>
+                <line x1={hp.x} y1={pad.top} x2={hp.x} y2={chartHeight - pad.bottom} stroke="#94a3b8" strokeWidth="1" strokeDasharray="4 3" />
+                <circle cx={hp.x} cy={hp.y} r="4.5"
+                  fill={viewMode === 'value' ? '#3b82f6' : (hp.v >= 0 ? '#10b981' : '#ef4444')}
+                  stroke="#0f172a" strokeWidth="2" />
+              </g>
+            )}
+          </svg>
+
+          {/* Hover tooltip */}
+          {hd && hp && (
+            <div className="absolute pointer-events-none bg-[#0f172a] border border-[#475569] text-white text-xs rounded-lg px-3 py-2 shadow-xl z-10"
+              style={{
+                left: `${Math.min(85, Math.max(15, (hp.x / width) * 100))}%`,
+                top: `${(hp.y / chartHeight) * 100 - 14}%`,
+                transform: 'translate(-50%, -100%)',
+              }}>
+              {viewMode === 'value' ? (
+                <>
+                  <div className="font-bold">{formatCurrency(hd.value)}</div>
+                  <div className="text-slate-400">{formatDate(hd.date.toISOString())}</div>
+                </>
+              ) : (
+                <>
+                  <div className={`font-bold ${(returnData[hoverIdx] ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {(returnData[hoverIdx] ?? 0) >= 0 ? '+' : ''}{(returnData[hoverIdx] ?? 0).toFixed(2)}%
+                  </div>
+                  <div className="text-slate-300">{formatCurrency(hd.value)}</div>
+                  <div className="text-slate-500">{formatDate(hd.date.toISOString())}</div>
+                </>
+              )}
+            </div>
+          )}
         </div>
-        <span className={`text-sm font-bold ${returnPositive ? 'text-blue-400' : 'text-red-400'}`}>
-          {returnPositive ? '+' : ''}{lastReturn.toFixed(2)}%
-        </span>
-        <span className="text-[10px] text-slate-600">{period} · {returnMode === 'twr' ? t('Ponderado por tiempo', 'Time-Weighted') : 'Modified Dietz'}</span>
-      </div>
-      {returnGeo && (
-        <MiniChart
-          points={returnGeo.points} height={returnHeight} width={width} pad={returnPad}
-          lineColor={returnColor} baselineY={returnGeo.baselineY} mode="return"
-          yTicks={returnGeo.yTicks} xLabels={returnXLabels} chartData={chartData}
-          hoverIdx={hoverIdx} setHoverIdx={setHoverIdx} returnData={returnData}
-          period={period} lang={lang} showXLabels={true}
-        />
       )}
+
+      {/* Period selector */}
+      <div className="flex justify-center mt-3">
+        {periodSelector}
+      </div>
     </div>
   )
 }
