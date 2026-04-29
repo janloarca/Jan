@@ -276,6 +276,15 @@ export default function DashboardPage() {
   )
   const netWorth = totalAssets
 
+  const dailyChange = useMemo(() => {
+    if (!prevSnapshot || netWorth <= 0) return null
+    const prevValue = convertSnapshot(prevSnapshot.netWorthUSD ?? prevSnapshot.totalActivosUSD ?? 0)
+    if (prevValue <= 0) return null
+    const abs = netWorth - prevValue
+    const pct = (abs / prevValue) * 100
+    return { abs, pct }
+  }, [prevSnapshot, netWorth, convertSnapshot])
+
   const handleExport = useCallback(async () => {
     if (items.length === 0) return
     const XLSX = await import('xlsx')
@@ -499,6 +508,7 @@ export default function DashboardPage() {
               returnYTD={returnYTD}
               ytdChange={ytdChange}
               yearlyChange={yearlyChange}
+              dailyChange={dailyChange}
               convert={convert}
               lang={lang}
               netContributions={netContributions}

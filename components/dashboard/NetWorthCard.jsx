@@ -5,9 +5,10 @@ import { formatCurrency, getBaseCurrency } from './utils'
 
 const QUICK_CURRENCIES = ['USD', 'EUR', 'GBP', 'MXN', 'GTQ', 'COP', 'BRL', 'CAD']
 
-export default function NetWorthCard({ netWorth, returnYTD, ytdChange, yearlyChange, convert, lang, netContributions }) {
+export default function NetWorthCard({ netWorth, returnYTD, ytdChange, yearlyChange, dailyChange, convert, lang, netContributions }) {
   const isYTDPositive = returnYTD >= 0
   const isYearlyPositive = (yearlyChange ?? 0) >= 0
+  const isDayPositive = dailyChange ? dailyChange.abs >= 0 : true
   const baseCur = getBaseCurrency()
   const [tempCurrency, setTempCurrency] = useState(null)
   const [showPicker, setShowPicker] = useState(false)
@@ -48,6 +49,12 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, yearlyCha
         </div>
       </div>
       <p className="text-3xl font-bold text-white mb-1">{formatCurrency(displayValue, displayCur)}</p>
+      {dailyChange && (
+        <p className={`text-sm font-medium ${isDayPositive ? 'text-emerald-400' : 'text-red-400'}`}>
+          {isDayPositive ? '+' : ''}{formatCurrency(dailyChange.abs, displayCur)} ({isDayPositive ? '+' : ''}{dailyChange.pct.toFixed(2)}%)
+          <span className="text-slate-500 font-normal ml-1">{lang === 'es' ? 'hoy' : 'today'}</span>
+        </p>
+      )}
       {yearlyChange != null && (
         <p className={`text-[10px] mt-1 ${isYearlyPositive ? 'text-emerald-400' : 'text-red-400'}`}>
           {isYearlyPositive ? '▲' : '▼'} {Math.abs(yearlyChange).toFixed(1)}% {lang === 'es' ? 'vs año anterior' : 'vs last year'}
