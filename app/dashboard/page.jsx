@@ -33,7 +33,7 @@ import BenchmarkComparison from '@/components/dashboard/BenchmarkComparison'
 import InsightsBanner from '@/components/dashboard/InsightsBanner'
 import CurrencyImpact from '@/components/dashboard/CurrencyImpact'
 import EditAccountModal from '@/components/EditAccountModal'
-import OptimizeModal, { generateQuestions } from '@/components/OptimizeModal'
+import OptimizeModal from '@/components/OptimizeModal'
 import AssetDetailModal from '@/components/dashboard/AssetDetailModal'
 import UpcomingDividends from '@/components/dashboard/UpcomingDividends'
 
@@ -420,36 +420,6 @@ export default function DashboardPage() {
       .reduce((s, it) => s + (it.currentPrice || it.purchasePrice || 0), 0)
   }, [enrichedItems])
 
-  const pendingCount = useMemo(() => {
-    if (!items || items.length === 0) return 0
-    const t = (es, en) => lang === 'es' ? es : en
-    return generateQuestions(items, t).length
-  }, [items, lang])
-
-  const handleQuickAdd = useCallback(async (existingItem, qty, price) => {
-    const oldQty = existingItem.quantity || 0
-    const oldPrice = existingItem.purchasePrice || 0
-    const newQty = oldQty + qty
-    const avgPrice = newQty > 0 ? (oldQty * oldPrice + qty * price) / newQty : oldPrice
-    await addItem({ ...existingItem, quantity: newQty, purchasePrice: avgPrice })
-    const totalValue = qty * price
-    if (totalValue > 0) {
-      await addTransaction({
-        type: 'DEPOSIT',
-        symbol: existingItem.symbol || '',
-        description: `${existingItem.name || existingItem.symbol} +${qty}`,
-        date: new Date().toISOString().split('T')[0],
-        totalAmount: Math.round(totalValue * 100) / 100,
-        currency: existingItem.currency || 'USD',
-      })
-    }
-  }, [addItem, addTransaction])
-
-  const handleQuickBuy = useCallback((item) => {
-    setEditItem(null)
-    setModal('account')
-  }, [])
-
   const riskMetrics = useMemo(() => {
     const returns = computePeriodicReturns(snapshots, transactions, convert, baseCurrency)
     const sharpeResult = computeSharpeRatio({ returns })
@@ -515,27 +485,32 @@ export default function DashboardPage() {
         onSignOut={handleSignOut}
         onRefresh={handleRefresh}
         pricesLoading={pricesLoading || ratesLoading}
-        pendingCount={pendingCount}
-        onOptimize={() => setModal('optimize')}
-        existingItems={items}
-        onQuickAdd={handleQuickAdd}
+        onAddAccount={() => setModal('account')}
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
         <div className="flex items-center gap-3">
-          <span className="w-2 h-2 rounded-full bg-blue-400 pulse-dot" />
+          {dataAge === 0 ? (
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          ) : (
+            <span className="w-2 h-2 rounded-full bg-slate-500" />
+          )}
           <span className="text-[11px] text-slate-500">
-            {lang === 'es' ? 'Datos' : 'Data'}: {dataAge != null ? (dataAge === 0 ? (lang === 'es' ? 'hoy' : 'today') : `${dataAge}d`) : (lang === 'es' ? 'sin datos' : 'no data')}
+            {dataAge === 0
+              ? (lang === 'es' ? 'Datos al día' : 'Data up to date')
+              : dataAge != null
+                ? (lang === 'es' ? `Actualizado hace ${dataAge}d` : `Updated ${dataAge}d ago`)
+                : (lang === 'es' ? 'Sin datos aún' : 'No data yet')}
           </span>
           {pricesUpdate && (
             <span className="text-[10px] text-slate-600">
-              {lang === 'es' ? 'Precios:' : 'Prices:'} {new Date(pricesUpdate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              {new Date(pricesUpdate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
           {baseCurrency !== 'USD' && (
             <span className="text-[10px] text-cyan-500/70">{baseCurrency}</span>
           )}
-          {(pricesLoading || ratesLoading) && <span className="text-[10px] text-emerald-500 animate-pulse">{lang === 'es' ? 'Actualizando...' : 'Updating...'}</span>}
+          {(pricesLoading || ratesLoading) && <span className="text-[10px] text-blue-400 animate-pulse">{lang === 'es' ? 'Actualizando...' : 'Updating...'}</span>}
         </div>
 
         {/* Insights Banner */}

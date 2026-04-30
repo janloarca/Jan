@@ -14,12 +14,12 @@ export default function RecentTransactions({ transactions, lang }) {
   const display = showAll ? all : all.slice(0, 5)
 
   const filterOptions = [
-    { key: 'ALL', label: lang === 'es' ? 'Todos' : 'All' },
-    { key: 'BUY', label: lang === 'es' ? 'Compras' : 'Buys' },
-    { key: 'SELL', label: lang === 'es' ? 'Ventas' : 'Sells' },
-    { key: 'DIVIDEND', label: lang === 'es' ? 'Dividendos' : 'Dividends' },
-    { key: 'DEPOSIT', label: lang === 'es' ? 'Depósitos' : 'Deposits' },
-    { key: 'WITHDRAWAL', label: lang === 'es' ? 'Retiros' : 'Withdrawals' },
+    { key: 'ALL', icon: '○', label: lang === 'es' ? 'Todos' : 'All', color: 'blue' },
+    { key: 'BUY', icon: '↗', label: lang === 'es' ? 'Compras' : 'Buys', color: 'emerald' },
+    { key: 'SELL', icon: '↘', label: lang === 'es' ? 'Ventas' : 'Sells', color: 'red' },
+    { key: 'DIVIDEND', icon: '$', label: lang === 'es' ? 'Dividendos' : 'Dividends', color: 'emerald' },
+    { key: 'DEPOSIT', icon: '+', label: lang === 'es' ? 'Depósitos' : 'Deposits', color: 'blue' },
+    { key: 'WITHDRAWAL', icon: '−', label: lang === 'es' ? 'Retiros' : 'Withdrawals', color: 'amber' },
   ]
 
   const typeBadge = (type) => {
@@ -42,34 +42,51 @@ export default function RecentTransactions({ transactions, lang }) {
     return '·'
   }
 
+  const txCount = (key) => {
+    if (key === 'ALL') return transactions?.length || 0
+    return (transactions || []).filter((tx) => (tx.type || '').toUpperCase() === key).length
+  }
+
   return (
     <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-5">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-base font-semibold text-white">
-          {lang === 'es' ? 'Transacciones Recientes' : 'Recent Transactions'}
+          {lang === 'es' ? 'Transacciones' : 'Transactions'}
         </h3>
-        <span className="text-xs text-slate-500">{all.length}{typeFilter !== 'ALL' ? ` / ${transactions?.length || 0}` : ''} total</span>
       </div>
-      <div className="flex flex-wrap gap-1.5 mb-3">
-        {filterOptions.map((opt) => (
-          <button key={opt.key} onClick={() => { setTypeFilter(opt.key); setShowAll(false) }}
-            className={`px-2.5 py-1 text-[10px] font-medium rounded-full transition-colors ${
-              typeFilter === opt.key
-                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                : 'text-slate-500 border border-slate-600/30 hover:text-slate-300 hover:bg-[#283548]'
-            }`}>
-            {opt.label}
-          </button>
-        ))}
+
+      {/* Visual filter tabs */}
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 mb-4">
+        {filterOptions.map((opt) => {
+          const count = txCount(opt.key)
+          const isActive = typeFilter === opt.key
+          const activeColors = {
+            blue: 'bg-blue-500/15 border-blue-500/30 text-blue-400',
+            emerald: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400',
+            red: 'bg-red-500/15 border-red-500/30 text-red-400',
+            amber: 'bg-amber-500/15 border-amber-500/30 text-amber-400',
+          }
+          return (
+            <button key={opt.key} onClick={() => { setTypeFilter(opt.key); setShowAll(false) }}
+              className={`flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg transition-all text-center border ${
+                isActive
+                  ? activeColors[opt.color]
+                  : 'bg-[#0f172a]/50 border-transparent text-slate-500 hover:text-slate-300 hover:bg-[#283548]'
+              }`}>
+              <span className="text-sm font-bold">{opt.icon}</span>
+              <span className="text-[9px] font-medium">{opt.label}</span>
+              {count > 0 && <span className="text-[8px] opacity-60">{count}</span>}
+            </button>
+          )
+        })}
       </div>
+
       {display.length === 0 ? (
-        <div className="text-center py-10">
-          <div className="text-3xl mb-2 opacity-30">📋</div>
+        <div className="text-center py-8">
           <p className="text-slate-500 text-sm">
-            {lang === 'es' ? 'Sin transacciones registradas.' : 'No transactions recorded.'}
-          </p>
-          <p className="text-slate-600 text-xs mt-1">
-            {lang === 'es' ? 'Registra compras, ventas y dividendos.' : 'Record buys, sells, and dividends.'}
+            {typeFilter !== 'ALL'
+              ? (lang === 'es' ? 'Sin transacciones de este tipo.' : 'No transactions of this type.')
+              : (lang === 'es' ? 'Sin transacciones registradas.' : 'No transactions recorded.')}
           </p>
         </div>
       ) : (
@@ -100,7 +117,7 @@ export default function RecentTransactions({ transactions, lang }) {
                   </span>
                   {tx.quantity > 0 && (
                     <div className="text-[10px] text-slate-500">
-                      {tx.quantity} × {formatCurrency(tx.pricePerUnit || 0)}
+                      {tx.quantity} x {formatCurrency(tx.pricePerUnit || 0)}
                     </div>
                   )}
                 </div>

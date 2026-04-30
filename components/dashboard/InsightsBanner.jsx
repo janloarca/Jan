@@ -12,11 +12,10 @@ export default function InsightsBanner({ insights, lang }) {
 
   const dismiss = (idx) => setDismissed((prev) => new Set([...prev, idx]))
 
-  const iconMap = { positive: '✓', warning: '⚠', info: 'ℹ' }
-  const colorMap = {
-    positive: 'border-emerald-500/30 bg-emerald-500/5 text-emerald-400',
-    warning: 'border-amber-500/30 bg-amber-500/5 text-amber-400',
-    info: 'border-blue-500/30 bg-blue-500/5 text-blue-400',
+  const styleMap = {
+    positive: { bg: 'bg-emerald-500/8 border-emerald-500/20', text: 'text-emerald-400', icon: '▲' },
+    warning: { bg: 'bg-amber-500/8 border-amber-500/20', text: 'text-amber-400', icon: '!' },
+    info: { bg: 'bg-blue-500/8 border-blue-500/20', text: 'text-blue-400', icon: '→' },
   }
 
   return (
@@ -24,11 +23,12 @@ export default function InsightsBanner({ insights, lang }) {
       {insights.map((ins, i) => {
         if (dismissed.has(i)) return null
         const text = lang === 'es' ? ins.textEs : ins.textEn
+        const style = styleMap[ins.type] || styleMap.info
         return (
-          <div key={i} className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-[11px] whitespace-nowrap shrink-0 ${colorMap[ins.type] || colorMap.info}`}>
-            <span className="text-xs">{iconMap[ins.type] || 'ℹ'}</span>
-            <span>{text}</span>
-            <button onClick={() => dismiss(i)} className="opacity-50 hover:opacity-100 ml-1 text-xs">×</button>
+          <div key={i} className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-[11px] whitespace-nowrap shrink-0 ${style.bg}`}>
+            <span className={`text-xs font-bold ${style.text}`}>{style.icon}</span>
+            <span className={style.text}>{text}</span>
+            <button onClick={() => dismiss(i)} className="opacity-40 hover:opacity-100 ml-1 text-xs text-slate-500">×</button>
           </div>
         )
       })}
