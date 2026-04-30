@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import { formatCurrency, getTypeCategory, TYPE_COLORS, getItemValue, getItemPrice, getBaseCurrency, formatHoldingPeriod, getEffectiveYield } from './utils'
 
-export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, onViewItem }) {
+export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, onViewItem, onQuickBuy }) {
   const [filter, setFilter] = useState('all')
   const [sortBy, setSortBy] = useState('value')
   const [showAll, setShowAll] = useState(false)
@@ -243,23 +243,30 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                         {formatCurrency(value)}
                       </span>
                     </td>
-                    <td className="text-right py-3 w-16">
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                    <td className="text-right py-3 w-24">
+                      <div className="flex items-center justify-end gap-1">
+                        {onQuickBuy && (
+                          <button onClick={() => onQuickBuy(item)}
+                            className="text-blue-500/60 hover:text-blue-400 text-sm font-bold transition-colors"
+                            title={t('Comprar más', 'Buy more')}>
+                            +
+                          </button>
+                        )}
                         {onViewItem && (
                           <button onClick={() => onViewItem(item)}
-                            className="text-slate-600 hover:text-cyan-400 text-xs" title={lang === 'es' ? 'Ver detalle' : 'View detail'}>
+                            className="text-slate-600 hover:text-cyan-400 text-xs transition-colors" title={t('Ver detalle', 'View detail')}>
                             📊
                           </button>
                         )}
                         {onEditItem && (
                           <button onClick={() => onEditItem(item)}
-                            className="text-slate-600 hover:text-emerald-400 text-xs" title={lang === 'es' ? 'Editar' : 'Edit'}>
+                            className="text-slate-600 hover:text-emerald-400 text-xs transition-colors" title={t('Editar', 'Edit')}>
                             ✏️
                           </button>
                         )}
                         {onDeleteItem && (
                           <button onClick={() => onDeleteItem(item.id)}
-                            className="text-slate-600 hover:text-red-400 text-sm">
+                            className="text-slate-600 hover:text-red-400 text-sm transition-colors">
                             ×
                           </button>
                         )}

@@ -5,8 +5,22 @@ import { formatCurrency, formatDate } from './utils'
 
 export default function RecentTransactions({ transactions, lang }) {
   const [showAll, setShowAll] = useState(false)
-  const all = useMemo(() => [...(transactions || [])].reverse(), [transactions])
+  const [typeFilter, setTypeFilter] = useState('ALL')
+  const all = useMemo(() => {
+    const reversed = [...(transactions || [])].reverse()
+    if (typeFilter === 'ALL') return reversed
+    return reversed.filter((tx) => (tx.type || '').toUpperCase() === typeFilter)
+  }, [transactions, typeFilter])
   const display = showAll ? all : all.slice(0, 5)
+
+  const filterOptions = [
+    { key: 'ALL', label: lang === 'es' ? 'Todos' : 'All' },
+    { key: 'BUY', label: lang === 'es' ? 'Compras' : 'Buys' },
+    { key: 'SELL', label: lang === 'es' ? 'Ventas' : 'Sells' },
+    { key: 'DIVIDEND', label: lang === 'es' ? 'Dividendos' : 'Dividends' },
+    { key: 'DEPOSIT', label: lang === 'es' ? 'Depósitos' : 'Deposits' },
+    { key: 'WITHDRAWAL', label: lang === 'es' ? 'Retiros' : 'Withdrawals' },
+  ]
 
   const typeBadge = (type) => {
     const t = (type || '').toUpperCase()
@@ -30,11 +44,23 @@ export default function RecentTransactions({ transactions, lang }) {
 
   return (
     <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-5">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-3">
         <h3 className="text-base font-semibold text-white">
           {lang === 'es' ? 'Transacciones Recientes' : 'Recent Transactions'}
         </h3>
-        <span className="text-xs text-slate-500">{transactions?.length || 0} total</span>
+        <span className="text-xs text-slate-500">{all.length}{typeFilter !== 'ALL' ? ` / ${transactions?.length || 0}` : ''} total</span>
+      </div>
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        {filterOptions.map((opt) => (
+          <button key={opt.key} onClick={() => { setTypeFilter(opt.key); setShowAll(false) }}
+            className={`px-2.5 py-1 text-[10px] font-medium rounded-full transition-colors ${
+              typeFilter === opt.key
+                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                : 'text-slate-500 border border-slate-600/30 hover:text-slate-300 hover:bg-[#283548]'
+            }`}>
+            {opt.label}
+          </button>
+        ))}
       </div>
       {display.length === 0 ? (
         <div className="text-center py-10">

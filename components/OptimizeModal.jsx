@@ -27,7 +27,7 @@ function detectCurrency(institution) {
   return null
 }
 
-function generateQuestions(items, t) {
+export function generateQuestions(items, t) {
   const questions = []
   const isBank = (it) => /bank|banco/i.test(it.type || '')
   const isProperty = (it) => /inmueble|real.?estate|property/i.test(it.type || '')

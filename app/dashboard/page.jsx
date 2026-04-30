@@ -33,8 +33,9 @@ import BenchmarkComparison from '@/components/dashboard/BenchmarkComparison'
 import InsightsBanner from '@/components/dashboard/InsightsBanner'
 import CurrencyImpact from '@/components/dashboard/CurrencyImpact'
 import EditAccountModal from '@/components/EditAccountModal'
-import OptimizeModal from '@/components/OptimizeModal'
+import OptimizeModal, { generateQuestions } from '@/components/OptimizeModal'
 import AssetDetailModal from '@/components/dashboard/AssetDetailModal'
+import UpcomingDividends from '@/components/dashboard/UpcomingDividends'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -413,6 +414,42 @@ export default function DashboardPage() {
     return computeNetContributions(transactions, convert, baseCurrency).netContributions
   }, [transactions, convert, baseCurrency])
 
+  const cashTotal = useMemo(() => {
+    return enrichedItems
+      .filter((it) => /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i.test(it.type || ''))
+      .reduce((s, it) => s + (it.currentPrice || it.purchasePrice || 0), 0)
+  }, [enrichedItems])
+
+  const pendingCount = useMemo(() => {
+    if (!items || items.length === 0) return 0
+    const t = (es, en) => lang === 'es' ? es : en
+    return generateQuestions(items, t).length
+  }, [items, lang])
+
+  const handleQuickAdd = useCallback(async (existingItem, qty, price) => {
+    const oldQty = existingItem.quantity || 0
+    const oldPrice = existingItem.purchasePrice || 0
+    const newQty = oldQty + qty
+    const avgPrice = newQty > 0 ? (oldQty * oldPrice + qty * price) / newQty : oldPrice
+    await addItem({ ...existingItem, quantity: newQty, purchasePrice: avgPrice })
+    const totalValue = qty * price
+    if (totalValue > 0) {
+      await addTransaction({
+        type: 'DEPOSIT',
+        symbol: existingItem.symbol || '',
+        description: `${existingItem.name || existingItem.symbol} +${qty}`,
+        date: new Date().toISOString().split('T')[0],
+        totalAmount: Math.round(totalValue * 100) / 100,
+        currency: existingItem.currency || 'USD',
+      })
+    }
+  }, [addItem, addTransaction])
+
+  const handleQuickBuy = useCallback((item) => {
+    setEditItem(null)
+    setModal('account')
+  }, [])
+
   const riskMetrics = useMemo(() => {
     const returns = computePeriodicReturns(snapshots, transactions, convert, baseCurrency)
     const sharpeResult = computeSharpeRatio({ returns })
@@ -478,6 +515,10 @@ export default function DashboardPage() {
         onSignOut={handleSignOut}
         onRefresh={handleRefresh}
         pricesLoading={pricesLoading || ratesLoading}
+        pendingCount={pendingCount}
+        onOptimize={() => setModal('optimize')}
+        existingItems={items}
+        onQuickAdd={handleQuickAdd}
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
@@ -512,8 +553,10 @@ export default function DashboardPage() {
               convert={convert}
               lang={lang}
               netContributions={netContributions}
+              cashTotal={cashTotal}
             />
             <BenchmarkComparison benchmarkReturn={benchmarkReturn} portfolioReturn={returnYTD} lang={lang} />
+            <UpcomingDividends items={enrichedItems} lang={lang} />
             <TopMovers items={enrichedItems} transactions={transactions} lang={lang} />
           </div>
 
@@ -540,7 +583,6 @@ export default function DashboardPage() {
         <ActionButtons
           onImport={() => setModal('import')}
           onAddAccount={() => setModal('account')}
-          onOptimize={() => setModal('optimize')}
           onExport={handleExport}
           itemCount={enrichedItems.length}
           lang={lang}
@@ -583,7 +625,8 @@ export default function DashboardPage() {
         </div>
 
         <AccountsTable items={enrichedItems} lang={lang} onDeleteItem={deleteItem}
-          onEditItem={(item) => setEditItem(item)} onViewItem={(item) => setDetailItem(item)} />
+          onEditItem={(item) => setEditItem(item)} onViewItem={(item) => setDetailItem(item)}
+          onQuickBuy={() => setModal('account')} />
 
         <RecentTransactions transactions={transactions} lang={lang} />
 

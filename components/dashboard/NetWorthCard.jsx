@@ -5,7 +5,7 @@ import { formatCurrency, getBaseCurrency } from './utils'
 
 const QUICK_CURRENCIES = ['USD', 'EUR', 'GBP', 'MXN', 'GTQ', 'COP', 'BRL', 'CAD']
 
-export default function NetWorthCard({ netWorth, returnYTD, ytdChange, yearlyChange, dailyChange, convert, lang, netContributions }) {
+export default function NetWorthCard({ netWorth, returnYTD, ytdChange, yearlyChange, dailyChange, convert, lang, netContributions, cashTotal }) {
   const isYTDPositive = returnYTD >= 0
   const isYearlyPositive = (yearlyChange ?? 0) >= 0
   const isDayPositive = dailyChange ? dailyChange.abs >= 0 : true
@@ -84,6 +84,16 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, yearlyCha
             <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-500/60" />{lang === 'es' ? 'Aportes' : 'Contributions'}</span>
             <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500/60" />{lang === 'es' ? 'Ganancias' : 'Gains'}</span>
           </div>
+        </div>
+      )}
+
+      {cashTotal != null && cashTotal > 0 && (
+        <div className={`${netContributions > 0 ? 'mt-2' : 'mt-3 pt-3 border-t border-[#334155]/50'} flex items-center justify-between`}>
+          <span className="text-[10px] text-slate-500 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-500/60" />
+            {lang === 'es' ? 'Disponible' : 'Cash available'}
+          </span>
+          <span className="text-[11px] font-medium text-cyan-400">{formatCurrency(cashTotal, displayCur)}</span>
         </div>
       )}
     </div>
