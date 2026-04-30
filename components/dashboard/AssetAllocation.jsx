@@ -65,7 +65,7 @@ export default function AssetAllocation({ items, lang }) {
   ]
 
   return (
-    <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-5">
+    <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-5 card-primary">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-blue-400" />
@@ -76,7 +76,7 @@ export default function AssetAllocation({ items, lang }) {
       <div className="flex items-center gap-1.5 mb-4">
         {views.map((v) => (
           <button key={v.key} onClick={() => setView(v.key)}
-            className={`px-2 py-1 text-[10px] font-medium rounded-md transition-colors ${
+            className={`px-2 py-1 text-xs font-medium rounded-md transition-colors ${
               view === v.key
                 ? 'bg-slate-600 text-white'
                 : 'text-slate-400 border border-slate-600/50 hover:bg-[#283548]'
@@ -113,7 +113,7 @@ export default function AssetAllocation({ items, lang }) {
             })}
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-[10px] text-slate-500">Total</span>
+            <span className="text-xs text-slate-500">Total</span>
             <span className="text-sm font-bold text-white">{formatCurrency(totalValue)}</span>
           </div>
         </div>
@@ -126,11 +126,11 @@ export default function AssetAllocation({ items, lang }) {
                 <span className="text-xs text-slate-300 capitalize truncate max-w-[100px]">{seg.name}</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[11px] text-slate-400">{seg.pct.toFixed(1)}%</span>
-                <span className={`text-[9px] w-10 text-right ${seg.contribution >= 0 ? 'text-emerald-500/70' : 'text-red-500/70'}`}>
+                <span className="text-xs text-slate-400">{seg.pct.toFixed(1)}%</span>
+                <span className={`text-xs w-10 text-right ${seg.contribution >= 0 ? 'text-emerald-500/70' : 'text-red-500/70'}`}>
                   {seg.contribution >= 0 ? '+' : ''}{seg.contribution.toFixed(2)}%
                 </span>
-                <span className="text-[11px] text-white font-medium w-16 text-right">{formatCurrency(seg.value)}</span>
+                <span className="text-xs text-white font-medium w-16 text-right">{formatCurrency(seg.value)}</span>
               </div>
             </div>
           ))}

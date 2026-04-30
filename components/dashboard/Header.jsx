@@ -13,13 +13,13 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
             <span className="text-blue-400 text-xl">⚡</span>
             <div>
               <h1 className="text-base font-bold text-blue-400 leading-tight">Chispudo</h1>
-              <p className="text-[9px] text-slate-500 hidden sm:block leading-none">
+              <p className="text-xs text-slate-500 hidden sm:block leading-none">
                 {lang === 'es' ? 'Tu dinero, tu control' : 'Your money, your control'}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <span className="text-[10px] text-slate-500 hidden lg:block">{today}</span>
+            <span className="text-xs text-slate-500 hidden lg:block">{today}</span>
             <button onClick={onRefresh} disabled={pricesLoading}
               className="px-2 py-1.5 text-xs text-blue-400 border border-blue-400/30 rounded-lg hover:bg-blue-400/10 transition-colors disabled:opacity-50">
               <span className={pricesLoading ? 'animate-spin inline-block' : ''}>↻</span>

@@ -72,13 +72,13 @@ export default function ConcentrationRisk({ items, lang }) {
   const PALETTE = ['#3b82f6', '#f59e0b', '#10b981', '#a855f7', '#ec4899', '#06b6d4', '#ef4444', '#84cc16', '#f97316', '#6366f1']
 
   return (
-    <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-5">
+    <div className="bg-[#1e293b]/80 rounded-xl border border-[#334155]/50 p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-amber-400" />
           {t('RIESGO DE CONCENTRACIÓN', 'CONCENTRATION RISK')}
         </h3>
-        <span className={`text-[10px] font-medium px-2 py-1 rounded-full border ${levelLabel[displayHHI.level].color}`}>
+        <span className={`text-xs font-medium px-2 py-1 rounded-full border ${levelLabel[displayHHI.level].color}`}>
           {lang === 'es' ? levelLabel[displayHHI.level].es : levelLabel[displayHHI.level].en}
         </span>
       </div>
@@ -86,7 +86,7 @@ export default function ConcentrationRisk({ items, lang }) {
       <div className="flex items-center gap-1.5 mb-3">
         {dims.map((d) => (
           <button key={d.key} onClick={() => setDimension(d.key)}
-            className={`px-2 py-1 text-[10px] font-medium rounded-md transition-colors ${
+            className={`px-2 py-1 text-xs font-medium rounded-md transition-colors ${
               dimension === d.key
                 ? 'bg-slate-600 text-white'
                 : 'text-slate-400 border border-slate-600/50 hover:bg-[#283548]'
@@ -97,14 +97,14 @@ export default function ConcentrationRisk({ items, lang }) {
       </div>
 
       <div className="flex items-center gap-3 mb-3 px-2 py-1.5 bg-[#0f172a] rounded-lg border border-[#334155]/50">
-        <span className="text-[9px] text-slate-500">HHI</span>
+        <span className="text-xs text-slate-500">HHI</span>
         <div className="flex-1 h-1.5 bg-slate-700/30 rounded-full overflow-hidden">
           <div className="h-full rounded-full transition-all" style={{
             width: `${Math.min((displayHHI.hhi / 5000) * 100, 100)}%`,
             backgroundColor: displayHHI.level === 'low' ? '#10b981' : displayHHI.level === 'medium' ? '#f59e0b' : '#ef4444',
           }} />
         </div>
-        <span className="text-[10px] font-bold text-slate-300">{displayHHI.hhi}</span>
+        <span className="text-xs font-bold text-slate-300">{displayHHI.hhi}</span>
       </div>
 
       <div className="space-y-2">
@@ -123,7 +123,7 @@ export default function ConcentrationRisk({ items, lang }) {
       </div>
 
       {insight && (
-        <p className="text-[11px] text-slate-400 mt-3 px-1 italic">{insight}</p>
+        <p className="text-xs text-slate-400 mt-3 px-1 italic">{insight}</p>
       )}
     </div>
   )

@@ -65,7 +65,7 @@ export default function CurrencyImpact({ items, convert, baseCurrency, rates, la
   const baseRate = rates[baseCurrency] || 1
 
   return (
-    <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-5">
+    <div className="bg-[#1e293b]/80 rounded-xl border border-[#334155]/50 p-4">
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
         <span className="w-2 h-2 rounded-full bg-blue-400" />
         {t('IMPACTO CAMBIARIO', 'CURRENCY IMPACT')}
@@ -94,7 +94,7 @@ export default function CurrencyImpact({ items, convert, baseCurrency, rates, la
       {/* Currency legend */}
       <div className="flex flex-wrap gap-x-3 gap-y-1 mb-4">
         {exposure.groups.map((g, i) => (
-          <span key={g.currency} className="flex items-center gap-1 text-[10px] text-slate-400">
+          <span key={g.currency} className="flex items-center gap-1 text-xs text-slate-400">
             <span
               className="w-2 h-2 rounded-full shrink-0"
               style={{ backgroundColor: g.currency === baseCurrency ? '#475569' : PALETTE[i % PALETTE.length] }}
@@ -106,7 +106,7 @@ export default function CurrencyImpact({ items, convert, baseCurrency, rates, la
 
       {/* Sensitivity analysis */}
       <div className="mb-4">
-        <span className="text-[10px] text-slate-500 mb-2 block">
+        <span className="text-xs text-slate-500 mb-2 block">
           {t('Sensibilidad cambiaria', 'Currency sensitivity')}
         </span>
         <div className="grid grid-cols-2 gap-2">
@@ -114,7 +114,7 @@ export default function CurrencyImpact({ items, convert, baseCurrency, rates, la
             const isNeg = s.impact < 0
             return (
               <div key={s.pct} className="bg-[#0f172a] rounded-lg px-3 py-2 border border-[#334155]/50">
-                <span className="text-[9px] text-slate-500 block">
+                <span className="text-xs text-slate-500 block">
                   {s.pct > 0
                     ? t(`${baseCurrency} se debilita ${s.pct}%`, `${baseCurrency} weakens ${s.pct}%`)
                     : t(`${baseCurrency} se fortalece ${Math.abs(s.pct)}%`, `${baseCurrency} strengthens ${Math.abs(s.pct)}%`)}
@@ -122,7 +122,7 @@ export default function CurrencyImpact({ items, convert, baseCurrency, rates, la
                 <span className={`text-sm font-bold ${isNeg ? 'text-red-400' : 'text-emerald-400'}`}>
                   {isNeg ? '' : '+'}{formatCurrency(s.impact)}
                 </span>
-                <span className={`text-[9px] ml-1 ${isNeg ? 'text-red-500/70' : 'text-emerald-500/70'}`}>
+                <span className={`text-xs ml-1 ${isNeg ? 'text-red-500/70' : 'text-emerald-500/70'}`}>
                   ({isNeg ? '' : '+'}{s.impactPct.toFixed(2)}%)
                 </span>
               </div>
@@ -134,7 +134,7 @@ export default function CurrencyImpact({ items, convert, baseCurrency, rates, la
       {/* Per-currency detail */}
       {foreignGroups.length > 0 && (
         <div>
-          <span className="text-[10px] text-slate-500 mb-2 block">
+          <span className="text-xs text-slate-500 mb-2 block">
             {t('Detalle por moneda', 'By currency')}
           </span>
           <div className="space-y-2">
@@ -149,23 +149,23 @@ export default function CurrencyImpact({ items, convert, baseCurrency, rates, la
                         style={{ backgroundColor: PALETTE[i % PALETTE.length] }}
                       />
                       <span className="text-xs font-bold text-white">{g.currency}</span>
-                      <span className="text-[9px] text-slate-500">
+                      <span className="text-xs text-slate-500">
                         {CURRENCY_FLAGS[g.currency] || ''} {g.count} {t('activo(s)', 'holding(s)')}
                       </span>
                     </div>
                     <div className="text-right">
                       <span className="text-xs font-medium text-slate-300">{formatCurrency(g.value)}</span>
-                      <span className="text-[9px] text-slate-500 ml-1">({g.pct.toFixed(1)}%)</span>
+                      <span className="text-xs text-slate-500 ml-1">({g.pct.toFixed(1)}%)</span>
                     </div>
                   </div>
                   {rate != null && (
-                    <div className="text-[9px] text-slate-500 mb-1.5">
+                    <div className="text-xs text-slate-500 mb-1.5">
                       1 {g.currency} = {rate.toFixed(4)} {baseCurrency}
                     </div>
                   )}
                   <div className="flex flex-wrap gap-1.5">
                     {g.items.map((item) => (
-                      <span key={item.symbol} className="text-[9px] text-slate-400 bg-[#1e293b] px-1.5 py-0.5 rounded">
+                      <span key={item.symbol} className="text-xs text-slate-400 bg-[#1e293b] px-1.5 py-0.5 rounded">
                         {item.symbol}
                       </span>
                     ))}

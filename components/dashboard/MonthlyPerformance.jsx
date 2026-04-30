@@ -88,13 +88,13 @@ export default function MonthlyPerformance({ snapshots, transactions, convert, b
   }
 
   return (
-    <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-5">
+    <div className="bg-[#1e293b]/80 rounded-xl border border-[#334155]/50 p-4">
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
         <span className="w-2 h-2 rounded-full bg-amber-400" />
         MONTHLY PERFORMANCE
       </h3>
       <div className="overflow-x-auto">
-        <table className="w-full text-[11px]">
+        <table className="w-full text-xs">
           <thead>
             <tr className="text-slate-500">
               <th className="text-left py-1 pr-3 font-medium">Year</th>
@@ -111,7 +111,7 @@ export default function MonthlyPerformance({ snapshots, transactions, convert, b
                 {row.returns.map((val, i) => (
                   <td key={i} className="text-center py-1.5 px-0.5">
                     {val != null ? (
-                      <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${cellColor(val)}`}>
+                      <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${cellColor(val)}`}>
                         {val > 0 ? '+' : ''}{val.toFixed(1)}%
                       </span>
                     ) : (
@@ -120,7 +120,7 @@ export default function MonthlyPerformance({ snapshots, transactions, convert, b
                   </td>
                 ))}
                 <td className="text-center py-1.5 px-2">
-                  <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${cellColor(row.total)}`}>
+                  <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${cellColor(row.total)}`}>
                     {row.total > 0 ? '+' : ''}{row.total.toFixed(1)}%
                   </span>
                 </td>

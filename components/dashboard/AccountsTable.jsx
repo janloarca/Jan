@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { formatCurrency, getTypeCategory, TYPE_COLORS, getItemValue, getItemPrice, getBaseCurrency, formatHoldingPeriod, getEffectiveYield } from './utils'
+import { formatCurrency, getTypeCategory, TYPE_COLORS, getItemValue, getItemPrice, getBaseCurrency } from './utils'
 
 export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, onViewItem, onQuickBuy }) {
   const [filter, setFilter] = useState('all')
@@ -62,7 +62,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
   const t = (es, en) => lang === 'es' ? es : en
 
   return (
-    <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-5">
+    <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-5 card-primary">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-base font-semibold text-white">
           {t('Cuentas e Instrumentos', 'Accounts & Instruments')}
@@ -84,7 +84,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
       <div className="flex flex-wrap gap-2 mb-3">
         {tabs.map((tab) => (
           <button key={tab.key} onClick={() => setFilter(tab.key)}
-            className={`px-3 py-1.5 text-[11px] font-medium rounded-full transition-colors ${
+            className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
               filter === tab.key
                 ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
                 : 'text-slate-400 border border-slate-600/50 hover:bg-[#283548]'
@@ -96,13 +96,13 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
 
       {/* Breakdown toggles */}
       <div className="flex items-center gap-2 mb-4">
-        <span className="text-[10px] text-slate-500">{t('Desglose:', 'Breakdown:')}</span>
+        <span className="text-xs text-slate-500">{t('Desglose:', 'Breakdown:')}</span>
         {[
           { key: 'type', label: t('Por tipo', 'By type') },
           { key: 'institution', label: t('Por institución', 'By institution') },
         ].map((opt) => (
           <button key={opt.key} onClick={() => setBreakdown(breakdown === opt.key ? null : opt.key)}
-            className={`px-2.5 py-1 text-[10px] font-medium rounded-md transition-colors ${
+            className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
               breakdown === opt.key
                 ? 'bg-slate-600 text-white'
                 : 'text-slate-400 border border-slate-600/50 hover:bg-[#283548]'
@@ -122,9 +122,9 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                 <div className="flex-1 h-1.5 bg-slate-700/30 rounded-full overflow-hidden">
                   <div className="h-full rounded-full bg-emerald-500/60" style={{ width: `${row.pct}%` }} />
                 </div>
-                <span className="text-[10px] text-slate-400 w-8">{row.pct.toFixed(0)}%</span>
-                <span className="text-[10px] text-slate-300 w-14 text-right">{formatCurrency(row.value)}</span>
-                <span className="text-[10px] text-slate-500 w-4 text-right">{row.count}</span>
+                <span className="text-xs text-slate-400 w-8">{row.pct.toFixed(0)}%</span>
+                <span className="text-xs text-slate-300 w-14 text-right">{formatCurrency(row.value)}</span>
+                <span className="text-xs text-slate-500 w-4 text-right">{row.count}</span>
               </div>
             ))}
           </div>
@@ -147,8 +147,6 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                 <th className="text-center py-2 font-medium">% Port.</th>
                 <th className="text-right py-2 font-medium">{t('Costo', 'Avg Cost')}</th>
                 <th className="text-center py-2 font-medium">P&L</th>
-                <th className="text-center py-2 font-medium">Yield</th>
-                <th className="text-center py-2 font-medium">{t('Periodo', 'Holding')}</th>
                 <th className="text-right py-2 font-medium cursor-pointer hover:text-slate-300"
                   onClick={() => setSortBy(sortBy === 'value' ? 'value-asc' : 'value')}>
                   {t('Valor $', 'Value $')} {sortBy === 'value' ? '▼' : sortBy === 'value-asc' ? '▲' : ''}
@@ -170,11 +168,11 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
 
                 return (
                   <tr key={item.id || item.symbol} className="border-b border-[#334155]/30 hover:bg-[#283548]/50 transition-colors group">
-                    <td className="py-3">
+                    <td className="py-4">
                       <div className="flex items-center gap-0">
                         {/* Left color bar */}
                         <div className="w-1 h-12 rounded-full mr-3 shrink-0" style={{ backgroundColor: colors.bg }} />
-                        <div className="w-9 h-9 rounded-lg flex items-center justify-center text-[10px] font-bold shrink-0"
+                        <div className="w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
                           style={{ backgroundColor: colors.bg + '22', color: colors.bg }}>
                           {abbr}
                         </div>
@@ -182,17 +180,17 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                           <div className="text-white font-medium text-sm truncate flex items-center gap-2">
                             {item.name || item.symbol}
                             {item.change7d != null && (
-                              <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${
+                              <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
                                 item.change7d >= 0 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'
                               }`}>
                                 {item.change7d >= 0 ? '▲' : '▼'}{Math.abs(item.change7d).toFixed(1)}% 7d
                               </span>
                             )}
                           </div>
-                          <div className="text-slate-500 text-[10px]">
+                          <div className="text-slate-500 text-xs">
                             {item.institution ? `${item.institution} · ` : ''}{item.quantity?.toLocaleString(undefined, { maximumFractionDigits: 4 })} @ {formatCurrency(getItemPrice(item), item.currency)}
                             {item.currency && item.currency !== getBaseCurrency() && (
-                              <span className="ml-1 text-[8px] px-1 py-0.5 rounded bg-slate-700 text-slate-400">{item.currency}</span>
+                              <span className="ml-1 text-xs px-1 py-0.5 rounded bg-slate-700 text-slate-400">{item.currency}</span>
                             )}
                           </div>
                         </div>
@@ -203,12 +201,12 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                         <div className="w-14 h-1.5 bg-slate-700/50 rounded-full overflow-hidden">
                           <div className="h-full rounded-full" style={{ width: `${Math.min(pctPort, 100)}%`, backgroundColor: colors.bg }} />
                         </div>
-                        <span className="text-slate-400 text-[10px] w-8">{pctPort.toFixed(1)}%</span>
+                        <span className="text-slate-400 text-xs w-8">{pctPort.toFixed(1)}%</span>
                       </div>
                     </td>
                     <td className="text-right py-3">
                       {item.purchasePrice > 0 ? (
-                        <span className="text-slate-400 text-[11px]">{formatCurrency(item.purchasePrice)}</span>
+                        <span className="text-slate-400 text-xs">{formatCurrency(item.purchasePrice)}</span>
                       ) : (
                         <span className="text-slate-600">—</span>
                       )}
@@ -219,23 +217,13 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                           <span className={`text-xs font-medium ${retPct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                             {retPct >= 0 ? '+' : ''}{formatCurrency(retAbs)}
                           </span>
-                          <div className={`text-[9px] ${retPct >= 0 ? 'text-emerald-500/70' : 'text-red-500/70'}`}>
+                          <div className={`text-xs ${retPct >= 0 ? 'text-emerald-500/70' : 'text-red-500/70'}`}>
                             {retPct >= 0 ? '+' : ''}{retPct.toFixed(1)}%
                           </div>
                         </div>
                       ) : (
                         <span className="text-slate-600">—</span>
                       )}
-                    </td>
-                    <td className="text-center py-3">
-                      <span className="text-[11px] text-slate-400">
-                        {(() => { const y = getEffectiveYield(item); return y != null ? `${y.toFixed(1)}%` : '—' })()}
-                      </span>
-                    </td>
-                    <td className="text-center py-3">
-                      <span className="text-[11px] text-slate-400">
-                        {formatHoldingPeriod(item.acquisitionDate, lang)}
-                      </span>
                     </td>
                     <td className="text-right py-3">
                       <span className="text-emerald-400 font-medium cursor-pointer hover:underline"

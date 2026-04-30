@@ -95,19 +95,19 @@ export default function AssetDetailModal({ item, onClose, lang = 'es' }) {
           {/* Stats row */}
           <div className="grid grid-cols-3 gap-3">
             <div className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]/50">
-              <span className="text-[10px] text-slate-500 block">{t('Precio actual', 'Current price')}</span>
+              <span className="text-xs text-slate-500 block">{t('Precio actual', 'Current price')}</span>
               <span className="text-lg font-bold text-white">{formatCurrency(currentPrice)}</span>
             </div>
             <div className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]/50">
-              <span className="text-[10px] text-slate-500 block">{t('Valor total', 'Total value')}</span>
+              <span className="text-xs text-slate-500 block">{t('Valor total', 'Total value')}</span>
               <span className="text-lg font-bold text-white">{formatCurrency(totalValue)}</span>
             </div>
             <div className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]/50">
-              <span className="text-[10px] text-slate-500 block">P&L</span>
+              <span className="text-xs text-slate-500 block">P&L</span>
               <span className={`text-lg font-bold ${pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                 {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}
               </span>
-              <span className={`text-[10px] block ${pnlPct >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+              <span className={`text-xs block ${pnlPct >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
                 {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%
               </span>
             </div>
@@ -131,7 +131,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es' }) {
               <div className="flex gap-0.5 bg-[#0f172a] rounded-lg p-0.5">
                 {ranges.map((r) => (
                   <button key={r} onClick={() => setRange(r)}
-                    className={`px-2 py-1 text-[10px] font-medium rounded-md transition-all ${
+                    className={`px-2 py-1 text-xs font-medium rounded-md transition-all ${
                       range === r ? 'bg-blue-500 text-white' : 'text-slate-500 hover:text-slate-300'
                     }`}>
                     {r}

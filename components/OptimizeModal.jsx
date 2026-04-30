@@ -260,7 +260,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-white truncate">{q.item.name || q.item.symbol}</p>
-                <p className="text-[10px] text-slate-500">
+                <p className="text-xs text-slate-500">
                   {q.item.symbol} {q.item.institution ? `• ${q.item.institution}` : ''}
                 </p>
               </div>
@@ -268,17 +268,17 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
                 <p className="text-sm font-semibold text-white">
                   {itemValue.toLocaleString(undefined, { maximumFractionDigits: 2 })} {q.item.currency || 'USD'}
                 </p>
-                {!isBankItem && <p className="text-[10px] text-slate-500">{q.item.quantity || 0} {t('unidades', 'units')}</p>}
-                {q.item.acquisitionDate && <p className="text-[10px] text-slate-600">{q.item.acquisitionDate}</p>}
+                {!isBankItem && <p className="text-xs text-slate-500">{q.item.quantity || 0} {t('unidades', 'units')}</p>}
+                {q.item.acquisitionDate && <p className="text-xs text-slate-600">{q.item.acquisitionDate}</p>}
               </div>
             </div>
 
             {/* Inline currency selector on all cards */}
             {q.category !== 'moneda' && (
               <div className="flex items-center gap-2 mt-2 pt-2 border-t border-[#334155]/50">
-                <span className="text-[10px] text-slate-500">{t('Moneda:', 'Currency:')}</span>
+                <span className="text-xs text-slate-500">{t('Moneda:', 'Currency:')}</span>
                 <select value={currentForm.currency} onChange={(e) => set('currency', e.target.value)}
-                  className="px-2 py-0.5 bg-[#1e293b] border border-[#334155] rounded text-[11px] text-white focus:outline-none focus:border-blue-500/50">
+                  className="px-2 py-0.5 bg-[#1e293b] border border-[#334155] rounded text-xs text-white focus:outline-none focus:border-blue-500/50">
                   {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
@@ -287,7 +287,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
 
           <div>
             <p className="text-sm font-medium text-white">{q.title}</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">{q.subtitle}</p>
+            <p className="text-xs text-slate-400 mt-0.5">{q.subtitle}</p>
           </div>
 
           {/* === Category-specific fields === */}
@@ -302,7 +302,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
                       : 'bg-[#0f172a] text-slate-400 border-[#334155] hover:border-slate-500'
                   }`}>
                   {q.suggestedCurrency}
-                  <span className="block text-[10px] text-slate-500 mt-0.5">{t('Sugerido', 'Suggested')}</span>
+                  <span className="block text-xs text-slate-500 mt-0.5">{t('Sugerido', 'Suggested')}</span>
                 </button>
                 <button type="button" onClick={() => set('currency', q.item.currency || 'USD')}
                   className={`flex-1 px-3 py-3 rounded-lg border text-sm font-medium transition-all ${
@@ -311,11 +311,11 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
                       : 'bg-[#0f172a] text-slate-400 border-[#334155] hover:border-slate-500'
                   }`}>
                   {q.item.currency || 'USD'}
-                  <span className="block text-[10px] text-slate-500 mt-0.5">{t('Actual', 'Current')}</span>
+                  <span className="block text-xs text-slate-500 mt-0.5">{t('Actual', 'Current')}</span>
                 </button>
               </div>
               <div>
-                <label className="text-[10px] text-slate-500 mb-1 block">{t('O elige otra', 'Or choose another')}</label>
+                <label className="text-xs text-slate-500 mb-1 block">{t('O elige otra', 'Or choose another')}</label>
                 <select value={currentForm.currency} onChange={(e) => set('currency', e.target.value)}
                   className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
                   {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -326,7 +326,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
 
           {q.category === 'fecha' && (
             <div>
-              <label className="text-[10px] text-slate-500 mb-1 block">
+              <label className="text-xs text-slate-500 mb-1 block">
                 {isBankItem ? t('Fecha de apertura', 'Opening date')
                   : isPropertyItem ? t('Fecha de compra', 'Purchase date')
                   : t('Fecha de adquisición', 'Acquisition date')}
@@ -339,7 +339,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
 
           {q.category === 'institucion' && (
             <div>
-              <label className="text-[10px] text-slate-500 mb-1 block">{t('Institución / Broker / Banco', 'Institution / Broker / Bank')}</label>
+              <label className="text-xs text-slate-500 mb-1 block">{t('Institución / Broker / Banco', 'Institution / Broker / Bank')}</label>
               <input type="text" value={currentForm.institution} placeholder="IBKR, Fidelity, BAM, BI..."
                 onChange={(e) => {
                   set('institution', e.target.value)
@@ -354,10 +354,10 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
             <div className="space-y-2">
               <div>
                 <div className="flex justify-between mb-1">
-                  <label className="text-[10px] text-slate-500">
+                  <label className="text-xs text-slate-500">
                     {isBankItem ? t('Saldo actual', 'Current balance') : t('Valor actual', 'Current value')}
                   </label>
-                  <span className="text-[10px] text-slate-600">
+                  <span className="text-xs text-slate-600">
                     {t('Registrado:', 'Recorded:')} {Number(q.item.currentPrice || q.item.purchasePrice || 0).toLocaleString()} {currentForm.currency}
                   </span>
                 </div>
@@ -371,7 +371,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
           {q.category === 'dividendo' && (
             <div className="space-y-3">
               <div className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]/50">
-                <p className="text-[10px] text-slate-500 mb-1">{t('Dividendo registrado', 'Recorded dividend')}</p>
+                <p className="text-xs text-slate-500 mb-1">{t('Dividendo registrado', 'Recorded dividend')}</p>
                 <div className="flex items-center gap-3">
                   <span className="text-sm font-semibold text-emerald-400">
                     ${(q.item.incomeAmount || 0).toFixed(2)} / {t('pago', 'payment')}
@@ -381,13 +381,13 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
                   )}
                 </div>
                 {q.item.incomeFrequency && (
-                  <p className="text-[10px] text-slate-500 mt-1">
+                  <p className="text-xs text-slate-500 mt-1">
                     {{ monthly: t('Mensual','Monthly'), quarterly: t('Trimestral','Quarterly'), semiannual: t('Semestral','Semiannual'), annual: t('Anual','Annual') }[q.item.incomeFrequency] || q.item.incomeFrequency}
                   </p>
                 )}
               </div>
               <div>
-                <label className="text-[10px] text-slate-500 mb-1 block">{t('Nuevo monto por pago (si cambió)', 'New amount per payment (if changed)')}</label>
+                <label className="text-xs text-slate-500 mb-1 block">{t('Nuevo monto por pago (si cambió)', 'New amount per payment (if changed)')}</label>
                 <input type="number" step="any" value={currentForm.incomeAmount}
                   placeholder={(q.item.incomeAmount || 0).toString()}
                   onChange={(e) => set('incomeAmount', e.target.value)}
@@ -399,7 +399,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
           {q.category === 'tasa' && (
             <div className="space-y-3">
               <div className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]/50">
-                <p className="text-[10px] text-slate-500 mb-1">{t('Configuración actual', 'Current setting')}</p>
+                <p className="text-xs text-slate-500 mb-1">{t('Configuración actual', 'Current setting')}</p>
                 {q.item.incomeMode === 'percent' ? (
                   <span className="text-sm font-semibold text-emerald-400">{q.item.incomeRate || 0}% {t('anual', 'annual')}</span>
                 ) : (
@@ -408,17 +408,17 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
               </div>
               <div className="flex gap-1 mb-1">
                 <button type="button" onClick={() => set('incomeMode', 'fixed')}
-                  className={`flex-1 px-2 py-1.5 text-[10px] font-medium rounded transition-all ${
+                  className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all ${
                     currentForm.incomeMode === 'fixed' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#0f172a] text-slate-500 border border-[#334155]'
                   }`}>{t('Monto fijo', 'Fixed amount')}</button>
                 <button type="button" onClick={() => set('incomeMode', 'percent')}
-                  className={`flex-1 px-2 py-1.5 text-[10px] font-medium rounded transition-all ${
+                  className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all ${
                     currentForm.incomeMode === 'percent' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#0f172a] text-slate-500 border border-[#334155]'
                   }`}>{t('% anual', '% annual')}</button>
               </div>
               {currentForm.incomeMode === 'fixed' ? (
                 <div>
-                  <label className="text-[10px] text-slate-500 mb-1 block">{t('Monto por pago', 'Amount per payment')}</label>
+                  <label className="text-xs text-slate-500 mb-1 block">{t('Monto por pago', 'Amount per payment')}</label>
                   <input type="number" step="any" value={currentForm.incomeAmount}
                     placeholder={(q.item.incomeAmount || 0).toString()}
                     onChange={(e) => set('incomeAmount', e.target.value)}
@@ -426,7 +426,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
                 </div>
               ) : (
                 <div>
-                  <label className="text-[10px] text-slate-500 mb-1 block">{t('Tasa anual %', 'Annual rate %')}</label>
+                  <label className="text-xs text-slate-500 mb-1 block">{t('Tasa anual %', 'Annual rate %')}</label>
                   <input type="number" step="any" value={currentForm.incomeRate}
                     placeholder={(q.item.incomeRate || 0).toString()}
                     onChange={(e) => set('incomeRate', e.target.value)}
@@ -441,13 +441,13 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
               {!isBankItem ? (
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-[10px] text-slate-500 mb-1 block">{t('Cantidad', 'Quantity')}</label>
+                    <label className="text-xs text-slate-500 mb-1 block">{t('Cantidad', 'Quantity')}</label>
                     <input type="number" step="any" value={currentForm.quantity}
                       onChange={(e) => set('quantity', e.target.value)}
                       className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
                   </div>
                   <div>
-                    <label className="text-[10px] text-slate-500 mb-1 block">{t('Precio', 'Price')}</label>
+                    <label className="text-xs text-slate-500 mb-1 block">{t('Precio', 'Price')}</label>
                     <input type="number" step="any" value={currentForm.purchasePrice}
                       onChange={(e) => set('purchasePrice', e.target.value)}
                       className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
@@ -455,7 +455,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
                 </div>
               ) : (
                 <div>
-                  <label className="text-[10px] text-slate-500 mb-1 block">{t('Saldo actual', 'Current balance')}</label>
+                  <label className="text-xs text-slate-500 mb-1 block">{t('Saldo actual', 'Current balance')}</label>
                   <input type="number" step="any" value={currentForm.currentPrice}
                     onChange={(e) => set('currentPrice', e.target.value)}
                     className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />

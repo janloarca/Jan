@@ -145,7 +145,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
   const calendarMax = Math.max(...incomeCalendar, 1)
 
   return (
-    <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-5">
+    <div className="bg-[#1e293b]/80 rounded-xl border border-[#334155]/50 p-4">
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
         <span className="w-2 h-2 rounded-full bg-emerald-400" />
         {t('INGRESOS PASIVOS', 'PASSIVE INCOME')}
@@ -153,15 +153,15 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
 
       <div className="grid grid-cols-3 gap-3 mb-4">
         <div>
-          <span className="text-[10px] text-slate-500 block">{t('Ingreso anual est.', 'Est. Annual Income')}</span>
+          <span className="text-xs text-slate-500 block">{t('Ingreso anual est.', 'Est. Annual Income')}</span>
           <span className="text-lg font-bold text-emerald-400">{formatCurrency(estAnnual)}</span>
         </div>
         <div className="text-center">
-          <span className="text-[10px] text-slate-500 block">Yield</span>
+          <span className="text-xs text-slate-500 block">Yield</span>
           <span className="text-lg font-bold text-cyan-400">{portfolioYield.toFixed(2)}%</span>
         </div>
         <div className="text-right">
-          <span className="text-[10px] text-slate-500 block">YTD {t('recibido', 'received')}</span>
+          <span className="text-xs text-slate-500 block">YTD {t('recibido', 'received')}</span>
           <span className="text-lg font-bold text-white">{formatCurrency(stats.totalYTD)}</span>
         </div>
       </div>
@@ -170,8 +170,8 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
         <div className="flex items-center gap-2 mb-3">
           {incomeByType.map((bt) => (
             <div key={bt.type} className="flex-1 bg-[#0f172a] rounded-lg p-2 border border-[#334155]/50 text-center">
-              <span className="text-[9px] text-slate-500 block">{lang === 'es' ? bt.label : bt.labelEn}</span>
-              <span className="text-[11px] font-semibold text-white">{formatCurrency(bt.annual)}/yr</span>
+              <span className="text-xs text-slate-500 block">{lang === 'es' ? bt.label : bt.labelEn}</span>
+              <span className="text-xs font-semibold text-white">{formatCurrency(bt.annual)}/yr</span>
             </div>
           ))}
         </div>
@@ -179,15 +179,15 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
 
       <div className="grid grid-cols-3 gap-3 mb-4">
         <div className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]/50">
-          <span className="text-[10px] text-slate-500">{t('Mensual est.', 'Monthly est.')}</span>
+          <span className="text-xs text-slate-500">{t('Mensual est.', 'Monthly est.')}</span>
           <span className="text-sm font-semibold text-white block">{formatCurrency(estAnnual / 12)}</span>
         </div>
         <div className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]/50">
-          <span className="text-[10px] text-slate-500">{t('Este mes', 'This month')}</span>
+          <span className="text-xs text-slate-500">{t('Este mes', 'This month')}</span>
           <span className="text-sm font-semibold text-white block">{formatCurrency(stats.totalThisMonth)}</span>
         </div>
         <div className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]/50">
-          <span className="text-[10px] text-slate-500">{t('Pagos', 'Payments')}</span>
+          <span className="text-xs text-slate-500">{t('Pagos', 'Payments')}</span>
           <span className="text-sm font-semibold text-white block">{stats.divCount}</span>
         </div>
       </div>
@@ -195,10 +195,10 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       {/* Upcoming payments */}
       {projected.upcoming.length > 0 && (
         <div className="mb-4">
-          <span className="text-[10px] text-slate-500 mb-2 block">{t('Próximos pagos esperados', 'Upcoming expected payments')}</span>
+          <span className="text-xs text-slate-500 mb-2 block">{t('Próximos pagos esperados', 'Upcoming expected payments')}</span>
           <div className="space-y-1">
             {projected.upcoming.map((u, i) => (
-              <div key={i} className="flex items-center justify-between text-[11px] py-1 px-2 rounded bg-[#0f172a]/60">
+              <div key={i} className="flex items-center justify-between text-xs py-1 px-2 rounded bg-[#0f172a]/60">
                 <span className="text-slate-400 font-medium w-16 truncate">{u.symbol}</span>
                 <span className="text-slate-500">{monthName(u.month)} {u.day}</span>
                 <span className="text-emerald-400 font-medium">{formatCurrency(u.amount)}</span>
@@ -211,7 +211,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       {/* Mini bar chart - last 6 months */}
       {stats.last6.length > 0 && (
         <div className="mb-4">
-          <span className="text-[10px] text-slate-500 mb-2 block">{t('Historial reciente', 'Recent history')}</span>
+          <span className="text-xs text-slate-500 mb-2 block">{t('Historial reciente', 'Recent history')}</span>
           <div className="flex items-end gap-1.5 h-16">
             {stats.last6.map((key) => {
               const val = stats.byMonth[key]
@@ -220,11 +220,11 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
               const monthLabel = new Date(parseInt(y), parseInt(m)).toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short' })
               return (
                 <div key={key} className="flex-1 flex flex-col items-center gap-1">
-                  <span className="text-[8px] text-emerald-400">{formatCurrency(val)}</span>
+                  <span className="text-xs text-emerald-400">{formatCurrency(val)}</span>
                   <div className="w-full bg-emerald-500/30 rounded-t" style={{ height: `${Math.max(h, 8)}%` }}>
                     <div className="w-full h-full bg-emerald-500/60 rounded-t" />
                   </div>
-                  <span className="text-[8px] text-slate-500">{monthLabel}</span>
+                  <span className="text-xs text-slate-500">{monthLabel}</span>
                 </div>
               )
             })}
@@ -235,17 +235,17 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       {/* Top income sources - from items data + transaction history */}
       {projected.sources.length > 0 && (
         <div>
-          <span className="text-[10px] text-slate-500 mb-2 block">{t('Fuentes de ingreso', 'Income sources')}</span>
+          <span className="text-xs text-slate-500 mb-2 block">{t('Fuentes de ingreso', 'Income sources')}</span>
           <div className="space-y-1.5">
             {projected.sources.slice(0, 5).map((s) => {
               const pct = estAnnual > 0 ? (s.annual / estAnnual) * 100 : 0
               return (
                 <div key={s.symbol} className="flex items-center gap-2">
-                  <span className="text-[11px] text-white font-medium w-16 truncate">{s.symbol}</span>
+                  <span className="text-xs text-white font-medium w-16 truncate">{s.symbol}</span>
                   <div className="flex-1 h-1.5 bg-slate-700/30 rounded-full overflow-hidden">
                     <div className="h-full rounded-full bg-emerald-500/60" style={{ width: `${pct}%` }} />
                   </div>
-                  <span className="text-[10px] text-slate-400 w-20 text-right">{formatCurrency(s.annual)}/yr</span>
+                  <span className="text-xs text-slate-400 w-20 text-right">{formatCurrency(s.annual)}/yr</span>
                 </div>
               )
             })}
@@ -256,7 +256,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       {/* 12-month income calendar */}
       {projected.sources.length > 0 && (
         <div className="mb-4">
-          <span className="text-[10px] text-slate-500 mb-2 block">{t('Calendario de ingresos', 'Income calendar')}</span>
+          <span className="text-xs text-slate-500 mb-2 block">{t('Calendario de ingresos', 'Income calendar')}</span>
           <div className="grid grid-cols-6 gap-1">
             {incomeCalendar.map((amt, m) => {
               const intensity = calendarMax > 0 ? amt / calendarMax : 0
@@ -264,8 +264,8 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
                 <div key={m} className="text-center p-1.5 rounded" style={{
                   backgroundColor: amt > 0 ? `rgba(16, 185, 129, ${0.1 + intensity * 0.3})` : 'rgba(51, 65, 85, 0.3)',
                 }}>
-                  <span className="text-[8px] text-slate-500 block">{monthName(m)}</span>
-                  <span className={`text-[9px] font-medium ${amt > 0 ? 'text-emerald-400' : 'text-slate-600'}`}>
+                  <span className="text-xs text-slate-500 block">{monthName(m)}</span>
+                  <span className={`text-xs font-medium ${amt > 0 ? 'text-emerald-400' : 'text-slate-600'}`}>
                     {amt > 0 ? formatCurrency(amt) : '—'}
                   </span>
                 </div>
@@ -278,17 +278,17 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       {/* Fallback: top payers from transactions if no projected sources */}
       {projected.sources.length === 0 && stats.topPayers && stats.topPayers.length > 0 && (
         <div>
-          <span className="text-[10px] text-slate-500 mb-2 block">{t('Mayores pagadores', 'Top payers')}</span>
+          <span className="text-xs text-slate-500 mb-2 block">{t('Mayores pagadores', 'Top payers')}</span>
           <div className="space-y-1.5">
             {stats.topPayers.map((p) => {
               const pct = stats.totalAll > 0 ? (p.total / stats.totalAll) * 100 : 0
               return (
                 <div key={p.symbol} className="flex items-center gap-2">
-                  <span className="text-[11px] text-white font-medium w-16 truncate">{p.symbol}</span>
+                  <span className="text-xs text-white font-medium w-16 truncate">{p.symbol}</span>
                   <div className="flex-1 h-1.5 bg-slate-700/30 rounded-full overflow-hidden">
                     <div className="h-full rounded-full bg-emerald-500/60" style={{ width: `${pct}%` }} />
                   </div>
-                  <span className="text-[10px] text-slate-400 w-16 text-right">{formatCurrency(p.total)}</span>
+                  <span className="text-xs text-slate-400 w-16 text-right">{formatCurrency(p.total)}</span>
                 </div>
               )
             })}

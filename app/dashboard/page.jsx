@@ -36,6 +36,7 @@ import EditAccountModal from '@/components/EditAccountModal'
 import OptimizeModal from '@/components/OptimizeModal'
 import AssetDetailModal from '@/components/dashboard/AssetDetailModal'
 import UpcomingDividends from '@/components/dashboard/UpcomingDividends'
+import SectionCollapse from '@/components/dashboard/SectionCollapse'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -495,7 +496,7 @@ export default function DashboardPage() {
           ) : (
             <span className="w-2 h-2 rounded-full bg-slate-500" />
           )}
-          <span className="text-[11px] text-slate-500">
+          <span className="text-xs text-slate-500">
             {dataAge === 0
               ? (lang === 'es' ? 'Datos al día' : 'Data up to date')
               : dataAge != null
@@ -503,14 +504,14 @@ export default function DashboardPage() {
                 : (lang === 'es' ? 'Sin datos aún' : 'No data yet')}
           </span>
           {pricesUpdate && (
-            <span className="text-[10px] text-slate-600">
+            <span className="text-xs text-slate-600">
               {new Date(pricesUpdate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
           {baseCurrency !== 'USD' && (
-            <span className="text-[10px] text-cyan-500/70">{baseCurrency}</span>
+            <span className="text-xs text-cyan-500/70">{baseCurrency}</span>
           )}
-          {(pricesLoading || ratesLoading) && <span className="text-[10px] text-blue-400 animate-pulse">{lang === 'es' ? 'Actualizando...' : 'Updating...'}</span>}
+          {(pricesLoading || ratesLoading) && <span className="text-xs text-blue-400 animate-pulse">{lang === 'es' ? 'Actualizando...' : 'Updating...'}</span>}
         </div>
 
         {/* Insights Banner */}
@@ -542,17 +543,12 @@ export default function DashboardPage() {
         </div>
 
         {/* ═══ PERFORMANCE & RISK ═══ */}
-        <div className="flex items-center gap-3 pt-2">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-            {lang === 'es' ? 'Rendimiento y Riesgo' : 'Performance & Risk'}
-          </span>
-          <div className="flex-1 h-px bg-[#334155]" />
-        </div>
-
-        <PerformanceSummary items={enrichedItems} transactions={transactions} convert={convert} baseCurrency={baseCurrency} netWorth={netWorth} lang={lang} />
-        <RiskMetrics snapshots={snapshots} benchmarkData={benchmarkData} netWorth={netWorth} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} />
-        <CurrencyImpact items={enrichedItems} convert={convert} baseCurrency={baseCurrency} rates={rates} lang={lang} />
-        <MonthlyPerformance snapshots={snapshots} transactions={transactions} convert={convert} baseCurrency={baseCurrency} lang={lang} />
+        <SectionCollapse title={lang === 'es' ? 'Rendimiento y Riesgo' : 'Performance & Risk'} id="perf-risk">
+          <PerformanceSummary items={enrichedItems} transactions={transactions} convert={convert} baseCurrency={baseCurrency} netWorth={netWorth} lang={lang} />
+          <RiskMetrics snapshots={snapshots} benchmarkData={benchmarkData} netWorth={netWorth} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} />
+          <CurrencyImpact items={enrichedItems} convert={convert} baseCurrency={baseCurrency} rates={rates} lang={lang} />
+          <MonthlyPerformance snapshots={snapshots} transactions={transactions} convert={convert} baseCurrency={baseCurrency} lang={lang} />
+        </SectionCollapse>
 
         {/* Action Buttons */}
         <ActionButtons
@@ -564,46 +560,36 @@ export default function DashboardPage() {
         />
 
         {/* ═══ INCOME & GOALS ═══ */}
-        <div className="flex items-center gap-3 pt-2">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-            {lang === 'es' ? 'Ingresos y Metas' : 'Income & Goals'}
-          </span>
-          <div className="flex-1 h-px bg-[#334155]" />
-        </div>
+        <SectionCollapse title={lang === 'es' ? 'Ingresos y Metas' : 'Income & Goals'} id="income-goals">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+            <DividendIncome transactions={transactions} items={enrichedItems} convert={convert} baseCurrency={baseCurrency} lang={lang} netWorth={netWorth} />
+            <ConcentrationRisk items={enrichedItems} lang={lang} />
+          </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-          <DividendIncome transactions={transactions} items={enrichedItems} convert={convert} baseCurrency={baseCurrency} lang={lang} netWorth={netWorth} />
-          <ConcentrationRisk items={enrichedItems} lang={lang} />
-        </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+            <GoalTracker
+              netWorth={netWorth}
+              annualDividends={annualDividends}
+              estimatedAnnualIncome={estimatedAnnualIncome}
+              goals={goals}
+              onSaveGoals={saveGoals}
+              volatility={riskMetrics.volatility}
+              lang={lang}
+            />
+            <FinancialHealth items={enrichedItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} />
+          </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-          <GoalTracker
-            netWorth={netWorth}
-            annualDividends={annualDividends}
-            estimatedAnnualIncome={estimatedAnnualIncome}
-            goals={goals}
-            onSaveGoals={saveGoals}
-            volatility={riskMetrics.volatility}
-            lang={lang}
-          />
-          <FinancialHealth items={enrichedItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} />
-        </div>
-
-        <ProjectionSimulator netWorth={netWorth} lang={lang} volatility={riskMetrics.volatility} goalValue={goals?.portfolioGoal} />
+          <ProjectionSimulator netWorth={netWorth} lang={lang} volatility={riskMetrics.volatility} goalValue={goals?.portfolioGoal} />
+        </SectionCollapse>
 
         {/* ═══ HOLDINGS ═══ */}
-        <div className="flex items-center gap-3 pt-2">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-            {lang === 'es' ? 'Posiciones' : 'Holdings'}
-          </span>
-          <div className="flex-1 h-px bg-[#334155]" />
-        </div>
+        <SectionCollapse title={lang === 'es' ? 'Posiciones' : 'Holdings'} id="holdings">
+          <AccountsTable items={enrichedItems} lang={lang} onDeleteItem={deleteItem}
+            onEditItem={(item) => setEditItem(item)} onViewItem={(item) => setDetailItem(item)}
+            onQuickBuy={() => setModal('account')} />
 
-        <AccountsTable items={enrichedItems} lang={lang} onDeleteItem={deleteItem}
-          onEditItem={(item) => setEditItem(item)} onViewItem={(item) => setDetailItem(item)}
-          onQuickBuy={() => setModal('account')} />
-
-        <RecentTransactions transactions={transactions} lang={lang} />
+          <RecentTransactions transactions={transactions} lang={lang} />
+        </SectionCollapse>
 
         {/* Generate Report */}
         <div className="text-center py-6">

@@ -104,7 +104,7 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
   const t = (es, en) => lang === 'es' ? es : en
 
   return (
-    <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-5">
+    <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-5 card-primary">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-purple-400" />
@@ -112,9 +112,9 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
         </h3>
         <div className="flex gap-0.5 bg-[#0f172a] rounded p-0.5">
           <button onClick={() => setReturnMode('twr')}
-            className={`px-1.5 py-0.5 text-[9px] font-medium rounded transition-all ${returnMode === 'twr' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}>TWR</button>
+            className={`px-1.5 py-0.5 text-xs font-medium rounded transition-all ${returnMode === 'twr' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}>TWR</button>
           <button onClick={() => setReturnMode('mwr')}
-            className={`px-1.5 py-0.5 text-[9px] font-medium rounded transition-all ${returnMode === 'mwr' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}>MWR</button>
+            className={`px-1.5 py-0.5 text-xs font-medium rounded transition-all ${returnMode === 'mwr' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}>MWR</button>
         </div>
       </div>
       {loading ? (
@@ -128,13 +128,13 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
             const isPos = (p.pct ?? 0) >= 0
             return (
               <div key={p.key} className="text-center p-2 sm:p-3 bg-[#0f172a] rounded-lg border border-[#334155]/50">
-                <span className="text-[10px] text-slate-500 font-medium">{p.label}</span>
+                <span className="text-xs text-slate-500 font-medium">{p.label}</span>
                 {p.pct != null ? (
                   <>
                     <div className={`text-sm sm:text-base font-bold mt-1 ${isPos ? 'text-emerald-400' : 'text-red-400'}`}>
                       {isPos ? '+' : ''}{p.pct.toFixed(2)}%
                     </div>
-                    <div className={`text-[9px] sm:text-[10px] mt-0.5 ${isPos ? 'text-emerald-500/70' : 'text-red-500/70'}`}>
+                    <div className={`text-xs sm:text-xs mt-0.5 ${isPos ? 'text-emerald-500/70' : 'text-red-500/70'}`}>
                       {isPos ? '+' : ''}{formatCurrency(p.abs)}
                     </div>
                   </>
@@ -145,7 +145,7 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
             )
           })}
         </div>
-        <div className="text-[9px] text-slate-600 mt-2 text-right">
+        <div className="text-xs text-slate-600 mt-2 text-right">
           {returnMode === 'twr' ? t('Retorno ponderado por tiempo (TWR)', 'Time-Weighted Return (TWR)') : t('Retorno ponderado por dinero (MWR)', 'Money-Weighted Return (MWR)')}
         </div>
       </>

@@ -60,19 +60,19 @@ export default function UpcomingDividends({ items, lang }) {
   const totalExpected = upcoming.reduce((s, d) => s + d.amount, 0)
 
   return (
-    <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-4">
+    <div className="bg-[#1e293b]/80 rounded-xl border border-[#334155]/50 p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-xs font-semibold text-white flex items-center gap-1.5">
           <span className="text-emerald-400">$</span>
           {t('Próximos pagos', 'Upcoming payments')}
         </h3>
-        <span className="text-[10px] text-emerald-400 font-medium">{formatCurrency(totalExpected)}</span>
+        <span className="text-xs text-emerald-400 font-medium">{formatCurrency(totalExpected)}</span>
       </div>
       <div className="space-y-2">
         {upcoming.map((d, i) => (
           <div key={`${d.symbol}-${d.month}-${i}`} className="flex items-center justify-between">
             <div className="flex items-center gap-2 min-w-0">
-              <span className="text-[10px] text-slate-500 w-12 shrink-0">{d.monthLabel} {d.day}</span>
+              <span className="text-xs text-slate-500 w-12 shrink-0">{d.monthLabel} {d.day}</span>
               <span className="text-xs text-slate-300 truncate">{d.name}</span>
             </div>
             <span className="text-xs text-emerald-400 font-medium shrink-0 ml-2">

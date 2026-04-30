@@ -335,7 +335,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                 className="mt-4 w-full py-3 bg-cyan-600/20 border border-cyan-500/30 text-cyan-400 rounded-lg hover:bg-cyan-600/30 transition-colors text-sm font-medium flex items-center justify-center gap-2">
                 <span>📥</span> {t('Descargar plantilla de ejemplo', 'Download example template')}
               </button>
-              <p className="mt-2 text-[10px] text-slate-500 text-center">
+              <p className="mt-2 text-xs text-slate-500 text-center">
                 {t('Excel con 3 hojas: Activos, Historial anual, Transacciones + instrucciones', 'Excel with 3 sheets: Assets, Annual History, Transactions + instructions')}
               </p>
             </div>

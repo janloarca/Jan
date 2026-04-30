@@ -120,7 +120,7 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
   }
 
   return (
-    <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-5">
+    <div className="bg-[#1e293b]/80 rounded-xl border border-[#334155]/50 p-4">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-cyan-400" />
@@ -129,16 +129,16 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
         <div className="flex items-center gap-2">
           <div className="flex bg-[#0f172a] rounded-lg border border-[#334155]/50 overflow-hidden">
             <button onClick={() => setMode('deterministic')}
-              className={`px-2 py-1 text-[9px] font-medium transition-colors ${mode === 'deterministic' ? 'bg-blue-500/20 text-blue-400' : 'text-slate-500'}`}>
+              className={`px-2 py-1 text-xs font-medium transition-colors ${mode === 'deterministic' ? 'bg-blue-500/20 text-blue-400' : 'text-slate-500'}`}>
               {t('Lineal', 'Linear')}
             </button>
             <button onClick={() => setMode('montecarlo')}
-              className={`px-2 py-1 text-[9px] font-medium transition-colors ${mode === 'montecarlo' ? 'bg-blue-500/20 text-blue-400' : 'text-slate-500'}`}>
+              className={`px-2 py-1 text-xs font-medium transition-colors ${mode === 'montecarlo' ? 'bg-blue-500/20 text-blue-400' : 'text-slate-500'}`}>
               Monte Carlo
             </button>
           </div>
           <button onClick={() => setExpanded(!expanded)}
-            className="text-[10px] text-emerald-400 hover:text-emerald-300 transition-colors">
+            className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors">
             {expanded ? t('Cerrar', 'Close') : t('Ajustar', 'Adjust')}
           </button>
         </div>
@@ -147,19 +147,19 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
       {expanded && (
         <div className="grid grid-cols-3 gap-3 mb-4">
           <div>
-            <label className="text-[10px] text-slate-500 mb-1 block">{t('Inversión mensual', 'Monthly investment')}</label>
+            <label className="text-xs text-slate-500 mb-1 block">{t('Inversión mensual', 'Monthly investment')}</label>
             <input value={monthly} onChange={(e) => setMonthly(parseFloat(e.target.value) || 0)}
               type="number" step="100"
               className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
           </div>
           <div>
-            <label className="text-[10px] text-slate-500 mb-1 block">{t('Años', 'Years')}</label>
+            <label className="text-xs text-slate-500 mb-1 block">{t('Años', 'Years')}</label>
             <input value={years} onChange={(e) => setYears(parseInt(e.target.value) || 1)}
               type="number" min="1" max="50"
               className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
           </div>
           <div>
-            <label className="text-[10px] text-slate-500 mb-1 block">{t('Retorno anual %', 'Annual return %')}</label>
+            <label className="text-xs text-slate-500 mb-1 block">{t('Retorno anual %', 'Annual return %')}</label>
             <input value={rate} onChange={(e) => setRate(parseFloat(e.target.value) || 0)}
               type="number" step="0.5" min="0" max="30"
               className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
@@ -171,30 +171,30 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
       {mode === 'montecarlo' && mcResult ? (
         <div className="grid grid-cols-3 gap-2 mb-4">
           <div className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]/50 text-center">
-            <span className="text-[9px] text-slate-500 block">{t('Mediana (p50)', 'Median (p50)')}</span>
+            <span className="text-xs text-slate-500 block">{t('Mediana (p50)', 'Median (p50)')}</span>
             <span className="text-base font-bold text-emerald-400">{formatCompact(mcResult.medianFinal)}</span>
           </div>
           <div className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]/50 text-center">
-            <span className="text-[9px] text-slate-500 block">{t('90% prob ≥', '90% prob ≥')}</span>
+            <span className="text-xs text-slate-500 block">{t('90% prob ≥', '90% prob ≥')}</span>
             <span className="text-base font-bold text-amber-400">{formatCompact(mcResult.p10Final)}</span>
           </div>
           <div className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]/50 text-center">
-            <span className="text-[9px] text-slate-500 block">{t('10% prob ≥', '10% prob ≥')}</span>
+            <span className="text-xs text-slate-500 block">{t('10% prob ≥', '10% prob ≥')}</span>
             <span className="text-base font-bold text-cyan-400">{formatCompact(mcResult.p90Final)}</span>
           </div>
         </div>
       ) : (
         <div className="grid grid-cols-3 gap-2 mb-4">
           <div className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]/50 text-center">
-            <span className="text-[9px] text-slate-500 block">{t('Valor futuro', 'Future value')}</span>
+            <span className="text-xs text-slate-500 block">{t('Valor futuro', 'Future value')}</span>
             <span className="text-base font-bold text-emerald-400">{formatCompact(finalBalance)}</span>
           </div>
           <div className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]/50 text-center">
-            <span className="text-[9px] text-slate-500 block">{t('Invertido', 'Invested')}</span>
+            <span className="text-xs text-slate-500 block">{t('Invertido', 'Invested')}</span>
             <span className="text-base font-bold text-white">{formatCompact(totalInvested)}</span>
           </div>
           <div className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]/50 text-center">
-            <span className="text-[9px] text-slate-500 block">{t('Ganancias', 'Gains')}</span>
+            <span className="text-xs text-slate-500 block">{t('Ganancias', 'Gains')}</span>
             <span className="text-base font-bold text-cyan-400">{formatCompact(totalGains)}</span>
           </div>
         </div>
@@ -268,7 +268,7 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
       </svg>
 
       {/* Legend */}
-      <div className="flex items-center gap-3 mt-2 text-[10px] text-slate-500 flex-wrap">
+      <div className="flex items-center gap-3 mt-2 text-xs text-slate-500 flex-wrap">
         {mode === 'montecarlo' ? (
           <>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-500" /> p50 ({t('mediana', 'median')})</span>
@@ -290,7 +290,7 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
           <span className={`text-sm font-bold ${mcResult.goalProbability >= 70 ? 'text-emerald-400' : mcResult.goalProbability >= 40 ? 'text-amber-400' : 'text-red-400'}`}>
             {mcResult.goalProbability}%
           </span>
-          <span className="text-[10px] text-slate-400">
+          <span className="text-xs text-slate-400">
             {t(`probabilidad de alcanzar ${formatCompact(goalValue)}`, `probability of reaching ${formatCompact(goalValue)}`)}
           </span>
         </div>

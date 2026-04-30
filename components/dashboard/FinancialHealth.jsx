@@ -107,7 +107,7 @@ export default function FinancialHealth({ items, netWorth, totalAssets, snapshot
   }, [scores])
 
   return (
-    <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-5">
+    <div className="bg-[#1e293b]/80 rounded-xl border border-[#334155]/50 p-4">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-amber-400" />
@@ -121,23 +121,23 @@ export default function FinancialHealth({ items, netWorth, totalAssets, snapshot
       <div className="space-y-3">
         {bars.map((bar) => (
           <div key={bar.label} className="flex items-center gap-3">
-            <span className="text-[11px] text-slate-400 w-28 shrink-0">{bar.label}</span>
+            <span className="text-xs text-slate-400 w-28 shrink-0">{bar.label}</span>
             <div className="flex-1 h-2 bg-slate-700/50 rounded-full overflow-hidden">
               <div className={`h-full rounded-full transition-all ${bar.color}`} style={{ width: `${(bar.score / bar.max) * 100}%` }} />
             </div>
-            <span className="text-[11px] text-slate-400 w-10 text-right font-medium">{bar.score}/{bar.max}</span>
+            <span className="text-xs text-slate-400 w-10 text-right font-medium">{bar.score}/{bar.max}</span>
           </div>
         ))}
       </div>
 
       {suggestions.length > 0 && (
         <div className="mt-4 pt-3 border-t border-[#334155]/50">
-          <span className="text-[10px] text-slate-500 mb-2 block">{t('Cómo mejorar', 'How to improve')}</span>
+          <span className="text-xs text-slate-500 mb-2 block">{t('Cómo mejorar', 'How to improve')}</span>
           <div className="space-y-1.5">
             {suggestions.map((tip, i) => (
               <div key={i} className="flex items-center justify-between">
-                <span className="text-[11px] text-slate-300">{lang === 'es' ? tip.textEs : tip.textEn}</span>
-                <span className="text-[10px] font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                <span className="text-xs text-slate-300">{lang === 'es' ? tip.textEs : tip.textEn}</span>
+                <span className="text-xs font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
                   +{tip.points} pts
                 </span>
               </div>

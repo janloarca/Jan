@@ -399,7 +399,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                       : 'bg-[#0f172a] border border-[#334155] text-slate-400 hover:border-slate-500'
                   }`}>
                   <span className="text-lg">{tp.icon}</span>
-                  <span className="text-[10px] font-medium">{lang === 'es' ? tp.es : tp.en}</span>
+                  <span className="text-xs font-medium">{lang === 'es' ? tp.es : tp.en}</span>
                 </button>
               ))}
             </div>
@@ -443,20 +443,20 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                 <label className="text-xs text-slate-400 font-medium">{t('¿A dónde va el dinero?', 'Where does the money go?')}</label>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => set('incomeDestination', '__exit__')}
-                    className={`flex-1 px-2 py-2 text-[11px] font-medium rounded-lg transition-all ${
+                    className={`flex-1 px-2 py-2 text-xs font-medium rounded-lg transition-all ${
                       form.incomeDestination === '__exit__' ? 'bg-red-500/20 text-red-400 border border-red-500/40' : 'bg-[#0f172a] text-slate-500 border border-[#334155]'
                     }`}>
                     ↗ {t('Sale del portafolio', 'Exits portfolio')}
                   </button>
                   <button type="button" onClick={() => set('incomeDestination', '')}
-                    className={`flex-1 px-2 py-2 text-[11px] font-medium rounded-lg transition-all ${
+                    className={`flex-1 px-2 py-2 text-xs font-medium rounded-lg transition-all ${
                       form.incomeDestination !== '__exit__' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#0f172a] text-slate-500 border border-[#334155]'
                     }`}>
                     🔄 {t('Queda en el portafolio', 'Stays in portfolio')}
                   </button>
                 </div>
                 {form.incomeDestination === '__exit__' && (
-                  <p className="text-[9px] text-red-400/70">{t('El dinero sale completamente. Se registra como retiro.', 'Money leaves completely. Recorded as withdrawal.')}</p>
+                  <p className="text-xs text-red-400/70">{t('El dinero sale completamente. Se registra como retiro.', 'Money leaves completely. Recorded as withdrawal.')}</p>
                 )}
                 {form.incomeDestination !== '__exit__' && (
                   <>
@@ -469,7 +469,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                         </option>
                       ))}
                     </select>
-                    <p className="text-[9px] text-emerald-400/70">{t('El dinero se mueve dentro del portafolio. No afecta el rendimiento.', 'Money moves within portfolio. Does not affect return.')}</p>
+                    <p className="text-xs text-emerald-400/70">{t('El dinero se mueve dentro del portafolio. No afecta el rendimiento.', 'Money moves within portfolio. Does not affect return.')}</p>
                   </>
                 )}
               </div>
@@ -532,7 +532,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                           }`}>{r.symbol}</span>
                           <span className="text-xs text-slate-300 truncate">{r.name}</span>
                         </div>
-                        <span className="text-[10px] text-slate-500 shrink-0 ml-2">{r.exchange}</span>
+                        <span className="text-xs text-slate-500 shrink-0 ml-2">{r.exchange}</span>
                       </button>
                     ))}
                   </div>
@@ -581,7 +581,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
             </div>
           )}
           {isMarketAsset && (
-            <p className="text-[10px] text-slate-600 -mt-2">
+            <p className="text-xs text-slate-600 -mt-2">
               {t('El precio actual se actualiza automáticamente del mercado.', 'Current price updates automatically from market data.')}
             </p>
           )}
@@ -600,25 +600,25 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
               </div>
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div>
-                  <p className="text-[10px] text-slate-500">{t('Rendimiento', 'Yield')}</p>
+                  <p className="text-xs text-slate-500">{t('Rendimiento', 'Yield')}</p>
                   <p className="text-sm font-semibold text-emerald-400">{divInfo.dividendYield}%</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-slate-500">{t('Frecuencia', 'Frequency')}</p>
+                  <p className="text-xs text-slate-500">{t('Frecuencia', 'Frequency')}</p>
                   <p className="text-sm font-semibold text-white capitalize">
                     {{ monthly: t('Mensual','Monthly'), quarterly: t('Trimestral','Quarterly'), semiannual: t('Semestral','Semiannual'), annual: t('Anual','Annual') }[divInfo.frequency] || divInfo.frequency}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-slate-500">{t('Próximo pago', 'Next payment')}</p>
+                  <p className="text-xs text-slate-500">{t('Próximo pago', 'Next payment')}</p>
                   <p className="text-sm font-semibold text-white">{divInfo.nextPaymentDate?.slice(5)}</p>
                 </div>
               </div>
               <div>
-                <p className="text-[10px] text-slate-500 mb-1">{t('Meses de pago:', 'Payment months:')}</p>
+                <p className="text-xs text-slate-500 mb-1">{t('Meses de pago:', 'Payment months:')}</p>
                 <div className="flex flex-wrap gap-1">
                   {['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'].map((label, i) => (
-                    <span key={i} className={`px-1.5 py-0.5 text-[10px] rounded ${
+                    <span key={i} className={`px-1.5 py-0.5 text-xs rounded ${
                       divInfo.paymentMonths?.includes(i)
                         ? 'bg-blue-500/25 text-blue-400 border border-blue-500/40'
                         : 'bg-[#0f172a] text-slate-600 border border-[#334155]'
@@ -627,24 +627,24 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                 </div>
               </div>
               <div>
-                <p className="text-[10px] text-slate-500 mb-1.5">{t('¿Qué hacer con los dividendos?', 'What to do with dividends?')}</p>
+                <p className="text-xs text-slate-500 mb-1.5">{t('¿Qué hacer con los dividendos?', 'What to do with dividends?')}</p>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => set('dividendAction', 'cash')}
-                    className={`flex-1 px-2 py-1.5 text-[10px] font-medium rounded transition-all ${
+                    className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all ${
                       form.dividendAction === 'cash' ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40' : 'bg-[#0f172a] text-slate-500 border border-[#334155]'
                     }`}>💵 {t('Efectivo', 'Cash')}</button>
                   <button type="button" onClick={() => set('dividendAction', 'reinvest')}
-                    className={`flex-1 px-2 py-1.5 text-[10px] font-medium rounded transition-all ${
+                    className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all ${
                       form.dividendAction === 'reinvest' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#0f172a] text-slate-500 border border-[#334155]'
                     }`}>🔄 {t('Reinvertir', 'Reinvest')}</button>
                 </div>
                 {form.dividendAction === 'cash' && (
-                  <p className="text-[9px] text-slate-600 mt-1">
+                  <p className="text-xs text-slate-600 mt-1">
                     {t('Se depositan en tu cuenta cash del broker automáticamente.', 'Deposited to your broker cash account automatically.')}
                   </p>
                 )}
                 {form.dividendAction === 'reinvest' && (
-                  <p className="text-[9px] text-slate-600 mt-1">
+                  <p className="text-xs text-slate-600 mt-1">
                     {t('Se compran más acciones automáticamente (DRIP).', 'More shares purchased automatically (DRIP).')}
                   </p>
                 )}
@@ -652,7 +652,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
             </div>
           )}
           {isMarketAsset && divInfo && !divInfo.hasDividend && !divLoading && form.symbol && (
-            <p className="text-[10px] text-slate-500 -mt-1">
+            <p className="text-xs text-slate-500 -mt-1">
               {t('Este activo no paga dividendos.', 'This asset does not pay dividends.')}
             </p>
           )}
@@ -680,7 +680,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                     className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
                 </div>
               </div>
-              <p className="text-[10px] text-slate-600 -mt-2">
+              <p className="text-xs text-slate-600 -mt-2">
                 {t('Si no pones valor actual, se usa el valor de compra. Puedes editarlo después.', 'If blank, purchase value is used. You can edit it later.')}
               </p>
             </>
@@ -713,7 +713,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                   placeholder="5000" type="number" step="any"
                   className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
               </div>
-              <p className="text-[10px] text-slate-600 -mt-2">
+              <p className="text-xs text-slate-600 -mt-2">
                 {t('Puedes actualizar el saldo en cualquier momento editando la cuenta.', 'You can update the balance anytime by editing the account.')}
               </p>
             </>
@@ -785,11 +785,11 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
 
               <div className="flex gap-1 mb-2">
                 <button type="button" onClick={() => set('incomeMode', 'fixed')}
-                  className={`flex-1 px-2 py-1.5 text-[10px] font-medium rounded transition-all ${
+                  className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all ${
                     form.incomeMode === 'fixed' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#0f172a] text-slate-500 border border-[#334155]'
                   }`}>{t('Monto fijo', 'Fixed amount')}</button>
                 <button type="button" onClick={() => set('incomeMode', 'percent')}
-                  className={`flex-1 px-2 py-1.5 text-[10px] font-medium rounded transition-all ${
+                  className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all ${
                     form.incomeMode === 'percent' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#0f172a] text-slate-500 border border-[#334155]'
                   }`}>{t('% del saldo', '% of balance')}</button>
               </div>
@@ -798,23 +798,23 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                 <div>
                   {form.incomeMode === 'fixed' ? (
                     <>
-                      <label className="text-[10px] text-slate-500 mb-1 block">{t('Monto por pago', 'Amount per payment')}</label>
+                      <label className="text-xs text-slate-500 mb-1 block">{t('Monto por pago', 'Amount per payment')}</label>
                       <input value={form.incomeAmount} onChange={(e) => set('incomeAmount', e.target.value)}
                         placeholder={isProperty ? '800' : '48'} type="number" step="any"
                         className="w-full px-2.5 py-1.5 bg-[#0f172a] border border-[#334155] rounded text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
                     </>
                   ) : (
                     <>
-                      <label className="text-[10px] text-slate-500 mb-1 block">{t('Tasa anual %', 'Annual rate %')}</label>
+                      <label className="text-xs text-slate-500 mb-1 block">{t('Tasa anual %', 'Annual rate %')}</label>
                       <input value={form.incomeRate} onChange={(e) => set('incomeRate', e.target.value)}
                         placeholder="5.5" type="number" step="any"
                         className="w-full px-2.5 py-1.5 bg-[#0f172a] border border-[#334155] rounded text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-                      <p className="text-[9px] text-slate-600 mt-0.5">{t('Se divide entre los meses seleccionados', 'Divided among selected months')}</p>
+                      <p className="text-xs text-slate-600 mt-0.5">{t('Se divide entre los meses seleccionados', 'Divided among selected months')}</p>
                     </>
                   )}
                 </div>
                 <div>
-                  <label className="text-[10px] text-slate-500 mb-1 block">{t('Día de pago', 'Pay day')}</label>
+                  <label className="text-xs text-slate-500 mb-1 block">{t('Día de pago', 'Pay day')}</label>
                   <input value={form.incomePayDay} onChange={(e) => set('incomePayDay', e.target.value)}
                     placeholder="10" type="number" min="1" max="31"
                     className="w-full px-2.5 py-1.5 bg-[#0f172a] border border-[#334155] rounded text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
@@ -822,7 +822,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
               </div>
 
               <div>
-                <label className="text-[10px] text-slate-500 mb-1.5 block">{t('Meses de pago', 'Payment months')}</label>
+                <label className="text-xs text-slate-500 mb-1.5 block">{t('Meses de pago', 'Payment months')}</label>
                 <div className="flex flex-wrap gap-1">
                   {[
                     { m: 0, l: 'Ene' }, { m: 1, l: 'Feb' }, { m: 2, l: 'Mar' }, { m: 3, l: 'Abr' },
@@ -833,7 +833,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                     return (
                       <button key={m} type="button"
                         onClick={() => set('incomeMonths', active ? form.incomeMonths.filter((x) => x !== m) : [...form.incomeMonths, m].sort((a, b) => a - b))}
-                        className={`px-2 py-1 text-[10px] font-medium rounded transition-all ${
+                        className={`px-2 py-1 text-xs font-medium rounded transition-all ${
                           active ? 'bg-blue-500/25 text-blue-400 border border-blue-500/40' : 'bg-[#0f172a] text-slate-500 border border-[#334155] hover:text-slate-300'
                         }`}>
                         {l}
@@ -843,14 +843,14 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                 </div>
                 <div className="flex gap-2 mt-1.5">
                   <button type="button" onClick={() => set('incomeMonths', [0,1,2,3,4,5,6,7,8,9,10,11])}
-                    className="text-[9px] text-slate-500 hover:text-emerald-400 transition-colors">{t('Todos', 'All')}</button>
+                    className="text-xs text-slate-500 hover:text-emerald-400 transition-colors">{t('Todos', 'All')}</button>
                   <button type="button" onClick={() => set('incomeMonths', [])}
-                    className="text-[9px] text-slate-500 hover:text-emerald-400 transition-colors">{t('Ninguno', 'None')}</button>
+                    className="text-xs text-slate-500 hover:text-emerald-400 transition-colors">{t('Ninguno', 'None')}</button>
                 </div>
               </div>
 
               <div>
-                <label className="text-[10px] text-slate-500 mb-1 block">
+                <label className="text-xs text-slate-500 mb-1 block">
                   {t('Capital devuelto por pago', 'Capital returned per payment')}
                   <span className="text-slate-600 ml-1">({t('opcional', 'optional')})</span>
                 </label>
@@ -861,9 +861,9 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
 
               {/* Destination accounts */}
               <div className="space-y-2 pt-2 border-t border-[#334155]/50">
-                <label className="text-[10px] text-cyan-400 font-medium">{t('¿A dónde van los pagos?', 'Where do payments go?')}</label>
+                <label className="text-xs text-cyan-400 font-medium">{t('¿A dónde van los pagos?', 'Where do payments go?')}</label>
                 <div>
-                  <label className="text-[10px] text-slate-500 mb-1 block">
+                  <label className="text-xs text-slate-500 mb-1 block">
                     {isProperty ? t('Renta se deposita en:', 'Rent deposited to:') : t('Intereses/dividendos van a:', 'Interest/dividends go to:')}
                   </label>
                   {existingItems.length > 0 ? (
@@ -877,14 +877,14 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                       ))}
                     </select>
                   ) : (
-                    <p className="text-[10px] text-amber-400/80 bg-amber-500/10 border border-amber-500/20 rounded px-2.5 py-1.5">
+                    <p className="text-xs text-amber-400/80 bg-amber-500/10 border border-amber-500/20 rounded px-2.5 py-1.5">
                       {t('Agrega primero una cuenta de banco o fondo para seleccionarla como destino.', 'Add a bank account or fund first to select it as destination.')}
                     </p>
                   )}
                 </div>
                 {form.capitalReturn && (
                   <div>
-                    <label className="text-[10px] text-slate-500 mb-1 block">
+                    <label className="text-xs text-slate-500 mb-1 block">
                       {t('Capital devuelto va a:', 'Returned capital goes to:')}
                     </label>
                     {existingItems.length > 0 ? (
@@ -898,7 +898,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                         ))}
                       </select>
                     ) : (
-                      <p className="text-[10px] text-amber-400/80 bg-amber-500/10 border border-amber-500/20 rounded px-2.5 py-1.5">
+                      <p className="text-xs text-amber-400/80 bg-amber-500/10 border border-amber-500/20 rounded px-2.5 py-1.5">
                         {t('Agrega primero una cuenta de banco.', 'Add a bank account first.')}
                       </p>
                     )}
@@ -920,7 +920,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
               type="date"
               className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
             {!form.acquisitionDate && (
-              <p className="text-[9px] text-amber-400/70 mt-1">{t('Sin fecha, el rendimiento no se calcula correctamente', 'Without a date, returns cannot be calculated correctly')}</p>
+              <p className="text-xs text-amber-400/70 mt-1">{t('Sin fecha, el rendimiento no se calcula correctamente', 'Without a date, returns cannot be calculated correctly')}</p>
             )}
           </div>
 
@@ -929,26 +929,26 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
             <label className="text-xs text-slate-400 mb-2 block font-medium">{t('¿Es dinero nuevo?', 'Is this new money?')}</label>
             <div className="flex gap-2">
               <button type="button" onClick={() => setIsNewMoney(true)}
-                className={`flex-1 px-2 py-2 text-[11px] font-medium rounded-lg transition-all ${
+                className={`flex-1 px-2 py-2 text-xs font-medium rounded-lg transition-all ${
                   isNewMoney ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#0f172a] text-slate-500 border border-[#334155]'
                 }`}>
                 💵 {t('Sí, dinero nuevo', 'Yes, new money')}
               </button>
               <button type="button" onClick={() => setIsNewMoney(false)}
-                className={`flex-1 px-2 py-2 text-[11px] font-medium rounded-lg transition-all ${
+                className={`flex-1 px-2 py-2 text-xs font-medium rounded-lg transition-all ${
                   !isNewMoney ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#0f172a] text-slate-500 border border-[#334155]'
                 }`}>
                 🔄 {t('Ya estaba en el portafolio', 'Already in portfolio')}
               </button>
             </div>
-            <p className="text-[9px] text-slate-600 mt-1">
+            <p className="text-xs text-slate-600 mt-1">
               {isNewMoney
                 ? t('Dinero que entra de afuera (salario, regalo, etc). No cuenta como rendimiento.', 'Money coming from outside (salary, gift, etc). Not counted as return.')
                 : t('Dinero que ya estaba invertido en otro lado. No afecta el cálculo de rendimiento.', 'Money already invested elsewhere. Does not affect return calculation.')}
             </p>
             {!isNewMoney && existingItems.length > 0 && (
               <div>
-                <label className="text-[10px] text-slate-500 mb-1 block">{t('¿De qué cuenta sale el dinero?', 'Which account is the source?')}</label>
+                <label className="text-xs text-slate-500 mb-1 block">{t('¿De qué cuenta sale el dinero?', 'Which account is the source?')}</label>
                 <select value={form.capitalDestination} onChange={(e) => set('capitalDestination', e.target.value)}
                   className="w-full px-2.5 py-1.5 bg-[#0f172a] border border-[#334155] rounded text-sm text-white focus:outline-none focus:border-blue-500/50">
                   <option value="">{t('-- Selecciona origen --', '-- Select source --')}</option>

@@ -51,7 +51,7 @@ export default function ValueBreakdown({ items, lang }) {
   let offset = 0
 
   return (
-    <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-5">
+    <div className="bg-[#1e293b]/80 rounded-xl border border-[#334155]/50 p-4">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-purple-400" />
@@ -63,7 +63,7 @@ export default function ValueBreakdown({ items, lang }) {
             { key: 'institution', label: lang === 'es' ? 'Institución' : 'Institution' },
           ].map((opt) => (
             <button key={opt.key} onClick={() => setView(opt.key)}
-              className={`px-3 py-1 text-[11px] font-medium rounded-md transition-all ${
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
                 view === opt.key ? 'bg-blue-500 text-white' : 'text-slate-500 hover:text-slate-300'
               }`}>
               {opt.label}

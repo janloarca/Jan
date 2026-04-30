@@ -210,7 +210,7 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
     <div className="flex gap-0.5 bg-[#0f172a] rounded-lg p-0.5">
       {periods.map((p) => (
         <button key={p} onClick={() => setPeriod(p)}
-          className={`px-2.5 py-1.5 text-[11px] font-medium rounded-md transition-all ${
+          className={`px-2.5 py-1.5 text-xs font-medium rounded-md transition-all ${
             period === p ? 'bg-blue-500 text-white' : 'text-slate-500 hover:text-slate-300'
           }`}>{p}</button>
       ))}
@@ -219,7 +219,7 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
 
   if (loading) {
     return (
-      <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-5">
+      <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-5 card-primary">
         <div className="flex items-center justify-center min-h-[260px]">
           <div className="flex items-center gap-2 text-slate-500 text-sm">
             <div className="w-4 h-4 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
@@ -232,7 +232,7 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
 
   if (chartData.length < 2) {
     return (
-      <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-5">
+      <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-5 card-primary">
         <div className="flex items-center justify-center min-h-[200px] text-slate-500 text-sm">
           {t('Agrega activos para ver la gráfica.', 'Add assets to see the chart.')}
         </div>
@@ -244,7 +244,7 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
   const hd = hoverIdx != null ? chartData[hoverIdx] : null
 
   return (
-    <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-5">
+    <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-5 card-primary">
       {/* Tab bar: Value | Performance */}
       <div className="flex items-center gap-4 mb-4">
         <button onClick={() => setViewMode('value')}
@@ -267,9 +267,9 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
           {viewMode === 'performance' && (
             <div className="flex gap-0.5 bg-[#0f172a] rounded p-0.5">
               <button onClick={() => setReturnMode('twr')}
-                className={`px-1.5 py-0.5 text-[9px] font-medium rounded transition-all ${returnMode === 'twr' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}>TWR</button>
+                className={`px-1.5 py-0.5 text-xs font-medium rounded transition-all ${returnMode === 'twr' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}>TWR</button>
               <button onClick={() => setReturnMode('mwr')}
-                className={`px-1.5 py-0.5 text-[9px] font-medium rounded transition-all ${returnMode === 'mwr' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}>MWR</button>
+                className={`px-1.5 py-0.5 text-xs font-medium rounded transition-all ${returnMode === 'mwr' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}>MWR</button>
             </div>
           )}
         </div>
@@ -297,7 +297,7 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
 
       {/* Benchmark insight (performance mode only) */}
       {viewMode === 'performance' && microInsight && (
-        <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[10px] mb-3 ${
+        <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs mb-3 ${
           microInsight.isOut ? 'bg-emerald-500/5 border border-emerald-500/20 text-emerald-400' : 'bg-red-500/5 border border-red-500/20 text-red-400'
         }`}>
           <span>{microInsight.isOut ? '▲' : '▼'}</span>

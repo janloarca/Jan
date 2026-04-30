@@ -25,7 +25,7 @@ export default function InsightsBanner({ insights, lang }) {
         const text = lang === 'es' ? ins.textEs : ins.textEn
         const style = styleMap[ins.type] || styleMap.info
         return (
-          <div key={i} className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-[11px] whitespace-nowrap shrink-0 ${style.bg}`}>
+          <div key={i} className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs whitespace-nowrap shrink-0 ${style.bg}`}>
             <span className={`text-xs font-bold ${style.text}`}>{style.icon}</span>
             <span className={style.text}>{text}</span>
             <button onClick={() => dismiss(i)} className="opacity-40 hover:opacity-100 ml-1 text-xs text-slate-500">×</button>

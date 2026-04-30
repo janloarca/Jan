@@ -48,7 +48,7 @@ export default function RecentTransactions({ transactions, lang }) {
   }
 
   return (
-    <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-5">
+    <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-5 card-primary">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-base font-semibold text-white">
           {lang === 'es' ? 'Transacciones' : 'Transactions'}
@@ -74,8 +74,8 @@ export default function RecentTransactions({ transactions, lang }) {
                   : 'bg-[#0f172a]/50 border-transparent text-slate-500 hover:text-slate-300 hover:bg-[#283548]'
               }`}>
               <span className="text-sm font-bold">{opt.icon}</span>
-              <span className="text-[9px] font-medium">{opt.label}</span>
-              {count > 0 && <span className="text-[8px] opacity-60">{count}</span>}
+              <span className="text-xs font-medium">{opt.label}</span>
+              {count > 0 && <span className="text-xs opacity-60">{count}</span>}
             </button>
           )
         })}
@@ -101,11 +101,11 @@ export default function RecentTransactions({ transactions, lang }) {
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-white font-medium">{tx.symbol || tx.description || '-'}</span>
-                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${typeBadge(tx.type)}`}>
+                      <span className={`px-1.5 py-0.5 rounded text-xs font-bold uppercase ${typeBadge(tx.type)}`}>
                         {tx.type || 'TX'}
                       </span>
                     </div>
-                    <span className="text-[10px] text-slate-500">{formatDate(tx.date)}</span>
+                    <span className="text-xs text-slate-500">{formatDate(tx.date)}</span>
                   </div>
                 </div>
                 <div className="text-right">
@@ -116,7 +116,7 @@ export default function RecentTransactions({ transactions, lang }) {
                     {formatCurrency(tx.totalAmount ?? 0)}
                   </span>
                   {tx.quantity > 0 && (
-                    <div className="text-[10px] text-slate-500">
+                    <div className="text-xs text-slate-500">
                       {tx.quantity} x {formatCurrency(tx.pricePerUnit || 0)}
                     </div>
                   )}

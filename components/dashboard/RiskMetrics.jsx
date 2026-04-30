@@ -74,7 +74,7 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
   }, [hasData, metrics, lang])
 
   return (
-    <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-5">
+    <div className="bg-[#1e293b]/80 rounded-xl border border-[#334155]/50 p-4">
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
         <span className="w-2 h-2 rounded-full bg-red-400" />
         {t('MÉTRICAS DE RIESGO', 'RISK METRICS')}
@@ -88,46 +88,46 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
             <div className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]/50 text-center">
-              <span className="text-[9px] text-slate-500 block">Sharpe</span>
+              <span className="text-xs text-slate-500 block">Sharpe</span>
               <span className={`text-base sm:text-lg font-bold block ${sharpeColor}`}>
                 {metrics.sharpe != null ? metrics.sharpe.toFixed(2) : '---'}
               </span>
-              <span className="text-[8px] text-slate-600">
+              <span className="text-xs text-slate-600">
                 {metrics.sharpe == null ? '' : metrics.sharpe > 1 ? t('Excelente', 'Excellent') : metrics.sharpe > 0.5 ? t('Aceptable', 'Acceptable') : t('Bajo', 'Low')}
               </span>
             </div>
 
             <div className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]/50 text-center">
-              <span className="text-[9px] text-slate-500 block">{t('Volatilidad', 'Volatility')}</span>
+              <span className="text-xs text-slate-500 block">{t('Volatilidad', 'Volatility')}</span>
               <span className={`text-base sm:text-lg font-bold block ${volColor}`}>
                 {metrics.vol != null ? `${metrics.vol.toFixed(1)}%` : '---'}
               </span>
-              <span className="text-[8px] text-slate-600">{t('Anualizada', 'Annualized')}</span>
+              <span className="text-xs text-slate-600">{t('Anualizada', 'Annualized')}</span>
             </div>
 
             <div className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]/50 text-center">
-              <span className="text-[9px] text-slate-500 block">Max Drawdown</span>
+              <span className="text-xs text-slate-500 block">Max Drawdown</span>
               <span className={`text-base sm:text-lg font-bold block ${ddColor}`}>
                 {metrics.drawdown.maxDrawdownPct > 0 ? `-${metrics.drawdown.maxDrawdownPct.toFixed(1)}%` : '0%'}
               </span>
               {metrics.drawdown.peakDate && (
-                <span className="text-[8px] text-slate-600">
+                <span className="text-xs text-slate-600">
                   {new Date(metrics.drawdown.peakDate).toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short', year: '2-digit' })}
                 </span>
               )}
             </div>
 
             <div className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]/50 text-center">
-              <span className="text-[9px] text-slate-500 block">Beta</span>
+              <span className="text-xs text-slate-500 block">Beta</span>
               <span className="text-base sm:text-lg font-bold text-slate-300 block">
                 {metrics.beta != null ? metrics.beta.toFixed(2) : 'N/A'}
               </span>
-              <span className="text-[8px] text-slate-600">vs S&P 500</span>
+              <span className="text-xs text-slate-600">vs S&P 500</span>
             </div>
           </div>
 
           {insight && (
-            <p className="text-[11px] text-slate-400 mt-3 px-1 italic">{insight}</p>
+            <p className="text-xs text-slate-400 mt-3 px-1 italic">{insight}</p>
           )}
         </>
       )}

@@ -118,7 +118,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
 
               <div>
                 <label className="text-xs text-slate-400 mb-2 block font-medium">{t('Moneda principal', 'Base currency')}</label>
-                <p className="text-[10px] text-slate-600 mb-3">{t('Todos los valores se mostrarán en esta moneda.', 'All values will be displayed in this currency.')}</p>
+                <p className="text-xs text-slate-600 mb-3">{t('Todos los valores se mostrarán en esta moneda.', 'All values will be displayed in this currency.')}</p>
                 <div className="grid grid-cols-2 gap-2">
                   {CURRENCIES.map((c) => (
                     <button key={c.code} onClick={() => setBaseCurrency(c.code)}
@@ -130,7 +130,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                       <span className="text-sm font-bold w-8">{c.symbol}</span>
                       <div className="min-w-0">
                         <div className="text-xs font-medium">{c.code}</div>
-                        <div className="text-[9px] text-slate-500 truncate">{c.name}</div>
+                        <div className="text-xs text-slate-500 truncate">{c.name}</div>
                       </div>
                       {baseCurrency === c.code && (
                         <svg className="w-4 h-4 ml-auto text-blue-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -162,7 +162,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                 <div key={action.key} className="flex items-center justify-between p-3 bg-[#0f172a] border border-[#334155] rounded-lg">
                   <div>
                     <div className="text-sm text-white font-medium">{action.label}</div>
-                    <div className="text-[10px] text-slate-500">{action.desc}</div>
+                    <div className="text-xs text-slate-500">{action.desc}</div>
                   </div>
                   <button onClick={() => handleDelete(action.key)}
                     className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors shrink-0 ml-3 ${

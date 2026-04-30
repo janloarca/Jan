@@ -74,7 +74,7 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
   }
 
   return (
-    <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-5">
+    <div className="bg-[#1e293b]/80 rounded-xl border border-[#334155]/50 p-4">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-cyan-400" />
@@ -82,12 +82,12 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
         </h3>
         <div className="flex items-center gap-2">
           {!editing && (
-            <span className="text-[10px] text-slate-500 bg-[#0f172a] px-2 py-0.5 rounded">
+            <span className="text-xs text-slate-500 bg-[#0f172a] px-2 py-0.5 rounded">
               {t(`Meta: ${targetYear}`, `Target: ${targetYear}`)} · {yearsLeft}{t(' años', 'y')}
             </span>
           )}
           <button onClick={() => { setEditing(!editing); if (!editing) setForm({ incomeGoal, portfolioGoal, targetYear }) }}
-            className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors">
+            className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
             {editing ? t('Cancelar', 'Cancel') : t('Editar', 'Edit')}
           </button>
         </div>
@@ -97,20 +97,20 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[10px] text-slate-500 mb-1 block">{t('Meta de ingreso pasivo anual', 'Annual passive income goal')}</label>
+              <label className="text-xs text-slate-500 mb-1 block">{t('Meta de ingreso pasivo anual', 'Annual passive income goal')}</label>
               <input value={form.incomeGoal} onChange={(e) => setForm({ ...form, incomeGoal: e.target.value })}
                 type="number" step="1000" placeholder="12000"
                 className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
             </div>
             <div>
-              <label className="text-[10px] text-slate-500 mb-1 block">{t('Meta de portfolio', 'Portfolio goal')}</label>
+              <label className="text-xs text-slate-500 mb-1 block">{t('Meta de portfolio', 'Portfolio goal')}</label>
               <input value={form.portfolioGoal} onChange={(e) => setForm({ ...form, portfolioGoal: e.target.value })}
                 type="number" step="10000" placeholder="100000"
                 className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
             </div>
           </div>
           <div>
-            <label className="text-[10px] text-slate-500 mb-1 block">{t('Año objetivo', 'Target year')}</label>
+            <label className="text-xs text-slate-500 mb-1 block">{t('Año objetivo', 'Target year')}</label>
             <input value={form.targetYear} onChange={(e) => setForm({ ...form, targetYear: e.target.value })}
               type="number" min={new Date().getFullYear()} max="2060" placeholder="2030"
               className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
@@ -127,7 +127,7 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2">
                 <span className="text-xs text-white font-medium">{t('Ingreso pasivo', 'Passive income')}</span>
-                <span className="text-[9px] text-slate-500 bg-[#0f172a] px-1.5 py-0.5 rounded">{formatCompact(incomeGoal)}/{t('año', 'yr')}</span>
+                <span className="text-xs text-slate-500 bg-[#0f172a] px-1.5 py-0.5 rounded">{formatCompact(incomeGoal)}/{t('año', 'yr')}</span>
               </div>
               <span className={`text-xs font-bold ${incomePct >= 50 ? 'text-emerald-400' : 'text-amber-400'}`}>{incomePct.toFixed(0)}%</span>
             </div>
@@ -136,8 +136,8 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
                 style={{ width: `${incomePct}%` }} />
             </div>
             <div className="flex justify-between mt-1">
-              <span className="text-[10px] text-slate-500">{formatCurrency(effectiveIncome)}</span>
-              <span className="text-[10px] text-slate-500">{formatCurrency(incomeGoal)}</span>
+              <span className="text-xs text-slate-500">{formatCurrency(effectiveIncome)}</span>
+              <span className="text-xs text-slate-500">{formatCurrency(incomeGoal)}</span>
             </div>
           </div>
 
@@ -146,7 +146,7 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2">
                 <span className="text-xs text-white font-medium">{t('Tamaño de portfolio', 'Portfolio size')}</span>
-                <span className="text-[9px] text-slate-500 bg-[#0f172a] px-1.5 py-0.5 rounded">{formatCompact(portfolioGoal)}</span>
+                <span className="text-xs text-slate-500 bg-[#0f172a] px-1.5 py-0.5 rounded">{formatCompact(portfolioGoal)}</span>
               </div>
               <span className={`text-xs font-bold ${portfolioPct >= 50 ? 'text-emerald-400' : 'text-amber-400'}`}>{portfolioPct.toFixed(0)}%</span>
             </div>
@@ -155,8 +155,8 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
                 style={{ width: `${portfolioPct}%` }} />
             </div>
             <div className="flex justify-between mt-1">
-              <span className="text-[10px] text-slate-500">{formatCurrency(netWorth)}</span>
-              <span className="text-[10px] text-slate-500">{formatCurrency(portfolioGoal)}</span>
+              <span className="text-xs text-slate-500">{formatCurrency(netWorth)}</span>
+              <span className="text-xs text-slate-500">{formatCurrency(portfolioGoal)}</span>
             </div>
           </div>
 
@@ -171,11 +171,11 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
                     strokeWidth="3" strokeDasharray={`${goalProbability * 0.942} 94.2`}
                     strokeLinecap="round" transform="rotate(-90 18 18)" />
                 </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold text-white">{goalProbability}%</span>
+                <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">{goalProbability}%</span>
               </div>
               <div>
-                <span className="text-[10px] text-slate-400 block">{t('Probabilidad de alcanzar meta', 'Probability of reaching goal')}</span>
-                <span className="text-[9px] text-slate-600">{t('Basado en Monte Carlo (500 simulaciones)', 'Based on Monte Carlo (500 simulations)')}</span>
+                <span className="text-xs text-slate-400 block">{t('Probabilidad de alcanzar meta', 'Probability of reaching goal')}</span>
+                <span className="text-xs text-slate-600">{t('Basado en Monte Carlo (500 simulaciones)', 'Based on Monte Carlo (500 simulations)')}</span>
               </div>
             </div>
           )}
@@ -183,15 +183,15 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
           {/* Scenario-based monthly needed */}
           {yearsLeft > 0 && portfolioGoal > netWorth && (
             <div className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]/50">
-              <span className="text-[10px] text-slate-400 mb-2 block">{t('Inversión mensual necesaria', 'Monthly investment needed')}</span>
+              <span className="text-xs text-slate-400 mb-2 block">{t('Inversión mensual necesaria', 'Monthly investment needed')}</span>
               <div className="space-y-1.5">
                 {scenarios.map((s) => (
                   <div key={s.key} className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className={`text-[10px] font-medium ${s.color}`}>{s.label}</span>
-                      <span className="text-[9px] text-slate-600">{s.rate}%/yr</span>
+                      <span className={`text-xs font-medium ${s.color}`}>{s.label}</span>
+                      <span className="text-xs text-slate-600">{s.rate}%/yr</span>
                     </div>
-                    <span className="text-sm font-bold text-white">{formatCurrency(s.monthly)}<span className="text-[9px] text-slate-500 font-normal">/{t('mes', 'mo')}</span></span>
+                    <span className="text-sm font-bold text-white">{formatCurrency(s.monthly)}<span className="text-xs text-slate-500 font-normal">/{t('mes', 'mo')}</span></span>
                   </div>
                 ))}
               </div>
