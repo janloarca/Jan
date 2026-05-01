@@ -66,6 +66,7 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
     const defs = [
       { key: '1W', label: '1W', targetTs: now - 7 * DAY_MS },
       { key: '1M', label: '1M', targetTs: now - 30 * DAY_MS },
+      { key: '3M', label: '3M', targetTs: now - 90 * DAY_MS },
       { key: 'YTD', label: 'YTD', targetTs: jan1 },
       { key: '1Y', label: '1Y', targetTs: now - 365 * DAY_MS },
       { key: 'ALL', label: 'ALL', targetTs: historyPoints[0]?.ts || now },
@@ -123,7 +124,7 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
         </div>
       ) : (
         <>
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 sm:gap-2">
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 sm:gap-2">
           {periods.map((p) => {
             const isPos = (p.pct ?? 0) >= 0
             return (

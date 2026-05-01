@@ -18,12 +18,16 @@ function smooth(pts) {
   return d
 }
 
-function buildGeometry(values, mode, height, width, pad) {
+function buildGeometry(values, mode, height, width, pad, extraSeries) {
   const ch = height - pad.top - pad.bottom
   const cw = width - pad.left - pad.right
 
-  const min = Math.min(...values)
-  const max = Math.max(...values)
+  let allVals = values
+  if (mode === 'performance' && extraSeries && extraSeries.length > 0) {
+    allVals = [...values, ...extraSeries]
+  }
+  const min = Math.min(...allVals)
+  const max = Math.max(...allVals)
   const paddingVal = mode === 'performance' ? 0 : (max - min) * 0.05
   const adjustedMin = mode === 'performance' ? Math.min(min, 0) - Math.abs(min || 1) * 0.1 : min - paddingVal
   const adjustedMax = mode === 'performance' ? Math.max(max, 0) + Math.abs(max || 1) * 0.1 : max + paddingVal
@@ -165,6 +169,23 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
     return bStart > 0 ? ((bEnd - bStart) / bStart) * 100 : null
   }, [benchmarkPts, chartData])
 
+  const benchmarkReturnSeries = useMemo(() => {
+    if (!benchmarkPts || benchmarkPts.length < 2 || chartData.length < 2) return null
+    const sorted = [...benchmarkPts].sort((a, b) => a.ts - b.ts)
+    const baseClose = sorted[0].close
+    if (baseClose <= 0) return null
+    const series = chartData.map((dp) => {
+      let closest = sorted[0]
+      let minDiff = Infinity
+      for (const bp of sorted) {
+        const diff = Math.abs(bp.ts - dp.ts)
+        if (diff < minDiff) { minDiff = diff; closest = bp }
+      }
+      return ((closest.close - baseClose) / baseClose) * 100
+    })
+    return series
+  }, [benchmarkPts, chartData])
+
   const width = 650
   const chartHeight = 260
   const pad = { top: 16, right: 16, bottom: 32, left: 52 }
@@ -186,13 +207,30 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
   const geo = useMemo(() => {
     const vals = viewMode === 'value' ? growthValues : returnData
     if (vals.length < 2) return null
-    return buildGeometry(vals, viewMode === 'value' ? 'value' : 'performance', chartHeight, width, pad)
-  }, [viewMode, growthValues, returnData])
+    const extra = (viewMode === 'performance' && benchmarkReturnSeries) ? benchmarkReturnSeries : null
+    return buildGeometry(vals, viewMode === 'value' ? 'value' : 'performance', chartHeight, width, pad, extra)
+  }, [viewMode, growthValues, returnData, benchmarkReturnSeries])
 
   const resolvedXLabels = useMemo(() => {
     if (!geo) return []
     return xLabels.map((xl) => ({ ...xl, x: geo.points[xl.idx]?.x })).filter((xl) => xl.x != null)
   }, [xLabels, geo])
+
+  const benchmarkGeoPoints = useMemo(() => {
+    if (!geo || !benchmarkReturnSeries || viewMode !== 'performance') return null
+    const ch = chartHeight - pad.top - pad.bottom
+    const allVals = [...returnData, ...benchmarkReturnSeries]
+    const min = Math.min(...allVals)
+    const max = Math.max(...allVals)
+    const adjustedMin = Math.min(min, 0) - Math.abs(min || 1) * 0.1
+    const adjustedMax = Math.max(max, 0) + Math.abs(max || 1) * 0.1
+    const range = adjustedMax - adjustedMin || 1
+    return benchmarkReturnSeries.map((v, i) => ({
+      x: pad.left + (i / Math.max(benchmarkReturnSeries.length - 1, 1)) * geo.cw,
+      y: pad.top + ch - ((v - adjustedMin) / range) * ch,
+      v,
+    }))
+  }, [geo, benchmarkReturnSeries, viewMode, returnData, chartHeight, pad])
 
   const firstVal = chartData.length > 0 ? chartData[0].value : 0
   const lastVal = chartData.length > 0 ? chartData[chartData.length - 1].value : 0
@@ -265,11 +303,17 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
         </button>
         <div className="ml-auto flex items-center gap-2">
           {viewMode === 'performance' && (
-            <div className="flex gap-0.5 bg-[#0f172a] rounded p-0.5">
+            <div className="flex gap-0.5 bg-[#0f172a] rounded-lg p-0.5">
               <button onClick={() => setReturnMode('twr')}
-                className={`px-1.5 py-0.5 text-xs font-medium rounded transition-all ${returnMode === 'twr' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}>TWR</button>
+                className={`px-2 py-1 text-xs font-medium rounded-md transition-all ${returnMode === 'twr' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}
+                title={t('Retorno ponderado por tiempo — mide el rendimiento del portafolio sin importar depósitos/retiros', 'Time-Weighted Return — measures portfolio performance regardless of deposits/withdrawals')}>
+                TWR
+              </button>
               <button onClick={() => setReturnMode('mwr')}
-                className={`px-1.5 py-0.5 text-xs font-medium rounded transition-all ${returnMode === 'mwr' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}>MWR</button>
+                className={`px-2 py-1 text-xs font-medium rounded-md transition-all ${returnMode === 'mwr' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}
+                title={t('Retorno ponderado por dinero — refleja tu experiencia real como inversionista', 'Money-Weighted Return — reflects your actual experience as an investor')}>
+                MWR
+              </button>
             </div>
           )}
         </div>
@@ -289,9 +333,16 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
           <p className={`text-3xl font-bold ${lastReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
             {lastReturn >= 0 ? '+' : ''}{(hoverIdx != null && returnData[hoverIdx] != null ? returnData[hoverIdx] : lastReturn).toFixed(2)}%
           </p>
-          <p className="text-sm text-slate-400 mt-0.5">
-            {period === 'YTD' ? t('Retorno total del año', 'Total return this year') : `${t('Retorno', 'Return')} ${period}`}
-          </p>
+          <div className="flex items-center gap-3 mt-0.5">
+            <span className="text-sm text-slate-400">
+              {period === 'YTD' ? t('Retorno total del año', 'Total return this year') : `${t('Retorno', 'Return')} ${period}`}
+            </span>
+            <span className="text-xs text-slate-600">
+              {returnMode === 'twr'
+                ? t('TWR · Sin efecto de depósitos', 'TWR · Excludes cashflow effects')
+                : t('MWR · Tu experiencia real', 'MWR · Your actual experience')}
+            </span>
+          </div>
         </div>
       )}
 
@@ -408,6 +459,15 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
                 {/* Red line (below baseline) */}
                 <path d={smooth(geo.points)} fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round"
                   clipPath="url(#clip-below-baseline)" />
+
+                {/* S&P 500 benchmark overlay */}
+                {benchmarkGeoPoints && benchmarkGeoPoints.length >= 2 && (
+                  <>
+                    <path d={smooth(benchmarkGeoPoints)} fill="none" stroke="#f59e0b" strokeWidth="1.5" strokeLinecap="round" strokeDasharray="4 3" strokeOpacity="0.7" />
+                    <text x={benchmarkGeoPoints[benchmarkGeoPoints.length - 1].x + 4} y={benchmarkGeoPoints[benchmarkGeoPoints.length - 1].y + 3}
+                      fill="#f59e0b" fontSize="9" fontFamily="system-ui" fontWeight="600" opacity="0.8">S&P</text>
+                  </>
+                )}
               </>
             )}
 
@@ -443,8 +503,13 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
               ) : (
                 <>
                   <div className={`font-bold ${(returnData[hoverIdx] ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {(returnData[hoverIdx] ?? 0) >= 0 ? '+' : ''}{(returnData[hoverIdx] ?? 0).toFixed(2)}%
+                    {t('Portafolio', 'Portfolio')}: {(returnData[hoverIdx] ?? 0) >= 0 ? '+' : ''}{(returnData[hoverIdx] ?? 0).toFixed(2)}%
                   </div>
+                  {benchmarkReturnSeries && benchmarkReturnSeries[hoverIdx] != null && (
+                    <div className="text-amber-400">
+                      S&P 500: {benchmarkReturnSeries[hoverIdx] >= 0 ? '+' : ''}{benchmarkReturnSeries[hoverIdx].toFixed(2)}%
+                    </div>
+                  )}
                   <div className="text-slate-300">{formatCurrency(hd.value)}</div>
                   <div className="text-slate-500">{formatDate(hd.date.toISOString())}</div>
                 </>
@@ -454,8 +519,22 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
         </div>
       )}
 
-      {/* Period selector */}
-      <div className="flex justify-center mt-3">
+      {/* Legend + Period selector */}
+      {viewMode === 'performance' && (
+        <div className="flex items-center justify-center gap-4 mt-2 text-xs text-slate-500">
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-0.5 bg-emerald-500 rounded-full inline-block" />
+            {t('Tu portafolio', 'Your portfolio')} ({returnMode.toUpperCase()})
+          </span>
+          {benchmarkReturnSeries && (
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-0.5 bg-amber-500 rounded-full inline-block opacity-70" style={{ borderBottom: '1px dashed' }} />
+              S&P 500
+            </span>
+          )}
+        </div>
+      )}
+      <div className="flex justify-center mt-2">
         {periodSelector}
       </div>
     </div>

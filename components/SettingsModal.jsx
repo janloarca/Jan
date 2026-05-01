@@ -100,8 +100,9 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                 <label className="text-xs text-slate-400 mb-2 block font-medium">{t('Tema', 'Theme')}</label>
                 <div className="flex gap-2">
                   {[
-                    { key: 'dark', label: t('Oscuro', 'Dark'), icon: '🌙' },
                     { key: 'light', label: t('Claro', 'Light'), icon: '☀️' },
+                    { key: 'dark', label: t('Oscuro', 'Dark'), icon: '🌙' },
+                    { key: 'system', label: t('Sistema', 'System'), icon: '💻' },
                   ].map((opt) => (
                     <button key={opt.key} onClick={() => onToggleTheme(opt.key)}
                       className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg transition-all ${

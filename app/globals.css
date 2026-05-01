@@ -63,6 +63,13 @@ body {
 [data-theme="light"] .bg-\[\#0f172a\]\/95 { background-color: rgba(248, 250, 252, 0.95) !important; }
 [data-theme="light"] .bg-black\/60 { background-color: rgba(0, 0, 0, 0.3) !important; }
 [data-theme="light"] .border-slate-600\/50 { border-color: rgba(203, 213, 225, 0.5) !important; }
+[data-theme="light"] .bg-\[\#1e293b\]\/80 { background-color: rgba(255, 255, 255, 0.9) !important; }
+[data-theme="light"] .border-\[\#334155\]\/60 { border-color: rgba(226, 232, 240, 0.6) !important; }
+[data-theme="light"] .bg-\[\#1a2536\] { background-color: #f1f5f9 !important; }
+[data-theme="light"] .from-\[\#1e293b\] { --tw-gradient-from: #ffffff !important; }
+[data-theme="light"] .to-\[\#1a2536\] { --tw-gradient-to: #f1f5f9 !important; }
+[data-theme="light"] .bg-\[\#0f172a\] { background-color: var(--bg-input) !important; }
+[data-theme="light"] .bg-\[\#0f172a\]\/50 { background-color: rgba(241, 245, 249, 0.5) !important; }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {

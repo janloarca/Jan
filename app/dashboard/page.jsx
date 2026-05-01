@@ -45,7 +45,7 @@ export default function DashboardPage() {
   const [modal, setModal] = useState(null)
   const [editItem, setEditItem] = useState(null)
   const [detailItem, setDetailItem] = useState(null)
-  const [theme, setTheme] = useState('dark')
+  const [theme, setTheme] = useState('system')
   const [lang, setLang] = useState('es')
 
   useEffect(() => {
@@ -53,18 +53,42 @@ export default function DashboardPage() {
       const saved = localStorage.getItem('chispudo-lang')
       if (saved === 'en' || saved === 'es') setLang(saved)
       const savedTheme = localStorage.getItem('chispudo-theme')
-      if (savedTheme === 'light' || savedTheme === 'dark') {
+      if (savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'system') {
         setTheme(savedTheme)
-        document.documentElement.setAttribute('data-theme', savedTheme)
       }
+      function applyTheme(t) {
+        if (t === 'system') {
+          const sys = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+          document.documentElement.setAttribute('data-theme', sys)
+        } else {
+          document.documentElement.setAttribute('data-theme', t)
+        }
+      }
+      applyTheme(savedTheme || 'system')
+
+      const mq = window.matchMedia('(prefers-color-scheme: dark)')
+      const handler = () => {
+        const current = localStorage.getItem('chispudo-theme')
+        if (!current || current === 'system') {
+          document.documentElement.setAttribute('data-theme', mq.matches ? 'dark' : 'light')
+        }
+      }
+      mq.addEventListener('change', handler)
+      return () => mq.removeEventListener('change', handler)
     }
   }, [])
 
   const handleSetTheme = useCallback((newTheme) => {
     setTheme(newTheme)
     if (typeof window !== 'undefined') {
-      document.documentElement.setAttribute('data-theme', newTheme)
-      localStorage.setItem('chispudo-theme', newTheme)
+      if (newTheme === 'system') {
+        const sys = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        document.documentElement.setAttribute('data-theme', sys)
+        localStorage.setItem('chispudo-theme', 'system')
+      } else {
+        document.documentElement.setAttribute('data-theme', newTheme)
+        localStorage.setItem('chispudo-theme', newTheme)
+      }
     }
   }, [])
 
