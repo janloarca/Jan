@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { formatCurrency, formatCompact, formatShortDate, formatDate, computeModifiedDietz } from './utils'
 import { computeTWRSeries } from './analytics'
+import { authFetch } from '@/lib/authFetch'
 
 function smooth(pts) {
   if (pts.length < 3) return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
@@ -71,7 +72,7 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
     setLoading(true)
     try {
       const apiPeriod = period === 'MTD' ? '1M' : period
-      const res = await fetch('/api/prices/portfolio-history', {
+      const res = await authFetch('/api/prices/portfolio-history', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

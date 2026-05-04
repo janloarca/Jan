@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
+import { verifyAuth } from '@/lib/apiAuth'
+import { rateLimit } from '@/lib/rateLimit'
 
 export const dynamic = 'force-dynamic'
+
+const SYMBOL_RE = /^[A-Z0-9._\-^=]{1,20}$/i
 
 async function fetchDividendInfo(symbol) {
   try {
@@ -67,18 +71,39 @@ async function fetchDividendInfo(symbol) {
 }
 
 export async function GET(request) {
+  const { limited } = rateLimit(request, { maxRequests: 30 })
+  if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+
+  const auth = await verifyAuth(request)
+  if (auth.error) return auth.error
+
   const { searchParams } = new URL(request.url)
-  const symbol = searchParams.get('symbol')
-  if (!symbol) return NextResponse.json({ error: 'symbol required' }, { status: 400 })
+  const symbol = (searchParams.get('symbol') || '').trim()
+  if (!symbol || !SYMBOL_RE.test(symbol)) {
+    return NextResponse.json({ error: 'Invalid symbol' }, { status: 400 })
+  }
   const info = await fetchDividendInfo(symbol)
   return NextResponse.json(info)
 }
 
 export async function POST(request) {
+  const { limited } = rateLimit(request, { maxRequests: 30 })
+  if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+
+  const auth = await verifyAuth(request)
+  if (auth.error) return auth.error
+
   try {
     const { symbols } = await request.json()
-    if (!symbols || !Array.isArray(symbols)) {
-      return NextResponse.json({ error: 'symbols array required' }, { status: 400 })
+    if (!symbols || !Array.isArray(symbols) || symbols.length > 50) {
+      return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+    }
+
+    for (const s of symbols) {
+      const sym = typeof s === 'string' ? s : s?.symbol || ''
+      if (sym && !SYMBOL_RE.test(sym)) {
+        return NextResponse.json({ error: 'Invalid symbol' }, { status: 400 })
+      }
     }
 
     const dividends = {}
@@ -96,6 +121,7 @@ export async function POST(request) {
 
     return NextResponse.json({ dividends })
   } catch (err) {
-    return NextResponse.json({ error: err.message, dividends: {} }, { status: 500 })
+    console.error('dividends error:', err)
+    return NextResponse.json({ error: 'Internal server error', dividends: {} }, { status: 500 })
   }
 }

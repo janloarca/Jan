@@ -93,6 +93,25 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
 
   const handleFile = useCallback(async (file) => {
     setError('')
+
+    const MAX_SIZE = 5 * 1024 * 1024
+    if (file.size > MAX_SIZE) {
+      setError(lang === 'es' ? 'Archivo demasiado grande (máx 5MB).' : 'File too large (max 5MB).')
+      return
+    }
+
+    const validTypes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel',
+      'text/csv',
+      'application/csv',
+    ]
+    const ext = (file.name || '').split('.').pop()?.toLowerCase()
+    if (!validTypes.includes(file.type) && !['xlsx', 'xls', 'csv'].includes(ext)) {
+      setError(lang === 'es' ? 'Tipo de archivo no válido. Usa .xlsx o .csv.' : 'Invalid file type. Use .xlsx or .csv.')
+      return
+    }
+
     try {
       const XLSX = await import('xlsx')
       const data = await file.arrayBuffer()
@@ -108,6 +127,10 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
 
       if (json.length < 2) {
         setError(lang === 'es' ? 'El archivo no tiene datos suficientes.' : 'File has insufficient data.')
+        return
+      }
+      if (json.length > 10000) {
+        setError(lang === 'es' ? 'Archivo demasiado grande (máx 10,000 filas).' : 'File too large (max 10,000 rows).')
         return
       }
 

@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
+import { rateLimit } from '@/lib/rateLimit'
 
 export const dynamic = 'force-dynamic'
+
+const VALID_PERIODS = ['1M', '3M', '6M', 'YTD', '1Y', '3Y', 'ALL']
 
 const RANGE_MAP = {
   '1M': { range: '1mo', interval: '1d' },
@@ -16,9 +19,15 @@ let cache = { data: null, ts: 0, period: null }
 const CACHE_TTL = 5 * 60 * 1000
 
 export async function GET(request) {
+  const { limited } = rateLimit(request, { maxRequests: 60 })
+  if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+
   try {
     const { searchParams } = new URL(request.url)
     const period = searchParams.get('period') || 'YTD'
+    if (!VALID_PERIODS.includes(period)) {
+      return NextResponse.json({ error: 'Invalid period' }, { status: 400 })
+    }
     const { range, interval } = RANGE_MAP[period] || RANGE_MAP.YTD
 
     if (cache.data && cache.period === period && Date.now() - cache.ts < CACHE_TTL) {

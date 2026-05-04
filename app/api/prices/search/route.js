@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { rateLimit } from '@/lib/rateLimit'
 
 const CRYPTO_MAP = {
   BTC: { id: 'bitcoin', name: 'Bitcoin' },
@@ -82,13 +83,19 @@ async function fetchQuote(symbol, type) {
 }
 
 export async function GET(request) {
+  const { limited } = rateLimit(request, { maxRequests: 60 })
+  if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+
   const { searchParams } = new URL(request.url)
-  const q = (searchParams.get('q') || '').trim()
+  const q = (searchParams.get('q') || '').trim().slice(0, 50)
   const withQuote = searchParams.get('quote') === '1'
-  const quoteSymbol = searchParams.get('symbol')
+  const quoteSymbol = (searchParams.get('symbol') || '').trim().slice(0, 20)
   const quoteType = searchParams.get('type') || 'Stock'
 
   if (quoteSymbol) {
+    if (!/^[A-Z0-9._\-^=]{1,20}$/i.test(quoteSymbol)) {
+      return NextResponse.json({ error: 'Invalid symbol' }, { status: 400 })
+    }
     const quote = await fetchQuote(quoteSymbol, quoteType)
     return NextResponse.json({ quote })
   }

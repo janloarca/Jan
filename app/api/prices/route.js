@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server'
+import { rateLimit } from '@/lib/rateLimit'
+
+const SYMBOL_RE = /^[A-Z0-9._\-^=]{1,20}$/i
 
 const CRYPTO_MAP = {
   BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', ADA: 'cardano',
@@ -75,10 +78,13 @@ async function fetchCryptoPrices(symbols) {
 }
 
 export async function POST(request) {
+  const { limited } = rateLimit(request, { maxRequests: 60 })
+  if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+
   try {
     const { items } = await request.json()
-    if (!items || !Array.isArray(items)) {
-      return NextResponse.json({ error: 'items array required' }, { status: 400 })
+    if (!items || !Array.isArray(items) || items.length > 100) {
+      return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
     }
 
     const stockSymbols = []
@@ -86,7 +92,7 @@ export async function POST(request) {
 
     items.forEach((it) => {
       const sym = (it.symbol || '').toUpperCase().trim()
-      if (!sym) return
+      if (!sym || !SYMBOL_RE.test(sym)) return
       const type = (it.type || '').toLowerCase()
       if (/crypto|cripto|blockchain/i.test(type) || CRYPTO_MAP[sym]) {
         cryptoSymbols.push(sym)
@@ -105,6 +111,7 @@ export async function POST(request) {
       timestamp: new Date().toISOString(),
     })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    console.error('prices error:', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

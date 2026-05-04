@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { formatCurrency, computeModifiedDietz } from './utils'
 import { computeTWRSeries } from './analytics'
+import { authFetch } from '@/lib/authFetch'
 
 const DAY_MS = 86400000
 
@@ -17,7 +18,7 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
     async function fetchHistory() {
       setLoading(true)
       try {
-        const res = await fetch('/api/prices/portfolio-history', {
+        const res = await authFetch('/api/prices/portfolio-history', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

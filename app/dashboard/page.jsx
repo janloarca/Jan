@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useFirestoreItems } from '@/hooks/useFirestoreItems'
 import { useMarketPrices } from '@/hooks/useMarketPrices'
 import { useExchangeRates } from '@/hooks/useExchangeRates'
+import { authFetch } from '@/lib/authFetch'
 
 import FileImportModal from '@/components/FileImportModal'
 import AddAccountModal from '@/components/AddAccountModal'
@@ -363,7 +364,7 @@ export default function DashboardPage() {
     let cancelled = false
     async function fetchJan1() {
       try {
-        const res = await fetch('/api/prices/portfolio-history', {
+        const res = await authFetch('/api/prices/portfolio-history', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

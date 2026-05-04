@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server'
+import { verifyAuth } from '@/lib/apiAuth'
+import { rateLimit } from '@/lib/rateLimit'
 
 export const dynamic = 'force-dynamic'
+
+const VALID_PERIODS = ['DAY', '1W', 'MTD', '1M', '3M', '6M', 'YTD', '1Y', 'ALL']
+const SYMBOL_RE = /^[A-Z0-9._\-^=]{1,20}$/i
 
 const CRYPTO_MAP = {
   BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', ADA: 'cardano',
@@ -63,13 +68,30 @@ function getCryptoDays(period) {
 }
 
 export async function POST(request) {
+  const { limited } = rateLimit(request, { maxRequests: 30 })
+  if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+
+  const auth = await verifyAuth(request)
+  if (auth.error) return auth.error
+
   try {
     const { items, period } = await request.json()
-    if (!items || !Array.isArray(items)) {
-      return NextResponse.json({ error: 'items required' }, { status: 400 })
+    if (!items || !Array.isArray(items) || items.length > 100) {
+      return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
     }
 
     const per = period || 'YTD'
+    if (!VALID_PERIODS.includes(per)) {
+      return NextResponse.json({ error: 'Invalid period' }, { status: 400 })
+    }
+
+    for (const it of items) {
+      const sym = (it.symbol || '').trim()
+      if (sym && !SYMBOL_RE.test(sym)) {
+        return NextResponse.json({ error: 'Invalid symbol' }, { status: 400 })
+      }
+    }
+
     const { range, interval } = RANGE_MAP[per] || RANGE_MAP.YTD
 
     const skipTypes = /inmueble|bank|banco|real.?estate|property|inversion|inversión|bono|bond|deposito|certificado/i
@@ -196,6 +218,7 @@ export async function POST(request) {
 
     return NextResponse.json({ dataPoints, staticTotal })
   } catch (err) {
-    return NextResponse.json({ error: err.message, dataPoints: [] }, { status: 500 })
+    console.error('portfolio-history error:', err)
+    return NextResponse.json({ error: 'Internal server error', dataPoints: [] }, { status: 500 })
   }
 }
