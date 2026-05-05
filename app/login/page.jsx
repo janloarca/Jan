@@ -17,7 +17,13 @@ export default function LoginPage() {
       const { auth } = await import('@/lib/firebase')
       const { onAuthStateChanged } = await import('firebase/auth')
       if (!auth) return
-      unsub = onAuthStateChanged(auth, (u) => { if (u) router.push('/dashboard') })
+      unsub = onAuthStateChanged(auth, async (u) => {
+        if (u) {
+          const token = await u.getIdToken()
+          document.cookie = `__session=${token}; path=/; max-age=3600; SameSite=Lax`
+          router.push('/dashboard')
+        }
+      })
     }
     check()
     return () => unsub()
@@ -32,11 +38,14 @@ export default function LoginPage() {
       const { auth } = await import('@/lib/firebase')
       const { signInWithEmailAndPassword, createUserWithEmailAndPassword } = await import('firebase/auth')
       if (!auth) throw new Error('Firebase not initialized')
+      let cred
       if (isSignUp) {
-        await createUserWithEmailAndPassword(auth, email, password)
+        cred = await createUserWithEmailAndPassword(auth, email, password)
       } else {
-        await signInWithEmailAndPassword(auth, email, password)
+        cred = await signInWithEmailAndPassword(auth, email, password)
       }
+      const token = await cred.user.getIdToken()
+      document.cookie = `__session=${token}; path=/; max-age=3600; SameSite=Lax`
       router.push('/dashboard')
     } catch (err) {
       const msg = err.code === 'auth/wrong-password' ? 'Contraseña incorrecta'

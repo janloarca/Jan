@@ -105,10 +105,13 @@ export default function DashboardPage() {
       const { auth } = await import('@/lib/firebase')
       const { onAuthStateChanged } = await import('firebase/auth')
       if (!auth) { setAuthLoading(false); router.push('/login'); return }
-      unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
         if (!currentUser) {
+          document.cookie = '__session=; path=/; max-age=0'
           router.push('/login')
         } else {
+          const token = await currentUser.getIdToken()
+          document.cookie = `__session=${token}; path=/; max-age=3600; SameSite=Lax`
           setUser(currentUser)
         }
         setAuthLoading(false)
@@ -283,6 +286,7 @@ export default function DashboardPage() {
   const handleSignOut = async () => {
     const { auth } = await import('@/lib/firebase')
     const { signOut } = await import('firebase/auth')
+    document.cookie = '__session=; path=/; max-age=0'
     if (auth) await signOut(auth)
     router.push('/login')
   }
@@ -339,7 +343,7 @@ export default function DashboardPage() {
     const { generateReport } = await import('@/lib/generateReport')
     await generateReport({
       items: enrichedItems, snapshots, transactions,
-      netWorth, totalAssets, lang,
+      netWorth, totalAssets, lang, returnYTD, annualDividends,
     })
   }, [enrichedItems, snapshots, transactions, lang, netWorth, totalAssets])
 

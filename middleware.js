@@ -4,10 +4,9 @@ export function middleware(request) {
   const { pathname } = request.nextUrl
 
   if (pathname.startsWith('/dashboard')) {
-    const authCookie = request.cookies.get('__session') || request.cookies.get('firebase-auth')
-    const hasAuth = request.headers.get('cookie')?.includes('firebaseAuth')
+    const authCookie = request.cookies.get('__session')
 
-    if (!authCookie && !hasAuth) {
+    if (!authCookie) {
       const loginUrl = new URL('/login', request.url)
       loginUrl.searchParams.set('redirect', pathname)
       return NextResponse.redirect(loginUrl)
