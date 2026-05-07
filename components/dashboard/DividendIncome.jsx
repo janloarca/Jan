@@ -19,7 +19,12 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       const balance = qty * price
       let annual = 0
 
-      if (it.incomeAmount > 0 && it.incomeMonths) {
+      if (it.rateType === 'variable' && it.rateMin > 0 && it.rateMax > 0) {
+        const midRate = (it.rateMin + it.rateMax) / 2
+        annual = balance * (midRate / 100)
+      } else if (it.rateType === 'continuous' && it.incomeRate > 0) {
+        annual = balance * (Math.exp(it.incomeRate / 100) - 1)
+      } else if (it.incomeAmount > 0 && it.incomeMonths) {
         const payCount = Array.isArray(it.incomeMonths) ? it.incomeMonths.length : 12
         annual = it.incomeAmount * payCount
       } else if (it.incomeMode === 'percent' && it.incomeRate > 0) {

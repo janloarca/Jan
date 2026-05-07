@@ -49,8 +49,10 @@ export function formatShortDate(dateStr) {
 export function getTypeCategory(type) {
   if (!type) return 'other'
   const t = type.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-  if (/stock|accion|equity|reit|share/i.test(t)) return 'stocks'
   if (/crypto|cripto|blockchain|bitcoin|btc|eth|token|coin/i.test(t)) return 'crypto'
+  if (/realestate|real.?estate|inmueble|property|crowdfund/i.test(t)) return 'realestate'
+  if (/alternative|alternativ|safe.?note|vc.?fund|private.?equity|club.?deal|collectible/i.test(t)) return 'alternatives'
+  if (/stock|accion|equity|reit|share/i.test(t)) return 'stocks'
   if (/bond|bono|instrumento|inversion|deuda|debt|cdt|plazo|treasury|letra|pagare|deposito|certificado/i.test(t)) return 'bonds'
   if (/fund|fondo|etf|index|mutual/i.test(t)) return 'funds'
   if (/bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i.test(t)) return 'banks'
@@ -63,10 +65,13 @@ export const TYPE_COLORS = {
   bonds: { bg: '#10b981', badge: 'bg-emerald-500/20 text-emerald-400' },
   funds: { bg: '#a855f7', badge: 'bg-purple-500/20 text-purple-400' },
   banks: { bg: '#6b7280', badge: 'bg-gray-500/20 text-gray-400' },
-  other: { bg: '#ec4899', badge: 'bg-pink-500/20 text-pink-400' },
+  realestate: { bg: '#f97316', badge: 'bg-orange-500/20 text-orange-400' },
+  alternatives: { bg: '#ec4899', badge: 'bg-pink-500/20 text-pink-400' },
+  other: { bg: '#64748b', badge: 'bg-slate-500/20 text-slate-400' },
 }
 
 export function getItemPrice(item) {
+  if (item.isIlliquid && item.lastManualValuation > 0) return item.lastManualValuation
   return item.currentPrice || item.purchasePrice || item.price || item.cost || item.averagePrice || 0
 }
 
@@ -80,6 +85,8 @@ export const TYPE_ICONS = {
   bonds: '🏛',
   funds: '💼',
   banks: '🏦',
+  realestate: '🏠',
+  alternatives: '🔮',
   other: '📊',
 }
 
@@ -182,6 +189,9 @@ export function computeModifiedDietz({ startValue, endValue, startTs, endTs, tra
 
 export function getEffectiveYield(item) {
   if (item.dividendYield > 0) return item.dividendYield
+  if (item.rateType === 'variable' && item.rateMin > 0 && item.rateMax > 0) {
+    return (item.rateMin + item.rateMax) / 2
+  }
   if (item.incomeMode === 'percent' && item.incomeRate > 0) return item.incomeRate
   if (item.incomeAmount > 0 && item.incomeMonths) {
     const payCount = Array.isArray(item.incomeMonths) ? item.incomeMonths.length : 12
@@ -189,4 +199,21 @@ export function getEffectiveYield(item) {
     if (cost > 0) return (item.incomeAmount * payCount) / cost * 100
   }
   return null
+}
+
+export function getMaturityInfo(item) {
+  if (!item.maturityDate) return null
+  const mat = new Date(item.maturityDate)
+  if (isNaN(mat.getTime())) return null
+  const now = new Date()
+  const diffMs = mat.getTime() - now.getTime()
+  if (diffMs <= 0) return { expired: true, days: 0, label: 'Vencido', color: 'red' }
+  const days = Math.ceil(diffMs / 86400000)
+  const months = Math.floor(days / 30)
+  const years = Math.floor(days / 365)
+  let label, color
+  if (days <= 90) { color = 'red'; label = `${days}d` }
+  else if (days <= 365) { color = 'amber'; label = `${months}m` }
+  else { color = 'emerald'; label = years > 0 ? `${years}a ${months % 12}m` : `${months}m` }
+  return { expired: false, days, months, years, label, color }
 }

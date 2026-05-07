@@ -27,12 +27,47 @@ function detectCurrency(institution) {
 }
 
 const TYPES = [
-  { key: 'Stock', icon: '📈', es: 'Acción', en: 'Stock' },
-  { key: 'Crypto', icon: '₿', es: 'Crypto', en: 'Crypto' },
-  { key: 'Fund', icon: '💼', es: 'Fondo/ETF', en: 'Fund/ETF' },
-  { key: 'Inmueble', icon: '🏠', es: 'Inmueble', en: 'Real Estate' },
-  { key: 'Bank', icon: '🏦', es: 'Banco', en: 'Bank' },
-  { key: 'Inversion', icon: '🏛', es: 'Inversión', en: 'Investment' },
+  { key: 'Stock', icon: '📈', es: 'Acción', en: 'Stock', subtypes: [
+    { key: 'common', es: 'Común', en: 'Common' },
+    { key: 'preferred', es: 'Preferente', en: 'Preferred' },
+    { key: 'private', es: 'Privada', en: 'Private' },
+  ]},
+  { key: 'Crypto', icon: '₿', es: 'Crypto', en: 'Crypto', subtypes: [
+    { key: 'holding', es: 'Holding', en: 'Holding' },
+    { key: 'staking', es: 'Staking', en: 'Staking' },
+    { key: 'defi_yield', es: 'DeFi Yield', en: 'DeFi Yield' },
+    { key: 'lending', es: 'Préstamo', en: 'Lending' },
+  ]},
+  { key: 'Fund', icon: '💼', es: 'Fondo/ETF', en: 'Fund/ETF', subtypes: [
+    { key: 'etf', es: 'ETF', en: 'ETF' },
+    { key: 'mutual', es: 'Fondo Mutuo', en: 'Mutual Fund' },
+    { key: 'liquid_fund', es: 'Fondo Líquido', en: 'Liquid Fund' },
+    { key: 'money_market', es: 'Mercado Monetario', en: 'Money Market' },
+  ]},
+  { key: 'Bond', icon: '🏛', es: 'Bono/Instrumento', en: 'Bond/Instrument', subtypes: [
+    { key: 'corporate', es: 'Corporativo', en: 'Corporate' },
+    { key: 'government', es: 'Gobierno', en: 'Government' },
+    { key: 'convertible', es: 'Convertible', en: 'Convertible' },
+    { key: 'private_debt', es: 'Deuda Privada', en: 'Private Debt' },
+  ]},
+  { key: 'Bank', icon: '🏦', es: 'Banco', en: 'Bank', subtypes: [
+    { key: 'checking', es: 'Corriente', en: 'Checking' },
+    { key: 'savings', es: 'Ahorro', en: 'Savings' },
+    { key: 'cd', es: 'Depósito a Plazo', en: 'CD' },
+  ]},
+  { key: 'RealEstate', icon: '🏠', es: 'Inmueble', en: 'Real Estate', subtypes: [
+    { key: 'property', es: 'Propiedad', en: 'Property' },
+    { key: 'reit', es: 'REIT', en: 'REIT' },
+    { key: 'crowdfunding', es: 'Crowdfunding', en: 'Crowdfunding' },
+  ]},
+  { key: 'Alternative', icon: '🔮', es: 'Alternativo', en: 'Alternative', subtypes: [
+    { key: 'club_deal', es: 'Club Deal', en: 'Club Deal' },
+    { key: 'safe_note', es: 'SAFE Note', en: 'SAFE Note' },
+    { key: 'vc_fund', es: 'Fondo VC', en: 'VC Fund' },
+    { key: 'private_equity', es: 'Capital Privado', en: 'Private Equity' },
+    { key: 'collectible', es: 'Coleccionable', en: 'Collectible' },
+    { key: 'other', es: 'Otro', en: 'Other' },
+  ]},
 ]
 
 const ACCOUNT_TYPES = [
@@ -44,6 +79,7 @@ const ACCOUNT_TYPES = [
 export default function AddAccountModal({ onClose, onAdd, onAddTransaction, existingItems = [], lang = 'es' }) {
   const [step, setStep] = useState(1)
   const [type, setType] = useState('Stock')
+  const [subtype, setSubtype] = useState('')
   const [form, setForm] = useState({
     symbol: '', name: '', quantity: '', purchasePrice: '', currentPrice: '',
     institution: '', currency: 'USD', acquisitionDate: new Date().toISOString().split('T')[0],
@@ -53,6 +89,13 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
     capitalReturn: '', incomeDestination: '', capitalDestination: '',
     dividendAction: 'cash',
     sector: '', industry: '', exchangeName: '',
+    rateType: 'fixed', rateMin: '', rateMax: '',
+    accrualMethod: 'simple', paymentSchedule: 'monthly',
+    businessDayRule: 'exact',
+    maturityDate: '', maturityAction: 'return_capital', conversionDetails: '',
+    isIlliquid: false,
+    custodyType: '', custodyDetails: '',
+    notes: '',
   })
   const [isNewMoney, setIsNewMoney] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -71,8 +114,12 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
   const t = (es, en) => lang === 'es' ? es : en
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
   const isMarketAsset = type === 'Stock' || type === 'Crypto' || type === 'Fund'
-  const isProperty = type === 'Inmueble'
+  const isProperty = type === 'RealEstate'
   const isBank = type === 'Bank'
+  const isBond = type === 'Bond'
+  const isAlternative = type === 'Alternative'
+  const isCrypto = type === 'Crypto'
+  const currentTypeInfo = TYPES.find(tp => tp.key === type)
 
   useEffect(() => {
     const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
@@ -238,27 +285,64 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
       } else {
         item.symbol = form.symbol.trim() || form.name.trim().replace(/\s+/g, '-').toUpperCase()
         item.name = form.name.trim()
-        item.quantity = qty
+        item.quantity = qty || 1
         item.purchasePrice = price
         if (form.currentPrice) item.currentPrice = parseFloat(form.currentPrice)
       }
 
+      // Subtype
+      if (subtype) item.subtype = subtype
+
       // Income config
-      if (showIncome && !isMarketAsset && (form.incomeAmount || form.incomeRate)) {
+      if (showIncome && !isMarketAsset && (form.incomeAmount || form.incomeRate || form.rateMin || form.rateType === 'continuous')) {
         item.incomeMode = form.incomeMode
-        if (form.incomeMode === 'percent') {
+        item.rateType = form.rateType
+        if (form.rateType === 'variable') {
+          item.rateMin = parseFloat(form.rateMin) || 0
+          item.rateMax = parseFloat(form.rateMax) || 0
+          item.incomeRate = (item.rateMin + item.rateMax) / 2
+        } else if (form.incomeMode === 'percent') {
           item.incomeRate = parseFloat(form.incomeRate) || 0
         } else {
           item.incomeAmount = parseFloat(form.incomeAmount) || 0
         }
-        item.incomePayDay = parseInt(form.incomePayDay) || 1
-        item.incomeMonths = form.incomeMonths.length > 0 ? form.incomeMonths : [0,1,2,3,4,5,6,7,8,9,10,11]
+        if (form.rateType !== 'continuous') {
+          item.incomePayDay = parseInt(form.incomePayDay) || 1
+          item.incomeMonths = form.incomeMonths.length > 0 ? form.incomeMonths : [0,1,2,3,4,5,6,7,8,9,10,11]
+          item.businessDayRule = form.businessDayRule
+        } else {
+          item.accrualMethod = 'compound_continuous'
+          item.incomeMonths = [0,1,2,3,4,5,6,7,8,9,10,11]
+        }
+        item.paymentSchedule = form.paymentSchedule
         if (form.incomeDestination) item.incomeDestination = form.incomeDestination
         if (form.capitalReturn) {
           item.capitalReturn = parseFloat(form.capitalReturn) || 0
           if (form.capitalDestination) item.capitalDestination = form.capitalDestination
         }
       }
+
+      // Maturity
+      if (form.maturityDate) {
+        item.maturityDate = form.maturityDate
+        item.maturityAction = form.maturityAction
+        if (form.conversionDetails) item.conversionDetails = form.conversionDetails
+      }
+
+      // Illiquid
+      if (form.isIlliquid) {
+        item.isIlliquid = true
+        item.valuationMethod = 'manual'
+      }
+
+      // Custody
+      if (form.custodyType) {
+        item.custodyType = form.custodyType
+        if (form.custodyDetails) item.custodyDetails = form.custodyDetails
+      }
+
+      // Notes
+      if (form.notes) item.notes = form.notes
 
       // Merge with existing if duplicate accepted
       if (duplicateWarning) {
@@ -338,10 +422,10 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
           {step === 1 && (<>
             <div>
               <label className={labelCls}>{t('Tipo de activo', 'Asset type')}</label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-4 gap-2">
                 {TYPES.map(tp => (
-                  <button key={tp.key} type="button" onClick={() => { setType(tp.key); setForm(prev => ({ ...prev, symbol: '', name: '', purchasePrice: '', currentPrice: '', sector: '', industry: '' })); setDivInfo(null) }}
-                    className={`flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg transition-all text-center ${
+                  <button key={tp.key} type="button" onClick={() => { setType(tp.key); setSubtype(''); setForm(prev => ({ ...prev, symbol: '', name: '', purchasePrice: '', currentPrice: '', sector: '', industry: '', isIlliquid: false, custodyType: '', maturityDate: '' })); setDivInfo(null) }}
+                    className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg transition-all text-center ${
                       type === tp.key ? 'bg-blue-500/20 border border-blue-500/40 text-blue-400' : 'bg-[var(--input-bg,#0f172a)] border border-[var(--card-border,#334155)] text-[var(--text-secondary,#94a3b8)] hover:border-[var(--text-secondary,#94a3b8)]'
                     }`}>
                     <span className="text-lg">{tp.icon}</span>
@@ -349,6 +433,18 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                   </button>
                 ))}
               </div>
+              {currentTypeInfo?.subtypes && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {currentTypeInfo.subtypes.map(st => (
+                    <button key={st.key} type="button" onClick={() => setSubtype(st.key)}
+                      className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                        subtype === st.key ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[var(--input-bg,#0f172a)] text-[var(--text-muted,#475569)] border border-[var(--card-border,#334155)] hover:border-[var(--text-secondary,#94a3b8)]'
+                      }`}>
+                      {lang === 'es' ? st.es : st.en}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Market asset search */}
@@ -417,7 +513,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                     placeholder={t('BAM, BI, Banrural...', 'Chase, BoA...')} className={inputCls} />
                 ) : (
                   <input value={form.name} onChange={e => set('name', e.target.value)}
-                    placeholder={isProperty ? t('Apartamento Centro', 'Downtown Apartment') : t('CDT Banco Industrial', 'Certificate of Deposit')}
+                    placeholder={isBond ? t('Bono Corporativo IDC', 'IDC Corporate Bond') : isAlternative ? t('Club Cash In', 'Club Cash In') : isProperty ? t('Apartamento Centro', 'Downtown Apartment') : t('CDT Banco Industrial', 'Certificate of Deposit')}
                     className={inputCls} />
                 )}
               </div>
@@ -524,7 +620,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
               </div>
             )}
 
-            {type === 'Inversion' && (
+            {(isBond || isAlternative) && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelCls}>{t('Monto invertido', 'Amount invested')} *</label>
@@ -535,6 +631,62 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                   <label className={labelCls}>{t('Valor actual', 'Current value')}</label>
                   <input value={form.currentPrice} onChange={e => set('currentPrice', e.target.value)}
                     placeholder="10800" type="number" step="any" className={inputCls} />
+                </div>
+              </div>
+            )}
+
+            {/* Maturity date for bonds/alternatives */}
+            {(isBond || isAlternative) && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>{t('Fecha de vencimiento', 'Maturity date')}</label>
+                  <input value={form.maturityDate} onChange={e => set('maturityDate', e.target.value)}
+                    type="date" className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>{t('Al vencimiento', 'At maturity')}</label>
+                  <select value={form.maturityAction} onChange={e => set('maturityAction', e.target.value)} className={inputCls}>
+                    <option value="return_capital">{t('Devolver capital', 'Return capital')}</option>
+                    <option value="auto_renew">{t('Renovar', 'Auto-renew')}</option>
+                    <option value="convert_equity">{t('Convertir a acciones', 'Convert to equity')}</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* Illiquid asset toggle */}
+            {(isProperty || isAlternative || (isBond && subtype === 'private_debt')) && (
+              <div className="flex items-center gap-3 px-3 py-2 border border-[var(--card-border,#334155)] rounded-lg">
+                <button type="button" onClick={() => set('isIlliquid', !form.isIlliquid)}
+                  className={`w-8 h-4 rounded-full transition-colors relative ${form.isIlliquid ? 'bg-amber-500' : 'bg-[var(--card-border,#334155)]'}`}>
+                  <span className={`absolute w-3 h-3 bg-white rounded-full top-0.5 transition-transform ${form.isIlliquid ? 'left-4' : 'left-0.5'}`} />
+                </button>
+                <div>
+                  <span className="text-xs text-[var(--text-primary,white)] font-medium">{t('Activo ilíquido', 'Illiquid asset')}</span>
+                  <p className="text-xs text-[var(--text-muted,#475569)]">
+                    {t('Sin precio de mercado disponible', 'No market price available')}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Custody type for crypto */}
+            {isCrypto && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>{t('Custodia', 'Custody')}</label>
+                  <select value={form.custodyType} onChange={e => set('custodyType', e.target.value)} className={inputCls}>
+                    <option value="">{t('-- Seleccionar --', '-- Select --')}</option>
+                    <option value="custodial">{t('Exchange/Custodia', 'Exchange/Custodial')}</option>
+                    <option value="self_custody">{t('Self-Custody', 'Self-Custody')}</option>
+                    <option value="defi_protocol">{t('Protocolo DeFi', 'DeFi Protocol')}</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>{t('Detalles', 'Details')}</label>
+                  <input value={form.custodyDetails} onChange={e => set('custodyDetails', e.target.value)}
+                    placeholder={form.custodyType === 'self_custody' ? 'Ledger Nano X' : form.custodyType === 'defi_protocol' ? 'Osmosis, Aave...' : 'Binance, Kraken...'}
+                    className={inputCls} />
                 </div>
               </div>
             )}
@@ -619,7 +771,25 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
 
             {showIncome && !isMarketAsset && (
               <div className="border border-[var(--card-border,#334155)] rounded-lg p-3 space-y-3">
-                <div className="flex gap-1 mb-2">
+                {/* Rate type selector */}
+                <div>
+                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1.5 block">{t('Tipo de tasa', 'Rate type')}</label>
+                  <div className="flex gap-1">
+                    {[
+                      { key: 'fixed', es: 'Fija', en: 'Fixed' },
+                      { key: 'variable', es: 'Variable', en: 'Variable' },
+                      { key: 'continuous', es: 'Continua', en: 'Continuous' },
+                    ].map(rt => (
+                      <button key={rt.key} type="button" onClick={() => set('rateType', rt.key)}
+                        className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all ${form.rateType === rt.key ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[var(--input-bg,#0f172a)] text-[var(--text-muted,#475569)] border border-[var(--card-border,#334155)]'}`}>
+                        {lang === 'es' ? rt.es : rt.en}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Income mode: fixed amount vs percent */}
+                <div className="flex gap-1">
                   <button type="button" onClick={() => set('incomeMode', 'fixed')}
                     className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all ${form.incomeMode === 'fixed' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[var(--input-bg,#0f172a)] text-[var(--text-muted,#475569)] border border-[var(--card-border,#334155)]'}`}>
                     {t('Monto fijo', 'Fixed amount')}
@@ -629,45 +799,85 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                     {t('% del saldo', '% of balance')}
                   </button>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    {form.incomeMode === 'fixed' ? (<>
-                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Monto por pago', 'Per payment')}</label>
-                      <input value={form.incomeAmount} onChange={e => set('incomeAmount', e.target.value)}
-                        placeholder={isProperty ? '800' : '48'} type="number" step="any" className={inputCls} />
-                    </>) : (<>
-                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa anual %', 'Annual rate %')}</label>
-                      <input value={form.incomeRate} onChange={e => set('incomeRate', e.target.value)}
+
+                {/* Rate inputs */}
+                {form.rateType === 'variable' ? (
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa mín %', 'Min rate %')}</label>
+                      <input value={form.rateMin} onChange={e => set('rateMin', e.target.value)}
+                        placeholder="4.5" type="number" step="any" className={inputCls} />
+                    </div>
+                    <div>
+                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa máx %', 'Max rate %')}</label>
+                      <input value={form.rateMax} onChange={e => set('rateMax', e.target.value)}
                         placeholder="5.5" type="number" step="any" className={inputCls} />
-                    </>)}
+                    </div>
+                    <div>
+                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Día de pago', 'Pay day')}</label>
+                      <input value={form.incomePayDay} onChange={e => set('incomePayDay', e.target.value)}
+                        placeholder="10" type="number" min="1" max="31" className={inputCls} />
+                    </div>
                   </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      {form.incomeMode === 'fixed' ? (<>
+                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Monto por pago', 'Per payment')}</label>
+                        <input value={form.incomeAmount} onChange={e => set('incomeAmount', e.target.value)}
+                          placeholder={isProperty ? '800' : '48'} type="number" step="any" className={inputCls} />
+                      </>) : (<>
+                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa anual %', 'Annual rate %')}</label>
+                        <input value={form.incomeRate} onChange={e => set('incomeRate', e.target.value)}
+                          placeholder="5.5" type="number" step="any" className={inputCls} />
+                      </>)}
+                    </div>
+                    <div>
+                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Día de pago', 'Pay day')}</label>
+                      <input value={form.incomePayDay} onChange={e => set('incomePayDay', e.target.value)}
+                        placeholder="10" type="number" min="1" max="31" className={inputCls} />
+                    </div>
+                  </div>
+                )}
+
+                {/* Business day rule */}
+                {form.rateType !== 'continuous' && (
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-[var(--text-muted,#475569)]">{t('Día hábil:', 'Business day:')}</label>
+                    <select value={form.businessDayRule} onChange={e => set('businessDayRule', e.target.value)}
+                      className="px-2 py-1 bg-[var(--input-bg,#0f172a)] border border-[var(--card-border,#334155)] rounded text-xs text-[var(--text-primary,white)]">
+                      <option value="exact">{t('Día exacto', 'Exact day')}</option>
+                      <option value="next_business_day">{t('Siguiente día hábil', 'Next business day')}</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* Payment months */}
+                {form.rateType !== 'continuous' && (
                   <div>
-                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Día de pago', 'Pay day')}</label>
-                    <input value={form.incomePayDay} onChange={e => set('incomePayDay', e.target.value)}
-                      placeholder="10" type="number" min="1" max="31" className={inputCls} />
+                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1.5 block">{t('Meses de pago', 'Payment months')}</label>
+                    <div className="flex flex-wrap gap-1">
+                      {['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'].map((label, i) => {
+                        const active = form.incomeMonths.includes(i)
+                        return (
+                          <button key={i} type="button"
+                            onClick={() => set('incomeMonths', active ? form.incomeMonths.filter(x => x !== i) : [...form.incomeMonths, i].sort((a, b) => a - b))}
+                            className={`px-2 py-1 text-xs font-medium rounded transition-all ${active ? 'bg-blue-500/25 text-blue-400 border border-blue-500/40' : 'bg-[var(--input-bg,#0f172a)] text-[var(--text-muted,#475569)] border border-[var(--card-border,#334155)]'}`}>
+                            {label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <div className="flex gap-2 mt-1.5">
+                      <button type="button" onClick={() => set('incomeMonths', [0,1,2,3,4,5,6,7,8,9,10,11])}
+                        className="text-xs text-[var(--text-muted,#475569)] hover:text-emerald-400 transition-colors">{t('Todos', 'All')}</button>
+                      <button type="button" onClick={() => set('incomeMonths', [])}
+                        className="text-xs text-[var(--text-muted,#475569)] hover:text-emerald-400 transition-colors">{t('Ninguno', 'None')}</button>
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1.5 block">{t('Meses de pago', 'Payment months')}</label>
-                  <div className="flex flex-wrap gap-1">
-                    {['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'].map((label, i) => {
-                      const active = form.incomeMonths.includes(i)
-                      return (
-                        <button key={i} type="button"
-                          onClick={() => set('incomeMonths', active ? form.incomeMonths.filter(x => x !== i) : [...form.incomeMonths, i].sort((a, b) => a - b))}
-                          className={`px-2 py-1 text-xs font-medium rounded transition-all ${active ? 'bg-blue-500/25 text-blue-400 border border-blue-500/40' : 'bg-[var(--input-bg,#0f172a)] text-[var(--text-muted,#475569)] border border-[var(--card-border,#334155)]'}`}>
-                          {label}
-                        </button>
-                      )
-                    })}
-                  </div>
-                  <div className="flex gap-2 mt-1.5">
-                    <button type="button" onClick={() => set('incomeMonths', [0,1,2,3,4,5,6,7,8,9,10,11])}
-                      className="text-xs text-[var(--text-muted,#475569)] hover:text-emerald-400 transition-colors">{t('Todos', 'All')}</button>
-                    <button type="button" onClick={() => set('incomeMonths', [])}
-                      className="text-xs text-[var(--text-muted,#475569)] hover:text-emerald-400 transition-colors">{t('Ninguno', 'None')}</button>
-                  </div>
-                </div>
+                )}
+
+                {/* Income destination */}
                 {existingItems.length > 0 && (
                   <div>
                     <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Pagos se depositan en:', 'Payments deposit to:')}</label>
@@ -677,6 +887,23 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                     </select>
                   </div>
                 )}
+
+                {/* Capital return */}
+                <div>
+                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Capital devuelto por pago', 'Capital returned per payment')}</label>
+                  <input value={form.capitalReturn} onChange={e => set('capitalReturn', e.target.value)}
+                    placeholder="0" type="number" step="any" className={inputCls} />
+                </div>
+              </div>
+            )}
+
+            {/* Notes */}
+            {(isBond || isAlternative || isProperty) && (
+              <div>
+                <label className={labelCls}>{t('Notas', 'Notes')}</label>
+                <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
+                  placeholder={t('Detalles adicionales...', 'Additional details...')}
+                  rows={2} className={inputCls + ' resize-none'} />
               </div>
             )}
 

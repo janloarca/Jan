@@ -8,9 +8,9 @@ export function useMarketPrices(items) {
 
   const fetchPrices = useCallback(async () => {
     if (!items || items.length === 0) return
-    const skipTypes = /inmueble|bank|banco|inversion|real.?estate|property/i
+    const skipTypes = /inmueble|bank|banco|inversion|real.?estate|property|alternative|bond|bono/i
     const symbols = items
-      .filter((it) => it.symbol && !skipTypes.test(it.type || ''))
+      .filter((it) => it.symbol && !it.isIlliquid && !skipTypes.test(it.type || ''))
       .map((it) => ({ symbol: it.symbol, type: it.type }))
     if (symbols.length === 0) return
 

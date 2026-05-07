@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { formatCurrency, getTypeCategory, TYPE_COLORS, getItemValue, getItemPrice, getBaseCurrency } from './utils'
+import { formatCurrency, getTypeCategory, TYPE_COLORS, getItemValue, getItemPrice, getBaseCurrency, getMaturityInfo } from './utils'
 
 export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, onViewItem, onSellItem, onQuickBuy }) {
   const [filter, setFilter] = useState('all')
@@ -11,7 +11,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
   const [dismissWarning, setDismissWarning] = useState(false)
 
   const counts = useMemo(() => {
-    const c = { all: items.length, stocks: 0, crypto: 0, bonds: 0, funds: 0 }
+    const c = { all: items.length, stocks: 0, crypto: 0, bonds: 0, funds: 0, banks: 0, realestate: 0, alternatives: 0 }
     items.forEach((it) => {
       const cat = getTypeCategory(it.type)
       if (c[cat] !== undefined) c[cat]++
@@ -57,6 +57,9 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
     { key: 'crypto', icon: '₿', label: `Crypto (${counts.crypto})` },
     { key: 'bonds', icon: '🏛', label: lang === 'es' ? `Instrumentos (${counts.bonds})` : `Instruments (${counts.bonds})` },
     { key: 'funds', icon: '💼', label: `Funds (${counts.funds})` },
+    ...(counts.banks > 0 ? [{ key: 'banks', icon: '🏦', label: lang === 'es' ? `Bancos (${counts.banks})` : `Banks (${counts.banks})` }] : []),
+    ...(counts.realestate > 0 ? [{ key: 'realestate', icon: '🏠', label: lang === 'es' ? `Inmuebles (${counts.realestate})` : `Real Estate (${counts.realestate})` }] : []),
+    ...(counts.alternatives > 0 ? [{ key: 'alternatives', icon: '🔮', label: lang === 'es' ? `Alternativos (${counts.alternatives})` : `Alternatives (${counts.alternatives})` }] : []),
   ]
 
   const t = (es, en) => lang === 'es' ? es : en
@@ -191,6 +194,34 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                             {item.institution ? `${item.institution} · ` : ''}{item.quantity?.toLocaleString(undefined, { maximumFractionDigits: 4 })} @ {formatCurrency(getItemPrice(item), item.currency)}
                             {item.currency && item.currency !== getBaseCurrency() && (
                               <span className="ml-1 text-xs px-1 py-0.5 rounded bg-slate-700 text-slate-400">{item.currency}</span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-1 mt-0.5">
+                            {item.isIlliquid && (
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400">
+                                {lang === 'es' ? 'Ilíquido' : 'Illiquid'}
+                              </span>
+                            )}
+                            {item.custodyType && (
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400">
+                                {item.custodyType === 'self_custody' ? '🔐 Self' : item.custodyType === 'defi_protocol' ? '🌐 DeFi' : '🏦 Custody'}
+                              </span>
+                            )}
+                            {(() => {
+                              const mat = getMaturityInfo(item)
+                              if (!mat) return null
+                              const colorCls = mat.color === 'red' ? 'bg-red-500/10 text-red-400' : mat.color === 'amber' ? 'bg-amber-500/10 text-amber-400' : 'bg-emerald-500/10 text-emerald-400'
+                              return <span className={`text-xs px-1.5 py-0.5 rounded ${colorCls}`}>{mat.expired ? '⚠' : '⏱'} {mat.label}</span>
+                            })()}
+                            {item.rateType === 'variable' && item.rateMin > 0 && (
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400">
+                                {item.rateMin}-{item.rateMax}%
+                              </span>
+                            )}
+                            {item.subtype && (
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-slate-700/30 text-slate-500">
+                                {item.subtype}
+                              </span>
                             )}
                           </div>
                         </div>

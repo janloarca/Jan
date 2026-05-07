@@ -17,11 +17,17 @@ export default function UpcomingDividends({ items, lang }) {
     const results = []
 
     items.forEach((it) => {
-      if ((!it.incomeAmount || it.incomeAmount <= 0) && (!it.incomeRate || it.incomeRate <= 0)) return
+      const hasVariableRate = it.rateType === 'variable' && it.rateMin > 0 && it.rateMax > 0
+      if ((!it.incomeAmount || it.incomeAmount <= 0) && (!it.incomeRate || it.incomeRate <= 0) && !hasVariableRate) return
       if (!it.incomeMonths || it.incomeMonths.length === 0) return
 
       let amount = it.incomeAmount || 0
-      if (it.incomeMode === 'percent' && it.incomeRate > 0) {
+      if (hasVariableRate) {
+        const balance = (it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0)
+        const payMonths = it.incomeMonths.length || 12
+        const midRate = (it.rateMin + it.rateMax) / 2
+        amount = (balance * (midRate / 100)) / payMonths
+      } else if (it.incomeMode === 'percent' && it.incomeRate > 0) {
         const balance = (it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0)
         const payMonths = it.incomeMonths.length || 12
         amount = (balance * (it.incomeRate / 100)) / payMonths
