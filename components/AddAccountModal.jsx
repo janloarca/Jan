@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 
 const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
 
@@ -35,16 +35,24 @@ const TYPES = [
   { key: 'Inversion', icon: '🏛', es: 'Inversión', en: 'Investment' },
 ]
 
+const ACCOUNT_TYPES = [
+  { key: 'taxable', es: 'Tributaria', en: 'Taxable' },
+  { key: 'retirement', es: 'Retiro', en: 'Retirement' },
+  { key: 'tax-free', es: 'Libre', en: 'Tax-free' },
+]
+
 export default function AddAccountModal({ onClose, onAdd, onAddTransaction, existingItems = [], lang = 'es' }) {
-  const [action, setAction] = useState('buy')
+  const [step, setStep] = useState(1)
   const [type, setType] = useState('Stock')
   const [form, setForm] = useState({
     symbol: '', name: '', quantity: '', purchasePrice: '', currentPrice: '',
-    institution: '', currency: 'USD', acquisitionDate: '',
+    institution: '', currency: 'USD', acquisitionDate: new Date().toISOString().split('T')[0],
+    accountType: 'taxable',
     incomeAmount: '', incomeMode: 'fixed', incomeRate: '',
     incomePayDay: '', incomeMonths: [],
     capitalReturn: '', incomeDestination: '', capitalDestination: '',
     dividendAction: 'cash',
+    sector: '', industry: '', exchangeName: '',
   })
   const [isNewMoney, setIsNewMoney] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -55,11 +63,16 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
   const [searchLoading, setSearchLoading] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
   const [fetchingQuote, setFetchingQuote] = useState(false)
+  const [showIncome, setShowIncome] = useState(false)
+  const [duplicateWarning, setDuplicateWarning] = useState(null)
   const dropdownRef = useRef(null)
   const inputRef = useRef(null)
 
   const t = (es, en) => lang === 'es' ? es : en
-  const set = (k, v) => setForm({ ...form, [k]: v })
+  const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
+  const isMarketAsset = type === 'Stock' || type === 'Crypto' || type === 'Fund'
+  const isProperty = type === 'Inmueble'
+  const isBank = type === 'Bank'
 
   useEffect(() => {
     const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
@@ -67,13 +80,23 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
     return () => window.removeEventListener('keydown', handleEsc)
   }, [onClose])
 
-  const isMarketAsset = type === 'Stock' || type === 'Crypto' || type === 'Fund'
+  const usedInstitutions = useMemo(() => {
+    const insts = new Set()
+    existingItems.forEach(it => { if (it.institution) insts.add(it.institution) })
+    return Array.from(insts)
+  }, [existingItems])
 
+  const [showInstSuggestions, setShowInstSuggestions] = useState(false)
+  const filteredInstitutions = useMemo(() => {
+    if (!form.institution) return usedInstitutions
+    const lower = form.institution.toLowerCase()
+    return usedInstitutions.filter(i => i.toLowerCase().includes(lower))
+  }, [form.institution, usedInstitutions])
+
+  // Symbol search
   useEffect(() => {
     if (!isMarketAsset || !form.symbol || form.symbol.length < 1) {
-      setSearchResults([])
-      setShowDropdown(false)
-      return
+      setSearchResults([]); setShowDropdown(false); return
     }
     const timer = setTimeout(async () => {
       const q = form.symbol.trim()
@@ -92,6 +115,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
     return () => clearTimeout(timer)
   }, [form.symbol, isMarketAsset])
 
+  // Click outside search dropdown
   useEffect(() => {
     function handleClickOutside(e) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target) &&
@@ -108,11 +132,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
     setSearchResults([])
     const newType = result.type === 'Crypto' ? 'Crypto' : result.type === 'Fund' ? 'Fund' : 'Stock'
     setType(newType)
-    setForm((prev) => ({
-      ...prev,
-      symbol: result.symbol,
-      name: result.name || '',
-    }))
+    setForm(prev => ({ ...prev, symbol: result.symbol, name: result.name || '', exchangeName: result.exchange || '' }))
 
     setFetchingQuote(true)
     try {
@@ -120,134 +140,83 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
       if (res.ok) {
         const data = await res.json()
         if (data.quote?.price) {
-          setForm((prev) => ({
+          setForm(prev => ({
             ...prev,
             purchasePrice: data.quote.price.toString(),
             currency: data.quote.currency || prev.currency,
+            sector: data.quote.sector || '',
+            industry: data.quote.industry || '',
           }))
         }
       }
     } catch {}
     setFetchingQuote(false)
   }, [])
-  const isProperty = type === 'Inmueble'
-  const isBank = type === 'Bank'
-  const hasIncome = !isMarketAsset
 
+  // Dividend fetch
   useEffect(() => {
-    if (!isMarketAsset || !form.symbol || form.symbol.length < 1) {
-      setDivInfo(null)
-      return
-    }
+    if (!isMarketAsset || !form.symbol || form.symbol.length < 1) { setDivInfo(null); return }
     const timer = setTimeout(async () => {
       const sym = form.symbol.trim().toUpperCase()
       if (sym.length < 1) return
       setDivLoading(true)
       try {
         const res = await fetch(`/api/prices/dividends?symbol=${encodeURIComponent(sym)}`)
-        if (res.ok) {
-          const data = await res.json()
-          setDivInfo(data)
-        }
+        if (res.ok) setDivInfo(await res.json())
       } catch {}
       setDivLoading(false)
     }, 800)
     return () => clearTimeout(timer)
   }, [form.symbol, isMarketAsset])
 
+  const goToStep2 = () => {
+    setError('')
+    if (isMarketAsset && !form.symbol) { setError(t('Busca y selecciona un activo', 'Search and select an asset')); return }
+    if (!isMarketAsset && !form.name && !isBank) { setError(t('Ingresa el nombre', 'Enter the name')); return }
+    if (isBank && !form.institution) { setError(t('Ingresa el banco', 'Enter the bank')); return }
+
+    // Duplicate detection
+    const existing = existingItems.find(ei => {
+      if (isMarketAsset) return (ei.symbol || '').toUpperCase() === (form.symbol || '').toUpperCase() && (ei.institution || '').toLowerCase() === (form.institution || '').toLowerCase()
+      return (ei.name || '').toLowerCase() === (form.name || '').toLowerCase() && (ei.institution || '').toLowerCase() === (form.institution || '').toLowerCase()
+    })
+    if (existing && !duplicateWarning) {
+      setDuplicateWarning(existing)
+      return
+    }
+    setDuplicateWarning(null)
+    setStep(2)
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
 
-    if (action === 'sell') {
-      if (!form.symbol) { setError(t('Selecciona un activo', 'Select an asset')); return }
-      const qtySell = parseFloat(form.quantity) || 0
-      if (qtySell <= 0) { setError(t('Ingresa la cantidad a vender', 'Enter quantity to sell')); return }
+    if (!form.acquisitionDate) { setError(t('La fecha es obligatoria para calcular rendimientos', 'Date is required for return calculations')); return }
+    if (!form.institution && !isProperty) { setError(t('La institución es obligatoria', 'Institution is required')); return }
 
-      setSaving(true)
-      try {
-        const existing = existingItems.find((it) => it.id === form.symbol)
-        if (!existing) { setError(t('Activo no encontrado', 'Asset not found')); setSaving(false); return }
-
-        const salePrice = parseFloat(form.purchasePrice) || 0
-        const totalSale = qtySell * salePrice
-        const saleDate = form.acquisitionDate || new Date().toISOString().split('T')[0]
-        const newQty = (existing.quantity || 0) - qtySell
-
-        if (newQty <= 0.0001) {
-          await onAdd({ ...existing, quantity: 0, currentPrice: 0, purchasePrice: 0 })
-        } else {
-          await onAdd({ ...existing, quantity: newQty })
-        }
-
-        if (onAddTransaction) {
-          await onAddTransaction({
-            type: 'SELL',
-            symbol: existing.symbol || '',
-            description: `${t('Venta', 'Sale')} ${qtySell} ${existing.name || existing.symbol} @ ${salePrice}`,
-            date: saleDate,
-            totalAmount: Math.round(totalSale * 100) / 100,
-            currency: existing.currency || 'USD',
-          })
-        }
-
-        if (form.incomeDestination === '__exit__') {
-          if (onAddTransaction) {
-            await onAddTransaction({
-              type: 'WITHDRAWAL',
-              symbol: existing.symbol || '',
-              description: `${t('Retiro', 'Withdrawal')} - ${existing.name || existing.symbol}`,
-              date: saleDate,
-              totalAmount: Math.round(totalSale * 100) / 100,
-              currency: existing.currency || 'USD',
-            })
-          }
-        } else if (form.incomeDestination) {
-          const dest = existingItems.find((it) => it.id === form.incomeDestination)
-          if (dest) {
-            const isBankDest = /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i.test(dest.type || '')
-            if (isBankDest) {
-              const destBal = (dest.currentPrice || dest.purchasePrice || 0) + totalSale
-              await onAdd({ ...dest, currentPrice: destBal, purchasePrice: destBal })
-            } else {
-              const newQty = (dest.quantity || 0) + (totalSale / (dest.currentPrice || dest.purchasePrice || 1))
-              await onAdd({ ...dest, quantity: newQty })
-            }
-          }
-        }
-
-        onClose()
-      } catch (err) { setError(err.message) }
-      setSaving(false)
-      return
-    }
-
-    if (isMarketAsset && !form.symbol) {
-      setError(t('Ingresa el símbolo (ej: AAPL, BTC, VOO)', 'Enter the symbol (e.g. AAPL, BTC, VOO)'))
-      return
-    }
-    if (!isMarketAsset && !form.name) {
-      setError(t('Ingresa el nombre del activo', 'Enter the asset name'))
-      return
-    }
+    const qty = parseFloat(form.quantity) || (isBank || isProperty ? 1 : 0)
+    const price = parseFloat(form.purchasePrice) || 0
+    if (!isBank && price <= 0) { setError(t('El precio debe ser mayor a 0', 'Price must be greater than 0')); return }
+    if (isMarketAsset && qty <= 0) { setError(t('La cantidad debe ser mayor a 0', 'Quantity must be greater than 0')); return }
 
     setSaving(true)
     try {
       const item = {
-        type,
-        currency: form.currency,
-        institution: form.institution.trim(),
+        type, currency: form.currency, institution: form.institution.trim(),
+        acquisitionDate: form.acquisitionDate, accountType: form.accountType,
       }
 
-      if (form.acquisitionDate) item.acquisitionDate = form.acquisitionDate
+      if (form.sector) item.sector = form.sector
+      if (form.industry) item.industry = form.industry
+      if (form.exchangeName) item.exchangeName = form.exchangeName
 
       if (isMarketAsset) {
         item.symbol = form.symbol.trim().toUpperCase()
         item.name = form.name.trim() || item.symbol
-        item.quantity = parseFloat(form.quantity) || 0
-        item.purchasePrice = parseFloat(form.purchasePrice) || 0
-
-        if (divInfo && divInfo.hasDividend) {
+        item.quantity = qty
+        item.purchasePrice = price
+        if (divInfo?.hasDividend) {
           item.incomeAmount = divInfo.lastAmount || 0
           item.incomeMonths = divInfo.paymentMonths || []
           item.incomeFrequency = divInfo.frequency
@@ -258,23 +227,24 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
         item.symbol = form.symbol.trim() || form.name.trim().replace(/\s+/g, '-').toUpperCase()
         item.name = form.name.trim()
         item.quantity = 1
-        item.purchasePrice = parseFloat(form.purchasePrice) || 0
+        item.purchasePrice = price
         if (form.currentPrice) item.currentPrice = parseFloat(form.currentPrice)
       } else if (isBank) {
         item.symbol = form.symbol.trim() || `${form.institution.trim().replace(/\s+/g, '-').toUpperCase()}-${(form.name.trim() || 'CUENTA').replace(/\s+/g, '-').toUpperCase()}`
         item.name = form.name.trim() || `${form.institution.trim()} - ${t('Cuenta', 'Account')}`
         item.quantity = 1
-        item.purchasePrice = parseFloat(form.purchasePrice) || 0
-        item.currentPrice = parseFloat(form.purchasePrice) || 0
+        item.purchasePrice = price
+        item.currentPrice = price
       } else {
         item.symbol = form.symbol.trim() || form.name.trim().replace(/\s+/g, '-').toUpperCase()
         item.name = form.name.trim()
-        item.quantity = parseFloat(form.quantity) || 1
-        item.purchasePrice = parseFloat(form.purchasePrice) || 0
+        item.quantity = qty
+        item.purchasePrice = price
         if (form.currentPrice) item.currentPrice = parseFloat(form.currentPrice)
       }
 
-      if (hasIncome && (form.incomeAmount || form.incomeRate)) {
+      // Income config
+      if (showIncome && !isMarketAsset && (form.incomeAmount || form.incomeRate)) {
         item.incomeMode = form.incomeMode
         if (form.incomeMode === 'percent') {
           item.incomeRate = parseFloat(form.incomeRate) || 0
@@ -290,48 +260,27 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
         }
       }
 
-      {
-        const existing = existingItems.find((ei) => {
-          const symMatch = (ei.symbol || '').toUpperCase() === (item.symbol || '').toUpperCase()
-          const instMatch = (ei.institution || '').toLowerCase() === (item.institution || '').toLowerCase()
-          const curMatch = (ei.currency || '') === (item.currency || '')
-          const nameMatch = (ei.name || '').toLowerCase() === (item.name || '').toLowerCase()
-          if (isMarketAsset) return symMatch && instMatch
-          return nameMatch && instMatch && curMatch
-        })
-        if (existing) {
-          item.id = existing.id
-          if (isMarketAsset && item.quantity > 0) {
-            const oldQty = existing.quantity || 0
-            const oldPrice = existing.purchasePrice || 0
-            const newQty = item.quantity
-            const newPrice = item.purchasePrice || 0
-            item.quantity = oldQty + newQty
-            item.purchasePrice = oldQty + newQty > 0
-              ? (oldQty * oldPrice + newQty * newPrice) / (oldQty + newQty)
-              : oldPrice
-          }
+      // Merge with existing if duplicate accepted
+      if (duplicateWarning) {
+        item.id = duplicateWarning.id
+        if (isMarketAsset && item.quantity > 0) {
+          const oldQty = duplicateWarning.quantity || 0
+          const oldPrice = duplicateWarning.purchasePrice || 0
+          item.quantity = oldQty + qty
+          item.purchasePrice = oldQty + qty > 0 ? (oldQty * oldPrice + qty * price) / (oldQty + qty) : oldPrice
         }
       }
 
+      // Auto-create cash account for stock dividends
       if (isMarketAsset && divInfo?.hasDividend && form.dividendAction === 'cash' && form.institution.trim()) {
         const inst = form.institution.trim()
         const cashSymbol = `${inst.replace(/\s+/g, '').toUpperCase()}-CASH`
-        const cashExists = existingItems.some(
-          (ei) => (ei.symbol || '').toUpperCase() === cashSymbol ||
-                  ((ei.type || '').toLowerCase() === 'bank' && (ei.institution || '').toLowerCase() === inst.toLowerCase() && /cash/i.test(ei.name || ei.symbol || ''))
+        const cashExists = existingItems.some(ei =>
+          (ei.symbol || '').toUpperCase() === cashSymbol ||
+          ((ei.type || '').toLowerCase() === 'bank' && (ei.institution || '').toLowerCase() === inst.toLowerCase() && /cash/i.test(ei.name || ei.symbol || ''))
         )
         if (!cashExists) {
-          await onAdd({
-            type: 'Bank',
-            symbol: cashSymbol,
-            name: `${inst} - Cash`,
-            institution: inst,
-            currency: form.currency,
-            quantity: 1,
-            purchasePrice: 0,
-            currentPrice: 0,
-          })
+          await onAdd({ type: 'Bank', symbol: cashSymbol, name: `${inst} - Cash`, institution: inst, currency: form.currency, quantity: 1, purchasePrice: 0, currentPrice: 0, accountType: form.accountType })
         }
         item.incomeDestination = cashSymbol
       }
@@ -341,637 +290,430 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
       const totalValue = (item.quantity || 1) * (item.purchasePrice || 0)
       if (isNewMoney && onAddTransaction && totalValue > 0) {
         await onAddTransaction({
-          type: 'DEPOSIT',
-          symbol: item.symbol || '',
+          type: 'DEPOSIT', symbol: item.symbol || '',
           description: `${item.name || item.symbol} - ${t('Dinero nuevo', 'New money')}`,
           date: form.acquisitionDate || new Date().toISOString().split('T')[0],
-          totalAmount: Math.round(totalValue * 100) / 100,
-          currency: item.currency || 'USD',
+          totalAmount: Math.round(totalValue * 100) / 100, currency: item.currency || 'USD',
         })
       }
 
       if (!isNewMoney && form.capitalDestination && totalValue > 0) {
-        const source = existingItems.find((it) => it.id === form.capitalDestination)
+        const source = existingItems.find(it => it.id === form.capitalDestination)
         if (source) {
           const srcBal = (source.currentPrice || source.purchasePrice || 0) - totalValue
           await onAdd({ ...source, currentPrice: Math.max(0, srcBal), purchasePrice: Math.max(0, srcBal) })
         }
       }
-
       onClose()
-    } catch (err) {
-      setError(err.message)
-    }
+    } catch (err) { setError(err.message) }
     setSaving(false)
   }
 
+  const inputCls = 'w-full px-3 py-2 bg-[var(--input-bg,#0f172a)] border border-[var(--card-border,#334155)] rounded-lg text-sm text-[var(--text-primary,white)] placeholder-[var(--text-muted,#475569)] focus:outline-none focus:border-blue-500/50'
+  const labelCls = 'text-xs text-[var(--text-secondary,#94a3b8)] mb-1 block font-medium'
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="bg-[#1e293b] border border-[#334155] rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#334155]">
-          <h2 className="text-lg font-bold text-white">{t('Registro de Activos', 'Asset Registry')}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
+      <div className="bg-[var(--card-bg,#1e293b)] border border-[var(--card-border,#334155)] rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border,#334155)]">
+          <div className="flex items-center gap-3">
+            {step === 2 && <button onClick={() => setStep(1)} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-sm">←</button>}
+            <h2 className="text-lg font-bold text-[var(--text-primary,white)]">
+              {step === 1 ? t('Agregar Activo', 'Add Asset') : t('Detalles', 'Details')}
+            </h2>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex gap-1">
+              <div className={`w-2 h-2 rounded-full ${step >= 1 ? 'bg-blue-400' : 'bg-[var(--card-border,#334155)]'}`} />
+              <div className={`w-2 h-2 rounded-full ${step >= 2 ? 'bg-blue-400' : 'bg-[var(--card-border,#334155)]'}`} />
+            </div>
+            <button onClick={onClose} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-xl leading-none">&times;</button>
+          </div>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+
+        <form onSubmit={step === 1 ? (e) => { e.preventDefault(); goToStep2() } : handleSubmit} className="p-6 space-y-4">
           {error && <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-sm">{error}</div>}
 
-          {/* Buy / Sell toggle */}
-          <div className="flex gap-1 bg-[#0f172a] rounded-lg p-1">
-            <button type="button" onClick={() => setAction('buy')}
-              className={`flex-1 py-2 text-xs font-medium rounded-md transition-all ${
-                action === 'buy' ? 'bg-blue-500 text-white' : 'text-slate-500 hover:text-slate-300'
-              }`}>{t('Compra / Nuevo', 'Buy / New')}</button>
-            <button type="button" onClick={() => setAction('sell')}
-              className={`flex-1 py-2 text-xs font-medium rounded-md transition-all ${
-                action === 'sell' ? 'bg-red-500 text-white' : 'text-slate-500 hover:text-slate-300'
-              }`}>{t('Venta', 'Sell')}</button>
-          </div>
-
-          {/* Type selector */}
-          <div>
-            <label className="text-xs text-slate-400 mb-2 block font-medium">{t('Tipo de activo', 'Asset type')}</label>
-            <div className="grid grid-cols-3 gap-2">
-              {TYPES.map((tp) => (
-                <button key={tp.key} type="button" onClick={() => setType(tp.key)}
-                  className={`flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg transition-all text-center ${
-                    type === tp.key
-                      ? 'bg-blue-500/20 border border-blue-500/40 text-blue-400'
-                      : 'bg-[#0f172a] border border-[#334155] text-slate-400 hover:border-slate-500'
-                  }`}>
-                  <span className="text-lg">{tp.icon}</span>
-                  <span className="text-xs font-medium">{lang === 'es' ? tp.es : tp.en}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* === SELL MODE === */}
-          {action === 'sell' && (
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs text-slate-400 mb-1 block">{t('Activo a vender', 'Asset to sell')}</label>
-                <select value={form.symbol} onChange={(e) => {
-                  const sel = existingItems.find((it) => it.id === e.target.value)
-                  if (sel) setForm({ ...form, symbol: sel.id, name: sel.name || sel.symbol, currency: sel.currency || 'USD', institution: sel.institution || '' })
-                }}
-                  className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
-                  <option value="">{t('-- Selecciona activo --', '-- Select asset --')}</option>
-                  {existingItems.map((it) => (
-                    <option key={it.id} value={it.id}>
-                      {it.symbol} - {it.name || it.symbol} ({it.quantity} @ {it.currency})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-slate-400 mb-1 block">{t('Cantidad a vender', 'Quantity to sell')}</label>
-                  <input value={form.quantity} onChange={(e) => set('quantity', e.target.value)}
-                    placeholder="10" type="number" step="any"
-                    className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-400 mb-1 block">{t('Precio de venta', 'Sale price')}</label>
-                  <input value={form.purchasePrice} onChange={(e) => set('purchasePrice', e.target.value)}
-                    placeholder="150.00" type="number" step="any"
-                    className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-                </div>
-              </div>
-
-              {/* Where does the money go? */}
-              <div className="border border-[#334155] rounded-lg p-3 space-y-2">
-                <label className="text-xs text-slate-400 font-medium">{t('¿A dónde va el dinero?', 'Where does the money go?')}</label>
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => set('incomeDestination', '__exit__')}
-                    className={`flex-1 px-2 py-2 text-xs font-medium rounded-lg transition-all ${
-                      form.incomeDestination === '__exit__' ? 'bg-red-500/20 text-red-400 border border-red-500/40' : 'bg-[#0f172a] text-slate-500 border border-[#334155]'
+          {/* === STEP 1 === */}
+          {step === 1 && (<>
+            <div>
+              <label className={labelCls}>{t('Tipo de activo', 'Asset type')}</label>
+              <div className="grid grid-cols-3 gap-2">
+                {TYPES.map(tp => (
+                  <button key={tp.key} type="button" onClick={() => { setType(tp.key); setForm(prev => ({ ...prev, symbol: '', name: '', purchasePrice: '', currentPrice: '', sector: '', industry: '' })); setDivInfo(null) }}
+                    className={`flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg transition-all text-center ${
+                      type === tp.key ? 'bg-blue-500/20 border border-blue-500/40 text-blue-400' : 'bg-[var(--input-bg,#0f172a)] border border-[var(--card-border,#334155)] text-[var(--text-secondary,#94a3b8)] hover:border-[var(--text-secondary,#94a3b8)]'
                     }`}>
-                    ↗ {t('Sale del portafolio', 'Exits portfolio')}
+                    <span className="text-lg">{tp.icon}</span>
+                    <span className="text-xs font-medium">{lang === 'es' ? tp.es : tp.en}</span>
                   </button>
-                  <button type="button" onClick={() => set('incomeDestination', '')}
-                    className={`flex-1 px-2 py-2 text-xs font-medium rounded-lg transition-all ${
-                      form.incomeDestination !== '__exit__' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#0f172a] text-slate-500 border border-[#334155]'
-                    }`}>
-                    🔄 {t('Queda en el portafolio', 'Stays in portfolio')}
-                  </button>
-                </div>
-                {form.incomeDestination === '__exit__' && (
-                  <p className="text-xs text-red-400/70">{t('El dinero sale completamente. Se registra como retiro.', 'Money leaves completely. Recorded as withdrawal.')}</p>
-                )}
-                {form.incomeDestination !== '__exit__' && (
-                  <>
-                    <select value={form.incomeDestination} onChange={(e) => set('incomeDestination', e.target.value)}
-                      className="w-full px-2.5 py-1.5 bg-[#0f172a] border border-[#334155] rounded text-sm text-white focus:outline-none focus:border-blue-500/50">
-                      <option value="">{t('-- Selecciona cuenta destino --', '-- Select destination --')}</option>
-                      {existingItems.filter((it) => it.id !== form.symbol).map((it) => (
-                        <option key={it.id} value={it.id}>
-                          {it.name || it.symbol} {it.institution ? `(${it.institution})` : ''}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-emerald-400/70">{t('El dinero se mueve dentro del portafolio. No afecta el rendimiento.', 'Money moves within portfolio. Does not affect return.')}</p>
-                  </>
-                )}
-              </div>
-
-              <div>
-                <label className="text-xs text-slate-400 mb-1 block">{t('Fecha de venta', 'Sale date')}</label>
-                <input value={form.acquisitionDate} onChange={(e) => set('acquisitionDate', e.target.value)}
-                  type="date"
-                  className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
-              </div>
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={onClose}
-                  className="flex-1 py-2.5 border border-[#334155] text-slate-300 rounded-lg hover:bg-[#283548] transition-colors text-sm">
-                  {t('Cancelar', 'Cancel')}
-                </button>
-                <button type="submit" disabled={saving}
-                  className="flex-1 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-500 disabled:opacity-50 transition-colors text-sm font-medium">
-                  {saving ? '...' : t('Registrar Venta', 'Record Sale')}
-                </button>
+                ))}
               </div>
             </div>
-          )}
 
-          {/* === BUY MODE === */}
-          {action === 'buy' && (<>
-          {/* Market assets: Symbol search + Name */}
-          {isMarketAsset && (
-            <div className="space-y-3">
-              <div className="relative">
-                <label className="text-xs text-slate-400 mb-1 block">
-                  {t('Buscar activo', 'Search asset')} *
-                  <span className="text-slate-600 ml-1">
-                    {type === 'Stock' ? '(AAPL, Apple...)' : type === 'Crypto' ? '(BTC, Bitcoin...)' : '(VOO, Vanguard...)'}
-                  </span>
-                </label>
+            {/* Market asset search */}
+            {isMarketAsset && (
+              <div className="space-y-3">
                 <div className="relative">
-                  <input ref={inputRef} value={form.symbol}
-                    onChange={(e) => { set('symbol', e.target.value); setShowDropdown(true) }}
-                    onFocus={() => { if (searchResults.length > 0) setShowDropdown(true) }}
-                    placeholder={type === 'Stock' ? 'AAPL' : type === 'Crypto' ? 'BTC' : 'VOO'}
-                    autoComplete="off"
-                    className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 pr-8" />
-                  {(searchLoading || fetchingQuote) && (
-                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
-                      <div className="w-3.5 h-3.5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                  <label className={labelCls}>
+                    {t('Buscar activo', 'Search asset')} *
+                    <span className="text-[var(--text-muted,#475569)] ml-1 font-normal">
+                      {type === 'Stock' ? '(AAPL, Apple...)' : type === 'Crypto' ? '(BTC, Bitcoin...)' : '(VOO, Vanguard...)'}
+                    </span>
+                  </label>
+                  <div className="relative">
+                    <input ref={inputRef} value={form.symbol}
+                      onChange={e => { set('symbol', e.target.value); setShowDropdown(true) }}
+                      onFocus={() => { if (searchResults.length > 0) setShowDropdown(true) }}
+                      placeholder={type === 'Stock' ? 'AAPL' : type === 'Crypto' ? 'BTC' : 'VOO'}
+                      autoComplete="off" className={inputCls + ' pr-8'} />
+                    {(searchLoading || fetchingQuote) && (
+                      <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                        <div className="w-3.5 h-3.5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    )}
+                  </div>
+                  {showDropdown && searchResults.length > 0 && (
+                    <div ref={dropdownRef} className="absolute z-50 w-full mt-1 bg-[var(--card-bg,#1e293b)] border border-[var(--card-border,#475569)] rounded-lg shadow-xl max-h-56 overflow-y-auto">
+                      {searchResults.map((r, i) => (
+                        <button key={`${r.symbol}-${i}`} type="button" onClick={() => handleSelectSymbol(r)}
+                          className="w-full px-3 py-2.5 flex items-center justify-between hover:bg-[var(--input-bg,#283548)] transition-colors text-left border-b border-[var(--card-border,#334155)]/50 last:border-0">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className={`text-xs font-bold shrink-0 px-1.5 py-0.5 rounded ${
+                              r.type === 'Crypto' ? 'bg-amber-500/20 text-amber-400' : r.type === 'Fund' ? 'bg-purple-500/20 text-purple-400' : 'bg-blue-500/20 text-blue-400'
+                            }`}>{r.symbol}</span>
+                            <span className="text-xs text-[var(--text-secondary,#cbd5e1)] truncate">{r.name}</span>
+                          </div>
+                          <span className="text-xs text-[var(--text-muted,#475569)] shrink-0 ml-2">{r.exchange}</span>
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>
-                {showDropdown && searchResults.length > 0 && (
-                  <div ref={dropdownRef} className="absolute z-50 w-full mt-1 bg-[#1e293b] border border-[#475569] rounded-lg shadow-xl max-h-56 overflow-y-auto">
-                    {searchResults.map((r, i) => (
-                      <button key={`${r.symbol}-${i}`} type="button"
-                        onClick={() => handleSelectSymbol(r)}
-                        className="w-full px-3 py-2.5 flex items-center justify-between hover:bg-[#283548] transition-colors text-left border-b border-[#334155]/50 last:border-0">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <span className={`text-xs font-bold shrink-0 px-1.5 py-0.5 rounded ${
-                            r.type === 'Crypto' ? 'bg-amber-500/20 text-amber-400' :
-                            r.type === 'Fund' ? 'bg-purple-500/20 text-purple-400' :
-                            'bg-blue-500/20 text-blue-400'
-                          }`}>{r.symbol}</span>
-                          <span className="text-xs text-slate-300 truncate">{r.name}</span>
-                        </div>
-                        <span className="text-xs text-slate-500 shrink-0 ml-2">{r.exchange}</span>
+                {form.name && (
+                  <div className="flex items-center justify-between bg-[var(--input-bg,#0f172a)] border border-[var(--card-border,#334155)] rounded-lg px-3 py-2">
+                    <span className="text-sm text-[var(--text-primary,white)]">{form.name}</span>
+                    <div className="flex items-center gap-2">
+                      {form.sector && <span className="text-xs bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded">{form.sector}</span>}
+                      {fetchingQuote ? (
+                        <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                      ) : form.purchasePrice ? (
+                        <span className="text-xs text-emerald-400 font-medium">{form.currency} {parseFloat(form.purchasePrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      ) : null}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Non-market: name */}
+            {!isMarketAsset && (
+              <div>
+                <label className={labelCls}>
+                  {isBank ? t('Banco', 'Bank') : t('Nombre / Descripción', 'Name / Description')} *
+                </label>
+                {isBank ? (
+                  <input value={form.institution} onChange={e => { set('institution', e.target.value); const hint = detectCurrency(e.target.value); if (hint) set('currency', hint) }}
+                    placeholder={t('BAM, BI, Banrural...', 'Chase, BoA...')} className={inputCls} />
+                ) : (
+                  <input value={form.name} onChange={e => set('name', e.target.value)}
+                    placeholder={isProperty ? t('Apartamento Centro', 'Downtown Apartment') : t('CDT Banco Industrial', 'Certificate of Deposit')}
+                    className={inputCls} />
+                )}
+              </div>
+            )}
+
+            {isBank && (
+              <div>
+                <label className={labelCls}>{t('Nombre de cuenta', 'Account name')}</label>
+                <input value={form.name} onChange={e => set('name', e.target.value)}
+                  placeholder={t('Cuenta de ahorro', 'Savings account')} className={inputCls} />
+              </div>
+            )}
+
+            {/* Institution with autocomplete (for non-bank, since bank already shows it) */}
+            {!isBank && (
+              <div className="relative">
+                <label className={labelCls}>{t('Institución / Broker', 'Institution / Broker')} *</label>
+                <input value={form.institution} onChange={e => { set('institution', e.target.value); setShowInstSuggestions(true); const hint = detectCurrency(e.target.value); if (hint && form.currency === 'USD') set('currency', hint) }}
+                  onFocus={() => setShowInstSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowInstSuggestions(false), 200)}
+                  placeholder={isProperty ? t('Propio, Inmobiliaria...', 'Self, Agency...') : 'IBKR, Fidelity, Binance...'}
+                  className={inputCls} />
+                {showInstSuggestions && filteredInstitutions.length > 0 && form.institution !== filteredInstitutions[0] && (
+                  <div className="absolute z-40 w-full mt-1 bg-[var(--card-bg,#1e293b)] border border-[var(--card-border,#475569)] rounded-lg shadow-xl max-h-32 overflow-y-auto">
+                    {filteredInstitutions.map(inst => (
+                      <button key={inst} type="button" onClick={() => { set('institution', inst); setShowInstSuggestions(false) }}
+                        className="w-full px-3 py-2 text-left text-sm text-[var(--text-secondary,#cbd5e1)] hover:bg-[var(--input-bg,#283548)] transition-colors">
+                        {inst}
                       </button>
                     ))}
                   </div>
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-slate-400 mb-1 block">{t('Nombre', 'Name')}</label>
-                  <input value={form.name} onChange={(e) => set('name', e.target.value)}
-                    placeholder={type === 'Stock' ? 'Apple Inc' : type === 'Crypto' ? 'Bitcoin' : 'Vanguard S&P 500'}
-                    className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-                </div>
-                {fetchingQuote ? (
-                  <div className="flex items-end pb-2">
-                    <div className="flex items-center gap-2 text-xs text-blue-400">
-                      <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-                      {t('Obteniendo precio...', 'Fetching price...')}
-                    </div>
-                  </div>
-                ) : form.purchasePrice && form.name ? (
-                  <div className="flex items-end pb-2">
-                    <span className="text-xs text-emerald-400 font-medium">
-                      {form.currency} {parseFloat(form.purchasePrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          )}
+            )}
 
-          {/* Market assets: Qty + Purchase Price */}
-          {isMarketAsset && (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-slate-400 mb-1 block">{t('Cantidad', 'Quantity')} *</label>
-                <input value={form.quantity} onChange={(e) => set('quantity', e.target.value)}
-                  placeholder={type === 'Crypto' ? '0.5' : '10'} type="number" step="any"
-                  className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-              </div>
-              <div>
-                <label className="text-xs text-slate-400 mb-1 block">{t('Precio de entrada', 'Entry price')} *</label>
-                <input value={form.purchasePrice} onChange={(e) => set('purchasePrice', e.target.value)}
-                  placeholder="150.00" type="number" step="any"
-                  className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-              </div>
-            </div>
-          )}
-          {isMarketAsset && (
-            <p className="text-xs text-slate-600 -mt-2">
-              {t('El precio actual se actualiza automáticamente del mercado.', 'Current price updates automatically from market data.')}
-            </p>
-          )}
-
-          {/* Dividend info for market assets */}
-          {isMarketAsset && divLoading && (
-            <div className="flex items-center gap-2 text-xs text-slate-500 py-1">
-              <div className="w-3 h-3 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
-              {t('Buscando dividendos...', 'Looking up dividends...')}
-            </div>
-          )}
-          {isMarketAsset && divInfo && divInfo.hasDividend && (
-            <div className="border border-blue-500/20 bg-blue-500/5 rounded-lg p-3 space-y-3">
-              <div className="flex items-center gap-1.5">
-                <span className="text-emerald-400 text-xs font-medium">💰 {t('Dividendo detectado', 'Dividend detected')}</span>
-              </div>
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div>
-                  <p className="text-xs text-slate-500">{t('Rendimiento', 'Yield')}</p>
-                  <p className="text-sm font-semibold text-emerald-400">{divInfo.dividendYield}%</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500">{t('Frecuencia', 'Frequency')}</p>
-                  <p className="text-sm font-semibold text-white capitalize">
-                    {{ monthly: t('Mensual','Monthly'), quarterly: t('Trimestral','Quarterly'), semiannual: t('Semestral','Semiannual'), annual: t('Anual','Annual') }[divInfo.frequency] || divInfo.frequency}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500">{t('Próximo pago', 'Next payment')}</p>
-                  <p className="text-sm font-semibold text-white">{divInfo.nextPaymentDate?.slice(5)}</p>
-                </div>
-              </div>
-              <div>
-                <p className="text-xs text-slate-500 mb-1">{t('Meses de pago:', 'Payment months:')}</p>
-                <div className="flex flex-wrap gap-1">
-                  {['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'].map((label, i) => (
-                    <span key={i} className={`px-1.5 py-0.5 text-xs rounded ${
-                      divInfo.paymentMonths?.includes(i)
-                        ? 'bg-blue-500/25 text-blue-400 border border-blue-500/40'
-                        : 'bg-[#0f172a] text-slate-600 border border-[#334155]'
-                    }`}>{label}</span>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="text-xs text-slate-500 mb-1.5">{t('¿Qué hacer con los dividendos?', 'What to do with dividends?')}</p>
+            {/* Duplicate warning */}
+            {duplicateWarning && (
+              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg space-y-2">
+                <p className="text-xs text-amber-400 font-medium">{t('Este activo ya existe en tu portafolio', 'This asset already exists in your portfolio')}</p>
+                <p className="text-xs text-[var(--text-secondary,#94a3b8)]">{duplicateWarning.name} ({duplicateWarning.institution || '—'}) — {duplicateWarning.quantity} @ {duplicateWarning.currency}</p>
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => set('dividendAction', 'cash')}
-                    className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all ${
-                      form.dividendAction === 'cash' ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40' : 'bg-[#0f172a] text-slate-500 border border-[#334155]'
-                    }`}>💵 {t('Efectivo', 'Cash')}</button>
-                  <button type="button" onClick={() => set('dividendAction', 'reinvest')}
-                    className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all ${
-                      form.dividendAction === 'reinvest' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#0f172a] text-slate-500 border border-[#334155]'
-                    }`}>🔄 {t('Reinvertir', 'Reinvest')}</button>
+                  <button type="button" onClick={() => { setStep(2) }}
+                    className="flex-1 px-2 py-1.5 text-xs font-medium rounded bg-amber-500/20 text-amber-400 border border-amber-500/40 hover:bg-amber-500/30">
+                    {t('Agregar a posición', 'Add to position')}
+                  </button>
+                  <button type="button" onClick={() => { setDuplicateWarning(null); setStep(2) }}
+                    className="flex-1 px-2 py-1.5 text-xs font-medium rounded bg-[var(--input-bg,#0f172a)] text-[var(--text-secondary,#94a3b8)] border border-[var(--card-border,#334155)]">
+                    {t('Crear separado', 'Create separate')}
+                  </button>
                 </div>
-                {form.dividendAction === 'cash' && (
-                  <p className="text-xs text-slate-600 mt-1">
-                    {t('Se depositan en tu cuenta cash del broker automáticamente.', 'Deposited to your broker cash account automatically.')}
-                  </p>
-                )}
-                {form.dividendAction === 'reinvest' && (
-                  <p className="text-xs text-slate-600 mt-1">
-                    {t('Se compran más acciones automáticamente (DRIP).', 'More shares purchased automatically (DRIP).')}
-                  </p>
-                )}
               </div>
+            )}
+
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={onClose}
+                className="flex-1 py-2.5 border border-[var(--card-border,#334155)] text-[var(--text-secondary,#cbd5e1)] rounded-lg hover:bg-[var(--input-bg,#283548)] transition-colors text-sm">
+                {t('Cancelar', 'Cancel')}
+              </button>
+              <button type="submit"
+                className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors text-sm font-medium">
+                {t('Siguiente', 'Next')} →
+              </button>
             </div>
-          )}
-          {isMarketAsset && divInfo && !divInfo.hasDividend && !divLoading && form.symbol && (
-            <p className="text-xs text-slate-500 -mt-1">
-              {t('Este activo no paga dividendos.', 'This asset does not pay dividends.')}
-            </p>
-          )}
+          </>)}
 
-          {/* Real estate */}
-          {isProperty && (
-            <>
-              <div>
-                <label className="text-xs text-slate-400 mb-1 block">{t('Nombre / Descripción', 'Name / Description')} *</label>
-                <input value={form.name} onChange={(e) => set('name', e.target.value)}
-                  placeholder={t('Apartamento Centro Zona 10', 'Downtown Apartment')}
-                  className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-              </div>
+          {/* === STEP 2 === */}
+          {step === 2 && (<>
+            {/* Position details */}
+            {isMarketAsset && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-slate-400 mb-1 block">{t('Valor de compra', 'Purchase value')} *</label>
-                  <input value={form.purchasePrice} onChange={(e) => set('purchasePrice', e.target.value)}
-                    placeholder="85000" type="number" step="any"
-                    className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                  <label className={labelCls}>{t('Cantidad', 'Quantity')} *</label>
+                  <input value={form.quantity} onChange={e => set('quantity', e.target.value)}
+                    placeholder={type === 'Crypto' ? '0.5' : '10'} type="number" step="any" className={inputCls} />
                 </div>
                 <div>
-                  <label className="text-xs text-slate-400 mb-1 block">{t('Valor actual estimado', 'Est. current value')}</label>
-                  <input value={form.currentPrice} onChange={(e) => set('currentPrice', e.target.value)}
-                    placeholder="95000" type="number" step="any"
-                    className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                  <label className={labelCls}>{t('Precio de entrada', 'Entry price')} *</label>
+                  <input value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
+                    placeholder="150.00" type="number" step="any" className={inputCls} />
                 </div>
               </div>
-              <p className="text-xs text-slate-600 -mt-2">
-                {t('Si no pones valor actual, se usa el valor de compra. Puedes editarlo después.', 'If blank, purchase value is used. You can edit it later.')}
-              </p>
-            </>
-          )}
+            )}
 
-          {/* Bank account */}
-          {isBank && (
-            <>
+            {isProperty && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-slate-400 mb-1 block">{t('Banco', 'Bank')} *</label>
-                  <input value={form.institution} onChange={(e) => {
-                      set('institution', e.target.value)
-                      const hint = detectCurrency(e.target.value)
-                      if (hint && form.currency === 'USD') set('currency', hint)
-                    }}
-                    placeholder={t('BAM, BI, Banrural...', 'Chase, BoA...')}
-                    className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                  <label className={labelCls}>{t('Valor de compra', 'Purchase value')} *</label>
+                  <input value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
+                    placeholder="85000" type="number" step="any" className={inputCls} />
                 </div>
                 <div>
-                  <label className="text-xs text-slate-400 mb-1 block">{t('Nombre de cuenta', 'Account name')}</label>
-                  <input value={form.name} onChange={(e) => set('name', e.target.value)}
-                    placeholder={t('Cuenta de ahorro', 'Savings account')}
-                    className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                  <label className={labelCls}>{t('Valor actual', 'Current value')}</label>
+                  <input value={form.currentPrice} onChange={e => set('currentPrice', e.target.value)}
+                    placeholder="95000" type="number" step="any" className={inputCls} />
                 </div>
               </div>
-              <div>
-                <label className="text-xs text-slate-400 mb-1 block">{t('Saldo actual', 'Current balance')} *</label>
-                <input value={form.purchasePrice} onChange={(e) => set('purchasePrice', e.target.value)}
-                  placeholder="5000" type="number" step="any"
-                  className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-              </div>
-              <p className="text-xs text-slate-600 -mt-2">
-                {t('Puedes actualizar el saldo en cualquier momento editando la cuenta.', 'You can update the balance anytime by editing the account.')}
-              </p>
-            </>
-          )}
+            )}
 
-          {/* Investment (bonds, CDs, etc) */}
-          {type === 'Inversion' && (
-            <>
+            {isBank && (
               <div>
-                <label className="text-xs text-slate-400 mb-1 block">{t('Nombre', 'Name')} *</label>
-                <input value={form.name} onChange={(e) => set('name', e.target.value)}
-                  placeholder={t('CDT Banco Industrial', 'Certificate of Deposit')}
-                  className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                <label className={labelCls}>{t('Saldo actual', 'Current balance')} *</label>
+                <input value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
+                  placeholder="5000" type="number" step="any" className={inputCls} />
               </div>
+            )}
+
+            {type === 'Inversion' && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-slate-400 mb-1 block">{t('Monto invertido', 'Amount invested')} *</label>
-                  <input value={form.purchasePrice} onChange={(e) => set('purchasePrice', e.target.value)}
-                    placeholder="10000" type="number" step="any"
-                    className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                  <label className={labelCls}>{t('Monto invertido', 'Amount invested')} *</label>
+                  <input value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
+                    placeholder="10000" type="number" step="any" className={inputCls} />
                 </div>
                 <div>
-                  <label className="text-xs text-slate-400 mb-1 block">{t('Valor actual', 'Current value')}</label>
-                  <input value={form.currentPrice} onChange={(e) => set('currentPrice', e.target.value)}
-                    placeholder="10800" type="number" step="any"
-                    className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                  <label className={labelCls}>{t('Valor actual', 'Current value')}</label>
+                  <input value={form.currentPrice} onChange={e => set('currentPrice', e.target.value)}
+                    placeholder="10800" type="number" step="any" className={inputCls} />
                 </div>
               </div>
-            </>
-          )}
+            )}
 
-          {/* Institution (for non-bank types that don't already show it) */}
-          {!isBank && (
+            {/* Currency + Account Type */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-slate-400 mb-1 block">{t('Institución', 'Institution')}</label>
-                <input value={form.institution} onChange={(e) => set('institution', e.target.value)}
-                  placeholder={isProperty ? t('N/A', 'N/A') : 'IBKR, Binance...'}
-                  className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                <label className={labelCls}>{t('Moneda', 'Currency')}</label>
+                <select value={form.currency} onChange={e => set('currency', e.target.value)} className={inputCls}>
+                  {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
               </div>
               <div>
-                <label className="text-xs text-slate-400 mb-1 block">{t('Moneda', 'Currency')}</label>
-                <select value={form.currency} onChange={(e) => set('currency', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
-                  {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                <label className={labelCls}>{t('Tipo de cuenta', 'Account type')}</label>
+                <select value={form.accountType} onChange={e => set('accountType', e.target.value)} className={inputCls}>
+                  {ACCOUNT_TYPES.map(at => <option key={at.key} value={at.key}>{lang === 'es' ? at.es : at.en}</option>)}
                 </select>
               </div>
             </div>
-          )}
 
-          {/* Currency for bank (separate since institution is already shown) */}
-          {isBank && (
+            {/* Acquisition date */}
             <div>
-              <label className="text-xs text-slate-400 mb-1 block">{t('Moneda', 'Currency')}</label>
-              <select value={form.currency} onChange={(e) => set('currency', e.target.value)}
-                className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
-                {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-          )}
-
-          {/* Income / Dividends for non-market assets */}
-          {hasIncome && (
-            <div className="border border-[#334155] rounded-lg p-3 space-y-3">
-              <label className="text-xs text-emerald-400 font-medium flex items-center gap-1.5">
-                💰 {isProperty ? t('Ingreso por renta', 'Rental income') : isBank ? t('Intereses', 'Interest') : t('Rendimiento / Dividendos', 'Yield / Dividends')}
-                <span className="text-slate-600 font-normal">({t('opcional', 'optional')})</span>
+              <label className={labelCls}>
+                {isBank ? t('Fecha de apertura', 'Opening date') : t('Fecha de compra', 'Purchase date')} *
               </label>
+              <input value={form.acquisitionDate} onChange={e => set('acquisitionDate', e.target.value)}
+                type="date" className={inputCls} />
+            </div>
 
-              <div className="flex gap-1 mb-2">
-                <button type="button" onClick={() => set('incomeMode', 'fixed')}
-                  className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all ${
-                    form.incomeMode === 'fixed' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#0f172a] text-slate-500 border border-[#334155]'
-                  }`}>{t('Monto fijo', 'Fixed amount')}</button>
-                <button type="button" onClick={() => set('incomeMode', 'percent')}
-                  className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all ${
-                    form.incomeMode === 'percent' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#0f172a] text-slate-500 border border-[#334155]'
-                  }`}>{t('% del saldo', '% of balance')}</button>
+            {/* Dividend info for market assets */}
+            {isMarketAsset && divLoading && (
+              <div className="flex items-center gap-2 text-xs text-[var(--text-muted,#475569)] py-1">
+                <div className="w-3 h-3 border-2 border-[var(--text-muted,#475569)] border-t-transparent rounded-full animate-spin" />
+                {t('Buscando dividendos...', 'Looking up dividends...')}
               </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  {form.incomeMode === 'fixed' ? (
-                    <>
-                      <label className="text-xs text-slate-500 mb-1 block">{t('Monto por pago', 'Amount per payment')}</label>
-                      <input value={form.incomeAmount} onChange={(e) => set('incomeAmount', e.target.value)}
-                        placeholder={isProperty ? '800' : '48'} type="number" step="any"
-                        className="w-full px-2.5 py-1.5 bg-[#0f172a] border border-[#334155] rounded text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-                    </>
-                  ) : (
-                    <>
-                      <label className="text-xs text-slate-500 mb-1 block">{t('Tasa anual %', 'Annual rate %')}</label>
-                      <input value={form.incomeRate} onChange={(e) => set('incomeRate', e.target.value)}
-                        placeholder="5.5" type="number" step="any"
-                        className="w-full px-2.5 py-1.5 bg-[#0f172a] border border-[#334155] rounded text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-                      <p className="text-xs text-slate-600 mt-0.5">{t('Se divide entre los meses seleccionados', 'Divided among selected months')}</p>
-                    </>
-                  )}
+            )}
+            {isMarketAsset && divInfo?.hasDividend && (
+              <div className="border border-blue-500/20 bg-blue-500/5 rounded-lg p-3 space-y-3">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-emerald-400 text-xs font-medium">💰 {t('Dividendo detectado', 'Dividend detected')}</span>
                 </div>
-                <div>
-                  <label className="text-xs text-slate-500 mb-1 block">{t('Día de pago', 'Pay day')}</label>
-                  <input value={form.incomePayDay} onChange={(e) => set('incomePayDay', e.target.value)}
-                    placeholder="10" type="number" min="1" max="31"
-                    className="w-full px-2.5 py-1.5 bg-[#0f172a] border border-[#334155] rounded text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs text-slate-500 mb-1.5 block">{t('Meses de pago', 'Payment months')}</label>
-                <div className="flex flex-wrap gap-1">
-                  {[
-                    { m: 0, l: 'Ene' }, { m: 1, l: 'Feb' }, { m: 2, l: 'Mar' }, { m: 3, l: 'Abr' },
-                    { m: 4, l: 'May' }, { m: 5, l: 'Jun' }, { m: 6, l: 'Jul' }, { m: 7, l: 'Ago' },
-                    { m: 8, l: 'Sep' }, { m: 9, l: 'Oct' }, { m: 10, l: 'Nov' }, { m: 11, l: 'Dic' },
-                  ].map(({ m, l }) => {
-                    const active = form.incomeMonths.includes(m)
-                    return (
-                      <button key={m} type="button"
-                        onClick={() => set('incomeMonths', active ? form.incomeMonths.filter((x) => x !== m) : [...form.incomeMonths, m].sort((a, b) => a - b))}
-                        className={`px-2 py-1 text-xs font-medium rounded transition-all ${
-                          active ? 'bg-blue-500/25 text-blue-400 border border-blue-500/40' : 'bg-[#0f172a] text-slate-500 border border-[#334155] hover:text-slate-300'
-                        }`}>
-                        {l}
-                      </button>
-                    )
-                  })}
-                </div>
-                <div className="flex gap-2 mt-1.5">
-                  <button type="button" onClick={() => set('incomeMonths', [0,1,2,3,4,5,6,7,8,9,10,11])}
-                    className="text-xs text-slate-500 hover:text-emerald-400 transition-colors">{t('Todos', 'All')}</button>
-                  <button type="button" onClick={() => set('incomeMonths', [])}
-                    className="text-xs text-slate-500 hover:text-emerald-400 transition-colors">{t('Ninguno', 'None')}</button>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs text-slate-500 mb-1 block">
-                  {t('Capital devuelto por pago', 'Capital returned per payment')}
-                  <span className="text-slate-600 ml-1">({t('opcional', 'optional')})</span>
-                </label>
-                <input value={form.capitalReturn} onChange={(e) => set('capitalReturn', e.target.value)}
-                  placeholder={t('50 (reduce tu inversión cada pago)', '50 (reduces your investment each payment)')} type="number" step="any"
-                  className="w-full px-2.5 py-1.5 bg-[#0f172a] border border-[#334155] rounded text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-              </div>
-
-              {/* Destination accounts */}
-              <div className="space-y-2 pt-2 border-t border-[#334155]/50">
-                <label className="text-xs text-cyan-400 font-medium">{t('¿A dónde van los pagos?', 'Where do payments go?')}</label>
-                <div>
-                  <label className="text-xs text-slate-500 mb-1 block">
-                    {isProperty ? t('Renta se deposita en:', 'Rent deposited to:') : t('Intereses/dividendos van a:', 'Interest/dividends go to:')}
-                  </label>
-                  {existingItems.length > 0 ? (
-                    <select value={form.incomeDestination} onChange={(e) => set('incomeDestination', e.target.value)}
-                      className="w-full px-2.5 py-1.5 bg-[#0f172a] border border-[#334155] rounded text-sm text-white focus:outline-none focus:border-blue-500/50">
-                      <option value="">{t('-- Selecciona cuenta --', '-- Select account --')}</option>
-                      {existingItems.map((it) => (
-                        <option key={it.id || it.symbol} value={it.id || it.symbol}>
-                          {it.name || it.symbol} {it.institution ? `(${it.institution})` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <p className="text-xs text-amber-400/80 bg-amber-500/10 border border-amber-500/20 rounded px-2.5 py-1.5">
-                      {t('Agrega primero una cuenta de banco o fondo para seleccionarla como destino.', 'Add a bank account or fund first to select it as destination.')}
-                    </p>
-                  )}
-                </div>
-                {form.capitalReturn && (
+                <div className="grid grid-cols-3 gap-2 text-center">
                   <div>
-                    <label className="text-xs text-slate-500 mb-1 block">
-                      {t('Capital devuelto va a:', 'Returned capital goes to:')}
-                    </label>
-                    {existingItems.length > 0 ? (
-                      <select value={form.capitalDestination} onChange={(e) => set('capitalDestination', e.target.value)}
-                        className="w-full px-2.5 py-1.5 bg-[#0f172a] border border-[#334155] rounded text-sm text-white focus:outline-none focus:border-blue-500/50">
-                        <option value="">{t('-- Selecciona cuenta --', '-- Select account --')}</option>
-                        {existingItems.map((it) => (
-                          <option key={it.id || it.symbol} value={it.id || it.symbol}>
-                            {it.name || it.symbol} {it.institution ? `(${it.institution})` : ''}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <p className="text-xs text-amber-400/80 bg-amber-500/10 border border-amber-500/20 rounded px-2.5 py-1.5">
-                        {t('Agrega primero una cuenta de banco.', 'Add a bank account first.')}
-                      </p>
-                    )}
+                    <p className="text-xs text-[var(--text-muted,#475569)]">{t('Rendimiento', 'Yield')}</p>
+                    <p className="text-sm font-semibold text-emerald-400">{divInfo.dividendYield}%</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[var(--text-muted,#475569)]">{t('Frecuencia', 'Frequency')}</p>
+                    <p className="text-sm font-semibold text-[var(--text-primary,white)] capitalize">
+                      {{ monthly: t('Mensual','Monthly'), quarterly: t('Trimestral','Quarterly'), semiannual: t('Semestral','Semiannual'), annual: t('Anual','Annual') }[divInfo.frequency] || divInfo.frequency}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[var(--text-muted,#475569)]">{t('Próximo pago', 'Next payment')}</p>
+                    <p className="text-sm font-semibold text-[var(--text-primary,white)]">{divInfo.nextPaymentDate?.slice(5)}</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-[var(--text-muted,#475569)] mb-1">{t('¿Qué hacer con dividendos?', 'What to do with dividends?')}</p>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => set('dividendAction', 'cash')}
+                      className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all ${form.dividendAction === 'cash' ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40' : 'bg-[var(--input-bg,#0f172a)] text-[var(--text-muted,#475569)] border border-[var(--card-border,#334155)]'}`}>
+                      💵 {t('Efectivo', 'Cash')}
+                    </button>
+                    <button type="button" onClick={() => set('dividendAction', 'reinvest')}
+                      className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all ${form.dividendAction === 'reinvest' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[var(--input-bg,#0f172a)] text-[var(--text-muted,#475569)] border border-[var(--card-border,#334155)]'}`}>
+                      🔄 {t('Reinvertir', 'Reinvest')}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Income config toggle for non-market */}
+            {!isMarketAsset && (
+              <button type="button" onClick={() => setShowIncome(!showIncome)}
+                className="w-full text-left px-3 py-2 border border-[var(--card-border,#334155)] rounded-lg text-xs text-[var(--text-secondary,#94a3b8)] hover:border-blue-500/30 transition-colors flex items-center justify-between">
+                <span>💰 {isProperty ? t('Configurar renta', 'Configure rental') : isBank ? t('Configurar intereses', 'Configure interest') : t('Configurar rendimiento', 'Configure yield')}</span>
+                <span className="text-lg">{showIncome ? '−' : '+'}</span>
+              </button>
+            )}
+
+            {showIncome && !isMarketAsset && (
+              <div className="border border-[var(--card-border,#334155)] rounded-lg p-3 space-y-3">
+                <div className="flex gap-1 mb-2">
+                  <button type="button" onClick={() => set('incomeMode', 'fixed')}
+                    className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all ${form.incomeMode === 'fixed' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[var(--input-bg,#0f172a)] text-[var(--text-muted,#475569)] border border-[var(--card-border,#334155)]'}`}>
+                    {t('Monto fijo', 'Fixed amount')}
+                  </button>
+                  <button type="button" onClick={() => set('incomeMode', 'percent')}
+                    className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all ${form.incomeMode === 'percent' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[var(--input-bg,#0f172a)] text-[var(--text-muted,#475569)] border border-[var(--card-border,#334155)]'}`}>
+                    {t('% del saldo', '% of balance')}
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    {form.incomeMode === 'fixed' ? (<>
+                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Monto por pago', 'Per payment')}</label>
+                      <input value={form.incomeAmount} onChange={e => set('incomeAmount', e.target.value)}
+                        placeholder={isProperty ? '800' : '48'} type="number" step="any" className={inputCls} />
+                    </>) : (<>
+                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa anual %', 'Annual rate %')}</label>
+                      <input value={form.incomeRate} onChange={e => set('incomeRate', e.target.value)}
+                        placeholder="5.5" type="number" step="any" className={inputCls} />
+                    </>)}
+                  </div>
+                  <div>
+                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Día de pago', 'Pay day')}</label>
+                    <input value={form.incomePayDay} onChange={e => set('incomePayDay', e.target.value)}
+                      placeholder="10" type="number" min="1" max="31" className={inputCls} />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1.5 block">{t('Meses de pago', 'Payment months')}</label>
+                  <div className="flex flex-wrap gap-1">
+                    {['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'].map((label, i) => {
+                      const active = form.incomeMonths.includes(i)
+                      return (
+                        <button key={i} type="button"
+                          onClick={() => set('incomeMonths', active ? form.incomeMonths.filter(x => x !== i) : [...form.incomeMonths, i].sort((a, b) => a - b))}
+                          className={`px-2 py-1 text-xs font-medium rounded transition-all ${active ? 'bg-blue-500/25 text-blue-400 border border-blue-500/40' : 'bg-[var(--input-bg,#0f172a)] text-[var(--text-muted,#475569)] border border-[var(--card-border,#334155)]'}`}>
+                          {label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div className="flex gap-2 mt-1.5">
+                    <button type="button" onClick={() => set('incomeMonths', [0,1,2,3,4,5,6,7,8,9,10,11])}
+                      className="text-xs text-[var(--text-muted,#475569)] hover:text-emerald-400 transition-colors">{t('Todos', 'All')}</button>
+                    <button type="button" onClick={() => set('incomeMonths', [])}
+                      className="text-xs text-[var(--text-muted,#475569)] hover:text-emerald-400 transition-colors">{t('Ninguno', 'None')}</button>
+                  </div>
+                </div>
+                {existingItems.length > 0 && (
+                  <div>
+                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Pagos se depositan en:', 'Payments deposit to:')}</label>
+                    <select value={form.incomeDestination} onChange={e => set('incomeDestination', e.target.value)} className={inputCls}>
+                      <option value="">{t('-- Seleccionar --', '-- Select --')}</option>
+                      {existingItems.map(it => <option key={it.id} value={it.id}>{it.name || it.symbol} {it.institution ? `(${it.institution})` : ''}</option>)}
+                    </select>
                   </div>
                 )}
               </div>
-            </div>
-          )}
-
-          {/* Acquisition date */}
-          <div>
-            <label className="text-xs text-slate-400 mb-1 block">
-              {isBank ? t('¿Cuándo abriste esta cuenta?', 'When did you open this account?')
-                : isProperty ? t('¿Cuándo compraste este inmueble?', 'When did you buy this property?')
-                : t('Fecha de compra', 'Purchase date')}
-              {' '}<span className="text-amber-400">*</span>
-            </label>
-            <input value={form.acquisitionDate} onChange={(e) => set('acquisitionDate', e.target.value)}
-              type="date"
-              className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
-            {!form.acquisitionDate && (
-              <p className="text-xs text-amber-400/70 mt-1">{t('Sin fecha, el rendimiento no se calcula correctamente', 'Without a date, returns cannot be calculated correctly')}</p>
             )}
-          </div>
 
-          {/* New money toggle */}
-          <div className="border border-[#334155] rounded-lg p-3 space-y-2">
-            <label className="text-xs text-slate-400 mb-2 block font-medium">{t('¿Es dinero nuevo?', 'Is this new money?')}</label>
-            <div className="flex gap-2">
-              <button type="button" onClick={() => setIsNewMoney(true)}
-                className={`flex-1 px-2 py-2 text-xs font-medium rounded-lg transition-all ${
-                  isNewMoney ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#0f172a] text-slate-500 border border-[#334155]'
-                }`}>
-                💵 {t('Sí, dinero nuevo', 'Yes, new money')}
+            {/* New money toggle */}
+            <div className="flex items-center gap-3 px-3 py-2 border border-[var(--card-border,#334155)] rounded-lg">
+              <button type="button" onClick={() => setIsNewMoney(!isNewMoney)}
+                className={`w-8 h-4 rounded-full transition-colors relative ${isNewMoney ? 'bg-blue-500' : 'bg-[var(--card-border,#334155)]'}`}>
+                <span className={`absolute w-3 h-3 bg-white rounded-full top-0.5 transition-transform ${isNewMoney ? 'left-4' : 'left-0.5'}`} />
               </button>
-              <button type="button" onClick={() => setIsNewMoney(false)}
-                className={`flex-1 px-2 py-2 text-xs font-medium rounded-lg transition-all ${
-                  !isNewMoney ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#0f172a] text-slate-500 border border-[#334155]'
-                }`}>
-                🔄 {t('Ya estaba en el portafolio', 'Already in portfolio')}
-              </button>
+              <div>
+                <span className="text-xs text-[var(--text-primary,white)] font-medium">{t('Dinero nuevo', 'New money')}</span>
+                <p className="text-xs text-[var(--text-muted,#475569)]">
+                  {isNewMoney ? t('Entra de afuera, no cuenta como rendimiento', 'From outside, not counted as return') : t('Ya estaba en el portafolio', 'Already in portfolio')}
+                </p>
+              </div>
             </div>
-            <p className="text-xs text-slate-600 mt-1">
-              {isNewMoney
-                ? t('Dinero que entra de afuera (salario, regalo, etc). No cuenta como rendimiento.', 'Money coming from outside (salary, gift, etc). Not counted as return.')
-                : t('Dinero que ya estaba invertido en otro lado. No afecta el cálculo de rendimiento.', 'Money already invested elsewhere. Does not affect return calculation.')}
-            </p>
+
             {!isNewMoney && existingItems.length > 0 && (
               <div>
-                <label className="text-xs text-slate-500 mb-1 block">{t('¿De qué cuenta sale el dinero?', 'Which account is the source?')}</label>
-                <select value={form.capitalDestination} onChange={(e) => set('capitalDestination', e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-[#0f172a] border border-[#334155] rounded text-sm text-white focus:outline-none focus:border-blue-500/50">
-                  <option value="">{t('-- Selecciona origen --', '-- Select source --')}</option>
-                  {existingItems.map((it) => (
-                    <option key={it.id} value={it.id}>
-                      {it.name || it.symbol} {it.institution ? `(${it.institution})` : ''} - {it.currency}
-                    </option>
-                  ))}
+                <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('¿De dónde sale?', 'Source account?')}</label>
+                <select value={form.capitalDestination} onChange={e => set('capitalDestination', e.target.value)} className={inputCls}>
+                  <option value="">{t('-- Seleccionar --', '-- Select --')}</option>
+                  {existingItems.map(it => <option key={it.id} value={it.id}>{it.name || it.symbol} {it.institution ? `(${it.institution})` : ''} - {it.currency}</option>)}
                 </select>
               </div>
             )}
-          </div>
 
-          <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose}
-              className="flex-1 py-2.5 border border-[#334155] text-slate-300 rounded-lg hover:bg-[#283548] transition-colors text-sm">
-              {t('Cancelar', 'Cancel')}
-            </button>
-            <button type="submit" disabled={saving}
-              className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium">
-              {saving ? '...' : t('Registrar', 'Register')}
-            </button>
-          </div>
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={() => setStep(1)}
+                className="flex-1 py-2.5 border border-[var(--card-border,#334155)] text-[var(--text-secondary,#cbd5e1)] rounded-lg hover:bg-[var(--input-bg,#283548)] transition-colors text-sm">
+                ← {t('Atrás', 'Back')}
+              </button>
+              <button type="submit" disabled={saving}
+                className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium">
+                {saving ? '...' : t('Registrar', 'Register')}
+              </button>
+            </div>
           </>)}
         </form>
       </div>

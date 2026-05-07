@@ -9,6 +9,8 @@ import { authFetch } from '@/lib/authFetch'
 
 import FileImportModal from '@/components/FileImportModal'
 import AddAccountModal from '@/components/AddAccountModal'
+import SellModal from '@/components/SellModal'
+import TransferModal from '@/components/TransferModal'
 
 import SettingsModal from '@/components/SettingsModal'
 import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue } from '@/components/dashboard/utils'
@@ -45,6 +47,7 @@ export default function DashboardPage() {
   const [authLoading, setAuthLoading] = useState(true)
   const [modal, setModal] = useState(null)
   const [editItem, setEditItem] = useState(null)
+  const [sellItem, setSellItem] = useState(null)
   const [detailItem, setDetailItem] = useState(null)
   const [theme, setTheme] = useState('system')
   const [lang, setLang] = useState('es')
@@ -583,6 +586,7 @@ export default function DashboardPage() {
         <ActionButtons
           onImport={() => setModal('import')}
           onAddAccount={() => setModal('account')}
+          onTransfer={() => setModal('transfer')}
           onExport={handleExport}
           itemCount={enrichedItems.length}
           lang={lang}
@@ -615,6 +619,7 @@ export default function DashboardPage() {
         <SectionCollapse title={lang === 'es' ? 'Posiciones' : 'Holdings'} id="holdings">
           <AccountsTable items={enrichedItems} lang={lang} onDeleteItem={deleteItem}
             onEditItem={(item) => setEditItem(item)} onViewItem={(item) => setDetailItem(item)}
+            onSellItem={(item) => setSellItem(item)}
             onQuickBuy={() => setModal('account')} />
 
           <RecentTransactions transactions={transactions} lang={lang} />
@@ -643,6 +648,27 @@ export default function DashboardPage() {
         <AddAccountModal
           onClose={() => setModal(null)}
           onAdd={addItem}
+          onAddTransaction={addTransaction}
+          existingItems={items}
+          lang={lang}
+        />
+      )}
+
+      {modal === 'transfer' && (
+        <TransferModal
+          onClose={() => setModal(null)}
+          onSave={addItem}
+          onAddTransaction={addTransaction}
+          existingItems={items}
+          lang={lang}
+        />
+      )}
+
+      {sellItem && (
+        <SellModal
+          item={sellItem}
+          onClose={() => setSellItem(null)}
+          onSell={addItem}
           onAddTransaction={addTransaction}
           existingItems={items}
           lang={lang}
@@ -679,6 +705,7 @@ export default function DashboardPage() {
           onClose={() => setEditItem(null)}
           onSave={addItem}
           onDelete={deleteItem}
+          existingItems={items}
           lang={lang}
         />
       )}

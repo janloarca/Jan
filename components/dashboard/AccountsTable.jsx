@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import { formatCurrency, getTypeCategory, TYPE_COLORS, getItemValue, getItemPrice, getBaseCurrency } from './utils'
 
-export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, onViewItem, onQuickBuy }) {
+export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, onViewItem, onSellItem, onQuickBuy }) {
   const [filter, setFilter] = useState('all')
   const [sortBy, setSortBy] = useState('value')
   const [showAll, setShowAll] = useState(false)
@@ -246,6 +246,12 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                             📊
                           </button>
                         )}
+                        {onSellItem && item.quantity > 0 && (
+                          <button onClick={() => onSellItem(item)}
+                            className="text-slate-600 hover:text-amber-400 text-xs transition-colors" title={t('Vender', 'Sell')}>
+                            💰
+                          </button>
+                        )}
                         {onEditItem && (
                           <button onClick={() => onEditItem(item)}
                             className="text-slate-600 hover:text-emerald-400 text-xs transition-colors" title={t('Editar', 'Edit')}>
@@ -254,7 +260,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                         )}
                         {onDeleteItem && (
                           <button onClick={() => onDeleteItem(item.id)}
-                            className="text-slate-600 hover:text-red-400 text-sm transition-colors">
+                            className="text-slate-600 hover:text-red-400 text-sm transition-colors" title={t('Eliminar', 'Delete')}>
                             ×
                           </button>
                         )}

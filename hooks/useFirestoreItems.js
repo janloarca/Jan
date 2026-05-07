@@ -94,6 +94,18 @@ export function useFirestoreItems() {
   const deleteItem = useCallback(async (itemId) => {
     if (!uid) return
     const { db, fs } = await getFirebase()
+    const snap = await fs.getDocs(fs.collection(db, `users/${uid}/items`))
+    const orphans = snap.docs.filter(d => {
+      const data = d.data()
+      return d.id !== itemId && (data.incomeDestination === itemId || data.capitalDestination === itemId)
+    })
+    for (const orphan of orphans) {
+      const updates = {}
+      const data = orphan.data()
+      if (data.incomeDestination === itemId) updates.incomeDestination = ''
+      if (data.capitalDestination === itemId) updates.capitalDestination = ''
+      await fs.updateDoc(orphan.ref, updates)
+    }
     await fs.deleteDoc(fs.doc(db, `users/${uid}/items`, itemId))
   }, [uid])
 

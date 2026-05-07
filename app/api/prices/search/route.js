@@ -56,6 +56,18 @@ function searchCrypto(query) {
     }))
 }
 
+async function fetchAssetProfile(symbol) {
+  try {
+    const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=assetProfile`
+    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } })
+    if (!res.ok) return null
+    const data = await res.json()
+    const profile = data.quoteSummary?.result?.[0]?.assetProfile
+    if (profile) return { sector: profile.sector || '', industry: profile.industry || '', country: profile.country || '' }
+  } catch {}
+  return null
+}
+
 async function fetchQuote(symbol, type) {
   if (type === 'Crypto') {
     const info = CRYPTO_MAP[symbol.toUpperCase()]
@@ -64,7 +76,7 @@ async function fetchQuote(symbol, type) {
       const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${info.id}&vs_currencies=usd`)
       if (!res.ok) return null
       const data = await res.json()
-      if (data[info.id]) return { price: data[info.id].usd, currency: 'USD' }
+      if (data[info.id]) return { price: data[info.id].usd, currency: 'USD', sector: 'Crypto', industry: 'Cryptocurrency' }
     } catch {}
     return null
   }
@@ -76,7 +88,10 @@ async function fetchQuote(symbol, type) {
     const data = await res.json()
     const meta = data.chart?.result?.[0]?.meta
     if (meta?.regularMarketPrice) {
-      return { price: meta.regularMarketPrice, currency: meta.currency || 'USD' }
+      const quote = { price: meta.regularMarketPrice, currency: meta.currency || 'USD' }
+      const profile = await fetchAssetProfile(symbol)
+      if (profile) { quote.sector = profile.sector; quote.industry = profile.industry; quote.country = profile.country }
+      return quote
     }
   } catch {}
   return null
