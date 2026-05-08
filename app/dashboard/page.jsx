@@ -42,6 +42,7 @@ import UpcomingDividends from '@/components/dashboard/UpcomingDividends'
 import ContinuousYieldDisplay from '@/components/dashboard/ContinuousYieldDisplay'
 import VariableRateDashboard from '@/components/dashboard/VariableRateDashboard'
 import MaturityCalendar from '@/components/dashboard/MaturityCalendar'
+import RebalanceSuggestions from '@/components/dashboard/RebalanceSuggestions'
 import SectionCollapse from '@/components/dashboard/SectionCollapse'
 
 export default function DashboardPage() {
@@ -680,6 +681,8 @@ export default function DashboardPage() {
             />
             <FinancialHealth items={enrichedItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} />
           </div>
+
+          <RebalanceSuggestions items={enrichedItems} netWorth={netWorth} goals={goals} onSaveGoals={saveGoals} lang={lang} />
 
           <ProjectionSimulator netWorth={netWorth} lang={lang} volatility={riskMetrics.volatility} goalValue={goals?.portfolioGoal} />
         </SectionCollapse>
