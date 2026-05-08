@@ -6,12 +6,17 @@ const FIELD_MAP = {
   symbol: ['symbol', 'ticker', 'simbolo', 'código', 'codigo', 'sym'],
   name: ['name', 'nombre', 'description', 'descripcion', 'instrument', 'instrumento', 'asset'],
   type: ['type', 'tipo', 'category', 'categoria', 'asset_type', 'asset type'],
+  subtype: ['subtype', 'subtipo', 'sub_type', 'sub type'],
   quantity: ['quantity', 'cantidad', 'qty', 'shares', 'acciones', 'units', 'unidades'],
   purchasePrice: ['precio de compra', 'purchase_price', 'purchaseprice', 'cost', 'costo', 'unit_price', 'avg_price', 'average price', 'precio promedio', 'precio compra'],
   currentPrice: ['precio actual', 'current_price', 'currentprice', 'market_price', 'valor actual', 'price', 'precio'],
   institution: ['institution', 'institucion', 'broker', 'exchange', 'platform', 'plataforma', 'cuenta', 'account'],
   currency: ['currency', 'moneda', 'ccy'],
   acquisitionDate: ['fecha', 'fecha de compra', 'date', 'acquisition_date', 'purchase_date', 'fecha compra', 'fecha adquisicion'],
+  maturityDate: ['maturity', 'vencimiento', 'maturity_date', 'fecha vencimiento', 'expiry'],
+  incomeRate: ['rate', 'tasa', 'yield', 'rendimiento', 'income_rate', 'interest_rate', 'tasa anual', 'annual_rate'],
+  taxJurisdiction: ['jurisdiction', 'jurisdiccion', 'tax_jurisdiction', 'pais', 'country'],
+  notes: ['notes', 'notas', 'comments', 'comentarios', 'memo'],
 }
 
 function guessMapping(headers) {
@@ -28,12 +33,16 @@ function guessMapping(headers) {
 function inferType(row, mapping) {
   const name = mapping.name != null ? (row[mapping.name] || '').toString().toLowerCase() : ''
   const symbol = mapping.symbol != null ? (row[mapping.symbol] || '').toString().toLowerCase() : ''
-  const combined = `${name} ${symbol}`
+  const typeHint = mapping.type != null ? (row[mapping.type] || '').toString().toLowerCase() : ''
+  const combined = `${name} ${symbol} ${typeHint}`
 
-  if (/btc|eth|sol|ada|dot|bnb|xrp|doge|avax|matic|crypto|cripto|usdt|usdc|bitcoin|ethereum/i.test(combined)) return 'Crypto'
-  if (/etf|fund|fondo|vanguard|ishares|spdr/i.test(combined)) return 'Fund'
-  if (/bond|bono|cete|letra|pagare|instrumento|deuda|treasury/i.test(combined)) return 'Bond'
-  if (/bank|banco|saving|ahorro|cash|efectivo|checking/i.test(combined)) return 'Bank'
+  if (/btc|eth|sol|ada|dot|bnb|xrp|doge|avax|matic|crypto|cripto|usdt|usdc|bitcoin|ethereum|staking|defi/i.test(combined)) return 'Crypto'
+  if (/debt|deuda|hipoteca|mortgage|loan|prestamo|credit.?card|tarjeta|liability|pasivo/i.test(combined)) return 'Debt'
+  if (/safe|vc.?fund|private.?equity|club.?deal|alternative|alternativ|collectible/i.test(combined)) return 'Alternative'
+  if (/real.?estate|inmueble|property|propiedad|reit|crowdfund/i.test(combined)) return 'RealEstate'
+  if (/etf|fund|fondo|vanguard|ishares|spdr|mutual/i.test(combined)) return 'Fund'
+  if (/bond|bono|cete|letra|pagare|instrumento|treasury|cdt|deposito|certificado/i.test(combined)) return 'Bond'
+  if (/bank|banco|saving|ahorro|cash|efectivo|checking|cuenta/i.test(combined)) return 'Bank'
   return 'Stock'
 }
 
@@ -218,6 +227,29 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       if (mapping.acquisitionDate != null) {
         const d = (row[mapping.acquisitionDate] || '').toString().trim()
         if (d) item.acquisitionDate = d
+      }
+      if (mapping.subtype != null) {
+        const st = (row[mapping.subtype] || '').toString().trim()
+        if (st) item.subtype = st
+      }
+      if (mapping.maturityDate != null) {
+        const md = (row[mapping.maturityDate] || '').toString().trim()
+        if (md) item.maturityDate = md
+      }
+      if (mapping.incomeRate != null) {
+        const ir = parseNumber(row[mapping.incomeRate])
+        if (ir > 0) item.incomeRate = ir
+      }
+      if (mapping.taxJurisdiction != null) {
+        const tj = (row[mapping.taxJurisdiction] || '').toString().trim()
+        if (tj) item.taxJurisdiction = tj
+      }
+      if (mapping.notes != null) {
+        const n = (row[mapping.notes] || '').toString().trim()
+        if (n) item.notes = n
+      }
+      if (/^debt$/i.test(item.type)) {
+        item.isDebt = true
       }
       return item
     }).filter((item) => item.symbol || item.name)

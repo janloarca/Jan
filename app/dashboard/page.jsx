@@ -351,15 +351,40 @@ export default function DashboardPage() {
   const handleExport = useCallback(async () => {
     if (items.length === 0) return
     const XLSX = await import('xlsx')
-    const ws = XLSX.utils.json_to_sheet(enrichedItems.map((it) => ({
-      Symbol: it.symbol, Name: it.name, Type: it.type,
-      Quantity: it.quantity, 'Purchase Price': it.purchasePrice,
-      'Current Price': it.currentPrice || '', Institution: it.institution,
-      Currency: it._displayCurrency || baseCurrency,
-      Value: (it.quantity || 0) * (it.currentPrice || it.purchasePrice || 0),
-    })))
+    const ws = XLSX.utils.json_to_sheet(enrichedItems.map((it) => {
+      const value = (it.quantity || 0) * (it.currentPrice || it.purchasePrice || 0)
+      const row = {
+        Symbol: it.symbol, Name: it.name, Type: it.type,
+        Subtype: it.subtype || '',
+        Quantity: it.quantity, 'Purchase Price': it.purchasePrice,
+        'Current Price': it.currentPrice || '', Institution: it.institution,
+        Currency: it._displayCurrency || baseCurrency,
+        Value: it.isDebt ? -Math.abs(value) : value,
+      }
+      if (it.maturityDate) row['Maturity Date'] = it.maturityDate
+      if (it.rateType) row['Rate Type'] = it.rateType
+      if (it.incomeRate) row['Income Rate (%)'] = it.incomeRate
+      if (it.rateMin) row['Rate Min (%)'] = it.rateMin
+      if (it.rateMax) row['Rate Max (%)'] = it.rateMax
+      if (it.taxJurisdiction) row['Tax Jurisdiction'] = it.taxJurisdiction
+      if (it.isIlliquid) row['Illiquid'] = 'Yes'
+      if (it.custodyType) row['Custody'] = it.custodyType
+      if (it.isDebt) row['Debt'] = 'Yes'
+      if (it.notes) row['Notes'] = it.notes
+      if (it.tags?.length) row['Tags'] = it.tags.join(', ')
+      return row
+    }))
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Portfolio')
+    if (snapshots.length > 0) {
+      const wsSnap = XLSX.utils.json_to_sheet(
+        [...snapshots].sort((a, b) => new Date(a.date) - new Date(b.date)).map((s) => ({
+          Date: s.date, 'Net Worth (USD)': s.netWorthUSD ?? s.totalActivosUSD ?? 0,
+          Notes: s.notes || '',
+        }))
+      )
+      XLSX.utils.book_append_sheet(wb, wsSnap, 'History')
+    }
     if (transactions.length > 0) {
       const wsTx = XLSX.utils.json_to_sheet(transactions.map((tx) => ({
         Date: tx.date, Type: tx.type, Symbol: tx.symbol,
@@ -369,7 +394,7 @@ export default function DashboardPage() {
       XLSX.utils.book_append_sheet(wb, wsTx, 'Transactions')
     }
     XLSX.writeFile(wb, `chispudo-portfolio-${new Date().toISOString().split('T')[0]}.xlsx`)
-  }, [enrichedItems, transactions, baseCurrency])
+  }, [enrichedItems, snapshots, transactions, baseCurrency])
 
   const handleReport = useCallback(async () => {
     const { generateReport } = await import('@/lib/generateReport')
