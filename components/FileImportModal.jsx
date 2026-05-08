@@ -3,20 +3,40 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 
 const FIELD_MAP = {
-  symbol: ['symbol', 'ticker', 'simbolo', 'código', 'codigo', 'sym'],
-  name: ['name', 'nombre', 'description', 'descripcion', 'instrument', 'instrumento', 'asset'],
-  type: ['type', 'tipo', 'category', 'categoria', 'asset_type', 'asset type'],
+  symbol: ['symbol', 'ticker', 'simbolo', 'código', 'codigo', 'sym', 'coin'],
+  name: ['name', 'nombre', 'description', 'descripcion', 'instrument', 'instrumento', 'asset', 'financial instrument', 'asset name'],
+  type: ['type', 'tipo', 'category', 'categoria', 'asset_type', 'asset type', 'asset class'],
   subtype: ['subtype', 'subtipo', 'sub_type', 'sub type'],
-  quantity: ['quantity', 'cantidad', 'qty', 'shares', 'acciones', 'units', 'unidades'],
-  purchasePrice: ['precio de compra', 'purchase_price', 'purchaseprice', 'cost', 'costo', 'unit_price', 'avg_price', 'average price', 'precio promedio', 'precio compra'],
-  currentPrice: ['precio actual', 'current_price', 'currentprice', 'market_price', 'valor actual', 'price', 'precio'],
+  quantity: ['quantity', 'cantidad', 'qty', 'shares', 'acciones', 'units', 'unidades', 'position', 'total', 'balance', 'amount'],
+  purchasePrice: ['precio de compra', 'purchase_price', 'purchaseprice', 'cost', 'costo', 'unit_price', 'avg_price', 'average price', 'precio promedio', 'precio compra', 'cost basis', 'cost price', 'avg cost'],
+  currentPrice: ['precio actual', 'current_price', 'currentprice', 'market_price', 'valor actual', 'price', 'precio', 'close price', 'mark price', 'last price', 'market value'],
   institution: ['institution', 'institucion', 'broker', 'exchange', 'platform', 'plataforma', 'cuenta', 'account'],
   currency: ['currency', 'moneda', 'ccy'],
-  acquisitionDate: ['fecha', 'fecha de compra', 'date', 'acquisition_date', 'purchase_date', 'fecha compra', 'fecha adquisicion'],
-  maturityDate: ['maturity', 'vencimiento', 'maturity_date', 'fecha vencimiento', 'expiry'],
-  incomeRate: ['rate', 'tasa', 'yield', 'rendimiento', 'income_rate', 'interest_rate', 'tasa anual', 'annual_rate'],
+  acquisitionDate: ['fecha', 'fecha de compra', 'date', 'acquisition_date', 'purchase_date', 'fecha compra', 'fecha adquisicion', 'open date'],
+  maturityDate: ['maturity', 'vencimiento', 'maturity_date', 'fecha vencimiento', 'expiry', 'expiration'],
+  incomeRate: ['rate', 'tasa', 'yield', 'rendimiento', 'income_rate', 'interest_rate', 'tasa anual', 'annual_rate', 'apy', 'apr'],
   taxJurisdiction: ['jurisdiction', 'jurisdiccion', 'tax_jurisdiction', 'pais', 'country'],
   notes: ['notes', 'notas', 'comments', 'comentarios', 'memo'],
+}
+
+const BROKER_PRESETS = {
+  ibkr: {
+    detect: (h) => h.some((c) => /financial instrument/i.test(c)) || h.some((c) => /mark.?to.?market/i.test(c)),
+    institution: 'Interactive Brokers',
+  },
+  binance: {
+    detect: (h) => h.some((c) => /^coin$/i.test(c)) && h.some((c) => /^total$/i.test(c)),
+    institution: 'Binance',
+    typeOverride: 'Crypto',
+  },
+  schwab: {
+    detect: (h) => h.some((c) => /^symbol$/i.test(c)) && h.some((c) => /market value/i.test(c)) && h.some((c) => /security type/i.test(c)),
+    institution: 'Charles Schwab',
+  },
+  fidelity: {
+    detect: (h) => h.some((c) => /^symbol$/i.test(c)) && h.some((c) => /last price/i.test(c)) && h.some((c) => /current value/i.test(c)),
+    institution: 'Fidelity',
+  },
 }
 
 function guessMapping(headers) {
@@ -209,15 +229,23 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     setStep('map')
   }, [pasteText, lang])
 
+  const detectedBroker = useMemo(() => {
+    const lh = headers.map((h) => (h || '').toString().trim())
+    for (const [key, preset] of Object.entries(BROKER_PRESETS)) {
+      if (preset.detect(lh)) return { key, ...preset }
+    }
+    return null
+  }, [headers])
+
   const buildPreview = useCallback(() => {
     const items = rawData.map((row) => {
       const item = {
         symbol: mapping.symbol != null ? (row[mapping.symbol] || '').toString().trim() : '',
         name: mapping.name != null ? (row[mapping.name] || '').toString().trim() : '',
-        type: mapping.type != null ? (row[mapping.type] || '').toString().trim() : inferType(row, mapping),
+        type: detectedBroker?.typeOverride || (mapping.type != null ? (row[mapping.type] || '').toString().trim() : inferType(row, mapping)),
         quantity: parseNumber(mapping.quantity != null ? row[mapping.quantity] : 0),
         purchasePrice: parseNumber(mapping.purchasePrice != null ? row[mapping.purchasePrice] : 0),
-        institution: mapping.institution != null ? (row[mapping.institution] || '').toString().trim() : '',
+        institution: mapping.institution != null ? (row[mapping.institution] || '').toString().trim() : (detectedBroker?.institution || ''),
         currency: mapping.currency != null ? (row[mapping.currency] || 'USD').toString().trim() : 'USD',
       }
       if (mapping.currentPrice != null) {
@@ -256,7 +284,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
 
     setPreview(items)
     setStep('preview')
-  }, [rawData, mapping])
+  }, [rawData, mapping, detectedBroker])
 
   const doImport = useCallback(async () => {
     setImporting(true)
@@ -468,9 +496,16 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
           {/* Column mapping step */}
           {step === 'map' && (
             <div>
-              <p className="text-slate-400 text-sm mb-4">
+              <p className="text-slate-400 text-sm mb-3">
                 {t(`${rawData.length} filas encontradas. Mapea las columnas:`, `${rawData.length} rows found. Map the columns:`)}
               </p>
+              {detectedBroker && (
+                <div className="flex items-center gap-2 px-3 py-2 mb-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                  <span className="text-blue-400 text-xs font-medium">
+                    {t('Formato detectado', 'Format detected')}: {detectedBroker.institution}
+                  </span>
+                </div>
+              )}
               <div className="space-y-3">
                 {Object.entries(FIELD_MAP).map(([field]) => (
                   <div key={field} className="flex items-center gap-3">
