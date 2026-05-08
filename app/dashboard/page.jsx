@@ -53,6 +53,8 @@ import FeeAnalysis from '@/components/dashboard/FeeAnalysis'
 import MobileNav from '@/components/dashboard/MobileNav'
 import DataQuality from '@/components/dashboard/DataQuality'
 import EmptyState from '@/components/dashboard/EmptyState'
+import SnapshotComparison from '@/components/dashboard/SnapshotComparison'
+import SavingsRate from '@/components/dashboard/SavingsRate'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -701,6 +703,7 @@ export default function DashboardPage() {
           <div className="lg:col-span-3 flex flex-col gap-4">
             <PortfolioGrowthChart items={enrichedItems} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} />
             <AssetAllocation items={enrichedItems} lang={lang} />
+            <SnapshotComparison snapshots={snapshots} items={enrichedItems} lang={lang} />
           </div>
         </div>
 
@@ -744,8 +747,9 @@ export default function DashboardPage() {
             <FinancialHealth items={enrichedItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} />
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
             <RecurringTransactions goals={goals} onSaveGoals={saveGoals} lang={lang} />
+            <SavingsRate goals={goals} transactions={transactions} netWorth={netWorth} snapshots={snapshots} lang={lang} />
             <FeeAnalysis items={enrichedItems} netWorth={netWorth} lang={lang} />
           </div>
 

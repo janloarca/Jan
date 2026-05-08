@@ -6,11 +6,43 @@ import { formatCurrency, formatDate } from './utils'
 export default function RecentTransactions({ transactions, lang }) {
   const [showAll, setShowAll] = useState(false)
   const [typeFilter, setTypeFilter] = useState('ALL')
+  const [dateRange, setDateRange] = useState('all')
+
   const all = useMemo(() => {
-    const reversed = [...(transactions || [])].reverse()
+    let reversed = [...(transactions || [])].reverse()
+
+    if (dateRange !== 'all') {
+      const now = new Date()
+      const cutoff = new Date()
+      if (dateRange === '7d') cutoff.setDate(now.getDate() - 7)
+      else if (dateRange === '30d') cutoff.setDate(now.getDate() - 30)
+      else if (dateRange === '90d') cutoff.setDate(now.getDate() - 90)
+      else if (dateRange === 'ytd') cutoff.setMonth(0, 1)
+      reversed = reversed.filter((tx) => tx.date && new Date(tx.date) >= cutoff)
+    }
+
     if (typeFilter === 'ALL') return reversed
     return reversed.filter((tx) => (tx.type || '').toUpperCase() === typeFilter)
-  }, [transactions, typeFilter])
+  }, [transactions, typeFilter, dateRange])
+
+  const monthlySummary = useMemo(() => {
+    if (!transactions || transactions.length === 0) return null
+    const months = {}
+    transactions.forEach((tx) => {
+      if (!tx.date) return
+      const key = tx.date.slice(0, 7)
+      if (!months[key]) months[key] = { inflow: 0, outflow: 0, count: 0 }
+      months[key].count++
+      const t = (tx.type || '').toUpperCase()
+      const amt = tx.totalAmount || 0
+      if (t === 'BUY' || t === 'DEPOSIT') months[key].inflow += amt
+      else if (t === 'SELL' || t === 'WITHDRAWAL') months[key].outflow += amt
+      else if (t === 'DIVIDEND') months[key].inflow += amt
+    })
+    const sorted = Object.entries(months).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 3)
+    return sorted.map(([month, data]) => ({ month, ...data, net: data.inflow - data.outflow }))
+  }, [transactions])
+
   const display = showAll ? all : all.slice(0, 5)
 
   const filterOptions = [
@@ -80,6 +112,40 @@ export default function RecentTransactions({ transactions, lang }) {
           )
         })}
       </div>
+
+      {/* Date range filter */}
+      <div className="flex items-center gap-1.5 mb-4">
+        <span className="text-xs text-slate-600 mr-1">{lang === 'es' ? 'Periodo:' : 'Period:'}</span>
+        {[
+          { key: 'all', label: lang === 'es' ? 'Todo' : 'All' },
+          { key: '7d', label: '7d' },
+          { key: '30d', label: '30d' },
+          { key: '90d', label: '90d' },
+          { key: 'ytd', label: 'YTD' },
+        ].map((opt) => (
+          <button key={opt.key} onClick={() => { setDateRange(opt.key); setShowAll(false) }}
+            className={`px-2 py-1 text-xs rounded transition-colors ${
+              dateRange === opt.key ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-300'
+            }`}>
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Monthly summary */}
+      {monthlySummary && monthlySummary.length > 0 && dateRange === 'all' && typeFilter === 'ALL' && (
+        <div className="grid grid-cols-3 gap-2 mb-4">
+          {monthlySummary.map((m) => (
+            <div key={m.month} className="bg-[#0f172a] rounded-lg p-2.5 border border-[#334155]/50 text-center">
+              <div className="text-xs text-slate-500 mb-1">{m.month}</div>
+              <div className={`text-xs font-semibold ${m.net >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {m.net >= 0 ? '+' : ''}{formatCurrency(m.net)}
+              </div>
+              <div className="text-[10px] text-slate-600">{m.count} txs</div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {display.length === 0 ? (
         <div className="text-center py-8">
