@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 
-export default function MobileNav({ onAdd, onImport, onExport, onSettings, onSearch, lang }) {
+export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettings, onSearch, lang }) {
   const [moreOpen, setMoreOpen] = useState(false)
   const t = (es, en) => lang === 'es' ? es : en
 
@@ -37,6 +37,7 @@ export default function MobileNav({ onAdd, onImport, onExport, onSettings, onSea
             {[
               { action: onImport, icon: '📁', label: t('Importar archivo', 'Import file') },
               { action: onExport, icon: '📊', label: t('Exportar Excel', 'Export Excel') },
+              { action: onShare, icon: '↗', label: t('Compartir resumen', 'Share summary') },
               { action: onSettings, icon: '⚙️', label: t('Configuración', 'Settings') },
             ].map((item, i) => (
               <button key={i} onClick={() => { item.action(); setMoreOpen(false) }}
