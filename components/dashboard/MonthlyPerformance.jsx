@@ -27,6 +27,18 @@ export default function MonthlyPerformance({ snapshots, transactions, convert, b
 
   const years = Object.keys(byYear).sort()
 
+  const allSorted = [...sorted]
+
+  function findClosestBefore(targetTs) {
+    let best = null
+    for (const s of allSorted) {
+      if (s.ts < targetTs) {
+        if (!best || s.ts > best.ts) best = s
+      }
+    }
+    return best
+  }
+
   const rows = years.map((year) => {
     const data = byYear[year]
     const monthlyReturns = []
@@ -36,12 +48,16 @@ export default function MonthlyPerformance({ snapshots, transactions, convert, b
         monthlyReturns.push(null)
         continue
       }
+      const monthStartTs = new Date(parseInt(year), m, 1).getTime()
       let prevSnap = null
       if (m > 0 && data[m - 1]) {
         prevSnap = data[m - 1]
       } else if (m === 0) {
         const prevYear = byYear[parseInt(year) - 1]
         if (prevYear && prevYear[11]) prevSnap = prevYear[11]
+      }
+      if (!prevSnap) {
+        prevSnap = findClosestBefore(monthStartTs)
       }
       if (prevSnap && prevSnap.value > 0) {
         if (transactions && convert) {
@@ -73,6 +89,20 @@ export default function MonthlyPerformance({ snapshots, transactions, convert, b
         yearTotal = pct
       } else if (first.value > 0) {
         yearTotal = ((last.value - first.value) / first.value) * 100
+      }
+    } else if (monthKeys.length === 1) {
+      const snap = data[monthKeys[0]]
+      const yearStartTs = new Date(parseInt(year), 0, 1).getTime()
+      const prev = findClosestBefore(yearStartTs)
+      if (prev && prev.value > 0 && transactions && convert) {
+        const { pct } = computeModifiedDietz({
+          startValue: prev.value, endValue: snap.value,
+          startTs: prev.ts, endTs: snap.ts,
+          transactions, convert, baseCurrency,
+        })
+        yearTotal = pct
+      } else if (prev && prev.value > 0) {
+        yearTotal = ((snap.value - prev.value) / prev.value) * 100
       }
     }
 

@@ -495,19 +495,39 @@ export default function DashboardPage() {
   }, [enrichedItems])
 
   const { returnYTD, ytdChange } = useMemo(() => {
-    if (jan1Value == null) return { returnYTD: 0, ytdChange: 0 }
-    const yearStart = new Date(new Date().getFullYear(), 0, 1).getTime()
+    const yearStartTs = new Date(new Date().getFullYear(), 0, 1).getTime()
+
+    let startVal = null
+
+    if (snapshots.length >= 2) {
+      let minDiff = Infinity
+      let bestSnap = null
+      for (const s of snapshots) {
+        if (!s.date) continue
+        const snapTs = new Date(s.date).getTime()
+        if (snapTs > Date.now()) continue
+        const diff = Math.abs(snapTs - yearStartTs)
+        if (diff < minDiff) { minDiff = diff; bestSnap = s }
+      }
+      if (bestSnap) {
+        startVal = convertSnapshot(bestSnap.netWorthUSD ?? bestSnap.totalActivosUSD ?? 0)
+      }
+    }
+
+    if (startVal == null || startVal <= 0) startVal = jan1Value
+    if (startVal == null || startVal <= 0) return { returnYTD: 0, ytdChange: 0 }
+
     const { pct, abs } = computeModifiedDietz({
-      startValue: jan1Value,
+      startValue: startVal,
       endValue: netWorth,
-      startTs: yearStart,
+      startTs: yearStartTs,
       endTs: Date.now(),
       transactions,
       convert,
       baseCurrency,
     })
     return { returnYTD: pct, ytdChange: abs }
-  }, [jan1Value, netWorth, transactions, convert, baseCurrency])
+  }, [jan1Value, netWorth, transactions, convert, baseCurrency, snapshots, convertSnapshot])
 
   const annualDividends = useMemo(() => {
     const divs = (transactions || []).filter((tx) => (tx.type || '').toUpperCase() === 'DIVIDEND')
@@ -704,7 +724,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="lg:col-span-3 flex flex-col gap-4">
-            <PortfolioGrowthChart items={enrichedItems} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} />
+            <PortfolioGrowthChart items={enrichedItems} snapshots={snapshots} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} />
             <AssetAllocation items={enrichedItems} lang={lang} />
             <SnapshotComparison snapshots={snapshots} items={enrichedItems} lang={lang} />
           </div>
