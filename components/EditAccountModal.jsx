@@ -51,6 +51,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     interestRate: item.interestRate?.toString() || '',
     minimumPayment: item.minimumPayment?.toString() || '',
     beneficiary: item.beneficiary || '',
+    managementFee: item.managementFee?.toString() || '',
+    expenseRatio: item.expenseRatio?.toString() || '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -159,6 +161,10 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
       updated.notes = form.notes || ''
       updated.tags = form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : []
       updated.beneficiary = form.beneficiary || ''
+
+      // Fees
+      if (form.managementFee) updated.managementFee = parseFloat(form.managementFee) || 0
+      if (form.expenseRatio) updated.expenseRatio = parseFloat(form.expenseRatio) || 0
 
       // Tax jurisdiction
       updated.taxJurisdiction = form.taxJurisdiction || ''
@@ -398,6 +404,20 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               </div>
             </div>
           )}
+
+          {/* Fees */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>{t('Comisión mgmt %', 'Management fee %')}</label>
+              <input value={form.managementFee} onChange={e => set('managementFee', e.target.value)}
+                placeholder="0.50" type="number" step="any" className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>{t('Expense ratio %', 'Expense ratio %')}</label>
+              <input value={form.expenseRatio} onChange={e => set('expenseRatio', e.target.value)}
+                placeholder="0.03" type="number" step="any" className={inputCls} />
+            </div>
+          </div>
 
           {/* Tax jurisdiction */}
           <div>

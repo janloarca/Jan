@@ -10,6 +10,8 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
   const [breakdown, setBreakdown] = useState(null)
   const [dismissWarning, setDismissWarning] = useState(false)
   const [search, setSearch] = useState('')
+  const [selected, setSelected] = useState(new Set())
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false)
 
   const counts = useMemo(() => {
     const c = { all: items.length, stocks: 0, crypto: 0, bonds: 0, funds: 0, banks: 0, realestate: 0, alternatives: 0, debts: 0 }
@@ -121,6 +123,43 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
         </div>
       )}
 
+      {/* Bulk actions */}
+      {selected.size > 0 && (
+        <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+          <span className="text-xs text-blue-400 font-medium">{selected.size} {t('seleccionado(s)', 'selected')}</span>
+          <div className="flex-1" />
+          <button onClick={() => {
+            const selectedItems = items.filter((it) => selected.has(it.id))
+            const rows = [['Symbol', 'Name', 'Type', 'Qty', 'Price', 'Value'].join(',')]
+            selectedItems.forEach((it) => {
+              const val = getItemValue(it)
+              rows.push([it.symbol || '', it.name || '', it.type || '', it.quantity || 0, getItemPrice(it).toFixed(2), val.toFixed(2)].join(','))
+            })
+            const blob = new Blob([rows.join('\n')], { type: 'text/csv' })
+            const a = document.createElement('a')
+            a.href = URL.createObjectURL(blob)
+            a.download = `selected-${new Date().toISOString().split('T')[0]}.csv`
+            a.click()
+          }}
+            className="text-xs text-blue-400 hover:text-blue-300 px-2 py-1 rounded border border-blue-500/30 hover:bg-blue-500/10">
+            CSV
+          </button>
+          <button onClick={async () => {
+            if (!confirmBulkDelete) { setConfirmBulkDelete(true); return }
+            for (const id of selected) { await onDeleteItem(id) }
+            setSelected(new Set())
+            setConfirmBulkDelete(false)
+          }}
+            className={`text-xs px-2 py-1 rounded border transition-colors ${
+              confirmBulkDelete ? 'bg-red-600 text-white border-red-600' : 'text-red-400 border-red-500/30 hover:bg-red-500/10'
+            }`}>
+            {confirmBulkDelete ? t('Confirmar', 'Confirm') : t('Eliminar', 'Delete')}
+          </button>
+          <button onClick={() => { setSelected(new Set()); setConfirmBulkDelete(false) }}
+            className="text-xs text-slate-500 hover:text-slate-300 px-1">×</button>
+        </div>
+      )}
+
       {/* Breakdown toggles */}
       <div className="flex items-center gap-2 mb-4">
         <span className="text-xs text-slate-500">{t('Desglose:', 'Breakdown:')}</span>
@@ -168,6 +207,15 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
           <table className="w-full text-xs">
             <thead>
               <tr className="text-slate-500 border-b border-[#334155]">
+                <th className="w-8 py-2">
+                  <input type="checkbox"
+                    checked={displayItems.length > 0 && displayItems.every((it) => selected.has(it.id))}
+                    onChange={(e) => {
+                      if (e.target.checked) setSelected(new Set([...selected, ...displayItems.map((it) => it.id)]))
+                      else setSelected(new Set([...selected].filter((id) => !displayItems.some((it) => it.id === id))))
+                    }}
+                    className="w-3.5 h-3.5 accent-blue-500 cursor-pointer" />
+                </th>
                 <th className="text-left py-2 font-medium cursor-pointer hover:text-slate-300" onClick={() => setSortBy('name')}>
                   {t('Instrumento', 'Instrument')} {sortBy === 'name' ? '↕' : ''}
                 </th>
@@ -194,7 +242,18 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                 const retAbs = hasReturn ? (item.currentPrice - item.purchasePrice) * (item.quantity || 0) : null
 
                 return (
-                  <tr key={item.id || item.symbol} className="border-b border-[#334155]/30 hover:bg-[#283548]/50 transition-colors group">
+                  <tr key={item.id || item.symbol} className={`border-b border-[#334155]/30 hover:bg-[#283548]/50 transition-colors group ${selected.has(item.id) ? 'bg-blue-500/5' : ''}`}>
+                    <td className="py-4 w-8">
+                      <input type="checkbox"
+                        checked={selected.has(item.id)}
+                        onChange={(e) => {
+                          const next = new Set(selected)
+                          if (e.target.checked) next.add(item.id)
+                          else { next.delete(item.id); setConfirmBulkDelete(false) }
+                          setSelected(next)
+                        }}
+                        className="w-3.5 h-3.5 accent-blue-500 cursor-pointer" />
+                    </td>
                     <td className="py-4">
                       <div className="flex items-center gap-0">
                         {/* Left color bar */}
