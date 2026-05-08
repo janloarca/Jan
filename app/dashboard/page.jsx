@@ -13,7 +13,7 @@ import SellModal from '@/components/SellModal'
 import TransferModal from '@/components/TransferModal'
 
 import SettingsModal from '@/components/SettingsModal'
-import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue } from '@/components/dashboard/utils'
+import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, formatCurrency, getTypeCategory } from '@/components/dashboard/utils'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution } from '@/components/dashboard/analytics'
 import { useBenchmark } from '@/hooks/useBenchmark'
 import Header from '@/components/dashboard/Header'
@@ -422,6 +422,58 @@ export default function DashboardPage() {
     })
   }, [enrichedItems, snapshots, transactions, lang, netWorth, totalAssets])
 
+  const handleShare = useCallback(async () => {
+    const t = (es, en) => lang === 'es' ? es : en
+    const assets = enrichedItems.filter((it) => !it.isDebt)
+    const debts = enrichedItems.filter((it) => it.isDebt)
+    const debtTotal = debts.reduce((s, it) => s + Math.abs(getItemValue(it)), 0)
+
+    const byCat = {}
+    assets.forEach((it) => {
+      const cat = getTypeCategory(it)
+      byCat[cat] = (byCat[cat] || 0) + getItemValue(it)
+    })
+    const catLines = Object.entries(byCat)
+      .sort((a, b) => b[1] - a[1])
+      .map(([cat, val]) => `  ${cat}: ${formatCurrency(val)} (${totalAssets > 0 ? ((val / totalAssets) * 100).toFixed(1) : 0}%)`)
+      .join('\n')
+
+    const top5 = [...assets]
+      .map((it) => ({ name: it.name || it.symbol, value: getItemValue(it) }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5)
+      .map((it) => `  ${it.name}: ${formatCurrency(it.value)}`)
+      .join('\n')
+
+    const text = [
+      `⚡ ${t('Mi Portafolio', 'My Portfolio')} — Chispudo`,
+      '',
+      `${t('Patrimonio Neto', 'Net Worth')}: ${formatCurrency(netWorth)}`,
+      `${t('Activos', 'Assets')}: ${formatCurrency(totalAssets)}`,
+      debtTotal > 0 ? `${t('Deuda', 'Debt')}: ${formatCurrency(debtTotal)}` : null,
+      returnYTD ? `${t('Retorno YTD', 'YTD Return')}: ${returnYTD >= 0 ? '+' : ''}${returnYTD.toFixed(2)}%` : null,
+      '',
+      `${t('Distribución', 'Allocation')}:`,
+      catLines,
+      '',
+      `Top 5:`,
+      top5,
+      '',
+      `${t('Posiciones', 'Positions')}: ${enrichedItems.length}`,
+      '',
+      `chispu.xyz`,
+    ].filter(Boolean).join('\n')
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Chispudo Portfolio', text })
+      } catch {}
+    } else {
+      await navigator.clipboard.writeText(text)
+      alert(t('Resumen copiado al portapapeles', 'Summary copied to clipboard'))
+    }
+  }, [enrichedItems, netWorth, totalAssets, returnYTD, lang])
+
   useEffect(() => {
     const handler = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setCmdPaletteOpen(true) }
@@ -441,6 +493,7 @@ export default function DashboardPage() {
       case 'export': handleExport(); break
       case 'report': handleReport(); break
       case 'print': setModal('print'); break
+      case 'share': handleShare(); break
       case 'transfer': setModal('transfer'); break
       case 'settings': setModal('settings'); break
       case 'refresh': handleRefresh(); break
@@ -747,6 +800,7 @@ export default function DashboardPage() {
           onAddAccount={() => setModal('account')}
           onTransfer={() => setModal('transfer')}
           onExport={handleExport}
+          onShare={handleShare}
           itemCount={enrichedItems.length}
           lang={lang}
         />
@@ -917,6 +971,7 @@ export default function DashboardPage() {
         onAdd={() => setModal('account')}
         onImport={() => setModal('import')}
         onExport={handleExport}
+        onShare={handleShare}
         onSettings={() => setModal('settings')}
         onSearch={() => setCmdPaletteOpen(true)}
         lang={lang}
