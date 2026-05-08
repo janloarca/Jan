@@ -3,15 +3,28 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
+function setSessionCookie(token) {
+  const secure = window.location.protocol === 'https:' ? '; Secure' : ''
+  document.cookie = `__session=${token}; path=/; max-age=3600; SameSite=Lax${secure}`
+}
+
+function isInAppBrowser() {
+  const ua = navigator.userAgent || ''
+  return /FBAN|FBAV|Instagram|Line\/|Twitter|Snapchat|WhatsApp|WebView|wv\)/i.test(ua)
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isSignUp, setIsSignUp] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [inAppBrowser, setInAppBrowser] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
+    if (isInAppBrowser()) setInAppBrowser(true)
+
     let unsub = () => {}
     async function check() {
       const { auth } = await import('@/lib/firebase')
@@ -20,7 +33,7 @@ export default function LoginPage() {
       unsub = onAuthStateChanged(auth, async (u) => {
         if (u) {
           const token = await u.getIdToken()
-          document.cookie = `__session=${token}; path=/; max-age=3600; SameSite=Lax`
+          setSessionCookie(token)
           router.push('/dashboard')
         }
       })
@@ -45,7 +58,7 @@ export default function LoginPage() {
         cred = await signInWithEmailAndPassword(auth, email, password)
       }
       const token = await cred.user.getIdToken()
-      document.cookie = `__session=${token}; path=/; max-age=3600; SameSite=Lax`
+      setSessionCookie(token)
       router.push('/dashboard')
     } catch (err) {
       const msg = err.code === 'auth/wrong-password' ? 'Contraseña incorrecta'
@@ -54,6 +67,8 @@ export default function LoginPage() {
         : err.code === 'auth/weak-password' ? 'La contraseña debe tener al menos 6 caracteres'
         : err.code === 'auth/invalid-email' ? 'Email inválido'
         : err.code === 'auth/invalid-credential' ? 'Email o contraseña incorrectos'
+        : err.code === 'auth/network-request-failed' ? 'Error de red. Verifica tu conexión.'
+        : err.code === 'auth/too-many-requests' ? 'Demasiados intentos. Espera un momento.'
         : err.message
       setError(msg)
     } finally {
@@ -77,6 +92,17 @@ export default function LoginPage() {
             {isSignUp ? 'Crear cuenta' : 'Iniciar sesión'}
           </h2>
 
+          {inAppBrowser && (
+            <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-lg text-sm">
+              Para mejor experiencia, abre en tu navegador:
+              <a href={typeof window !== 'undefined' ? window.location.href : '#'}
+                target="_blank" rel="noopener noreferrer"
+                className="block mt-1 text-blue-400 underline font-medium">
+                Abrir en Safari / Chrome
+              </a>
+            </div>
+          )}
+
           {error && (
             <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-sm">
               {error}
@@ -88,10 +114,12 @@ export default function LoginPage() {
               <label className="text-xs text-slate-400 mb-1.5 block">Email</label>
               <input
                 type="email"
+                inputMode="email"
+                autoComplete="email"
                 placeholder="tu@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2.5 bg-[#0f172a] border border-[#334155] rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 text-sm"
+                className="w-full px-4 py-2.5 bg-[#0f172a] border border-[#334155] rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 text-base"
                 required
               />
             </div>
@@ -99,17 +127,18 @@ export default function LoginPage() {
               <label className="text-xs text-slate-400 mb-1.5 block">Password</label>
               <input
                 type="password"
+                autoComplete={isSignUp ? 'new-password' : 'current-password'}
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2.5 bg-[#0f172a] border border-[#334155] rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 text-sm"
+                className="w-full px-4 py-2.5 bg-[#0f172a] border border-[#334155] rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 text-base"
                 required
               />
             </div>
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors font-medium text-sm"
+              className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 transition-colors font-medium text-base"
             >
               {loading ? 'Cargando...' : (isSignUp ? 'Crear cuenta' : 'Iniciar sesión')}
             </button>

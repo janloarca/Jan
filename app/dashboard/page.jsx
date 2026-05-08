@@ -133,7 +133,7 @@ export default function DashboardPage() {
           router.push('/login')
         } else {
           const token = await currentUser.getIdToken()
-          document.cookie = `__session=${token}; path=/; max-age=3600; SameSite=Lax`
+          document.cookie = `__session=${token}; path=/; max-age=3600; SameSite=Lax${window.location.protocol === 'https:' ? '; Secure' : ''}`
           setUser(currentUser)
         }
         setAuthLoading(false)
