@@ -51,6 +51,8 @@ import CommandPalette from '@/components/dashboard/CommandPalette'
 import RecurringTransactions from '@/components/dashboard/RecurringTransactions'
 import FeeAnalysis from '@/components/dashboard/FeeAnalysis'
 import MobileNav from '@/components/dashboard/MobileNav'
+import DataQuality from '@/components/dashboard/DataQuality'
+import EmptyState from '@/components/dashboard/EmptyState'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -653,10 +655,27 @@ export default function DashboardPage() {
         {/* Notifications */}
         <NotificationCenter items={enrichedItems} transactions={transactions} lang={lang} />
 
+        {/* Data Quality */}
+        <DataQuality items={enrichedItems} lang={lang} />
+
+        {/* Empty State */}
+        {enrichedItems.length === 0 && !dataLoading && (
+          <EmptyState
+            onAdd={() => setModal('account')}
+            onImport={() => setModal('import')}
+            onTemplate={async () => {
+              const { generateTemplate } = await import('@/lib/generateTemplate')
+              await generateTemplate()
+            }}
+            lang={lang}
+          />
+        )}
+
         {/* Insights Banner */}
-        <InsightsBanner insights={insights} lang={lang} />
+        {enrichedItems.length > 0 && <InsightsBanner insights={insights} lang={lang} />}
 
         {/* ═══ OVERVIEW ═══ */}
+        {enrichedItems.length > 0 && <>
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6 items-start">
           <div className="lg:col-span-2 flex flex-col gap-4">
             <NetWorthCard
@@ -752,6 +771,7 @@ export default function DashboardPage() {
             {lang === 'es' ? 'Generar Reporte PDF' : 'Generate PDF Report'}
           </button>
         </div>
+        </>}
       </main>
 
       {modal === 'import' && (
