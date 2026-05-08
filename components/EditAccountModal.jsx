@@ -50,6 +50,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     safeType: item.safeType || 'post_money',
     interestRate: item.interestRate?.toString() || '',
     minimumPayment: item.minimumPayment?.toString() || '',
+    beneficiary: item.beneficiary || '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -154,9 +155,10 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         updated.custodyDetails = form.custodyDetails
       }
 
-      // Notes
+      // Notes & beneficiary
       updated.notes = form.notes || ''
       updated.tags = form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : []
+      updated.beneficiary = form.beneficiary || ''
 
       // Tax jurisdiction
       updated.taxJurisdiction = form.taxJurisdiction || ''
@@ -426,6 +428,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               <label className={labelCls}>{t('Etiquetas', 'Tags')} <span className="text-[var(--text-muted,#475569)] font-normal">({t('separadas por coma', 'comma-separated')})</span></label>
               <input value={form.tags} onChange={e => set('tags', e.target.value)}
                 placeholder={t('largo plazo, alta prioridad...', 'long term, high priority...')}
+                className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>{t('Beneficiario', 'Beneficiary')}</label>
+              <input value={form.beneficiary} onChange={e => set('beneficiary', e.target.value)}
+                placeholder={t('Nombre del beneficiario...', 'Beneficiary name...')}
                 className={inputCls} />
             </div>
           </div>
