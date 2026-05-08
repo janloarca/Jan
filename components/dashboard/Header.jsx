@@ -1,6 +1,6 @@
 'use client'
 
-export default function Header({ user, lang, setLang, onImport, onSignOut, onRefresh, onSettings, pricesLoading, onAddAccount }) {
+export default function Header({ user, lang, setLang, onImport, onSignOut, onRefresh, onSettings, pricesLoading, onAddAccount, onCommandPalette }) {
   const today = new Date().toLocaleDateString(lang === 'es' ? 'es-ES' : 'en-US', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
   })
@@ -20,6 +20,15 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2">
             <span className="text-xs text-slate-500 hidden lg:block">{today}</span>
+            {onCommandPalette && (
+              <button onClick={onCommandPalette}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-500 border border-slate-600/50 rounded-lg hover:bg-[#283548] hover:text-slate-300 transition-colors">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <kbd className="text-[10px] text-slate-600 bg-slate-800/50 px-1 rounded">⌘K</kbd>
+              </button>
+            )}
             <button onClick={onRefresh} disabled={pricesLoading}
               className="px-2 py-1.5 text-xs text-blue-400 border border-blue-400/30 rounded-lg hover:bg-blue-400/10 transition-colors disabled:opacity-50">
               <span className={pricesLoading ? 'animate-spin inline-block' : ''}>↻</span>

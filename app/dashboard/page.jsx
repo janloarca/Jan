@@ -47,6 +47,9 @@ import IncomeCalendar from '@/components/dashboard/IncomeCalendar'
 import Watchlist from '@/components/dashboard/Watchlist'
 import NotificationCenter from '@/components/dashboard/NotificationCenter'
 import SectionCollapse from '@/components/dashboard/SectionCollapse'
+import CommandPalette from '@/components/dashboard/CommandPalette'
+import RecurringTransactions from '@/components/dashboard/RecurringTransactions'
+import FeeAnalysis from '@/components/dashboard/FeeAnalysis'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -108,6 +111,8 @@ export default function DashboardPage() {
     setLang(next)
     if (typeof window !== 'undefined') localStorage.setItem('chispudo-lang', next)
   }, [lang])
+
+  const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
 
   useEffect(() => {
     let unsubscribe = () => {}
@@ -409,6 +414,33 @@ export default function DashboardPage() {
     })
   }, [enrichedItems, snapshots, transactions, lang, netWorth, totalAssets])
 
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setCmdPaletteOpen(true) }
+      else if ((e.metaKey || e.ctrlKey) && e.key === 'n') { e.preventDefault(); setModal('account') }
+      else if ((e.metaKey || e.ctrlKey) && e.key === 'i') { e.preventDefault(); setModal('import') }
+      else if ((e.metaKey || e.ctrlKey) && e.key === 'e') { e.preventDefault(); handleExport() }
+      else if ((e.metaKey || e.ctrlKey) && e.key === 'r' && !e.shiftKey) { e.preventDefault(); handleRefresh() }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [handleExport, handleRefresh])
+
+  const handleCmdAction = useCallback((action, data) => {
+    switch (action) {
+      case 'add': setModal('account'); break
+      case 'import': setModal('import'); break
+      case 'export': handleExport(); break
+      case 'report': handleReport(); break
+      case 'transfer': setModal('transfer'); break
+      case 'settings': setModal('settings'); break
+      case 'refresh': handleRefresh(); break
+      case 'theme': handleSetTheme(theme === 'dark' ? 'light' : 'dark'); break
+      case 'lang': handleSetLang('toggle'); break
+      case 'viewItem': setDetailItem(data); break
+    }
+  }, [handleExport, handleReport, handleRefresh, handleSetTheme, handleSetLang, theme])
+
   const yearlyChange = useMemo(() => {
     if (snapshots.length < 2) return null
     const oneYearAgo = new Date()
@@ -589,6 +621,7 @@ export default function DashboardPage() {
         onRefresh={handleRefresh}
         pricesLoading={pricesLoading || ratesLoading}
         onAddAccount={() => setModal('account')}
+        onCommandPalette={() => setCmdPaletteOpen(true)}
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
@@ -689,6 +722,11 @@ export default function DashboardPage() {
               lang={lang}
             />
             <FinancialHealth items={enrichedItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+            <RecurringTransactions goals={goals} onSaveGoals={saveGoals} lang={lang} />
+            <FeeAnalysis items={enrichedItems} netWorth={netWorth} lang={lang} />
           </div>
 
           <RebalanceSuggestions items={enrichedItems} netWorth={netWorth} goals={goals} onSaveGoals={saveGoals} lang={lang} />
@@ -799,6 +837,14 @@ export default function DashboardPage() {
           uid={user?.uid}
         />
       )}
+
+      <CommandPalette
+        open={cmdPaletteOpen}
+        onClose={() => setCmdPaletteOpen(false)}
+        items={enrichedItems}
+        lang={lang}
+        onAction={handleCmdAction}
+      />
     </div>
   )
 }
