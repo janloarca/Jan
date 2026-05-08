@@ -86,7 +86,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es' }) {
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#334155]">
           <div>
             <h2 className="text-lg font-bold text-white">{item.name || item.symbol}</h2>
-            <span className="text-xs text-slate-500">{item.symbol} · {item.type} {item.institution ? `· ${item.institution}` : ''}</span>
+            <span className="text-xs text-slate-500">{item.symbol} · {item.type}{item.subtype ? `/${item.subtype}` : ''} {item.institution ? `· ${item.institution}` : ''}</span>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
         </div>
@@ -123,6 +123,36 @@ export default function AssetDetailModal({ item, onClose, lang = 'es' }) {
               </span>
             )}
           </div>
+
+          {/* Extra details */}
+          {(item.maturityDate || item.incomeRate || item.rateType === 'variable' || item.custodyType || item.taxJurisdiction || item.notes) && (
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400">
+              {item.maturityDate && (
+                <span>{t('Vence', 'Matures')}: <span className="text-amber-400 font-medium">{item.maturityDate}</span></span>
+              )}
+              {item.rateType === 'variable' && item.rateMin > 0 && (
+                <span>{t('Tasa', 'Rate')}: <span className="text-blue-400 font-medium">{item.rateMin}% - {item.rateMax}%</span></span>
+              )}
+              {item.rateType === 'continuous' && item.incomeRate > 0 && (
+                <span>{t('Tasa continua', 'Continuous rate')}: <span className="text-cyan-400 font-medium">{item.incomeRate}%</span></span>
+              )}
+              {item.rateType !== 'variable' && item.rateType !== 'continuous' && item.incomeRate > 0 && (
+                <span>{t('Tasa', 'Rate')}: <span className="text-emerald-400 font-medium">{item.incomeRate}%</span></span>
+              )}
+              {item.custodyType && (
+                <span>{item.custodyType === 'self_custody' ? '🔐' : item.custodyType === 'defi_protocol' ? '🌐' : '🏦'} {item.custodyDetails || item.custodyType}</span>
+              )}
+              {item.taxJurisdiction && (
+                <span>🏛 {item.taxJurisdiction}</span>
+              )}
+              {item.isIlliquid && (
+                <span className="text-amber-400">{t('Ilíquido', 'Illiquid')}</span>
+              )}
+              {item.notes && (
+                <span className="text-slate-500 italic w-full mt-1">{item.notes}</span>
+              )}
+            </div>
+          )}
 
           {/* Chart */}
           <div>

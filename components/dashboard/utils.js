@@ -46,17 +46,19 @@ export function formatShortDate(dateStr) {
   } catch { return dateStr }
 }
 
-export function getTypeCategory(type) {
-  if (!type) return 'other'
+export function getTypeCategory(itemOrType) {
+  if (!itemOrType) return 'other'
+  const type = typeof itemOrType === 'string' ? itemOrType : itemOrType.type || ''
+  if (typeof itemOrType === 'object' && itemOrType.isDebt) return 'debts'
   const t = type.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  if (/^debt$/i.test(t) || /pasivo|liability|mortgage|hipoteca|loan|prestamo|credit.?card|tarjeta/i.test(t)) return 'debts'
   if (/crypto|cripto|blockchain|bitcoin|btc|eth|token|coin/i.test(t)) return 'crypto'
   if (/realestate|real.?estate|inmueble|property|crowdfund/i.test(t)) return 'realestate'
   if (/alternative|alternativ|safe.?note|vc.?fund|private.?equity|club.?deal|collectible/i.test(t)) return 'alternatives'
   if (/stock|accion|equity|reit|share/i.test(t)) return 'stocks'
-  if (/bond|bono|instrumento|inversion|deuda|debt|cdt|plazo|treasury|letra|pagare|deposito|certificado/i.test(t)) return 'bonds'
+  if (/bond|bono|instrumento|inversion|cdt|plazo|treasury|letra|pagare|deposito|certificado/i.test(t)) return 'bonds'
   if (/fund|fondo|etf|index|mutual/i.test(t)) return 'funds'
   if (/bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i.test(t)) return 'banks'
-  if (/debt|deuda|pasivo|liability|mortgage|hipoteca|loan|prestamo|credit.?card|tarjeta/i.test(t)) return 'debts'
   return 'other'
 }
 
