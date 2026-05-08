@@ -11,7 +11,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
   const [dismissWarning, setDismissWarning] = useState(false)
 
   const counts = useMemo(() => {
-    const c = { all: items.length, stocks: 0, crypto: 0, bonds: 0, funds: 0, banks: 0, realestate: 0, alternatives: 0 }
+    const c = { all: items.length, stocks: 0, crypto: 0, bonds: 0, funds: 0, banks: 0, realestate: 0, alternatives: 0, debts: 0 }
     items.forEach((it) => {
       const cat = getTypeCategory(it.type)
       if (c[cat] !== undefined) c[cat]++
@@ -60,6 +60,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
     ...(counts.banks > 0 ? [{ key: 'banks', icon: '🏦', label: lang === 'es' ? `Bancos (${counts.banks})` : `Banks (${counts.banks})` }] : []),
     ...(counts.realestate > 0 ? [{ key: 'realestate', icon: '🏠', label: lang === 'es' ? `Inmuebles (${counts.realestate})` : `Real Estate (${counts.realestate})` }] : []),
     ...(counts.alternatives > 0 ? [{ key: 'alternatives', icon: '🔮', label: lang === 'es' ? `Alternativos (${counts.alternatives})` : `Alternatives (${counts.alternatives})` }] : []),
+    ...(counts.debts > 0 ? [{ key: 'debts', icon: '💳', label: lang === 'es' ? `Deudas (${counts.debts})` : `Debts (${counts.debts})` }] : []),
   ]
 
   const t = (es, en) => lang === 'es' ? es : en
@@ -257,9 +258,9 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                       )}
                     </td>
                     <td className="text-right py-3">
-                      <span className="text-emerald-400 font-medium cursor-pointer hover:underline"
+                      <span className={`${value < 0 ? 'text-red-400' : 'text-emerald-400'} font-medium cursor-pointer hover:underline`}
                         onClick={() => onViewItem && onViewItem(item)}>
-                        {formatCurrency(value)}
+                        {formatCurrency(Math.abs(value))}{value < 0 ? ' ⓓ' : ''}
                       </span>
                     </td>
                     <td className="text-right py-3 w-24">

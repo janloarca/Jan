@@ -56,6 +56,7 @@ export function getTypeCategory(type) {
   if (/bond|bono|instrumento|inversion|deuda|debt|cdt|plazo|treasury|letra|pagare|deposito|certificado/i.test(t)) return 'bonds'
   if (/fund|fondo|etf|index|mutual/i.test(t)) return 'funds'
   if (/bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i.test(t)) return 'banks'
+  if (/debt|deuda|pasivo|liability|mortgage|hipoteca|loan|prestamo|credit.?card|tarjeta/i.test(t)) return 'debts'
   return 'other'
 }
 
@@ -67,6 +68,7 @@ export const TYPE_COLORS = {
   banks: { bg: '#6b7280', badge: 'bg-gray-500/20 text-gray-400' },
   realestate: { bg: '#f97316', badge: 'bg-orange-500/20 text-orange-400' },
   alternatives: { bg: '#ec4899', badge: 'bg-pink-500/20 text-pink-400' },
+  debts: { bg: '#ef4444', badge: 'bg-red-500/20 text-red-400' },
   other: { bg: '#64748b', badge: 'bg-slate-500/20 text-slate-400' },
 }
 
@@ -76,7 +78,8 @@ export function getItemPrice(item) {
 }
 
 export function getItemValue(item) {
-  return (item.quantity || 0) * getItemPrice(item)
+  const val = (item.quantity || 0) * getItemPrice(item)
+  return item.isDebt ? -Math.abs(val) : val
 }
 
 export const TYPE_ICONS = {
@@ -87,6 +90,7 @@ export const TYPE_ICONS = {
   banks: '🏦',
   realestate: '🏠',
   alternatives: '🔮',
+  debts: '💳',
   other: '📊',
 }
 

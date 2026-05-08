@@ -68,6 +68,14 @@ const TYPES = [
     { key: 'collectible', es: 'Coleccionable', en: 'Collectible' },
     { key: 'other', es: 'Otro', en: 'Other' },
   ]},
+  { key: 'Debt', icon: '💳', es: 'Deuda/Pasivo', en: 'Debt/Liability', subtypes: [
+    { key: 'mortgage', es: 'Hipoteca', en: 'Mortgage' },
+    { key: 'personal_loan', es: 'Préstamo Personal', en: 'Personal Loan' },
+    { key: 'credit_card', es: 'Tarjeta de Crédito', en: 'Credit Card' },
+    { key: 'auto_loan', es: 'Préstamo Auto', en: 'Auto Loan' },
+    { key: 'student_loan', es: 'Préstamo Estudiantil', en: 'Student Loan' },
+    { key: 'other', es: 'Otro', en: 'Other' },
+  ]},
 ]
 
 const ACCOUNT_TYPES = [
@@ -96,6 +104,9 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
     isIlliquid: false,
     custodyType: '', custodyDetails: '',
     notes: '',
+    taxJurisdiction: '',
+    safeCap: '', safeDiscount: '', safeType: 'post_money',
+    interestRate: '', minimumPayment: '',
   })
   const [isNewMoney, setIsNewMoney] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -119,6 +130,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
   const isBond = type === 'Bond'
   const isAlternative = type === 'Alternative'
   const isCrypto = type === 'Crypto'
+  const isDebt = type === 'Debt'
   const currentTypeInfo = TYPES.find(tp => tp.key === type)
 
   useEffect(() => {
@@ -240,7 +252,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
     setError('')
 
     if (!form.acquisitionDate) { setError(t('La fecha es obligatoria para calcular rendimientos', 'Date is required for return calculations')); return }
-    if (!form.institution && !isProperty) { setError(t('La institución es obligatoria', 'Institution is required')); return }
+    if (!form.institution && !isProperty && !isDebt) { setError(t('La institución es obligatoria', 'Institution is required')); return }
 
     const qty = parseFloat(form.quantity) || (isBank || isProperty ? 1 : 0)
     const price = parseFloat(form.purchasePrice) || 0
@@ -343,6 +355,23 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
 
       // Notes
       if (form.notes) item.notes = form.notes
+
+      // Tax jurisdiction
+      if (form.taxJurisdiction) item.taxJurisdiction = form.taxJurisdiction
+
+      // SAFE Note fields
+      if (isAlternative && subtype === 'safe_note') {
+        item.safeType = form.safeType
+        if (form.safeCap) item.safeCap = parseFloat(form.safeCap) || 0
+        if (form.safeDiscount) item.safeDiscount = parseFloat(form.safeDiscount) || 0
+      }
+
+      // Debt fields
+      if (isDebt) {
+        item.isDebt = true
+        if (form.interestRate) item.interestRate = parseFloat(form.interestRate) || 0
+        if (form.minimumPayment) item.minimumPayment = parseFloat(form.minimumPayment) || 0
+      }
 
       // Merge with existing if duplicate accepted
       if (duplicateWarning) {
@@ -513,7 +542,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                     placeholder={t('BAM, BI, Banrural...', 'Chase, BoA...')} className={inputCls} />
                 ) : (
                   <input value={form.name} onChange={e => set('name', e.target.value)}
-                    placeholder={isBond ? t('Bono Corporativo IDC', 'IDC Corporate Bond') : isAlternative ? t('Club Cash In', 'Club Cash In') : isProperty ? t('Apartamento Centro', 'Downtown Apartment') : t('CDT Banco Industrial', 'Certificate of Deposit')}
+                    placeholder={isDebt ? t('Hipoteca casa, Tarjeta...', 'Home mortgage, Credit card...') : isBond ? t('Bono Corporativo IDC', 'IDC Corporate Bond') : isAlternative ? t('Club Cash In', 'Club Cash In') : isProperty ? t('Apartamento Centro', 'Downtown Apartment') : t('CDT Banco Industrial', 'Certificate of Deposit')}
                     className={inputCls} />
                 )}
               </div>
@@ -690,6 +719,80 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
                 </div>
               </div>
             )}
+
+            {/* Debt fields */}
+            {isDebt && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelCls}>{t('Saldo actual', 'Current balance')} *</label>
+                    <input value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
+                      placeholder="50000" type="number" step="any" className={inputCls} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>{t('Tasa de interés %', 'Interest rate %')}</label>
+                    <input value={form.interestRate} onChange={e => set('interestRate', e.target.value)}
+                      placeholder="7.5" type="number" step="any" className={inputCls} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelCls}>{t('Pago mínimo', 'Minimum payment')}</label>
+                    <input value={form.minimumPayment} onChange={e => set('minimumPayment', e.target.value)}
+                      placeholder="500" type="number" step="any" className={inputCls} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>{t('Fecha vencimiento', 'Maturity date')}</label>
+                    <input value={form.maturityDate} onChange={e => set('maturityDate', e.target.value)}
+                      type="date" className={inputCls} />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* SAFE Note fields */}
+            {isAlternative && subtype === 'safe_note' && (
+              <div className="border border-pink-500/20 bg-pink-500/5 rounded-lg p-3 space-y-3">
+                <p className="text-xs text-pink-400 font-medium">🔮 SAFE Note</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tipo', 'Type')}</label>
+                    <select value={form.safeType} onChange={e => set('safeType', e.target.value)} className={inputCls}>
+                      <option value="post_money">Post-Money</option>
+                      <option value="pre_money">Pre-Money</option>
+                      <option value="mfn">MFN</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Cap', 'Cap')}</label>
+                    <input value={form.safeCap} onChange={e => set('safeCap', e.target.value)}
+                      placeholder="10000000" type="number" step="any" className={inputCls} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Descuento %', 'Discount %')}</label>
+                    <input value={form.safeDiscount} onChange={e => set('safeDiscount', e.target.value)}
+                      placeholder="20" type="number" step="any" className={inputCls} />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Tax jurisdiction */}
+            <div>
+              <label className={labelCls}>{t('Jurisdicción fiscal', 'Tax jurisdiction')}</label>
+              <select value={form.taxJurisdiction} onChange={e => set('taxJurisdiction', e.target.value)} className={inputCls}>
+                <option value="">{t('-- Opcional --', '-- Optional --')}</option>
+                <option value="GT">🇬🇹 Guatemala</option>
+                <option value="MX">🇲🇽 México</option>
+                <option value="US">🇺🇸 USA</option>
+                <option value="CO">🇨🇴 Colombia</option>
+                <option value="CL">🇨🇱 Chile</option>
+                <option value="BR">🇧🇷 Brasil</option>
+                <option value="PE">🇵🇪 Perú</option>
+                <option value="AR">🇦🇷 Argentina</option>
+                <option value="OTHER">{t('Otro', 'Other')}</option>
+              </select>
+            </div>
 
             {/* Currency + Account Type */}
             <div className="grid grid-cols-2 gap-3">

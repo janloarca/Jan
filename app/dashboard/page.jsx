@@ -40,6 +40,7 @@ import OptimizeModal from '@/components/OptimizeModal'
 import AssetDetailModal from '@/components/dashboard/AssetDetailModal'
 import UpcomingDividends from '@/components/dashboard/UpcomingDividends'
 import ContinuousYieldDisplay from '@/components/dashboard/ContinuousYieldDisplay'
+import VariableRateDashboard from '@/components/dashboard/VariableRateDashboard'
 import SectionCollapse from '@/components/dashboard/SectionCollapse'
 
 export default function DashboardPage() {
@@ -594,6 +595,7 @@ export default function DashboardPage() {
             <BenchmarkComparison benchmarkReturn={benchmarkReturn} portfolioReturn={returnYTD} lang={lang} />
             <UpcomingDividends items={enrichedItems} lang={lang} />
             <ContinuousYieldDisplay items={enrichedItems} lang={lang} />
+            <VariableRateDashboard items={enrichedItems} lang={lang} />
             <TopMovers items={enrichedItems} transactions={transactions} lang={lang} />
           </div>
 

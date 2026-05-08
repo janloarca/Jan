@@ -44,6 +44,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     custodyDetails: item.custodyDetails || '',
     notes: item.notes || '',
     tags: (item.tags || []).join(', '),
+    taxJurisdiction: item.taxJurisdiction || '',
+    safeCap: item.safeCap?.toString() || '',
+    safeDiscount: item.safeDiscount?.toString() || '',
+    safeType: item.safeType || 'post_money',
+    interestRate: item.interestRate?.toString() || '',
+    minimumPayment: item.minimumPayment?.toString() || '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -59,7 +65,9 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
   const isBank = /bank|banco/i.test(form.type)
   const isBondOrAlt = /bond|bono|inversion|alternative|alternativ/i.test(form.type)
   const isCrypto = /crypto|cripto/i.test(form.type)
-  const hasIncome = !isMarket
+  const isDebt = /debt|deuda|pasivo|liability/i.test(form.type)
+  const isAlternative = /alternative|alternativ/i.test(form.type)
+  const hasIncome = !isMarket && !isDebt
 
   useEffect(() => {
     const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
@@ -150,6 +158,23 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
       updated.notes = form.notes || ''
       updated.tags = form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : []
 
+      // Tax jurisdiction
+      updated.taxJurisdiction = form.taxJurisdiction || ''
+
+      // SAFE fields
+      if (isAlternative && form.subtype === 'safe_note') {
+        updated.safeType = form.safeType
+        updated.safeCap = parseFloat(form.safeCap) || 0
+        updated.safeDiscount = parseFloat(form.safeDiscount) || 0
+      }
+
+      // Debt fields
+      if (isDebt) {
+        updated.isDebt = true
+        updated.interestRate = parseFloat(form.interestRate) || 0
+        updated.minimumPayment = parseFloat(form.minimumPayment) || 0
+      }
+
       await onSave(updated)
       onClose()
     } catch (err) { setError(err.message) }
@@ -214,6 +239,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 <option value="Bank">{t('Banco', 'Bank')}</option>
                 <option value="RealEstate">{t('Inmueble', 'Real Estate')}</option>
                 <option value="Alternative">{t('Alternativo', 'Alternative')}</option>
+                <option value="Debt">{t('Deuda/Pasivo', 'Debt/Liability')}</option>
                 <option value="Inmueble">{t('Inmueble (legacy)', 'Real Estate (legacy)')}</option>
                 <option value="Inversion">{t('Inversión (legacy)', 'Investment (legacy)')}</option>
               </select>
@@ -327,6 +353,66 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               </div>
             </div>
           )}
+
+          {/* Debt fields */}
+          {isDebt && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>{t('Tasa interés %', 'Interest rate %')}</label>
+                <input value={form.interestRate} onChange={e => set('interestRate', e.target.value)}
+                  placeholder="7.5" type="number" step="any" className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>{t('Pago mínimo', 'Min payment')}</label>
+                <input value={form.minimumPayment} onChange={e => set('minimumPayment', e.target.value)}
+                  placeholder="500" type="number" step="any" className={inputCls} />
+              </div>
+            </div>
+          )}
+
+          {/* SAFE Note fields */}
+          {isAlternative && form.subtype === 'safe_note' && (
+            <div className="border border-pink-500/20 bg-pink-500/5 rounded-lg p-3 space-y-2">
+              <p className="text-xs text-pink-400 font-medium">🔮 SAFE Note</p>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tipo', 'Type')}</label>
+                  <select value={form.safeType} onChange={e => set('safeType', e.target.value)} className={inputCls}>
+                    <option value="post_money">Post-Money</option>
+                    <option value="pre_money">Pre-Money</option>
+                    <option value="mfn">MFN</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">Cap</label>
+                  <input value={form.safeCap} onChange={e => set('safeCap', e.target.value)}
+                    placeholder="10000000" type="number" step="any" className={inputCls} />
+                </div>
+                <div>
+                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Desc %', 'Disc %')}</label>
+                  <input value={form.safeDiscount} onChange={e => set('safeDiscount', e.target.value)}
+                    placeholder="20" type="number" step="any" className={inputCls} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Tax jurisdiction */}
+          <div>
+            <label className={labelCls}>{t('Jurisdicción fiscal', 'Tax jurisdiction')}</label>
+            <select value={form.taxJurisdiction} onChange={e => set('taxJurisdiction', e.target.value)} className={inputCls}>
+              <option value="">{t('-- Opcional --', '-- Optional --')}</option>
+              <option value="GT">🇬🇹 Guatemala</option>
+              <option value="MX">🇲🇽 México</option>
+              <option value="US">🇺🇸 USA</option>
+              <option value="CO">🇨🇴 Colombia</option>
+              <option value="CL">🇨🇱 Chile</option>
+              <option value="BR">🇧🇷 Brasil</option>
+              <option value="PE">🇵🇪 Perú</option>
+              <option value="AR">🇦🇷 Argentina</option>
+              <option value="OTHER">{t('Otro', 'Other')}</option>
+            </select>
+          </div>
 
           {/* Notes & Tags */}
           <div className="space-y-3">
