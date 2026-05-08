@@ -55,6 +55,8 @@ import DataQuality from '@/components/dashboard/DataQuality'
 import EmptyState from '@/components/dashboard/EmptyState'
 import SnapshotComparison from '@/components/dashboard/SnapshotComparison'
 import SavingsRate from '@/components/dashboard/SavingsRate'
+import PerformanceAttribution from '@/components/dashboard/PerformanceAttribution'
+import PrintSummary from '@/components/dashboard/PrintSummary'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -437,6 +439,7 @@ export default function DashboardPage() {
       case 'import': setModal('import'); break
       case 'export': handleExport(); break
       case 'report': handleReport(); break
+      case 'print': setModal('print'); break
       case 'transfer': setModal('transfer'); break
       case 'settings': setModal('settings'); break
       case 'refresh': handleRefresh(); break
@@ -710,6 +713,7 @@ export default function DashboardPage() {
         {/* ═══ PERFORMANCE & RISK ═══ */}
         <SectionCollapse title={lang === 'es' ? 'Rendimiento y Riesgo' : 'Performance & Risk'} id="perf-risk">
           <PerformanceSummary items={enrichedItems} transactions={transactions} convert={convert} baseCurrency={baseCurrency} netWorth={netWorth} lang={lang} />
+          <PerformanceAttribution items={enrichedItems} lang={lang} />
           <RiskMetrics snapshots={snapshots} benchmarkData={benchmarkData} netWorth={netWorth} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} />
           <CurrencyImpact items={enrichedItems} convert={convert} baseCurrency={baseCurrency} rates={rates} lang={lang} />
           <MonthlyPerformance snapshots={snapshots} transactions={transactions} convert={convert} baseCurrency={baseCurrency} lang={lang} />
@@ -769,10 +773,14 @@ export default function DashboardPage() {
         </SectionCollapse>
 
         {/* Generate Report */}
-        <div className="text-center py-6">
+        <div className="text-center py-6 flex items-center justify-center gap-3">
           <button onClick={handleReport}
             className="px-6 py-3 text-sm font-medium text-slate-300 bg-[#1e293b] border border-[#334155] rounded-xl hover:bg-[#283548] hover:text-white transition-colors inline-flex items-center gap-2">
             {lang === 'es' ? 'Generar Reporte PDF' : 'Generate PDF Report'}
+          </button>
+          <button onClick={() => setModal('print')}
+            className="px-6 py-3 text-sm font-medium text-slate-300 bg-[#1e293b] border border-[#334155] rounded-xl hover:bg-[#283548] hover:text-white transition-colors inline-flex items-center gap-2">
+            {lang === 'es' ? 'Resumen para Imprimir' : 'Print Summary'}
           </button>
         </div>
         </>}
@@ -840,6 +848,18 @@ export default function DashboardPage() {
           theme={theme}
           onToggleTheme={handleSetTheme}
           lang={lang}
+        />
+      )}
+
+      {modal === 'print' && (
+        <PrintSummary
+          items={enrichedItems}
+          netWorth={netWorth}
+          totalAssets={totalAssets}
+          snapshots={snapshots}
+          transactions={transactions}
+          lang={lang}
+          onClose={() => setModal(null)}
         />
       )}
 
