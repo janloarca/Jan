@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { authFetch } from '@/lib/authFetch'
 
 const CURRENCIES = [
   { code: 'USD', name: 'US Dollar', symbol: '$' },
@@ -24,6 +25,10 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [tab, setTab] = useState('general')
+  const [shareToken, setShareToken] = useState(null)
+  const [shareEnabled, setShareEnabled] = useState(false)
+  const [shareLoading, setShareLoading] = useState(false)
+  const [shareCopied, setShareCopied] = useState(false)
 
   const t = (es, en) => lang === 'es' ? es : en
 
@@ -60,8 +65,34 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
     setConfirmDelete(null)
   }
 
+  const handleShareAction = useCallback(async (action) => {
+    setShareLoading(true)
+    try {
+      const res = await authFetch('/api/share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setShareToken(data.token || null)
+        setShareEnabled(data.enabled ?? false)
+      }
+    } catch {}
+    setShareLoading(false)
+  }, [])
+
+  const shareUrl = shareToken ? `${typeof window !== 'undefined' ? window.location.origin : ''}/shared/${shareToken}` : ''
+
+  const copyShareLink = useCallback(() => {
+    navigator.clipboard.writeText(shareUrl)
+    setShareCopied(true)
+    setTimeout(() => setShareCopied(false), 2000)
+  }, [shareUrl])
+
   const tabs = [
     { key: 'general', label: t('General', 'General') },
+    { key: 'share', label: t('Compartir', 'Share') },
     { key: 'data', label: t('Datos', 'Data') },
   ]
 
@@ -147,6 +178,64 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                 className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium">
                 {saving ? '...' : t('Guardar configuracion', 'Save settings')}
               </button>
+            </div>
+          )}
+
+          {tab === 'share' && (
+            <div className="space-y-5">
+              <div>
+                <h3 className="text-sm font-medium text-white mb-1">{t('Modo Asesor', 'Advisor Mode')}</h3>
+                <p className="text-xs text-slate-500 mb-4">{t(
+                  'Genera un link de solo lectura para compartir tu portafolio con asesores o contadores. No revela la institución de tus activos.',
+                  'Generate a read-only link to share your portfolio with advisors or accountants. Does not reveal your asset institutions.'
+                )}</p>
+              </div>
+
+              {!shareEnabled ? (
+                <button onClick={() => handleShareAction('enable')} disabled={shareLoading}
+                  className="w-full py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-50 transition-colors text-sm font-medium flex items-center justify-center gap-2">
+                  {shareLoading ? '...' : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                      </svg>
+                      {t('Activar link compartido', 'Enable share link')}
+                    </>
+                  )}
+                </button>
+              ) : (
+                <div className="space-y-3">
+                  <div className="bg-[#0f172a] border border-[#334155] rounded-lg p-3">
+                    <label className="text-xs text-slate-500 block mb-1.5">{t('Link de solo lectura', 'Read-only link')}</label>
+                    <div className="flex items-center gap-2">
+                      <input type="text" readOnly value={shareUrl}
+                        className="flex-1 bg-transparent text-xs text-slate-300 outline-none truncate" />
+                      <button onClick={copyShareLink}
+                        className="shrink-0 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-500 transition-colors">
+                        {shareCopied ? t('Copiado!', 'Copied!') : t('Copiar', 'Copy')}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button onClick={() => handleShareAction('regenerate')} disabled={shareLoading}
+                      className="flex-1 py-2 border border-[#334155] text-slate-300 rounded-lg hover:bg-slate-700/50 disabled:opacity-50 transition-colors text-xs">
+                      {t('Regenerar link', 'Regenerate link')}
+                    </button>
+                    <button onClick={() => handleShareAction('disable')} disabled={shareLoading}
+                      className="flex-1 py-2 border border-red-500/30 text-red-400 rounded-lg hover:bg-red-500/10 disabled:opacity-50 transition-colors text-xs">
+                      {t('Desactivar', 'Disable')}
+                    </button>
+                  </div>
+
+                  <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
+                    <p className="text-xs text-amber-400">{t(
+                      'Cualquier persona con este link puede ver tu portafolio (sin montos de instituciones). Regenera o desactiva el link en cualquier momento.',
+                      'Anyone with this link can view your portfolio (without institution details). Regenerate or disable the link at any time.'
+                    )}</p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
