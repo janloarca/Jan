@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { formatCurrency, getItemPrice, getItemValue, getTypeCategory, TYPE_COLORS, TYPE_ICONS } from '@/components/dashboard/utils'
 
@@ -42,6 +42,13 @@ export default function SharedPortfolioPage() {
 }
 
 function SharedDashboard({ items, snapshots, baseCurrency }) {
+  const [theme, setTheme] = useState('dark')
+
+  const toggleTheme = useCallback(() => {
+    const next = theme === 'dark' ? 'light' : 'dark'
+    setTheme(next)
+    document.documentElement.setAttribute('data-theme', next)
+  }, [theme])
   const totalAssets = useMemo(() =>
     items.reduce((s, it) => {
       const val = getItemValue(it)
@@ -102,7 +109,29 @@ function SharedDashboard({ items, snapshots, baseCurrency }) {
             <span className="text-emerald-400 font-bold text-lg">Chispudo</span>
             <span className="text-xs text-slate-500 bg-slate-800 px-2 py-0.5 rounded">Read-only</span>
           </div>
-          <span className="text-xs text-slate-500">Advisor View</span>
+          <div className="flex items-center gap-2">
+            <button onClick={() => {
+              const rows = [['Name', 'Symbol', 'Type', 'Qty', 'Price', 'Value', 'Allocation'].join(',')]
+              items.filter((it) => !it.isDebt).forEach((it) => {
+                const val = (it.quantity || 0) * getItemPrice(it)
+                const pct = totalAssets > 0 ? (val / totalAssets * 100).toFixed(2) : '0'
+                rows.push([it.name || '', it.symbol || '', it.type || '', it.quantity || 0, getItemPrice(it).toFixed(2), val.toFixed(2), pct + '%'].join(','))
+              })
+              const blob = new Blob([rows.join('\n')], { type: 'text/csv' })
+              const a = document.createElement('a')
+              a.href = URL.createObjectURL(blob)
+              a.download = `portfolio-${new Date().toISOString().split('T')[0]}.csv`
+              a.click()
+            }}
+              className="px-2 py-1 text-xs text-slate-500 border border-[#334155] rounded hover:bg-[#283548] transition-colors">
+              CSV
+            </button>
+            <button onClick={toggleTheme}
+              className="px-2 py-1 text-xs text-slate-500 border border-[#334155] rounded hover:bg-[#283548] transition-colors">
+              {theme === 'dark' ? '☀️' : '🌙'}
+            </button>
+            <span className="text-xs text-slate-500">Advisor View</span>
+          </div>
         </div>
       </header>
 
@@ -193,6 +222,9 @@ function SharedDashboard({ items, snapshots, baseCurrency }) {
             <GrowthChart snapshots={snapshots} />
           </div>
         )}
+
+        {/* Risk Overview */}
+        <RiskOverview items={items} totalAssets={totalAssets} byCategory={byCategory} />
 
         {/* Income & Maturity Summary */}
         <IncomeMaturitySummary items={items} />
@@ -317,6 +349,67 @@ function IncomeMaturitySummary({ items }) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function RiskOverview({ items, totalAssets, byCategory }) {
+  const metrics = useMemo(() => {
+    const nonDebt = items.filter((it) => !it.isDebt)
+    const values = nonDebt.map((it) => {
+      const v = (it.quantity || 0) * getItemPrice(it)
+      return v > 0 ? v : 0
+    }).filter((v) => v > 0)
+
+    if (values.length === 0 || totalAssets <= 0) return null
+
+    const weights = values.map((v) => v / totalAssets)
+    const hhi = weights.reduce((s, w) => s + w * w, 0) * 10000
+    const maxConcentration = Math.max(...weights) * 100
+
+    const catCount = byCategory.length
+    let diversificationScore = 100
+    if (hhi > 5000) diversificationScore -= 30
+    else if (hhi > 2500) diversificationScore -= 15
+    if (maxConcentration > 50) diversificationScore -= 25
+    else if (maxConcentration > 30) diversificationScore -= 10
+    if (catCount < 3) diversificationScore -= 20
+    else if (catCount < 5) diversificationScore -= 5
+    diversificationScore = Math.max(0, Math.min(100, diversificationScore))
+
+    const top3Weight = weights.sort((a, b) => b - a).slice(0, 3).reduce((s, w) => s + w, 0) * 100
+
+    return { hhi: Math.round(hhi), maxConcentration, diversificationScore, catCount, positionCount: values.length, top3Weight }
+  }, [items, totalAssets, byCategory])
+
+  if (!metrics) return null
+
+  const scoreColor = metrics.diversificationScore >= 70 ? 'text-emerald-400' : metrics.diversificationScore >= 40 ? 'text-amber-400' : 'text-red-400'
+  const scoreLabel = metrics.diversificationScore >= 70 ? 'Good' : metrics.diversificationScore >= 40 ? 'Moderate' : 'Concentrated'
+
+  return (
+    <div className="bg-[#1e293b]/80 rounded-xl border border-[#334155]/50 p-5">
+      <h3 className="text-sm font-medium text-slate-400 mb-4">Risk Overview</h3>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="text-center">
+          <div className={`text-2xl font-bold ${scoreColor}`}>{metrics.diversificationScore}</div>
+          <div className="text-xs text-slate-500">Diversification</div>
+          <div className={`text-xs ${scoreColor}`}>{scoreLabel}</div>
+        </div>
+        <div className="text-center">
+          <div className="text-2xl font-bold text-white">{metrics.positionCount}</div>
+          <div className="text-xs text-slate-500">Positions</div>
+          <div className="text-xs text-slate-600">{metrics.catCount} categories</div>
+        </div>
+        <div className="text-center">
+          <div className="text-2xl font-bold text-white">{metrics.maxConcentration.toFixed(1)}%</div>
+          <div className="text-xs text-slate-500">Largest Position</div>
+        </div>
+        <div className="text-center">
+          <div className="text-2xl font-bold text-white">{metrics.top3Weight.toFixed(1)}%</div>
+          <div className="text-xs text-slate-500">Top 3 Weight</div>
+        </div>
+      </div>
     </div>
   )
 }
