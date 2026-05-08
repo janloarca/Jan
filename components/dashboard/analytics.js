@@ -205,7 +205,7 @@ export function computeNetContributions(transactions, convert, baseCurrency) {
   }
 }
 
-export function generateInsights({ netWorth, benchmarkReturn, portfolioReturn, sharpe, volatility, maxDrawdown, hhi, incomeYield, goals, topContributor, topDrag }) {
+export function generateInsights({ netWorth, benchmarkReturn, portfolioReturn, sharpe, volatility, maxDrawdown, hhi, incomeYield, goals, topContributor, topDrag, maturingSoon, debtRatio }) {
   const insights = []
 
   if (benchmarkReturn != null && portfolioReturn != null) {
@@ -305,6 +305,24 @@ export function generateInsights({ netWorth, benchmarkReturn, portfolioReturn, s
       textEs: `Buen rendimiento pasivo: ${incomeYield.toFixed(1)}% anual en ingresos.`,
       textEn: `Strong passive income: ${incomeYield.toFixed(1)}% annual yield.`,
       priority: 7,
+    })
+  }
+
+  if (maturingSoon && maturingSoon > 0) {
+    insights.push({
+      type: 'warning',
+      textEs: `${maturingSoon} instrumento(s) vence(n) en los próximos 90 días`,
+      textEn: `${maturingSoon} instrument(s) maturing within 90 days`,
+      priority: 2,
+    })
+  }
+
+  if (debtRatio != null && debtRatio > 50) {
+    insights.push({
+      type: 'warning',
+      textEs: `Ratio deuda/activos alto: ${debtRatio.toFixed(0)}%. Considera reducir deuda.`,
+      textEn: `High debt-to-asset ratio: ${debtRatio.toFixed(0)}%. Consider reducing debt.`,
+      priority: 3,
     })
   }
 

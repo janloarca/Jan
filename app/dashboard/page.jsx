@@ -525,6 +525,15 @@ export default function DashboardPage() {
     const attribution = computeAssetAttribution(enrichedItems)
     const topContributor = attribution.length > 0 ? attribution[0] : null
     const topDrag = attribution.length > 0 ? attribution[attribution.length - 1] : null
+    const now = new Date()
+    const in90 = new Date(now.getTime() + 90 * 86400000)
+    const maturingSoon = enrichedItems.filter((it) => {
+      if (!it.maturityDate) return false
+      const md = new Date(it.maturityDate)
+      return md > now && md <= in90
+    }).length
+    const debtTotal = enrichedItems.filter((it) => it.isDebt).reduce((s, it) => s + Math.abs(getItemValue(it)), 0)
+    const debtRatio = totalAssets > 0 ? (debtTotal / totalAssets) * 100 : 0
     return generateInsights({
       netWorth,
       benchmarkReturn,
@@ -537,6 +546,8 @@ export default function DashboardPage() {
       goals,
       topContributor,
       topDrag,
+      maturingSoon,
+      debtRatio,
     })
   }, [netWorth, benchmarkReturn, returnYTD, riskMetrics, enrichedItems, annualDividends, goals])
 
