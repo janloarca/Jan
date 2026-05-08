@@ -52,6 +52,7 @@ import RecurringTransactions from '@/components/dashboard/RecurringTransactions'
 import FeeAnalysis from '@/components/dashboard/FeeAnalysis'
 import MobileNav from '@/components/dashboard/MobileNav'
 import DataQuality from '@/components/dashboard/DataQuality'
+import InstallPrompt from '@/components/dashboard/InstallPrompt'
 import EmptyState from '@/components/dashboard/EmptyState'
 import SnapshotComparison from '@/components/dashboard/SnapshotComparison'
 import SavingsRate from '@/components/dashboard/SavingsRate'
@@ -681,6 +682,7 @@ export default function DashboardPage() {
         <NotificationCenter items={enrichedItems} transactions={transactions} lang={lang} />
 
         {/* Data Quality */}
+        <InstallPrompt lang={lang} />
         <DataQuality items={enrichedItems} lang={lang} />
 
         {/* Empty State */}

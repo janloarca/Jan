@@ -1,0 +1,22 @@
+{
+  "name": "Chispudo — Portfolio Tracker",
+  "short_name": "Chispudo",
+  "description": "Track your entire portfolio. Built for Latin America.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/apple-icon",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}
