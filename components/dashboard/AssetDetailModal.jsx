@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { formatCurrency, formatDate, getItemPrice } from './utils'
+import DocumentVault from './DocumentVault'
 
-export default function AssetDetailModal({ item, onClose, lang = 'es' }) {
+export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
   const [chartData, setChartData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [range, setRange] = useState('1M')
@@ -215,6 +216,10 @@ export default function AssetDetailModal({ item, onClose, lang = 'es' }) {
               </div>
             )}
           </div>
+
+          {uid && item.id && (
+            <DocumentVault uid={uid} itemId={item.id} lang={lang} />
+          )}
         </div>
       </div>
     </div>

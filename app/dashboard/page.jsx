@@ -41,6 +41,7 @@ import AssetDetailModal from '@/components/dashboard/AssetDetailModal'
 import UpcomingDividends from '@/components/dashboard/UpcomingDividends'
 import ContinuousYieldDisplay from '@/components/dashboard/ContinuousYieldDisplay'
 import VariableRateDashboard from '@/components/dashboard/VariableRateDashboard'
+import MaturityCalendar from '@/components/dashboard/MaturityCalendar'
 import SectionCollapse from '@/components/dashboard/SectionCollapse'
 
 export default function DashboardPage() {
@@ -632,6 +633,7 @@ export default function DashboardPage() {
             <UpcomingDividends items={enrichedItems} lang={lang} />
             <ContinuousYieldDisplay items={enrichedItems} lang={lang} />
             <VariableRateDashboard items={enrichedItems} lang={lang} />
+            <MaturityCalendar items={enrichedItems} lang={lang} />
             <TopMovers items={enrichedItems} transactions={transactions} lang={lang} />
           </div>
 
@@ -782,6 +784,7 @@ export default function DashboardPage() {
           item={detailItem}
           onClose={() => setDetailItem(null)}
           lang={lang}
+          uid={user?.uid}
         />
       )}
     </div>
