@@ -45,6 +45,7 @@ import MaturityCalendar from '@/components/dashboard/MaturityCalendar'
 import RebalanceSuggestions from '@/components/dashboard/RebalanceSuggestions'
 import IncomeCalendar from '@/components/dashboard/IncomeCalendar'
 import Watchlist from '@/components/dashboard/Watchlist'
+import NotificationCenter from '@/components/dashboard/NotificationCenter'
 import SectionCollapse from '@/components/dashboard/SectionCollapse'
 
 export default function DashboardPage() {
@@ -614,6 +615,9 @@ export default function DashboardPage() {
           )}
           {(pricesLoading || ratesLoading) && <span className="text-xs text-blue-400 animate-pulse">{lang === 'es' ? 'Actualizando...' : 'Updating...'}</span>}
         </div>
+
+        {/* Notifications */}
+        <NotificationCenter items={enrichedItems} transactions={transactions} lang={lang} />
 
         {/* Insights Banner */}
         <InsightsBanner insights={insights} lang={lang} />

@@ -194,6 +194,9 @@ function SharedDashboard({ items, snapshots, baseCurrency }) {
           </div>
         )}
 
+        {/* Income & Maturity Summary */}
+        <IncomeMaturitySummary items={items} />
+
         <div className="text-center text-xs text-slate-600 pt-4">
           Shared via <span className="text-emerald-400/60">Chispudo</span> · chispu.xyz
         </div>
@@ -242,6 +245,78 @@ function GrowthChart({ snapshots }) {
         <span>{formatCurrency(values[values.length - 1])}</span>
         <span>{sorted[sorted.length - 1].date?.slice(0, 10)}</span>
       </div>
+    </div>
+  )
+}
+
+function IncomeMaturitySummary({ items }) {
+  const incomeItems = useMemo(() =>
+    items.filter((it) => !it.isDebt && (it.incomeRate > 0 || it.dividendYield > 0 || (it.rateType === 'variable' && it.rateMin > 0))),
+    [items]
+  )
+
+  const maturingItems = useMemo(() => {
+    const now = new Date()
+    return items.filter((it) => it.maturityDate && new Date(it.maturityDate) > now)
+      .sort((a, b) => new Date(a.maturityDate) - new Date(b.maturityDate))
+  }, [items])
+
+  const totalEstIncome = useMemo(() =>
+    incomeItems.reduce((s, it) => {
+      const balance = (it.quantity || 1) * getItemPrice(it)
+      const rate = it.rateType === 'variable' && it.rateMin > 0
+        ? (it.rateMin + it.rateMax) / 2
+        : it.incomeRate || it.dividendYield || 0
+      return s + balance * (rate / 100)
+    }, 0),
+    [incomeItems]
+  )
+
+  if (incomeItems.length === 0 && maturingItems.length === 0) return null
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {incomeItems.length > 0 && (
+        <div className="bg-[#1e293b]/80 rounded-xl border border-[#334155]/50 p-5">
+          <h3 className="text-sm font-medium text-slate-400 mb-3">Estimated Annual Income</h3>
+          <div className="text-2xl font-bold text-emerald-400 mb-3">{formatCurrency(totalEstIncome)}</div>
+          <div className="space-y-1.5">
+            {incomeItems.slice(0, 6).map((it) => {
+              const rate = it.rateType === 'variable' ? `${it.rateMin}-${it.rateMax}%` : `${it.incomeRate || it.dividendYield}%`
+              return (
+                <div key={it.id} className="flex items-center justify-between text-xs">
+                  <span className="text-slate-300">{it.name || it.symbol}</span>
+                  <span className="text-emerald-400">{rate}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {maturingItems.length > 0 && (
+        <div className="bg-[#1e293b]/80 rounded-xl border border-[#334155]/50 p-5">
+          <h3 className="text-sm font-medium text-slate-400 mb-3">Upcoming Maturities</h3>
+          <div className="space-y-2">
+            {maturingItems.slice(0, 6).map((it) => {
+              const days = Math.ceil((new Date(it.maturityDate) - new Date()) / 86400000)
+              const val = (it.quantity || 1) * getItemPrice(it)
+              const color = days <= 90 ? 'text-red-400' : days <= 365 ? 'text-amber-400' : 'text-emerald-400'
+              return (
+                <div key={it.id} className="flex items-center justify-between text-xs">
+                  <div>
+                    <span className="text-slate-300">{it.name || it.symbol}</span>
+                    <span className={`ml-2 ${color}`}>
+                      {days <= 30 ? `${days}d` : days <= 365 ? `${Math.round(days / 30)}mo` : `${(days / 365).toFixed(1)}yr`}
+                    </span>
+                  </div>
+                  <span className="text-white font-medium">{formatCurrency(val)}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
