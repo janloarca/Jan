@@ -21,7 +21,7 @@ export default function UpcomingDividends({ items, lang }) {
       if ((!it.incomeAmount || it.incomeAmount <= 0) && (!it.incomeRate || it.incomeRate <= 0) && !hasVariableRate) return
       if (!it.incomeMonths || it.incomeMonths.length === 0) return
 
-      let amount = it.incomeAmount || 0
+      let amount = 0
       if (hasVariableRate) {
         const balance = (it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0)
         const payMonths = it.incomeMonths.length || 12
@@ -31,6 +31,9 @@ export default function UpcomingDividends({ items, lang }) {
         const balance = (it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0)
         const payMonths = it.incomeMonths.length || 12
         amount = (balance * (it.incomeRate / 100)) / payMonths
+      } else if (it.incomeAmount > 0) {
+        const isPerShare = /stock|etf|fund|crypto/i.test(it.type || '')
+        amount = isPerShare ? it.incomeAmount * (it.quantity || 1) : it.incomeAmount
       }
       if (amount <= 0) return
 

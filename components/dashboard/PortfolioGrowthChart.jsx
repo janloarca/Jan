@@ -53,7 +53,7 @@ function buildGeometry(values, mode, height, width, pad, extraSeries) {
   return { points, baselineY, yTicks, cw, ch }
 }
 
-export default function PortfolioGrowthChart({ items, transactions, lang, convert, baseCurrency }) {
+export default function PortfolioGrowthChart({ items, snapshots, transactions, lang, convert, baseCurrency }) {
   const [period, setPeriod] = useState('YTD')
   const [hoverIdx, setHoverIdx] = useState(null)
   const [dataPoints, setDataPoints] = useState([])
@@ -117,19 +117,48 @@ export default function PortfolioGrowthChart({ items, transactions, lang, conver
     return items.reduce((s, it) => s + (it.quantity || 0) * (it.currentPrice || it.purchasePrice || 0), 0)
   }, [items])
 
+  const snapshotData = useMemo(() => {
+    if (!snapshots || snapshots.length === 0) return []
+    const now = Date.now()
+    const periods = { '1W': 7, MTD: null, '1M': 30, '3M': 90, '6M': 180, YTD: null, '1Y': 365, ALL: null }
+    let cutoff
+    if (period === 'YTD') cutoff = new Date(new Date().getFullYear(), 0, 1).getTime()
+    else if (period === 'MTD') cutoff = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime()
+    else if (period === 'ALL') cutoff = 0
+    else cutoff = now - (periods[period] || 365) * 86400000
+
+    const convertVal = (v) => convert ? convert(v, 'USD', baseCurrency || 'USD') : v
+
+    return [...snapshots]
+      .filter((s) => s.date && (new Date(s.date).getTime() >= cutoff))
+      .sort((a, b) => new Date(a.date) - new Date(b.date))
+      .map((s) => ({
+        ts: new Date(s.date).getTime(),
+        date: new Date(s.date),
+        value: convertVal(s.netWorthUSD ?? s.totalActivosUSD ?? 0),
+      }))
+      .filter((p) => p.value > 0)
+  }, [snapshots, period, convert, baseCurrency])
+
   const chartData = useMemo(() => {
-    if (dataPoints.length === 0) return []
-    const pts = dataPoints.map((dp) => ({
-      ts: dp.ts,
-      date: new Date(dp.ts),
-      value: dp.total,
-    }))
+    let pts
+    if (dataPoints.length >= 2) {
+      pts = dataPoints.map((dp) => ({
+        ts: dp.ts,
+        date: new Date(dp.ts),
+        value: dp.total,
+      }))
+    } else if (snapshotData.length >= 2) {
+      pts = [...snapshotData]
+    } else {
+      return []
+    }
     const last = pts[pts.length - 1]
     if (last && currentTotal > 0 && Math.abs(last.value - currentTotal) > 1) {
       pts.push({ ts: Date.now(), date: new Date(), value: currentTotal })
     }
     return pts
-  }, [dataPoints, currentTotal])
+  }, [dataPoints, snapshotData, currentTotal])
 
   const mwrData = useMemo(() => {
     if (chartData.length < 2) return []

@@ -27,23 +27,25 @@ export default function IncomeCalendar({ items, lang }) {
       }
 
       const freq = it.incomeMonths.length
-      const paymentAmt = it.incomeAmount
-        ? it.incomeAmount * (it.quantity || 1)
-        : freq > 0 && rate > 0
-          ? (balance * (rate / 100)) / freq
-          : 0
+      let paymentAmt = 0
+      if (it.incomeAmount > 0) {
+        const isPerShare = /stock|etf|fund|crypto/i.test(it.type || '')
+        paymentAmt = isPerShare ? it.incomeAmount * (it.quantity || 1) : it.incomeAmount
+      } else if (freq > 0 && rate > 0) {
+        paymentAmt = (balance * (rate / 100)) / freq
+      }
 
       if (paymentAmt <= 0) return
 
       it.incomeMonths.forEach((m) => {
-        if (m >= 1 && m <= 12) {
-          months[m - 1].items.push({
+        if (m >= 0 && m < 12) {
+          months[m].items.push({
             name: it.name || it.symbol,
             symbol: it.symbol,
             amount: paymentAmt,
             currency: it.currency || 'USD',
           })
-          months[m - 1].total += paymentAmt
+          months[m].total += paymentAmt
         }
       })
     })
