@@ -9,6 +9,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
   const [showAll, setShowAll] = useState(false)
   const [breakdown, setBreakdown] = useState(null)
   const [dismissWarning, setDismissWarning] = useState(false)
+  const [search, setSearch] = useState('')
 
   const counts = useMemo(() => {
     const c = { all: items.length, stocks: 0, crypto: 0, bonds: 0, funds: 0, banks: 0, realestate: 0, alternatives: 0, debts: 0 }
@@ -23,13 +24,22 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
 
   const filtered = useMemo(() => {
     let list = filter === 'all' ? items : items.filter((it) => getTypeCategory(it.type) === filter)
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      list = list.filter((it) =>
+        (it.name || '').toLowerCase().includes(q) ||
+        (it.symbol || '').toLowerCase().includes(q) ||
+        (it.institution || '').toLowerCase().includes(q) ||
+        (it.type || '').toLowerCase().includes(q)
+      )
+    }
     return [...list].sort((a, b) => {
       const va = getItemValue(a)
       const vb = getItemValue(b)
       if (sortBy === 'name') return (a.name || a.symbol || '').localeCompare(b.name || b.symbol || '')
       return sortBy === 'value' ? vb - va : va - vb
     })
-  }, [items, filter, sortBy])
+  }, [items, filter, sortBy, search])
 
   const totalValue = useMemo(() => items.reduce((s, it) => s + getItemValue(it), 0), [items])
   const displayItems = showAll ? filtered : filtered.slice(0, 10)
@@ -97,6 +107,19 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
           </button>
         ))}
       </div>
+
+      {/* Search */}
+      {items.length > 5 && (
+        <div className="mb-3">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t('Buscar por nombre, símbolo o institución...', 'Search by name, symbol, or institution...')}
+            className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+          />
+        </div>
+      )}
 
       {/* Breakdown toggles */}
       <div className="flex items-center gap-2 mb-4">

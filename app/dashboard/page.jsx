@@ -43,6 +43,8 @@ import ContinuousYieldDisplay from '@/components/dashboard/ContinuousYieldDispla
 import VariableRateDashboard from '@/components/dashboard/VariableRateDashboard'
 import MaturityCalendar from '@/components/dashboard/MaturityCalendar'
 import RebalanceSuggestions from '@/components/dashboard/RebalanceSuggestions'
+import IncomeCalendar from '@/components/dashboard/IncomeCalendar'
+import Watchlist from '@/components/dashboard/Watchlist'
 import SectionCollapse from '@/components/dashboard/SectionCollapse'
 
 export default function DashboardPage() {
@@ -635,6 +637,7 @@ export default function DashboardPage() {
             <ContinuousYieldDisplay items={enrichedItems} lang={lang} />
             <VariableRateDashboard items={enrichedItems} lang={lang} />
             <MaturityCalendar items={enrichedItems} lang={lang} />
+            <Watchlist lang={lang} />
             <TopMovers items={enrichedItems} transactions={transactions} lang={lang} />
           </div>
 
@@ -668,6 +671,8 @@ export default function DashboardPage() {
             <DividendIncome transactions={transactions} items={enrichedItems} convert={convert} baseCurrency={baseCurrency} lang={lang} netWorth={netWorth} />
             <ConcentrationRisk items={enrichedItems} lang={lang} />
           </div>
+
+          <IncomeCalendar items={enrichedItems} lang={lang} />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
             <GoalTracker
