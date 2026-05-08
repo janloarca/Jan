@@ -50,6 +50,7 @@ import SectionCollapse from '@/components/dashboard/SectionCollapse'
 import CommandPalette from '@/components/dashboard/CommandPalette'
 import RecurringTransactions from '@/components/dashboard/RecurringTransactions'
 import FeeAnalysis from '@/components/dashboard/FeeAnalysis'
+import MobileNav from '@/components/dashboard/MobileNav'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -844,6 +845,15 @@ export default function DashboardPage() {
         items={enrichedItems}
         lang={lang}
         onAction={handleCmdAction}
+      />
+
+      <MobileNav
+        onAdd={() => setModal('account')}
+        onImport={() => setModal('import')}
+        onExport={handleExport}
+        onSettings={() => setModal('settings')}
+        onSearch={() => setCmdPaletteOpen(true)}
+        lang={lang}
       />
     </div>
   )
