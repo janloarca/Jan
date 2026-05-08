@@ -39,6 +39,7 @@ import EditAccountModal from '@/components/EditAccountModal'
 import OptimizeModal from '@/components/OptimizeModal'
 import AssetDetailModal from '@/components/dashboard/AssetDetailModal'
 import UpcomingDividends from '@/components/dashboard/UpcomingDividends'
+import ContinuousYieldDisplay from '@/components/dashboard/ContinuousYieldDisplay'
 import SectionCollapse from '@/components/dashboard/SectionCollapse'
 
 export default function DashboardPage() {
@@ -206,20 +207,40 @@ export default function DashboardPage() {
     if (!user || dataLoading || pricesLoading || ratesLoading) return
     if (enrichedItems.length === 0) return
 
-    const scheduled = enrichedItems.filter((it) => (it.incomeAmount > 0 || it.incomeRate > 0) && it.incomeMonths)
+    const scheduled = enrichedItems.filter((it) =>
+      (it.incomeAmount > 0 || it.incomeRate > 0 || (it.rateType === 'variable' && it.rateMin > 0) || it.rateType === 'continuous') && it.incomeMonths
+    )
     if (scheduled.length === 0) { dividendsProcessedRef.current = todayKey; return }
 
     const today = new Date()
     const todayDay = today.getDate()
+    const dayOfWeek = today.getDay()
     const currentMonth = today.getMonth()
+
+    function getEffectivePayDay(payDay, businessDayRule) {
+      if (businessDayRule !== 'next_business_day') return payDay
+      const testDate = new Date(today.getFullYear(), currentMonth, payDay)
+      const dow = testDate.getDay()
+      if (dow === 0) return payDay + 1
+      if (dow === 6) return payDay + 2
+      return payDay
+    }
 
     async function processDividends() {
       for (const it of scheduled) {
-        const payDay = it.incomePayDay || 1
-        if (todayDay !== payDay) continue
+        const payDay = getEffectivePayDay(it.incomePayDay || 1, it.businessDayRule)
+        const isContinuous = it.rateType === 'continuous'
+
+        if (!isContinuous && todayDay !== payDay) continue
 
         const months = it.incomeMonths || [0,1,2,3,4,5,6,7,8,9,10,11]
         if (!months.includes(currentMonth)) continue
+
+        // Skip if matured
+        if (it.maturityDate) {
+          const matDate = new Date(it.maturityDate)
+          if (matDate <= today) continue
+        }
 
         const sym = (it.symbol || '').toUpperCase()
         const alreadyPaid = transactions.some((tx) =>
@@ -231,9 +252,16 @@ export default function DashboardPage() {
         if (alreadyPaid) continue
 
         let paymentAmount = it.incomeAmount || 0
-        if (it.incomeMode === 'percent' && it.incomeRate > 0) {
-          const balance = (it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0)
-          const payMonths = (it.incomeMonths || []).length || 12
+        const balance = (it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0)
+
+        if (it.rateType === 'variable' && it.rateMin > 0 && it.rateMax > 0) {
+          const midRate = (it.rateMin + it.rateMax) / 2
+          const payMonths = months.length || 12
+          paymentAmount = (balance * (midRate / 100)) / payMonths
+        } else if (isContinuous && it.incomeRate > 0) {
+          paymentAmount = (balance * (it.incomeRate / 100)) / 365
+        } else if (it.incomeMode === 'percent' && it.incomeRate > 0) {
+          const payMonths = months.length || 12
           paymentAmount = (balance * (it.incomeRate / 100)) / payMonths
         }
         if (paymentAmount <= 0) continue
@@ -565,6 +593,7 @@ export default function DashboardPage() {
             />
             <BenchmarkComparison benchmarkReturn={benchmarkReturn} portfolioReturn={returnYTD} lang={lang} />
             <UpcomingDividends items={enrichedItems} lang={lang} />
+            <ContinuousYieldDisplay items={enrichedItems} lang={lang} />
             <TopMovers items={enrichedItems} transactions={transactions} lang={lang} />
           </div>
 

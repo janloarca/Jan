@@ -133,6 +133,22 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
     }))
   }, [projected.sources])
 
+  const incomeByCurrency = useMemo(() => {
+    const byCur = {}
+    projected.sources.forEach((s) => {
+      const cur = s.currency || 'USD'
+      if (!byCur[cur]) byCur[cur] = { original: 0, converted: 0 }
+      const originalAnnual = s.annual
+      const ratio = convert ? convert(1, baseCurrency || 'USD', cur) : 1
+      byCur[cur].original += ratio > 0 ? originalAnnual * ratio : originalAnnual
+      byCur[cur].converted += originalAnnual
+    })
+    return Object.entries(byCur)
+      .map(([currency, data]) => ({ currency, ...data }))
+      .filter(c => c.converted > 0)
+      .sort((a, b) => b.converted - a.converted)
+  }, [projected.sources, convert, baseCurrency])
+
   const incomeCalendar = useMemo(() => {
     const monthTotals = Array(12).fill(0)
     projected.sources.forEach((s) => {
@@ -179,6 +195,25 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
               <span className="text-xs font-semibold text-white">{formatCurrency(bt.annual)}/yr</span>
             </div>
           ))}
+        </div>
+      )}
+
+      {incomeByCurrency.length > 1 && (
+        <div className="mb-3 p-2.5 bg-[#0f172a] rounded-lg border border-[#334155]/50">
+          <span className="text-xs text-slate-500 mb-1.5 block">{t('Ingreso por moneda', 'Income by currency')}</span>
+          <div className="space-y-1">
+            {incomeByCurrency.map((c) => (
+              <div key={c.currency} className="flex items-center justify-between">
+                <span className="text-xs font-medium text-white">{c.currency}</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-slate-400">{formatCurrency(c.original, c.currency)}/yr</span>
+                  {c.currency !== (baseCurrency || 'USD') && (
+                    <span className="text-xs text-slate-500">= {formatCurrency(c.converted)}</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

@@ -43,6 +43,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     custodyType: item.custodyType || '',
     custodyDetails: item.custodyDetails || '',
     notes: item.notes || '',
+    tags: (item.tags || []).join(', '),
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -147,6 +148,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
       // Notes
       updated.notes = form.notes || ''
+      updated.tags = form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : []
 
       await onSave(updated)
       onClose()
@@ -326,12 +328,20 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
             </div>
           )}
 
-          {/* Notes */}
-          <div>
-            <label className={labelCls}>{t('Notas', 'Notes')}</label>
-            <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
-              placeholder={t('Notas adicionales...', 'Additional notes...')}
-              rows={2} className={inputCls + ' resize-none'} />
+          {/* Notes & Tags */}
+          <div className="space-y-3">
+            <div>
+              <label className={labelCls}>{t('Notas', 'Notes')}</label>
+              <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
+                placeholder={t('Notas adicionales...', 'Additional notes...')}
+                rows={2} className={inputCls + ' resize-none'} />
+            </div>
+            <div>
+              <label className={labelCls}>{t('Etiquetas', 'Tags')} <span className="text-[var(--text-muted,#475569)] font-normal">({t('separadas por coma', 'comma-separated')})</span></label>
+              <input value={form.tags} onChange={e => set('tags', e.target.value)}
+                placeholder={t('largo plazo, alta prioridad...', 'long term, high priority...')}
+                className={inputCls} />
+            </div>
           </div>
 
           {/* Section 3: Income/Dividends */}
