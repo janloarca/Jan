@@ -17,12 +17,19 @@ export const metadata = {
     description: 'Track every asset type. Built for LatAm. Free forever.',
   },
   metadataBase: new URL('https://chispu.xyz'),
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Chispudo',
+  },
 }
 
 export const viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
+  themeColor: '#0f172a',
 }
 
 export default function RootLayout({ children }) {
@@ -37,6 +44,9 @@ export default function RootLayout({ children }) {
           document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
         }
       } catch(e) {}
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch(function(){});
+      }
     })();
   `
 
