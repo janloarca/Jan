@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 
 function setSessionCookie(token) {
   const secure = window.location.protocol === 'https:' ? '; Secure' : ''
-  document.cookie = `__session=${token}; path=/; max-age=3600; SameSite=Lax${secure}`
+  document.cookie = `__session=${token}; path=/; max-age=604800; SameSite=Lax${secure}`
 }
 
 function isInAppBrowser() {

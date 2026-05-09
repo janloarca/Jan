@@ -21,14 +21,15 @@ export default function UpcomingDividends({ items, lang }) {
       if ((!it.incomeAmount || it.incomeAmount <= 0) && (!it.incomeRate || it.incomeRate <= 0) && !hasVariableRate) return
       if (!it.incomeMonths || it.incomeMonths.length === 0) return
 
+      const originalPrice = it._originalPrice || it.currentPrice || it.purchasePrice || 0
       let amount = 0
       if (hasVariableRate) {
-        const balance = (it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0)
+        const balance = (it.quantity || 1) * originalPrice
         const payMonths = it.incomeMonths.length || 12
         const midRate = (it.rateMin + it.rateMax) / 2
         amount = (balance * (midRate / 100)) / payMonths
       } else if (it.incomeMode === 'percent' && it.incomeRate > 0) {
-        const balance = (it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0)
+        const balance = (it.quantity || 1) * originalPrice
         const payMonths = it.incomeMonths.length || 12
         amount = (balance * (it.incomeRate / 100)) / payMonths
       } else if (it.incomeAmount > 0) {

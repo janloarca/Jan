@@ -16,7 +16,8 @@ export default function IncomeCalendar({ items, lang }) {
     ;(items || []).forEach((it) => {
       if (it.isDebt || !it.incomeMonths?.length) return
 
-      const balance = (it.quantity || 1) * getItemPrice(it)
+      const originalPrice = it._originalPrice || getItemPrice(it)
+      const balance = (it.quantity || 1) * originalPrice
       let rate = 0
       if (it.rateType === 'variable' && it.rateMin > 0 && it.rateMax > 0) {
         rate = (it.rateMin + it.rateMax) / 2
@@ -43,7 +44,7 @@ export default function IncomeCalendar({ items, lang }) {
             name: it.name || it.symbol,
             symbol: it.symbol,
             amount: paymentAmt,
-            currency: it.currency || 'USD',
+            currency: it._originalCurrency || it.currency || 'USD',
           })
           months[m].total += paymentAmt
         }
