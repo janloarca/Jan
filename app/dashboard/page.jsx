@@ -58,6 +58,7 @@ import SnapshotComparison from '@/components/dashboard/SnapshotComparison'
 import SavingsRate from '@/components/dashboard/SavingsRate'
 import PerformanceAttribution from '@/components/dashboard/PerformanceAttribution'
 import PrintSummary from '@/components/dashboard/PrintSummary'
+import ValueBreakdown from '@/components/dashboard/ValueBreakdown'
 import OnboardingTour from '@/components/dashboard/OnboardingTour'
 
 export default function DashboardPage() {
@@ -800,6 +801,7 @@ export default function DashboardPage() {
           <div className="lg:col-span-3 flex flex-col gap-4">
             <PortfolioGrowthChart items={enrichedItems} snapshots={snapshots} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} />
             <AssetAllocation items={enrichedItems} lang={lang} />
+            <ValueBreakdown items={enrichedItems} lang={lang} />
             <SnapshotComparison snapshots={snapshots} items={enrichedItems} lang={lang} />
           </div>
         </div>
