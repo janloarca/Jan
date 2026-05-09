@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chispudo-v1'
+const CACHE_NAME = 'chispudo-v2'
 const STATIC_ASSETS = ['/', '/dashboard', '/login']
 
 self.addEventListener('install', (event) => {

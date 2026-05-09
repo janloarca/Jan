@@ -58,6 +58,7 @@ import SnapshotComparison from '@/components/dashboard/SnapshotComparison'
 import SavingsRate from '@/components/dashboard/SavingsRate'
 import PerformanceAttribution from '@/components/dashboard/PerformanceAttribution'
 import PrintSummary from '@/components/dashboard/PrintSummary'
+import OnboardingTour from '@/components/dashboard/OnboardingTour'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -69,6 +70,7 @@ export default function DashboardPage() {
   const [detailItem, setDetailItem] = useState(null)
   const [theme, setTheme] = useState('system')
   const [lang, setLang] = useState('es')
+  const [showOnboarding, setShowOnboarding] = useState(false)
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -704,6 +706,10 @@ export default function DashboardPage() {
 
   if (!user) return null
 
+  if (!showOnboarding && typeof window !== 'undefined' && !localStorage.getItem('chispudo-onboarding-done') && !dataLoading && enrichedItems.length === 0) {
+    setTimeout(() => setShowOnboarding(true), 500)
+  }
+
   return (
     <div className="min-h-screen bg-[#0f172a]">
       <Header
@@ -989,6 +995,17 @@ export default function DashboardPage() {
         onSearch={() => setCmdPaletteOpen(true)}
         lang={lang}
       />
+
+      {showOnboarding && (
+        <OnboardingTour
+          lang={lang}
+          onAction={(action) => {
+            if (action === 'add') setModal('account')
+            else if (action === 'settings') setModal('settings')
+          }}
+          onComplete={() => setShowOnboarding(false)}
+        />
+      )}
     </div>
   )
 }
