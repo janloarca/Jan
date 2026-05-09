@@ -222,10 +222,13 @@ export default function DashboardPage() {
     if (alreadyExists) { snapshotSavedRef.current = true; return }
 
     const totalUSD = enrichedItems.reduce((sum, it) => {
-      const originalPrice = it._originalPrice || it.currentPrice || it.purchasePrice || 0
-      const originalCurrency = it._originalCurrency || it.currency || 'USD'
-      const value = (it.quantity || 0) * originalPrice
-      return sum + convert(value, originalCurrency, 'USD')
+      if (it._originalPrice != null && it._originalCurrency) {
+        const value = (it.quantity || 0) * it._originalPrice
+        return sum + (convert ? convert(value, it._originalCurrency, 'USD') : value)
+      }
+      const price = it.currentPrice || it.purchasePrice || 0
+      const value = (it.quantity || 0) * price
+      return sum + (convert ? convert(value, baseCurrency || 'USD', 'USD') : value)
     }, 0)
 
     if (totalUSD > 0) {
@@ -287,7 +290,7 @@ export default function DashboardPage() {
         if (alreadyPaid) continue
 
         let paymentAmount = it.incomeAmount || 0
-        const balance = (it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0)
+        const balance = (it.quantity || 1) * (it._originalPrice || it.currentPrice || it.purchasePrice || 0)
 
         if (it.rateType === 'variable' && it.rateMin > 0 && it.rateMax > 0) {
           const midRate = (it.rateMin + it.rateMax) / 2

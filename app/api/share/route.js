@@ -61,7 +61,14 @@ export async function GET(request) {
   const tokenDoc = await db.collection('shareTokens').doc(token).get()
   if (!tokenDoc.exists) return NextResponse.json({ error: 'Invalid or expired link' }, { status: 404 })
 
-  const { uid } = tokenDoc.data()
+  const tokenData = tokenDoc.data()
+  if (tokenData.createdAt) {
+    const created = new Date(tokenData.createdAt)
+    const daysSince = (Date.now() - created.getTime()) / 86400000
+    if (daysSince > 90) return NextResponse.json({ error: 'Link expired' }, { status: 410 })
+  }
+
+  const { uid } = tokenData
 
   const [itemsSnap, snapshotsSnap] = await Promise.all([
     db.collection('users').doc(uid).collection('items').get(),

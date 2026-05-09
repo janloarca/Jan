@@ -28,6 +28,7 @@ async function searchYahoo(query) {
     const url = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=6&newsCount=0&listsCount=0`
     const res = await fetch(url, {
       headers: { 'User-Agent': 'Mozilla/5.0' },
+      signal: AbortSignal.timeout(10000),
     })
     if (!res.ok) return []
     const data = await res.json()
@@ -59,7 +60,7 @@ function searchCrypto(query) {
 async function fetchAssetProfile(symbol) {
   try {
     const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=assetProfile`
-    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } })
+    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(10000) })
     if (!res.ok) return null
     const data = await res.json()
     const profile = data.quoteSummary?.result?.[0]?.assetProfile
@@ -73,7 +74,7 @@ async function fetchQuote(symbol, type) {
     const info = CRYPTO_MAP[symbol.toUpperCase()]
     if (!info) return null
     try {
-      const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${info.id}&vs_currencies=usd`)
+      const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${info.id}&vs_currencies=usd`, { signal: AbortSignal.timeout(10000) })
       if (!res.ok) return null
       const data = await res.json()
       if (data[info.id]) return { price: data[info.id].usd, currency: 'USD', sector: 'Crypto', industry: 'Cryptocurrency' }
@@ -83,7 +84,7 @@ async function fetchQuote(symbol, type) {
 
   try {
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`
-    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } })
+    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(10000) })
     if (!res.ok) return null
     const data = await res.json()
     const meta = data.chart?.result?.[0]?.meta

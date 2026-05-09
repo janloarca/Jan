@@ -30,6 +30,7 @@ export async function GET(request) {
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`
     const res = await fetch(url, {
       headers: { 'User-Agent': 'Mozilla/5.0' },
+      signal: AbortSignal.timeout(10000),
     })
 
     if (!res.ok) {

@@ -32,6 +32,7 @@ async function fetchStockPrices(symbols) {
         const res = await fetch(url, {
           headers: { 'User-Agent': 'Mozilla/5.0' },
           next: { revalidate: 300 },
+          signal: AbortSignal.timeout(10000),
         })
         if (!res.ok) return
         const data = await res.json()
@@ -59,7 +60,7 @@ async function fetchCryptoPrices(symbols) {
 
   try {
     const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(',')}&vs_currencies=usd&include_7d_change=true`
-    const res = await fetch(url, { next: { revalidate: 300 } })
+    const res = await fetch(url, { next: { revalidate: 300 }, signal: AbortSignal.timeout(10000) })
     if (!res.ok) return results
     const data = await res.json()
 

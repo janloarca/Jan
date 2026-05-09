@@ -39,6 +39,7 @@ export async function GET(request) {
     const res = await fetch(url, {
       headers: { 'User-Agent': 'Mozilla/5.0' },
       next: { revalidate: 300 },
+      signal: AbortSignal.timeout(10000),
     })
 
     if (!res.ok) {
