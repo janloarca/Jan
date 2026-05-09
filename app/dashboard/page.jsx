@@ -124,24 +124,37 @@ export default function DashboardPage() {
 
   useEffect(() => {
     let unsubscribe = () => {}
+    let refreshInterval = null
+    const secure = typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : ''
+    function setCookie(token) {
+      document.cookie = `__session=${token}; path=/; max-age=3600; SameSite=Lax${secure}`
+    }
     async function initAuth() {
       const { auth } = await import('@/lib/firebase')
-      const { onAuthStateChanged } = await import('firebase/auth')
+      const { onIdTokenChanged } = await import('firebase/auth')
       if (!auth) { setAuthLoading(false); router.push('/login'); return }
-      unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      unsubscribe = onIdTokenChanged(auth, async (currentUser) => {
         if (!currentUser) {
           document.cookie = '__session=; path=/; max-age=0'
           router.push('/login')
         } else {
           const token = await currentUser.getIdToken()
-          document.cookie = `__session=${token}; path=/; max-age=3600; SameSite=Lax${window.location.protocol === 'https:' ? '; Secure' : ''}`
+          setCookie(token)
           setUser(currentUser)
+          if (!refreshInterval) {
+            refreshInterval = setInterval(async () => {
+              try {
+                const freshToken = await currentUser.getIdToken(true)
+                setCookie(freshToken)
+              } catch {}
+            }, 50 * 60 * 1000)
+          }
         }
         setAuthLoading(false)
       })
     }
     initAuth()
-    return () => unsubscribe()
+    return () => { unsubscribe(); if (refreshInterval) clearInterval(refreshInterval) }
   }, [router])
 
   const {

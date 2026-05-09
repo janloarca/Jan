@@ -13,7 +13,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
 
     items.forEach((it) => {
       const sym = it.symbol || it.name || ''
-      const cur = it.currency || it._originalCurrency || 'USD'
+      const cur = it._originalCurrency || it.currency || 'USD'
       const qty = it.quantity || 1
       const price = it._originalPrice || it.currentPrice || it.purchasePrice || 0
       const balance = qty * price
