@@ -14,6 +14,11 @@ const INSTITUTION_COLORS = [
   '#ef4444', '#ec4899', '#84cc16',
 ]
 
+const CURRENCY_COLORS = [
+  '#10b981', '#3b82f6', '#f59e0b', '#a855f7', '#ef4444',
+  '#06b6d4', '#ec4899', '#84cc16',
+]
+
 export default function ValueBreakdown({ items, lang }) {
   const [view, setView] = useState('type')
 
@@ -25,13 +30,15 @@ export default function ValueBreakdown({ items, lang }) {
       let key
       if (view === 'type') {
         key = it.type || 'Other'
+      } else if (view === 'currency') {
+        key = it._originalCurrency || it.currency || 'USD'
       } else {
         key = it.institution || (lang === 'es' ? 'Sin institución' : 'No institution')
       }
       groups[key] = (groups[key] || 0) + val
       total += val
     })
-    const colors = view === 'type' ? SECTOR_COLORS : INSTITUTION_COLORS
+    const colors = view === 'type' ? SECTOR_COLORS : view === 'currency' ? CURRENCY_COLORS : INSTITUTION_COLORS
     return Object.entries(groups)
       .map(([name, value], i) => ({
         name,
@@ -60,7 +67,8 @@ export default function ValueBreakdown({ items, lang }) {
         <div className="flex gap-0.5 bg-[#0f172a] rounded-lg p-0.5">
           {[
             { key: 'type', label: lang === 'es' ? 'Tipo' : 'Type' },
-            { key: 'institution', label: lang === 'es' ? 'Institución' : 'Institution' },
+            { key: 'currency', label: lang === 'es' ? 'Moneda' : 'Currency' },
+            { key: 'institution', label: lang === 'es' ? 'Inst.' : 'Inst.' },
           ].map((opt) => (
             <button key={opt.key} onClick={() => setView(opt.key)}
               className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
@@ -107,7 +115,7 @@ export default function ValueBreakdown({ items, lang }) {
             <thead>
               <tr className="text-slate-500">
                 <th className="text-left py-1 font-medium">%</th>
-                <th className="text-left py-1 font-medium">{view === 'type' ? (lang === 'es' ? 'TIPO' : 'TYPE') : (lang === 'es' ? 'INSTITUCIÓN' : 'INSTITUTION')}</th>
+                <th className="text-left py-1 font-medium">{view === 'type' ? (lang === 'es' ? 'TIPO' : 'TYPE') : view === 'currency' ? (lang === 'es' ? 'MONEDA' : 'CURRENCY') : (lang === 'es' ? 'INSTITUCIÓN' : 'INSTITUTION')}</th>
                 <th className="text-right py-1 font-medium">{lang === 'es' ? 'VALOR' : 'VALUE'}</th>
               </tr>
             </thead>

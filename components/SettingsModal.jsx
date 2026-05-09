@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { authFetch } from '@/lib/authFetch'
+import { isNotificationSupported, getNotificationPermission, requestNotificationPermission } from '@/lib/notifications'
 
 const CURRENCIES = [
   { code: 'USD', name: 'US Dollar', symbol: '$' },
@@ -173,6 +174,29 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                   ))}
                 </div>
               </div>
+
+              {/* Notifications */}
+              {isNotificationSupported() && (
+                <div>
+                  <label className="text-xs text-slate-400 mb-2 block font-medium">{t('Notificaciones', 'Notifications')}</label>
+                  <div className="p-3 bg-[#0f172a] border border-[#334155] rounded-lg flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-white font-medium">{t('Alertas del navegador', 'Browser alerts')}</p>
+                      <p className="text-xs text-slate-500">{t('Pagos próximos y vencimientos', 'Upcoming payments and maturities')}</p>
+                    </div>
+                    {getNotificationPermission() === 'granted' ? (
+                      <span className="text-xs text-emerald-400 font-medium px-2 py-1 bg-emerald-500/10 rounded">{t('Activado', 'Enabled')}</span>
+                    ) : getNotificationPermission() === 'denied' ? (
+                      <span className="text-xs text-red-400 font-medium px-2 py-1 bg-red-500/10 rounded">{t('Bloqueado', 'Blocked')}</span>
+                    ) : (
+                      <button onClick={async () => { await requestNotificationPermission(); }}
+                        className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors">
+                        {t('Activar', 'Enable')}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <button onClick={handleSave} disabled={saving}
                 className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium">
