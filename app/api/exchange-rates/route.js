@@ -13,13 +13,13 @@ async function fetchRates() {
 
   const sources = [
     async () => {
-      const res = await fetch('https://open.er-api.com/v6/latest/USD', { next: { revalidate: 600 } })
+      const res = await fetch('https://open.er-api.com/v6/latest/USD', { next: { revalidate: 600 }, signal: AbortSignal.timeout(10000) })
       if (!res.ok) throw new Error('er-api failed')
       const data = await res.json()
       return data.rates
     },
     async () => {
-      const res = await fetch('https://api.exchangerate-api.com/v4/latest/USD', { next: { revalidate: 600 } })
+      const res = await fetch('https://api.exchangerate-api.com/v4/latest/USD', { next: { revalidate: 600 }, signal: AbortSignal.timeout(10000) })
       if (!res.ok) throw new Error('exchangerate-api failed')
       const data = await res.json()
       return data.rates

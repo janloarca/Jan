@@ -30,7 +30,7 @@ const RANGE_MAP = {
 async function fetchYahooHistory(symbol, range, interval) {
   try {
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`
-    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } })
+    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(10000) })
     if (!res.ok) return []
     const data = await res.json()
     const result = data.chart?.result?.[0]
@@ -48,7 +48,7 @@ async function fetchYahooHistory(symbol, range, interval) {
 async function fetchCryptoHistory(id, days) {
   try {
     const url = `https://api.coingecko.com/api/v3/coins/${id}/market_chart?vs_currency=usd&days=${days}`
-    const res = await fetch(url)
+    const res = await fetch(url, { signal: AbortSignal.timeout(10000) })
     if (!res.ok) return []
     const data = await res.json()
     return (data.prices || []).map(([ts, price]) => ({ ts, close: price }))

@@ -15,6 +15,7 @@ export function useDocumentVault() {
   const uploadDocument = useCallback(async (uid, itemId, file) => {
     if (!uid || !itemId || !file) throw new Error('Missing parameters')
     if (file.size > MAX_FILE_SIZE) throw new Error('File too large (max 10MB)')
+    if (!ALLOWED_TYPES.includes(file.type)) throw new Error('File type not allowed')
 
     setUploading(true)
     try {
@@ -23,9 +24,9 @@ export function useDocumentVault() {
       const { db } = await import('@/lib/firebase')
       const fs = await import('firebase/firestore')
 
-      const ext = file.name.split('.').pop() || 'bin'
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
       const timestamp = Date.now()
-      const storagePath = `users/${uid}/documents/${itemId}/${timestamp}_${file.name}`
+      const storagePath = `users/${uid}/documents/${itemId}/${timestamp}_${safeName}`
       const storageRef = ref(storage, storagePath)
 
       await uploadBytes(storageRef, file, { contentType: file.type })

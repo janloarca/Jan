@@ -9,7 +9,7 @@ const SYMBOL_RE = /^[A-Z0-9._\-^=]{1,20}$/i
 async function fetchDividendInfo(symbol) {
   try {
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1mo&range=3y&events=div`
-    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } })
+    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(10000) })
     if (!res.ok) return { hasDividend: false, symbol }
 
     const data = await res.json()
