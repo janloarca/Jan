@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { rateLimit } from '@/lib/rateLimit'
+import { fetchWithRetry } from '@/lib/fetchWithRetry'
 
 const CRYPTO_MAP = {
   BTC: { id: 'bitcoin', name: 'Bitcoin' },
@@ -26,9 +27,8 @@ const CRYPTO_MAP = {
 async function searchYahoo(query) {
   try {
     const url = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=6&newsCount=0&listsCount=0`
-    const res = await fetch(url, {
+    const res = await fetchWithRetry(url, {
       headers: { 'User-Agent': 'Mozilla/5.0' },
-      signal: AbortSignal.timeout(10000),
     })
     if (!res.ok) return []
     const data = await res.json()
@@ -40,7 +40,8 @@ async function searchYahoo(query) {
         type: q.quoteType === 'ETF' || q.quoteType === 'MUTUALFUND' ? 'Fund' : 'Stock',
         exchange: q.exchDisp || q.exchange || '',
       }))
-  } catch {
+  } catch (err) {
+    console.error('[api/search] Yahoo search failed:', err.message)
     return []
   }
 }
@@ -60,12 +61,14 @@ function searchCrypto(query) {
 async function fetchAssetProfile(symbol) {
   try {
     const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=assetProfile`
-    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(10000) })
+    const res = await fetchWithRetry(url, { headers: { 'User-Agent': 'Mozilla/5.0' } })
     if (!res.ok) return null
     const data = await res.json()
     const profile = data.quoteSummary?.result?.[0]?.assetProfile
     if (profile) return { sector: profile.sector || '', industry: profile.industry || '', country: profile.country || '' }
-  } catch {}
+  } catch (err) {
+    console.error(`[api/search] Profile fetch failed for ${symbol}:`, err.message)
+  }
   return null
 }
 
@@ -74,17 +77,19 @@ async function fetchQuote(symbol, type) {
     const info = CRYPTO_MAP[symbol.toUpperCase()]
     if (!info) return null
     try {
-      const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${info.id}&vs_currencies=usd`, { signal: AbortSignal.timeout(10000) })
+      const res = await fetchWithRetry(`https://api.coingecko.com/api/v3/simple/price?ids=${info.id}&vs_currencies=usd`)
       if (!res.ok) return null
       const data = await res.json()
       if (data[info.id]) return { price: data[info.id].usd, currency: 'USD', sector: 'Crypto', industry: 'Cryptocurrency' }
-    } catch {}
+    } catch (err) {
+      console.error(`[api/search] CoinGecko quote failed for ${symbol}:`, err.message)
+    }
     return null
   }
 
   try {
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`
-    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(10000) })
+    const res = await fetchWithRetry(url, { headers: { 'User-Agent': 'Mozilla/5.0' } })
     if (!res.ok) return null
     const data = await res.json()
     const meta = data.chart?.result?.[0]?.meta
@@ -94,7 +99,9 @@ async function fetchQuote(symbol, type) {
       if (profile) { quote.sector = profile.sector; quote.industry = profile.industry; quote.country = profile.country }
       return quote
     }
-  } catch {}
+  } catch (err) {
+    console.error(`[api/search] Yahoo quote failed for ${symbol}:`, err.message)
+  }
   return null
 }
 

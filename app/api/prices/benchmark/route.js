@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { rateLimit } from '@/lib/rateLimit'
+import { fetchWithRetry } from '@/lib/fetchWithRetry'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,14 +37,14 @@ export async function GET(request) {
 
     const symbol = '%5EGSPC'
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=${interval}&range=${range}`
-    const res = await fetch(url, {
+    const res = await fetchWithRetry(url, {
       headers: { 'User-Agent': 'Mozilla/5.0' },
       next: { revalidate: 300 },
-      signal: AbortSignal.timeout(10000),
     })
 
     if (!res.ok) {
-      return NextResponse.json({ dataPoints: [], ytdReturn: null, oneYearReturn: null })
+      console.error(`[api/benchmark] Yahoo returned ${res.status}`)
+      return NextResponse.json({ error: 'Benchmark data unavailable', dataPoints: [], ytdReturn: null, oneYearReturn: null }, { status: 503 })
     }
 
     const raw = await res.json()
@@ -85,6 +86,7 @@ export async function GET(request) {
     cache = { data: responseData, ts: Date.now(), period }
     return NextResponse.json(responseData)
   } catch (err) {
-    return NextResponse.json({ dataPoints: [], ytdReturn: null, oneYearReturn: null }, { status: 500 })
+    console.error('[api/benchmark] error:', err.message)
+    return NextResponse.json({ error: 'Internal server error', dataPoints: [], ytdReturn: null, oneYearReturn: null }, { status: 500 })
   }
 }

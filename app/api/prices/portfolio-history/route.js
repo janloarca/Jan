@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
+import { fetchWithRetry } from '@/lib/fetchWithRetry'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +31,7 @@ const RANGE_MAP = {
 async function fetchYahooHistory(symbol, range, interval) {
   try {
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`
-    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(10000) })
+    const res = await fetchWithRetry(url, { headers: { 'User-Agent': 'Mozilla/5.0' } })
     if (!res.ok) return []
     const data = await res.json()
     const result = data.chart?.result?.[0]
@@ -40,7 +41,8 @@ async function fetchYahooHistory(symbol, range, interval) {
     return timestamps
       .map((ts, i) => ({ ts: ts * 1000, close: closes[i] }))
       .filter((p) => p.close != null)
-  } catch {
+  } catch (err) {
+    console.error(`[api/portfolio-history] Yahoo failed for ${symbol}:`, err.message)
     return []
   }
 }
@@ -48,11 +50,12 @@ async function fetchYahooHistory(symbol, range, interval) {
 async function fetchCryptoHistory(id, days) {
   try {
     const url = `https://api.coingecko.com/api/v3/coins/${id}/market_chart?vs_currency=usd&days=${days}`
-    const res = await fetch(url, { signal: AbortSignal.timeout(10000) })
+    const res = await fetchWithRetry(url)
     if (!res.ok) return []
     const data = await res.json()
     return (data.prices || []).map(([ts, price]) => ({ ts, close: price }))
-  } catch {
+  } catch (err) {
+    console.error(`[api/portfolio-history] CoinGecko failed for ${id}:`, err.message)
     return []
   }
 }

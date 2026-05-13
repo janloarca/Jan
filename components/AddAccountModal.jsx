@@ -426,12 +426,12 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
   const labelCls = 'text-xs text-[var(--text-secondary,#94a3b8)] mb-1 block font-medium'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="add-account-title">
       <div className="bg-[var(--card-bg,#1e293b)] border border-[var(--card-border,#334155)] rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border,#334155)]">
           <div className="flex items-center gap-3">
             {step === 2 && <button onClick={() => setStep(1)} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-sm">←</button>}
-            <h2 className="text-lg font-bold text-[var(--text-primary,white)]">
+            <h2 id="add-account-title" className="text-lg font-bold text-[var(--text-primary,white)]">
               {step === 1 ? t('Agregar Activo', 'Add Asset') : t('Detalles', 'Details')}
             </h2>
           </div>

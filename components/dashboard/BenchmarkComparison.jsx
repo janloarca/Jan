@@ -1,7 +1,11 @@
 'use client'
 
 export default function BenchmarkComparison({ benchmarkReturn, portfolioReturn, lang }) {
-  if (benchmarkReturn == null) return null
+  if (benchmarkReturn == null) return (
+    <div className="bg-[#1e293b]/40 rounded-xl border border-[#334155]/30 p-4 text-center">
+      <p className="text-sm text-slate-500">{lang === 'es' ? 'Benchmark no disponible' : 'Benchmark unavailable'}</p>
+    </div>
+  )
 
   const t = (es, en) => lang === 'es' ? es : en
   const delta = (portfolioReturn ?? 0) - benchmarkReturn

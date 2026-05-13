@@ -356,11 +356,11 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   const t = (es, en) => lang === 'es' ? es : en
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="import-modal-title">
       <div className="bg-[#1e293b] border border-[#334155] rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#334155]">
-          <h2 className="text-lg font-bold text-white">{t('Importar Portfolio', 'Import Portfolio')}</h2>
+          <h2 id="import-modal-title" className="text-lg font-bold text-white">{t('Importar Portfolio', 'Import Portfolio')}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
         </div>
 
