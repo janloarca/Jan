@@ -60,6 +60,8 @@ import PerformanceAttribution from '@/components/dashboard/PerformanceAttributio
 import PrintSummary from '@/components/dashboard/PrintSummary'
 import ValueBreakdown from '@/components/dashboard/ValueBreakdown'
 import OnboardingTour from '@/components/dashboard/OnboardingTour'
+import ErrorBanner from '@/components/dashboard/ErrorBanner'
+import ErrorBoundary from '@/components/ErrorBoundary'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -188,8 +190,8 @@ export default function DashboardPage() {
     setUtilsLang(lang)
   }, [lang])
 
-  const { enrichedItems: rawEnriched, loading: pricesLoading, lastUpdate: pricesUpdate, refresh: refreshPrices } = useMarketPrices(items)
-  const { rates, convert, convertItemValue, loading: ratesLoading, lastUpdate: ratesUpdate, refresh: refreshRates } = useExchangeRates(baseCurrency)
+  const { enrichedItems: rawEnriched, loading: pricesLoading, error: pricesError, lastUpdate: pricesUpdate, refresh: refreshPrices } = useMarketPrices(items)
+  const { rates, convert, convertItemValue, loading: ratesLoading, error: ratesError, lastUpdate: ratesUpdate, refresh: refreshRates } = useExchangeRates(baseCurrency)
 
   const enrichedItems = useMemo(() => {
     if (!rates) return rawEnriched
@@ -221,18 +223,25 @@ export default function DashboardPage() {
     const alreadyExists = snapshots.some((s) => s.date === todayStr || s.id === todayStr)
     if (alreadyExists) { snapshotSavedRef.current = true; return }
 
-    const totalUSD = enrichedItems.reduce((sum, it) => {
+    let totalAssetsUSD = 0
+    let totalDebtUSD = 0
+    enrichedItems.forEach((it) => {
+      let value
       if (it._originalPrice != null && it._originalCurrency) {
-        const value = (it.quantity || 0) * it._originalPrice
-        return sum + (convert ? convert(value, it._originalCurrency, 'USD') : value)
+        value = (it.quantity || 0) * it._originalPrice
+        value = convert ? convert(value, it._originalCurrency, 'USD') : value
+      } else {
+        const price = it.currentPrice || it.purchasePrice || 0
+        value = (it.quantity || 0) * price
+        value = convert ? convert(value, baseCurrency || 'USD', 'USD') : value
       }
-      const price = it.currentPrice || it.purchasePrice || 0
-      const value = (it.quantity || 0) * price
-      return sum + (convert ? convert(value, baseCurrency || 'USD', 'USD') : value)
-    }, 0)
+      if (it.isDebt) totalDebtUSD += Math.abs(value)
+      else totalAssetsUSD += value
+    })
+    const netWorthUSD = totalAssetsUSD - totalDebtUSD
 
-    if (totalUSD > 0) {
-      saveSnapshot({ date: todayStr, totalActivosUSD: totalUSD, netWorthUSD: totalUSD, rates: rates || {}, baseCurrency })
+    if (totalAssetsUSD > 0 || totalDebtUSD > 0) {
+      saveSnapshot({ date: todayStr, totalActivosUSD: totalAssetsUSD, totalDebtUSD, netWorthUSD, rates: rates || {}, baseCurrency })
       snapshotSavedRef.current = true
     }
   }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, snapshots, saveSnapshot, convert, baseCurrency])
@@ -754,6 +763,9 @@ export default function DashboardPage() {
           {(pricesLoading || ratesLoading) && <span className="text-xs text-blue-400 animate-pulse">{lang === 'es' ? 'Actualizando...' : 'Updating...'}</span>}
         </div>
 
+        {/* Error Banner */}
+        <ErrorBanner pricesError={pricesError} ratesError={ratesError} lang={lang} />
+
         {/* Notifications */}
         <NotificationCenter items={enrichedItems} transactions={transactions} lang={lang} />
 
@@ -811,11 +823,13 @@ export default function DashboardPage() {
 
         {/* ═══ PERFORMANCE & RISK ═══ */}
         <SectionCollapse title={lang === 'es' ? 'Rendimiento y Riesgo' : 'Performance & Risk'} id="perf-risk">
-          <PerformanceSummary items={enrichedItems} transactions={transactions} convert={convert} baseCurrency={baseCurrency} netWorth={netWorth} lang={lang} />
-          <PerformanceAttribution items={enrichedItems} lang={lang} />
-          <RiskMetrics snapshots={snapshots} benchmarkData={benchmarkData} netWorth={netWorth} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} />
-          <CurrencyImpact items={enrichedItems} convert={convert} baseCurrency={baseCurrency} rates={rates} lang={lang} />
-          <MonthlyPerformance snapshots={snapshots} transactions={transactions} convert={convert} baseCurrency={baseCurrency} lang={lang} />
+          <ErrorBoundary lang={lang}>
+            <PerformanceSummary items={enrichedItems} transactions={transactions} convert={convert} baseCurrency={baseCurrency} netWorth={netWorth} lang={lang} />
+            <PerformanceAttribution items={enrichedItems} lang={lang} />
+            <RiskMetrics snapshots={snapshots} benchmarkData={benchmarkData} netWorth={netWorth} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} />
+            <CurrencyImpact items={enrichedItems} convert={convert} baseCurrency={baseCurrency} rates={rates} lang={lang} />
+            <MonthlyPerformance snapshots={snapshots} transactions={transactions} convert={convert} baseCurrency={baseCurrency} lang={lang} />
+          </ErrorBoundary>
         </SectionCollapse>
 
         {/* Action Buttons */}
@@ -831,45 +845,49 @@ export default function DashboardPage() {
 
         {/* ═══ INCOME & GOALS ═══ */}
         <SectionCollapse title={lang === 'es' ? 'Ingresos y Metas' : 'Income & Goals'} id="income-goals">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-            <DividendIncome transactions={transactions} items={enrichedItems} convert={convert} baseCurrency={baseCurrency} lang={lang} netWorth={netWorth} />
-            <ConcentrationRisk items={enrichedItems} lang={lang} />
-          </div>
+          <ErrorBoundary lang={lang}>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+              <DividendIncome transactions={transactions} items={enrichedItems} convert={convert} baseCurrency={baseCurrency} lang={lang} netWorth={netWorth} />
+              <ConcentrationRisk items={enrichedItems} lang={lang} />
+            </div>
 
-          <IncomeCalendar items={enrichedItems} lang={lang} />
+            <IncomeCalendar items={enrichedItems} lang={lang} />
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-            <GoalTracker
-              netWorth={netWorth}
-              annualDividends={annualDividends}
-              estimatedAnnualIncome={estimatedAnnualIncome}
-              goals={goals}
-              onSaveGoals={saveGoals}
-              volatility={riskMetrics.volatility}
-              lang={lang}
-            />
-            <FinancialHealth items={enrichedItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} />
-          </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+              <GoalTracker
+                netWorth={netWorth}
+                annualDividends={annualDividends}
+                estimatedAnnualIncome={estimatedAnnualIncome}
+                goals={goals}
+                onSaveGoals={saveGoals}
+                volatility={riskMetrics.volatility}
+                lang={lang}
+              />
+              <FinancialHealth items={enrichedItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} />
+            </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-            <RecurringTransactions goals={goals} onSaveGoals={saveGoals} lang={lang} />
-            <SavingsRate goals={goals} transactions={transactions} netWorth={netWorth} snapshots={snapshots} lang={lang} />
-            <FeeAnalysis items={enrichedItems} netWorth={netWorth} lang={lang} />
-          </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+              <RecurringTransactions goals={goals} onSaveGoals={saveGoals} lang={lang} />
+              <SavingsRate goals={goals} transactions={transactions} netWorth={netWorth} snapshots={snapshots} lang={lang} />
+              <FeeAnalysis items={enrichedItems} netWorth={netWorth} lang={lang} />
+            </div>
 
-          <RebalanceSuggestions items={enrichedItems} netWorth={netWorth} goals={goals} onSaveGoals={saveGoals} lang={lang} />
+            <RebalanceSuggestions items={enrichedItems} netWorth={netWorth} goals={goals} onSaveGoals={saveGoals} lang={lang} />
 
-          <ProjectionSimulator netWorth={netWorth} lang={lang} volatility={riskMetrics.volatility} goalValue={goals?.portfolioGoal} />
+            <ProjectionSimulator netWorth={netWorth} lang={lang} volatility={riskMetrics.volatility} goalValue={goals?.portfolioGoal} />
+          </ErrorBoundary>
         </SectionCollapse>
 
         {/* ═══ HOLDINGS ═══ */}
         <SectionCollapse title={lang === 'es' ? 'Posiciones' : 'Holdings'} id="holdings">
-          <AccountsTable items={enrichedItems} lang={lang} onDeleteItem={deleteItem}
-            onEditItem={(item) => setEditItem(item)} onViewItem={(item) => setDetailItem(item)}
-            onSellItem={(item) => setSellItem(item)}
-            onQuickBuy={() => setModal('account')} />
+          <ErrorBoundary lang={lang}>
+            <AccountsTable items={enrichedItems} lang={lang} onDeleteItem={deleteItem}
+              onEditItem={(item) => setEditItem(item)} onViewItem={(item) => setDetailItem(item)}
+              onSellItem={(item) => setSellItem(item)}
+              onQuickBuy={() => setModal('account')} />
 
-          <RecentTransactions transactions={transactions} lang={lang} />
+            <RecentTransactions transactions={transactions} lang={lang} />
+          </ErrorBoundary>
         </SectionCollapse>
 
         {/* Generate Report */}

@@ -25,6 +25,20 @@ async function waitForAuth(auth) {
   })
 }
 
+function sanitizeItem(raw) {
+  return {
+    ...raw,
+    quantity: Number(raw.quantity) || 0,
+    purchasePrice: Number(raw.purchasePrice) || 0,
+    currentPrice: raw.currentPrice != null ? Number(raw.currentPrice) || 0 : undefined,
+    incomeAmount: raw.incomeAmount != null ? Number(raw.incomeAmount) || 0 : 0,
+    incomeRate: raw.incomeRate != null ? Number(raw.incomeRate) || 0 : 0,
+    rateMin: raw.rateMin != null ? Number(raw.rateMin) || 0 : 0,
+    rateMax: raw.rateMax != null ? Number(raw.rateMax) || 0 : 0,
+    incomeMonths: Array.isArray(raw.incomeMonths) ? raw.incomeMonths.filter((m) => typeof m === 'number' && m >= 0 && m < 12) : undefined,
+  }
+}
+
 export function useFirestoreItems() {
   const [items, setItems] = useState([])
   const [snapshots, setSnapshots] = useState([])
@@ -53,7 +67,7 @@ export function useFirestoreItems() {
 
       unsubItems = fs.onSnapshot(
         fs.collection(db, `users/${currentUid}/items`),
-        (snap) => { if (!cancelled) setItems(snap.docs.map((d) => ({ id: d.id, ...d.data() }))) }
+        (snap) => { if (!cancelled) setItems(snap.docs.map((d) => sanitizeItem({ id: d.id, ...d.data() }))) }
       )
       unsubSnapshots = fs.onSnapshot(
         fs.query(fs.collection(db, `users/${currentUid}/snapshots`), fs.orderBy('date')),

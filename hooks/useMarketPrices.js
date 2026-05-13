@@ -4,6 +4,7 @@ export function useMarketPrices(items) {
   const [prices, setPrices] = useState({})
   const [dividends, setDividends] = useState({})
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
   const [lastUpdate, setLastUpdate] = useState(null)
 
   const fetchPrices = useCallback(async () => {
@@ -15,6 +16,7 @@ export function useMarketPrices(items) {
     if (symbols.length === 0) return
 
     setLoading(true)
+    setError(null)
     try {
       const stockSyms = symbols.filter((s) => !/crypto|cripto|blockchain/i.test(s.type || ''))
 
@@ -37,6 +39,8 @@ export function useMarketPrices(items) {
         const data = await priceRes.json()
         setPrices(data.prices || {})
         setLastUpdate(data.timestamp)
+      } else {
+        setError('Failed to fetch prices')
       }
 
       if (divRes?.ok) {
@@ -45,6 +49,7 @@ export function useMarketPrices(items) {
       }
     } catch (err) {
       console.error('Failed to fetch market prices:', err)
+      setError(err.message)
     }
     setLoading(false)
   }, [items])
@@ -86,5 +91,5 @@ export function useMarketPrices(items) {
     })
   }, [items, prices, dividends])
 
-  return { enrichedItems, prices, loading, lastUpdate, refresh: fetchPrices }
+  return { enrichedItems, prices, loading, error, lastUpdate, refresh: fetchPrices }
 }

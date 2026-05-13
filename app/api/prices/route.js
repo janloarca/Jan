@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { rateLimit } from '@/lib/rateLimit'
+import { fetchWithRetry } from '@/lib/fetchWithRetry'
 
 const SYMBOL_RE = /^[A-Z0-9._\-^=]{1,20}$/i
 
@@ -20,6 +21,7 @@ const CRYPTO_MAP = {
 
 async function fetchStockPrices(symbols) {
   const results = {}
+  const warnings = []
   const batches = []
   for (let i = 0; i < symbols.length; i += 5) {
     batches.push(symbols.slice(i, i + 5))
@@ -29,12 +31,14 @@ async function fetchStockPrices(symbols) {
     await Promise.all(batch.map(async (sym) => {
       try {
         const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=7d`
-        const res = await fetch(url, {
+        const res = await fetchWithRetry(url, {
           headers: { 'User-Agent': 'Mozilla/5.0' },
           next: { revalidate: 300 },
-          signal: AbortSignal.timeout(10000),
         })
-        if (!res.ok) return
+        if (!res.ok) {
+          warnings.push(`${sym}: Yahoo returned ${res.status}`)
+          return
+        }
         const data = await res.json()
         const meta = data.chart?.result?.[0]?.meta
         const closes = data.chart?.result?.[0]?.indicators?.quote?.[0]?.close
@@ -44,24 +48,31 @@ async function fetchStockPrices(symbols) {
           const change7d = prev7d ? ((price - prev7d) / prev7d) * 100 : null
           results[sym] = { price, change7d, currency: meta.currency || 'USD' }
         }
-      } catch {}
+      } catch (err) {
+        console.error(`[api/prices] Failed to fetch ${sym}:`, err.message)
+        warnings.push(`${sym}: ${err.message}`)
+      }
     }))
   }
-  return results
+  return { results, warnings }
 }
 
 async function fetchCryptoPrices(symbols) {
   const results = {}
+  const warnings = []
   const ids = symbols
     .map((sym) => CRYPTO_MAP[sym.toUpperCase()])
     .filter(Boolean)
 
-  if (ids.length === 0) return results
+  if (ids.length === 0) return { results, warnings }
 
   try {
     const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(',')}&vs_currencies=usd&include_7d_change=true`
-    const res = await fetch(url, { next: { revalidate: 300 }, signal: AbortSignal.timeout(10000) })
-    if (!res.ok) return results
+    const res = await fetchWithRetry(url, { next: { revalidate: 300 } })
+    if (!res.ok) {
+      warnings.push(`CoinGecko returned ${res.status}`)
+      return { results, warnings }
+    }
     const data = await res.json()
 
     symbols.forEach((sym) => {
@@ -74,8 +85,11 @@ async function fetchCryptoPrices(symbols) {
         }
       }
     })
-  } catch {}
-  return results
+  } catch (err) {
+    console.error('[api/prices] CoinGecko failed:', err.message)
+    warnings.push(`CoinGecko: ${err.message}`)
+  }
+  return { results, warnings }
 }
 
 export async function POST(request) {
@@ -102,13 +116,27 @@ export async function POST(request) {
       }
     })
 
-    const [stockPrices, cryptoPrices] = await Promise.all([
-      stockSymbols.length > 0 ? fetchStockPrices([...new Set(stockSymbols)]) : {},
-      cryptoSymbols.length > 0 ? fetchCryptoPrices([...new Set(cryptoSymbols)]) : {},
+    const [stockResult, cryptoResult] = await Promise.all([
+      stockSymbols.length > 0 ? fetchStockPrices([...new Set(stockSymbols)]) : { results: {}, warnings: [] },
+      cryptoSymbols.length > 0 ? fetchCryptoPrices([...new Set(cryptoSymbols)]) : { results: {}, warnings: [] },
     ])
 
+    const allWarnings = [...stockResult.warnings, ...cryptoResult.warnings]
+    const allPrices = { ...stockResult.results, ...cryptoResult.results }
+    const requested = stockSymbols.length + cryptoSymbols.length
+
+    if (requested > 0 && Object.keys(allPrices).length === 0) {
+      return NextResponse.json({
+        error: 'All price sources failed',
+        prices: {},
+        warnings: allWarnings,
+        timestamp: new Date().toISOString(),
+      }, { status: 503 })
+    }
+
     return NextResponse.json({
-      prices: { ...stockPrices, ...cryptoPrices },
+      prices: allPrices,
+      ...(allWarnings.length > 0 ? { warnings: allWarnings } : {}),
       timestamp: new Date().toISOString(),
     })
   } catch (err) {

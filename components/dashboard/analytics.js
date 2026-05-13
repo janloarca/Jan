@@ -29,10 +29,9 @@ export function computeSharpeRatio({ returns, riskFreeRate }) {
 export function computeVolatility({ returns, periodsPerYear }) {
   if (!returns || returns.length < 2) return null
   let ppy = periodsPerYear
-  if (!ppy && returns.length >= 2) {
-    ppy = 12
-  }
+  if (!ppy || ppy <= 0) ppy = 12
   const sd = stddev(returns)
+  if (!isFinite(sd)) return null
   return Math.round(sd * Math.sqrt(ppy) * 100 * 100) / 100
 }
 
@@ -403,7 +402,7 @@ export function computeBeta(portfolioReturns, benchmarkReturns) {
 export function computeTWRSeries(chartData, transactions, convert, baseCurrency) {
   if (!chartData || chartData.length < 2) return []
 
-  const flowTypes = { DEPOSIT: 1, WITHDRAWAL: -1 }
+  const flowTypes = { DEPOSIT: 1, WITHDRAWAL: -1, BUY: 1, SELL: -1 }
   const flows = (transactions || [])
     .filter((tx) => tx.date && flowTypes[(tx.type || '').toUpperCase()] != null)
     .map((tx) => {

@@ -101,7 +101,11 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
     })
   }, [historyPoints, netWorth, transactions, convert, baseCurrency, returnMode])
 
-  if (periods.length === 0 && !loading) return null
+  if (periods.length === 0 && !loading) return (
+    <div className="bg-[#1e293b]/40 rounded-xl border border-[#334155]/30 p-4 text-center">
+      <p className="text-sm text-slate-500">{lang === 'es' ? 'Sin datos de rendimiento aún' : 'No performance data yet'}</p>
+    </div>
+  )
 
   const t = (es, en) => lang === 'es' ? es : en
 

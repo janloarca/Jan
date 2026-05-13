@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { rateLimit } from '@/lib/rateLimit'
+import { fetchWithRetry } from '@/lib/fetchWithRetry'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,13 +29,13 @@ export async function GET(request) {
 
   try {
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`
-    const res = await fetch(url, {
+    const res = await fetchWithRetry(url, {
       headers: { 'User-Agent': 'Mozilla/5.0' },
-      signal: AbortSignal.timeout(10000),
     })
 
     if (!res.ok) {
-      return NextResponse.json({ error: 'Data unavailable', prices: [] }, { status: 200 })
+      console.error(`[api/chart] Yahoo returned ${res.status} for ${symbol}`)
+      return NextResponse.json({ error: 'Data unavailable', prices: [] }, { status: 503 })
     }
 
     const data = await res.json()

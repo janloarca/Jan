@@ -3,19 +3,32 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 export function useExchangeRates(baseCurrency) {
   const [rates, setRates] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
   const [lastUpdate, setLastUpdate] = useState(null)
 
   const fetchRates = useCallback(async () => {
     setLoading(true)
+    setError(null)
     try {
       const res = await fetch('/api/exchange-rates')
       if (res.ok) {
         const data = await res.json()
-        setRates(data.rates || null)
-        setLastUpdate(data.timestamp)
+        const raw = data.rates || {}
+        const valid = Object.fromEntries(
+          Object.entries(raw).filter(([, v]) => typeof v === 'number' && v > 0 && isFinite(v))
+        )
+        if (Object.keys(valid).length > 0) {
+          setRates(valid)
+          setLastUpdate(data.timestamp)
+        } else {
+          setError('Invalid rate data')
+        }
+      } else {
+        setError('Failed to fetch rates')
       }
     } catch (err) {
       console.error('Failed to fetch exchange rates:', err)
+      setError(err.message)
     }
     setLoading(false)
   }, [])
@@ -55,5 +68,5 @@ export function useExchangeRates(baseCurrency) {
 
   const ready = !!rates
 
-  return { rates, loading, lastUpdate, convert, getRate, convertItemValue, ready, refresh: fetchRates }
+  return { rates, loading, error, lastUpdate, convert, getRate, convertItemValue, ready, refresh: fetchRates }
 }
