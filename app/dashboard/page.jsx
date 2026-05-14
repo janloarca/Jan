@@ -1050,6 +1050,36 @@ export default function DashboardPage() {
           onDeleteAllItems={deleteAllItems}
           onDeleteAllSnapshots={deleteAllSnapshots}
           onDeleteAllTransactions={deleteAllTransactions}
+          onSyncBroker={async (positions) => {
+            for (const pos of positions) {
+              const existing = items.find((it) =>
+                it.institution === 'Interactive Brokers' &&
+                (it.symbol === pos.symbol || it._ibkrConId === pos._ibkrConId)
+              )
+              if (existing) {
+                await updateItem(existing.id, {
+                  quantity: pos.quantity,
+                  currentPrice: pos.currentPrice,
+                  purchasePrice: pos.purchasePrice || existing.purchasePrice,
+                  isDebt: pos.isDebt,
+                })
+              } else {
+                const item = { ...pos }
+                if (activePortfolio && activePortfolio !== '__all__') item.portfolioId = activePortfolio
+                await addItem(item)
+                if (pos.symbol && pos.quantity > 0 && pos.purchasePrice > 0 && !pos.isDebt && pos.type !== 'Bank') {
+                  await addLot({
+                    symbol: pos.symbol.toUpperCase(),
+                    quantity: pos.quantity,
+                    costBasis: pos.purchasePrice,
+                    currency: pos.currency || 'USD',
+                    acquisitionDate: pos.acquisitionDate || new Date().toISOString().split('T')[0],
+                    ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
+                  })
+                }
+              }
+            }
+          }}
           theme={theme}
           onToggleTheme={handleSetTheme}
           lang={lang}
