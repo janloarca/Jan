@@ -27,8 +27,9 @@ const ALLOWED_SYMBOLS = {
   'QQQ': 'Invesco QQQ (Nasdaq-100)',
 }
 
-const cache = {}
+const cache = new Map()
 const CACHE_TTL = 5 * 60 * 1000
+const MAX_CACHE = 60
 
 export async function GET(request) {
   const { limited } = rateLimit(request, { maxRequests: 60 })
@@ -48,7 +49,7 @@ export async function GET(request) {
     const benchmarkName = ALLOWED_SYMBOLS[symbol]
 
     const cacheKey = `${symbol}:${period}`
-    const cached = cache[cacheKey]
+    const cached = cache.get(cacheKey)
     if (cached && Date.now() - cached.ts < CACHE_TTL) {
       return NextResponse.json(cached.data)
     }
@@ -101,7 +102,8 @@ export async function GET(request) {
       benchmarkName,
     }
 
-    cache[cacheKey] = { data: responseData, ts: Date.now() }
+    if (cache.size >= MAX_CACHE) cache.delete(cache.keys().next().value)
+    cache.set(cacheKey, { data: responseData, ts: Date.now() })
     return NextResponse.json(responseData)
   } catch (err) {
     console.error('[api/benchmark] error:', err.message)

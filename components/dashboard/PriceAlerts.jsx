@@ -73,9 +73,15 @@ export default function PriceAlerts({ alerts, items, onAddAlert, onDeleteAlert, 
       )}
 
       {activeAlerts.length === 0 && triggeredAlerts.length === 0 && !showForm && (
-        <p className="text-sm text-slate-500 text-center py-4">
-          {t('Sin alertas configuradas.', 'No alerts set.')}
-        </p>
+        <div className="text-center py-4">
+          <p className="text-sm text-slate-500">
+            {t('Sin alertas configuradas.', 'No alerts set.')}
+          </p>
+          <button onClick={() => setShowForm(true)}
+            className="mt-2 text-xs text-emerald-400 hover:text-emerald-300 transition-colors">
+            {t('Crear tu primera alerta', 'Create your first alert')}
+          </button>
+        </div>
       )}
 
       {activeAlerts.length > 0 && (

@@ -175,6 +175,7 @@ export default function DashboardPage() {
     settings,
     loading: dataLoading,
     addItem,
+    updateItem,
     deleteItem,
     deleteAllItems,
     saveSnapshot,
@@ -257,15 +258,10 @@ export default function DashboardPage() {
     let totalAssetsUSD = 0
     let totalDebtUSD = 0
     enrichedItems.forEach((it) => {
-      let value
-      if (it._originalPrice != null && it._originalCurrency) {
-        value = (it.quantity || 0) * it._originalPrice
-        value = convert ? convert(value, it._originalCurrency, 'USD') : value
-      } else {
-        const price = it.currentPrice || it.purchasePrice || 0
-        value = (it.quantity || 0) * price
-        value = convert ? convert(value, baseCurrency || 'USD', 'USD') : value
-      }
+      const origPrice = it._originalPrice ?? it.currentPrice ?? it.purchasePrice ?? 0
+      const origCurrency = it._originalCurrency ?? baseCurrency ?? 'USD'
+      let value = (it.quantity || 0) * origPrice
+      value = convert ? convert(value, origCurrency, 'USD') : value
       if (it.isDebt) totalDebtUSD += Math.abs(value)
       else totalAssetsUSD += value
     })
@@ -284,6 +280,8 @@ export default function DashboardPage() {
     if (dividendsProcessedRef.current === todayKey) return
     if (!user || dataLoading || pricesLoading || ratesLoading) return
     if (enrichedItems.length === 0) return
+
+    let cancelled = false
 
     const scheduled = enrichedItems.filter((it) =>
       (it.incomeAmount > 0 || it.incomeRate > 0 || (it.rateType === 'variable' && it.rateMin > 0) || it.rateType === 'continuous') && it.incomeMonths
@@ -306,6 +304,7 @@ export default function DashboardPage() {
 
     async function processDividends() {
       for (const it of scheduled) {
+        if (cancelled) return
         try {
           const payDay = getEffectivePayDay(it.incomePayDay || 1, it.businessDayRule)
           const isContinuous = it.rateType === 'continuous'
@@ -358,25 +357,25 @@ export default function DashboardPage() {
             const sharePrice = it.currentPrice || it.purchasePrice || 0
             if (sharePrice > 0) {
               const newShares = paymentAmount / sharePrice
-              await addItem({ ...it, quantity: (it.quantity || 0) + newShares })
+              await updateItem(it.id, { quantity: (it.quantity || 0) + newShares })
             }
           } else if (it.incomeDestination) {
             const dest = enrichedItems.find((d) => (d.id || d.symbol) === it.incomeDestination)
             if (dest) {
               const destPrice = (dest.currentPrice || dest.purchasePrice || 0) + paymentAmount
-              await addItem({ ...dest, currentPrice: destPrice, purchasePrice: destPrice })
+              await updateItem(dest.id, { currentPrice: destPrice, purchasePrice: destPrice })
             }
           }
 
           if (it.capitalReturn > 0) {
             const newPrice = Math.max(0, (it.currentPrice || it.purchasePrice || 0) - it.capitalReturn)
-            await addItem({ ...it, currentPrice: newPrice, purchasePrice: newPrice })
+            await updateItem(it.id, { currentPrice: newPrice, purchasePrice: newPrice })
 
             if (it.capitalDestination) {
               const dest = enrichedItems.find((d) => (d.id || d.symbol) === it.capitalDestination)
               if (dest) {
                 const destPrice = (dest.currentPrice || dest.purchasePrice || 0) + it.capitalReturn
-                await addItem({ ...dest, currentPrice: destPrice, purchasePrice: destPrice })
+                await updateItem(dest.id, { currentPrice: destPrice, purchasePrice: destPrice })
               }
             }
           }
@@ -388,7 +387,8 @@ export default function DashboardPage() {
     }
 
     processDividends()
-  }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, transactions, addTransaction, addItem])
+    return () => { cancelled = true }
+  }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, transactions, addTransaction, updateItem])
 
   const handleRefresh = useCallback(() => {
     refreshPrices()
@@ -478,12 +478,26 @@ export default function DashboardPage() {
 
   const handleExportTransactionsCSV = useCallback(() => {
     if (!transactions || transactions.length === 0) return
-    const header = 'Date,Type,Symbol,Description,Quantity,Price,Total,Currency'
+    const header = 'Date,Type,Symbol,Description,Quantity,Price,Total,Currency,Cost Basis,Realized Gain'
     const rows = [...transactions].sort((a, b) => (a.date || '').localeCompare(b.date || '')).map((tx) => {
       const esc = (v) => `"${String(v || '').replace(/"/g, '""')}"`
+      let costBasis = ''
+      let realizedGain = ''
+      if ((tx.type || '').toUpperCase() === 'SELL' && tx.symbol && lots) {
+        const matched = lots.filter((l) =>
+          l.status === 'closed' &&
+          (l.symbol || '').toUpperCase() === (tx.symbol || '').toUpperCase() &&
+          l.closedDate === tx.date
+        )
+        if (matched.length > 0) {
+          costBasis = matched.reduce((s, l) => s + (l.costBasis || 0) * (l.quantity || 0), 0).toFixed(2)
+          realizedGain = matched.reduce((s, l) => s + (l.realizedGain || 0), 0).toFixed(2)
+        }
+      }
       return [
         tx.date || '', tx.type || '', tx.symbol || '', esc(tx.description || ''),
         tx.quantity || '', tx.pricePerUnit || '', tx.totalAmount || '', tx.currency || 'USD',
+        costBasis, realizedGain,
       ].join(',')
     })
     const csv = [header, ...rows].join('\n')
@@ -494,7 +508,7 @@ export default function DashboardPage() {
     a.download = `chispudo-transactions-${new Date().toISOString().split('T')[0]}.csv`
     a.click()
     URL.revokeObjectURL(url)
-  }, [transactions])
+  }, [transactions, lots])
 
   const handleReport = useCallback(async () => {
     const { generateReport } = await import('@/lib/generateReport')
@@ -977,6 +991,8 @@ export default function DashboardPage() {
           onImportItems={addItem}
           onImportTransaction={addTransaction}
           onImportSnapshot={saveSnapshot}
+          onAddLot={addLot}
+          activePortfolio={activePortfolio}
           lang={lang}
         />
       )}
@@ -988,6 +1004,7 @@ export default function DashboardPage() {
           onAddTransaction={addTransaction}
           onAddLot={addLot}
           existingItems={items}
+          activePortfolio={activePortfolio}
           lang={lang}
         />
       )}
@@ -1007,6 +1024,7 @@ export default function DashboardPage() {
           item={sellItem}
           onClose={() => setSellItem(null)}
           onSell={addItem}
+          onUpdate={updateItem}
           onAddTransaction={addTransaction}
           onCloseLots={closeLotsFIFO}
           existingItems={items}

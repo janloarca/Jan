@@ -67,7 +67,7 @@ export default function GainsReport({ lots, items, lang }) {
         </div>
       </div>
 
-      {report.symbols.length > 0 && (
+      {report.symbols.length > 0 ? (
         <div className="space-y-1.5">
           {report.symbols.slice(0, 8).map((s) => (
             <div key={s.symbol} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-[#283548]/30 transition-colors">
@@ -87,6 +87,10 @@ export default function GainsReport({ lots, items, lang }) {
             </div>
           ))}
         </div>
+      ) : (
+        <p className="text-xs text-slate-500 text-center py-2">
+          {t('Agrega lotes al comprar o vender para ver ganancias.', 'Add lots by buying or selling to see gains.')}
+        </p>
       )}
     </div>
   )

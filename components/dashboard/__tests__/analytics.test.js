@@ -149,6 +149,29 @@ describe('computeHHI', () => {
     expect(result.level).toBe('high')
     expect(result.equivalentPositions).toBe(1)
   })
+
+  test('ignores debt items with negative values', () => {
+    const positions = [{ value: 5000 }, { value: 3000 }, { value: 2000 }, { value: -4000 }]
+    const result = computeHHI(positions)
+    expect(result.hhi).toBeGreaterThan(0)
+    expect(result.hhi).toBeLessThan(10000)
+    const posOnly = computeHHI([{ value: 5000 }, { value: 3000 }, { value: 2000 }])
+    expect(result.hhi).toBe(posOnly.hhi)
+  })
+
+  test('handles debt nearly equal to assets', () => {
+    const positions = [{ value: 10000 }, { value: -9900 }]
+    const result = computeHHI(positions)
+    expect(result.hhi).toBe(10000)
+    expect(result.level).toBe('high')
+  })
+
+  test('all negative values returns zero', () => {
+    const positions = [{ value: -5000 }, { value: -3000 }]
+    const result = computeHHI(positions)
+    expect(result.hhi).toBe(0)
+    expect(result.level).toBe('low')
+  })
 })
 
 describe('computeTWRSeries', () => {
