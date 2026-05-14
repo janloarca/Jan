@@ -62,6 +62,10 @@ import ValueBreakdown from '@/components/dashboard/ValueBreakdown'
 import OnboardingTour from '@/components/dashboard/OnboardingTour'
 import ErrorBanner from '@/components/dashboard/ErrorBanner'
 import ErrorBoundary from '@/components/ErrorBoundary'
+import PriceAlerts from '@/components/dashboard/PriceAlerts'
+import GainsReport from '@/components/dashboard/GainsReport'
+import PortfolioSelector from '@/components/dashboard/PortfolioSelector'
+import { checkPriceAlerts } from '@/lib/notifications'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -74,6 +78,7 @@ export default function DashboardPage() {
   const [theme, setTheme] = useState('system')
   const [lang, setLang] = useState('es')
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [activePortfolio, setActivePortfolio] = useState('__all__')
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -176,6 +181,16 @@ export default function DashboardPage() {
     deleteAllSnapshots,
     addTransaction,
     deleteAllTransactions,
+    alerts,
+    addAlert,
+    deleteAlert,
+    updateAlert,
+    lots,
+    addLot,
+    closeLotsFIFO,
+    portfolios,
+    addPortfolio,
+    deletePortfolio,
     saveGoals,
     saveSettings,
   } = useFirestoreItems()
@@ -190,8 +205,19 @@ export default function DashboardPage() {
     setUtilsLang(lang)
   }, [lang])
 
-  const { enrichedItems: rawEnriched, loading: pricesLoading, error: pricesError, lastUpdate: pricesUpdate, refresh: refreshPrices } = useMarketPrices(items)
+  const { enrichedItems: rawEnriched, prices: marketPrices, loading: pricesLoading, error: pricesError, lastUpdate: pricesUpdate, refresh: refreshPrices } = useMarketPrices(items)
   const { rates, convert, convertItemValue, loading: ratesLoading, error: ratesError, lastUpdate: ratesUpdate, refresh: refreshRates } = useExchangeRates(baseCurrency)
+
+  const alertsCheckedRef = useRef(null)
+  useEffect(() => {
+    if (!marketPrices || Object.keys(marketPrices).length === 0 || !alerts || alerts.length === 0) return
+    const key = pricesUpdate || Date.now()
+    if (alertsCheckedRef.current === key) return
+    alertsCheckedRef.current = key
+    checkPriceAlerts(alerts, marketPrices, (alertId) => {
+      updateAlert(alertId, { triggered: true, triggeredAt: new Date().toISOString() })
+    })
+  }, [marketPrices, alerts, pricesUpdate, updateAlert])
 
   const enrichedItems = useMemo(() => {
     if (!rates) return rawEnriched
@@ -212,16 +238,21 @@ export default function DashboardPage() {
     })
   }, [rawEnriched, rates, convert, baseCurrency])
 
-  const snapshotSavedRef = useRef(false)
+  const portfolioItems = useMemo(() => {
+    if (activePortfolio === '__all__') return enrichedItems
+    return enrichedItems.filter((it) => (it.portfolioId || '__default__') === activePortfolio)
+  }, [enrichedItems, activePortfolio])
+
+  const snapshotSavedRef = useRef(null)
 
   useEffect(() => {
-    if (snapshotSavedRef.current) return
+    const todayStr = new Date().toISOString().split('T')[0]
+    if (snapshotSavedRef.current === todayStr) return
     if (!user || dataLoading || pricesLoading || ratesLoading) return
     if (enrichedItems.length === 0) return
 
-    const todayStr = new Date().toISOString().split('T')[0]
     const alreadyExists = snapshots.some((s) => s.date === todayStr || s.id === todayStr)
-    if (alreadyExists) { snapshotSavedRef.current = true; return }
+    if (alreadyExists) { snapshotSavedRef.current = todayStr; return }
 
     let totalAssetsUSD = 0
     let totalDebtUSD = 0
@@ -242,7 +273,7 @@ export default function DashboardPage() {
 
     if (totalAssetsUSD > 0 || totalDebtUSD > 0) {
       saveSnapshot({ date: todayStr, totalActivosUSD: totalAssetsUSD, totalDebtUSD, netWorthUSD, rates: rates || {}, baseCurrency })
-      snapshotSavedRef.current = true
+      snapshotSavedRef.current = todayStr
     }
   }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, snapshots, saveSnapshot, convert, baseCurrency])
 
@@ -275,79 +306,82 @@ export default function DashboardPage() {
 
     async function processDividends() {
       for (const it of scheduled) {
-        const payDay = getEffectivePayDay(it.incomePayDay || 1, it.businessDayRule)
-        const isContinuous = it.rateType === 'continuous'
+        try {
+          const payDay = getEffectivePayDay(it.incomePayDay || 1, it.businessDayRule)
+          const isContinuous = it.rateType === 'continuous'
 
-        if (!isContinuous && todayDay !== payDay) continue
+          if (!isContinuous && todayDay !== payDay) continue
 
-        const months = it.incomeMonths || [0,1,2,3,4,5,6,7,8,9,10,11]
-        if (!months.includes(currentMonth)) continue
+          const months = it.incomeMonths || [0,1,2,3,4,5,6,7,8,9,10,11]
+          if (!months.includes(currentMonth)) continue
 
-        // Skip if matured
-        if (it.maturityDate) {
-          const matDate = new Date(it.maturityDate)
-          if (matDate <= today) continue
-        }
-
-        const sym = (it.symbol || '').toUpperCase()
-        const alreadyPaid = transactions.some((tx) =>
-          tx.date === todayKey &&
-          (tx.type || '').toUpperCase() === 'DIVIDEND' &&
-          (tx.symbol || '').toUpperCase() === sym &&
-          tx._auto === true
-        )
-        if (alreadyPaid) continue
-
-        let paymentAmount = it.incomeAmount || 0
-        const balance = (it.quantity || 1) * (it._originalPrice || it.currentPrice || it.purchasePrice || 0)
-
-        if (it.rateType === 'variable' && it.rateMin > 0 && it.rateMax > 0) {
-          const midRate = (it.rateMin + it.rateMax) / 2
-          const payMonths = months.length || 12
-          paymentAmount = (balance * (midRate / 100)) / payMonths
-        } else if (isContinuous && it.incomeRate > 0) {
-          paymentAmount = (balance * (it.incomeRate / 100)) / 365
-        } else if (it.incomeMode === 'percent' && it.incomeRate > 0) {
-          const payMonths = months.length || 12
-          paymentAmount = (balance * (it.incomeRate / 100)) / payMonths
-        }
-        if (paymentAmount <= 0) continue
-
-        await addTransaction({
-          type: 'DIVIDEND',
-          symbol: sym,
-          description: `${it.name || it.symbol} - ${paymentAmount.toFixed(2)} ${it._originalCurrency || it.currency || 'USD'}`,
-          date: todayKey,
-          totalAmount: Math.round(paymentAmount * 100) / 100,
-          currency: it._originalCurrency || it.currency || 'USD',
-          _auto: true,
-        })
-
-        if (it.dividendAction === 'reinvest') {
-          const sharePrice = it.currentPrice || it.purchasePrice || 0
-          if (sharePrice > 0) {
-            const newShares = paymentAmount / sharePrice
-            await addItem({ ...it, quantity: (it.quantity || 0) + newShares })
+          if (it.maturityDate) {
+            const matDate = new Date(it.maturityDate)
+            if (matDate <= today) continue
           }
-        } else if (it.incomeDestination) {
-          const dest = enrichedItems.find((d) => (d.id || d.symbol) === it.incomeDestination)
-          if (dest) {
-            const destPrice = (dest.currentPrice || dest.purchasePrice || 0) + paymentAmount
-            await addItem({ ...dest, currentPrice: destPrice, purchasePrice: destPrice })
+
+          const sym = (it.symbol || '').toUpperCase()
+          const alreadyPaid = transactions.some((tx) =>
+            tx.date === todayKey &&
+            (tx.type || '').toUpperCase() === 'DIVIDEND' &&
+            (tx.symbol || '').toUpperCase() === sym &&
+            tx._auto === true
+          )
+          if (alreadyPaid) continue
+
+          let paymentAmount = it.incomeAmount || 0
+          const balance = (it.quantity || 1) * (it._originalPrice || it.currentPrice || it.purchasePrice || 0)
+
+          if (it.rateType === 'variable' && it.rateMin > 0 && it.rateMax > 0) {
+            const midRate = (it.rateMin + it.rateMax) / 2
+            const payMonths = months.length || 12
+            paymentAmount = (balance * (midRate / 100)) / payMonths
+          } else if (isContinuous && it.incomeRate > 0) {
+            paymentAmount = (balance * (it.incomeRate / 100)) / 365
+          } else if (it.incomeMode === 'percent' && it.incomeRate > 0) {
+            const payMonths = months.length || 12
+            paymentAmount = (balance * (it.incomeRate / 100)) / payMonths
           }
-        }
+          if (paymentAmount <= 0) continue
 
-        if (it.capitalReturn > 0) {
-          const newPrice = Math.max(0, (it.currentPrice || it.purchasePrice || 0) - it.capitalReturn)
-          await addItem({ ...it, currentPrice: newPrice, purchasePrice: newPrice })
+          await addTransaction({
+            type: 'DIVIDEND',
+            symbol: sym,
+            description: `${it.name || it.symbol} - ${paymentAmount.toFixed(2)} ${it._originalCurrency || it.currency || 'USD'}`,
+            date: todayKey,
+            totalAmount: Math.round(paymentAmount * 100) / 100,
+            currency: it._originalCurrency || it.currency || 'USD',
+            _auto: true,
+          })
 
-          if (it.capitalDestination) {
-            const dest = enrichedItems.find((d) => (d.id || d.symbol) === it.capitalDestination)
+          if (it.dividendAction === 'reinvest') {
+            const sharePrice = it.currentPrice || it.purchasePrice || 0
+            if (sharePrice > 0) {
+              const newShares = paymentAmount / sharePrice
+              await addItem({ ...it, quantity: (it.quantity || 0) + newShares })
+            }
+          } else if (it.incomeDestination) {
+            const dest = enrichedItems.find((d) => (d.id || d.symbol) === it.incomeDestination)
             if (dest) {
-              const destPrice = (dest.currentPrice || dest.purchasePrice || 0) + it.capitalReturn
+              const destPrice = (dest.currentPrice || dest.purchasePrice || 0) + paymentAmount
               await addItem({ ...dest, currentPrice: destPrice, purchasePrice: destPrice })
             }
           }
+
+          if (it.capitalReturn > 0) {
+            const newPrice = Math.max(0, (it.currentPrice || it.purchasePrice || 0) - it.capitalReturn)
+            await addItem({ ...it, currentPrice: newPrice, purchasePrice: newPrice })
+
+            if (it.capitalDestination) {
+              const dest = enrichedItems.find((d) => (d.id || d.symbol) === it.capitalDestination)
+              if (dest) {
+                const destPrice = (dest.currentPrice || dest.purchasePrice || 0) + it.capitalReturn
+                await addItem({ ...dest, currentPrice: destPrice, purchasePrice: destPrice })
+              }
+            }
+          }
+        } catch (err) {
+          console.error(`[dividends] Failed for ${it.symbol}:`, err.message)
         }
       }
       dividendsProcessedRef.current = todayKey
@@ -373,8 +407,8 @@ export default function DashboardPage() {
   const prevSnapshot = snapshots.length > 1 ? snapshots[snapshots.length - 2] : null
 
   const totalFromItems = useMemo(() =>
-    enrichedItems.reduce((s, it) => s + (it.quantity || 0) * (it.currentPrice || it.purchasePrice || 0), 0),
-    [enrichedItems]
+    portfolioItems.reduce((s, it) => s + (it.quantity || 0) * (it.currentPrice || it.purchasePrice || 0), 0),
+    [portfolioItems]
   )
 
   const convertSnapshot = useCallback((val) => convert(val, 'USD', baseCurrency), [convert, baseCurrency])
@@ -441,6 +475,26 @@ export default function DashboardPage() {
     }
     XLSX.writeFile(wb, `chispudo-portfolio-${new Date().toISOString().split('T')[0]}.xlsx`)
   }, [enrichedItems, snapshots, transactions, baseCurrency])
+
+  const handleExportTransactionsCSV = useCallback(() => {
+    if (!transactions || transactions.length === 0) return
+    const header = 'Date,Type,Symbol,Description,Quantity,Price,Total,Currency'
+    const rows = [...transactions].sort((a, b) => (a.date || '').localeCompare(b.date || '')).map((tx) => {
+      const esc = (v) => `"${String(v || '').replace(/"/g, '""')}"`
+      return [
+        tx.date || '', tx.type || '', tx.symbol || '', esc(tx.description || ''),
+        tx.quantity || '', tx.pricePerUnit || '', tx.totalAmount || '', tx.currency || 'USD',
+      ].join(',')
+    })
+    const csv = [header, ...rows].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `chispudo-transactions-${new Date().toISOString().split('T')[0]}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [transactions])
 
   const handleReport = useCallback(async () => {
     const { generateReport } = await import('@/lib/generateReport')
@@ -621,7 +675,7 @@ export default function DashboardPage() {
 
   const estimatedAnnualIncome = useMemo(() => {
     let total = 0
-    enrichedItems.forEach((it) => {
+    portfolioItems.forEach((it) => {
       const qty = it.quantity || 1
       const price = it._originalPrice || it.currentPrice || it.purchasePrice || 0
       const balance = qty * price
@@ -640,19 +694,20 @@ export default function DashboardPage() {
       }
     })
     return total
-  }, [enrichedItems, convert, baseCurrency])
+  }, [portfolioItems, convert, baseCurrency])
 
-  const { benchmarkData, benchmarkReturn, loading: benchmarkLoading } = useBenchmark('YTD')
+  const benchmarkSymbol = settings?.benchmarkSymbol || '%5EGSPC'
+  const { benchmarkData, benchmarkReturn, benchmarkName, loading: benchmarkLoading } = useBenchmark('YTD', benchmarkSymbol)
 
   const netContributions = useMemo(() => {
     return computeNetContributions(transactions, convert, baseCurrency).netContributions
   }, [transactions, convert, baseCurrency])
 
   const cashTotal = useMemo(() => {
-    return enrichedItems
+    return portfolioItems
       .filter((it) => /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i.test(it.type || ''))
       .reduce((s, it) => s + (it.currentPrice || it.purchasePrice || 0), 0)
-  }, [enrichedItems])
+  }, [portfolioItems])
 
   const riskMetrics = useMemo(() => {
     const returns = computePeriodicReturns(snapshots, transactions, convert, baseCurrency)
@@ -667,19 +722,19 @@ export default function DashboardPage() {
   }, [snapshots, transactions, convert, baseCurrency])
 
   const insights = useMemo(() => {
-    const hhiResult = computeHHI(enrichedItems.map((it) => ({ value: getItemValue(it) })))
+    const hhiResult = computeHHI(portfolioItems.map((it) => ({ value: getItemValue(it) })))
     const incomeYield = netWorth > 0 && annualDividends > 0 ? (annualDividends / netWorth) * 100 : 0
-    const attribution = computeAssetAttribution(enrichedItems)
+    const attribution = computeAssetAttribution(portfolioItems)
     const topContributor = attribution.length > 0 ? attribution[0] : null
     const topDrag = attribution.length > 0 ? attribution[attribution.length - 1] : null
     const now = new Date()
     const in90 = new Date(now.getTime() + 90 * 86400000)
-    const maturingSoon = enrichedItems.filter((it) => {
+    const maturingSoon = portfolioItems.filter((it) => {
       if (!it.maturityDate) return false
       const md = new Date(it.maturityDate)
       return md > now && md <= in90
     }).length
-    const debtTotal = enrichedItems.filter((it) => it.isDebt).reduce((s, it) => s + Math.abs(getItemValue(it)), 0)
+    const debtTotal = portfolioItems.filter((it) => it.isDebt).reduce((s, it) => s + Math.abs(getItemValue(it)), 0)
     const debtRatio = totalAssets > 0 ? (debtTotal / totalAssets) * 100 : 0
     return generateInsights({
       netWorth,
@@ -696,7 +751,7 @@ export default function DashboardPage() {
       maturingSoon,
       debtRatio,
     })
-  }, [netWorth, benchmarkReturn, returnYTD, riskMetrics, enrichedItems, annualDividends, goals])
+  }, [netWorth, benchmarkReturn, returnYTD, riskMetrics, portfolioItems, annualDividends, goals])
 
   const dataAge = latestSnapshot ? Math.round((Date.now() - new Date(latestSnapshot.date).getTime()) / 86400000) : null
 
@@ -761,20 +816,30 @@ export default function DashboardPage() {
             <span className="text-xs text-cyan-500/70">{baseCurrency}</span>
           )}
           {(pricesLoading || ratesLoading) && <span className="text-xs text-blue-400 animate-pulse">{lang === 'es' ? 'Actualizando...' : 'Updating...'}</span>}
+          {portfolios && portfolios.length > 0 && (
+            <PortfolioSelector
+              portfolios={portfolios}
+              activePortfolio={activePortfolio}
+              onSelect={setActivePortfolio}
+              onAdd={addPortfolio}
+              onDelete={deletePortfolio}
+              lang={lang}
+            />
+          )}
         </div>
 
         {/* Error Banner */}
         <ErrorBanner pricesError={pricesError} ratesError={ratesError} lang={lang} />
 
         {/* Notifications */}
-        <NotificationCenter items={enrichedItems} transactions={transactions} lang={lang} />
+        <NotificationCenter items={portfolioItems} transactions={transactions} lang={lang} />
 
         {/* Data Quality */}
         <InstallPrompt lang={lang} />
-        <DataQuality items={enrichedItems} lang={lang} />
+        <DataQuality items={portfolioItems} lang={lang} />
 
         {/* Empty State */}
-        {enrichedItems.length === 0 && !dataLoading && (
+        {portfolioItems.length === 0 && !dataLoading && (
           <EmptyState
             onAdd={() => setModal('account')}
             onImport={() => setModal('import')}
@@ -787,10 +852,10 @@ export default function DashboardPage() {
         )}
 
         {/* Insights Banner */}
-        {enrichedItems.length > 0 && <InsightsBanner insights={insights} lang={lang} />}
+        {portfolioItems.length > 0 && <InsightsBanner insights={insights} lang={lang} />}
 
         {/* ═══ OVERVIEW ═══ */}
-        {enrichedItems.length > 0 && <>
+        {portfolioItems.length > 0 && <>
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6 items-start">
           <div className="lg:col-span-2 flex flex-col gap-4">
             <NetWorthCard
@@ -804,30 +869,31 @@ export default function DashboardPage() {
               netContributions={netContributions}
               cashTotal={cashTotal}
             />
-            <BenchmarkComparison benchmarkReturn={benchmarkReturn} portfolioReturn={returnYTD} lang={lang} />
-            <UpcomingDividends items={enrichedItems} lang={lang} />
-            <ContinuousYieldDisplay items={enrichedItems} lang={lang} />
-            <VariableRateDashboard items={enrichedItems} lang={lang} />
-            <MaturityCalendar items={enrichedItems} lang={lang} />
+            <BenchmarkComparison benchmarkReturn={benchmarkReturn} portfolioReturn={returnYTD} benchmarkName={benchmarkName} lang={lang} />
+            <PriceAlerts alerts={alerts} items={portfolioItems} onAddAlert={addAlert} onDeleteAlert={deleteAlert} lang={lang} />
+            <UpcomingDividends items={portfolioItems} lang={lang} />
+            <ContinuousYieldDisplay items={portfolioItems} lang={lang} />
+            <VariableRateDashboard items={portfolioItems} lang={lang} />
+            <MaturityCalendar items={portfolioItems} lang={lang} />
             <Watchlist lang={lang} />
-            <TopMovers items={enrichedItems} transactions={transactions} lang={lang} />
+            <TopMovers items={portfolioItems} transactions={transactions} lang={lang} />
           </div>
 
           <div className="lg:col-span-3 flex flex-col gap-4">
-            <PortfolioGrowthChart items={enrichedItems} snapshots={snapshots} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} />
-            <AssetAllocation items={enrichedItems} lang={lang} />
-            <ValueBreakdown items={enrichedItems} lang={lang} />
-            <SnapshotComparison snapshots={snapshots} items={enrichedItems} lang={lang} />
+            <PortfolioGrowthChart items={portfolioItems} snapshots={snapshots} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} benchmarkSymbol={benchmarkSymbol} benchmarkName={benchmarkName} />
+            <AssetAllocation items={portfolioItems} lang={lang} />
+            <ValueBreakdown items={portfolioItems} lang={lang} />
+            <SnapshotComparison snapshots={snapshots} items={portfolioItems} lang={lang} />
           </div>
         </div>
 
         {/* ═══ PERFORMANCE & RISK ═══ */}
         <SectionCollapse title={lang === 'es' ? 'Rendimiento y Riesgo' : 'Performance & Risk'} id="perf-risk">
           <ErrorBoundary lang={lang}>
-            <PerformanceSummary items={enrichedItems} transactions={transactions} convert={convert} baseCurrency={baseCurrency} netWorth={netWorth} lang={lang} />
-            <PerformanceAttribution items={enrichedItems} lang={lang} />
-            <RiskMetrics snapshots={snapshots} benchmarkData={benchmarkData} netWorth={netWorth} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} />
-            <CurrencyImpact items={enrichedItems} convert={convert} baseCurrency={baseCurrency} rates={rates} lang={lang} />
+            <PerformanceSummary items={portfolioItems} transactions={transactions} convert={convert} baseCurrency={baseCurrency} netWorth={netWorth} lang={lang} />
+            <PerformanceAttribution items={portfolioItems} lang={lang} />
+            <RiskMetrics snapshots={snapshots} benchmarkData={benchmarkData} netWorth={netWorth} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} benchmarkName={benchmarkName} />
+            <CurrencyImpact items={portfolioItems} convert={convert} baseCurrency={baseCurrency} rates={rates} lang={lang} />
             <MonthlyPerformance snapshots={snapshots} transactions={transactions} convert={convert} baseCurrency={baseCurrency} lang={lang} />
           </ErrorBoundary>
         </SectionCollapse>
@@ -847,11 +913,12 @@ export default function DashboardPage() {
         <SectionCollapse title={lang === 'es' ? 'Ingresos y Metas' : 'Income & Goals'} id="income-goals">
           <ErrorBoundary lang={lang}>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-              <DividendIncome transactions={transactions} items={enrichedItems} convert={convert} baseCurrency={baseCurrency} lang={lang} netWorth={netWorth} />
-              <ConcentrationRisk items={enrichedItems} lang={lang} />
+              <DividendIncome transactions={transactions} items={portfolioItems} convert={convert} baseCurrency={baseCurrency} lang={lang} netWorth={netWorth} />
+              {lots && lots.length > 0 && <GainsReport lots={lots} items={portfolioItems} lang={lang} />}
+              <ConcentrationRisk items={portfolioItems} lang={lang} />
             </div>
 
-            <IncomeCalendar items={enrichedItems} lang={lang} />
+            <IncomeCalendar items={portfolioItems} lang={lang} />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
               <GoalTracker
@@ -863,16 +930,16 @@ export default function DashboardPage() {
                 volatility={riskMetrics.volatility}
                 lang={lang}
               />
-              <FinancialHealth items={enrichedItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} />
+              <FinancialHealth items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
               <RecurringTransactions goals={goals} onSaveGoals={saveGoals} lang={lang} />
               <SavingsRate goals={goals} transactions={transactions} netWorth={netWorth} snapshots={snapshots} lang={lang} />
-              <FeeAnalysis items={enrichedItems} netWorth={netWorth} lang={lang} />
+              <FeeAnalysis items={portfolioItems} netWorth={netWorth} lang={lang} />
             </div>
 
-            <RebalanceSuggestions items={enrichedItems} netWorth={netWorth} goals={goals} onSaveGoals={saveGoals} lang={lang} />
+            <RebalanceSuggestions items={portfolioItems} netWorth={netWorth} goals={goals} onSaveGoals={saveGoals} lang={lang} />
 
             <ProjectionSimulator netWorth={netWorth} lang={lang} volatility={riskMetrics.volatility} goalValue={goals?.portfolioGoal} />
           </ErrorBoundary>
@@ -881,12 +948,12 @@ export default function DashboardPage() {
         {/* ═══ HOLDINGS ═══ */}
         <SectionCollapse title={lang === 'es' ? 'Posiciones' : 'Holdings'} id="holdings">
           <ErrorBoundary lang={lang}>
-            <AccountsTable items={enrichedItems} lang={lang} onDeleteItem={deleteItem}
+            <AccountsTable items={portfolioItems} lang={lang} onDeleteItem={deleteItem}
               onEditItem={(item) => setEditItem(item)} onViewItem={(item) => setDetailItem(item)}
               onSellItem={(item) => setSellItem(item)}
               onQuickBuy={() => setModal('account')} />
 
-            <RecentTransactions transactions={transactions} lang={lang} />
+            <RecentTransactions transactions={transactions} lang={lang} onExportCSV={handleExportTransactionsCSV} />
           </ErrorBoundary>
         </SectionCollapse>
 
@@ -919,6 +986,7 @@ export default function DashboardPage() {
           onClose={() => setModal(null)}
           onAdd={addItem}
           onAddTransaction={addTransaction}
+          onAddLot={addLot}
           existingItems={items}
           lang={lang}
         />
@@ -940,6 +1008,7 @@ export default function DashboardPage() {
           onClose={() => setSellItem(null)}
           onSell={addItem}
           onAddTransaction={addTransaction}
+          onCloseLots={closeLotsFIFO}
           existingItems={items}
           lang={lang}
         />
@@ -971,7 +1040,7 @@ export default function DashboardPage() {
 
       {modal === 'print' && (
         <PrintSummary
-          items={enrichedItems}
+          items={portfolioItems}
           netWorth={netWorth}
           totalAssets={totalAssets}
           snapshots={snapshots}
@@ -1004,7 +1073,7 @@ export default function DashboardPage() {
       <CommandPalette
         open={cmdPaletteOpen}
         onClose={() => setCmdPaletteOpen(false)}
-        items={enrichedItems}
+        items={portfolioItems}
         lang={lang}
         onAction={handleCmdAction}
       />

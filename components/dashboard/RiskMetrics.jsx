@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import { computeSharpeRatio, computeVolatility, computeMaxDrawdown, computePeriodicReturns, computeBeta } from './analytics'
 
-export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, transactions, convert, baseCurrency }) {
+export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, transactions, convert, baseCurrency, benchmarkName }) {
   const metrics = useMemo(() => {
     const returns = computePeriodicReturns(snapshots, transactions, convert, baseCurrency)
     const sharpeResult = computeSharpeRatio({ returns })
@@ -122,7 +122,7 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
               <span className="text-base sm:text-lg font-bold text-slate-300 block">
                 {metrics.beta != null ? metrics.beta.toFixed(2) : 'N/A'}
               </span>
-              <span className="text-xs text-slate-600">vs S&P 500</span>
+              <span className="text-xs text-slate-600">vs {benchmarkName || 'S&P 500'}</span>
             </div>
           </div>
 

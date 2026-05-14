@@ -84,7 +84,7 @@ const ACCOUNT_TYPES = [
   { key: 'tax-free', es: 'Libre', en: 'Tax-free' },
 ]
 
-export default function AddAccountModal({ onClose, onAdd, onAddTransaction, existingItems = [], lang = 'es' }) {
+export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAddLot, existingItems = [], lang = 'es' }) {
   const [step, setStep] = useState(1)
   const [type, setType] = useState('Stock')
   const [subtype, setSubtype] = useState('')
@@ -121,6 +121,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
   const [duplicateWarning, setDuplicateWarning] = useState(null)
   const dropdownRef = useRef(null)
   const inputRef = useRef(null)
+  const searchAbortRef = useRef(null)
 
   const t = (es, en) => lang === 'es' ? es : en
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
@@ -160,15 +161,19 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
     const timer = setTimeout(async () => {
       const q = form.symbol.trim()
       if (q.length < 1) return
+      searchAbortRef.current?.abort()
+      searchAbortRef.current = new AbortController()
       setSearchLoading(true)
       try {
-        const res = await fetch(`/api/prices/search?q=${encodeURIComponent(q)}`)
+        const res = await fetch(`/api/prices/search?q=${encodeURIComponent(q)}`, { signal: searchAbortRef.current.signal })
         if (res.ok) {
           const data = await res.json()
           setSearchResults(data.results || [])
           setShowDropdown(data.results?.length > 0)
         }
-      } catch {}
+      } catch (err) {
+        if (err.name !== 'AbortError') console.error('[search]', err.message)
+      }
       setSearchLoading(false)
     }, 400)
     return () => clearTimeout(timer)
@@ -193,9 +198,11 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
     setType(newType)
     setForm(prev => ({ ...prev, symbol: result.symbol, name: result.name || '', exchangeName: result.exchange || '' }))
 
+    searchAbortRef.current?.abort()
+    searchAbortRef.current = new AbortController()
     setFetchingQuote(true)
     try {
-      const res = await fetch(`/api/prices/search?symbol=${encodeURIComponent(result.symbol)}&type=${encodeURIComponent(newType)}`)
+      const res = await fetch(`/api/prices/search?symbol=${encodeURIComponent(result.symbol)}&type=${encodeURIComponent(newType)}`, { signal: searchAbortRef.current.signal })
       if (res.ok) {
         const data = await res.json()
         if (data.quote?.price) {
@@ -208,7 +215,9 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
           }))
         }
       }
-    } catch {}
+    } catch (err) {
+      if (err.name !== 'AbortError') console.error('[quote]', err.message)
+    }
     setFetchingQuote(false)
   }, [])
 
@@ -399,6 +408,16 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, exis
       }
 
       await onAdd(item)
+
+      if (onAddLot && item.symbol && item.quantity > 0 && item.purchasePrice > 0 && !item.isDebt) {
+        await onAddLot({
+          symbol: (item.symbol || '').toUpperCase(),
+          quantity: item.quantity,
+          costBasis: item.purchasePrice,
+          currency: item.currency || 'USD',
+          acquisitionDate: item.acquisitionDate || new Date().toISOString().split('T')[0],
+        })
+      }
 
       const totalValue = (item.quantity || 1) * (item.purchasePrice || 0)
       if (isNewMoney && onAddTransaction && totalValue > 0) {

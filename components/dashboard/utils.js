@@ -189,7 +189,7 @@ export function computeModifiedDietz({ startValue, endValue, startTs, endTs, tra
 
   const weightedCapital = startValue + weightedFlows
   const gain = endValue - startValue - sumFlows
-  const pct = weightedCapital > 0 ? (gain / weightedCapital) * 100 : 0
+  const pct = Math.abs(weightedCapital) > 0.01 ? (gain / weightedCapital) * 100 : 0
   return { pct, abs: gain }
 }
 
