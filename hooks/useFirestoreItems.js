@@ -43,6 +43,7 @@ export function useFirestoreItems() {
   const [items, setItems] = useState([])
   const [snapshots, setSnapshots] = useState([])
   const [transactions, setTransactions] = useState([])
+  const [alerts, setAlerts] = useState([])
   const [goals, setGoals] = useState(null)
   const [settings, setSettings] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -52,6 +53,7 @@ export function useFirestoreItems() {
     let unsubItems = () => {}
     let unsubSnapshots = () => {}
     let unsubTransactions = () => {}
+    let unsubAlerts = () => {}
     let cancelled = false
 
     async function init() {
@@ -82,6 +84,10 @@ export function useFirestoreItems() {
           }
         }
       )
+      unsubAlerts = fs.onSnapshot(
+        fs.collection(db, `users/${currentUid}/alerts`),
+        (snap) => { if (!cancelled) setAlerts(snap.docs.map((d) => ({ id: d.id, ...d.data() }))) }
+      )
 
       try {
         const goalsDoc = await fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'goals'))
@@ -94,7 +100,7 @@ export function useFirestoreItems() {
     }
 
     init()
-    return () => { cancelled = true; unsubItems(); unsubSnapshots(); unsubTransactions() }
+    return () => { cancelled = true; unsubItems(); unsubSnapshots(); unsubTransactions(); unsubAlerts() }
   }, [])
 
   const addItem = useCallback(async (item) => {
@@ -173,11 +179,31 @@ export function useFirestoreItems() {
     setSettings((prev) => ({ ...prev, ...prefsData }))
   }, [uid])
 
+  const addAlert = useCallback(async (alert) => {
+    if (!uid) return
+    const { db, fs } = await getFirebase()
+    const id = `${alert.symbol}-${Date.now()}`
+    await fs.setDoc(fs.doc(db, `users/${uid}/alerts`, id), { ...alert, createdAt: new Date().toISOString(), triggered: false, triggeredAt: null })
+  }, [uid])
+
+  const deleteAlert = useCallback(async (alertId) => {
+    if (!uid) return
+    const { db, fs } = await getFirebase()
+    await fs.deleteDoc(fs.doc(db, `users/${uid}/alerts`, alertId))
+  }, [uid])
+
+  const updateAlert = useCallback(async (alertId, data) => {
+    if (!uid) return
+    const { db, fs } = await getFirebase()
+    await fs.updateDoc(fs.doc(db, `users/${uid}/alerts`, alertId), data)
+  }, [uid])
+
   return {
-    items, snapshots, transactions, goals, settings, loading,
+    items, snapshots, transactions, alerts, goals, settings, loading,
     addItem, deleteItem, deleteAllItems,
     saveSnapshot, deleteAllSnapshots,
     addTransaction, deleteAllTransactions,
+    addAlert, deleteAlert, updateAlert,
     saveGoals, saveSettings,
   }
 }

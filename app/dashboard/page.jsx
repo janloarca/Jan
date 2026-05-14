@@ -62,6 +62,8 @@ import ValueBreakdown from '@/components/dashboard/ValueBreakdown'
 import OnboardingTour from '@/components/dashboard/OnboardingTour'
 import ErrorBanner from '@/components/dashboard/ErrorBanner'
 import ErrorBoundary from '@/components/ErrorBoundary'
+import PriceAlerts from '@/components/dashboard/PriceAlerts'
+import { checkPriceAlerts } from '@/lib/notifications'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -176,6 +178,10 @@ export default function DashboardPage() {
     deleteAllSnapshots,
     addTransaction,
     deleteAllTransactions,
+    alerts,
+    addAlert,
+    deleteAlert,
+    updateAlert,
     saveGoals,
     saveSettings,
   } = useFirestoreItems()
@@ -190,8 +196,19 @@ export default function DashboardPage() {
     setUtilsLang(lang)
   }, [lang])
 
-  const { enrichedItems: rawEnriched, loading: pricesLoading, error: pricesError, lastUpdate: pricesUpdate, refresh: refreshPrices } = useMarketPrices(items)
+  const { enrichedItems: rawEnriched, prices: marketPrices, loading: pricesLoading, error: pricesError, lastUpdate: pricesUpdate, refresh: refreshPrices } = useMarketPrices(items)
   const { rates, convert, convertItemValue, loading: ratesLoading, error: ratesError, lastUpdate: ratesUpdate, refresh: refreshRates } = useExchangeRates(baseCurrency)
+
+  const alertsCheckedRef = useRef(null)
+  useEffect(() => {
+    if (!marketPrices || Object.keys(marketPrices).length === 0 || !alerts || alerts.length === 0) return
+    const key = pricesUpdate || Date.now()
+    if (alertsCheckedRef.current === key) return
+    alertsCheckedRef.current = key
+    checkPriceAlerts(alerts, marketPrices, (alertId) => {
+      updateAlert(alertId, { triggered: true, triggeredAt: new Date().toISOString() })
+    })
+  }, [marketPrices, alerts, pricesUpdate, updateAlert])
 
   const enrichedItems = useMemo(() => {
     if (!rates) return rawEnriched
@@ -829,6 +846,7 @@ export default function DashboardPage() {
               cashTotal={cashTotal}
             />
             <BenchmarkComparison benchmarkReturn={benchmarkReturn} portfolioReturn={returnYTD} benchmarkName={benchmarkName} lang={lang} />
+            <PriceAlerts alerts={alerts} items={enrichedItems} onAddAlert={addAlert} onDeleteAlert={deleteAlert} lang={lang} />
             <UpcomingDividends items={enrichedItems} lang={lang} />
             <ContinuousYieldDisplay items={enrichedItems} lang={lang} />
             <VariableRateDashboard items={enrichedItems} lang={lang} />
