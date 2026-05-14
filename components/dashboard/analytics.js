@@ -444,7 +444,7 @@ export function computeAssetAttribution(items) {
   return items.map((it) => {
     const qty = it.quantity || 0
     const cur = it.currentPrice || it.purchasePrice || 0
-    const cost = it._originalPurchasePrice || it.purchasePrice || cur
+    const cost = it.purchasePrice || cur
     const value = qty * cur
     const gain = value - qty * cost
     return {

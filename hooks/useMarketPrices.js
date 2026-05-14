@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 
 export function useMarketPrices(items) {
   const [prices, setPrices] = useState({})
@@ -6,6 +6,7 @@ export function useMarketPrices(items) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [lastUpdate, setLastUpdate] = useState(null)
+  const abortRef = useRef(null)
 
   const fetchPrices = useCallback(async () => {
     if (!items || items.length === 0) return
@@ -14,6 +15,10 @@ export function useMarketPrices(items) {
       .filter((it) => it.symbol && !it.isIlliquid && !skipTypes.test(it.type || ''))
       .map((it) => ({ symbol: it.symbol, type: it.type }))
     if (symbols.length === 0) return
+
+    abortRef.current?.abort()
+    abortRef.current = new AbortController()
+    const { signal } = abortRef.current
 
     setLoading(true)
     setError(null)
@@ -25,12 +30,14 @@ export function useMarketPrices(items) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ items: symbols }),
+          signal,
         }),
         stockSyms.length > 0
           ? fetch('/api/prices/dividends', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ symbols: stockSyms }),
+              signal,
             })
           : null,
       ])
@@ -48,6 +55,7 @@ export function useMarketPrices(items) {
         setDividends(divData.dividends || {})
       }
     } catch (err) {
+      if (err.name === 'AbortError') return
       console.error('Failed to fetch market prices:', err)
       setError(err.message)
     }
@@ -58,6 +66,7 @@ export function useMarketPrices(items) {
     if (items && items.length > 0) {
       fetchPrices()
     }
+    return () => abortRef.current?.abort()
   }, [fetchPrices])
 
   const enrichedItems = useMemo(() => {

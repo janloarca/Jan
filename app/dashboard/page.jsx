@@ -212,16 +212,16 @@ export default function DashboardPage() {
     })
   }, [rawEnriched, rates, convert, baseCurrency])
 
-  const snapshotSavedRef = useRef(false)
+  const snapshotSavedRef = useRef(null)
 
   useEffect(() => {
-    if (snapshotSavedRef.current) return
+    const todayStr = new Date().toISOString().split('T')[0]
+    if (snapshotSavedRef.current === todayStr) return
     if (!user || dataLoading || pricesLoading || ratesLoading) return
     if (enrichedItems.length === 0) return
 
-    const todayStr = new Date().toISOString().split('T')[0]
     const alreadyExists = snapshots.some((s) => s.date === todayStr || s.id === todayStr)
-    if (alreadyExists) { snapshotSavedRef.current = true; return }
+    if (alreadyExists) { snapshotSavedRef.current = todayStr; return }
 
     let totalAssetsUSD = 0
     let totalDebtUSD = 0
@@ -242,7 +242,7 @@ export default function DashboardPage() {
 
     if (totalAssetsUSD > 0 || totalDebtUSD > 0) {
       saveSnapshot({ date: todayStr, totalActivosUSD: totalAssetsUSD, totalDebtUSD, netWorthUSD, rates: rates || {}, baseCurrency })
-      snapshotSavedRef.current = true
+      snapshotSavedRef.current = todayStr
     }
   }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, snapshots, saveSnapshot, convert, baseCurrency])
 
@@ -275,79 +275,82 @@ export default function DashboardPage() {
 
     async function processDividends() {
       for (const it of scheduled) {
-        const payDay = getEffectivePayDay(it.incomePayDay || 1, it.businessDayRule)
-        const isContinuous = it.rateType === 'continuous'
+        try {
+          const payDay = getEffectivePayDay(it.incomePayDay || 1, it.businessDayRule)
+          const isContinuous = it.rateType === 'continuous'
 
-        if (!isContinuous && todayDay !== payDay) continue
+          if (!isContinuous && todayDay !== payDay) continue
 
-        const months = it.incomeMonths || [0,1,2,3,4,5,6,7,8,9,10,11]
-        if (!months.includes(currentMonth)) continue
+          const months = it.incomeMonths || [0,1,2,3,4,5,6,7,8,9,10,11]
+          if (!months.includes(currentMonth)) continue
 
-        // Skip if matured
-        if (it.maturityDate) {
-          const matDate = new Date(it.maturityDate)
-          if (matDate <= today) continue
-        }
-
-        const sym = (it.symbol || '').toUpperCase()
-        const alreadyPaid = transactions.some((tx) =>
-          tx.date === todayKey &&
-          (tx.type || '').toUpperCase() === 'DIVIDEND' &&
-          (tx.symbol || '').toUpperCase() === sym &&
-          tx._auto === true
-        )
-        if (alreadyPaid) continue
-
-        let paymentAmount = it.incomeAmount || 0
-        const balance = (it.quantity || 1) * (it._originalPrice || it.currentPrice || it.purchasePrice || 0)
-
-        if (it.rateType === 'variable' && it.rateMin > 0 && it.rateMax > 0) {
-          const midRate = (it.rateMin + it.rateMax) / 2
-          const payMonths = months.length || 12
-          paymentAmount = (balance * (midRate / 100)) / payMonths
-        } else if (isContinuous && it.incomeRate > 0) {
-          paymentAmount = (balance * (it.incomeRate / 100)) / 365
-        } else if (it.incomeMode === 'percent' && it.incomeRate > 0) {
-          const payMonths = months.length || 12
-          paymentAmount = (balance * (it.incomeRate / 100)) / payMonths
-        }
-        if (paymentAmount <= 0) continue
-
-        await addTransaction({
-          type: 'DIVIDEND',
-          symbol: sym,
-          description: `${it.name || it.symbol} - ${paymentAmount.toFixed(2)} ${it._originalCurrency || it.currency || 'USD'}`,
-          date: todayKey,
-          totalAmount: Math.round(paymentAmount * 100) / 100,
-          currency: it._originalCurrency || it.currency || 'USD',
-          _auto: true,
-        })
-
-        if (it.dividendAction === 'reinvest') {
-          const sharePrice = it.currentPrice || it.purchasePrice || 0
-          if (sharePrice > 0) {
-            const newShares = paymentAmount / sharePrice
-            await addItem({ ...it, quantity: (it.quantity || 0) + newShares })
+          if (it.maturityDate) {
+            const matDate = new Date(it.maturityDate)
+            if (matDate <= today) continue
           }
-        } else if (it.incomeDestination) {
-          const dest = enrichedItems.find((d) => (d.id || d.symbol) === it.incomeDestination)
-          if (dest) {
-            const destPrice = (dest.currentPrice || dest.purchasePrice || 0) + paymentAmount
-            await addItem({ ...dest, currentPrice: destPrice, purchasePrice: destPrice })
+
+          const sym = (it.symbol || '').toUpperCase()
+          const alreadyPaid = transactions.some((tx) =>
+            tx.date === todayKey &&
+            (tx.type || '').toUpperCase() === 'DIVIDEND' &&
+            (tx.symbol || '').toUpperCase() === sym &&
+            tx._auto === true
+          )
+          if (alreadyPaid) continue
+
+          let paymentAmount = it.incomeAmount || 0
+          const balance = (it.quantity || 1) * (it._originalPrice || it.currentPrice || it.purchasePrice || 0)
+
+          if (it.rateType === 'variable' && it.rateMin > 0 && it.rateMax > 0) {
+            const midRate = (it.rateMin + it.rateMax) / 2
+            const payMonths = months.length || 12
+            paymentAmount = (balance * (midRate / 100)) / payMonths
+          } else if (isContinuous && it.incomeRate > 0) {
+            paymentAmount = (balance * (it.incomeRate / 100)) / 365
+          } else if (it.incomeMode === 'percent' && it.incomeRate > 0) {
+            const payMonths = months.length || 12
+            paymentAmount = (balance * (it.incomeRate / 100)) / payMonths
           }
-        }
+          if (paymentAmount <= 0) continue
 
-        if (it.capitalReturn > 0) {
-          const newPrice = Math.max(0, (it.currentPrice || it.purchasePrice || 0) - it.capitalReturn)
-          await addItem({ ...it, currentPrice: newPrice, purchasePrice: newPrice })
+          await addTransaction({
+            type: 'DIVIDEND',
+            symbol: sym,
+            description: `${it.name || it.symbol} - ${paymentAmount.toFixed(2)} ${it._originalCurrency || it.currency || 'USD'}`,
+            date: todayKey,
+            totalAmount: Math.round(paymentAmount * 100) / 100,
+            currency: it._originalCurrency || it.currency || 'USD',
+            _auto: true,
+          })
 
-          if (it.capitalDestination) {
-            const dest = enrichedItems.find((d) => (d.id || d.symbol) === it.capitalDestination)
+          if (it.dividendAction === 'reinvest') {
+            const sharePrice = it.currentPrice || it.purchasePrice || 0
+            if (sharePrice > 0) {
+              const newShares = paymentAmount / sharePrice
+              await addItem({ ...it, quantity: (it.quantity || 0) + newShares })
+            }
+          } else if (it.incomeDestination) {
+            const dest = enrichedItems.find((d) => (d.id || d.symbol) === it.incomeDestination)
             if (dest) {
-              const destPrice = (dest.currentPrice || dest.purchasePrice || 0) + it.capitalReturn
+              const destPrice = (dest.currentPrice || dest.purchasePrice || 0) + paymentAmount
               await addItem({ ...dest, currentPrice: destPrice, purchasePrice: destPrice })
             }
           }
+
+          if (it.capitalReturn > 0) {
+            const newPrice = Math.max(0, (it.currentPrice || it.purchasePrice || 0) - it.capitalReturn)
+            await addItem({ ...it, currentPrice: newPrice, purchasePrice: newPrice })
+
+            if (it.capitalDestination) {
+              const dest = enrichedItems.find((d) => (d.id || d.symbol) === it.capitalDestination)
+              if (dest) {
+                const destPrice = (dest.currentPrice || dest.purchasePrice || 0) + it.capitalReturn
+                await addItem({ ...dest, currentPrice: destPrice, purchasePrice: destPrice })
+              }
+            }
+          }
+        } catch (err) {
+          console.error(`[dividends] Failed for ${it.symbol}:`, err.message)
         }
       }
       dividendsProcessedRef.current = todayKey
