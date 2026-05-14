@@ -1,6 +1,6 @@
 'use client'
 
-export default function BenchmarkComparison({ benchmarkReturn, portfolioReturn, lang }) {
+export default function BenchmarkComparison({ benchmarkReturn, portfolioReturn, benchmarkName, lang }) {
   if (benchmarkReturn == null) return (
     <div className="bg-[#1e293b]/40 rounded-xl border border-[#334155]/30 p-4 text-center">
       <p className="text-sm text-slate-500">{lang === 'es' ? 'Benchmark no disponible' : 'Benchmark unavailable'}</p>
@@ -8,6 +8,7 @@ export default function BenchmarkComparison({ benchmarkReturn, portfolioReturn, 
   )
 
   const t = (es, en) => lang === 'es' ? es : en
+  const name = benchmarkName || 'S&P 500'
   const delta = (portfolioReturn ?? 0) - benchmarkReturn
   const isOut = delta >= 0
 
@@ -17,7 +18,7 @@ export default function BenchmarkComparison({ benchmarkReturn, portfolioReturn, 
         <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">
           {t('Benchmark', 'Benchmark')}
         </span>
-        <span className="text-xs text-slate-600">S&P 500</span>
+        <span className="text-xs text-slate-600">{name}</span>
       </div>
 
       <div className="grid grid-cols-2 gap-3 mb-2">
@@ -28,7 +29,7 @@ export default function BenchmarkComparison({ benchmarkReturn, portfolioReturn, 
           </span>
         </div>
         <div className="text-right">
-          <span className="text-xs text-slate-500 block">S&P 500</span>
+          <span className="text-xs text-slate-500 block">{name}</span>
           <span className={`text-base font-bold ${benchmarkReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
             {benchmarkReturn >= 0 ? '+' : ''}{benchmarkReturn.toFixed(2)}%
           </span>
@@ -41,8 +42,8 @@ export default function BenchmarkComparison({ benchmarkReturn, portfolioReturn, 
         <span>{isOut ? '▲' : '▼'}</span>
         <span>
           {isOut
-            ? t(`Superas al mercado por ${Math.abs(delta).toFixed(1)}%`, `Outperforming market by ${Math.abs(delta).toFixed(1)}%`)
-            : t(`Por debajo del mercado por ${Math.abs(delta).toFixed(1)}%`, `Underperforming market by ${Math.abs(delta).toFixed(1)}%`)
+            ? t(`Superas al mercado por ${Math.abs(delta).toFixed(1)}%`, `Outperforming ${name} by ${Math.abs(delta).toFixed(1)}%`)
+            : t(`Por debajo del mercado por ${Math.abs(delta).toFixed(1)}%`, `Underperforming ${name} by ${Math.abs(delta).toFixed(1)}%`)
           }
         </span>
       </div>

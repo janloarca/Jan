@@ -53,7 +53,7 @@ function buildGeometry(values, mode, height, width, pad, extraSeries) {
   return { points, baselineY, yTicks, cw, ch }
 }
 
-export default function PortfolioGrowthChart({ items, snapshots, transactions, lang, convert, baseCurrency }) {
+export default function PortfolioGrowthChart({ items, snapshots, transactions, lang, convert, baseCurrency, benchmarkSymbol, benchmarkName }) {
   const [period, setPeriod] = useState('YTD')
   const [hoverIdx, setHoverIdx] = useState(null)
   const [dataPoints, setDataPoints] = useState([])
@@ -105,12 +105,13 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
   useEffect(() => {
     const bp = benchmarkPeriodMap[period] || 'YTD'
     let cancelled = false
-    fetch(`/api/prices/benchmark?period=${encodeURIComponent(bp)}`)
+    const sym = benchmarkSymbol || '%5EGSPC'
+    fetch(`/api/prices/benchmark?period=${encodeURIComponent(bp)}&symbol=${encodeURIComponent(sym)}`)
       .then((res) => res.ok ? res.json() : null)
       .then((data) => { if (!cancelled && data) setBenchmarkPts(data.dataPoints || null) })
       .catch(() => {})
     return () => { cancelled = true }
-  }, [period])
+  }, [period, benchmarkSymbol])
 
   const currentTotal = useMemo(() => {
     if (!items) return 0
@@ -384,7 +385,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
           <span>{microInsight.isOut ? '▲' : '▼'}</span>
           <span>
             {t('Portafolio', 'Portfolio')} {microInsight.portfolioRet >= 0 ? '+' : ''}{microInsight.portfolioRet.toFixed(2)}%
-            {' vs S&P 500 '}{microInsight.benchmarkRet >= 0 ? '+' : ''}{microInsight.benchmarkRet.toFixed(2)}%
+            {` vs ${benchmarkName || 'S&P 500'} `}{microInsight.benchmarkRet >= 0 ? '+' : ''}{microInsight.benchmarkRet.toFixed(2)}%
             {' · '}{microInsight.isOut
               ? t(`Superas por ${Math.abs(microInsight.delta).toFixed(2)}%`, `Outperforming by ${Math.abs(microInsight.delta).toFixed(2)}%`)
               : t(`Debajo por ${Math.abs(microInsight.delta).toFixed(2)}%`, `Underperforming by ${Math.abs(microInsight.delta).toFixed(2)}%`)}
@@ -495,7 +496,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
                   <>
                     <path d={smooth(benchmarkGeoPoints)} fill="none" stroke="#f59e0b" strokeWidth="1.5" strokeLinecap="round" strokeDasharray="4 3" strokeOpacity="0.7" />
                     <text x={benchmarkGeoPoints[benchmarkGeoPoints.length - 1].x + 4} y={benchmarkGeoPoints[benchmarkGeoPoints.length - 1].y + 3}
-                      fill="#f59e0b" fontSize="9" fontFamily="system-ui" fontWeight="600" opacity="0.8">S&P</text>
+                      fill="#f59e0b" fontSize="9" fontFamily="system-ui" fontWeight="600" opacity="0.8">{benchmarkName || 'SPX'}</text>
                   </>
                 )}
               </>
@@ -537,7 +538,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
                   </div>
                   {benchmarkReturnSeries && benchmarkReturnSeries[hoverIdx] != null && (
                     <div className="text-amber-400">
-                      S&P 500: {benchmarkReturnSeries[hoverIdx] >= 0 ? '+' : ''}{benchmarkReturnSeries[hoverIdx].toFixed(2)}%
+                      {benchmarkName || 'S&P 500'}: {benchmarkReturnSeries[hoverIdx] >= 0 ? '+' : ''}{benchmarkReturnSeries[hoverIdx].toFixed(2)}%
                     </div>
                   )}
                   <div className="text-slate-300">{formatCurrency(hd.value)}</div>
@@ -559,7 +560,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
           {benchmarkReturnSeries && (
             <span className="flex items-center gap-1.5">
               <span className="w-3 h-0.5 bg-amber-500 rounded-full inline-block opacity-70" style={{ borderBottom: '1px dashed' }} />
-              S&P 500
+              {benchmarkName || 'S&P 500'}
             </span>
           )}
         </div>

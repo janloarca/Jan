@@ -445,6 +445,26 @@ export default function DashboardPage() {
     XLSX.writeFile(wb, `chispudo-portfolio-${new Date().toISOString().split('T')[0]}.xlsx`)
   }, [enrichedItems, snapshots, transactions, baseCurrency])
 
+  const handleExportTransactionsCSV = useCallback(() => {
+    if (!transactions || transactions.length === 0) return
+    const header = 'Date,Type,Symbol,Description,Quantity,Price,Total,Currency'
+    const rows = [...transactions].sort((a, b) => (a.date || '').localeCompare(b.date || '')).map((tx) => {
+      const esc = (v) => `"${String(v || '').replace(/"/g, '""')}"`
+      return [
+        tx.date || '', tx.type || '', tx.symbol || '', esc(tx.description || ''),
+        tx.quantity || '', tx.pricePerUnit || '', tx.totalAmount || '', tx.currency || 'USD',
+      ].join(',')
+    })
+    const csv = [header, ...rows].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `chispudo-transactions-${new Date().toISOString().split('T')[0]}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [transactions])
+
   const handleReport = useCallback(async () => {
     const { generateReport } = await import('@/lib/generateReport')
     await generateReport({
@@ -645,7 +665,8 @@ export default function DashboardPage() {
     return total
   }, [enrichedItems, convert, baseCurrency])
 
-  const { benchmarkData, benchmarkReturn, loading: benchmarkLoading } = useBenchmark('YTD')
+  const benchmarkSymbol = settings?.benchmarkSymbol || '%5EGSPC'
+  const { benchmarkData, benchmarkReturn, benchmarkName, loading: benchmarkLoading } = useBenchmark('YTD', benchmarkSymbol)
 
   const netContributions = useMemo(() => {
     return computeNetContributions(transactions, convert, baseCurrency).netContributions
@@ -807,7 +828,7 @@ export default function DashboardPage() {
               netContributions={netContributions}
               cashTotal={cashTotal}
             />
-            <BenchmarkComparison benchmarkReturn={benchmarkReturn} portfolioReturn={returnYTD} lang={lang} />
+            <BenchmarkComparison benchmarkReturn={benchmarkReturn} portfolioReturn={returnYTD} benchmarkName={benchmarkName} lang={lang} />
             <UpcomingDividends items={enrichedItems} lang={lang} />
             <ContinuousYieldDisplay items={enrichedItems} lang={lang} />
             <VariableRateDashboard items={enrichedItems} lang={lang} />
@@ -817,7 +838,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="lg:col-span-3 flex flex-col gap-4">
-            <PortfolioGrowthChart items={enrichedItems} snapshots={snapshots} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} />
+            <PortfolioGrowthChart items={enrichedItems} snapshots={snapshots} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} benchmarkSymbol={benchmarkSymbol} benchmarkName={benchmarkName} />
             <AssetAllocation items={enrichedItems} lang={lang} />
             <ValueBreakdown items={enrichedItems} lang={lang} />
             <SnapshotComparison snapshots={snapshots} items={enrichedItems} lang={lang} />
@@ -829,7 +850,7 @@ export default function DashboardPage() {
           <ErrorBoundary lang={lang}>
             <PerformanceSummary items={enrichedItems} transactions={transactions} convert={convert} baseCurrency={baseCurrency} netWorth={netWorth} lang={lang} />
             <PerformanceAttribution items={enrichedItems} lang={lang} />
-            <RiskMetrics snapshots={snapshots} benchmarkData={benchmarkData} netWorth={netWorth} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} />
+            <RiskMetrics snapshots={snapshots} benchmarkData={benchmarkData} netWorth={netWorth} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} benchmarkName={benchmarkName} />
             <CurrencyImpact items={enrichedItems} convert={convert} baseCurrency={baseCurrency} rates={rates} lang={lang} />
             <MonthlyPerformance snapshots={snapshots} transactions={transactions} convert={convert} baseCurrency={baseCurrency} lang={lang} />
           </ErrorBoundary>
@@ -889,7 +910,7 @@ export default function DashboardPage() {
               onSellItem={(item) => setSellItem(item)}
               onQuickBuy={() => setModal('account')} />
 
-            <RecentTransactions transactions={transactions} lang={lang} />
+            <RecentTransactions transactions={transactions} lang={lang} onExportCSV={handleExportTransactionsCSV} />
           </ErrorBoundary>
         </SectionCollapse>
 

@@ -16,7 +16,18 @@ const RANGE_MAP = {
   ALL: { range: 'max', interval: '1mo' },
 }
 
-let cache = { data: null, ts: 0, period: null }
+const ALLOWED_SYMBOLS = {
+  '%5EGSPC': 'S&P 500',
+  '%5EIXIC': 'NASDAQ Composite',
+  '%5EDJI': 'Dow Jones',
+  '%5EGSPTSE': 'S&P/TSX (Canada)',
+  'EWZ': 'iShares MSCI Brazil',
+  'EWW': 'iShares MSCI Mexico',
+  'VT': 'Vanguard Total World',
+  'QQQ': 'Invesco QQQ (Nasdaq-100)',
+}
+
+const cache = {}
 const CACHE_TTL = 5 * 60 * 1000
 
 export async function GET(request) {
@@ -30,12 +41,17 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Invalid period' }, { status: 400 })
     }
     const { range, interval } = RANGE_MAP[period] || RANGE_MAP.YTD
-
-    if (cache.data && cache.period === period && Date.now() - cache.ts < CACHE_TTL) {
-      return NextResponse.json(cache.data)
+    const symbol = searchParams.get('symbol') || '%5EGSPC'
+    if (!ALLOWED_SYMBOLS[symbol]) {
+      return NextResponse.json({ error: 'Invalid benchmark symbol' }, { status: 400 })
     }
+    const benchmarkName = ALLOWED_SYMBOLS[symbol]
 
-    const symbol = '%5EGSPC'
+    const cacheKey = `${symbol}:${period}`
+    const cached = cache[cacheKey]
+    if (cached && Date.now() - cached.ts < CACHE_TTL) {
+      return NextResponse.json(cached.data)
+    }
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=${interval}&range=${range}`
     const res = await fetchWithRetry(url, {
       headers: { 'User-Agent': 'Mozilla/5.0' },
@@ -81,9 +97,11 @@ export async function GET(request) {
       ytdReturn: period === 'YTD' ? periodReturn : null,
       oneYearReturn,
       periodReturn,
+      symbol,
+      benchmarkName,
     }
 
-    cache = { data: responseData, ts: Date.now(), period }
+    cache[cacheKey] = { data: responseData, ts: Date.now() }
     return NextResponse.json(responseData)
   } catch (err) {
     console.error('[api/benchmark] error:', err.message)

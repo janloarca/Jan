@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { authFetch } from '@/lib/authFetch'
 import { isNotificationSupported, getNotificationPermission, requestNotificationPermission } from '@/lib/notifications'
+import { BENCHMARKS } from '@/hooks/useBenchmark'
 
 const CURRENCIES = [
   { code: 'USD', name: 'US Dollar', symbol: '$' },
@@ -23,6 +24,7 @@ const CURRENCIES = [
 
 export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, theme, onToggleTheme, lang = 'es' }) {
   const [baseCurrency, setBaseCurrency] = useState(settings?.baseCurrency || 'USD')
+  const [benchmarkSymbol, setBenchmarkSymbol] = useState(settings?.benchmarkSymbol || '%5EGSPC')
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [tab, setTab] = useState('general')
@@ -42,7 +44,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   const handleSave = async () => {
     setSaving(true)
     try {
-      await onSaveSettings({ baseCurrency })
+      await onSaveSettings({ baseCurrency, benchmarkSymbol })
     } catch {}
     setSaving(false)
     onClose()
@@ -175,7 +177,31 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                 </div>
               </div>
 
-              {/* Notifications */}
+              <div>
+                <label className="text-xs text-slate-400 mb-2 block font-medium">{t('Benchmark', 'Benchmark')}</label>
+                <p className="text-xs text-slate-600 mb-3">{t('Índice de referencia para comparar tu portafolio.', 'Reference index to compare your portfolio against.')}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {Object.entries(BENCHMARKS).map(([key, bm]) => (
+                    <button key={key} onClick={() => setBenchmarkSymbol(key)}
+                      className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-left transition-all ${
+                        benchmarkSymbol === key
+                          ? 'bg-blue-500/15 border border-blue-500/40 text-blue-400'
+                          : 'bg-[#0f172a] border border-[#334155] text-slate-300 hover:border-slate-500'
+                      }`}>
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium">{bm.short}</div>
+                        <div className="text-xs text-slate-500 truncate">{bm.name}</div>
+                      </div>
+                      {benchmarkSymbol === key && (
+                        <svg className="w-4 h-4 ml-auto text-blue-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {isNotificationSupported() && (
                 <div>
                   <label className="text-xs text-slate-400 mb-2 block font-medium">{t('Notificaciones', 'Notifications')}</label>
