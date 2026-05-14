@@ -44,6 +44,8 @@ export function useFirestoreItems() {
   const [snapshots, setSnapshots] = useState([])
   const [transactions, setTransactions] = useState([])
   const [alerts, setAlerts] = useState([])
+  const [lots, setLots] = useState([])
+  const [portfolios, setPortfolios] = useState([])
   const [goals, setGoals] = useState(null)
   const [settings, setSettings] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -54,6 +56,8 @@ export function useFirestoreItems() {
     let unsubSnapshots = () => {}
     let unsubTransactions = () => {}
     let unsubAlerts = () => {}
+    let unsubLots = () => {}
+    let unsubPortfolios = () => {}
     let cancelled = false
 
     async function init() {
@@ -88,6 +92,14 @@ export function useFirestoreItems() {
         fs.collection(db, `users/${currentUid}/alerts`),
         (snap) => { if (!cancelled) setAlerts(snap.docs.map((d) => ({ id: d.id, ...d.data() }))) }
       )
+      unsubLots = fs.onSnapshot(
+        fs.collection(db, `users/${currentUid}/lots`),
+        (snap) => { if (!cancelled) setLots(snap.docs.map((d) => ({ id: d.id, ...d.data() }))) }
+      )
+      unsubPortfolios = fs.onSnapshot(
+        fs.collection(db, `users/${currentUid}/portfolios`),
+        (snap) => { if (!cancelled) setPortfolios(snap.docs.map((d) => ({ id: d.id, ...d.data() }))) }
+      )
 
       try {
         const goalsDoc = await fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'goals'))
@@ -100,7 +112,7 @@ export function useFirestoreItems() {
     }
 
     init()
-    return () => { cancelled = true; unsubItems(); unsubSnapshots(); unsubTransactions(); unsubAlerts() }
+    return () => { cancelled = true; unsubItems(); unsubSnapshots(); unsubTransactions(); unsubAlerts(); unsubLots(); unsubPortfolios() }
   }, [])
 
   const addItem = useCallback(async (item) => {
@@ -198,12 +210,78 @@ export function useFirestoreItems() {
     await fs.updateDoc(fs.doc(db, `users/${uid}/alerts`, alertId), data)
   }, [uid])
 
+  const addLot = useCallback(async (lot) => {
+    if (!uid) return
+    const { db, fs } = await getFirebase()
+    const id = `${lot.symbol || 'lot'}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+    await fs.setDoc(fs.doc(db, `users/${uid}/lots`, id), { ...lot, status: 'open', createdAt: new Date().toISOString() })
+  }, [uid])
+
+  const updateLot = useCallback(async (lotId, data) => {
+    if (!uid) return
+    const { db, fs } = await getFirebase()
+    await fs.updateDoc(fs.doc(db, `users/${uid}/lots`, lotId), data)
+  }, [uid])
+
+  const closeLotsFIFO = useCallback(async (symbol, qtyToClose, closePrice, closeDate) => {
+    if (!uid) return []
+    const openLots = lots
+      .filter((l) => l.symbol === symbol && l.status === 'open' && l.quantity > 0)
+      .sort((a, b) => (a.acquisitionDate || '').localeCompare(b.acquisitionDate || ''))
+
+    let remaining = qtyToClose
+    const closedResults = []
+    const { db, fs } = await getFirebase()
+
+    for (const lot of openLots) {
+      if (remaining <= 0) break
+      const closable = Math.min(remaining, lot.quantity)
+      const realizedGain = (closePrice - lot.costBasis) * closable
+
+      if (closable >= lot.quantity - 0.0001) {
+        await fs.updateDoc(fs.doc(db, `users/${uid}/lots`, lot.id), {
+          status: 'closed', quantity: 0, closedDate: closeDate, closedPrice: closePrice, realizedGain,
+        })
+      } else {
+        await fs.updateDoc(fs.doc(db, `users/${uid}/lots`, lot.id), {
+          quantity: lot.quantity - closable,
+        })
+        const closedId = `${lot.id}-closed-${Date.now()}`
+        await fs.setDoc(fs.doc(db, `users/${uid}/lots`, closedId), {
+          ...lot, id: undefined, quantity: closable, status: 'closed',
+          closedDate: closeDate, closedPrice: closePrice, realizedGain,
+          createdAt: lot.createdAt,
+        })
+      }
+
+      closedResults.push({ lotId: lot.id, quantity: closable, costBasis: lot.costBasis, realizedGain })
+      remaining -= closable
+    }
+    return closedResults
+  }, [uid, lots])
+
+  const addPortfolio = useCallback(async (portfolio) => {
+    if (!uid) return
+    const { db, fs } = await getFirebase()
+    const id = `portfolio-${Date.now()}`
+    await fs.setDoc(fs.doc(db, `users/${uid}/portfolios`, id), { ...portfolio, createdAt: new Date().toISOString() })
+    return id
+  }, [uid])
+
+  const deletePortfolio = useCallback(async (portfolioId) => {
+    if (!uid) return
+    const { db, fs } = await getFirebase()
+    await fs.deleteDoc(fs.doc(db, `users/${uid}/portfolios`, portfolioId))
+  }, [uid])
+
   return {
-    items, snapshots, transactions, alerts, goals, settings, loading,
+    items, snapshots, transactions, alerts, lots, portfolios, goals, settings, loading,
     addItem, deleteItem, deleteAllItems,
     saveSnapshot, deleteAllSnapshots,
     addTransaction, deleteAllTransactions,
     addAlert, deleteAlert, updateAlert,
+    addLot, updateLot, closeLotsFIFO,
+    addPortfolio, deletePortfolio,
     saveGoals, saveSettings,
   }
 }

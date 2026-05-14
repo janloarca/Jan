@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 
-export default function SellModal({ item, onClose, onSell, onAddTransaction, existingItems = [], lang = 'es' }) {
+export default function SellModal({ item, onClose, onSell, onAddTransaction, onCloseLots, existingItems = [], lang = 'es' }) {
   const t = (es, en) => lang === 'es' ? es : en
   const today = new Date().toISOString().split('T')[0]
 
@@ -54,6 +54,11 @@ export default function SellModal({ item, onClose, onSell, onAddTransaction, exi
           totalAmount: proceeds,
           currency: item.currency || 'USD',
         })
+      }
+
+      // 2b. Close lots FIFO
+      if (onCloseLots && item.symbol) {
+        await onCloseLots(item.symbol.toUpperCase(), qtySell, price, saleDate)
       }
 
       // 3. If exits portfolio, create WITHDRAWAL transaction
