@@ -76,11 +76,12 @@ export function computeMaxDrawdown(valueSeries) {
 
 export function computeHHI(positions) {
   if (!positions || positions.length === 0) return { hhi: 0, level: 'low', equivalentPositions: 0 }
-  const total = positions.reduce((s, p) => s + (p.value || 0), 0)
+  const positive = positions.filter((p) => (p.value || 0) > 0)
+  const total = positive.reduce((s, p) => s + (p.value || 0), 0)
   if (total <= 0) return { hhi: 0, level: 'low', equivalentPositions: 0 }
 
   let hhi = 0
-  positions.forEach((p) => {
+  positive.forEach((p) => {
     const weight = ((p.value || 0) / total) * 100
     hhi += weight * weight
   })
@@ -97,6 +98,7 @@ export function computeHHIByDimension(items, dimensionFn) {
   items.forEach((it) => {
     const key = dimensionFn(it) || 'Unknown'
     const val = getItemValue(it)
+    if (val <= 0) return
     groups[key] = (groups[key] || 0) + val
     total += val
   })

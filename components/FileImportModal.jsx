@@ -94,7 +94,7 @@ function parseNumber(val) {
   return isNaN(num) ? 0 : num
 }
 
-export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, lang = 'es' }) {
+export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, activePortfolio, lang = 'es' }) {
   const [mode, setMode] = useState('file')
   const [step, setStep] = useState('upload')
   const [rawData, setRawData] = useState([])
@@ -296,7 +296,20 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
 
     for (const item of preview) {
       try {
+        if (activePortfolio && activePortfolio !== '__all__') {
+          item.portfolioId = activePortfolio
+        }
         await onImportItems(item)
+        if (onAddLot && item.symbol && item.quantity > 0 && item.purchasePrice > 0 && !/debt|deuda/i.test(item.type || '')) {
+          await onAddLot({
+            symbol: (item.symbol || '').toUpperCase(),
+            quantity: item.quantity,
+            costBasis: item.purchasePrice,
+            currency: item.currency || 'USD',
+            acquisitionDate: item.acquisitionDate || new Date().toISOString().split('T')[0],
+            ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
+          })
+        }
         success++
       } catch {
         failed++
@@ -324,7 +337,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     setResult({ success, failed, total: preview.length, snapCount, txCount })
     setStep('done')
     setImporting(false)
-  }, [preview, onImportItems, onImportSnapshot, onImportTransaction, extraSheets])
+  }, [preview, onImportItems, onImportSnapshot, onImportTransaction, onAddLot, activePortfolio, extraSheets])
 
   const doManualImport = useCallback(async () => {
     if (!manual.symbol && !manual.name) {

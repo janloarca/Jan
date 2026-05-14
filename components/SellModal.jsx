@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react'
 
-export default function SellModal({ item, onClose, onSell, onAddTransaction, onCloseLots, existingItems = [], lang = 'es' }) {
+const QTY_EPSILON = 0.0001
+
+export default function SellModal({ item, onClose, onSell, onUpdate, onAddTransaction, onCloseLots, existingItems = [], lang = 'es' }) {
   const t = (es, en) => lang === 'es' ? es : en
   const today = new Date().toISOString().split('T')[0]
 
@@ -31,17 +33,17 @@ export default function SellModal({ item, onClose, onSell, onAddTransaction, onC
     setError('')
 
     if (qtySell <= 0) { setError(t('Ingresa una cantidad valida', 'Enter a valid quantity')); return }
-    if (qtySell > (item.quantity || 0) + 0.0001) { setError(t('No puedes vender mas de lo que tienes', 'Cannot sell more than you own')); return }
+    if (qtySell > (item.quantity || 0) + QTY_EPSILON) { setError(t('No puedes vender mas de lo que tienes', 'Cannot sell more than you own')); return }
     if (price <= 0) { setError(t('Ingresa un precio de venta valido', 'Enter a valid sale price')); return }
 
     setSaving(true)
     try {
-      // 1. Update the sold item
+      // 1. Update the sold item (targeted update avoids writing enriched/converted fields)
       const newQty = (item.quantity || 0) - qtySell
-      if (newQty <= 0.0001) {
-        await onSell({ ...item, quantity: 0, currentPrice: 0, purchasePrice: 0 })
+      if (newQty <= QTY_EPSILON) {
+        await onUpdate(item.id, { quantity: 0, currentPrice: 0, purchasePrice: 0 })
       } else {
-        await onSell({ ...item, quantity: newQty })
+        await onUpdate(item.id, { quantity: newQty })
       }
 
       // 2. Create SELL transaction
@@ -73,17 +75,17 @@ export default function SellModal({ item, onClose, onSell, onAddTransaction, onC
         })
       }
 
-      // 4. If stays in portfolio, add proceeds to destination
+      // 4. If stays in portfolio, add proceeds to destination (targeted update only)
       if (destination === '__stay__' && destinationId) {
         const dest = existingItems.find((it) => it.id === destinationId)
         if (dest) {
           const isBankDest = /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i.test(dest.type || '')
           if (isBankDest) {
             const newBal = (dest.currentPrice || dest.purchasePrice || 0) + proceeds
-            await onSell({ ...dest, currentPrice: newBal, purchasePrice: newBal })
+            await onUpdate(dest.id, { currentPrice: newBal, purchasePrice: newBal })
           } else {
             const addQty = proceeds / (dest.currentPrice || dest.purchasePrice || 1)
-            await onSell({ ...dest, quantity: (dest.quantity || 0) + addQty })
+            await onUpdate(dest.id, { quantity: (dest.quantity || 0) + addQty })
           }
         }
       }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
 import { getAdminDb } from '@/lib/firebase-admin'
+import { rateLimit } from '@/lib/rateLimit'
 import crypto from 'crypto'
 
 export async function POST(request) {
@@ -50,6 +51,9 @@ export async function POST(request) {
 }
 
 export async function GET(request) {
+  const { limited } = rateLimit(request, { maxRequests: 30 })
+  if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+
   const { searchParams } = new URL(request.url)
   const token = searchParams.get('token')
 

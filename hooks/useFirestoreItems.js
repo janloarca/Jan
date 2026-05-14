@@ -25,6 +25,9 @@ async function waitForAuth(auth) {
   })
 }
 
+const QTY_EPSILON = 0.0001
+function roundQty(v) { return Math.round(v * 10000) / 10000 }
+
 function sanitizeItem(raw) {
   return {
     ...raw,
@@ -121,6 +124,12 @@ export function useFirestoreItems() {
     const id = item.id || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
     const { id: _removed, ...data } = item
     await fs.setDoc(fs.doc(db, `users/${uid}/items`, id), { ...data, createdAt: new Date().toISOString() }, { merge: true })
+  }, [uid])
+
+  const updateItem = useCallback(async (itemId, fields) => {
+    if (!uid || !itemId) return
+    const { db, fs } = await getFirebase()
+    await fs.updateDoc(fs.doc(db, `users/${uid}/items`, itemId), fields)
   }, [uid])
 
   const deleteItem = useCallback(async (itemId) => {
@@ -238,13 +247,13 @@ export function useFirestoreItems() {
       const closable = Math.min(remaining, lot.quantity)
       const realizedGain = (closePrice - lot.costBasis) * closable
 
-      if (closable >= lot.quantity - 0.0001) {
+      if (closable >= lot.quantity - QTY_EPSILON) {
         await fs.updateDoc(fs.doc(db, `users/${uid}/lots`, lot.id), {
           status: 'closed', quantity: 0, closedDate: closeDate, closedPrice: closePrice, realizedGain,
         })
       } else {
         await fs.updateDoc(fs.doc(db, `users/${uid}/lots`, lot.id), {
-          quantity: lot.quantity - closable,
+          quantity: roundQty(lot.quantity - closable),
         })
         const closedId = `${lot.id}-closed-${Date.now()}`
         await fs.setDoc(fs.doc(db, `users/${uid}/lots`, closedId), {
@@ -276,7 +285,7 @@ export function useFirestoreItems() {
 
   return {
     items, snapshots, transactions, alerts, lots, portfolios, goals, settings, loading,
-    addItem, deleteItem, deleteAllItems,
+    addItem, updateItem, deleteItem, deleteAllItems,
     saveSnapshot, deleteAllSnapshots,
     addTransaction, deleteAllTransactions,
     addAlert, deleteAlert, updateAlert,

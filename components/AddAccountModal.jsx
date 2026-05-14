@@ -84,7 +84,7 @@ const ACCOUNT_TYPES = [
   { key: 'tax-free', es: 'Libre', en: 'Tax-free' },
 ]
 
-export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAddLot, existingItems = [], lang = 'es' }) {
+export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAddLot, existingItems = [], activePortfolio, lang = 'es' }) {
   const [step, setStep] = useState(1)
   const [type, setType] = useState('Stock')
   const [subtype, setSubtype] = useState('')
@@ -407,6 +407,10 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
         item.incomeDestination = cashSymbol
       }
 
+      if (activePortfolio && activePortfolio !== '__all__') {
+        item.portfolioId = activePortfolio
+      }
+
       await onAdd(item)
 
       if (onAddLot && item.symbol && item.quantity > 0 && item.purchasePrice > 0 && !item.isDebt) {
@@ -416,6 +420,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
           costBasis: item.purchasePrice,
           currency: item.currency || 'USD',
           acquisitionDate: item.acquisitionDate || new Date().toISOString().split('T')[0],
+          ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
         })
       }
 

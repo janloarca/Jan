@@ -13,7 +13,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
   const [selected, setSelected] = useState(new Set())
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false)
 
-  useEffect(() => { setShowAll(false) }, [filter, search])
+  useEffect(() => { setShowAll(false); setSelected(new Set()); setConfirmBulkDelete(false) }, [filter, search])
 
   const counts = useMemo(() => {
     const c = { all: items.length, stocks: 0, crypto: 0, bonds: 0, funds: 0, banks: 0, realestate: 0, alternatives: 0, debts: 0 }
