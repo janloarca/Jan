@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { formatCurrency, getTypeCategory, TYPE_COLORS, getItemValue, getItemPrice, getBaseCurrency, getMaturityInfo } from './utils'
 
 export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, onViewItem, onSellItem, onQuickBuy }) {
@@ -12,6 +12,8 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState(new Set())
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false)
+
+  useEffect(() => { setShowAll(false) }, [filter, search])
 
   const counts = useMemo(() => {
     const c = { all: items.length, stocks: 0, crypto: 0, bonds: 0, funds: 0, banks: 0, realestate: 0, alternatives: 0, debts: 0 }
