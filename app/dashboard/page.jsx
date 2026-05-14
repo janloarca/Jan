@@ -510,6 +510,94 @@ export default function DashboardPage() {
     URL.revokeObjectURL(url)
   }, [transactions, lots])
 
+  const yearlyChange = useMemo(() => {
+    if (snapshots.length < 2) return null
+    const oneYearAgo = new Date()
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
+    let yearAgoSnapshot = null
+    for (let i = snapshots.length - 1; i >= 0; i--) {
+      if (snapshots[i].date && new Date(snapshots[i].date) <= oneYearAgo) { yearAgoSnapshot = snapshots[i]; break }
+    }
+    if (!yearAgoSnapshot) return null
+    const prev = convertSnapshot(yearAgoSnapshot.netWorthUSD ?? yearAgoSnapshot.totalActivosUSD ?? 0)
+    if (prev === 0) return null
+    return ((netWorth - prev) / prev) * 100
+  }, [snapshots, netWorth, convertSnapshot])
+
+  const [jan1Value, setJan1Value] = useState(null)
+
+  useEffect(() => {
+    if (!enrichedItems || enrichedItems.length === 0) return
+    let cancelled = false
+    async function fetchJan1() {
+      try {
+        const res = await authFetch('/api/prices/portfolio-history', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items: enrichedItems.map((it) => ({
+              symbol: it.symbol, type: it.type, quantity: it.quantity,
+              currentPrice: it.currentPrice, purchasePrice: it.purchasePrice,
+              acquisitionDate: it.acquisitionDate,
+            })),
+            period: 'YTD',
+          }),
+        })
+        if (!res.ok || cancelled) return
+        const data = await res.json()
+        const pts = data.dataPoints || []
+        if (pts.length > 0) {
+          if (!cancelled) setJan1Value(pts[0].total)
+        }
+      } catch {}
+    }
+    fetchJan1()
+    return () => { cancelled = true }
+  }, [enrichedItems])
+
+  const { returnYTD, ytdChange } = useMemo(() => {
+    const yearStartTs = new Date(new Date().getFullYear(), 0, 1).getTime()
+
+    let startVal = null
+
+    if (snapshots.length >= 2) {
+      let minDiff = Infinity
+      let bestSnap = null
+      for (const s of snapshots) {
+        if (!s.date) continue
+        const snapTs = new Date(s.date).getTime()
+        if (snapTs > Date.now()) continue
+        const diff = Math.abs(snapTs - yearStartTs)
+        if (diff < minDiff) { minDiff = diff; bestSnap = s }
+      }
+      if (bestSnap) {
+        startVal = convertSnapshot(bestSnap.netWorthUSD ?? bestSnap.totalActivosUSD ?? 0)
+      }
+    }
+
+    if (startVal == null || startVal <= 0) startVal = jan1Value
+    if (startVal == null || startVal <= 0) return { returnYTD: 0, ytdChange: 0 }
+
+    const { pct, abs } = computeModifiedDietz({
+      startValue: startVal,
+      endValue: netWorth,
+      startTs: yearStartTs,
+      endTs: Date.now(),
+      transactions,
+      convert,
+      baseCurrency,
+    })
+    return { returnYTD: pct, ytdChange: abs }
+  }, [jan1Value, netWorth, transactions, convert, baseCurrency, snapshots, convertSnapshot])
+
+  const annualDividends = useMemo(() => {
+    const divs = (transactions || []).filter((tx) => (tx.type || '').toUpperCase() === 'DIVIDEND')
+    return divs.reduce((s, tx) => {
+      const amt = tx.totalAmount ?? 0
+      return s + convert(amt, tx.currency || 'USD', baseCurrency)
+    }, 0)
+  }, [transactions, convert, baseCurrency])
+
   const handleReport = useCallback(async () => {
     const { generateReport } = await import('@/lib/generateReport')
     await generateReport({
@@ -598,94 +686,6 @@ export default function DashboardPage() {
       case 'viewItem': setDetailItem(data); break
     }
   }, [handleExport, handleReport, handleRefresh, handleSetTheme, handleSetLang, theme])
-
-  const yearlyChange = useMemo(() => {
-    if (snapshots.length < 2) return null
-    const oneYearAgo = new Date()
-    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
-    let yearAgoSnapshot = null
-    for (let i = snapshots.length - 1; i >= 0; i--) {
-      if (snapshots[i].date && new Date(snapshots[i].date) <= oneYearAgo) { yearAgoSnapshot = snapshots[i]; break }
-    }
-    if (!yearAgoSnapshot) return null
-    const prev = convertSnapshot(yearAgoSnapshot.netWorthUSD ?? yearAgoSnapshot.totalActivosUSD ?? 0)
-    if (prev === 0) return null
-    return ((netWorth - prev) / prev) * 100
-  }, [snapshots, netWorth, convertSnapshot])
-
-  const [jan1Value, setJan1Value] = useState(null)
-
-  useEffect(() => {
-    if (!enrichedItems || enrichedItems.length === 0) return
-    let cancelled = false
-    async function fetchJan1() {
-      try {
-        const res = await authFetch('/api/prices/portfolio-history', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            items: enrichedItems.map((it) => ({
-              symbol: it.symbol, type: it.type, quantity: it.quantity,
-              currentPrice: it.currentPrice, purchasePrice: it.purchasePrice,
-              acquisitionDate: it.acquisitionDate,
-            })),
-            period: 'YTD',
-          }),
-        })
-        if (!res.ok || cancelled) return
-        const data = await res.json()
-        const pts = data.dataPoints || []
-        if (pts.length > 0) {
-          if (!cancelled) setJan1Value(pts[0].total)
-        }
-      } catch {}
-    }
-    fetchJan1()
-    return () => { cancelled = true }
-  }, [enrichedItems])
-
-  const { returnYTD, ytdChange } = useMemo(() => {
-    const yearStartTs = new Date(new Date().getFullYear(), 0, 1).getTime()
-
-    let startVal = null
-
-    if (snapshots.length >= 2) {
-      let minDiff = Infinity
-      let bestSnap = null
-      for (const s of snapshots) {
-        if (!s.date) continue
-        const snapTs = new Date(s.date).getTime()
-        if (snapTs > Date.now()) continue
-        const diff = Math.abs(snapTs - yearStartTs)
-        if (diff < minDiff) { minDiff = diff; bestSnap = s }
-      }
-      if (bestSnap) {
-        startVal = convertSnapshot(bestSnap.netWorthUSD ?? bestSnap.totalActivosUSD ?? 0)
-      }
-    }
-
-    if (startVal == null || startVal <= 0) startVal = jan1Value
-    if (startVal == null || startVal <= 0) return { returnYTD: 0, ytdChange: 0 }
-
-    const { pct, abs } = computeModifiedDietz({
-      startValue: startVal,
-      endValue: netWorth,
-      startTs: yearStartTs,
-      endTs: Date.now(),
-      transactions,
-      convert,
-      baseCurrency,
-    })
-    return { returnYTD: pct, ytdChange: abs }
-  }, [jan1Value, netWorth, transactions, convert, baseCurrency, snapshots, convertSnapshot])
-
-  const annualDividends = useMemo(() => {
-    const divs = (transactions || []).filter((tx) => (tx.type || '').toUpperCase() === 'DIVIDEND')
-    return divs.reduce((s, tx) => {
-      const amt = tx.totalAmount ?? 0
-      return s + convert(amt, tx.currency || 'USD', baseCurrency)
-    }, 0)
-  }, [transactions, convert, baseCurrency])
 
   const estimatedAnnualIncome = useMemo(() => {
     let total = 0
