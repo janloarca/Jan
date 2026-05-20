@@ -27,6 +27,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (isInAppBrowser()) setInAppBrowser(true)
+    router.prefetch('/dashboard')
 
     let unsub = () => {}
     async function check() {

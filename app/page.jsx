@@ -51,7 +51,7 @@ export default function Home() {
       <main className="max-w-5xl mx-auto px-6">
         {/* Hero section */}
         <section className="py-20 text-center">
-          <h1 className="text-5xl font-black tracking-tight mb-4 bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+          <h1 className="text-5xl font-black tracking-tight mb-4 text-[var(--text-primary)]">
             Track your entire portfolio.<br />Not just stocks.
           </h1>
           <p className="text-lg text-slate-400 max-w-2xl mx-auto mb-8">
