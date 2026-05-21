@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { detectBI, parseBI } from '@/lib/parsers/biParser'
+import { FINANCE_CATEGORIES, CATEGORY_COLORS } from '@/lib/financeCategories'
 
 const FIELD_MAP = {
   symbol: ['symbol', 'ticker', 'simbolo', 'código', 'codigo', 'sym', 'coin'],
@@ -94,7 +96,7 @@ function parseNumber(val) {
   return isNaN(num) ? 0 : num
 }
 
-export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, activePortfolio, lang = 'es' }) {
+export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateItem, existingItems, activePortfolio, lang = 'es' }) {
   const [mode, setMode] = useState('file')
   const [step, setStep] = useState('upload')
   const [rawData, setRawData] = useState([])
@@ -113,6 +115,8 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   })
 
   const [extraSheets, setExtraSheets] = useState({ snapshots: [], transactions: [] })
+  const [biData, setBiData] = useState(null)
+  const [selectedBankAccount, setSelectedBankAccount] = useState('')
 
   useEffect(() => {
     const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
@@ -202,10 +206,16 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       const hdrs = json[0].map((h) => (h || '').toString().trim())
       const rows = json.slice(1).filter((r) => r.some((cell) => cell !== ''))
 
-      setHeaders(hdrs)
-      setRawData(rows)
-      setMapping(guessMapping(hdrs))
-      setStep('map')
+      if (detectBI(hdrs)) {
+        const parsed = parseBI(rows, hdrs)
+        setBiData(parsed)
+        setStep('bi-preview')
+      } else {
+        setHeaders(hdrs)
+        setRawData(rows)
+        setMapping(guessMapping(hdrs))
+        setStep('map')
+      }
     } catch (err) {
       setError(lang === 'es' ? `Error leyendo archivo: ${err.message}` : `Error reading file: ${err.message}`)
     }
@@ -359,6 +369,47 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     }
     setImporting(false)
   }, [manual, onImportItems, lang])
+
+  const doBIImport = useCallback(async () => {
+    if (!biData || !onAddFinanceTransaction) return
+    setImporting(true)
+    setError('')
+    let success = 0
+    let failed = 0
+
+    for (const tx of biData.transactions) {
+      try {
+        await onAddFinanceTransaction(tx)
+        success++
+      } catch {
+        failed++
+      }
+    }
+
+    if (biData.finalBalance > 0) {
+      const bankAccounts = (existingItems || []).filter(it => /bank|banco/i.test(it.type || ''))
+      const target = selectedBankAccount ? bankAccounts.find(a => a.id === selectedBankAccount) : null
+
+      if (target && onUpdateItem) {
+        await onUpdateItem(target.id, { currentPrice: biData.finalBalance, purchasePrice: biData.finalBalance })
+      } else if (onImportItems) {
+        await onImportItems({
+          type: 'Bank',
+          name: 'BI Monetaria',
+          symbol: 'BI-MONETARIA',
+          institution: 'Banco Industrial',
+          currency: biData.currency || 'GTQ',
+          quantity: 1,
+          currentPrice: biData.finalBalance,
+          purchasePrice: biData.finalBalance,
+        })
+      }
+    }
+
+    setResult({ success, failed, total: biData.transactions.length, isBI: true })
+    setStep('done')
+    setImporting(false)
+  }, [biData, onAddFinanceTransaction, onImportItems, onUpdateItem, existingItems, selectedBankAccount])
 
   const handleDrop = useCallback((e) => {
     e.preventDefault()
@@ -616,6 +667,85 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
             </div>
           )}
 
+          {/* BI Preview step */}
+          {step === 'bi-preview' && biData && (
+            <div>
+              <div className="flex items-center gap-2 px-3 py-2 mb-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                <span className="text-emerald-400 text-xs font-medium">
+                  {t('Formato detectado: Banco Industrial', 'Format detected: Banco Industrial')}
+                </span>
+              </div>
+              <p className="text-slate-400 text-sm mb-3">
+                {t(`${biData.transactions.length} transacciones encontradas`, `${biData.transactions.length} transactions found`)}
+                {biData.finalBalance > 0 && ` — ${t('Saldo final', 'Final balance')}: Q${biData.finalBalance.toLocaleString()}`}
+              </p>
+
+              <div className="overflow-x-auto max-h-60 overflow-y-auto mb-4">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-slate-500 border-b border-[#334155] sticky top-0 bg-[#1e293b]">
+                      <th className="text-left py-2 px-2">{t('Fecha', 'Date')}</th>
+                      <th className="text-left py-2 px-2">{t('Descripción', 'Description')}</th>
+                      <th className="text-left py-2 px-2">{t('Categoría', 'Category')}</th>
+                      <th className="text-right py-2 px-2">{t('Monto', 'Amount')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {biData.transactions.map((tx, i) => (
+                      <tr key={i} className="border-b border-[#334155]/50 hover:bg-[#283548]">
+                        <td className="py-2 px-2 text-slate-400 whitespace-nowrap">{tx.date}</td>
+                        <td className="py-2 px-2 text-white max-w-[180px] truncate">{tx.description}</td>
+                        <td className="py-2 px-2">
+                          <select
+                            value={tx.category}
+                            onChange={(e) => {
+                              const updated = { ...biData }
+                              updated.transactions = [...updated.transactions]
+                              updated.transactions[i] = { ...updated.transactions[i], category: e.target.value }
+                              setBiData(updated)
+                            }}
+                            className="bg-[#0f172a] border border-[#334155] rounded text-xs text-slate-300 px-1 py-0.5 focus:outline-none"
+                          >
+                            {(tx.type === 'INCOME' ? FINANCE_CATEGORIES.INCOME : FINANCE_CATEGORIES.EXPENSE).map(c => (
+                              <option key={c} value={c}>{c}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className={`py-2 px-2 text-right font-medium whitespace-nowrap ${tx.type === 'INCOME' ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {tx.type === 'INCOME' ? '+' : '-'}Q{tx.amount.toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {biData.finalBalance > 0 && (
+                <div className="p-3 bg-[#0f172a] border border-[#334155] rounded-lg mb-4">
+                  <p className="text-xs text-slate-400 mb-2">{t('Actualizar cuenta bancaria:', 'Update bank account:')}</p>
+                  <select value={selectedBankAccount} onChange={e => setSelectedBankAccount(e.target.value)}
+                    className="w-full px-3 py-2 bg-[#1e293b] border border-[#334155] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
+                    <option value="">{t('Crear nueva cuenta', 'Create new account')}</option>
+                    {(existingItems || []).filter(it => /bank|banco/i.test(it.type || '')).map(item => (
+                      <option key={item.id} value={item.id}>{item.name || item.symbol}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button onClick={() => { setBiData(null); setStep('upload') }}
+                  className="flex-1 py-2.5 border border-[#334155] text-slate-300 rounded-lg hover:bg-[#283548] transition-colors text-sm">
+                  {t('Atrás', 'Back')}
+                </button>
+                <button onClick={doBIImport} disabled={importing}
+                  className="flex-1 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-50 transition-colors text-sm font-medium">
+                  {importing ? t('Importando...', 'Importing...') : t(`Importar ${biData.transactions.length} transacciones`, `Import ${biData.transactions.length} transactions`)}
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Done step */}
           {step === 'done' && result && (
             <div className="text-center py-6">
@@ -626,7 +756,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                   : t('Importación parcial', 'Partial import')}
               </p>
               <p className="text-slate-400 text-sm">
-                {result.success} {t('activos importados', 'assets imported')}
+                {result.success} {result.isBI ? t('transacciones importadas', 'transactions imported') : t('activos importados', 'assets imported')}
                 {result.failed > 0 && <>, {result.failed} {t('fallidos', 'failed')}</>}
               </p>
               {result.snapCount > 0 && (

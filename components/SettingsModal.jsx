@@ -22,7 +22,7 @@ const CURRENCIES = [
   { code: 'CNY', name: 'Chinese Yuan', symbol: '¥' },
 ]
 
-export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, theme, onToggleTheme, lang = 'es' }) {
+export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onExportBackup, theme, onToggleTheme, lang = 'es' }) {
   const [baseCurrency, setBaseCurrency] = useState(settings?.baseCurrency || 'USD')
   const [benchmarkSymbol, setBenchmarkSymbol] = useState(settings?.benchmarkSymbol || '%5EGSPC')
   const [saving, setSaving] = useState(false)
@@ -59,10 +59,12 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
       if (type === 'items') await onDeleteAllItems()
       if (type === 'snapshots') await onDeleteAllSnapshots()
       if (type === 'transactions') await onDeleteAllTransactions()
+      if (type === 'financeTransactions' && onDeleteAllFinanceTransactions) await onDeleteAllFinanceTransactions()
       if (type === 'all') {
         await onDeleteAllItems()
         await onDeleteAllSnapshots()
         await onDeleteAllTransactions()
+        if (onDeleteAllFinanceTransactions) await onDeleteAllFinanceTransactions()
       }
     } catch {}
     setConfirmDelete(null)
@@ -291,12 +293,26 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
 
           {tab === 'data' && (
             <div className="space-y-4">
+              {onExportBackup && (
+                <div className="flex items-center justify-between p-3 bg-[#0f172a] border border-emerald-500/20 rounded-lg">
+                  <div>
+                    <div className="text-sm text-white font-medium">{t('Exportar Backup', 'Export Backup')}</div>
+                    <div className="text-xs text-slate-500">{t('Descarga todos tus datos en formato JSON.', 'Download all your data as JSON.')}</div>
+                  </div>
+                  <button onClick={onExportBackup}
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors shrink-0 ml-3 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10">
+                    {t('Descargar', 'Download')}
+                  </button>
+                </div>
+              )}
+
               <p className="text-xs text-slate-500">{t('Administra los datos de tu portfolio. Estas acciones no se pueden deshacer.', 'Manage your portfolio data. These actions cannot be undone.')}</p>
 
               {[
                 { key: 'items', label: t('Eliminar todas las cuentas', 'Delete all accounts'), desc: t('Borra todos los instrumentos y posiciones.', 'Deletes all instruments and positions.') },
                 { key: 'snapshots', label: t('Eliminar snapshots', 'Delete snapshots'), desc: t('Borra el historial de snapshots del portfolio.', 'Deletes portfolio snapshot history.') },
                 { key: 'transactions', label: t('Eliminar transacciones', 'Delete transactions'), desc: t('Borra el historial de transacciones.', 'Deletes transaction history.') },
+                { key: 'financeTransactions', label: t('Eliminar finanzas', 'Delete finance data'), desc: t('Borra todos los ingresos y gastos.', 'Deletes all income and expense data.') },
                 { key: 'all', label: t('Eliminar todo', 'Delete everything'), desc: t('Borra todos los datos del portfolio.', 'Deletes all portfolio data.') },
               ].map((action) => (
                 <div key={action.key} className="flex items-center justify-between p-3 bg-[#0f172a] border border-[#334155] rounded-lg">

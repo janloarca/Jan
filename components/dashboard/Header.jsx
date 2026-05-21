@@ -1,22 +1,45 @@
 'use client'
 
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+
 export default function Header({ user, lang, setLang, onImport, onSignOut, onRefresh, onSettings, pricesLoading, onAddAccount, onCommandPalette }) {
   const today = new Date().toLocaleDateString(lang === 'es' ? 'es-ES' : 'en-US', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
   })
+  const pathname = usePathname()
+
+  const navItems = [
+    { href: '/dashboard', label: lang === 'es' ? 'Patrimonio' : 'Portfolio' },
+    { href: '/finances', label: lang === 'es' ? 'Finanzas' : 'Finances' },
+  ]
 
   return (
     <header className="border-b border-[#334155] sticky top-0 z-20 bg-[#0f172a]/95 backdrop-blur-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14">
-          <div className="flex items-center gap-2">
-            <span className="text-blue-400 text-xl">⚡</span>
-            <div>
-              <h1 className="text-base font-bold text-blue-400 leading-tight">Chispudo</h1>
-              <p className="text-xs text-slate-500 hidden sm:block leading-none">
-                {lang === 'es' ? 'Tu dinero, tu control' : 'Your money, your control'}
-              </p>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-blue-400 text-xl">⚡</span>
+              <div>
+                <h1 className="text-base font-bold text-blue-400 leading-tight">Chispudo</h1>
+                <p className="text-xs text-slate-500 hidden sm:block leading-none">
+                  {lang === 'es' ? 'Tu dinero, tu control' : 'Your money, your control'}
+                </p>
+              </div>
             </div>
+            <nav className="hidden sm:flex items-center gap-1 ml-2">
+              {navItems.map(item => (
+                <Link key={item.href} href={item.href}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                    pathname === item.href
+                      ? 'text-blue-400 bg-blue-400/10'
+                      : 'text-slate-400 hover:text-white hover:bg-[#283548]'
+                  }`}>
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2">
             <span className="text-xs text-slate-500 hidden lg:block">{today}</span>

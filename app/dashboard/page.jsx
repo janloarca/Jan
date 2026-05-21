@@ -192,6 +192,10 @@ export default function DashboardPage() {
     portfolios,
     addPortfolio,
     deletePortfolio,
+    financeTransactions,
+    addFinanceTransaction,
+    deleteFinanceTransaction,
+    deleteAllFinanceTransactions,
     saveGoals,
     saveSettings,
   } = useFirestoreItems()
@@ -992,6 +996,9 @@ export default function DashboardPage() {
           onImportTransaction={addTransaction}
           onImportSnapshot={saveSnapshot}
           onAddLot={addLot}
+          onAddFinanceTransaction={addFinanceTransaction}
+          onUpdateItem={updateItem}
+          existingItems={items}
           activePortfolio={activePortfolio}
           lang={lang}
         />
@@ -1050,6 +1057,29 @@ export default function DashboardPage() {
           onDeleteAllItems={deleteAllItems}
           onDeleteAllSnapshots={deleteAllSnapshots}
           onDeleteAllTransactions={deleteAllTransactions}
+          onDeleteAllFinanceTransactions={deleteAllFinanceTransactions}
+          onExportBackup={() => {
+            const data = {
+              exportDate: new Date().toISOString(),
+              version: '1.0',
+              items,
+              transactions,
+              lots,
+              snapshots,
+              alerts,
+              portfolios,
+              goals,
+              settings,
+              financeTransactions,
+            }
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `chispudo-backup-${new Date().toISOString().split('T')[0]}.json`
+            a.click()
+            URL.revokeObjectURL(url)
+          }}
           theme={theme}
           onToggleTheme={handleSetTheme}
           lang={lang}
