@@ -11,6 +11,7 @@ import FileImportModal from '@/components/FileImportModal'
 import AddAccountModal from '@/components/AddAccountModal'
 import SellModal from '@/components/SellModal'
 import TransferModal from '@/components/TransferModal'
+import IBKRSyncModal from '@/components/IBKRSyncModal'
 
 import SettingsModal from '@/components/SettingsModal'
 import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, formatCurrency, getTypeCategory } from '@/components/dashboard/utils'
@@ -599,9 +600,48 @@ export default function DashboardPage() {
       case 'refresh': handleRefresh(); break
       case 'theme': handleSetTheme(theme === 'dark' ? 'light' : 'dark'); break
       case 'lang': handleSetLang('toggle'); break
+      case 'ibkr': setModal('ibkr'); break
       case 'viewItem': setDetailItem(data); break
     }
   }, [handleExport, handleReport, handleRefresh, handleSetTheme, handleSetLang, theme])
+
+  const handleIBKRSync = useCallback(async (data) => {
+    for (const item of data.items) {
+      const existing = items.find(it =>
+        (it.symbol || '').toUpperCase() === item.symbol &&
+        (it.institution || '').toLowerCase().includes('interactive brokers')
+      )
+      if (existing) {
+        await updateItem(existing.id, {
+          currentPrice: item.currentPrice,
+          quantity: item.quantity,
+          purchasePrice: item.purchasePrice,
+        })
+      } else {
+        await addItem(item)
+        if (item.quantity > 0 && item.purchasePrice > 0 && item.type !== 'Bank') {
+          await addLot({
+            symbol: item.symbol,
+            quantity: item.quantity,
+            costBasis: item.purchasePrice,
+            currency: item.currency || 'USD',
+            acquisitionDate: new Date().toISOString().split('T')[0],
+          })
+        }
+      }
+    }
+    for (const tx of data.transactions) {
+      const alreadyExists = transactions.some(t =>
+        t.date === tx.date &&
+        (t.symbol || '').toUpperCase() === tx.symbol &&
+        t.type === tx.type &&
+        Math.abs((t.quantity || 0) - tx.quantity) < 0.001
+      )
+      if (!alreadyExists) {
+        await addTransaction(tx)
+      }
+    }
+  }, [items, transactions, addItem, updateItem, addTransaction, addLot])
 
   const yearlyChange = useMemo(() => {
     if (snapshots.length < 2) return null
@@ -923,6 +963,7 @@ export default function DashboardPage() {
           onTransfer={() => setModal('transfer')}
           onExport={handleExport}
           onShare={handleShare}
+          onIBKR={() => setModal('ibkr')}
           itemCount={enrichedItems.length}
           lang={lang}
         />
@@ -1035,6 +1076,17 @@ export default function DashboardPage() {
           onAddTransaction={addTransaction}
           onCloseLots={closeLotsFIFO}
           existingItems={items}
+          lang={lang}
+        />
+      )}
+
+      {modal === 'ibkr' && (
+        <IBKRSyncModal
+          onClose={() => setModal(null)}
+          onSyncComplete={handleIBKRSync}
+          savedToken={settings?.ibkrToken || ''}
+          savedQueryId={settings?.ibkrQueryId || ''}
+          onSaveCredentials={saveSettings}
           lang={lang}
         />
       )}

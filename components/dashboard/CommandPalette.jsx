@@ -10,6 +10,7 @@ const ACTIONS = [
   { id: 'report', icon: '📄', labelEs: 'Generar reporte PDF', labelEn: 'Generate PDF report' },
   { id: 'transfer', icon: '↔️', labelEs: 'Transferir entre cuentas', labelEn: 'Transfer between accounts' },
   { id: 'settings', icon: '⚙️', labelEs: 'Configuración', labelEn: 'Settings', shortcut: ',' },
+  { id: 'ibkr', icon: '🔄', labelEs: 'Sincronizar IBKR', labelEn: 'Sync IBKR' },
   { id: 'refresh', icon: '↻', labelEs: 'Actualizar precios', labelEn: 'Refresh prices', shortcut: 'R' },
   { id: 'theme', icon: '🎨', labelEs: 'Cambiar tema', labelEn: 'Toggle theme' },
   { id: 'lang', icon: '🌐', labelEs: 'Switch to English', labelEn: 'Cambiar a Español' },
