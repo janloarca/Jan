@@ -9,8 +9,32 @@ export default function BenchmarkComparison({ benchmarkReturn, portfolioReturn, 
 
   const t = (es, en) => lang === 'es' ? es : en
   const name = benchmarkName || 'S&P 500'
-  const delta = (portfolioReturn ?? 0) - benchmarkReturn
+  const pr = portfolioReturn ?? 0
+  const unreliable = Math.abs(pr) > 200
+  const displayPR = unreliable ? 0 : pr
+  const delta = displayPR - benchmarkReturn
   const isOut = delta >= 0
+
+  if (unreliable) {
+    return (
+      <div className="bg-[#1e293b]/80 rounded-xl border border-[#334155]/50 p-4">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">
+            {t('Benchmark', 'Benchmark')}
+          </span>
+          <span className="text-xs text-slate-600">{name}</span>
+        </div>
+        <div className="text-center py-2">
+          <span className={`text-base font-bold ${benchmarkReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+            {benchmarkReturn >= 0 ? '+' : ''}{benchmarkReturn.toFixed(2)}%
+          </span>
+          <p className="text-xs text-slate-500 mt-2">
+            {t('Se necesitan más snapshots para comparar tu retorno de forma confiable.', 'More snapshots needed for a reliable portfolio return comparison.')}
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="bg-[#1e293b]/80 rounded-xl border border-[#334155]/50 p-4">
@@ -24,8 +48,8 @@ export default function BenchmarkComparison({ benchmarkReturn, portfolioReturn, 
       <div className="grid grid-cols-2 gap-3 mb-2">
         <div>
           <span className="text-xs text-slate-500 block">{t('Tu portafolio', 'Your portfolio')}</span>
-          <span className={`text-base font-bold ${(portfolioReturn ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-            {(portfolioReturn ?? 0) >= 0 ? '+' : ''}{(portfolioReturn ?? 0).toFixed(2)}%
+          <span className={`text-base font-bold ${displayPR >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+            {displayPR >= 0 ? '+' : ''}{displayPR.toFixed(2)}%
           </span>
         </div>
         <div className="text-right">

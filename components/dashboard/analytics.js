@@ -19,8 +19,9 @@ export function computeSharpeRatio({ returns, riskFreeRate }) {
   const sd = stddev(returns)
   if (sd === 0) return { sharpe: null, annualizedReturn: avgReturn * 12 * 100, annualizedVolatility: 0 }
   const sharpe = ((avgReturn - rf) / sd) * Math.sqrt(12)
+  const clamped = Math.max(-10, Math.min(10, sharpe))
   return {
-    sharpe: Math.round(sharpe * 100) / 100,
+    sharpe: Math.round(clamped * 100) / 100,
     annualizedReturn: avgReturn * 12 * 100,
     annualizedVolatility: sd * Math.sqrt(12) * 100,
   }
@@ -32,7 +33,9 @@ export function computeVolatility({ returns, periodsPerYear }) {
   if (!ppy || ppy <= 0) ppy = 12
   const sd = stddev(returns)
   if (!isFinite(sd)) return null
-  return Math.round(sd * Math.sqrt(ppy) * 100 * 100) / 100
+  const vol = Math.round(sd * Math.sqrt(ppy) * 100 * 100) / 100
+  if (vol > 500) return null
+  return vol
 }
 
 export function computeMaxDrawdown(valueSeries) {
@@ -209,7 +212,7 @@ export function computeNetContributions(transactions, convert, baseCurrency) {
 export function generateInsights({ netWorth, benchmarkReturn, portfolioReturn, sharpe, volatility, maxDrawdown, hhi, incomeYield, goals, topContributor, topDrag, maturingSoon, debtRatio, investmentClassPcts }) {
   const insights = []
 
-  if (benchmarkReturn != null && portfolioReturn != null) {
+  if (benchmarkReturn != null && portfolioReturn != null && Math.abs(portfolioReturn) <= 200) {
     const delta = portfolioReturn - benchmarkReturn
     if (delta > 0) {
       insights.push({
@@ -375,6 +378,7 @@ export function computePeriodicReturns(snapshots, transactions, convert, baseCur
     const prev = sorted[i - 1].netWorthUSD ?? sorted[i - 1].totalActivosUSD ?? 0
     const curr = sorted[i].netWorthUSD ?? sorted[i].totalActivosUSD ?? 0
     if (prev > 0) {
+      let r
       if (transactions && convert) {
         const prevTs = new Date(sorted[i - 1].date).getTime()
         const currTs = new Date(sorted[i].date).getTime()
@@ -383,10 +387,11 @@ export function computePeriodicReturns(snapshots, transactions, convert, baseCur
           startTs: prevTs, endTs: currTs,
           transactions, convert, baseCurrency,
         })
-        returns.push(pct / 100)
+        r = pct / 100
       } else {
-        returns.push((curr - prev) / prev)
+        r = (curr - prev) / prev
       }
+      if (Math.abs(r) < 1) returns.push(r)
     }
   }
   return returns
@@ -413,7 +418,9 @@ export function computeBeta(portfolioReturns, benchmarkReturns) {
   bVariance /= len - 1
 
   if (bVariance <= 0) return null
-  return Math.round((covariance / bVariance) * 100) / 100
+  const beta = Math.round((covariance / bVariance) * 100) / 100
+  if (Math.abs(beta) > 10) return null
+  return beta
 }
 
 export function computeTWRSeries(chartData, transactions, convert, baseCurrency) {

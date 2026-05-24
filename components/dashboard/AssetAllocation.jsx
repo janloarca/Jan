@@ -35,6 +35,7 @@ export default function AssetAllocation({ items, lang }) {
       total += val
     })
     return Object.entries(byGroup)
+      .filter(([, value]) => Math.abs(value) > 0.01)
       .map(([name, value], i) => ({
         name,
         value,

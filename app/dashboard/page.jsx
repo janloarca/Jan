@@ -757,7 +757,8 @@ export default function DashboardPage() {
       convert,
       baseCurrency,
     })
-    return { returnYTD: pct, ytdChange: abs }
+    const clampedPct = Math.max(-200, Math.min(200, pct))
+    return { returnYTD: clampedPct, ytdChange: abs }
   }, [jan1Value, netWorth, transactions, convert, baseCurrency, snapshots, convertSnapshot])
 
   const annualDividends = useMemo(() => {
