@@ -281,7 +281,8 @@ export default function DashboardPage() {
   const dividendsProcessedRef = useRef(null)
 
   useEffect(() => {
-    const todayKey = new Date().toISOString().split('T')[0]
+    const now = new Date()
+    const todayKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`
     if (dividendsProcessedRef.current === todayKey) return
     if (!user || dataLoading || pricesLoading || ratesLoading) return
     if (enrichedItems.length === 0) return
@@ -289,22 +290,36 @@ export default function DashboardPage() {
     let cancelled = false
 
     const scheduled = enrichedItems.filter((it) =>
-      (it.incomeAmount > 0 || it.incomeRate > 0 || (it.rateType === 'variable' && it.rateMin > 0) || it.rateType === 'continuous') && it.incomeMonths
+      (it.incomeAmount > 0 || it.incomeRate > 0 || (it.rateType === 'variable' && it.rateMin > 0) || it.rateType === 'continuous')
     )
     if (scheduled.length === 0) { dividendsProcessedRef.current = todayKey; return }
 
-    const today = new Date()
-    const todayDay = today.getDate()
-    const dayOfWeek = today.getDay()
-    const currentMonth = today.getMonth()
+    const todayDay = now.getUTCDate()
+    const currentMonth = now.getUTCMonth()
 
     function getEffectivePayDay(payDay, businessDayRule) {
       if (businessDayRule !== 'next_business_day') return payDay
-      const testDate = new Date(today.getFullYear(), currentMonth, payDay)
-      const dow = testDate.getDay()
+      const testDate = new Date(Date.UTC(now.getUTCFullYear(), currentMonth, payDay))
+      const dow = testDate.getUTCDay()
       if (dow === 0) return payDay + 1
       if (dow === 6) return payDay + 2
       return payDay
+    }
+
+    function addToDestination(dest, amount, sourceCurrency) {
+      const destCur = dest._originalCurrency || dest.currency || 'USD'
+      const converted = destCur !== sourceCurrency && convert
+        ? convert(amount, sourceCurrency, destCur)
+        : amount
+      const isBank = /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i.test(dest.type || '')
+      if (isBank) {
+        const qty = dest.quantity || 1
+        const currentBal = (dest._originalPrice || dest.currentPrice || dest.purchasePrice || 0)
+        const newBal = currentBal + (converted / qty)
+        return updateItem(dest.id, { currentPrice: newBal, purchasePrice: newBal })
+      }
+      const destPrice = (dest.currentPrice || dest.purchasePrice || 0) + converted
+      return updateItem(dest.id, { currentPrice: destPrice, purchasePrice: destPrice })
     }
 
     async function processDividends() {
@@ -316,12 +331,14 @@ export default function DashboardPage() {
 
           if (!isContinuous && todayDay !== payDay) continue
 
-          const months = it.incomeMonths || [0,1,2,3,4,5,6,7,8,9,10,11]
+          const months = Array.isArray(it.incomeMonths) && it.incomeMonths.length > 0
+            ? it.incomeMonths
+            : [0,1,2,3,4,5,6,7,8,9,10,11]
           if (!months.includes(currentMonth)) continue
 
           if (it.maturityDate) {
             const matDate = new Date(it.maturityDate)
-            if (matDate <= today) continue
+            if (matDate <= now) continue
           }
 
           const sym = (it.symbol || '').toUpperCase()
@@ -335,6 +352,7 @@ export default function DashboardPage() {
 
           let paymentAmount = it.incomeAmount || 0
           const balance = (it.quantity || 1) * (it._originalPrice || it.currentPrice || it.purchasePrice || 0)
+          const incomeCurrency = it._originalCurrency || it.currency || 'USD'
 
           if (it.rateType === 'variable' && it.rateMin > 0 && it.rateMax > 0) {
             const midRate = (it.rateMin + it.rateMax) / 2
@@ -351,10 +369,10 @@ export default function DashboardPage() {
           await addTransaction({
             type: 'DIVIDEND',
             symbol: sym,
-            description: `${it.name || it.symbol} - ${paymentAmount.toFixed(2)} ${it._originalCurrency || it.currency || 'USD'}`,
+            description: `${it.name || it.symbol} - ${paymentAmount.toFixed(2)} ${incomeCurrency}`,
             date: todayKey,
             totalAmount: Math.round(paymentAmount * 100) / 100,
-            currency: it._originalCurrency || it.currency || 'USD',
+            currency: incomeCurrency,
             _auto: true,
           })
 
@@ -367,20 +385,18 @@ export default function DashboardPage() {
           } else if (it.incomeDestination) {
             const dest = enrichedItems.find((d) => (d.id || d.symbol) === it.incomeDestination)
             if (dest) {
-              const destPrice = (dest.currentPrice || dest.purchasePrice || 0) + paymentAmount
-              await updateItem(dest.id, { currentPrice: destPrice, purchasePrice: destPrice })
+              await addToDestination(dest, paymentAmount, incomeCurrency)
             }
           }
 
           if (it.capitalReturn > 0) {
-            const newPrice = Math.max(0, (it.currentPrice || it.purchasePrice || 0) - it.capitalReturn)
+            const newPrice = Math.max(0, (it._originalPrice || it.currentPrice || it.purchasePrice || 0) - it.capitalReturn)
             await updateItem(it.id, { currentPrice: newPrice, purchasePrice: newPrice })
 
             if (it.capitalDestination) {
               const dest = enrichedItems.find((d) => (d.id || d.symbol) === it.capitalDestination)
               if (dest) {
-                const destPrice = (dest.currentPrice || dest.purchasePrice || 0) + it.capitalReturn
-                await updateItem(dest.id, { currentPrice: destPrice, purchasePrice: destPrice })
+                await addToDestination(dest, it.capitalReturn, incomeCurrency)
               }
             }
           }
@@ -393,7 +409,7 @@ export default function DashboardPage() {
 
     processDividends()
     return () => { cancelled = true }
-  }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, transactions, addTransaction, updateItem])
+  }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, transactions, addTransaction, updateItem, convert])
 
   const handleRefresh = useCallback(() => {
     refreshPrices()
@@ -605,17 +621,37 @@ export default function DashboardPage() {
     }
   }, [handleExport, handleReport, handleRefresh, handleSetTheme, handleSetLang, theme])
 
-  const handleIBKRSync = useCallback(async (data) => {
-    for (const item of data.items) {
-      const existing = items.find(it =>
-        (it.symbol || '').toUpperCase() === item.symbol &&
-        (it.institution || '').toLowerCase().includes('interactive brokers')
+  const handleIBKRSync = useCallback(async (data, mode = 'merge') => {
+    if (mode === 'replace') {
+      const ibkrItems = items.filter(it =>
+        it._source === 'ibkr' || (it.institution || '').toLowerCase().includes('interactive brokers')
       )
+      for (const it of ibkrItems) {
+        await deleteItem(it.id)
+      }
+    }
+
+    for (const item of data.items) {
+      let existing = null
+      if (mode === 'merge') {
+        existing = items.find(it =>
+          (it.conid && it.conid === item.conid) ||
+          (
+            (it.symbol || '').toUpperCase() === item.symbol &&
+            ((it.institution || '').toLowerCase().includes('interactive brokers') || it._source === 'ibkr')
+          )
+        )
+      }
       if (existing) {
         await updateItem(existing.id, {
           currentPrice: item.currentPrice,
           quantity: item.quantity,
           purchasePrice: item.purchasePrice,
+          conid: item.conid,
+          _ibkrAccountId: item._ibkrAccountId,
+          _ibkrMarketValue: item._ibkrMarketValue,
+          _ibkrUnrealizedPL: item._ibkrUnrealizedPL,
+          _source: 'ibkr',
         })
       } else {
         await addItem(item)
@@ -641,7 +677,7 @@ export default function DashboardPage() {
         await addTransaction(tx)
       }
     }
-  }, [items, transactions, addItem, updateItem, addTransaction, addLot])
+  }, [items, transactions, addItem, updateItem, deleteItem, addTransaction, addLot])
 
   const yearlyChange = useMemo(() => {
     if (snapshots.length < 2) return null
@@ -1089,6 +1125,7 @@ export default function DashboardPage() {
           savedToken={settings?.ibkrToken || ''}
           savedQueryId={settings?.ibkrQueryId || ''}
           onSaveCredentials={saveSettings}
+          uid={user?.uid}
           lang={lang}
         />
       )}

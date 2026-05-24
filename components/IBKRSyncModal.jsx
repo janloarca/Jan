@@ -2,16 +2,33 @@
 
 import { useState, useEffect, useCallback } from 'react'
 
-export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, savedQueryId, onSaveCredentials, lang = 'es' }) {
-  const [token, setToken] = useState(savedToken || '')
+export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, savedQueryId, onSaveCredentials, lang = 'es', uid }) {
+  const [token, setToken] = useState('')
   const [queryId, setQueryId] = useState(savedQueryId || '')
   const [step, setStep] = useState('config')
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
   const [preview, setPreview] = useState(null)
+  const [syncMode, setSyncMode] = useState('merge')
+  const [decrypting, setDecrypting] = useState(false)
 
   const t = (es, en) => lang === 'es' ? es : en
+
+  useEffect(() => {
+    if (savedToken && uid) {
+      setDecrypting(true)
+      import('@/lib/crypto').then(({ decryptToken }) => {
+        decryptToken(savedToken, uid).then(plain => {
+          setToken(plain)
+          setDecrypting(false)
+        })
+      }).catch(() => {
+        setToken(savedToken)
+        setDecrypting(false)
+      })
+    }
+  }, [savedToken, uid])
 
   useEffect(() => {
     const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
@@ -32,32 +49,36 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       setPreview(data)
       setStep('preview')
 
-      if (onSaveCredentials) {
-        onSaveCredentials({ ibkrToken: token.trim(), ibkrQueryId: queryId.trim() })
+      if (onSaveCredentials && uid) {
+        const { encryptToken } = await import('@/lib/crypto')
+        const encrypted = await encryptToken(token.trim(), uid)
+        onSaveCredentials({ ibkrToken: encrypted, ibkrQueryId: queryId.trim() })
       }
     } catch (err) {
       setError(err.message || t('Error conectando con IBKR.', 'Error connecting to IBKR.'))
     }
     setSyncing(false)
-  }, [token, queryId, onSaveCredentials, t])
+  }, [token, queryId, onSaveCredentials, uid, t])
 
   const handleConfirm = useCallback(async () => {
     if (!preview || !onSyncComplete) return
     setSyncing(true)
     setError('')
     try {
-      await onSyncComplete(preview)
+      await onSyncComplete(preview, syncMode)
       setResult({
         items: preview.items.length,
         transactions: preview.transactions.length,
+        accounts: preview.accounts || [],
         syncedAt: preview.syncedAt,
+        mode: syncMode,
       })
       setStep('done')
     } catch (err) {
       setError(err.message)
     }
     setSyncing(false)
-  }, [preview, onSyncComplete])
+  }, [preview, onSyncComplete, syncMode])
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
@@ -121,13 +142,27 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 </div>
               </div>
 
+              {/* Security info */}
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                <p className="text-xs text-emerald-400 font-medium mb-1">{t('Seguridad', 'Security')}</p>
+                <ul className="text-[11px] text-slate-400 space-y-0.5 list-disc list-inside">
+                  <li>{t('El token de Flex es solo lectura — NO puede ejecutar órdenes ni transferir dinero',
+                         'The Flex token is read-only — it CANNOT execute trades or transfer money')}</li>
+                  <li>{t('Tu token se encripta (AES-256) antes de guardarse',
+                         'Your token is encrypted (AES-256) before being saved')}</li>
+                  <li>{t('La conexión es directa a IBKR vía nuestro servidor seguro (HTTPS)',
+                         'Connection is direct to IBKR via our secure server (HTTPS)')}</li>
+                </ul>
+              </div>
+
               <div>
                 <label className="text-xs text-slate-400 mb-1 flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
                   Token *
                 </label>
                 <input type="password" value={token} onChange={e => setToken(e.target.value)}
-                  placeholder={t('Pega tu Flex Web Service Token aquí', 'Paste your Flex Web Service Token here')}
+                  placeholder={decrypting ? t('Desencriptando...', 'Decrypting...') : t('Pega tu Flex Web Service Token aquí', 'Paste your Flex Web Service Token here')}
+                  disabled={decrypting}
                   className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono" />
               </div>
 
@@ -141,7 +176,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono" />
               </div>
 
-              <button onClick={handleSync} disabled={syncing || !token || !queryId}
+              <button onClick={handleSync} disabled={syncing || !token || !queryId || decrypting}
                 className="w-full py-2.5 bg-orange-600 text-white rounded-lg hover:bg-orange-500 disabled:opacity-50 transition-colors text-sm font-medium flex items-center justify-center gap-2">
                 {syncing ? (
                   <>
@@ -152,8 +187,8 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
               </button>
 
               <p className="text-[10px] text-slate-600 text-center">
-                {t('Tu token se guarda de forma segura. Solo tú puedes ver tus datos. La sincronización tarda ~15 segundos.',
-                   'Your token is saved securely. Only you can see your data. Sync takes ~15 seconds.')}
+                {t('Tu token se encripta y solo tú puedes ver tus datos. La sincronización tarda ~15 segundos.',
+                   'Your token is encrypted and only you can see your data. Sync takes ~15 seconds.')}
               </p>
             </div>
           )}
@@ -165,6 +200,22 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   {t('Datos recibidos de IBKR', 'Data received from IBKR')}
                 </span>
               </div>
+
+              {/* Account info */}
+              {preview.accounts && preview.accounts.length > 0 && (
+                <div className="mb-4 p-3 bg-slate-700/30 rounded-lg">
+                  <p className="text-xs text-slate-400 mb-1">
+                    {t('Cuentas detectadas:', 'Accounts detected:')}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {preview.accounts.map(acc => (
+                      <span key={acc} className="text-xs font-mono px-2 py-1 bg-orange-500/10 text-orange-400 rounded">
+                        {acc}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {preview.items.length > 0 && (
                 <div className="mb-4">
@@ -234,11 +285,35 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 </div>
               )}
 
-              <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg mb-4">
-                <p className="text-xs text-amber-400">
-                  {t('Las posiciones existentes con el mismo símbolo serán actualizadas. Las nuevas serán agregadas.',
-                     'Existing positions with the same symbol will be updated. New ones will be added.')}
+              {/* Sync mode selection */}
+              <div className="p-4 bg-slate-700/20 border border-[#334155] rounded-lg mb-4">
+                <p className="text-sm text-white font-medium mb-3">
+                  {t('Modo de sincronización', 'Sync mode')}
                 </p>
+                <div className="space-y-2">
+                  <label className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-colors ${syncMode === 'merge' ? 'bg-blue-500/10 border border-blue-500/30' : 'bg-slate-700/20 border border-transparent hover:bg-slate-700/40'}`}>
+                    <input type="radio" name="syncMode" value="merge" checked={syncMode === 'merge'} onChange={() => setSyncMode('merge')}
+                      className="mt-0.5 accent-blue-500" />
+                    <div>
+                      <p className="text-sm text-white font-medium">{t('Merge (recomendado)', 'Merge (recommended)')}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {t('Actualiza posiciones existentes de IBKR y agrega las nuevas. Tus activos manuales no se tocan.',
+                           'Updates existing IBKR positions and adds new ones. Your manual assets are untouched.')}
+                      </p>
+                    </div>
+                  </label>
+                  <label className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-colors ${syncMode === 'replace' ? 'bg-amber-500/10 border border-amber-500/30' : 'bg-slate-700/20 border border-transparent hover:bg-slate-700/40'}`}>
+                    <input type="radio" name="syncMode" value="replace" checked={syncMode === 'replace'} onChange={() => setSyncMode('replace')}
+                      className="mt-0.5 accent-amber-500" />
+                    <div>
+                      <p className="text-sm text-white font-medium">{t('Reemplazar', 'Replace')}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {t('Elimina todas las posiciones de IBKR anteriores y las reimporta. Tus activos manuales no se tocan.',
+                           'Deletes all previous IBKR positions and reimports them. Your manual assets are untouched.')}
+                      </p>
+                    </div>
+                  </label>
+                </div>
               </div>
 
               <div className="flex gap-3">
@@ -263,6 +338,14 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
               <p className="text-slate-400 text-sm">
                 {result.items} {t('posiciones', 'positions')}
                 {result.transactions > 0 && <>, {result.transactions} {t('transacciones', 'trades')}</>}
+                {result.accounts.length > 0 && (
+                  <span className="block text-xs text-slate-500 mt-1">
+                    {t('Cuentas:', 'Accounts:')} {result.accounts.join(', ')}
+                  </span>
+                )}
+              </p>
+              <p className="text-xs text-slate-500 mt-1">
+                {t('Modo:', 'Mode:')} {result.mode === 'merge' ? t('Merge', 'Merge') : t('Reemplazar', 'Replace')}
               </p>
               <p className="text-xs text-slate-600 mt-2">
                 {t('Sincronizado:', 'Synced:')} {new Date(result.syncedAt).toLocaleString()}

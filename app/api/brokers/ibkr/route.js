@@ -51,6 +51,7 @@ async function parseXML(text) {
     assetCategory: getAttr(attrs, 'assetCategory') || '',
     description: getAttr(attrs, 'description') || '',
     conid: getAttr(attrs, 'conid') || '',
+    accountId: getAttr(attrs, 'accountId') || '',
     marketValue: parseFloat(getAttr(attrs, 'marketValue') || getAttr(attrs, 'positionValue') || '0'),
     listingExchange: getAttr(attrs, 'listingExchange') || '',
   }))
@@ -66,6 +67,7 @@ async function parseXML(text) {
     currency: getAttr(attrs, 'currency') || 'USD',
     description: getAttr(attrs, 'description') || '',
     assetCategory: getAttr(attrs, 'assetCategory') || '',
+    accountId: getAttr(attrs, 'accountId') || '',
     costBasis: parseFloat(getAttr(attrs, 'cost') || getAttr(attrs, 'costBasis') || '0'),
     realizedPL: parseFloat(getAttr(attrs, 'fifoPnlRealized') || getAttr(attrs, 'realizedPL') || '0'),
   }))
