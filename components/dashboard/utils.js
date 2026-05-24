@@ -85,15 +85,34 @@ export function getItemValue(item) {
 }
 
 export const TYPE_ICONS = {
-  stocks: '📈',
-  crypto: '₿',
-  bonds: '🏛',
-  funds: '💼',
-  banks: '🏦',
-  realestate: '🏠',
-  alternatives: '🔮',
-  debts: '💳',
-  other: '📊',
+  stocks: 'TrendingUp',
+  crypto: 'Bitcoin',
+  bonds: 'Landmark',
+  funds: 'Briefcase',
+  banks: 'Building2',
+  realestate: 'Home',
+  alternatives: 'Gem',
+  debts: 'CreditCard',
+  other: 'BarChart3',
+}
+
+export function getInvestmentClass(item) {
+  const cat = getTypeCategory(item)
+  if (cat === 'debts') return 'debts'
+  if (cat === 'bonds' || cat === 'banks') return 'renta_fija'
+  if (cat === 'stocks' || cat === 'crypto' || cat === 'funds') return 'renta_variable'
+  if (cat === 'alternatives' || cat === 'realestate') return 'patrimonio_vc'
+  const t = (item.type || '').toLowerCase()
+  if (/safe.?note|vc|private|venture|startup|angel/i.test(t)) return 'patrimonio_vc'
+  if (/plazo|deposito|cdt|pagare|letra|treasury|certificado/i.test(t)) return 'renta_fija'
+  return 'renta_variable'
+}
+
+export const INVESTMENT_CLASS_META = {
+  renta_variable: { label: { es: 'Renta Variable', en: 'Variable Income' }, returnType: { es: 'Retorno variable', en: 'Variable return' }, color: '#3b82f6', icon: 'TrendingUp' },
+  renta_fija: { label: { es: 'Renta Fija', en: 'Fixed Income' }, returnType: { es: 'Retorno predefinido', en: 'Predefined return' }, color: '#10b981', icon: 'Landmark' },
+  patrimonio_vc: { label: { es: 'Patrimonio / VC', en: 'Equity / VC' }, returnType: { es: 'Largo plazo', en: 'Long-term' }, color: '#f59e0b', icon: 'Gem' },
+  debts: { label: { es: 'Deuda', en: 'Debt' }, returnType: { es: 'Pasivo', en: 'Liability' }, color: '#ef4444', icon: 'CreditCard' },
 }
 
 export function formatPercent(value) {

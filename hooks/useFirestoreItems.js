@@ -49,6 +49,7 @@ export function useFirestoreItems() {
   const [alerts, setAlerts] = useState([])
   const [lots, setLots] = useState([])
   const [portfolios, setPortfolios] = useState([])
+  const [financeTransactions, setFinanceTransactions] = useState([])
   const [goals, setGoals] = useState(null)
   const [settings, setSettings] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -61,6 +62,7 @@ export function useFirestoreItems() {
     let unsubAlerts = () => {}
     let unsubLots = () => {}
     let unsubPortfolios = () => {}
+    let unsubFinanceTx = () => {}
     let cancelled = false
 
     async function init() {
@@ -103,6 +105,10 @@ export function useFirestoreItems() {
         fs.collection(db, `users/${currentUid}/portfolios`),
         (snap) => { if (!cancelled) setPortfolios(snap.docs.map((d) => ({ id: d.id, ...d.data() }))) }
       )
+      unsubFinanceTx = fs.onSnapshot(
+        fs.query(fs.collection(db, `users/${currentUid}/financeTransactions`), fs.orderBy('date', 'desc')),
+        (snap) => { if (!cancelled) setFinanceTransactions(snap.docs.map((d) => ({ id: d.id, ...d.data() }))) }
+      )
 
       try {
         const goalsDoc = await fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'goals'))
@@ -115,7 +121,7 @@ export function useFirestoreItems() {
     }
 
     init()
-    return () => { cancelled = true; unsubItems(); unsubSnapshots(); unsubTransactions(); unsubAlerts(); unsubLots(); unsubPortfolios() }
+    return () => { cancelled = true; unsubItems(); unsubSnapshots(); unsubTransactions(); unsubAlerts(); unsubLots(); unsubPortfolios(); unsubFinanceTx() }
   }, [])
 
   const addItem = useCallback(async (item) => {
@@ -269,6 +275,26 @@ export function useFirestoreItems() {
     return closedResults
   }, [uid, lots])
 
+  const addFinanceTransaction = useCallback(async (tx) => {
+    if (!uid) return
+    const { db, fs } = await getFirebase()
+    const id = `ftx-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+    await fs.setDoc(fs.doc(db, `users/${uid}/financeTransactions`, id), { ...tx, createdAt: new Date().toISOString() })
+  }, [uid])
+
+  const deleteFinanceTransaction = useCallback(async (txId) => {
+    if (!uid) return
+    const { db, fs } = await getFirebase()
+    await fs.deleteDoc(fs.doc(db, `users/${uid}/financeTransactions`, txId))
+  }, [uid])
+
+  const deleteAllFinanceTransactions = useCallback(async () => {
+    if (!uid) return
+    const { db, fs } = await getFirebase()
+    const snap = await fs.getDocs(fs.collection(db, `users/${uid}/financeTransactions`))
+    await Promise.all(snap.docs.map((d) => fs.deleteDoc(d.ref)))
+  }, [uid])
+
   const addPortfolio = useCallback(async (portfolio) => {
     if (!uid) return
     const { db, fs } = await getFirebase()
@@ -284,10 +310,11 @@ export function useFirestoreItems() {
   }, [uid])
 
   return {
-    items, snapshots, transactions, alerts, lots, portfolios, goals, settings, loading,
+    items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, loading,
     addItem, updateItem, deleteItem, deleteAllItems,
     saveSnapshot, deleteAllSnapshots,
     addTransaction, deleteAllTransactions,
+    addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     addAlert, deleteAlert, updateAlert,
     addLot, updateLot, closeLotsFIFO,
     addPortfolio, deletePortfolio,

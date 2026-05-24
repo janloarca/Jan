@@ -2,17 +2,19 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { formatCurrency, getTypeCategory, TYPE_ICONS } from './utils'
+import Icon from '@/components/ui/Icon'
 
 const ACTIONS = [
-  { id: 'add', icon: '+', labelEs: 'Agregar posición', labelEn: 'Add position', shortcut: 'N' },
-  { id: 'import', icon: '📁', labelEs: 'Importar archivo', labelEn: 'Import file', shortcut: 'I' },
-  { id: 'export', icon: '📊', labelEs: 'Exportar Excel', labelEn: 'Export Excel', shortcut: 'E' },
-  { id: 'report', icon: '📄', labelEs: 'Generar reporte PDF', labelEn: 'Generate PDF report' },
-  { id: 'transfer', icon: '↔️', labelEs: 'Transferir entre cuentas', labelEn: 'Transfer between accounts' },
-  { id: 'settings', icon: '⚙️', labelEs: 'Configuración', labelEn: 'Settings', shortcut: ',' },
-  { id: 'refresh', icon: '↻', labelEs: 'Actualizar precios', labelEn: 'Refresh prices', shortcut: 'R' },
-  { id: 'theme', icon: '🎨', labelEs: 'Cambiar tema', labelEn: 'Toggle theme' },
-  { id: 'lang', icon: '🌐', labelEs: 'Switch to English', labelEn: 'Cambiar a Español' },
+  { id: 'add', icon: 'Plus', labelEs: 'Agregar posición', labelEn: 'Add position', shortcut: 'N' },
+  { id: 'import', icon: 'Upload', labelEs: 'Importar archivo', labelEn: 'Import file', shortcut: 'I' },
+  { id: 'export', icon: 'Download', labelEs: 'Exportar Excel', labelEn: 'Export Excel', shortcut: 'E' },
+  { id: 'report', icon: 'FileText', labelEs: 'Generar reporte PDF', labelEn: 'Generate PDF report' },
+  { id: 'transfer', icon: 'ArrowLeftRight', labelEs: 'Transferir entre cuentas', labelEn: 'Transfer between accounts' },
+  { id: 'settings', icon: 'Settings', labelEs: 'Configuración', labelEn: 'Settings', shortcut: ',' },
+  { id: 'ibkr', icon: 'RefreshCw', labelEs: 'Sincronizar IBKR', labelEn: 'Sync IBKR' },
+  { id: 'refresh', icon: 'RefreshCw', labelEs: 'Actualizar precios', labelEn: 'Refresh prices', shortcut: 'R' },
+  { id: 'theme', icon: 'Sun', labelEs: 'Cambiar tema', labelEn: 'Toggle theme' },
+  { id: 'lang', icon: 'Globe', labelEs: 'Switch to English', labelEn: 'Cambiar a Español' },
 ]
 
 export default function CommandPalette({ open, onClose, items, lang, onAction }) {
@@ -140,7 +142,7 @@ export default function CommandPalette({ open, onClose, items, lang, onAction })
                 i === selectedIdx ? 'bg-blue-600/20 text-white' : 'text-slate-300 hover:bg-[#283548]'
               }`}
             >
-              <span className="text-base w-6 text-center shrink-0">{r.icon}</span>
+              <span className="w-6 text-center shrink-0 flex items-center justify-center"><Icon name={r.icon} size={16} className="text-slate-400" /></span>
               <div className="flex-1 min-w-0">
                 <div className="text-sm truncate">{r.label}</div>
                 {r.detail && <div className="text-xs text-slate-500 truncate">{r.detail}</div>}

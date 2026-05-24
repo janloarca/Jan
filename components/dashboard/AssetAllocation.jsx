@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { formatCurrency, getTypeCategory, TYPE_COLORS, getItemValue, getSectorFromType, getGeographyFromSymbol } from './utils'
+import { formatCurrency, getTypeCategory, TYPE_COLORS, getItemValue, getSectorFromType, getGeographyFromSymbol, getInvestmentClass, INVESTMENT_CLASS_META } from './utils'
 
 const DONUT_COLORS = [
   '#3b82f6', '#f59e0b', '#10b981', '#a855f7', '#ec4899',
@@ -14,6 +14,7 @@ export default function AssetAllocation({ items, lang }) {
   const allocation = useMemo(() => {
     const groupFns = {
       type: (it) => getTypeCategory(it.type),
+      returnType: (it) => getInvestmentClass(it),
       sector: (it) => getSectorFromType(it.type),
       geography: (it) => getGeographyFromSymbol(it.symbol),
       currency: (it) => it._originalCurrency || it.currency || 'USD',
@@ -39,7 +40,9 @@ export default function AssetAllocation({ items, lang }) {
         value,
         pct: total > 0 ? (value / total) * 100 : 0,
         contribution: total > 0 ? ((gainByGroup[name] || 0) / total) * 100 : 0,
-        color: view === 'type' ? (TYPE_COLORS[name]?.bg || DONUT_COLORS[i % DONUT_COLORS.length]) : DONUT_COLORS[i % DONUT_COLORS.length],
+        color: view === 'type' ? (TYPE_COLORS[name]?.bg || DONUT_COLORS[i % DONUT_COLORS.length])
+             : view === 'returnType' ? (INVESTMENT_CLASS_META[name]?.color || DONUT_COLORS[i % DONUT_COLORS.length])
+             : DONUT_COLORS[i % DONUT_COLORS.length],
       }))
       .sort((a, b) => b.value - a.value)
   }, [items, view, lang])
@@ -58,6 +61,7 @@ export default function AssetAllocation({ items, lang }) {
 
   const views = [
     { key: 'type', label: t('Tipo', 'Type') },
+    { key: 'returnType', label: t('Retorno', 'Return') },
     { key: 'sector', label: t('Sector', 'Sector') },
     { key: 'geography', label: t('Geo', 'Geo') },
     { key: 'currency', label: t('Moneda', 'Currency') },
@@ -123,7 +127,18 @@ export default function AssetAllocation({ items, lang }) {
             <div key={seg.name} className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: seg.color }} />
-                <span className="text-xs text-slate-300 capitalize truncate max-w-[100px]">{seg.name}</span>
+                <div className="flex flex-col">
+                  <span className="text-xs text-slate-300 capitalize truncate max-w-[120px]">
+                    {view === 'returnType' && INVESTMENT_CLASS_META[seg.name]
+                      ? INVESTMENT_CLASS_META[seg.name].label[lang] || seg.name
+                      : seg.name}
+                  </span>
+                  {view === 'returnType' && INVESTMENT_CLASS_META[seg.name] && (
+                    <span className="text-[10px] text-slate-500 leading-tight">
+                      {INVESTMENT_CLASS_META[seg.name].returnType[lang]}
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-slate-400">{seg.pct.toFixed(1)}%</span>

@@ -11,9 +11,10 @@ import FileImportModal from '@/components/FileImportModal'
 import AddAccountModal from '@/components/AddAccountModal'
 import SellModal from '@/components/SellModal'
 import TransferModal from '@/components/TransferModal'
+import IBKRSyncModal from '@/components/IBKRSyncModal'
 
 import SettingsModal from '@/components/SettingsModal'
-import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, formatCurrency, getTypeCategory } from '@/components/dashboard/utils'
+import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, formatCurrency, getTypeCategory, getInvestmentClass } from '@/components/dashboard/utils'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution } from '@/components/dashboard/analytics'
 import { useBenchmark } from '@/hooks/useBenchmark'
 import Header from '@/components/dashboard/Header'
@@ -26,6 +27,7 @@ import MonthlyPerformance from '@/components/dashboard/MonthlyPerformance'
 import AccountsTable from '@/components/dashboard/AccountsTable'
 import RecentTransactions from '@/components/dashboard/RecentTransactions'
 import AssetAllocation from '@/components/dashboard/AssetAllocation'
+import InvestmentClassBreakdown from '@/components/dashboard/InvestmentClassBreakdown'
 import PerformanceSummary from '@/components/dashboard/PerformanceSummary'
 import DividendIncome from '@/components/dashboard/DividendIncome'
 import ConcentrationRisk from '@/components/dashboard/ConcentrationRisk'
@@ -192,6 +194,10 @@ export default function DashboardPage() {
     portfolios,
     addPortfolio,
     deletePortfolio,
+    financeTransactions,
+    addFinanceTransaction,
+    deleteFinanceTransaction,
+    deleteAllFinanceTransactions,
     saveGoals,
     saveSettings,
   } = useFirestoreItems()
@@ -276,7 +282,8 @@ export default function DashboardPage() {
   const dividendsProcessedRef = useRef(null)
 
   useEffect(() => {
-    const todayKey = new Date().toISOString().split('T')[0]
+    const now = new Date()
+    const todayKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`
     if (dividendsProcessedRef.current === todayKey) return
     if (!user || dataLoading || pricesLoading || ratesLoading) return
     if (enrichedItems.length === 0) return
@@ -284,22 +291,36 @@ export default function DashboardPage() {
     let cancelled = false
 
     const scheduled = enrichedItems.filter((it) =>
-      (it.incomeAmount > 0 || it.incomeRate > 0 || (it.rateType === 'variable' && it.rateMin > 0) || it.rateType === 'continuous') && it.incomeMonths
+      (it.incomeAmount > 0 || it.incomeRate > 0 || (it.rateType === 'variable' && it.rateMin > 0) || it.rateType === 'continuous')
     )
     if (scheduled.length === 0) { dividendsProcessedRef.current = todayKey; return }
 
-    const today = new Date()
-    const todayDay = today.getDate()
-    const dayOfWeek = today.getDay()
-    const currentMonth = today.getMonth()
+    const todayDay = now.getUTCDate()
+    const currentMonth = now.getUTCMonth()
 
     function getEffectivePayDay(payDay, businessDayRule) {
       if (businessDayRule !== 'next_business_day') return payDay
-      const testDate = new Date(today.getFullYear(), currentMonth, payDay)
-      const dow = testDate.getDay()
+      const testDate = new Date(Date.UTC(now.getUTCFullYear(), currentMonth, payDay))
+      const dow = testDate.getUTCDay()
       if (dow === 0) return payDay + 1
       if (dow === 6) return payDay + 2
       return payDay
+    }
+
+    function addToDestination(dest, amount, sourceCurrency) {
+      const destCur = dest._originalCurrency || dest.currency || 'USD'
+      const converted = destCur !== sourceCurrency && convert
+        ? convert(amount, sourceCurrency, destCur)
+        : amount
+      const isBank = /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i.test(dest.type || '')
+      if (isBank) {
+        const qty = dest.quantity || 1
+        const currentBal = (dest._originalPrice || dest.currentPrice || dest.purchasePrice || 0)
+        const newBal = currentBal + (converted / qty)
+        return updateItem(dest.id, { currentPrice: newBal, purchasePrice: newBal })
+      }
+      const destPrice = (dest.currentPrice || dest.purchasePrice || 0) + converted
+      return updateItem(dest.id, { currentPrice: destPrice, purchasePrice: destPrice })
     }
 
     async function processDividends() {
@@ -311,12 +332,14 @@ export default function DashboardPage() {
 
           if (!isContinuous && todayDay !== payDay) continue
 
-          const months = it.incomeMonths || [0,1,2,3,4,5,6,7,8,9,10,11]
+          const months = Array.isArray(it.incomeMonths) && it.incomeMonths.length > 0
+            ? it.incomeMonths
+            : [0,1,2,3,4,5,6,7,8,9,10,11]
           if (!months.includes(currentMonth)) continue
 
           if (it.maturityDate) {
             const matDate = new Date(it.maturityDate)
-            if (matDate <= today) continue
+            if (matDate <= now) continue
           }
 
           const sym = (it.symbol || '').toUpperCase()
@@ -330,6 +353,7 @@ export default function DashboardPage() {
 
           let paymentAmount = it.incomeAmount || 0
           const balance = (it.quantity || 1) * (it._originalPrice || it.currentPrice || it.purchasePrice || 0)
+          const incomeCurrency = it._originalCurrency || it.currency || 'USD'
 
           if (it.rateType === 'variable' && it.rateMin > 0 && it.rateMax > 0) {
             const midRate = (it.rateMin + it.rateMax) / 2
@@ -346,10 +370,10 @@ export default function DashboardPage() {
           await addTransaction({
             type: 'DIVIDEND',
             symbol: sym,
-            description: `${it.name || it.symbol} - ${paymentAmount.toFixed(2)} ${it._originalCurrency || it.currency || 'USD'}`,
+            description: `${it.name || it.symbol} - ${paymentAmount.toFixed(2)} ${incomeCurrency}`,
             date: todayKey,
             totalAmount: Math.round(paymentAmount * 100) / 100,
-            currency: it._originalCurrency || it.currency || 'USD',
+            currency: incomeCurrency,
             _auto: true,
           })
 
@@ -362,20 +386,18 @@ export default function DashboardPage() {
           } else if (it.incomeDestination) {
             const dest = enrichedItems.find((d) => (d.id || d.symbol) === it.incomeDestination)
             if (dest) {
-              const destPrice = (dest.currentPrice || dest.purchasePrice || 0) + paymentAmount
-              await updateItem(dest.id, { currentPrice: destPrice, purchasePrice: destPrice })
+              await addToDestination(dest, paymentAmount, incomeCurrency)
             }
           }
 
           if (it.capitalReturn > 0) {
-            const newPrice = Math.max(0, (it.currentPrice || it.purchasePrice || 0) - it.capitalReturn)
+            const newPrice = Math.max(0, (it._originalPrice || it.currentPrice || it.purchasePrice || 0) - it.capitalReturn)
             await updateItem(it.id, { currentPrice: newPrice, purchasePrice: newPrice })
 
             if (it.capitalDestination) {
               const dest = enrichedItems.find((d) => (d.id || d.symbol) === it.capitalDestination)
               if (dest) {
-                const destPrice = (dest.currentPrice || dest.purchasePrice || 0) + it.capitalReturn
-                await updateItem(dest.id, { currentPrice: destPrice, purchasePrice: destPrice })
+                await addToDestination(dest, it.capitalReturn, incomeCurrency)
               }
             }
           }
@@ -388,7 +410,7 @@ export default function DashboardPage() {
 
     processDividends()
     return () => { cancelled = true }
-  }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, transactions, addTransaction, updateItem])
+  }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, transactions, addTransaction, updateItem, convert])
 
   const handleRefresh = useCallback(() => {
     refreshPrices()
@@ -510,6 +532,154 @@ export default function DashboardPage() {
     URL.revokeObjectURL(url)
   }, [transactions, lots])
 
+  const handleReport = useCallback(async () => {
+    const { generateReport } = await import('@/lib/generateReport')
+    await generateReport({
+      items: enrichedItems, snapshots, transactions,
+      netWorth, totalAssets, lang, returnYTD, annualDividends,
+    })
+  }, [enrichedItems, snapshots, transactions, lang, netWorth, totalAssets])
+
+  const handleShare = useCallback(async () => {
+    const t = (es, en) => lang === 'es' ? es : en
+    const assets = enrichedItems.filter((it) => !it.isDebt)
+    const debts = enrichedItems.filter((it) => it.isDebt)
+    const debtTotal = debts.reduce((s, it) => s + Math.abs(getItemValue(it)), 0)
+
+    const byCat = {}
+    assets.forEach((it) => {
+      const cat = getTypeCategory(it)
+      byCat[cat] = (byCat[cat] || 0) + getItemValue(it)
+    })
+    const catLines = Object.entries(byCat)
+      .sort((a, b) => b[1] - a[1])
+      .map(([cat, val]) => `  ${cat}: ${formatCurrency(val)} (${totalAssets > 0 ? ((val / totalAssets) * 100).toFixed(1) : 0}%)`)
+      .join('\n')
+
+    const top5 = [...assets]
+      .map((it) => ({ name: it.name || it.symbol, value: getItemValue(it) }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5)
+      .map((it) => `  ${it.name}: ${formatCurrency(it.value)}`)
+      .join('\n')
+
+    const text = [
+      `⚡ ${t('Mi Portafolio', 'My Portfolio')} — Chispudo`,
+      '',
+      `${t('Patrimonio Neto', 'Net Worth')}: ${formatCurrency(netWorth)}`,
+      `${t('Activos', 'Assets')}: ${formatCurrency(totalAssets)}`,
+      debtTotal > 0 ? `${t('Deuda', 'Debt')}: ${formatCurrency(debtTotal)}` : null,
+      returnYTD ? `${t('Retorno YTD', 'YTD Return')}: ${returnYTD >= 0 ? '+' : ''}${returnYTD.toFixed(2)}%` : null,
+      '',
+      `${t('Distribución', 'Allocation')}:`,
+      catLines,
+      '',
+      `Top 5:`,
+      top5,
+      '',
+      `${t('Posiciones', 'Positions')}: ${enrichedItems.length}`,
+      '',
+      `chispu.xyz`,
+    ].filter(Boolean).join('\n')
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Chispudo Portfolio', text })
+      } catch {}
+    } else {
+      await navigator.clipboard.writeText(text)
+      alert(t('Resumen copiado al portapapeles', 'Summary copied to clipboard'))
+    }
+  }, [enrichedItems, netWorth, totalAssets, returnYTD, lang])
+
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setCmdPaletteOpen(true) }
+      else if ((e.metaKey || e.ctrlKey) && e.key === 'n') { e.preventDefault(); setModal('account') }
+      else if ((e.metaKey || e.ctrlKey) && e.key === 'i') { e.preventDefault(); setModal('import') }
+      else if ((e.metaKey || e.ctrlKey) && e.key === 'e') { e.preventDefault(); handleExport() }
+      else if ((e.metaKey || e.ctrlKey) && e.key === 'r' && !e.shiftKey) { e.preventDefault(); handleRefresh() }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [handleExport, handleRefresh])
+
+  const handleCmdAction = useCallback((action, data) => {
+    switch (action) {
+      case 'add': setModal('account'); break
+      case 'import': setModal('import'); break
+      case 'export': handleExport(); break
+      case 'report': handleReport(); break
+      case 'print': setModal('print'); break
+      case 'share': handleShare(); break
+      case 'transfer': setModal('transfer'); break
+      case 'settings': setModal('settings'); break
+      case 'refresh': handleRefresh(); break
+      case 'theme': handleSetTheme(theme === 'dark' ? 'light' : 'dark'); break
+      case 'lang': handleSetLang('toggle'); break
+      case 'ibkr': setModal('ibkr'); break
+      case 'viewItem': setDetailItem(data); break
+    }
+  }, [handleExport, handleReport, handleRefresh, handleSetTheme, handleSetLang, theme])
+
+  const handleIBKRSync = useCallback(async (data, mode = 'merge') => {
+    if (mode === 'replace') {
+      const ibkrItems = items.filter(it =>
+        it._source === 'ibkr' || (it.institution || '').toLowerCase().includes('interactive brokers')
+      )
+      for (const it of ibkrItems) {
+        await deleteItem(it.id)
+      }
+    }
+
+    for (const item of data.items) {
+      let existing = null
+      if (mode === 'merge') {
+        existing = items.find(it =>
+          (it.conid && it.conid === item.conid) ||
+          (
+            (it.symbol || '').toUpperCase() === item.symbol &&
+            ((it.institution || '').toLowerCase().includes('interactive brokers') || it._source === 'ibkr')
+          )
+        )
+      }
+      if (existing) {
+        await updateItem(existing.id, {
+          currentPrice: item.currentPrice,
+          quantity: item.quantity,
+          purchasePrice: item.purchasePrice,
+          conid: item.conid,
+          _ibkrAccountId: item._ibkrAccountId,
+          _ibkrMarketValue: item._ibkrMarketValue,
+          _ibkrUnrealizedPL: item._ibkrUnrealizedPL,
+          _source: 'ibkr',
+        })
+      } else {
+        await addItem(item)
+        if (item.quantity > 0 && item.purchasePrice > 0 && item.type !== 'Bank') {
+          await addLot({
+            symbol: item.symbol,
+            quantity: item.quantity,
+            costBasis: item.purchasePrice,
+            currency: item.currency || 'USD',
+            acquisitionDate: new Date().toISOString().split('T')[0],
+          })
+        }
+      }
+    }
+    for (const tx of data.transactions) {
+      const alreadyExists = transactions.some(t =>
+        t.date === tx.date &&
+        (t.symbol || '').toUpperCase() === tx.symbol &&
+        t.type === tx.type &&
+        Math.abs((t.quantity || 0) - tx.quantity) < 0.001
+      )
+      if (!alreadyExists) {
+        await addTransaction(tx)
+      }
+    }
+  }, [items, transactions, addItem, updateItem, deleteItem, addTransaction, addLot])
+
   const yearlyChange = useMemo(() => {
     if (snapshots.length < 2) return null
     const oneYearAgo = new Date()
@@ -598,95 +768,6 @@ export default function DashboardPage() {
     }, 0)
   }, [transactions, convert, baseCurrency])
 
-  const handleReport = useCallback(async () => {
-    const { generateReport } = await import('@/lib/generateReport')
-    await generateReport({
-      items: enrichedItems, snapshots, transactions,
-      netWorth, totalAssets, lang, returnYTD, annualDividends,
-    })
-  }, [enrichedItems, snapshots, transactions, lang, netWorth, totalAssets])
-
-  const handleShare = useCallback(async () => {
-    const t = (es, en) => lang === 'es' ? es : en
-    const assets = enrichedItems.filter((it) => !it.isDebt)
-    const debts = enrichedItems.filter((it) => it.isDebt)
-    const debtTotal = debts.reduce((s, it) => s + Math.abs(getItemValue(it)), 0)
-
-    const byCat = {}
-    assets.forEach((it) => {
-      const cat = getTypeCategory(it)
-      byCat[cat] = (byCat[cat] || 0) + getItemValue(it)
-    })
-    const catLines = Object.entries(byCat)
-      .sort((a, b) => b[1] - a[1])
-      .map(([cat, val]) => `  ${cat}: ${formatCurrency(val)} (${totalAssets > 0 ? ((val / totalAssets) * 100).toFixed(1) : 0}%)`)
-      .join('\n')
-
-    const top5 = [...assets]
-      .map((it) => ({ name: it.name || it.symbol, value: getItemValue(it) }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5)
-      .map((it) => `  ${it.name}: ${formatCurrency(it.value)}`)
-      .join('\n')
-
-    const text = [
-      `⚡ ${t('Mi Portafolio', 'My Portfolio')} — Chispudo`,
-      '',
-      `${t('Patrimonio Neto', 'Net Worth')}: ${formatCurrency(netWorth)}`,
-      `${t('Activos', 'Assets')}: ${formatCurrency(totalAssets)}`,
-      debtTotal > 0 ? `${t('Deuda', 'Debt')}: ${formatCurrency(debtTotal)}` : null,
-      returnYTD ? `${t('Retorno YTD', 'YTD Return')}: ${returnYTD >= 0 ? '+' : ''}${returnYTD.toFixed(2)}%` : null,
-      '',
-      `${t('Distribución', 'Allocation')}:`,
-      catLines,
-      '',
-      `Top 5:`,
-      top5,
-      '',
-      `${t('Posiciones', 'Positions')}: ${enrichedItems.length}`,
-      '',
-      `chispu.xyz`,
-    ].filter(Boolean).join('\n')
-
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: 'Chispudo Portfolio', text })
-      } catch {}
-    } else {
-      await navigator.clipboard.writeText(text)
-      alert(t('Resumen copiado al portapapeles', 'Summary copied to clipboard'))
-    }
-  }, [enrichedItems, netWorth, totalAssets, returnYTD, lang])
-
-  useEffect(() => {
-    const handler = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setCmdPaletteOpen(true) }
-      else if ((e.metaKey || e.ctrlKey) && e.key === 'n') { e.preventDefault(); setModal('account') }
-      else if ((e.metaKey || e.ctrlKey) && e.key === 'i') { e.preventDefault(); setModal('import') }
-      else if ((e.metaKey || e.ctrlKey) && e.key === 'e') { e.preventDefault(); handleExport() }
-      else if ((e.metaKey || e.ctrlKey) && e.key === 'r' && !e.shiftKey) { e.preventDefault(); handleRefresh() }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [handleExport, handleRefresh])
-
-  const handleCmdAction = useCallback((action, data) => {
-    switch (action) {
-      case 'add': setModal('account'); break
-      case 'import': setModal('import'); break
-      case 'export': handleExport(); break
-      case 'report': handleReport(); break
-      case 'print': setModal('print'); break
-      case 'share': handleShare(); break
-      case 'transfer': setModal('transfer'); break
-      case 'settings': setModal('settings'); break
-      case 'refresh': handleRefresh(); break
-      case 'theme': handleSetTheme(theme === 'dark' ? 'light' : 'dark'); break
-      case 'lang': handleSetLang('toggle'); break
-      case 'viewItem': setDetailItem(data); break
-    }
-  }, [handleExport, handleReport, handleRefresh, handleSetTheme, handleSetLang, theme])
-
   const estimatedAnnualIncome = useMemo(() => {
     let total = 0
     portfolioItems.forEach((it) => {
@@ -750,6 +831,16 @@ export default function DashboardPage() {
     }).length
     const debtTotal = portfolioItems.filter((it) => it.isDebt).reduce((s, it) => s + Math.abs(getItemValue(it)), 0)
     const debtRatio = totalAssets > 0 ? (debtTotal / totalAssets) * 100 : 0
+    const classTotals = {}
+    let classTotal = 0
+    portfolioItems.filter(it => !it.isDebt).forEach(it => {
+      const cls = getInvestmentClass(it)
+      const val = Math.abs(getItemValue(it))
+      classTotals[cls] = (classTotals[cls] || 0) + val
+      classTotal += val
+    })
+    const investmentClassPcts = {}
+    Object.entries(classTotals).forEach(([k, v]) => { investmentClassPcts[k] = classTotal > 0 ? (v / classTotal) * 100 : 0 })
     return generateInsights({
       netWorth,
       benchmarkReturn,
@@ -764,6 +855,7 @@ export default function DashboardPage() {
       topDrag,
       maturingSoon,
       debtRatio,
+      investmentClassPcts,
     })
   }, [netWorth, benchmarkReturn, returnYTD, riskMetrics, portfolioItems, annualDividends, goals])
 
@@ -794,6 +886,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-[#0f172a]">
+      <a href="#main-content" className="skip-link">{lang === 'es' ? 'Ir al contenido' : 'Skip to content'}</a>
       <Header
         user={user}
         lang={lang}
@@ -807,7 +900,7 @@ export default function DashboardPage() {
         onCommandPalette={() => setCmdPaletteOpen(true)}
       />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
+      <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
         <div className="flex items-center gap-3">
           {dataAge === 0 ? (
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -882,6 +975,7 @@ export default function DashboardPage() {
               lang={lang}
               netContributions={netContributions}
               cashTotal={cashTotal}
+              snapshots={snapshots}
             />
             <BenchmarkComparison benchmarkReturn={benchmarkReturn} portfolioReturn={returnYTD} benchmarkName={benchmarkName} lang={lang} />
             <PriceAlerts alerts={alerts} items={portfolioItems} onAddAlert={addAlert} onDeleteAlert={deleteAlert} lang={lang} />
@@ -896,6 +990,7 @@ export default function DashboardPage() {
           <div className="lg:col-span-3 flex flex-col gap-4">
             <PortfolioGrowthChart items={portfolioItems} snapshots={snapshots} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} benchmarkSymbol={benchmarkSymbol} benchmarkName={benchmarkName} />
             <AssetAllocation items={portfolioItems} lang={lang} />
+            <InvestmentClassBreakdown items={portfolioItems} lang={lang} />
             <ValueBreakdown items={portfolioItems} lang={lang} />
             <SnapshotComparison snapshots={snapshots} items={portfolioItems} lang={lang} />
           </div>
@@ -919,6 +1014,7 @@ export default function DashboardPage() {
           onTransfer={() => setModal('transfer')}
           onExport={handleExport}
           onShare={handleShare}
+          onIBKR={() => setModal('ibkr')}
           itemCount={enrichedItems.length}
           lang={lang}
         />
@@ -992,6 +1088,9 @@ export default function DashboardPage() {
           onImportTransaction={addTransaction}
           onImportSnapshot={saveSnapshot}
           onAddLot={addLot}
+          onAddFinanceTransaction={addFinanceTransaction}
+          onUpdateItem={updateItem}
+          existingItems={items}
           activePortfolio={activePortfolio}
           lang={lang}
         />
@@ -1032,6 +1131,18 @@ export default function DashboardPage() {
         />
       )}
 
+      {modal === 'ibkr' && (
+        <IBKRSyncModal
+          onClose={() => setModal(null)}
+          onSyncComplete={handleIBKRSync}
+          savedToken={settings?.ibkrToken || ''}
+          savedQueryId={settings?.ibkrQueryId || ''}
+          onSaveCredentials={saveSettings}
+          uid={user?.uid}
+          lang={lang}
+        />
+      )}
+
       {modal === 'optimize' && (
         <OptimizeModal
           items={items}
@@ -1050,35 +1161,28 @@ export default function DashboardPage() {
           onDeleteAllItems={deleteAllItems}
           onDeleteAllSnapshots={deleteAllSnapshots}
           onDeleteAllTransactions={deleteAllTransactions}
-          onSyncBroker={async (positions) => {
-            for (const pos of positions) {
-              const existing = items.find((it) =>
-                it.institution === 'Interactive Brokers' &&
-                (it.symbol === pos.symbol || it._ibkrConId === pos._ibkrConId)
-              )
-              if (existing) {
-                await updateItem(existing.id, {
-                  quantity: pos.quantity,
-                  currentPrice: pos.currentPrice,
-                  purchasePrice: pos.purchasePrice || existing.purchasePrice,
-                  isDebt: pos.isDebt,
-                })
-              } else {
-                const item = { ...pos }
-                if (activePortfolio && activePortfolio !== '__all__') item.portfolioId = activePortfolio
-                await addItem(item)
-                if (pos.symbol && pos.quantity > 0 && pos.purchasePrice > 0 && !pos.isDebt && pos.type !== 'Bank') {
-                  await addLot({
-                    symbol: pos.symbol.toUpperCase(),
-                    quantity: pos.quantity,
-                    costBasis: pos.purchasePrice,
-                    currency: pos.currency || 'USD',
-                    acquisitionDate: pos.acquisitionDate || new Date().toISOString().split('T')[0],
-                    ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
-                  })
-                }
-              }
+          onDeleteAllFinanceTransactions={deleteAllFinanceTransactions}
+          onExportBackup={() => {
+            const data = {
+              exportDate: new Date().toISOString(),
+              version: '1.0',
+              items,
+              transactions,
+              lots,
+              snapshots,
+              alerts,
+              portfolios,
+              goals,
+              settings,
+              financeTransactions,
             }
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `chispudo-backup-${new Date().toISOString().split('T')[0]}.json`
+            a.click()
+            URL.revokeObjectURL(url)
           }}
           theme={theme}
           onToggleTheme={handleSetTheme}
