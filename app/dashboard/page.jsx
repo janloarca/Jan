@@ -1173,6 +1173,23 @@ export default function DashboardPage() {
           onDeleteAllSnapshots={deleteAllSnapshots}
           onDeleteAllTransactions={deleteAllTransactions}
           onDeleteAllFinanceTransactions={deleteAllFinanceTransactions}
+          onSyncBroker={async (positions) => {
+            const mapped = (positions || []).filter(p => p.quantity !== 0).map(p => ({
+              symbol: (p.symbol || '').toUpperCase(),
+              name: p.name || p.symbol,
+              type: p.type || 'Stock',
+              quantity: Math.abs(p.quantity || 0),
+              purchasePrice: p.purchasePrice || 0,
+              currentPrice: p.currentPrice || 0,
+              institution: p.institution || 'Interactive Brokers',
+              currency: p.currency || 'USD',
+              acquisitionDate: p.acquisitionDate,
+              conid: p._ibkrConId || '',
+              _ibkrAccountId: p._ibkrAccountId || '',
+              _source: 'ibkr',
+            }))
+            await handleIBKRSync({ items: mapped, transactions: [], accounts: [] }, 'merge')
+          }}
           onExportBackup={() => {
             const data = {
               exportDate: new Date().toISOString(),
