@@ -608,6 +608,35 @@ export default function DashboardPage() {
     }
   }, [items, transactions, addItem, updateItem, deleteItem, addTransaction, addLot])
 
+  const ibkrAutoSyncRef = useRef(false)
+  useEffect(() => {
+    if (dataLoading || ibkrAutoSyncRef.current) return
+    if (!settings?.ibkrToken || !settings?.ibkrQueryId) return
+    ibkrAutoSyncRef.current = true
+
+    const SYNC_INTERVAL = 60 * 60 * 1000
+    const lastSync = settings._ibkrLastAutoSync ? new Date(settings._ibkrLastAutoSync).getTime() : 0
+    const shouldSync = Date.now() - lastSync > SYNC_INTERVAL
+
+    const doAutoSync = async () => {
+      try {
+        const { syncIBKR } = await import('@/lib/ibkrSync')
+        const { decryptToken } = await import('@/lib/crypto')
+        const plain = await decryptToken(settings.ibkrToken, user?.uid)
+        const data = await syncIBKR(plain, settings.ibkrQueryId)
+        await handleIBKRSync(data, 'merge')
+        saveSettings({ _ibkrLastAutoSync: new Date().toISOString() })
+        console.log(`[ibkr] Auto-sync OK: ${data.items.length} positions`)
+      } catch (err) {
+        console.log(`[ibkr] Auto-sync failed: ${err.message}`)
+      }
+    }
+
+    if (shouldSync) doAutoSync()
+    const interval = setInterval(doAutoSync, SYNC_INTERVAL)
+    return () => clearInterval(interval)
+  }, [dataLoading, settings, user, handleIBKRSync, saveSettings])
+
   const yearlyChange = useMemo(() => {
     if (snapshots.length < 2) return null
     const oneYearAgo = new Date()
