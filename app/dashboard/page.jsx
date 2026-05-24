@@ -532,65 +532,6 @@ export default function DashboardPage() {
     URL.revokeObjectURL(url)
   }, [transactions, lots])
 
-  const handleReport = useCallback(async () => {
-    const { generateReport } = await import('@/lib/generateReport')
-    await generateReport({
-      items: enrichedItems, snapshots, transactions,
-      netWorth, totalAssets, lang, returnYTD, annualDividends,
-    })
-  }, [enrichedItems, snapshots, transactions, lang, netWorth, totalAssets, returnYTD, annualDividends])
-
-  const handleShare = useCallback(async () => {
-    const t = (es, en) => lang === 'es' ? es : en
-    const assets = enrichedItems.filter((it) => !it.isDebt)
-    const debts = enrichedItems.filter((it) => it.isDebt)
-    const debtTotal = debts.reduce((s, it) => s + Math.abs(getItemValue(it)), 0)
-
-    const byCat = {}
-    assets.forEach((it) => {
-      const cat = getTypeCategory(it)
-      byCat[cat] = (byCat[cat] || 0) + getItemValue(it)
-    })
-    const catLines = Object.entries(byCat)
-      .sort((a, b) => b[1] - a[1])
-      .map(([cat, val]) => `  ${cat}: ${formatCurrency(val)} (${totalAssets > 0 ? ((val / totalAssets) * 100).toFixed(1) : 0}%)`)
-      .join('\n')
-
-    const top5 = [...assets]
-      .map((it) => ({ name: it.name || it.symbol, value: getItemValue(it) }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5)
-      .map((it) => `  ${it.name}: ${formatCurrency(it.value)}`)
-      .join('\n')
-
-    const text = [
-      `⚡ ${t('Mi Portafolio', 'My Portfolio')} — Chispudo`,
-      '',
-      `${t('Patrimonio Neto', 'Net Worth')}: ${formatCurrency(netWorth)}`,
-      `${t('Activos', 'Assets')}: ${formatCurrency(totalAssets)}`,
-      debtTotal > 0 ? `${t('Deuda', 'Debt')}: ${formatCurrency(debtTotal)}` : null,
-      returnYTD ? `${t('Retorno YTD', 'YTD Return')}: ${returnYTD >= 0 ? '+' : ''}${returnYTD.toFixed(2)}%` : null,
-      '',
-      `${t('Distribución', 'Allocation')}:`,
-      catLines,
-      '',
-      `Top 5:`,
-      top5,
-      '',
-      `${t('Posiciones', 'Positions')}: ${enrichedItems.length}`,
-      '',
-      `chispu.xyz`,
-    ].filter(Boolean).join('\n')
-
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: 'Chispudo Portfolio', text })
-      } catch {}
-    } else {
-      await navigator.clipboard.writeText(text)
-      alert(t('Resumen copiado al portapapeles', 'Summary copied to clipboard'))
-    }
-  }, [enrichedItems, netWorth, totalAssets, returnYTD, lang])
 
   useEffect(() => {
     const handler = (e) => {
@@ -604,23 +545,6 @@ export default function DashboardPage() {
     return () => window.removeEventListener('keydown', handler)
   }, [handleExport, handleRefresh])
 
-  const handleCmdAction = useCallback((action, data) => {
-    switch (action) {
-      case 'add': setModal('account'); break
-      case 'import': setModal('import'); break
-      case 'export': handleExport(); break
-      case 'report': handleReport(); break
-      case 'print': setModal('print'); break
-      case 'share': handleShare(); break
-      case 'transfer': setModal('transfer'); break
-      case 'settings': setModal('settings'); break
-      case 'refresh': handleRefresh(); break
-      case 'theme': handleSetTheme(theme === 'dark' ? 'light' : 'dark'); break
-      case 'lang': handleSetLang('toggle'); break
-      case 'ibkr': setModal('ibkr'); break
-      case 'viewItem': setDetailItem(data); break
-    }
-  }, [handleExport, handleReport, handleRefresh, handleSetTheme, handleSetLang, theme])
 
   const handleIBKRSync = useCallback(async (data, mode = 'merge') => {
     if (mode === 'replace') {
@@ -768,6 +692,84 @@ export default function DashboardPage() {
       return s + convert(amt, tx.currency || 'USD', baseCurrency)
     }, 0)
   }, [transactions, convert, baseCurrency])
+
+  const handleReport = useCallback(async () => {
+    const { generateReport } = await import('@/lib/generateReport')
+    await generateReport({
+      items: enrichedItems, snapshots, transactions,
+      netWorth, totalAssets, lang, returnYTD, annualDividends,
+    })
+  }, [enrichedItems, snapshots, transactions, lang, netWorth, totalAssets, returnYTD, annualDividends])
+
+  const handleShare = useCallback(async () => {
+    const t = (es, en) => lang === 'es' ? es : en
+    const assets = enrichedItems.filter((it) => !it.isDebt)
+    const debts = enrichedItems.filter((it) => it.isDebt)
+    const debtTotal = debts.reduce((s, it) => s + Math.abs(getItemValue(it)), 0)
+
+    const byCat = {}
+    assets.forEach((it) => {
+      const cat = getTypeCategory(it)
+      byCat[cat] = (byCat[cat] || 0) + getItemValue(it)
+    })
+    const catLines = Object.entries(byCat)
+      .sort((a, b) => b[1] - a[1])
+      .map(([cat, val]) => `  ${cat}: ${formatCurrency(val)} (${totalAssets > 0 ? ((val / totalAssets) * 100).toFixed(1) : 0}%)`)
+      .join('\n')
+
+    const top5 = [...assets]
+      .map((it) => ({ name: it.name || it.symbol, value: getItemValue(it) }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5)
+      .map((it) => `  ${it.name}: ${formatCurrency(it.value)}`)
+      .join('\n')
+
+    const text = [
+      `⚡ ${t('Mi Portafolio', 'My Portfolio')} — Chispudo`,
+      '',
+      `${t('Patrimonio Neto', 'Net Worth')}: ${formatCurrency(netWorth)}`,
+      `${t('Activos', 'Assets')}: ${formatCurrency(totalAssets)}`,
+      debtTotal > 0 ? `${t('Deuda', 'Debt')}: ${formatCurrency(debtTotal)}` : null,
+      returnYTD ? `${t('Retorno YTD', 'YTD Return')}: ${returnYTD >= 0 ? '+' : ''}${returnYTD.toFixed(2)}%` : null,
+      '',
+      `${t('Distribución', 'Allocation')}:`,
+      catLines,
+      '',
+      `Top 5:`,
+      top5,
+      '',
+      `${t('Posiciones', 'Positions')}: ${enrichedItems.length}`,
+      '',
+      `chispu.xyz`,
+    ].filter(Boolean).join('\n')
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Chispudo Portfolio', text })
+      } catch {}
+    } else {
+      await navigator.clipboard.writeText(text)
+      alert(t('Resumen copiado al portapapeles', 'Summary copied to clipboard'))
+    }
+  }, [enrichedItems, netWorth, totalAssets, returnYTD, lang])
+
+  const handleCmdAction = useCallback((action, data) => {
+    switch (action) {
+      case 'add': setModal('account'); break
+      case 'import': setModal('import'); break
+      case 'export': handleExport(); break
+      case 'report': handleReport(); break
+      case 'print': setModal('print'); break
+      case 'share': handleShare(); break
+      case 'transfer': setModal('transfer'); break
+      case 'settings': setModal('settings'); break
+      case 'refresh': handleRefresh(); break
+      case 'theme': handleSetTheme(theme === 'dark' ? 'light' : 'dark'); break
+      case 'lang': handleSetLang('toggle'); break
+      case 'ibkr': setModal('ibkr'); break
+      case 'viewItem': setDetailItem(data); break
+    }
+  }, [handleExport, handleReport, handleRefresh, handleSetTheme, handleSetLang, theme])
 
   const estimatedAnnualIncome = useMemo(() => {
     let total = 0
