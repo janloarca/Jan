@@ -793,7 +793,7 @@ export default function DashboardPage() {
   }, [portfolioItems, convert, baseCurrency])
 
   const benchmarkSymbol = settings?.benchmarkSymbol || '%5EGSPC'
-  const { benchmarkData, benchmarkReturn, benchmarkName, loading: benchmarkLoading } = useBenchmark('YTD', benchmarkSymbol)
+  const { benchmarkData, benchmarkReturn, benchmarkName, loading: benchmarkLoading, error: benchmarkError } = useBenchmark('YTD', benchmarkSymbol)
 
   const netContributions = useMemo(() => {
     return computeNetContributions(transactions, convert, baseCurrency).netContributions

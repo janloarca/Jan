@@ -81,12 +81,12 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   }, [preview, onSyncComplete, syncMode])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="ibkr-modal-title">
       <div className="bg-[#1e293b] border border-[#334155] rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#334155]">
           <div className="flex items-center gap-2">
             <span className="text-orange-400 text-lg font-bold">IBKR</span>
-            <h2 className="text-lg font-bold text-white">{t('Sincronizar Interactive Brokers', 'Sync Interactive Brokers')}</h2>
+            <h2 id="ibkr-modal-title" className="text-lg font-bold text-white">{t('Sincronizar Interactive Brokers', 'Sync Interactive Brokers')}</h2>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-xl">&times;</button>
         </div>
