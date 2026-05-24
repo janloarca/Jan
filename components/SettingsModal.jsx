@@ -22,7 +22,7 @@ const CURRENCIES = [
   { code: 'CNY', name: 'Chinese Yuan', symbol: '¥' },
 ]
 
-export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onExportBackup, theme, onToggleTheme, lang = 'es' }) {
+export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onExportBackup, onSyncBroker, theme, onToggleTheme, lang = 'es' }) {
   const [baseCurrency, setBaseCurrency] = useState(settings?.baseCurrency || 'USD')
   const [benchmarkSymbol, setBenchmarkSymbol] = useState(settings?.benchmarkSymbol || '%5EGSPC')
   const [saving, setSaving] = useState(false)
@@ -32,6 +32,13 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   const [shareEnabled, setShareEnabled] = useState(false)
   const [shareLoading, setShareLoading] = useState(false)
   const [shareCopied, setShareCopied] = useState(false)
+  const [ibkrToken, setIbkrToken] = useState('')
+  const [ibkrQueryId, setIbkrQueryId] = useState('')
+  const [ibkrConfigured, setIbkrConfigured] = useState(false)
+  const [ibkrSaving, setIbkrSaving] = useState(false)
+  const [ibkrSyncing, setIbkrSyncing] = useState(false)
+  const [ibkrResult, setIbkrResult] = useState(null)
+  const [ibkrError, setIbkrError] = useState('')
 
   const t = (es, en) => lang === 'es' ? es : en
 
@@ -95,8 +102,88 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
     setTimeout(() => setShareCopied(false), 2000)
   }, [shareUrl])
 
+  useEffect(() => {
+    authFetch('/api/brokers/ibkr', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'get-credentials' }),
+    }).then((r) => r.ok ? r.json() : null).then((d) => {
+      if (d?.configured) {
+        setIbkrConfigured(true)
+        setIbkrQueryId(d.flexQueryId || '')
+      }
+    }).catch(() => {})
+  }, [])
+
+  const handleIbkrSave = async () => {
+    setIbkrSaving(true)
+    setIbkrError('')
+    try {
+      const res = await authFetch('/api/brokers/ibkr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'save-credentials', token: ibkrToken, queryId: ibkrQueryId }),
+      })
+      if (res.ok) {
+        setIbkrConfigured(true)
+        setIbkrToken('')
+      } else {
+        const d = await res.json()
+        setIbkrError(d.error || 'Error')
+      }
+    } catch (e) { setIbkrError(e.message) }
+    setIbkrSaving(false)
+  }
+
+  const handleIbkrDisconnect = async () => {
+    setIbkrSaving(true)
+    try {
+      await authFetch('/api/brokers/ibkr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'save-credentials', token: null, queryId: null }),
+      })
+      setIbkrConfigured(false)
+      setIbkrToken('')
+      setIbkrQueryId('')
+      setIbkrResult(null)
+    } catch {}
+    setIbkrSaving(false)
+  }
+
+  const handleIbkrSync = async () => {
+    setIbkrSyncing(true)
+    setIbkrError('')
+    setIbkrResult(null)
+    try {
+      const credsRes = await authFetch('/api/brokers/ibkr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'get-credentials' }),
+      })
+      if (!credsRes.ok) throw new Error('Could not load credentials')
+      const creds = await credsRes.json()
+      if (!creds.configured) throw new Error(t('Configura IBKR primero', 'Configure IBKR first'))
+
+      const syncRes = await authFetch('/api/brokers/ibkr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'sync', token: '__stored__', queryId: creds.flexQueryId }),
+      })
+      if (!syncRes.ok) {
+        const d = await syncRes.json()
+        throw new Error(d.error || `Sync failed (${syncRes.status})`)
+      }
+      const data = await syncRes.json()
+      setIbkrResult(data)
+      if (onSyncBroker) await onSyncBroker(data.positions)
+    } catch (e) { setIbkrError(e.message) }
+    setIbkrSyncing(false)
+  }
+
   const tabs = [
     { key: 'general', label: t('General', 'General') },
+    { key: 'brokers', label: t('Brokers', 'Brokers') },
     { key: 'share', label: t('Compartir', 'Share') },
     { key: 'data', label: t('Datos', 'Data') },
   ]
@@ -230,6 +317,99 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                 className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium">
                 {saving ? '...' : t('Guardar configuracion', 'Save settings')}
               </button>
+            </div>
+          )}
+
+          {tab === 'brokers' && (
+            <div className="space-y-5">
+              <div>
+                <h3 className="text-sm font-medium text-white mb-1 flex items-center gap-2">
+                  <span className="text-lg">🏦</span> Interactive Brokers
+                </h3>
+                <p className="text-xs text-slate-500 mb-4">{t(
+                  'Conecta tu cuenta IBKR para sincronizar posiciones automáticamente via Flex Web Service.',
+                  'Connect your IBKR account to sync positions automatically via Flex Web Service.'
+                )}</p>
+              </div>
+
+              {ibkrError && (
+                <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-xs">{ibkrError}</div>
+              )}
+
+              {ibkrResult && (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                  <p className="text-xs text-emerald-400 font-medium">{t('Sincronización exitosa', 'Sync successful')}</p>
+                  <p className="text-xs text-emerald-400/70 mt-1">
+                    {ibkrResult.count} {t('posiciones importadas', 'positions imported')}
+                  </p>
+                </div>
+              )}
+
+              {!ibkrConfigured ? (
+                <div className="space-y-3">
+                  <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg p-3">
+                    <p className="text-xs text-blue-400 font-medium mb-2">{t('Instrucciones:', 'Instructions:')}</p>
+                    <ol className="text-xs text-slate-400 space-y-1.5 list-decimal list-inside">
+                      <li>{t('Entra a tu cuenta IBKR → Account Management', 'Log into your IBKR account → Account Management')}</li>
+                      <li>{t('Ve a Reports → Flex Queries → Activity Flex Queries', 'Go to Reports → Flex Queries → Activity Flex Queries')}</li>
+                      <li>{t('Crea un query con: Open Positions + Cash Report', 'Create a query with: Open Positions + Cash Report')}</li>
+                      <li>{t('Formato: XML. Período: Last Business Day', 'Format: XML. Period: Last Business Day')}</li>
+                      <li>{t('Copia el Query ID y genera un Flex Web Service Token', 'Copy the Query ID and generate a Flex Web Service Token')}</li>
+                    </ol>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-slate-400 mb-1 block">{t('Flex Token', 'Flex Token')}</label>
+                    <input type="password" value={ibkrToken} onChange={(e) => setIbkrToken(e.target.value)}
+                      placeholder="••••••••••••••••"
+                      className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-slate-400 mb-1 block">{t('Query ID', 'Query ID')}</label>
+                    <input type="text" value={ibkrQueryId} onChange={(e) => setIbkrQueryId(e.target.value)}
+                      placeholder="123456"
+                      className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                  </div>
+
+                  <button onClick={handleIbkrSave} disabled={ibkrSaving || !ibkrToken || !ibkrQueryId}
+                    className="w-full py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-50 transition-colors text-sm font-medium">
+                    {ibkrSaving ? '...' : t('Conectar IBKR', 'Connect IBKR')}
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="p-3 bg-emerald-500/5 border border-emerald-500/20 rounded-lg flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-emerald-400 font-medium flex items-center gap-1.5">
+                        <span className="w-2 h-2 bg-emerald-400 rounded-full"></span>
+                        {t('Conectado', 'Connected')}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-0.5">Query ID: {ibkrQueryId}</p>
+                    </div>
+                    <button onClick={handleIbkrDisconnect} disabled={ibkrSaving}
+                      className="px-3 py-1.5 text-xs border border-red-500/30 text-red-400 rounded-lg hover:bg-red-500/10 transition-colors">
+                      {t('Desconectar', 'Disconnect')}
+                    </button>
+                  </div>
+
+                  <button onClick={handleIbkrSync} disabled={ibkrSyncing}
+                    className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium flex items-center justify-center gap-2">
+                    {ibkrSyncing ? (
+                      <>{t('Sincronizando...', 'Syncing...')} <span className="animate-spin">⟳</span></>
+                    ) : (
+                      <>{t('Sincronizar ahora', 'Sync now')}</>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              <div className="border-t border-[#334155] pt-4 mt-4">
+                <p className="text-xs text-slate-600">{t(
+                  'Próximamente: GBM+, Binance, Bitso y más.',
+                  'Coming soon: GBM+, Binance, Bitso and more.'
+                )}</p>
+              </div>
             </div>
           )}
 

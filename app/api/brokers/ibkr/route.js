@@ -1,140 +1,199 @@
 import { NextResponse } from 'next/server'
+import { verifyAuth } from '@/lib/apiAuth'
+import { rateLimit } from '@/lib/rateLimit'
+import { getAdminDb } from '@/lib/firebase-admin'
 
-const FLEX_SEND_URL = 'https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService/SendRequest'
-const FLEX_GET_URL = 'https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService/GetStatement'
+export const dynamic = 'force-dynamic'
 
-async function parseXML(text) {
-  const get = (xml, tag) => {
-    const match = xml.match(new RegExp(`<${tag}[^>]*>([^<]*)</${tag}>`, 'i'))
-    return match ? match[1].trim() : null
-  }
+const FLEX_REQUEST_URL = 'https://gdcdyn.interactivebrokers.com/Universal/servlet/FlexStatementService.SendRequest'
+const FLEX_FETCH_URL = 'https://gdcdyn.interactivebrokers.com/Universal/servlet/FlexStatementService.GetStatement'
+const MAX_POLL_ATTEMPTS = 10
+const POLL_DELAY_MS = 3000
 
-  const getAttr = (tag, attr) => {
-    const match = tag.match(new RegExp(`${attr}="([^"]*)"`, 'i'))
-    return match ? match[1] : null
-  }
-
-  const getAllTags = (xml, tagName) => {
-    const regex = new RegExp(`<${tagName}\\s+([^>]*?)\\s*/>|<${tagName}\\s+([^>]*?)>.*?</${tagName}>`, 'gis')
-    const results = []
-    let m
-    while ((m = regex.exec(xml)) !== null) {
-      results.push(m[1] || m[2])
+function parseFlexPositions(xml) {
+  const positions = []
+  const posRegex = /<OpenPosition[^>]*\/>/g
+  let match
+  while ((match = posRegex.exec(xml)) !== null) {
+    const tag = match[0]
+    const attr = (name) => {
+      const m = tag.match(new RegExp(`${name}="([^"]*)"`, 'i'))
+      return m ? m[1] : ''
     }
-    return results
+    const symbol = attr('symbol')
+    const qty = parseFloat(attr('position')) || 0
+    if (!symbol || qty === 0) continue
+    positions.push({
+      symbol: symbol.toUpperCase(),
+      name: attr('description') || symbol,
+      quantity: Math.abs(qty),
+      purchasePrice: parseFloat(attr('costBasisPrice')) || 0,
+      currentPrice: parseFloat(attr('markPrice')) || parseFloat(attr('closePrice')) || 0,
+      currency: attr('currency') || 'USD',
+      type: mapAssetCategory(attr('assetCategory'), attr('putCall')),
+      institution: 'Interactive Brokers',
+      acquisitionDate: formatDate(attr('openDateTime') || attr('reportDate')),
+      isDebt: qty < 0,
+      _ibkrAccountId: attr('accountId'),
+      _ibkrConId: attr('conid'),
+    })
   }
-
-  const status = get(text, 'Status')
-  const referenceCode = get(text, 'ReferenceCode')
-  const errorMessage = get(text, 'ErrorMessage')
-
-  if (status && referenceCode) {
-    return { type: 'reference', referenceCode, status }
-  }
-
-  if (errorMessage) {
-    return { type: 'error', error: errorMessage }
-  }
-
-  if (status === 'Warn' || status === 'Fail') {
-    return { type: 'error', error: get(text, 'ErrorMessage') || status }
-  }
-
-  const positions = getAllTags(text, 'OpenPosition').map(attrs => ({
-    symbol: getAttr(attrs, 'symbol') || '',
-    quantity: parseFloat(getAttr(attrs, 'position') || getAttr(attrs, 'quantity') || '0'),
-    markPrice: parseFloat(getAttr(attrs, 'markPrice') || '0'),
-    costBasisPrice: parseFloat(getAttr(attrs, 'costBasisPrice') || '0'),
-    costBasis: parseFloat(getAttr(attrs, 'costBasis') || '0'),
-    unrealizedPL: parseFloat(getAttr(attrs, 'fifoPnlUnrealized') || getAttr(attrs, 'unrealizedPL') || '0'),
-    currency: getAttr(attrs, 'currency') || 'USD',
-    assetCategory: getAttr(attrs, 'assetCategory') || '',
-    description: getAttr(attrs, 'description') || '',
-    conid: getAttr(attrs, 'conid') || '',
-    accountId: getAttr(attrs, 'accountId') || '',
-    marketValue: parseFloat(getAttr(attrs, 'marketValue') || getAttr(attrs, 'positionValue') || '0'),
-    listingExchange: getAttr(attrs, 'listingExchange') || '',
-  }))
-
-  const trades = getAllTags(text, 'Trade').map(attrs => ({
-    symbol: getAttr(attrs, 'symbol') || '',
-    tradeDate: getAttr(attrs, 'tradeDate') || getAttr(attrs, 'dateTime') || '',
-    quantity: parseFloat(getAttr(attrs, 'quantity') || '0'),
-    tradePrice: parseFloat(getAttr(attrs, 'tradePrice') || '0'),
-    proceeds: parseFloat(getAttr(attrs, 'proceeds') || '0'),
-    commission: parseFloat(getAttr(attrs, 'ibCommission') || getAttr(attrs, 'commission') || '0'),
-    buySell: getAttr(attrs, 'buySell') || '',
-    currency: getAttr(attrs, 'currency') || 'USD',
-    description: getAttr(attrs, 'description') || '',
-    assetCategory: getAttr(attrs, 'assetCategory') || '',
-    accountId: getAttr(attrs, 'accountId') || '',
-    costBasis: parseFloat(getAttr(attrs, 'cost') || getAttr(attrs, 'costBasis') || '0'),
-    realizedPL: parseFloat(getAttr(attrs, 'fifoPnlRealized') || getAttr(attrs, 'realizedPL') || '0'),
-  }))
-
-  return { type: 'statement', positions, trades }
+  return positions
 }
 
-async function fetchWithRetry(url, retries = 3, delay = 3000) {
-  for (let i = 0; i < retries; i++) {
-    const res = await fetch(url)
-    const text = await res.text()
-    const parsed = await parseXML(text)
-
-    if (parsed.type === 'error' && parsed.error?.includes('is being generated')) {
-      if (i < retries - 1) {
-        await new Promise(r => setTimeout(r, delay))
-        continue
-      }
+function parseCashPositions(xml) {
+  const positions = []
+  const cashRegex = /<CashReport[^>]*\/>/g
+  let match
+  while ((match = cashRegex.exec(xml)) !== null) {
+    const tag = match[0]
+    const attr = (name) => {
+      const m = tag.match(new RegExp(`${name}="([^"]*)"`, 'i'))
+      return m ? m[1] : ''
     }
-    return parsed
+    const currency = attr('currency')
+    const balance = parseFloat(attr('endingCash')) || parseFloat(attr('endingSettledCash')) || 0
+    if (!currency || currency === 'BASE_SUMMARY' || balance === 0) continue
+    positions.push({
+      symbol: `CASH-${currency}`,
+      name: `Cash (${currency})`,
+      quantity: 1,
+      purchasePrice: Math.abs(balance),
+      currentPrice: Math.abs(balance),
+      currency,
+      type: 'Bank',
+      institution: 'Interactive Brokers',
+      isDebt: balance < 0,
+    })
   }
-  return { type: 'error', error: 'Report generation timed out' }
+  return positions
+}
+
+function mapAssetCategory(cat, putCall) {
+  const c = (cat || '').toUpperCase()
+  if (c === 'STK' || c === 'STOCK') return 'Stock'
+  if (c === 'BOND' || c === 'BILL') return 'Bond'
+  if (c === 'FUND' || c === 'ETF') return 'ETF'
+  if (c === 'CASH') return 'Bank'
+  if (c === 'OPT' || c === 'FOP') return putCall ? `Option (${putCall})` : 'Option'
+  if (c === 'FUT') return 'Futures'
+  if (c === 'CRYPTO') return 'Crypto'
+  if (c === 'WAR') return 'Warrant'
+  return c || 'Stock'
+}
+
+function formatDate(dt) {
+  if (!dt) return undefined
+  const clean = dt.replace(/[;,]/g, '').trim()
+  if (/^\d{8}$/.test(clean)) return `${clean.slice(0, 4)}-${clean.slice(4, 6)}-${clean.slice(6, 8)}`
+  if (/^\d{4}-\d{2}-\d{2}/.test(clean)) return clean.slice(0, 10)
+  return undefined
+}
+
+async function fetchFlexReport(token, queryId) {
+  const requestUrl = `${FLEX_REQUEST_URL}?t=${encodeURIComponent(token)}&q=${encodeURIComponent(queryId)}&v=3`
+  const requestRes = await fetch(requestUrl)
+  const requestXml = await requestRes.text()
+
+  const refMatch = requestXml.match(/<ReferenceCode>([^<]+)<\/ReferenceCode>/)
+  if (!refMatch) {
+    const errMatch = requestXml.match(/<ErrorMessage>([^<]+)<\/ErrorMessage>/)
+    throw new Error(errMatch ? errMatch[1] : 'Failed to request Flex statement')
+  }
+  const referenceCode = refMatch[1]
+
+  for (let i = 0; i < MAX_POLL_ATTEMPTS; i++) {
+    await new Promise((r) => setTimeout(r, POLL_DELAY_MS))
+    const fetchUrl = `${FLEX_FETCH_URL}?q=${referenceCode}&t=${encodeURIComponent(token)}&v=3`
+    const fetchRes = await fetch(fetchUrl)
+    const fetchXml = await fetchRes.text()
+    if (fetchXml.includes('<FlexStatement') || fetchXml.includes('<OpenPosition')) {
+      return fetchXml
+    }
+    if (fetchXml.includes('Statement generation in progress')) continue
+    const errMatch = fetchXml.match(/<ErrorMessage>([^<]+)<\/ErrorMessage>/)
+    if (errMatch) throw new Error(errMatch[1])
+  }
+  throw new Error('Flex statement generation timed out')
 }
 
 export async function POST(request) {
-  try {
-    const { token, queryId, action } = await request.json()
+  const { limited } = rateLimit(request, { maxRequests: 10 })
+  if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 
-    if (!token || !queryId) {
-      return NextResponse.json({ error: 'Missing token or queryId' }, { status: 400 })
+  const { uid, error } = await verifyAuth(request)
+  if (error) return error
+
+  const body = await request.json()
+  const { action } = body
+
+  if (action === 'sync') {
+    let { token, queryId } = body
+    if (!queryId) {
+      return NextResponse.json({ error: 'Query ID is required' }, { status: 400 })
+    }
+
+    if (!token || token === '__stored__') {
+      const db = getAdminDb()
+      if (!db) return NextResponse.json({ error: 'Server not configured' }, { status: 500 })
+      const doc = await db.collection('users').doc(uid).collection('settings').doc('ibkr').get()
+      if (!doc.exists || !doc.data().flexToken) {
+        return NextResponse.json({ error: 'No stored token found. Enter your Flex Token.' }, { status: 400 })
+      }
+      token = doc.data().flexToken
+      if (!queryId) queryId = doc.data().flexQueryId
     }
 
     if (token.length > 200 || queryId.length > 50) {
-      return NextResponse.json({ error: 'Invalid parameters' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid credentials format' }, { status: 400 })
     }
 
-    const safeToken = encodeURIComponent(token)
-    const safeQueryId = encodeURIComponent(queryId)
+    try {
+      const xml = await fetchFlexReport(token, queryId)
+      const positions = parseFlexPositions(xml)
+      const cash = parseCashPositions(xml)
+      const all = [...positions, ...cash]
 
-    const sendUrl = `${FLEX_SEND_URL}?t=${safeToken}&q=${safeQueryId}&v=3`
-    const sendRes = await fetch(sendUrl)
-    const sendText = await sendRes.text()
-    const sendParsed = await parseXML(sendText)
-
-    if (sendParsed.type === 'error') {
-      return NextResponse.json({ error: sendParsed.error || 'Failed to request report' }, { status: 400 })
+      return NextResponse.json({
+        positions: all,
+        count: all.length,
+        timestamp: new Date().toISOString(),
+      })
+    } catch (err) {
+      return NextResponse.json({ error: err.message }, { status: 502 })
     }
-
-    if (sendParsed.type !== 'reference' || !sendParsed.referenceCode) {
-      return NextResponse.json({ error: 'Unexpected response from IBKR' }, { status: 500 })
-    }
-
-    await new Promise(r => setTimeout(r, 5000))
-
-    const getUrl = `${FLEX_GET_URL}?t=${safeToken}&q=${sendParsed.referenceCode}&v=3`
-    const result = await fetchWithRetry(getUrl, 4, 5000)
-
-    if (result.type === 'error') {
-      return NextResponse.json({ error: result.error }, { status: 400 })
-    }
-
-    return NextResponse.json({
-      positions: result.positions || [],
-      trades: result.trades || [],
-      syncedAt: new Date().toISOString(),
-    })
-  } catch (err) {
-    return NextResponse.json({ error: err.message || 'Internal error' }, { status: 500 })
   }
+
+  if (action === 'save-credentials') {
+    const { token, queryId } = body
+    const db = getAdminDb()
+    if (!db) return NextResponse.json({ error: 'Server not configured' }, { status: 500 })
+
+    if (token && queryId) {
+      await db.collection('users').doc(uid).collection('settings').doc('ibkr').set({
+        flexToken: token,
+        flexQueryId: queryId,
+        updatedAt: new Date().toISOString(),
+      })
+    } else {
+      await db.collection('users').doc(uid).collection('settings').doc('ibkr').delete()
+    }
+    return NextResponse.json({ saved: true })
+  }
+
+  if (action === 'get-credentials') {
+    const db = getAdminDb()
+    if (!db) return NextResponse.json({ error: 'Server not configured' }, { status: 500 })
+    const doc = await db.collection('users').doc(uid).collection('settings').doc('ibkr').get()
+    if (!doc.exists) return NextResponse.json({ configured: false })
+    const data = doc.data()
+    return NextResponse.json({
+      configured: true,
+      flexQueryId: data.flexQueryId,
+      hasToken: !!data.flexToken,
+      lastSync: data.lastSync || null,
+    })
+  }
+
+  return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
 }
