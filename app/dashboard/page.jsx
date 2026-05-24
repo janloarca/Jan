@@ -690,6 +690,7 @@ export default function DashboardPage() {
     if (snapshots.length >= 2) {
       let minDiff = Infinity
       let bestSnap = null
+      const MAX_SNAP_DISTANCE = 30 * 86400000
       for (const s of snapshots) {
         if (!s.date) continue
         const snapTs = new Date(s.date).getTime()
@@ -697,7 +698,7 @@ export default function DashboardPage() {
         const diff = Math.abs(snapTs - yearStartTs)
         if (diff < minDiff) { minDiff = diff; bestSnap = s }
       }
-      if (bestSnap) {
+      if (bestSnap && minDiff <= MAX_SNAP_DISTANCE) {
         startVal = convertSnapshot(bestSnap.netWorthUSD ?? bestSnap.totalActivosUSD ?? 0)
       }
     }
