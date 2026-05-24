@@ -129,13 +129,16 @@ async function fetchFlexReport(token, queryId) {
     if (attempt > 0) await new Promise((r) => setTimeout(r, 5000))
     const requestRes = await fetch(requestUrl)
     const requestXml = await requestRes.text()
+    console.log(`[ibkr] SendRequest attempt ${attempt + 1}:`, requestXml.slice(0, 500))
     const refMatch = requestXml.match(/<ReferenceCode>([^<]+)<\/ReferenceCode>/)
     if (refMatch) {
       referenceCode = refMatch[1]
       break
     }
     const errMatch = requestXml.match(/<ErrorMessage>([^<]+)<\/ErrorMessage>/)
+    const errCode = requestXml.match(/<ErrorCode>([^<]+)<\/ErrorCode>/)
     const errMsg = errMatch ? errMatch[1] : ''
+    console.log(`[ibkr] Error code: ${errCode?.[1] || 'none'}, message: ${errMsg}`)
     if (errMsg.toLowerCase().includes('try again') || errMsg.toLowerCase().includes('could not be generated')) {
       if (attempt === 2) throw new Error(errMsg)
       continue
@@ -218,7 +221,7 @@ export async function POST(request) {
         syncedAt: new Date().toISOString(),
       })
     } catch (err) {
-      return NextResponse.json({ error: err.message }, { status: 502 })
+      return NextResponse.json({ error: err.message, detail: 'IBKR Flex Service rechazó la solicitud. Verifica que tu Flex Query esté activo y que el Token no haya expirado.' }, { status: 502 })
     }
   }
 
