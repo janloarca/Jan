@@ -59,6 +59,8 @@ export async function GET(request) {
       symbol: meta.symbol || symbol,
       currency: meta.currency || 'USD',
       prices,
+    }, {
+      headers: { 'Cache-Control': 'public, max-age=300, s-maxage=600, stale-while-revalidate=3600' },
     })
   } catch (err) {
     console.error('chart error:', err)

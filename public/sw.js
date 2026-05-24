@@ -5,6 +5,8 @@ const API_CACHE_TTL = {
   '/api/exchange-rates': 60 * 60 * 1000,
   '/api/prices': 5 * 60 * 1000,
   '/api/prices/benchmark': 5 * 60 * 1000,
+  '/api/prices/chart': 5 * 60 * 1000,
+  '/api/prices/dividends': 60 * 60 * 1000,
 }
 
 self.addEventListener('install', (event) => {
