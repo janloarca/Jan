@@ -321,12 +321,10 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
           {tab === 'brokers' && (
             <div className="space-y-5">
               <div>
-                <h3 className="text-sm font-medium text-white mb-1 flex items-center gap-2">
-                  <Building2 size={18} className="text-slate-400" /> Interactive Brokers
-                </h3>
-                <p className="text-xs text-slate-500 mb-4">{t(
-                  'Conecta tu cuenta IBKR para sincronizar posiciones automáticamente via Flex Web Service.',
-                  'Connect your IBKR account to sync positions automatically via Flex Web Service.'
+                <h3 className="text-sm font-medium text-white mb-1">Interactive Brokers</h3>
+                <p className="text-xs text-slate-500">{t(
+                  'Sincroniza posiciones automáticamente via Flex Web Service.',
+                  'Sync positions automatically via Flex Web Service.'
                 )}</p>
               </div>
 
@@ -335,66 +333,63 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               )}
 
               {ibkrResult && (
-                <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
-                  <p className="text-xs text-emerald-400 font-medium">{t('Sincronización exitosa', 'Sync successful')}</p>
-                  <p className="text-xs text-emerald-400/70 mt-1">
-                    {ibkrResult.count} {t('posiciones importadas', 'positions imported')}
-                  </p>
+                <div className="flex items-center gap-2 text-xs text-emerald-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  {ibkrResult.count} {t('posiciones importadas', 'positions imported')}
                 </div>
               )}
 
               {!ibkrConfigured ? (
-                <div className="space-y-3">
-                  <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg p-3">
-                    <p className="text-xs text-blue-400 font-medium mb-2">{t('Instrucciones:', 'Instructions:')}</p>
-                    <ol className="text-xs text-slate-400 space-y-1.5 list-decimal list-inside">
+                <div className="space-y-4">
+                  <div className="pl-1 space-y-2">
+                    <p className="text-[11px] text-slate-500 uppercase tracking-wider">{t('Instrucciones', 'Instructions')}</p>
+                    <ol className="text-xs text-slate-400 space-y-1.5 list-decimal list-inside leading-relaxed">
                       <li>{t('Entra a tu cuenta IBKR → Account Management', 'Log into your IBKR account → Account Management')}</li>
                       <li>{t('Ve a Reports → Flex Queries → Activity Flex Queries', 'Go to Reports → Flex Queries → Activity Flex Queries')}</li>
                       <li>{t('Crea un query con: Open Positions + Cash Report', 'Create a query with: Open Positions + Cash Report')}</li>
-                      <li>{t('Formato: XML. Período: Last Business Day', 'Format: XML. Period: Last Business Day')}</li>
                       <li>{t('Copia el Query ID y genera un Flex Web Service Token', 'Copy the Query ID and generate a Flex Web Service Token')}</li>
                     </ol>
                   </div>
 
-                  <div>
-                    <label className="text-xs text-slate-400 mb-1 block">{t('Flex Token', 'Flex Token')}</label>
-                    <input type="password" value={ibkrToken} onChange={(e) => setIbkrToken(e.target.value)}
-                      placeholder="••••••••••••••••"
-                      className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-                  </div>
+                  <div className="border-t border-[#334155]/40 pt-4 space-y-3">
+                    <div>
+                      <label className="text-[11px] text-slate-500 uppercase tracking-wider mb-1.5 block">{t('Flex Token', 'Flex Token')}</label>
+                      <input type="password" value={ibkrToken} onChange={(e) => setIbkrToken(e.target.value)}
+                        placeholder="••••••••••••••••"
+                        className="w-full px-4 py-2.5 bg-[#0f172a] border border-[#334155]/60 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                    </div>
 
-                  <div>
-                    <label className="text-xs text-slate-400 mb-1 block">{t('Query ID', 'Query ID')}</label>
-                    <input type="text" value={ibkrQueryId} onChange={(e) => setIbkrQueryId(e.target.value)}
-                      placeholder="123456"
-                      className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-                  </div>
+                    <div>
+                      <label className="text-[11px] text-slate-500 uppercase tracking-wider mb-1.5 block">{t('Query ID', 'Query ID')}</label>
+                      <input type="text" value={ibkrQueryId} onChange={(e) => setIbkrQueryId(e.target.value)}
+                        placeholder="123456"
+                        className="w-full px-4 py-2.5 bg-[#0f172a] border border-[#334155]/60 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                    </div>
 
-                  <button onClick={handleIbkrSave} disabled={ibkrSaving || !ibkrToken || !ibkrQueryId}
-                    className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium">
-                    {ibkrSaving ? '...' : t('Conectar IBKR', 'Connect IBKR')}
-                  </button>
+                    <button onClick={handleIbkrSave} disabled={ibkrSaving || !ibkrToken || !ibkrQueryId}
+                      className="w-full py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-500 disabled:opacity-50 transition-all text-sm font-medium">
+                      {ibkrSaving ? '...' : t('Conectar', 'Connect')}
+                    </button>
+                  </div>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  <div className="p-3 bg-emerald-500/5 border border-emerald-500/20 rounded-lg flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-emerald-400 font-medium flex items-center gap-1.5">
-                        <span className="w-2 h-2 bg-emerald-400 rounded-full"></span>
-                        {t('Conectado', 'Connected')}
-                      </p>
-                      <p className="text-xs text-slate-500 mt-0.5">Query ID: {ibkrQueryId}</p>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 bg-emerald-400 rounded-full" />
+                      <span className="text-sm text-white font-medium">{t('Conectado', 'Connected')}</span>
+                      <span className="text-xs text-slate-500 font-mono">{ibkrQueryId}</span>
                     </div>
                     <button onClick={handleIbkrDisconnect} disabled={ibkrSaving}
-                      className="px-3 py-1.5 text-xs border border-red-500/30 text-red-400 rounded-lg hover:bg-red-500/10 transition-colors">
+                      className="text-xs text-slate-500 hover:text-red-400 transition-colors">
                       {t('Desconectar', 'Disconnect')}
                     </button>
                   </div>
 
                   <button onClick={handleIbkrSync} disabled={ibkrSyncing}
-                    className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium flex items-center justify-center gap-2">
+                    className="w-full py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-500 disabled:opacity-50 transition-all text-sm font-medium flex items-center justify-center gap-2">
                     {ibkrSyncing ? (
-                      <><span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> {t('Conectando con IBKR (puede tardar hasta 1 min)...', 'Connecting to IBKR (may take up to 1 min)...')}</>
+                      <><span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> {t('Sincronizando...', 'Syncing...')}</>
                     ) : (
                       <>{t('Sincronizar ahora', 'Sync now')}</>
                     )}
@@ -402,12 +397,10 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                 </div>
               )}
 
-              <div className="border-t border-[#334155] pt-4 mt-4">
-                <p className="text-xs text-slate-600">{t(
-                  'Próximamente: GBM+, Binance, Bitso y más.',
-                  'Coming soon: GBM+, Binance, Bitso and more.'
-                )}</p>
-              </div>
+              <p className="text-[11px] text-slate-600 italic border-t border-[#334155]/40 pt-4">{t(
+                'Próximamente: GBM+, Binance, Bitso y más.',
+                'Coming soon: GBM+, Binance, Bitso and more.'
+              )}</p>
             </div>
           )}
 
