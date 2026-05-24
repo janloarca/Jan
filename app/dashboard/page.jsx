@@ -1,73 +1,77 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useFirestoreItems } from '@/hooks/useFirestoreItems'
 import { useMarketPrices } from '@/hooks/useMarketPrices'
 import { useExchangeRates } from '@/hooks/useExchangeRates'
 import { authFetch } from '@/lib/authFetch'
 
-import FileImportModal from '@/components/FileImportModal'
-import AddAccountModal from '@/components/AddAccountModal'
-import SellModal from '@/components/SellModal'
-import TransferModal from '@/components/TransferModal'
-import IBKRSyncModal from '@/components/IBKRSyncModal'
-
-import SettingsModal from '@/components/SettingsModal'
 import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, formatCurrency, getTypeCategory, getInvestmentClass } from '@/components/dashboard/utils'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution } from '@/components/dashboard/analytics'
 import { useBenchmark } from '@/hooks/useBenchmark'
 import Header from '@/components/dashboard/Header'
 import NetWorthCard from '@/components/dashboard/NetWorthCard'
-import PortfolioGrowthChart from '@/components/dashboard/PortfolioGrowthChart'
 import TopMovers from '@/components/dashboard/TopMovers'
-import FinancialHealth from '@/components/dashboard/FinancialHealth'
 import ActionButtons from '@/components/dashboard/ActionButtons'
-import MonthlyPerformance from '@/components/dashboard/MonthlyPerformance'
-import AccountsTable from '@/components/dashboard/AccountsTable'
+import SectionCollapse from '@/components/dashboard/SectionCollapse'
+import MobileNav from '@/components/dashboard/MobileNav'
+import ErrorBanner from '@/components/dashboard/ErrorBanner'
+import ErrorBoundary from '@/components/ErrorBoundary'
+import { SkeletonCard, SkeletonChart, SkeletonTable } from '@/components/dashboard/Skeleton'
+import { checkPriceAlerts } from '@/lib/notifications'
+
+const FileImportModal = dynamic(() => import('@/components/FileImportModal'))
+const AddAccountModal = dynamic(() => import('@/components/AddAccountModal'))
+const SellModal = dynamic(() => import('@/components/SellModal'))
+const TransferModal = dynamic(() => import('@/components/TransferModal'))
+const IBKRSyncModal = dynamic(() => import('@/components/IBKRSyncModal'))
+const SettingsModal = dynamic(() => import('@/components/SettingsModal'))
+const EditAccountModal = dynamic(() => import('@/components/EditAccountModal'))
+const OptimizeModal = dynamic(() => import('@/components/OptimizeModal'))
+const AssetDetailModal = dynamic(() => import('@/components/dashboard/AssetDetailModal'))
+const PrintSummary = dynamic(() => import('@/components/dashboard/PrintSummary'))
+const OnboardingTour = dynamic(() => import('@/components/dashboard/OnboardingTour'))
+const CommandPalette = dynamic(() => import('@/components/dashboard/CommandPalette'))
+
+const PortfolioGrowthChart = dynamic(() => import('@/components/dashboard/PortfolioGrowthChart'), { loading: () => <SkeletonChart /> })
+const AccountsTable = dynamic(() => import('@/components/dashboard/AccountsTable'), { loading: () => <SkeletonTable /> })
+const PerformanceSummary = dynamic(() => import('@/components/dashboard/PerformanceSummary'), { loading: () => <SkeletonCard /> })
+const DividendIncome = dynamic(() => import('@/components/dashboard/DividendIncome'), { loading: () => <SkeletonCard /> })
+const ProjectionSimulator = dynamic(() => import('@/components/dashboard/ProjectionSimulator'), { loading: () => <SkeletonChart /> })
+const RiskMetrics = dynamic(() => import('@/components/dashboard/RiskMetrics'), { loading: () => <SkeletonCard /> })
+const MonthlyPerformance = dynamic(() => import('@/components/dashboard/MonthlyPerformance'), { loading: () => <SkeletonChart /> })
+const RebalanceSuggestions = dynamic(() => import('@/components/dashboard/RebalanceSuggestions'), { loading: () => <SkeletonCard /> })
+const GainsReport = dynamic(() => import('@/components/dashboard/GainsReport'), { loading: () => <SkeletonCard /> })
+
+import FinancialHealth from '@/components/dashboard/FinancialHealth'
 import RecentTransactions from '@/components/dashboard/RecentTransactions'
 import AssetAllocation from '@/components/dashboard/AssetAllocation'
 import InvestmentClassBreakdown from '@/components/dashboard/InvestmentClassBreakdown'
-import PerformanceSummary from '@/components/dashboard/PerformanceSummary'
-import DividendIncome from '@/components/dashboard/DividendIncome'
 import ConcentrationRisk from '@/components/dashboard/ConcentrationRisk'
 import GoalTracker from '@/components/dashboard/GoalTracker'
-import ProjectionSimulator from '@/components/dashboard/ProjectionSimulator'
-import RiskMetrics from '@/components/dashboard/RiskMetrics'
 import BenchmarkComparison from '@/components/dashboard/BenchmarkComparison'
 import InsightsBanner from '@/components/dashboard/InsightsBanner'
 import CurrencyImpact from '@/components/dashboard/CurrencyImpact'
-import EditAccountModal from '@/components/EditAccountModal'
-import OptimizeModal from '@/components/OptimizeModal'
-import AssetDetailModal from '@/components/dashboard/AssetDetailModal'
 import UpcomingDividends from '@/components/dashboard/UpcomingDividends'
 import ContinuousYieldDisplay from '@/components/dashboard/ContinuousYieldDisplay'
 import VariableRateDashboard from '@/components/dashboard/VariableRateDashboard'
 import MaturityCalendar from '@/components/dashboard/MaturityCalendar'
-import RebalanceSuggestions from '@/components/dashboard/RebalanceSuggestions'
 import IncomeCalendar from '@/components/dashboard/IncomeCalendar'
 import Watchlist from '@/components/dashboard/Watchlist'
 import NotificationCenter from '@/components/dashboard/NotificationCenter'
-import SectionCollapse from '@/components/dashboard/SectionCollapse'
-import CommandPalette from '@/components/dashboard/CommandPalette'
 import RecurringTransactions from '@/components/dashboard/RecurringTransactions'
 import FeeAnalysis from '@/components/dashboard/FeeAnalysis'
-import MobileNav from '@/components/dashboard/MobileNav'
 import DataQuality from '@/components/dashboard/DataQuality'
 import InstallPrompt from '@/components/dashboard/InstallPrompt'
 import EmptyState from '@/components/dashboard/EmptyState'
 import SnapshotComparison from '@/components/dashboard/SnapshotComparison'
 import SavingsRate from '@/components/dashboard/SavingsRate'
 import PerformanceAttribution from '@/components/dashboard/PerformanceAttribution'
-import PrintSummary from '@/components/dashboard/PrintSummary'
 import ValueBreakdown from '@/components/dashboard/ValueBreakdown'
-import OnboardingTour from '@/components/dashboard/OnboardingTour'
-import ErrorBanner from '@/components/dashboard/ErrorBanner'
-import ErrorBoundary from '@/components/ErrorBoundary'
 import PriceAlerts from '@/components/dashboard/PriceAlerts'
-import GainsReport from '@/components/dashboard/GainsReport'
 import PortfolioSelector from '@/components/dashboard/PortfolioSelector'
-import { checkPriceAlerts } from '@/lib/notifications'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -532,65 +536,6 @@ export default function DashboardPage() {
     URL.revokeObjectURL(url)
   }, [transactions, lots])
 
-  const handleReport = useCallback(async () => {
-    const { generateReport } = await import('@/lib/generateReport')
-    await generateReport({
-      items: enrichedItems, snapshots, transactions,
-      netWorth, totalAssets, lang, returnYTD, annualDividends,
-    })
-  }, [enrichedItems, snapshots, transactions, lang, netWorth, totalAssets])
-
-  const handleShare = useCallback(async () => {
-    const t = (es, en) => lang === 'es' ? es : en
-    const assets = enrichedItems.filter((it) => !it.isDebt)
-    const debts = enrichedItems.filter((it) => it.isDebt)
-    const debtTotal = debts.reduce((s, it) => s + Math.abs(getItemValue(it)), 0)
-
-    const byCat = {}
-    assets.forEach((it) => {
-      const cat = getTypeCategory(it)
-      byCat[cat] = (byCat[cat] || 0) + getItemValue(it)
-    })
-    const catLines = Object.entries(byCat)
-      .sort((a, b) => b[1] - a[1])
-      .map(([cat, val]) => `  ${cat}: ${formatCurrency(val)} (${totalAssets > 0 ? ((val / totalAssets) * 100).toFixed(1) : 0}%)`)
-      .join('\n')
-
-    const top5 = [...assets]
-      .map((it) => ({ name: it.name || it.symbol, value: getItemValue(it) }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5)
-      .map((it) => `  ${it.name}: ${formatCurrency(it.value)}`)
-      .join('\n')
-
-    const text = [
-      `⚡ ${t('Mi Portafolio', 'My Portfolio')} — Chispudo`,
-      '',
-      `${t('Patrimonio Neto', 'Net Worth')}: ${formatCurrency(netWorth)}`,
-      `${t('Activos', 'Assets')}: ${formatCurrency(totalAssets)}`,
-      debtTotal > 0 ? `${t('Deuda', 'Debt')}: ${formatCurrency(debtTotal)}` : null,
-      returnYTD ? `${t('Retorno YTD', 'YTD Return')}: ${returnYTD >= 0 ? '+' : ''}${returnYTD.toFixed(2)}%` : null,
-      '',
-      `${t('Distribución', 'Allocation')}:`,
-      catLines,
-      '',
-      `Top 5:`,
-      top5,
-      '',
-      `${t('Posiciones', 'Positions')}: ${enrichedItems.length}`,
-      '',
-      `chispu.xyz`,
-    ].filter(Boolean).join('\n')
-
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: 'Chispudo Portfolio', text })
-      } catch {}
-    } else {
-      await navigator.clipboard.writeText(text)
-      alert(t('Resumen copiado al portapapeles', 'Summary copied to clipboard'))
-    }
-  }, [enrichedItems, netWorth, totalAssets, returnYTD, lang])
 
   useEffect(() => {
     const handler = (e) => {
@@ -604,23 +549,6 @@ export default function DashboardPage() {
     return () => window.removeEventListener('keydown', handler)
   }, [handleExport, handleRefresh])
 
-  const handleCmdAction = useCallback((action, data) => {
-    switch (action) {
-      case 'add': setModal('account'); break
-      case 'import': setModal('import'); break
-      case 'export': handleExport(); break
-      case 'report': handleReport(); break
-      case 'print': setModal('print'); break
-      case 'share': handleShare(); break
-      case 'transfer': setModal('transfer'); break
-      case 'settings': setModal('settings'); break
-      case 'refresh': handleRefresh(); break
-      case 'theme': handleSetTheme(theme === 'dark' ? 'light' : 'dark'); break
-      case 'lang': handleSetLang('toggle'); break
-      case 'ibkr': setModal('ibkr'); break
-      case 'viewItem': setDetailItem(data); break
-    }
-  }, [handleExport, handleReport, handleRefresh, handleSetTheme, handleSetLang, theme])
 
   const handleIBKRSync = useCallback(async (data, mode = 'merge') => {
     if (mode === 'replace') {
@@ -757,7 +685,8 @@ export default function DashboardPage() {
       convert,
       baseCurrency,
     })
-    return { returnYTD: pct, ytdChange: abs }
+    const clampedPct = Math.max(-200, Math.min(200, pct))
+    return { returnYTD: clampedPct, ytdChange: abs }
   }, [jan1Value, netWorth, transactions, convert, baseCurrency, snapshots, convertSnapshot])
 
   const annualDividends = useMemo(() => {
@@ -767,6 +696,84 @@ export default function DashboardPage() {
       return s + convert(amt, tx.currency || 'USD', baseCurrency)
     }, 0)
   }, [transactions, convert, baseCurrency])
+
+  const handleReport = useCallback(async () => {
+    const { generateReport } = await import('@/lib/generateReport')
+    await generateReport({
+      items: enrichedItems, snapshots, transactions,
+      netWorth, totalAssets, lang, returnYTD, annualDividends,
+    })
+  }, [enrichedItems, snapshots, transactions, lang, netWorth, totalAssets, returnYTD, annualDividends])
+
+  const handleShare = useCallback(async () => {
+    const t = (es, en) => lang === 'es' ? es : en
+    const assets = enrichedItems.filter((it) => !it.isDebt)
+    const debts = enrichedItems.filter((it) => it.isDebt)
+    const debtTotal = debts.reduce((s, it) => s + Math.abs(getItemValue(it)), 0)
+
+    const byCat = {}
+    assets.forEach((it) => {
+      const cat = getTypeCategory(it)
+      byCat[cat] = (byCat[cat] || 0) + getItemValue(it)
+    })
+    const catLines = Object.entries(byCat)
+      .sort((a, b) => b[1] - a[1])
+      .map(([cat, val]) => `  ${cat}: ${formatCurrency(val)} (${totalAssets > 0 ? ((val / totalAssets) * 100).toFixed(1) : 0}%)`)
+      .join('\n')
+
+    const top5 = [...assets]
+      .map((it) => ({ name: it.name || it.symbol, value: getItemValue(it) }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5)
+      .map((it) => `  ${it.name}: ${formatCurrency(it.value)}`)
+      .join('\n')
+
+    const text = [
+      `⚡ ${t('Mi Portafolio', 'My Portfolio')} — Chispudo`,
+      '',
+      `${t('Patrimonio Neto', 'Net Worth')}: ${formatCurrency(netWorth)}`,
+      `${t('Activos', 'Assets')}: ${formatCurrency(totalAssets)}`,
+      debtTotal > 0 ? `${t('Deuda', 'Debt')}: ${formatCurrency(debtTotal)}` : null,
+      returnYTD ? `${t('Retorno YTD', 'YTD Return')}: ${returnYTD >= 0 ? '+' : ''}${returnYTD.toFixed(2)}%` : null,
+      '',
+      `${t('Distribución', 'Allocation')}:`,
+      catLines,
+      '',
+      `Top 5:`,
+      top5,
+      '',
+      `${t('Posiciones', 'Positions')}: ${enrichedItems.length}`,
+      '',
+      `chispu.xyz`,
+    ].filter(Boolean).join('\n')
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Chispudo Portfolio', text })
+      } catch {}
+    } else {
+      await navigator.clipboard.writeText(text)
+      alert(t('Resumen copiado al portapapeles', 'Summary copied to clipboard'))
+    }
+  }, [enrichedItems, netWorth, totalAssets, returnYTD, lang])
+
+  const handleCmdAction = useCallback((action, data) => {
+    switch (action) {
+      case 'add': setModal('account'); break
+      case 'import': setModal('import'); break
+      case 'export': handleExport(); break
+      case 'report': handleReport(); break
+      case 'print': setModal('print'); break
+      case 'share': handleShare(); break
+      case 'transfer': setModal('transfer'); break
+      case 'settings': setModal('settings'); break
+      case 'refresh': handleRefresh(); break
+      case 'theme': handleSetTheme(theme === 'dark' ? 'light' : 'dark'); break
+      case 'lang': handleSetLang('toggle'); break
+      case 'ibkr': setModal('ibkr'); break
+      case 'viewItem': setDetailItem(data); break
+    }
+  }, [handleExport, handleReport, handleRefresh, handleSetTheme, handleSetLang, theme])
 
   const estimatedAnnualIncome = useMemo(() => {
     let total = 0
@@ -792,7 +799,7 @@ export default function DashboardPage() {
   }, [portfolioItems, convert, baseCurrency])
 
   const benchmarkSymbol = settings?.benchmarkSymbol || '%5EGSPC'
-  const { benchmarkData, benchmarkReturn, benchmarkName, loading: benchmarkLoading } = useBenchmark('YTD', benchmarkSymbol)
+  const { benchmarkData, benchmarkReturn, benchmarkName, loading: benchmarkLoading, error: benchmarkError } = useBenchmark('YTD', benchmarkSymbol)
 
   const netContributions = useMemo(() => {
     return computeNetContributions(transactions, convert, baseCurrency).netContributions
@@ -935,6 +942,8 @@ export default function DashboardPage() {
           )}
         </div>
 
+        <h1 className="sr-only">{lang === 'es' ? 'Patrimonio — Dashboard' : 'Net Worth — Dashboard'}</h1>
+
         {/* Error Banner */}
         <ErrorBanner pricesError={pricesError} ratesError={ratesError} lang={lang} />
 
@@ -963,6 +972,7 @@ export default function DashboardPage() {
 
         {/* ═══ OVERVIEW ═══ */}
         {portfolioItems.length > 0 && <>
+        <ErrorBoundary lang={lang}>
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6 items-start">
           <div className="lg:col-span-2 flex flex-col gap-4">
             <NetWorthCard
@@ -995,6 +1005,7 @@ export default function DashboardPage() {
             <SnapshotComparison snapshots={snapshots} items={portfolioItems} lang={lang} />
           </div>
         </div>
+        </ErrorBoundary>
 
         {/* ═══ PERFORMANCE & RISK ═══ */}
         <SectionCollapse title={lang === 'es' ? 'Rendimiento y Riesgo' : 'Performance & Risk'} id="perf-risk">

@@ -1,16 +1,15 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 
 export default function SectionCollapse({ title, id, children, defaultOpen = true }) {
-  const [open, setOpen] = useState(defaultOpen)
-
-  useEffect(() => {
+  const [open, setOpen] = useState(() => {
     if (typeof window !== 'undefined' && id) {
       const saved = localStorage.getItem(`section-${id}`)
-      if (saved !== null) setOpen(saved === '1')
+      if (saved !== null) return saved === '1'
     }
-  }, [id])
+    return defaultOpen
+  })
 
   const toggle = () => {
     const next = !open

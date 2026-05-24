@@ -131,7 +131,7 @@ export default function FinancesPage() {
       <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-bold text-white">{t('Finanzas Personales', 'Personal Finances')}</h2>
+            <h1 className="text-lg font-bold text-white">{t('Finanzas Personales', 'Personal Finances')}</h1>
             <p className="text-xs text-slate-500">{t('Ingresos y gastos', 'Income & expenses')}</p>
           </div>
           <div className="flex items-center gap-3">

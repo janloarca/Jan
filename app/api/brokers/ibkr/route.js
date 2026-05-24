@@ -124,8 +124,17 @@ export async function POST(request) {
   const { uid, error } = await verifyAuth(request)
   if (error) return error
 
-  const body = await request.json()
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
   const { action } = body
+
+  if (!action || !['sync', 'save-credentials', 'get-credentials'].includes(action)) {
+    return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
+  }
 
   if (action === 'sync') {
     let { token, queryId } = body
@@ -144,8 +153,12 @@ export async function POST(request) {
       if (!queryId) queryId = doc.data().flexQueryId
     }
 
-    if (token.length > 200 || queryId.length > 50) {
+    if (typeof token !== 'string' || typeof queryId !== 'string' || token.length > 200 || queryId.length > 50) {
       return NextResponse.json({ error: 'Invalid credentials format' }, { status: 400 })
+    }
+
+    if (!/^[a-zA-Z0-9]+$/.test(queryId)) {
+      return NextResponse.json({ error: 'Invalid query ID format' }, { status: 400 })
     }
 
     try {
@@ -169,30 +182,40 @@ export async function POST(request) {
     const db = getAdminDb()
     if (!db) return NextResponse.json({ error: 'Server not configured' }, { status: 500 })
 
-    if (token && queryId) {
-      await db.collection('users').doc(uid).collection('settings').doc('ibkr').set({
-        flexToken: token,
-        flexQueryId: queryId,
-        updatedAt: new Date().toISOString(),
-      })
-    } else {
-      await db.collection('users').doc(uid).collection('settings').doc('ibkr').delete()
+    try {
+      if (token && queryId) {
+        await db.collection('users').doc(uid).collection('settings').doc('ibkr').set({
+          flexToken: token,
+          flexQueryId: queryId,
+          updatedAt: new Date().toISOString(),
+        })
+      } else {
+        await db.collection('users').doc(uid).collection('settings').doc('ibkr').delete()
+      }
+      return NextResponse.json({ saved: true })
+    } catch (err) {
+      console.error('[api/ibkr] save-credentials error:', err.message)
+      return NextResponse.json({ error: 'Failed to save credentials' }, { status: 500 })
     }
-    return NextResponse.json({ saved: true })
   }
 
   if (action === 'get-credentials') {
     const db = getAdminDb()
     if (!db) return NextResponse.json({ error: 'Server not configured' }, { status: 500 })
-    const doc = await db.collection('users').doc(uid).collection('settings').doc('ibkr').get()
-    if (!doc.exists) return NextResponse.json({ configured: false })
-    const data = doc.data()
-    return NextResponse.json({
-      configured: true,
-      flexQueryId: data.flexQueryId,
-      hasToken: !!data.flexToken,
-      lastSync: data.lastSync || null,
-    })
+    try {
+      const doc = await db.collection('users').doc(uid).collection('settings').doc('ibkr').get()
+      if (!doc.exists) return NextResponse.json({ configured: false })
+      const data = doc.data()
+      return NextResponse.json({
+        configured: true,
+        flexQueryId: data.flexQueryId,
+        hasToken: !!data.flexToken,
+        lastSync: data.lastSync || null,
+      })
+    } catch (err) {
+      console.error('[api/ibkr] get-credentials error:', err.message)
+      return NextResponse.json({ error: 'Failed to load credentials' }, { status: 500 })
+    }
   }
 
   return NextResponse.json({ error: 'Invalid action' }, { status: 400 })

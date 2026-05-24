@@ -53,11 +53,23 @@ function buildGeometry(values, mode, height, width, pad, extraSeries) {
   return { points, baselineY, yTicks, cw, ch }
 }
 
+function findClosestBenchmark(sorted, targetTs) {
+  let lo = 0, hi = sorted.length - 1
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (sorted[mid].ts < targetTs) lo = mid + 1
+    else hi = mid
+  }
+  if (lo > 0 && Math.abs(sorted[lo - 1].ts - targetTs) < Math.abs(sorted[lo].ts - targetTs)) lo--
+  return sorted[lo]
+}
+
 export default function PortfolioGrowthChart({ items, snapshots, transactions, lang, convert, baseCurrency, benchmarkSymbol, benchmarkName }) {
   const [period, setPeriod] = useState('YTD')
   const [hoverIdx, setHoverIdx] = useState(null)
   const [dataPoints, setDataPoints] = useState([])
   const [loading, setLoading] = useState(false)
+  const [fetchError, setFetchError] = useState(null)
   const [staticTotal, setStaticTotal] = useState(0)
   const [viewMode, setViewMode] = useState('value')
   const [returnMode, setReturnMode] = useState('twr')
@@ -70,6 +82,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
   const fetchHistory = useCallback(async () => {
     if (!items || items.length === 0) return
     setLoading(true)
+    setFetchError(null)
     try {
       const apiPeriod = period === 'MTD' ? '1M' : period
       const res = await authFetch('/api/prices/portfolio-history', {
@@ -96,6 +109,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
       }
     } catch (err) {
       console.error('Failed to fetch portfolio history:', err)
+      setFetchError(t('Error cargando historial', 'Failed to load history'))
     }
     setLoading(false)
   }, [items, period])
@@ -186,36 +200,27 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
 
   const returnData = returnMode === 'twr' ? twrData : mwrData
 
+  const sortedBenchmark = useMemo(() => {
+    if (!benchmarkPts || benchmarkPts.length < 2) return null
+    return [...benchmarkPts].sort((a, b) => a.ts - b.ts)
+  }, [benchmarkPts])
+
   const benchmarkReturn = useMemo(() => {
-    if (!benchmarkPts || benchmarkPts.length < 2 || chartData.length < 2) return null
-    const startTs = chartData[0].ts
-    let bStart = null, bEnd = null
-    let minStartDiff = Infinity, minEndDiff = Infinity
-    for (const bp of benchmarkPts) {
-      const dS = Math.abs(bp.ts - startTs)
-      if (dS < minStartDiff) { minStartDiff = dS; bStart = bp.close }
-      const dE = Math.abs(bp.ts - chartData[chartData.length - 1].ts)
-      if (dE < minEndDiff) { minEndDiff = dE; bEnd = bp.close }
-    }
-    return bStart > 0 ? ((bEnd - bStart) / bStart) * 100 : null
-  }, [benchmarkPts, chartData])
+    if (!sortedBenchmark || chartData.length < 2) return null
+    const bStart = findClosestBenchmark(sortedBenchmark, chartData[0].ts)
+    const bEnd = findClosestBenchmark(sortedBenchmark, chartData[chartData.length - 1].ts)
+    return bStart.close > 0 ? ((bEnd.close - bStart.close) / bStart.close) * 100 : null
+  }, [sortedBenchmark, chartData])
 
   const benchmarkReturnSeries = useMemo(() => {
-    if (!benchmarkPts || benchmarkPts.length < 2 || chartData.length < 2) return null
-    const sorted = [...benchmarkPts].sort((a, b) => a.ts - b.ts)
-    const baseClose = sorted[0].close
+    if (!sortedBenchmark || chartData.length < 2) return null
+    const baseClose = sortedBenchmark[0].close
     if (baseClose <= 0) return null
-    const series = chartData.map((dp) => {
-      let closest = sorted[0]
-      let minDiff = Infinity
-      for (const bp of sorted) {
-        const diff = Math.abs(bp.ts - dp.ts)
-        if (diff < minDiff) { minDiff = diff; closest = bp }
-      }
+    return chartData.map((dp) => {
+      const closest = findClosestBenchmark(sortedBenchmark, dp.ts)
       return ((closest.close - baseClose) / baseClose) * 100
     })
-    return series
-  }, [benchmarkPts, chartData])
+  }, [sortedBenchmark, chartData])
 
   const width = 650
   const chartHeight = 260
@@ -294,6 +299,17 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
             <div className="w-4 h-4 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
             {t('Cargando datos...', 'Loading data...')}
           </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (fetchError && chartData.length < 2) {
+    return (
+      <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-5 card-primary">
+        <div className="flex flex-col items-center justify-center min-h-[200px] gap-2">
+          <p className="text-red-400 text-sm">{fetchError}</p>
+          <button onClick={fetchHistory} className="text-xs text-blue-400 hover:text-blue-300">{t('Reintentar', 'Retry')}</button>
         </div>
       </div>
     )

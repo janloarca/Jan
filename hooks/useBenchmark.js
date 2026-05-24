@@ -16,16 +16,24 @@ export const BENCHMARKS = {
 export function useBenchmark(period = 'YTD', symbol = '%5EGSPC') {
   const [benchmarkData, setBenchmarkData] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
 
   const fetchBenchmark = useCallback(async () => {
     setLoading(true)
+    setError(null)
     try {
       const res = await fetch(`/api/prices/benchmark?period=${encodeURIComponent(period)}&symbol=${encodeURIComponent(symbol)}`)
       if (res.ok) {
         const data = await res.json()
         setBenchmarkData(data)
+      } else {
+        setError('Failed to fetch benchmark data')
       }
-    } catch {}
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        setError(err.message || 'Network error')
+      }
+    }
     setLoading(false)
   }, [period, symbol])
 
@@ -36,5 +44,5 @@ export function useBenchmark(period = 'YTD', symbol = '%5EGSPC') {
   const benchmarkReturn = benchmarkData?.periodReturn ?? benchmarkData?.ytdReturn ?? null
   const benchmarkName = BENCHMARKS[symbol]?.short || 'SPX'
 
-  return { benchmarkData, benchmarkReturn, benchmarkName, loading }
+  return { benchmarkData, benchmarkReturn, benchmarkName, loading, error, refetch: fetchBenchmark }
 }

@@ -64,6 +64,7 @@ export function useFirestoreItems() {
     let unsubPortfolios = () => {}
     let unsubFinanceTx = () => {}
     let cancelled = false
+    let deferTimer = null
 
     async function init() {
       const { db, auth, fs } = await getFirebase()
@@ -93,22 +94,6 @@ export function useFirestoreItems() {
           }
         }
       )
-      unsubAlerts = fs.onSnapshot(
-        fs.collection(db, `users/${currentUid}/alerts`),
-        (snap) => { if (!cancelled) setAlerts(snap.docs.map((d) => ({ id: d.id, ...d.data() }))) }
-      )
-      unsubLots = fs.onSnapshot(
-        fs.collection(db, `users/${currentUid}/lots`),
-        (snap) => { if (!cancelled) setLots(snap.docs.map((d) => ({ id: d.id, ...d.data() }))) }
-      )
-      unsubPortfolios = fs.onSnapshot(
-        fs.collection(db, `users/${currentUid}/portfolios`),
-        (snap) => { if (!cancelled) setPortfolios(snap.docs.map((d) => ({ id: d.id, ...d.data() }))) }
-      )
-      unsubFinanceTx = fs.onSnapshot(
-        fs.query(fs.collection(db, `users/${currentUid}/financeTransactions`), fs.orderBy('date', 'desc')),
-        (snap) => { if (!cancelled) setFinanceTransactions(snap.docs.map((d) => ({ id: d.id, ...d.data() }))) }
-      )
 
       try {
         const goalsDoc = await fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'goals'))
@@ -118,10 +103,30 @@ export function useFirestoreItems() {
       } catch {}
 
       if (!cancelled) setLoading(false)
+
+      deferTimer = setTimeout(() => {
+        if (cancelled) return
+        unsubAlerts = fs.onSnapshot(
+          fs.collection(db, `users/${currentUid}/alerts`),
+          (snap) => { if (!cancelled) setAlerts(snap.docs.map((d) => ({ id: d.id, ...d.data() }))) }
+        )
+        unsubLots = fs.onSnapshot(
+          fs.collection(db, `users/${currentUid}/lots`),
+          (snap) => { if (!cancelled) setLots(snap.docs.map((d) => ({ id: d.id, ...d.data() }))) }
+        )
+        unsubPortfolios = fs.onSnapshot(
+          fs.collection(db, `users/${currentUid}/portfolios`),
+          (snap) => { if (!cancelled) setPortfolios(snap.docs.map((d) => ({ id: d.id, ...d.data() }))) }
+        )
+        unsubFinanceTx = fs.onSnapshot(
+          fs.query(fs.collection(db, `users/${currentUid}/financeTransactions`), fs.orderBy('date', 'desc')),
+          (snap) => { if (!cancelled) setFinanceTransactions(snap.docs.map((d) => ({ id: d.id, ...d.data() }))) }
+        )
+      }, 2000)
     }
 
     init()
-    return () => { cancelled = true; unsubItems(); unsubSnapshots(); unsubTransactions(); unsubAlerts(); unsubLots(); unsubPortfolios(); unsubFinanceTx() }
+    return () => { cancelled = true; if (deferTimer) clearTimeout(deferTimer); unsubItems(); unsubSnapshots(); unsubTransactions(); unsubAlerts(); unsubLots(); unsubPortfolios(); unsubFinanceTx() }
   }, [])
 
   const addItem = useCallback(async (item) => {
@@ -140,21 +145,27 @@ export function useFirestoreItems() {
 
   const deleteItem = useCallback(async (itemId) => {
     if (!uid) return
-    const { db, fs } = await getFirebase()
-    const snap = await fs.getDocs(fs.collection(db, `users/${uid}/items`))
-    const orphans = snap.docs.filter(d => {
-      const data = d.data()
-      return d.id !== itemId && (data.incomeDestination === itemId || data.capitalDestination === itemId)
-    })
-    for (const orphan of orphans) {
-      const updates = {}
-      const data = orphan.data()
-      if (data.incomeDestination === itemId) updates.incomeDestination = ''
-      if (data.capitalDestination === itemId) updates.capitalDestination = ''
-      await fs.updateDoc(orphan.ref, updates)
+    const prev = items
+    setItems((cur) => cur.filter((it) => it.id !== itemId))
+    try {
+      const { db, fs } = await getFirebase()
+      const snap = await fs.getDocs(fs.collection(db, `users/${uid}/items`))
+      const batch = fs.writeBatch(db)
+      snap.docs.forEach((d) => {
+        if (d.id === itemId) return
+        const data = d.data()
+        const updates = {}
+        if (data.incomeDestination === itemId) updates.incomeDestination = ''
+        if (data.capitalDestination === itemId) updates.capitalDestination = ''
+        if (Object.keys(updates).length > 0) batch.update(d.ref, updates)
+      })
+      batch.delete(fs.doc(db, `users/${uid}/items`, itemId))
+      await batch.commit()
+    } catch (err) {
+      setItems(prev)
+      throw err
     }
-    await fs.deleteDoc(fs.doc(db, `users/${uid}/items`, itemId))
-  }, [uid])
+  }, [uid, items])
 
   const deleteAllItems = useCallback(async () => {
     if (!uid) return

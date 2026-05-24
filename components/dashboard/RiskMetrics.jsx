@@ -10,8 +10,9 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
     const vol = computeVolatility({ returns })
 
     const valueSeries = (snapshots || [])
+      .filter((s) => s.date)
       .map((s) => ({ ts: new Date(s.date).getTime(), value: s.netWorthUSD ?? s.totalActivosUSD ?? 0 }))
-      .filter((p) => !isNaN(p.ts) && p.value > 0)
+      .filter((p) => !isNaN(p.ts) && isFinite(p.ts) && p.value > 0)
       .sort((a, b) => a.ts - b.ts)
     const drawdown = computeMaxDrawdown(valueSeries)
 
@@ -40,7 +41,7 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
     return { sharpe: sharpeResult.sharpe, vol, drawdown, beta }
   }, [snapshots, benchmarkData, transactions, convert, baseCurrency])
 
-  const hasData = snapshots && snapshots.length >= 3
+  const hasData = snapshots && snapshots.length >= 15
   const t = (es, en) => lang === 'es' ? es : en
 
   const sharpeColor = metrics.sharpe == null ? 'text-slate-500'
@@ -82,7 +83,7 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
 
       {!hasData ? (
         <div className="text-center py-4 text-sm text-slate-600">
-          {t('Se necesitan más datos históricos (mín. 3 snapshots)', 'More historical data needed (min. 3 snapshots)')}
+          {t('Se necesitan más datos históricos (mín. 15 snapshots)', 'More historical data needed (min. 15 snapshots)')}
         </div>
       ) : (
         <>

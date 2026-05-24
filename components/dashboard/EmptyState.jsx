@@ -1,11 +1,15 @@
 'use client'
 
+import { BarChart3, Plus, Upload, Download, TrendingUp, Bitcoin, Landmark, Briefcase, Home, Gem, Building2, CreditCard } from 'lucide-react'
+
 export default function EmptyState({ onAdd, onImport, onTemplate, lang }) {
   const t = (es, en) => lang === 'es' ? es : en
 
   return (
     <div className="max-w-2xl mx-auto py-12 text-center">
-      <div className="text-6xl mb-6">📊</div>
+      <div className="mb-6 flex justify-center">
+        <BarChart3 size={48} className="text-blue-400" />
+      </div>
       <h2 className="text-2xl font-bold text-white mb-3">
         {t('Bienvenido a Chispudo', 'Welcome to Chispudo')}
       </h2>
@@ -19,21 +23,21 @@ export default function EmptyState({ onAdd, onImport, onTemplate, lang }) {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         <button onClick={onAdd}
           className="bg-blue-600 hover:bg-blue-500 text-white rounded-xl p-5 transition-colors text-left">
-          <div className="text-2xl mb-2">+</div>
+          <Plus size={24} className="mb-2" />
           <div className="font-semibold text-sm mb-1">{t('Agregar manualmente', 'Add manually')}</div>
           <div className="text-xs text-blue-200/70">{t('Una posición a la vez', 'One position at a time')}</div>
         </button>
 
         <button onClick={onImport}
           className="bg-[#1e293b] hover:bg-[#283548] border border-[#334155] text-white rounded-xl p-5 transition-colors text-left">
-          <div className="text-2xl mb-2">📁</div>
+          <Upload size={24} className="mb-2 text-slate-400" />
           <div className="font-semibold text-sm mb-1">{t('Importar archivo', 'Import file')}</div>
           <div className="text-xs text-slate-400">{t('Excel o CSV de tu broker', 'Excel or CSV from your broker')}</div>
         </button>
 
         <button onClick={onTemplate}
           className="bg-[#1e293b] hover:bg-[#283548] border border-[#334155] text-white rounded-xl p-5 transition-colors text-left">
-          <div className="text-2xl mb-2">📥</div>
+          <Download size={24} className="mb-2 text-slate-400" />
           <div className="font-semibold text-sm mb-1">{t('Descargar plantilla', 'Download template')}</div>
           <div className="text-xs text-slate-400">{t('Llena y sube después', 'Fill in and upload later')}</div>
         </button>
@@ -45,17 +49,17 @@ export default function EmptyState({ onAdd, onImport, onTemplate, lang }) {
         </h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {[
-            { icon: '📈', label: 'Stocks & ETFs' },
-            { icon: '₿', label: 'Crypto & DeFi' },
-            { icon: '🏛', label: t('Bonos & CDTs', 'Bonds & CDs') },
-            { icon: '💼', label: t('Fondos', 'Funds') },
-            { icon: '🏠', label: t('Inmuebles', 'Real Estate') },
-            { icon: '🔮', label: t('SAFEs & VC', 'SAFEs & VC') },
-            { icon: '🏦', label: t('Bancos & Cash', 'Banks & Cash') },
-            { icon: '💳', label: t('Deudas', 'Debts') },
+            { Icon: TrendingUp, label: 'Stocks & ETFs', color: 'text-blue-400' },
+            { Icon: Bitcoin, label: 'Crypto & DeFi', color: 'text-amber-400' },
+            { Icon: Landmark, label: t('Bonos & CDTs', 'Bonds & CDs'), color: 'text-emerald-400' },
+            { Icon: Briefcase, label: t('Fondos', 'Funds'), color: 'text-purple-400' },
+            { Icon: Home, label: t('Inmuebles', 'Real Estate'), color: 'text-orange-400' },
+            { Icon: Gem, label: t('SAFEs & VC', 'SAFEs & VC'), color: 'text-pink-400' },
+            { Icon: Building2, label: t('Bancos & Cash', 'Banks & Cash'), color: 'text-slate-400' },
+            { Icon: CreditCard, label: t('Deudas', 'Debts'), color: 'text-red-400' },
           ].map((type) => (
             <div key={type.label} className="flex items-center gap-2 text-xs text-slate-400 py-1">
-              <span>{type.icon}</span>
+              <type.Icon size={14} className={type.color} />
               <span>{type.label}</span>
             </div>
           ))}

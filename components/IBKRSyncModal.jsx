@@ -81,12 +81,12 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   }, [preview, onSyncComplete, syncMode])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="ibkr-modal-title">
       <div className="bg-[#1e293b] border border-[#334155] rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#334155]">
           <div className="flex items-center gap-2">
             <span className="text-orange-400 text-lg font-bold">IBKR</span>
-            <h2 className="text-lg font-bold text-white">{t('Sincronizar Interactive Brokers', 'Sync Interactive Brokers')}</h2>
+            <h2 id="ibkr-modal-title" className="text-lg font-bold text-white">{t('Sincronizar Interactive Brokers', 'Sync Interactive Brokers')}</h2>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-xl">&times;</button>
         </div>
@@ -241,9 +241,9 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                             <td className="py-1.5 px-2 text-white max-w-[150px] truncate">{item.name}</td>
                             <td className="py-1.5 px-2 text-slate-400">{item.type}</td>
                             <td className="py-1.5 px-2 text-right text-slate-300">{item.quantity.toLocaleString()}</td>
-                            <td className="py-1.5 px-2 text-right text-slate-300">${item.currentPrice.toFixed(2)}</td>
-                            <td className={`py-1.5 px-2 text-right font-medium ${item._ibkrUnrealizedPL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                              {item._ibkrUnrealizedPL >= 0 ? '+' : ''}{item._ibkrUnrealizedPL.toFixed(2)}
+                            <td className="py-1.5 px-2 text-right text-slate-300">${(item.currentPrice ?? 0).toFixed(2)}</td>
+                            <td className={`py-1.5 px-2 text-right font-medium ${(item._ibkrUnrealizedPL ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                              {(item._ibkrUnrealizedPL ?? 0) >= 0 ? '+' : ''}{(item._ibkrUnrealizedPL ?? 0).toFixed(2)}
                             </td>
                           </tr>
                         ))}
@@ -276,7 +276,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                             <td className="py-1.5 px-2 text-white">{tx.symbol}</td>
                             <td className={`py-1.5 px-2 font-medium ${tx.type === 'BUY' ? 'text-emerald-400' : 'text-red-400'}`}>{tx.type}</td>
                             <td className="py-1.5 px-2 text-right text-slate-300">{tx.quantity}</td>
-                            <td className="py-1.5 px-2 text-right text-slate-300">${tx.pricePerUnit.toFixed(2)}</td>
+                            <td className="py-1.5 px-2 text-right text-slate-300">${(tx.pricePerUnit ?? 0).toFixed(2)}</td>
                           </tr>
                         ))}
                       </tbody>

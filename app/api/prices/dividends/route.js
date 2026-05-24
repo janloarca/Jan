@@ -85,7 +85,9 @@ export async function GET(request) {
     return NextResponse.json({ error: 'Invalid symbol' }, { status: 400 })
   }
   const info = await fetchDividendInfo(symbol)
-  return NextResponse.json(info)
+  return NextResponse.json(info, {
+    headers: { 'Cache-Control': 'public, max-age=3600, s-maxage=7200, stale-while-revalidate=86400' },
+  })
 }
 
 export async function POST(request) {

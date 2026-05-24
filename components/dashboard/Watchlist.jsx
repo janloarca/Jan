@@ -10,6 +10,8 @@ export default function Watchlist({ lang }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState([])
   const [searching, setSearching] = useState(false)
+  const [searchError, setSearchError] = useState(null)
+  const [priceError, setPriceError] = useState(false)
   const debounceRef = useRef(null)
 
   useEffect(() => {
@@ -30,13 +32,18 @@ export default function Watchlist({ lang }) {
     if (q.length < 2) { setResults([]); return }
     debounceRef.current = setTimeout(async () => {
       setSearching(true)
+      setSearchError(null)
       try {
         const res = await fetch(`/api/prices/search?q=${encodeURIComponent(q)}`)
         if (res.ok) {
           const data = await res.json()
           setResults((data.results || []).slice(0, 6))
+        } else {
+          setSearchError(t('Error buscando', 'Search failed'))
         }
-      } catch {}
+      } catch {
+        setSearchError(t('Error de red', 'Network error'))
+      }
       setSearching(false)
     }, 400)
   }, [])
@@ -57,13 +64,14 @@ export default function Watchlist({ lang }) {
   useEffect(() => {
     if (items.length === 0) return
     const symbols = items.map((it) => ({ symbol: it.symbol, type: '' }))
+    setPriceError(false)
     fetch('/api/prices', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: symbols }),
     }).then((r) => r.ok ? r.json() : null)
-      .then((data) => { if (data?.prices) setPrices(data.prices) })
-      .catch(() => {})
+      .then((data) => { if (data?.prices) setPrices(data.prices); else setPriceError(true) })
+      .catch(() => { setPriceError(true) })
   }, [items])
 
   if (items.length === 0 && !adding) {
@@ -104,6 +112,7 @@ export default function Watchlist({ lang }) {
             autoFocus
             className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
           {searching && <p className="text-xs text-slate-600 mt-1 animate-pulse">{t('Buscando...', 'Searching...')}</p>}
+          {searchError && <p className="text-xs text-red-400 mt-1">{searchError}</p>}
           {results.length > 0 && (
             <div className="mt-1 space-y-0.5">
               {results.map((r) => (
@@ -118,6 +127,7 @@ export default function Watchlist({ lang }) {
         </div>
       )}
 
+      {priceError && <p className="text-xs text-red-400/70 mb-1">{t('No se pudieron cargar los precios', 'Could not load prices')}</p>}
       <div className="space-y-1.5">
         {items.map((it) => {
           const pd = prices[it.symbol] || prices[it.symbol?.toUpperCase()]

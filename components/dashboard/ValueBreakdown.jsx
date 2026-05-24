@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { formatCurrency, getItemValue } from './utils'
+import { formatCurrency, getItemValue, getTypeCategory } from './utils'
 
 const SECTOR_COLORS = [
   '#10b981', '#f59e0b', '#3b82f6', '#a855f7', '#ec4899',
@@ -29,7 +29,7 @@ export default function ValueBreakdown({ items, lang }) {
       const val = getItemValue(it)
       let key
       if (view === 'type') {
-        key = it.type || 'Other'
+        key = getTypeCategory(it.type)
       } else if (view === 'currency') {
         key = it._originalCurrency || it.currency || 'USD'
       } else {
@@ -40,6 +40,7 @@ export default function ValueBreakdown({ items, lang }) {
     })
     const colors = view === 'type' ? SECTOR_COLORS : view === 'currency' ? CURRENCY_COLORS : INSTITUTION_COLORS
     return Object.entries(groups)
+      .filter(([, value]) => Math.abs(value) > 0.01)
       .map(([name, value], i) => ({
         name,
         value,
