@@ -41,6 +41,37 @@ function parseFlexPositions(xml) {
   return positions
 }
 
+function parseTrades(xml) {
+  const trades = []
+  const tradeRegex = /<Trade[^>]*\/>/g
+  let match
+  while ((match = tradeRegex.exec(xml)) !== null) {
+    const tag = match[0]
+    const attr = (name) => {
+      const m = tag.match(new RegExp(`${name}="([^"]*)"`, 'i'))
+      return m ? m[1] : ''
+    }
+    const symbol = attr('symbol')
+    if (!symbol) continue
+    trades.push({
+      symbol: symbol.toUpperCase(),
+      description: attr('description') || symbol,
+      buySell: attr('buySell'),
+      quantity: parseFloat(attr('quantity')) || 0,
+      tradePrice: parseFloat(attr('tradePrice')) || 0,
+      proceeds: parseFloat(attr('proceeds')) || 0,
+      commission: parseFloat(attr('ibCommission') || attr('commission')) || 0,
+      currency: attr('currency') || 'USD',
+      tradeDate: attr('tradeDate') || attr('dateTime'),
+      accountId: attr('accountId'),
+      assetCategory: attr('assetCategory'),
+      costBasis: parseFloat(attr('cost')) || 0,
+      realizedPL: parseFloat(attr('fifoPnlRealized') || attr('realizedPL')) || 0,
+    })
+  }
+  return trades
+}
+
 function parseCashPositions(xml) {
   const positions = []
   const cashRegex = /<CashReport[^>]*\/>/g
@@ -165,12 +196,14 @@ export async function POST(request) {
       const xml = await fetchFlexReport(token, queryId)
       const positions = parseFlexPositions(xml)
       const cash = parseCashPositions(xml)
+      const trades = parseTrades(xml)
       const all = [...positions, ...cash]
 
       return NextResponse.json({
         positions: all,
+        trades,
         count: all.length,
-        timestamp: new Date().toISOString(),
+        syncedAt: new Date().toISOString(),
       })
     } catch (err) {
       return NextResponse.json({ error: err.message }, { status: 502 })
