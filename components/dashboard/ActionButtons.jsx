@@ -11,7 +11,7 @@ export default function ActionButtons({ onImport, onAddAccount, onTransfer, onEx
       </button>
       {onIBKR && (
         <button onClick={onIBKR}
-          className="px-4 py-2 text-body font-medium bg-orange-600/20 border border-orange-500/30 text-orange-400 rounded-lg hover:bg-orange-600/30 transition-colors flex items-center gap-1.5">
+          className="px-4 py-2 text-body font-medium bg-[var(--card-bg,#1e293b)] border border-[var(--card-border,#334155)] text-blue-400 rounded-lg hover:bg-[var(--input-bg,#283548)] transition-colors flex items-center gap-1.5">
           <RefreshCw size={14} /> IBKR Sync
         </button>
       )}
@@ -20,7 +20,7 @@ export default function ActionButtons({ onImport, onAddAccount, onTransfer, onEx
         <Plus size={14} /> {lang === 'es' ? 'Agregar Activo' : 'Add Asset'}
       </button>
       <button onClick={onTransfer}
-        className="px-4 py-2 text-body font-medium bg-[var(--card-bg,#1e293b)] border border-[var(--card-border,#334155)] text-emerald-400 rounded-lg hover:bg-[var(--input-bg,#283548)] transition-colors flex items-center gap-1.5">
+        className="px-4 py-2 text-body font-medium bg-[var(--card-bg,#1e293b)] border border-[var(--card-border,#334155)] text-[var(--text-secondary,#94a3b8)] rounded-lg hover:bg-[var(--input-bg,#283548)] transition-colors flex items-center gap-1.5">
         <ArrowLeftRight size={14} /> {lang === 'es' ? 'Transferir' : 'Transfer'}
       </button>
       <div className="ml-auto flex items-center gap-2">

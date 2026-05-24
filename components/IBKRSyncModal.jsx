@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { CheckCircle } from 'lucide-react'
 
 export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, savedQueryId, onSaveCredentials, lang = 'es', uid }) {
   const [token, setToken] = useState('')
@@ -85,7 +86,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       <div className="bg-[#1e293b] border border-[#334155] rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#334155]">
           <div className="flex items-center gap-2">
-            <span className="text-orange-400 text-lg font-bold">IBKR</span>
+            <span className="text-blue-400 text-lg font-bold">IBKR</span>
             <h2 id="ibkr-modal-title" className="text-lg font-bold text-white">{t('Sincronizar Interactive Brokers', 'Sync Interactive Brokers')}</h2>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-xl">&times;</button>
@@ -107,34 +108,34 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
 
                 <div className="space-y-3">
                   <div className="flex gap-3">
-                    <span className="shrink-0 w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 text-xs font-bold flex items-center justify-center">1</span>
+                    <span className="shrink-0 w-6 h-6 rounded-full bg-slate-700 text-slate-300 text-xs font-bold flex items-center justify-center">1</span>
                     <div>
                       <p className="text-xs text-white font-medium">{t('Crear el Flex Query (reporte automático)', 'Create the Flex Query (automatic report)')}</p>
                       <ol className="text-[11px] text-slate-400 mt-1 space-y-0.5 list-disc list-inside">
                         <li>{t('Inicia sesión en', 'Log in to')} <span className="text-blue-400 font-mono">interactivebrokers.com</span> → {t('Portal del Cliente', 'Client Portal')}</li>
                         <li>{t('Menú', 'Menu')} → <span className="text-white">Performance & Reports</span> → <span className="text-white">Flex Queries</span></li>
                         <li>{t('Click en', 'Click')} <span className="text-white">&quot;+&quot;</span> {t('para crear una nueva Activity Flex Query', 'to create a new Activity Flex Query')}</li>
-                        <li>{t('En secciones, selecciona', 'In sections, select')} <span className="text-emerald-400">Open Positions</span> {t('y', 'and')} <span className="text-emerald-400">Trades</span></li>
-                        <li>{t('Guarda y anota el', 'Save and note the')} <span className="text-amber-400 font-medium">Query ID</span> {t('(número que aparece junto al nombre)', '(number shown next to the name)')}</li>
+                        <li>{t('En secciones, selecciona', 'In sections, select')} <span className="text-white font-medium">Open Positions</span> {t('y', 'and')} <span className="text-white font-medium">Trades</span></li>
+                        <li>{t('Guarda y anota el', 'Save and note the')} <span className="text-white font-medium">Query ID</span> {t('(número que aparece junto al nombre)', '(number shown next to the name)')}</li>
                       </ol>
                     </div>
                   </div>
 
                   <div className="flex gap-3">
-                    <span className="shrink-0 w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 text-xs font-bold flex items-center justify-center">2</span>
+                    <span className="shrink-0 w-6 h-6 rounded-full bg-slate-700 text-slate-300 text-xs font-bold flex items-center justify-center">2</span>
                     <div>
                       <p className="text-xs text-white font-medium">{t('Generar el Token de acceso', 'Generate the access Token')}</p>
                       <ol className="text-[11px] text-slate-400 mt-1 space-y-0.5 list-disc list-inside">
                         <li>{t('En el Portal, ve a', 'In the Portal, go to')} <span className="text-white">Settings</span> → <span className="text-white">Account Settings</span></li>
                         <li>{t('Busca la sección', 'Find the section')} <span className="text-white">&quot;API&quot;</span> → <span className="text-white">Flex Web Service</span></li>
                         <li>{t('Click en', 'Click')} <span className="text-white">&quot;Create Token&quot;</span></li>
-                        <li>{t('Copia el', 'Copy the')} <span className="text-amber-400 font-medium">Token</span> {t('generado (cadena larga de letras y números)', 'generated (long string of letters and numbers)')}</li>
+                        <li>{t('Copia el', 'Copy the')} <span className="text-white font-medium">Token</span> {t('generado (cadena larga de letras y números)', 'generated (long string of letters and numbers)')}</li>
                       </ol>
                     </div>
                   </div>
 
                   <div className="flex gap-3">
-                    <span className="shrink-0 w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold flex items-center justify-center">3</span>
+                    <span className="shrink-0 w-6 h-6 rounded-full bg-slate-700 text-slate-300 text-xs font-bold flex items-center justify-center">3</span>
                     <div>
                       <p className="text-xs text-white font-medium">{t('Pega ambos valores aquí abajo y sincroniza', 'Paste both values below and sync')}</p>
                     </div>
@@ -143,8 +144,8 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
               </div>
 
               {/* Security info */}
-              <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
-                <p className="text-xs text-emerald-400 font-medium mb-1">{t('Seguridad', 'Security')}</p>
+              <div className="p-3 bg-slate-700/30 border border-[#334155] rounded-lg">
+                <p className="text-xs text-slate-300 font-medium mb-1">{t('Seguridad', 'Security')}</p>
                 <ul className="text-[11px] text-slate-400 space-y-0.5 list-disc list-inside">
                   <li>{t('El token de Flex es solo lectura — NO puede ejecutar órdenes ni transferir dinero',
                          'The Flex token is read-only — it CANNOT execute trades or transfer money')}</li>
@@ -156,10 +157,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
               </div>
 
               <div>
-                <label className="text-xs text-slate-400 mb-1 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                  Token *
-                </label>
+                <label className="text-xs text-slate-400 mb-1 block">Token *</label>
                 <input type="password" value={token} onChange={e => setToken(e.target.value)}
                   placeholder={decrypting ? t('Desencriptando...', 'Decrypting...') : t('Pega tu Flex Web Service Token aquí', 'Paste your Flex Web Service Token here')}
                   disabled={decrypting}
@@ -167,17 +165,14 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
               </div>
 
               <div>
-                <label className="text-xs text-slate-400 mb-1 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                  Query ID *
-                </label>
+                <label className="text-xs text-slate-400 mb-1 block">Query ID *</label>
                 <input type="text" value={queryId} onChange={e => setQueryId(e.target.value)}
                   placeholder={t('Ej: 123456', 'E.g.: 123456')}
                   className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono" />
               </div>
 
               <button onClick={handleSync} disabled={syncing || !token || !queryId || decrypting}
-                className="w-full py-2.5 bg-orange-600 text-white rounded-lg hover:bg-orange-500 disabled:opacity-50 transition-colors text-sm font-medium flex items-center justify-center gap-2">
+                className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium flex items-center justify-center gap-2">
                 {syncing ? (
                   <>
                     <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
@@ -209,7 +204,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {preview.accounts.map(acc => (
-                      <span key={acc} className="text-xs font-mono px-2 py-1 bg-orange-500/10 text-orange-400 rounded">
+                      <span key={acc} className="text-xs font-mono px-2 py-1 bg-slate-700 text-slate-300 rounded">
                         {acc}
                       </span>
                     ))}
@@ -237,7 +232,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                       <tbody>
                         {preview.items.map((item, i) => (
                           <tr key={i} className="border-b border-[#334155]/50">
-                            <td className="py-1.5 px-2 text-emerald-400 font-medium">{item.symbol}</td>
+                            <td className="py-1.5 px-2 text-white font-medium">{item.symbol}</td>
                             <td className="py-1.5 px-2 text-white max-w-[150px] truncate">{item.name}</td>
                             <td className="py-1.5 px-2 text-slate-400">{item.type}</td>
                             <td className="py-1.5 px-2 text-right text-slate-300">{item.quantity.toLocaleString()}</td>
@@ -331,7 +326,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
 
           {step === 'done' && result && (
             <div className="text-center py-6">
-              <div className="text-5xl mb-4">🎉</div>
+              <CheckCircle size={48} className="text-emerald-400 mx-auto mb-4" />
               <p className="text-white font-semibold text-lg mb-2">
                 {t('Sincronización exitosa', 'Sync successful')}
               </p>
