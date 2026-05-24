@@ -6,6 +6,7 @@ import DocumentVault from './DocumentVault'
 
 export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
   const [chartData, setChartData] = useState(null)
+  const [chartError, setChartError] = useState(null)
   const [loading, setLoading] = useState(true)
   const [range, setRange] = useState('1M')
   const [hoverIdx, setHoverIdx] = useState(null)
@@ -19,6 +20,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
     let cancelled = false
     async function fetchChart() {
       setLoading(true)
+      setChartError(null)
       try {
         const sym = encodeURIComponent(item.symbol)
         const interval = range === '1W' ? '15m' : range === '1M' ? '1d' : '1wk'
@@ -28,7 +30,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
         const data = await res.json()
         if (!cancelled) setChartData(data)
       } catch {
-        if (!cancelled) setChartData(null)
+        if (!cancelled) { setChartData(null); setChartError(true) }
       }
       if (!cancelled) setLoading(false)
     }
@@ -82,11 +84,11 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
   const hp = hoverIdx != null && points ? points[hoverIdx] : null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="asset-detail-title">
       <div className="bg-[#1e293b] border border-[#334155] rounded-xl shadow-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#334155]">
           <div>
-            <h2 className="text-lg font-bold text-white">{item.name || item.symbol}</h2>
+            <h2 id="asset-detail-title" className="text-lg font-bold text-white">{item.name || item.symbol}</h2>
             <span className="text-xs text-slate-500">{item.symbol} · {item.type}{item.subtype ? `/${item.subtype}` : ''} {item.institution ? `· ${item.institution}` : ''}</span>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
@@ -212,7 +214,9 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
               </div>
             ) : (
               <div className="h-[200px] bg-[#0f172a] rounded-lg flex items-center justify-center">
-                <span className="text-slate-600 text-sm">{t('Sin datos de precio disponibles', 'No price data available')}</span>
+                <span className={`text-sm ${chartError ? 'text-red-400/70' : 'text-slate-600'}`}>
+                  {chartError ? t('Error cargando datos', 'Failed to load data') : t('Sin datos de precio disponibles', 'No price data available')}
+                </span>
               </div>
             )}
           </div>

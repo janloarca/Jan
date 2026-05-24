@@ -33,7 +33,9 @@ export default function DocumentVault({ uid, itemId, lang }) {
     try {
       const list = await listDocuments(uid, itemId)
       setDocs(list.sort((a, b) => (b.uploadedAt || '').localeCompare(a.uploadedAt || '')))
-    } catch {}
+    } catch {
+      setError(t('Error cargando documentos', 'Failed to load documents'))
+    }
     setLoading(false)
   }, [uid, itemId, listDocuments])
 
@@ -60,7 +62,9 @@ export default function DocumentVault({ uid, itemId, lang }) {
     try {
       await deleteDocument(uid, itemId, doc.id, doc.storagePath)
       setDocs((prev) => prev.filter((d) => d.id !== doc.id))
-    } catch {}
+    } catch {
+      setError(t('Error al eliminar', 'Failed to delete'))
+    }
     setConfirmDelete(null)
   }
 

@@ -159,10 +159,10 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
 
   if (questions.length === 0) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="optimize-done-title">
         <div className="bg-[#1e293b] border border-[#334155] rounded-xl shadow-2xl max-w-md w-full p-6 text-center" onClick={(e) => e.stopPropagation()}>
           <div className="text-4xl mb-3">✅</div>
-          <h3 className="text-lg font-bold text-white mb-2">{t('Todo en orden', 'All good')}</h3>
+          <h3 id="optimize-done-title" className="text-lg font-bold text-white mb-2">{t('Todo en orden', 'All good')}</h3>
           <p className="text-sm text-slate-400 mb-4">{t('Tu portafolio tiene toda la información completa.', 'Your portfolio data is complete.')}</p>
           <button onClick={onClose} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 text-sm font-medium">{t('Cerrar', 'Close')}</button>
         </div>
@@ -217,10 +217,10 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
 
   if (isDone) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="optimize-complete-title">
         <div className="bg-[#1e293b] border border-[#334155] rounded-xl shadow-2xl max-w-md w-full p-6 text-center" onClick={(e) => e.stopPropagation()}>
           <div className="text-4xl mb-3">🎉</div>
-          <h3 className="text-lg font-bold text-white mb-2">{t('¡Listo!', 'Done!')}</h3>
+          <h3 id="optimize-complete-title" className="text-lg font-bold text-white mb-2">{t('¡Listo!', 'Done!')}</h3>
           <p className="text-sm text-slate-400 mb-4">{t('Tu portafolio está más actualizado.', 'Your portfolio is more up to date.')}</p>
           <button onClick={onClose} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 text-sm font-medium">{t('Cerrar', 'Close')}</button>
         </div>
@@ -233,12 +233,12 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
     : (q.item.quantity || 0) * (q.item.currentPrice || q.item.purchasePrice || 0)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="optimize-modal-title">
       <div className="bg-[#1e293b] border border-[#334155] rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#334155]">
           <div className="flex items-center gap-2">
             <span className="text-lg">✨</span>
-            <h2 className="text-sm font-bold text-white">{t('Optimizar', 'Optimize')}</h2>
+            <h2 id="optimize-modal-title" className="text-sm font-bold text-white">{t('Optimizar', 'Optimize')}</h2>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs text-slate-500">{step + 1} / {questions.length}</span>

@@ -936,6 +936,8 @@ export default function DashboardPage() {
           )}
         </div>
 
+        <h1 className="sr-only">{lang === 'es' ? 'Patrimonio — Dashboard' : 'Net Worth — Dashboard'}</h1>
+
         {/* Error Banner */}
         <ErrorBanner pricesError={pricesError} ratesError={ratesError} lang={lang} />
 
@@ -964,6 +966,7 @@ export default function DashboardPage() {
 
         {/* ═══ OVERVIEW ═══ */}
         {portfolioItems.length > 0 && <>
+        <ErrorBoundary lang={lang}>
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6 items-start">
           <div className="lg:col-span-2 flex flex-col gap-4">
             <NetWorthCard
@@ -996,6 +999,7 @@ export default function DashboardPage() {
             <SnapshotComparison snapshots={snapshots} items={portfolioItems} lang={lang} />
           </div>
         </div>
+        </ErrorBoundary>
 
         {/* ═══ PERFORMANCE & RISK ═══ */}
         <SectionCollapse title={lang === 'es' ? 'Rendimiento y Riesgo' : 'Performance & Risk'} id="perf-risk">

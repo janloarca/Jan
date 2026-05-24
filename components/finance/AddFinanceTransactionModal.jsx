@@ -47,10 +47,10 @@ export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es'
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="add-finance-tx-title">
       <div className="bg-[#1e293b] border border-[#334155] rounded-xl shadow-2xl max-w-md w-full" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#334155]">
-          <h2 className="text-lg font-bold text-white">{t('Agregar Transacción', 'Add Transaction')}</h2>
+          <h2 id="add-finance-tx-title" className="text-lg font-bold text-white">{t('Agregar Transacción', 'Add Transaction')}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-xl">&times;</button>
         </div>
 

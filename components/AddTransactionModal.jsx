@@ -58,10 +58,10 @@ export default function AddTransactionModal({ onClose, onAdd, lang = 'es' }) {
   ]
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="add-tx-modal-title">
       <div className="bg-[#1e293b] border border-[#334155] rounded-xl shadow-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#334155]">
-          <h2 className="text-lg font-bold text-white">{t('Registrar Transacción', 'Record Transaction')}</h2>
+          <h2 id="add-tx-modal-title" className="text-lg font-bold text-white">{t('Registrar Transacción', 'Record Transaction')}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-3">

@@ -58,6 +58,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
   const [hoverIdx, setHoverIdx] = useState(null)
   const [dataPoints, setDataPoints] = useState([])
   const [loading, setLoading] = useState(false)
+  const [fetchError, setFetchError] = useState(null)
   const [staticTotal, setStaticTotal] = useState(0)
   const [viewMode, setViewMode] = useState('value')
   const [returnMode, setReturnMode] = useState('twr')
@@ -70,6 +71,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
   const fetchHistory = useCallback(async () => {
     if (!items || items.length === 0) return
     setLoading(true)
+    setFetchError(null)
     try {
       const apiPeriod = period === 'MTD' ? '1M' : period
       const res = await authFetch('/api/prices/portfolio-history', {
@@ -96,6 +98,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
       }
     } catch (err) {
       console.error('Failed to fetch portfolio history:', err)
+      setFetchError(t('Error cargando historial', 'Failed to load history'))
     }
     setLoading(false)
   }, [items, period])
@@ -294,6 +297,17 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
             <div className="w-4 h-4 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
             {t('Cargando datos...', 'Loading data...')}
           </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (fetchError && chartData.length < 2) {
+    return (
+      <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-5 card-primary">
+        <div className="flex flex-col items-center justify-center min-h-[200px] gap-2">
+          <p className="text-red-400 text-sm">{fetchError}</p>
+          <button onClick={fetchHistory} className="text-xs text-blue-400 hover:text-blue-300">{t('Reintentar', 'Retry')}</button>
         </div>
       </div>
     )

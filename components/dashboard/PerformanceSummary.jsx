@@ -10,6 +10,7 @@ const DAY_MS = 86400000
 export default function PerformanceSummary({ items, transactions, convert, baseCurrency, netWorth, lang }) {
   const [historyPoints, setHistoryPoints] = useState([])
   const [loading, setLoading] = useState(false)
+  const [fetchError, setFetchError] = useState(null)
   const [returnMode, setReturnMode] = useState('twr')
 
   useEffect(() => {
@@ -17,6 +18,7 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
     let cancelled = false
     async function fetchHistory() {
       setLoading(true)
+      setFetchError(null)
       try {
         const res = await authFetch('/api/prices/portfolio-history', {
           method: 'POST',
@@ -36,6 +38,7 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
         }
       } catch (err) {
         console.error('Failed to fetch performance history:', err)
+        if (!cancelled) setFetchError(lang === 'es' ? 'Error cargando rendimiento' : 'Failed to load performance')
       }
       if (!cancelled) setLoading(false)
     }
@@ -103,7 +106,9 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
 
   if (periods.length === 0 && !loading) return (
     <div className="bg-[#1e293b]/40 rounded-xl border border-[#334155]/30 p-4 text-center">
-      <p className="text-sm text-slate-500">{lang === 'es' ? 'Sin datos de rendimiento aún' : 'No performance data yet'}</p>
+      <p className={`text-sm ${fetchError ? 'text-red-400/70' : 'text-slate-500'}`}>
+        {fetchError || (lang === 'es' ? 'Sin datos de rendimiento aún' : 'No performance data yet')}
+      </p>
     </div>
   )
 
