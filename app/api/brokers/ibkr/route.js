@@ -123,15 +123,26 @@ function formatDate(dt) {
 
 async function fetchFlexReport(token, queryId) {
   const requestUrl = `${FLEX_REQUEST_URL}?t=${encodeURIComponent(token)}&q=${encodeURIComponent(queryId)}&v=3`
-  const requestRes = await fetch(requestUrl)
-  const requestXml = await requestRes.text()
 
-  const refMatch = requestXml.match(/<ReferenceCode>([^<]+)<\/ReferenceCode>/)
-  if (!refMatch) {
+  let referenceCode = null
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 5000))
+    const requestRes = await fetch(requestUrl)
+    const requestXml = await requestRes.text()
+    const refMatch = requestXml.match(/<ReferenceCode>([^<]+)<\/ReferenceCode>/)
+    if (refMatch) {
+      referenceCode = refMatch[1]
+      break
+    }
     const errMatch = requestXml.match(/<ErrorMessage>([^<]+)<\/ErrorMessage>/)
-    throw new Error(errMatch ? errMatch[1] : 'Failed to request Flex statement')
+    const errMsg = errMatch ? errMatch[1] : ''
+    if (errMsg.toLowerCase().includes('try again') || errMsg.toLowerCase().includes('could not be generated')) {
+      if (attempt === 2) throw new Error(errMsg)
+      continue
+    }
+    if (errMsg) throw new Error(errMsg)
+    throw new Error('Failed to request Flex statement')
   }
-  const referenceCode = refMatch[1]
 
   for (let i = 0; i < MAX_POLL_ATTEMPTS; i++) {
     await new Promise((r) => setTimeout(r, POLL_DELAY_MS))
@@ -142,6 +153,7 @@ async function fetchFlexReport(token, queryId) {
       return fetchXml
     }
     if (fetchXml.includes('Statement generation in progress')) continue
+    if (fetchXml.toLowerCase().includes('try again')) continue
     const errMatch = fetchXml.match(/<ErrorMessage>([^<]+)<\/ErrorMessage>/)
     if (errMatch) throw new Error(errMatch[1])
   }
