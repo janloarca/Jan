@@ -7,8 +7,10 @@ export const dynamic = 'force-dynamic'
 
 const FLEX_REQUEST_URL = 'https://gdcdyn.interactivebrokers.com/Universal/servlet/FlexStatementService.SendRequest'
 const FLEX_FETCH_URL = 'https://gdcdyn.interactivebrokers.com/Universal/servlet/FlexStatementService.GetStatement'
-const MAX_POLL_ATTEMPTS = 10
+const MAX_POLL_ATTEMPTS = 15
 const POLL_DELAY_MS = 3000
+const SEND_REQUEST_ATTEMPTS = 6
+const SEND_REQUEST_DELAYS = [0, 5000, 10000, 15000, 20000, 30000]
 
 function parseFlexPositions(xml) {
   const positions = []
@@ -125,11 +127,11 @@ async function fetchFlexReport(token, queryId) {
   const requestUrl = `${FLEX_REQUEST_URL}?t=${encodeURIComponent(token)}&q=${encodeURIComponent(queryId)}&v=3`
 
   let referenceCode = null
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (attempt > 0) await new Promise((r) => setTimeout(r, 5000))
+  for (let attempt = 0; attempt < SEND_REQUEST_ATTEMPTS; attempt++) {
+    if (SEND_REQUEST_DELAYS[attempt]) await new Promise((r) => setTimeout(r, SEND_REQUEST_DELAYS[attempt]))
     const requestRes = await fetch(requestUrl)
     const requestXml = await requestRes.text()
-    console.log(`[ibkr] SendRequest attempt ${attempt + 1}:`, requestXml.slice(0, 500))
+    console.log(`[ibkr] SendRequest attempt ${attempt + 1}/${SEND_REQUEST_ATTEMPTS}:`, requestXml.slice(0, 500))
     const refMatch = requestXml.match(/<ReferenceCode>([^<]+)<\/ReferenceCode>/)
     if (refMatch) {
       referenceCode = refMatch[1]
@@ -140,7 +142,7 @@ async function fetchFlexReport(token, queryId) {
     const errMsg = errMatch ? errMatch[1] : ''
     console.log(`[ibkr] Error code: ${errCode?.[1] || 'none'}, message: ${errMsg}`)
     if (errMsg.toLowerCase().includes('try again') || errMsg.toLowerCase().includes('could not be generated')) {
-      if (attempt === 2) throw new Error(errMsg)
+      if (attempt === SEND_REQUEST_ATTEMPTS - 1) throw new Error(errMsg)
       continue
     }
     if (errMsg) throw new Error(errMsg)

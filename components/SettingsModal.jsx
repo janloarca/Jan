@@ -394,7 +394,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                   <button onClick={handleIbkrSync} disabled={ibkrSyncing}
                     className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium flex items-center justify-center gap-2">
                     {ibkrSyncing ? (
-                      <>{t('Sincronizando...', 'Syncing...')} <span className="animate-spin">⟳</span></>
+                      <><span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> {t('Conectando con IBKR (puede tardar hasta 1 min)...', 'Connecting to IBKR (may take up to 1 min)...')}</>
                     ) : (
                       <>{t('Sincronizar ahora', 'Sync now')}</>
                     )}
