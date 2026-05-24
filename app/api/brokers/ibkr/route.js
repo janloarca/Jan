@@ -221,7 +221,7 @@ export async function POST(request) {
         syncedAt: new Date().toISOString(),
       })
     } catch (err) {
-      return NextResponse.json({ error: err.message }, { status: 502 })
+      return NextResponse.json({ error: err.message, detail: 'IBKR Flex Service rechazó la solicitud. Verifica que tu Flex Query esté activo y que el Token no haya expirado.' }, { status: 502 })
     }
   }
 
