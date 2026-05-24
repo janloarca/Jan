@@ -30,7 +30,8 @@ export default function InvestmentClassBreakdown({ items, lang }) {
       const meta = INVESTMENT_CLASS_META[key]
       const data = grouped[key] || { value: 0, count: 0, gainAbs: 0, topItems: [] }
       const pct = total > 0 ? (data.value / total) * 100 : 0
-      const gainPct = data.value > 0 ? (data.gainAbs / (data.value - data.gainAbs)) * 100 : 0
+      const costBasis = data.value - data.gainAbs
+      const gainPct = costBasis > 0 ? (data.gainAbs / costBasis) * 100 : 0
       data.topItems.sort((a, b) => b.value - a.value)
       return { key, meta, ...data, pct, gainPct, total }
     })

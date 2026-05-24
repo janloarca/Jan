@@ -10,8 +10,9 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
     const vol = computeVolatility({ returns })
 
     const valueSeries = (snapshots || [])
+      .filter((s) => s.date)
       .map((s) => ({ ts: new Date(s.date).getTime(), value: s.netWorthUSD ?? s.totalActivosUSD ?? 0 }))
-      .filter((p) => !isNaN(p.ts) && p.value > 0)
+      .filter((p) => !isNaN(p.ts) && isFinite(p.ts) && p.value > 0)
       .sort((a, b) => a.ts - b.ts)
     const drawdown = computeMaxDrawdown(valueSeries)
 

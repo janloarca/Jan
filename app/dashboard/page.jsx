@@ -538,7 +538,7 @@ export default function DashboardPage() {
       items: enrichedItems, snapshots, transactions,
       netWorth, totalAssets, lang, returnYTD, annualDividends,
     })
-  }, [enrichedItems, snapshots, transactions, lang, netWorth, totalAssets])
+  }, [enrichedItems, snapshots, transactions, lang, netWorth, totalAssets, returnYTD, annualDividends])
 
   const handleShare = useCallback(async () => {
     const t = (es, en) => lang === 'es' ? es : en

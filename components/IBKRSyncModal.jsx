@@ -241,9 +241,9 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                             <td className="py-1.5 px-2 text-white max-w-[150px] truncate">{item.name}</td>
                             <td className="py-1.5 px-2 text-slate-400">{item.type}</td>
                             <td className="py-1.5 px-2 text-right text-slate-300">{item.quantity.toLocaleString()}</td>
-                            <td className="py-1.5 px-2 text-right text-slate-300">${item.currentPrice.toFixed(2)}</td>
-                            <td className={`py-1.5 px-2 text-right font-medium ${item._ibkrUnrealizedPL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                              {item._ibkrUnrealizedPL >= 0 ? '+' : ''}{item._ibkrUnrealizedPL.toFixed(2)}
+                            <td className="py-1.5 px-2 text-right text-slate-300">${(item.currentPrice ?? 0).toFixed(2)}</td>
+                            <td className={`py-1.5 px-2 text-right font-medium ${(item._ibkrUnrealizedPL ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                              {(item._ibkrUnrealizedPL ?? 0) >= 0 ? '+' : ''}{(item._ibkrUnrealizedPL ?? 0).toFixed(2)}
                             </td>
                           </tr>
                         ))}
@@ -276,7 +276,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                             <td className="py-1.5 px-2 text-white">{tx.symbol}</td>
                             <td className={`py-1.5 px-2 font-medium ${tx.type === 'BUY' ? 'text-emerald-400' : 'text-red-400'}`}>{tx.type}</td>
                             <td className="py-1.5 px-2 text-right text-slate-300">{tx.quantity}</td>
-                            <td className="py-1.5 px-2 text-right text-slate-300">${tx.pricePerUnit.toFixed(2)}</td>
+                            <td className="py-1.5 px-2 text-right text-slate-300">${(tx.pricePerUnit ?? 0).toFixed(2)}</td>
                           </tr>
                         ))}
                       </tbody>
