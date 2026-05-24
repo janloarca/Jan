@@ -19,6 +19,7 @@ import SectionCollapse from '@/components/dashboard/SectionCollapse'
 import MobileNav from '@/components/dashboard/MobileNav'
 import ErrorBanner from '@/components/dashboard/ErrorBanner'
 import ErrorBoundary from '@/components/ErrorBoundary'
+import { SkeletonCard, SkeletonChart, SkeletonTable } from '@/components/dashboard/Skeleton'
 import { checkPriceAlerts } from '@/lib/notifications'
 
 const FileImportModal = dynamic(() => import('@/components/FileImportModal'))
@@ -34,15 +35,15 @@ const PrintSummary = dynamic(() => import('@/components/dashboard/PrintSummary')
 const OnboardingTour = dynamic(() => import('@/components/dashboard/OnboardingTour'))
 const CommandPalette = dynamic(() => import('@/components/dashboard/CommandPalette'))
 
-const PortfolioGrowthChart = dynamic(() => import('@/components/dashboard/PortfolioGrowthChart'))
-const AccountsTable = dynamic(() => import('@/components/dashboard/AccountsTable'))
-const PerformanceSummary = dynamic(() => import('@/components/dashboard/PerformanceSummary'))
-const DividendIncome = dynamic(() => import('@/components/dashboard/DividendIncome'))
-const ProjectionSimulator = dynamic(() => import('@/components/dashboard/ProjectionSimulator'))
-const RiskMetrics = dynamic(() => import('@/components/dashboard/RiskMetrics'))
-const MonthlyPerformance = dynamic(() => import('@/components/dashboard/MonthlyPerformance'))
-const RebalanceSuggestions = dynamic(() => import('@/components/dashboard/RebalanceSuggestions'))
-const GainsReport = dynamic(() => import('@/components/dashboard/GainsReport'))
+const PortfolioGrowthChart = dynamic(() => import('@/components/dashboard/PortfolioGrowthChart'), { loading: () => <SkeletonChart /> })
+const AccountsTable = dynamic(() => import('@/components/dashboard/AccountsTable'), { loading: () => <SkeletonTable /> })
+const PerformanceSummary = dynamic(() => import('@/components/dashboard/PerformanceSummary'), { loading: () => <SkeletonCard /> })
+const DividendIncome = dynamic(() => import('@/components/dashboard/DividendIncome'), { loading: () => <SkeletonCard /> })
+const ProjectionSimulator = dynamic(() => import('@/components/dashboard/ProjectionSimulator'), { loading: () => <SkeletonChart /> })
+const RiskMetrics = dynamic(() => import('@/components/dashboard/RiskMetrics'), { loading: () => <SkeletonCard /> })
+const MonthlyPerformance = dynamic(() => import('@/components/dashboard/MonthlyPerformance'), { loading: () => <SkeletonChart /> })
+const RebalanceSuggestions = dynamic(() => import('@/components/dashboard/RebalanceSuggestions'), { loading: () => <SkeletonCard /> })
+const GainsReport = dynamic(() => import('@/components/dashboard/GainsReport'), { loading: () => <SkeletonCard /> })
 
 import FinancialHealth from '@/components/dashboard/FinancialHealth'
 import RecentTransactions from '@/components/dashboard/RecentTransactions'
