@@ -11,12 +11,12 @@ export default function ActionButtons({ onImport, onAddAccount, onTransfer, onEx
       </button>
       {onIBKR && (
         <button onClick={onIBKR}
-          className="px-4 py-2 text-body font-medium bg-[var(--card-bg,#1e293b)] border border-[var(--card-border,#334155)] text-blue-400 rounded-lg hover:bg-[var(--input-bg,#283548)] transition-colors flex items-center gap-1.5">
+          className="px-4 py-2 text-body font-medium bg-[var(--card-bg,#1e293b)] border border-[var(--card-border,#334155)] text-slate-300 rounded-lg hover:bg-[var(--input-bg,#283548)] hover:text-white transition-colors flex items-center gap-1.5">
           <RefreshCw size={14} /> IBKR Sync
         </button>
       )}
       <button onClick={onAddAccount}
-        className="px-4 py-2 text-body font-medium bg-[var(--card-bg,#1e293b)] border border-[var(--card-border,#334155)] text-blue-400 rounded-lg hover:bg-[var(--input-bg,#283548)] transition-colors flex items-center gap-1.5">
+        className="px-4 py-2 text-body font-medium bg-[var(--card-bg,#1e293b)] border border-[var(--card-border,#334155)] text-slate-300 rounded-lg hover:bg-[var(--input-bg,#283548)] hover:text-white transition-colors flex items-center gap-1.5">
         <Plus size={14} /> {lang === 'es' ? 'Agregar Activo' : 'Add Asset'}
       </button>
       <button onClick={onTransfer}
