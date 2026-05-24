@@ -838,6 +838,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-[#0f172a]">
+      <a href="#main-content" className="skip-link">{lang === 'es' ? 'Ir al contenido' : 'Skip to content'}</a>
       <Header
         user={user}
         lang={lang}
@@ -851,7 +852,7 @@ export default function DashboardPage() {
         onCommandPalette={() => setCmdPaletteOpen(true)}
       />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
+      <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
         <div className="flex items-center gap-3">
           {dataAge === 0 ? (
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -926,6 +927,7 @@ export default function DashboardPage() {
               lang={lang}
               netContributions={netContributions}
               cashTotal={cashTotal}
+              snapshots={snapshots}
             />
             <BenchmarkComparison benchmarkReturn={benchmarkReturn} portfolioReturn={returnYTD} benchmarkName={benchmarkName} lang={lang} />
             <PriceAlerts alerts={alerts} items={portfolioItems} onAddAlert={addAlert} onDeleteAlert={deleteAlert} lang={lang} />

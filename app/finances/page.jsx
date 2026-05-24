@@ -116,6 +116,7 @@ export default function FinancesPage() {
 
   return (
     <div className="min-h-screen bg-[#0f172a]">
+      <a href="#main-content" className="skip-link">{t('Ir al contenido', 'Skip to content')}</a>
       <Header
         user={user}
         lang={lang}
@@ -127,7 +128,7 @@ export default function FinancesPage() {
         pricesLoading={false}
       />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
+      <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold text-white">{t('Finanzas Personales', 'Personal Finances')}</h2>

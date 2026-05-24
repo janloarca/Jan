@@ -85,15 +85,15 @@ export function getItemValue(item) {
 }
 
 export const TYPE_ICONS = {
-  stocks: '📈',
-  crypto: '₿',
-  bonds: '🏛',
-  funds: '💼',
-  banks: '🏦',
-  realestate: '🏠',
-  alternatives: '🔮',
-  debts: '💳',
-  other: '📊',
+  stocks: 'TrendingUp',
+  crypto: 'Bitcoin',
+  bonds: 'Landmark',
+  funds: 'Briefcase',
+  banks: 'Building2',
+  realestate: 'Home',
+  alternatives: 'Gem',
+  debts: 'CreditCard',
+  other: 'BarChart3',
 }
 
 export function formatPercent(value) {

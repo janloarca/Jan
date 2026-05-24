@@ -20,7 +20,51 @@ function getMilestone(netWorth, returnYTD, lang) {
   return { text: lang === 'es' ? 'Los mercados se recuperan' : 'Markets recover', color: 'text-amber-400' }
 }
 
-export default function NetWorthCard({ netWorth, returnYTD, ytdChange, yearlyChange, dailyChange, convert, lang, netContributions, cashTotal }) {
+function Sparkline({ snapshots, width = 60, height = 24 }) {
+  if (!snapshots || snapshots.length < 2) return null
+  const recent = snapshots.slice(-30)
+  const values = recent.map(s => s.netWorthUSD ?? s.totalActivosUSD ?? 0).filter(v => v > 0)
+  if (values.length < 2) return null
+
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const range = max - min || 1
+  const trending = values[values.length - 1] >= values[0]
+  const color = trending ? '#10b981' : '#ef4444'
+
+  const points = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * width
+    const y = height - ((v - min) / range) * (height - 4) - 2
+    return `${x},${y}`
+  }).join(' ')
+
+  const gradientId = `spark-${trending ? 'up' : 'down'}`
+
+  return (
+    <svg width={width} height={height} className="inline-block ml-2 align-middle" aria-hidden="true">
+      <defs>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polygon
+        points={`0,${height} ${points} ${width},${height}`}
+        fill={`url(#${gradientId})`}
+      />
+      <polyline
+        points={points}
+        fill="none"
+        stroke={color}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+export default function NetWorthCard({ netWorth, returnYTD, ytdChange, yearlyChange, dailyChange, convert, lang, netContributions, cashTotal, snapshots }) {
   const isYTDPositive = returnYTD >= 0
   const isYearlyPositive = (yearlyChange ?? 0) >= 0
   const isDayPositive = dailyChange ? dailyChange.abs >= 0 : true
@@ -65,11 +109,14 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, yearlyCha
       </div>
 
       {/* Main value */}
-      <p className="text-4xl font-black text-white mb-1 tracking-tight">{formatCurrency(displayValue, displayCur)}</p>
+      <div className="flex items-center mb-1">
+        <p className="text-kpi text-white tracking-tight">{formatCurrency(displayValue, displayCur)}</p>
+        <Sparkline snapshots={snapshots} />
+      </div>
 
       {/* Daily change */}
       {dailyChange && (
-        <p className={`text-sm font-medium ${isDayPositive ? 'text-emerald-400' : 'text-red-400'}`}>
+        <p className={`text-body font-medium ${isDayPositive ? 'text-emerald-400' : 'text-red-400'}`}>
           {isDayPositive ? '+' : ''}{formatCurrency(dailyChange.abs, displayCur)} ({isDayPositive ? '+' : ''}{dailyChange.pct.toFixed(2)}%)
           <span className="text-slate-500 font-normal ml-1">{lang === 'es' ? 'hoy' : 'today'}</span>
         </p>
