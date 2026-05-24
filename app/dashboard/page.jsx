@@ -14,7 +14,7 @@ import TransferModal from '@/components/TransferModal'
 import IBKRSyncModal from '@/components/IBKRSyncModal'
 
 import SettingsModal from '@/components/SettingsModal'
-import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, formatCurrency, getTypeCategory } from '@/components/dashboard/utils'
+import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, formatCurrency, getTypeCategory, getInvestmentClass } from '@/components/dashboard/utils'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution } from '@/components/dashboard/analytics'
 import { useBenchmark } from '@/hooks/useBenchmark'
 import Header from '@/components/dashboard/Header'
@@ -27,6 +27,7 @@ import MonthlyPerformance from '@/components/dashboard/MonthlyPerformance'
 import AccountsTable from '@/components/dashboard/AccountsTable'
 import RecentTransactions from '@/components/dashboard/RecentTransactions'
 import AssetAllocation from '@/components/dashboard/AssetAllocation'
+import InvestmentClassBreakdown from '@/components/dashboard/InvestmentClassBreakdown'
 import PerformanceSummary from '@/components/dashboard/PerformanceSummary'
 import DividendIncome from '@/components/dashboard/DividendIncome'
 import ConcentrationRisk from '@/components/dashboard/ConcentrationRisk'
@@ -830,6 +831,16 @@ export default function DashboardPage() {
     }).length
     const debtTotal = portfolioItems.filter((it) => it.isDebt).reduce((s, it) => s + Math.abs(getItemValue(it)), 0)
     const debtRatio = totalAssets > 0 ? (debtTotal / totalAssets) * 100 : 0
+    const classTotals = {}
+    let classTotal = 0
+    portfolioItems.filter(it => !it.isDebt).forEach(it => {
+      const cls = getInvestmentClass(it)
+      const val = Math.abs(getItemValue(it))
+      classTotals[cls] = (classTotals[cls] || 0) + val
+      classTotal += val
+    })
+    const investmentClassPcts = {}
+    Object.entries(classTotals).forEach(([k, v]) => { investmentClassPcts[k] = classTotal > 0 ? (v / classTotal) * 100 : 0 })
     return generateInsights({
       netWorth,
       benchmarkReturn,
@@ -844,6 +855,7 @@ export default function DashboardPage() {
       topDrag,
       maturingSoon,
       debtRatio,
+      investmentClassPcts,
     })
   }, [netWorth, benchmarkReturn, returnYTD, riskMetrics, portfolioItems, annualDividends, goals])
 
@@ -978,6 +990,7 @@ export default function DashboardPage() {
           <div className="lg:col-span-3 flex flex-col gap-4">
             <PortfolioGrowthChart items={portfolioItems} snapshots={snapshots} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} benchmarkSymbol={benchmarkSymbol} benchmarkName={benchmarkName} />
             <AssetAllocation items={portfolioItems} lang={lang} />
+            <InvestmentClassBreakdown items={portfolioItems} lang={lang} />
             <ValueBreakdown items={portfolioItems} lang={lang} />
             <SnapshotComparison snapshots={snapshots} items={portfolioItems} lang={lang} />
           </div>

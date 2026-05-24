@@ -1,4 +1,4 @@
-import { getTypeCategory, getItemValue, computeModifiedDietz } from './utils'
+import { getTypeCategory, getItemValue, computeModifiedDietz, getInvestmentClass, INVESTMENT_CLASS_META } from './utils'
 
 function mean(arr) {
   if (arr.length === 0) return 0
@@ -206,7 +206,7 @@ export function computeNetContributions(transactions, convert, baseCurrency) {
   }
 }
 
-export function generateInsights({ netWorth, benchmarkReturn, portfolioReturn, sharpe, volatility, maxDrawdown, hhi, incomeYield, goals, topContributor, topDrag, maturingSoon, debtRatio }) {
+export function generateInsights({ netWorth, benchmarkReturn, portfolioReturn, sharpe, volatility, maxDrawdown, hhi, incomeYield, goals, topContributor, topDrag, maturingSoon, debtRatio, investmentClassPcts }) {
   const insights = []
 
   if (benchmarkReturn != null && portfolioReturn != null) {
@@ -325,6 +325,21 @@ export function generateInsights({ netWorth, benchmarkReturn, portfolioReturn, s
       textEn: `High debt-to-asset ratio: ${debtRatio.toFixed(0)}%. Consider reducing debt.`,
       priority: 3,
     })
+  }
+
+  if (investmentClassPcts) {
+    const dominant = Object.entries(investmentClassPcts).reduce((a, b) => a[1] > b[1] ? a : b, ['', 0])
+    if (dominant[1] > 70) {
+      const meta = INVESTMENT_CLASS_META[dominant[0]]
+      if (meta) {
+        insights.push({
+          type: 'info',
+          textEs: `${dominant[1].toFixed(0)}% del portafolio está en ${meta.returnType.es}. Considera diversificar por tipo de retorno.`,
+          textEn: `${dominant[1].toFixed(0)}% of portfolio is in ${meta.returnType.en}. Consider diversifying by return type.`,
+          priority: 5.5,
+        })
+      }
+    }
   }
 
   return insights.sort((a, b) => a.priority - b.priority).slice(0, 6)
