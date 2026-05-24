@@ -77,28 +77,67 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
 
           {step === 'config' && (
             <div className="space-y-4">
-              <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-                <p className="text-xs text-blue-400 font-medium mb-2">{t('¿Cómo configurar?', 'How to set up?')}</p>
-                <ol className="text-xs text-slate-400 space-y-1 list-decimal list-inside">
-                  <li>{t('Inicia sesión en IBKR Account Management', 'Log in to IBKR Account Management')}</li>
-                  <li>{t('Ve a Performance & Reports → Flex Queries', 'Go to Performance & Reports → Flex Queries')}</li>
-                  <li>{t('Crea un Activity Flex Query con Open Positions y Trades', 'Create an Activity Flex Query with Open Positions and Trades')}</li>
-                  <li>{t('En Settings → API, genera un Flex Web Service Token', 'In Settings → API, generate a Flex Web Service Token')}</li>
-                  <li>{t('Copia el token y el Query ID aquí abajo', 'Copy the token and Query ID below')}</li>
-                </ol>
+              <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg space-y-3">
+                <p className="text-sm text-blue-400 font-semibold">{t('Configuración inicial (solo una vez)', 'One-time setup')}</p>
+                <p className="text-xs text-slate-400">
+                  {t('Necesitas dos datos de tu cuenta IBKR: un Token y un Query ID. Sigue estos pasos:',
+                     'You need two pieces from your IBKR account: a Token and a Query ID. Follow these steps:')}
+                </p>
+
+                <div className="space-y-3">
+                  <div className="flex gap-3">
+                    <span className="shrink-0 w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 text-xs font-bold flex items-center justify-center">1</span>
+                    <div>
+                      <p className="text-xs text-white font-medium">{t('Crear el Flex Query (reporte automático)', 'Create the Flex Query (automatic report)')}</p>
+                      <ol className="text-[11px] text-slate-400 mt-1 space-y-0.5 list-disc list-inside">
+                        <li>{t('Inicia sesión en', 'Log in to')} <span className="text-blue-400 font-mono">interactivebrokers.com</span> → {t('Portal del Cliente', 'Client Portal')}</li>
+                        <li>{t('Menú', 'Menu')} → <span className="text-white">Performance & Reports</span> → <span className="text-white">Flex Queries</span></li>
+                        <li>{t('Click en', 'Click')} <span className="text-white">&quot;+&quot;</span> {t('para crear una nueva Activity Flex Query', 'to create a new Activity Flex Query')}</li>
+                        <li>{t('En secciones, selecciona', 'In sections, select')} <span className="text-emerald-400">Open Positions</span> {t('y', 'and')} <span className="text-emerald-400">Trades</span></li>
+                        <li>{t('Guarda y anota el', 'Save and note the')} <span className="text-amber-400 font-medium">Query ID</span> {t('(número que aparece junto al nombre)', '(number shown next to the name)')}</li>
+                      </ol>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <span className="shrink-0 w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 text-xs font-bold flex items-center justify-center">2</span>
+                    <div>
+                      <p className="text-xs text-white font-medium">{t('Generar el Token de acceso', 'Generate the access Token')}</p>
+                      <ol className="text-[11px] text-slate-400 mt-1 space-y-0.5 list-disc list-inside">
+                        <li>{t('En el Portal, ve a', 'In the Portal, go to')} <span className="text-white">Settings</span> → <span className="text-white">Account Settings</span></li>
+                        <li>{t('Busca la sección', 'Find the section')} <span className="text-white">&quot;API&quot;</span> → <span className="text-white">Flex Web Service</span></li>
+                        <li>{t('Click en', 'Click')} <span className="text-white">&quot;Create Token&quot;</span></li>
+                        <li>{t('Copia el', 'Copy the')} <span className="text-amber-400 font-medium">Token</span> {t('generado (cadena larga de letras y números)', 'generated (long string of letters and numbers)')}</li>
+                      </ol>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <span className="shrink-0 w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold flex items-center justify-center">3</span>
+                    <div>
+                      <p className="text-xs text-white font-medium">{t('Pega ambos valores aquí abajo y sincroniza', 'Paste both values below and sync')}</p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div>
-                <label className="text-xs text-slate-400 mb-1 block">Flex Web Service Token *</label>
+                <label className="text-xs text-slate-400 mb-1 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  Token *
+                </label>
                 <input type="password" value={token} onChange={e => setToken(e.target.value)}
-                  placeholder="xxxxxxxxxxxxxxxxxxxxxxxxx"
+                  placeholder={t('Pega tu Flex Web Service Token aquí', 'Paste your Flex Web Service Token here')}
                   className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono" />
               </div>
 
               <div>
-                <label className="text-xs text-slate-400 mb-1 block">Flex Query ID *</label>
+                <label className="text-xs text-slate-400 mb-1 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  Query ID *
+                </label>
                 <input type="text" value={queryId} onChange={e => setQueryId(e.target.value)}
-                  placeholder="123456"
+                  placeholder={t('Ej: 123456', 'E.g.: 123456')}
                   className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono" />
               </div>
 
@@ -107,14 +146,14 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 {syncing ? (
                   <>
                     <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    {t('Conectando con IBKR...', 'Connecting to IBKR...')}
+                    {t('Conectando con IBKR (puede tomar ~15 segundos)...', 'Connecting to IBKR (may take ~15 seconds)...')}
                   </>
                 ) : t('Sincronizar', 'Sync Now')}
               </button>
 
               <p className="text-[10px] text-slate-600 text-center">
-                {t('Tu token se guarda localmente en Firestore. Nunca compartimos tus credenciales.',
-                   'Your token is saved locally in Firestore. We never share your credentials.')}
+                {t('Tu token se guarda de forma segura. Solo tú puedes ver tus datos. La sincronización tarda ~15 segundos.',
+                   'Your token is saved securely. Only you can see your data. Sync takes ~15 seconds.')}
               </p>
             </div>
           )}
