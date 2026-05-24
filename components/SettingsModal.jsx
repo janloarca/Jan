@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Settings } from 'lucide-react'
+import { Settings, Building2 } from 'lucide-react'
 import { authFetch } from '@/lib/authFetch'
 import { isNotificationSupported, getNotificationPermission, requestNotificationPermission } from '@/lib/notifications'
 import { BENCHMARKS } from '@/hooks/useBenchmark'
@@ -322,7 +322,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
             <div className="space-y-5">
               <div>
                 <h3 className="text-sm font-medium text-white mb-1 flex items-center gap-2">
-                  <span className="text-lg">🏦</span> Interactive Brokers
+                  <Building2 size={18} className="text-slate-400" /> Interactive Brokers
                 </h3>
                 <p className="text-xs text-slate-500 mb-4">{t(
                   'Conecta tu cuenta IBKR para sincronizar posiciones automáticamente via Flex Web Service.',
@@ -371,7 +371,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                   </div>
 
                   <button onClick={handleIbkrSave} disabled={ibkrSaving || !ibkrToken || !ibkrQueryId}
-                    className="w-full py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-50 transition-colors text-sm font-medium">
+                    className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium">
                     {ibkrSaving ? '...' : t('Conectar IBKR', 'Connect IBKR')}
                   </button>
                 </div>
