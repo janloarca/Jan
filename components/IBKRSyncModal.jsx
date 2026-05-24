@@ -231,7 +231,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                           <th className="text-left py-2 px-2">Type</th>
                           <th className="text-right py-2 px-2">Qty</th>
                           <th className="text-right py-2 px-2">Price</th>
-                          <th className="text-right py-2 px-2">P&L</th>
+                          <th className="text-right py-2 px-2">Value</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -242,8 +242,8 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                             <td className="py-1.5 px-2 text-slate-400">{item.type}</td>
                             <td className="py-1.5 px-2 text-right text-slate-300">{item.quantity.toLocaleString()}</td>
                             <td className="py-1.5 px-2 text-right text-slate-300">${(item.currentPrice ?? 0).toFixed(2)}</td>
-                            <td className={`py-1.5 px-2 text-right font-medium ${(item._ibkrUnrealizedPL ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                              {(item._ibkrUnrealizedPL ?? 0) >= 0 ? '+' : ''}{(item._ibkrUnrealizedPL ?? 0).toFixed(2)}
+                            <td className="py-1.5 px-2 text-right font-medium text-slate-300">
+                              ${((item.currentPrice || 0) * (item.quantity || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </td>
                           </tr>
                         ))}
