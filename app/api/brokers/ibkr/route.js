@@ -34,7 +34,7 @@ function parseFlexPositions(xml) {
       currency: attr('currency') || 'USD',
       type: mapAssetCategory(attr('assetCategory'), attr('putCall')),
       institution: 'Interactive Brokers',
-      acquisitionDate: formatDate(attr('openDateTime') || attr('reportDate')),
+      acquisitionDate: formatDate(attr('openDateTime')) || undefined,
       isDebt: qty < 0,
       _ibkrAccountId: attr('accountId'),
       _ibkrConId: attr('conid'),

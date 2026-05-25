@@ -13,6 +13,7 @@ function getGreeting(lang) {
 }
 
 function getMilestone(netWorth, returnYTD, lang) {
+  if (returnYTD == null) return { text: lang === 'es' ? 'Acumulando datos' : 'Gathering data', color: 'text-slate-400' }
   if (returnYTD > 20) return { text: lang === 'es' ? 'Año increíble' : 'Incredible year', color: 'text-emerald-400' }
   if (returnYTD > 10) return { text: lang === 'es' ? 'Gran rendimiento' : 'Strong returns', color: 'text-emerald-400' }
   if (returnYTD > 0) return { text: lang === 'es' ? 'En positivo' : 'In the green', color: 'text-emerald-400' }
@@ -65,7 +66,8 @@ function Sparkline({ snapshots, width = 60, height = 24 }) {
 }
 
 export default function NetWorthCard({ netWorth, returnYTD, ytdChange, yearlyChange, dailyChange, convert, lang, netContributions, cashTotal, snapshots }) {
-  const isYTDPositive = returnYTD >= 0
+  const hasYTD = returnYTD != null
+  const isYTDPositive = (returnYTD ?? 0) >= 0
   const isYearlyPositive = (yearlyChange ?? 0) >= 0
   const isDayPositive = dailyChange ? dailyChange.abs >= 0 : true
   const baseCur = getBaseCurrency()
@@ -125,9 +127,9 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, yearlyCha
       {/* YTD + yearly in a compact row */}
       <div className="flex items-center gap-3 mt-1.5">
         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-          isYTDPositive ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'
+          !hasYTD ? 'bg-slate-500/15 text-slate-400' : isYTDPositive ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'
         }`}>
-          YTD {isYTDPositive ? '+' : ''}{returnYTD.toFixed(2)}%
+          YTD {hasYTD ? `${isYTDPositive ? '+' : ''}${returnYTD.toFixed(2)}%` : 'N/A'}
         </span>
         {yearlyChange != null && (
           <span className={`text-xs ${isYearlyPositive ? 'text-emerald-400/70' : 'text-red-400/70'}`}>

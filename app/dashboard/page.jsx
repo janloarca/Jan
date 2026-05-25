@@ -704,7 +704,7 @@ export default function DashboardPage() {
     }
 
     if (startVal == null || startVal <= 0) startVal = jan1Value
-    if (startVal == null || startVal <= 0) return { returnYTD: 0, ytdChange: 0 }
+    if (startVal == null || startVal <= 0) return { returnYTD: null, ytdChange: null }
 
     const { pct, abs } = computeModifiedDietz({
       startValue: startVal,
@@ -764,7 +764,7 @@ export default function DashboardPage() {
       `${t('Patrimonio Neto', 'Net Worth')}: ${formatCurrency(netWorth)}`,
       `${t('Activos', 'Assets')}: ${formatCurrency(totalAssets)}`,
       debtTotal > 0 ? `${t('Deuda', 'Debt')}: ${formatCurrency(debtTotal)}` : null,
-      returnYTD ? `${t('Retorno YTD', 'YTD Return')}: ${returnYTD >= 0 ? '+' : ''}${returnYTD.toFixed(2)}%` : null,
+      returnYTD != null ? `${t('Retorno YTD', 'YTD Return')}: ${returnYTD >= 0 ? '+' : ''}${returnYTD.toFixed(2)}%` : null,
       '',
       `${t('Distribución', 'Allocation')}:`,
       catLines,
