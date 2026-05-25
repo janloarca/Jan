@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { formatCurrency, formatCompact, formatShortDate, formatDate, computeModifiedDietz } from './utils'
+import { formatCurrency, formatCompact, formatDate, computeModifiedDietz } from './utils'
 import { computeTWRSeries } from './analytics'
 import { authFetch } from '@/lib/authFetch'
 
@@ -168,6 +168,9 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
     } else {
       return []
     }
+    while (pts.length > 2 && pts[0].value === 0) {
+      pts.shift()
+    }
     const last = pts[pts.length - 1]
     if (last && currentTotal > 0 && Math.abs(last.value - currentTotal) > 1) {
       pts.push({ ts: Date.now(), date: new Date(), value: currentTotal })
@@ -228,14 +231,20 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
 
   const step = Math.max(1, Math.floor(chartData.length / 6))
   const xLabels = useMemo(() => {
-    return chartData
+    if (chartData.length === 0) return []
+    const spanDays = (chartData[chartData.length - 1].ts - chartData[0].ts) / 86400000
+    const useDay = spanDays < 120 || ['1W', 'MTD', '1M', '3M'].includes(period)
+    const raw = chartData
       .map((d, i) => ({
         label: period === 'DAY'
           ? `${d.date.getHours().toString().padStart(2, '0')}:${d.date.getMinutes().toString().padStart(2, '0')}`
-          : formatShortDate(d.date.toISOString()),
+          : useDay
+            ? d.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+            : d.date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
         idx: i,
       }))
       .filter((_, i) => i % step === 0 || i === chartData.length - 1)
+    return raw.filter((xl, i) => i === 0 || xl.label !== raw[i - 1].label)
   }, [chartData, step, period])
 
   const growthValues = useMemo(() => chartData.map((d) => d.value), [chartData])

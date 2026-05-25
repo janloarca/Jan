@@ -690,6 +690,7 @@ export default function DashboardPage() {
     if (snapshots.length >= 2) {
       let minDiff = Infinity
       let bestSnap = null
+      const MAX_SNAP_DISTANCE = 30 * 86400000
       for (const s of snapshots) {
         if (!s.date) continue
         const snapTs = new Date(s.date).getTime()
@@ -697,13 +698,13 @@ export default function DashboardPage() {
         const diff = Math.abs(snapTs - yearStartTs)
         if (diff < minDiff) { minDiff = diff; bestSnap = s }
       }
-      if (bestSnap) {
+      if (bestSnap && minDiff <= MAX_SNAP_DISTANCE) {
         startVal = convertSnapshot(bestSnap.netWorthUSD ?? bestSnap.totalActivosUSD ?? 0)
       }
     }
 
     if (startVal == null || startVal <= 0) startVal = jan1Value
-    if (startVal == null || startVal <= 0) return { returnYTD: 0, ytdChange: 0 }
+    if (startVal == null || startVal <= 0) return { returnYTD: null, ytdChange: null }
 
     const { pct, abs } = computeModifiedDietz({
       startValue: startVal,
@@ -763,7 +764,7 @@ export default function DashboardPage() {
       `${t('Patrimonio Neto', 'Net Worth')}: ${formatCurrency(netWorth)}`,
       `${t('Activos', 'Assets')}: ${formatCurrency(totalAssets)}`,
       debtTotal > 0 ? `${t('Deuda', 'Debt')}: ${formatCurrency(debtTotal)}` : null,
-      returnYTD ? `${t('Retorno YTD', 'YTD Return')}: ${returnYTD >= 0 ? '+' : ''}${returnYTD.toFixed(2)}%` : null,
+      returnYTD != null ? `${t('Retorno YTD', 'YTD Return')}: ${returnYTD >= 0 ? '+' : ''}${returnYTD.toFixed(2)}%` : null,
       '',
       `${t('Distribución', 'Allocation')}:`,
       catLines,
