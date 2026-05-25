@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { formatCurrency, formatCompact, formatShortDate, formatDate, computeModifiedDietz } from './utils'
+import { formatCurrency, formatCompact, formatDate, computeModifiedDietz } from './utils'
 import { computeTWRSeries } from './analytics'
 import { authFetch } from '@/lib/authFetch'
 
@@ -231,7 +231,9 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
 
   const step = Math.max(1, Math.floor(chartData.length / 6))
   const xLabels = useMemo(() => {
-    const useDay = ['1W', 'MTD', '1M', '3M'].includes(period)
+    if (chartData.length === 0) return []
+    const spanDays = (chartData[chartData.length - 1].ts - chartData[0].ts) / 86400000
+    const useDay = spanDays < 120 || ['1W', 'MTD', '1M', '3M'].includes(period)
     const raw = chartData
       .map((d, i) => ({
         label: period === 'DAY'
