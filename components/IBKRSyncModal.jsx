@@ -70,6 +70,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       setResult({
         items: preview.items.length,
         transactions: preview.transactions.length,
+        equityHistory: (preview.equityHistory || []).length,
         accounts: preview.accounts || [],
         syncedAt: preview.syncedAt,
         mode: syncMode,
@@ -247,6 +248,17 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 </div>
               )}
 
+              {(preview.equityHistory || []).length > 0 && (
+                <div>
+                  <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">
+                    {(preview.equityHistory || []).length} {t('días de historial NAV', 'days of NAV history')}
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    {preview.equityHistory[0].date} → {preview.equityHistory[preview.equityHistory.length - 1].date}
+                  </p>
+                </div>
+              )}
+
               <div className="border-t border-[#334155]/40 pt-5">
                 <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-3">
                   {t('Modo de sincronización', 'Sync mode')}
@@ -301,6 +313,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
               <p className="text-slate-400 text-sm">
                 {result.items} {t('posiciones', 'positions')}
                 {result.transactions > 0 && <> · {result.transactions} {t('transacciones', 'trades')}</>}
+                {result.equityHistory > 0 && <> · {result.equityHistory} {t('días de historial', 'days of history')}</>}
                 {result.accounts.length > 0 && <> · {result.accounts.join(', ')}</>}
               </p>
               <p className="text-[11px] text-slate-600 mt-2">

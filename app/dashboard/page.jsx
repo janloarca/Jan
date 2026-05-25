@@ -595,6 +595,15 @@ export default function DashboardPage() {
         }
       }
     }
+    if (data.equityHistory && data.equityHistory.length > 0) {
+      const existingDates = new Set(snapshots.map(s => s.date || s.id))
+      for (const entry of data.equityHistory) {
+        if (!existingDates.has(entry.date)) {
+          await saveSnapshot(entry)
+        }
+      }
+    }
+
     for (const tx of data.transactions) {
       const alreadyExists = transactions.some(t =>
         t.date === tx.date &&

@@ -115,6 +115,40 @@ function mapAssetCategory(cat, putCall) {
   return c || 'Stock'
 }
 
+function parseEquitySummary(xml) {
+  const entries = []
+  const regex = /<EquitySummaryByReportDateInBase[^>]*\/>/g
+  let match
+  while ((match = regex.exec(xml)) !== null) {
+    const tag = match[0]
+    const attr = (name) => {
+      const m = tag.match(new RegExp(`${name}="([^"]*)"`, 'i'))
+      return m ? m[1] : ''
+    }
+    const reportDate = attr('reportDate')
+    const total = parseFloat(attr('total')) || 0
+    const totalLong = parseFloat(attr('totalLong')) || 0
+    const totalShort = parseFloat(attr('totalShort')) || 0
+    const cash = parseFloat(attr('cash')) || 0
+    if (!reportDate || total === 0) continue
+    const date = formatDate(reportDate)
+    if (!date) continue
+    entries.push({
+      date,
+      netWorthUSD: total,
+      totalActivosUSD: totalLong + cash,
+      totalDebtUSD: Math.abs(totalShort),
+      _source: 'ibkr',
+    })
+  }
+  const seen = new Set()
+  return entries.filter((e) => {
+    if (seen.has(e.date)) return false
+    seen.add(e.date)
+    return true
+  })
+}
+
 function formatDate(dt) {
   if (!dt) return undefined
   const clean = dt.replace(/[;,]/g, '').trim()
@@ -214,11 +248,13 @@ export async function POST(request) {
       const positions = parseFlexPositions(xml)
       const cash = parseCashPositions(xml)
       const trades = parseTrades(xml)
+      const equityHistory = parseEquitySummary(xml)
       const all = [...positions, ...cash]
 
       return NextResponse.json({
         positions: all,
         trades,
+        equityHistory,
         count: all.length,
         syncedAt: new Date().toISOString(),
       })
