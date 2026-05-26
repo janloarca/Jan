@@ -176,3 +176,32 @@ textarea:focus-visible {
 [data-theme="light"] .card-primary {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.03);
 }
+
+/* Spreadsheet dark theme overrides */
+.spreadsheet-container .dsg-container {
+  --dsg-selection-border-color: #3b82f6;
+  --dsg-border-color: #334155;
+  --dsg-cell-background-color: #0f172a;
+  --dsg-cell-disabled-background-color: #1e293b;
+  --dsg-header-background-color: #1e293b;
+  --dsg-header-text-color: #94a3b8;
+  --dsg-cell-text-color: #e2e8f0;
+  --dsg-selection-background-color: rgba(59, 130, 246, 0.08);
+  background: #0f172a;
+  font-size: 13px;
+}
+.spreadsheet-container .dsg-cell-header {
+  background: #1e293b;
+  color: #94a3b8;
+  border-color: #334155;
+}
+.spreadsheet-container .dsg-row-header {
+  background: #1e293b;
+  color: #64748b;
+  border-color: #334155;
+}
+.spreadsheet-container input {
+  color: #e2e8f0;
+  background: #0f172a;
+  caret-color: #3b82f6;
+}

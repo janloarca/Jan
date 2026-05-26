@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Calculator, Plus, Menu, Upload, Download, Share2, Settings } from 'lucide-react'
+import { Home, Calculator, Plus, Menu, Upload, Download, Share2, Settings, Table } from 'lucide-react'
 
 export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettings, onSearch, lang }) {
   const [moreOpen, setMoreOpen] = useState(false)
@@ -21,6 +21,10 @@ export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettin
           <Link href="/finances" aria-label={t('Finanzas', 'Finances')} className={`flex flex-col items-center gap-0.5 transition-colors p-2.5 min-w-[44px] min-h-[44px] justify-center ${pathname === '/finances' ? 'text-blue-400' : 'text-slate-400 hover:text-white'}`}>
             <Calculator size={20} />
             <span className="text-micro">{t('Finanzas', 'Finances')}</span>
+          </Link>
+          <Link href="/spreadsheet" aria-label="Spreadsheet" className={`flex flex-col items-center gap-0.5 transition-colors p-2.5 min-w-[44px] min-h-[44px] justify-center ${pathname === '/spreadsheet' ? 'text-blue-400' : 'text-slate-400 hover:text-white'}`}>
+            <Table size={20} />
+            <span className="text-micro">Sheet</span>
           </Link>
           <button onClick={onAdd} aria-label={t('Agregar', 'Add')} className="flex flex-col items-center gap-0.5 text-slate-400 hover:text-white transition-colors p-2.5 min-w-[44px] min-h-[44px] justify-center">
             <div className="w-10 h-10 -mt-5 rounded-full bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-600/30">
