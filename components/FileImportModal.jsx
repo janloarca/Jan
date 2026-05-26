@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { detectBI, parseBI } from '@/lib/parsers/biParser'
 import { FINANCE_CATEGORIES, CATEGORY_COLORS } from '@/lib/financeCategories'
+import { validateItem, sanitizeImportItem } from '@/lib/validation'
 
 const FIELD_MAP = {
   symbol: ['symbol', 'ticker', 'simbolo', 'código', 'codigo', 'sym', 'coin'],
@@ -290,7 +291,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         item.isDebt = true
       }
       return item
-    }).filter((item) => item.symbol || item.name)
+    }).filter((item) => item.symbol || item.name).map(sanitizeImportItem)
 
     setPreview(items)
     setStep('preview')
@@ -306,6 +307,12 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
 
     for (const item of preview) {
       try {
+        const errors = validateItem(item)
+        if (errors.length > 0) {
+          console.warn(`[Import] Skipping ${item.symbol || item.name}:`, errors)
+          failed++
+          continue
+        }
         if (activePortfolio && activePortfolio !== '__all__') {
           item.portfolioId = activePortfolio
         }
@@ -354,14 +361,20 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       setError(lang === 'es' ? 'Ingresa al menos el símbolo o nombre.' : 'Enter at least symbol or name.')
       return
     }
+    const candidate = sanitizeImportItem({
+      ...manual,
+      quantity: parseNumber(manual.quantity),
+      purchasePrice: parseNumber(manual.purchasePrice),
+    })
+    const errors = validateItem(candidate)
+    if (errors.length > 0) {
+      setError(errors.join(', '))
+      return
+    }
     setImporting(true)
     setError('')
     try {
-      await onImportItems({
-        ...manual,
-        quantity: parseNumber(manual.quantity),
-        purchasePrice: parseNumber(manual.purchasePrice),
-      })
+      await onImportItems(candidate)
       setResult({ success: 1, failed: 0, total: 1 })
       setStep('done')
     } catch (err) {

@@ -22,6 +22,7 @@ import ErrorBoundary from '@/components/ErrorBoundary'
 import CardBoundary from '@/components/dashboard/CardBoundary'
 import { SkeletonCard, SkeletonChart, SkeletonTable } from '@/components/dashboard/Skeleton'
 import { checkPriceAlerts } from '@/lib/notifications'
+import { useTabCoordination } from '@/hooks/useTabCoordination'
 
 const FileImportModal = dynamic(() => import('@/components/FileImportModal'))
 const AddAccountModal = dynamic(() => import('@/components/AddAccountModal'))
@@ -206,6 +207,8 @@ export default function DashboardPage() {
     saveGoals,
     saveSettings,
   } = useFirestoreItems()
+
+  const { acquireLock, releaseLock } = useTabCoordination()
 
   const baseCurrency = settings?.baseCurrency || 'USD'
 
@@ -629,6 +632,7 @@ export default function DashboardPage() {
     const shouldSync = Date.now() - lastSync > SYNC_INTERVAL
 
     const doAutoSync = async () => {
+      if (!acquireLock('ibkr-sync')) return
       try {
         const { syncIBKR } = await import('@/lib/ibkrSync')
         const { decryptToken } = await import('@/lib/crypto')
@@ -639,6 +643,8 @@ export default function DashboardPage() {
         console.log(`[ibkr] Auto-sync OK: ${data.items.length} positions`)
       } catch (err) {
         console.log(`[ibkr] Auto-sync failed: ${err.message}`)
+      } finally {
+        releaseLock('ibkr-sync')
       }
     }
 

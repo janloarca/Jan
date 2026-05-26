@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { sanitizeImportItem } from '@/lib/validation'
 
 let _db = null
 let _auth = null
@@ -133,7 +134,8 @@ export function useFirestoreItems() {
     if (!uid) return
     const { db, fs } = await getFirebase()
     const id = item.id || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-    const { id: _removed, ...data } = item
+    const { id: _removed, ...raw } = item
+    const data = sanitizeImportItem(raw)
     await fs.setDoc(fs.doc(db, `users/${uid}/items`, id), { ...data, createdAt: new Date().toISOString() }, { merge: true })
   }, [uid])
 
@@ -192,7 +194,8 @@ export function useFirestoreItems() {
   const addTransaction = useCallback(async (transaction) => {
     if (!uid) return
     const { db, fs } = await getFirebase()
-    const id = `${transaction.date}-${transaction.symbol}-${Date.now()}`
+    const amt = Math.round((transaction.totalAmount || transaction.amount || 0) * 100)
+    const id = `${transaction.date || 'nodate'}-${(transaction.symbol || 'nosym').toUpperCase()}-${transaction.type || 'tx'}-${amt}`
     await fs.setDoc(fs.doc(db, `users/${uid}/transactions`, id), { ...transaction, createdAt: new Date().toISOString() })
   }, [uid])
 
@@ -239,7 +242,9 @@ export function useFirestoreItems() {
   const addLot = useCallback(async (lot) => {
     if (!uid) return
     const { db, fs } = await getFirebase()
-    const id = `${lot.symbol || 'lot'}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+    const qty = Math.round((lot.quantity || 0) * 10000)
+    const cost = Math.round((lot.costBasis || 0) * 100)
+    const id = `${(lot.symbol || 'lot').toUpperCase()}-${lot.acquisitionDate || 'nodate'}-${qty}-${cost}`
     await fs.setDoc(fs.doc(db, `users/${uid}/lots`, id), { ...lot, status: 'open', createdAt: new Date().toISOString() })
   }, [uid])
 
@@ -289,7 +294,9 @@ export function useFirestoreItems() {
   const addFinanceTransaction = useCallback(async (tx) => {
     if (!uid) return
     const { db, fs } = await getFirebase()
-    const id = `ftx-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+    const amt = Math.round((tx.amount || 0) * 100)
+    const desc = (tx.description || '').slice(0, 30).replace(/[/\\]/g, '-')
+    const id = `ftx-${tx.date || 'nodate'}-${desc}-${amt}`
     await fs.setDoc(fs.doc(db, `users/${uid}/financeTransactions`, id), { ...tx, createdAt: new Date().toISOString() })
   }, [uid])
 

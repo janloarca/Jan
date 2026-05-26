@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo } from 'react'
 import { formatCurrency, formatDate, getItemPrice } from './utils'
 import DocumentVault from './DocumentVault'
 
+const STATIC_TYPES = /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo|bond|bono|instrumento|inversion|inversión|cdt|plazo|treasury|letra|pagare|deposito|certificado|inmueble|real.?estate|property/i
+
 export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
   const [chartData, setChartData] = useState(null)
   const [chartError, setChartError] = useState(null)
@@ -13,10 +15,12 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
 
   const t = (es, en) => lang === 'es' ? es : en
   const ranges = ['1W', '1M', '3M', '6M', '1Y', 'ALL']
+  const isStatic = STATIC_TYPES.test(item.type || '')
 
   const rangeMap = { '1W': '5d', '1M': '1mo', '3M': '3mo', '6M': '6mo', '1Y': '1y', 'ALL': '5y' }
 
   useEffect(() => {
+    if (isStatic || !item.symbol) { setLoading(false); return }
     let cancelled = false
     async function fetchChart() {
       setLoading(true)
@@ -34,9 +38,9 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
       }
       if (!cancelled) setLoading(false)
     }
-    if (item.symbol) fetchChart()
+    fetchChart()
     return () => { cancelled = true }
-  }, [item.symbol, range])
+  }, [item.symbol, range, isStatic])
 
   const currentPrice = getItemPrice(item)
   const totalValue = (item.quantity || 0) * currentPrice
@@ -159,6 +163,17 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
 
           {/* Chart */}
           <div>
+            {isStatic ? (
+              <div className="h-[120px] bg-[#0f172a] rounded-lg flex flex-col items-center justify-center gap-2">
+                <span className="text-sm text-slate-500">
+                  {t('Este activo no tiene datos de mercado', 'This asset has no market data')}
+                </span>
+                <span className="text-xs text-slate-600">
+                  {t('Su valor se mantiene al precio ingresado manualmente', 'Its value stays at the manually entered price')}
+                </span>
+              </div>
+            ) : (
+            <>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs text-slate-500">{t('Historico de precio', 'Price history')}</span>
               <div className="flex gap-0.5 bg-[#0f172a] rounded-lg p-0.5">
@@ -218,6 +233,8 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
                   {chartError ? t('Error cargando datos', 'Failed to load data') : t('Sin datos de precio disponibles', 'No price data available')}
                 </span>
               </div>
+            )}
+            </>
             )}
           </div>
 
