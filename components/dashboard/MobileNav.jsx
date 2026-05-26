@@ -32,7 +32,7 @@ export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettin
             </div>
             <span className="text-micro">{t('Agregar', 'Add')}</span>
           </button>
-          <button onClick={() => setMoreOpen(!moreOpen)} aria-label={t('Más opciones', 'More options')} className="flex flex-col items-center gap-0.5 text-slate-400 hover:text-white transition-colors p-2.5 min-w-[44px] min-h-[44px] justify-center">
+          <button onClick={() => setMoreOpen(!moreOpen)} aria-label={t('Más opciones', 'More options')} aria-expanded={moreOpen} className="flex flex-col items-center gap-0.5 text-slate-400 hover:text-white transition-colors p-2.5 min-w-[44px] min-h-[44px] justify-center">
             <Menu size={20} />
             <span className="text-micro">{t('Más', 'More')}</span>
           </button>

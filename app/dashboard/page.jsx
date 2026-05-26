@@ -16,15 +16,30 @@ import ErrorBoundary from '@/components/ErrorBoundary'
 import CardBoundary from '@/components/dashboard/CardBoundary'
 import { SkeletonCard, SkeletonChart, SkeletonTable } from '@/components/dashboard/Skeleton'
 
-const FileImportModal = dynamic(() => import('@/components/FileImportModal'))
-const AddAccountModal = dynamic(() => import('@/components/AddAccountModal'))
-const SellModal = dynamic(() => import('@/components/SellModal'))
-const TransferModal = dynamic(() => import('@/components/TransferModal'))
-const IBKRSyncModal = dynamic(() => import('@/components/IBKRSyncModal'))
-const SettingsModal = dynamic(() => import('@/components/SettingsModal'))
-const EditAccountModal = dynamic(() => import('@/components/EditAccountModal'))
+function ModalSkeleton() {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+      <div className="bg-[#1e293b] border border-[#334155] rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
+        <div className="h-5 w-32 bg-slate-700/50 rounded animate-pulse mb-4" />
+        <div className="space-y-3">
+          <div className="h-10 bg-slate-700/30 rounded animate-pulse" />
+          <div className="h-10 bg-slate-700/30 rounded animate-pulse" />
+          <div className="h-10 bg-slate-700/30 rounded animate-pulse w-2/3" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const FileImportModal = dynamic(() => import('@/components/FileImportModal'), { loading: () => <ModalSkeleton /> })
+const AddAccountModal = dynamic(() => import('@/components/AddAccountModal'), { loading: () => <ModalSkeleton /> })
+const SellModal = dynamic(() => import('@/components/SellModal'), { loading: () => <ModalSkeleton /> })
+const TransferModal = dynamic(() => import('@/components/TransferModal'), { loading: () => <ModalSkeleton /> })
+const IBKRSyncModal = dynamic(() => import('@/components/IBKRSyncModal'), { loading: () => <ModalSkeleton /> })
+const SettingsModal = dynamic(() => import('@/components/SettingsModal'), { loading: () => <ModalSkeleton /> })
+const EditAccountModal = dynamic(() => import('@/components/EditAccountModal'), { loading: () => <ModalSkeleton /> })
 const OptimizeModal = dynamic(() => import('@/components/OptimizeModal'))
-const AssetDetailModal = dynamic(() => import('@/components/dashboard/AssetDetailModal'))
+const AssetDetailModal = dynamic(() => import('@/components/dashboard/AssetDetailModal'), { loading: () => <ModalSkeleton /> })
 const PrintSummary = dynamic(() => import('@/components/dashboard/PrintSummary'))
 const OnboardingTour = dynamic(() => import('@/components/dashboard/OnboardingTour'))
 const CommandPalette = dynamic(() => import('@/components/dashboard/CommandPalette'))
@@ -83,6 +98,7 @@ export default function DashboardPage() {
   const [activePortfolio, setActivePortfolio] = useState('__all__')
   const [activeEntity, setActiveEntity] = useState('__all__')
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
+  const [toast, setToast] = useState(null)
   const { entities, addEntity, updateEntity: updateEntityData, deleteEntity } = useEntities()
 
   // Theme + lang init
@@ -191,9 +207,15 @@ export default function DashboardPage() {
     handleIBKRSync,
   } = useDashboardData({ user, lang, activePortfolio, activeEntity })
 
+  const showToast = useCallback((msg, duration = 3000) => {
+    setToast(msg)
+    setTimeout(() => setToast(null), duration)
+  }, [])
+
   // Export XLSX
   const handleExport = useCallback(async () => {
     if (items.length === 0) return
+    showToast(lang === 'es' ? 'Generando Excel...' : 'Generating Excel...')
     const XLSX = await import('xlsx')
     const ws = XLSX.utils.json_to_sheet(enrichedItems.map((it) => {
       const value = (it.quantity || 0) * (it.currentPrice || it.purchasePrice || 0)
@@ -237,7 +259,8 @@ export default function DashboardPage() {
       XLSX.utils.book_append_sheet(wb, wsTx, 'Transactions')
     }
     XLSX.writeFile(wb, `chispudo-portfolio-${new Date().toISOString().split('T')[0]}.xlsx`)
-  }, [enrichedItems, snapshots, transactions, baseCurrency])
+    showToast(lang === 'es' ? 'Excel exportado ✓' : 'Excel exported ✓')
+  }, [enrichedItems, snapshots, transactions, baseCurrency, showToast, lang])
 
   const handleExportTransactionsCSV = useCallback(() => {
     if (!transactions || transactions.length === 0) return
@@ -386,9 +409,11 @@ export default function DashboardPage() {
 
   if (!user) return null
 
-  if (!showOnboarding && typeof window !== 'undefined' && !localStorage.getItem('chispudo-onboarding-done') && !dataLoading && enrichedItems.length === 0) {
-    setTimeout(() => setShowOnboarding(true), 500)
-  }
+  useEffect(() => {
+    if (!dataLoading && enrichedItems.length === 0 && !showOnboarding && typeof window !== 'undefined' && !localStorage.getItem('chispudo-onboarding-done')) {
+      setShowOnboarding(true)
+    }
+  }, [dataLoading, enrichedItems.length])
 
   return (
     <div className="min-h-screen bg-[#0f172a]">
@@ -406,19 +431,28 @@ export default function DashboardPage() {
       />
 
       <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           {dataAge === 0 ? (
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          ) : dataAge != null && dataAge >= 7 ? (
+            <span className="w-2 h-2 rounded-full bg-red-400" />
+          ) : dataAge != null && dataAge >= 1 ? (
+            <span className="w-2 h-2 rounded-full bg-amber-400" />
           ) : (
             <span className="w-2 h-2 rounded-full bg-slate-500" />
           )}
-          <span className="text-xs text-slate-500">
+          <span className={`text-xs ${dataAge >= 7 ? 'text-red-400' : dataAge >= 1 ? 'text-amber-400' : 'text-slate-500'}`}>
             {dataAge === 0
               ? (lang === 'es' ? 'Datos al día' : 'Data up to date')
               : dataAge != null
                 ? (lang === 'es' ? `Actualizado hace ${dataAge}d` : `Updated ${dataAge}d ago`)
                 : (lang === 'es' ? 'Sin datos aún' : 'No data yet')}
           </span>
+          {dataAge != null && dataAge >= 7 && (
+            <button onClick={handleRefresh} className="text-micro text-red-400 hover:text-red-300 underline transition-colors">
+              {lang === 'es' ? 'Actualizar' : 'Refresh'}
+            </button>
+          )}
           {pricesUpdate && (
             <span className="text-xs text-slate-600">
               {new Date(pricesUpdate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -681,6 +715,12 @@ export default function DashboardPage() {
           }}
           onComplete={() => setShowOnboarding(false)}
         />
+      )}
+
+      {toast && (
+        <div className="fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-[#1e293b] border border-[#334155] rounded-lg shadow-xl text-xs text-white animate-fade-in">
+          {toast}
+        </div>
       )}
     </div>
   )
