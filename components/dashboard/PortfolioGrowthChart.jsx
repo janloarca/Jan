@@ -158,30 +158,26 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
   const chartData = useMemo(() => {
     let pts
 
-    if (snapshotData.length >= 5) {
-      pts = [...snapshotData]
-    } else if (dataPoints.length >= 2) {
-      pts = dataPoints.map((dp) => ({
-        ts: dp.ts,
-        date: new Date(dp.ts),
-        value: dp.total,
-      }))
-    } else if (snapshotData.length >= 2) {
-      pts = [...snapshotData]
+    const apiPts = dataPoints.length >= 2
+      ? dataPoints.map((dp) => ({ ts: dp.ts, date: new Date(dp.ts), value: dp.total }))
+      : []
+    const snapPts = snapshotData.length >= 2 ? [...snapshotData] : []
+
+    const apiStart = apiPts.length > 0 ? apiPts[0].ts : Infinity
+    const snapStart = snapPts.length > 0 ? snapPts[0].ts : Infinity
+
+    if (snapPts.length >= 5 && snapStart <= apiStart) {
+      pts = snapPts
+    } else if (apiPts.length >= 2) {
+      pts = apiPts
+    } else if (snapPts.length >= 2) {
+      pts = snapPts
     } else {
       return []
     }
 
     while (pts.length > 2 && pts[0].value === 0) {
       pts.shift()
-    }
-
-    const maxVal = Math.max(...pts.map(p => p.value))
-    if (maxVal > 0) {
-      let firstReal = pts.findIndex(p => p.value >= maxVal * 0.05)
-      if (firstReal > 0) {
-        pts = pts.slice(Math.max(0, firstReal - 1))
-      }
     }
 
     const last = pts[pts.length - 1]
