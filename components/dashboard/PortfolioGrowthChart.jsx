@@ -157,7 +157,10 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
 
   const chartData = useMemo(() => {
     let pts
-    if (dataPoints.length >= 2) {
+
+    if (snapshotData.length >= 5) {
+      pts = [...snapshotData]
+    } else if (dataPoints.length >= 2) {
       pts = dataPoints.map((dp) => ({
         ts: dp.ts,
         date: new Date(dp.ts),
@@ -168,9 +171,19 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
     } else {
       return []
     }
+
     while (pts.length > 2 && pts[0].value === 0) {
       pts.shift()
     }
+
+    const maxVal = Math.max(...pts.map(p => p.value))
+    if (maxVal > 0) {
+      let firstReal = pts.findIndex(p => p.value >= maxVal * 0.05)
+      if (firstReal > 0) {
+        pts = pts.slice(Math.max(0, firstReal - 1))
+      }
+    }
+
     const last = pts[pts.length - 1]
     if (last && currentTotal > 0 && Math.abs(last.value - currentTotal) > 1) {
       pts.push({ ts: Date.now(), date: new Date(), value: currentTotal })

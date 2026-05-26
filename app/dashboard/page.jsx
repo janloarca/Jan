@@ -683,7 +683,8 @@ export default function DashboardPage() {
         const data = await res.json()
         const pts = data.dataPoints || []
         if (pts.length > 0) {
-          if (!cancelled) setJan1Value(pts[0].total)
+          const firstReal = pts.find(p => p.total > 0)
+          if (!cancelled && firstReal) setJan1Value(firstReal.total)
         }
       } catch {}
     }
