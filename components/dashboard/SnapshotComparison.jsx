@@ -46,7 +46,8 @@ export default function SnapshotComparison({ snapshots, items, lang }) {
     const change = endVal - startVal
     const changePct = (change / startVal) * 100
     const daysBetween = Math.ceil((new Date(endSnap.date) - new Date(startSnap.date)) / 86400000)
-    const annualized = daysBetween > 30 ? (Math.pow(endVal / startVal, 365 / daysBetween) - 1) * 100 : null
+    const rawAnnualized = daysBetween > 30 && endVal > 0 ? (Math.pow(endVal / startVal, 365 / daysBetween) - 1) * 100 : null
+    const annualized = rawAnnualized != null && isFinite(rawAnnualized) ? rawAnnualized : null
 
     return {
       startDate: startSnap.date,

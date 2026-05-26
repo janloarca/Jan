@@ -36,7 +36,7 @@ export default function UpcomingDividends({ items, lang }) {
         const isPerShare = /stock|etf|fund|crypto/i.test(it.type || '')
         amount = isPerShare ? it.incomeAmount * (it.quantity || 1) : it.incomeAmount
       }
-      if (amount <= 0) return
+      if (!isFinite(amount) || amount <= 0) return
 
       const payDay = it.incomePayDay || 1
 

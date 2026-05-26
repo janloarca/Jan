@@ -26,8 +26,10 @@ export default function AssetAllocation({ items, lang }) {
     const gainByGroup = {}
     let total = 0
     items.forEach((it) => {
-      const key = fn(it)
+      if (it.isDebt) return
       const val = getItemValue(it)
+      if (val <= 0) return
+      const key = fn(it)
       const qty = it.quantity || 0
       const cost = qty * (it._originalPurchasePrice || it.purchasePrice || it.currentPrice || 0)
       byGroup[key] = (byGroup[key] || 0) + val

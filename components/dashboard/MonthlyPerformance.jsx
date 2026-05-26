@@ -145,7 +145,7 @@ export default function MonthlyPerformance({ snapshots, transactions, convert, b
                 <td className="text-slate-300 font-medium py-1.5 pr-3">{row.year}</td>
                 {row.returns.map((val, i) => (
                   <td key={i} className="text-center py-1.5 px-0.5">
-                    {val != null ? (
+                    {val != null && isFinite(val) ? (
                       <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${cellColor(val)}`}>
                         {val > 0 ? '+' : ''}{val.toFixed(1)}%
                       </span>
@@ -155,8 +155,8 @@ export default function MonthlyPerformance({ snapshots, transactions, convert, b
                   </td>
                 ))}
                 <td className="text-center py-1.5 px-2">
-                  <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${cellColor(row.total)}`}>
-                    {row.total > 0 ? '+' : ''}{row.total.toFixed(1)}%
+                  <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${cellColor(isFinite(row.total) ? row.total : null)}`}>
+                    {isFinite(row.total) ? `${row.total > 0 ? '+' : ''}${row.total.toFixed(1)}%` : '—'}
                   </span>
                 </td>
               </tr>

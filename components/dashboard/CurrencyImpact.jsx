@@ -139,7 +139,8 @@ export default function CurrencyImpact({ items, convert, baseCurrency, rates, la
           </span>
           <div className="space-y-2">
             {foreignGroups.map((g, i) => {
-              const rate = rates[g.currency] ? (baseRate / rates[g.currency]) : null
+              const rawRate = rates[g.currency] > 0 ? (baseRate / rates[g.currency]) : null
+              const rate = rawRate != null && isFinite(rawRate) ? rawRate : null
               return (
                 <div key={g.currency} className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]/50">
                   <div className="flex items-center justify-between mb-1.5">

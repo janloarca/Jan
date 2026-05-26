@@ -79,7 +79,7 @@ export default function TopMovers({ items, transactions, lang }) {
                     <div className="h-full rounded-full bg-emerald-500/60" style={{ width: `${Math.min(pct, 100)}%` }} />
                   </div>
                   <span className={`text-xs font-medium ${isPos ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {isPos ? '+' : ''}{it.retPct.toFixed(1)}%
+                    {isFinite(it.retPct) ? `${isPos ? '+' : ''}${it.retPct.toFixed(1)}%` : '—'}
                   </span>
                 </div>
               </div>

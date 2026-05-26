@@ -140,7 +140,7 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
             return (
               <div key={p.key} className="text-center p-2 sm:p-3 bg-[#0f172a] rounded-lg border border-[#334155]/50">
                 <span className="text-xs text-slate-500 font-medium">{p.label}</span>
-                {p.pct != null ? (
+                {p.pct != null && isFinite(p.pct) ? (
                   <>
                     <div className={`text-sm sm:text-base font-bold mt-1 ${isPos ? 'text-emerald-400' : 'text-red-400'}`}>
                       {isPos ? '+' : ''}{p.pct.toFixed(2)}%

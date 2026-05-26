@@ -23,10 +23,11 @@ function buildGeometry(values, mode, height, width, pad, extraSeries) {
   const ch = height - pad.top - pad.bottom
   const cw = width - pad.left - pad.right
 
-  let allVals = values
+  let allVals = values.filter(v => isFinite(v))
   if (mode === 'performance' && extraSeries && extraSeries.length > 0) {
-    allVals = [...values, ...extraSeries]
+    allVals = [...allVals, ...extraSeries.filter(v => isFinite(v))]
   }
+  if (allVals.length === 0) allVals = [0]
   const min = Math.min(...allVals)
   const max = Math.max(...allVals)
   const paddingVal = mode === 'performance' ? 0 : (max - min) * 0.05

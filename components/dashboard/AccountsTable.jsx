@@ -40,8 +40,13 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
     return [...list].sort((a, b) => {
       const va = getItemValue(a)
       const vb = getItemValue(b)
-      if (sortBy === 'name') return (a.name || a.symbol || '').localeCompare(b.name || b.symbol || '')
-      return sortBy === 'value' ? vb - va : va - vb
+      let cmp
+      if (sortBy === 'name') {
+        cmp = (a.name || a.symbol || '').localeCompare(b.name || b.symbol || '')
+      } else {
+        cmp = sortBy === 'value' ? vb - va : va - vb
+      }
+      return cmp !== 0 ? cmp : (a.id || '').localeCompare(b.id || '')
     })
   }, [items, filter, sortBy, search])
 

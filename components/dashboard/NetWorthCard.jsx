@@ -66,7 +66,7 @@ function Sparkline({ snapshots, width = 60, height = 24 }) {
 }
 
 export default function NetWorthCard({ netWorth, returnYTD, ytdChange, yearlyChange, dailyChange, convert, lang, netContributions, cashTotal, snapshots }) {
-  const hasYTD = returnYTD != null
+  const hasYTD = returnYTD != null && isFinite(returnYTD)
   const isYTDPositive = (returnYTD ?? 0) >= 0
   const isYearlyPositive = (yearlyChange ?? 0) >= 0
   const isDayPositive = dailyChange ? dailyChange.abs >= 0 : true
@@ -117,7 +117,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, yearlyCha
       </div>
 
       {/* Daily change */}
-      {dailyChange && (
+      {dailyChange && isFinite(dailyChange.pct) && (
         <p className={`text-body font-medium ${isDayPositive ? 'text-emerald-400' : 'text-red-400'}`}>
           {isDayPositive ? '+' : ''}{formatCurrency(dailyChange.abs, displayCur)} ({isDayPositive ? '+' : ''}{dailyChange.pct.toFixed(2)}%)
           <span className="text-slate-500 font-normal ml-1">{lang === 'es' ? 'hoy' : 'today'}</span>
@@ -131,7 +131,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, yearlyCha
         }`}>
           YTD {hasYTD ? `${isYTDPositive ? '+' : ''}${returnYTD.toFixed(2)}%` : 'N/A'}
         </span>
-        {yearlyChange != null && (
+        {yearlyChange != null && isFinite(yearlyChange) && (
           <span className={`text-xs ${isYearlyPositive ? 'text-emerald-400/70' : 'text-red-400/70'}`}>
             {isYearlyPositive ? '▲' : '▼'} {Math.abs(yearlyChange).toFixed(1)}% {lang === 'es' ? 'vs año anterior' : 'vs prior year'}
           </span>
@@ -142,8 +142,8 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, yearlyCha
       {netContributions != null && netContributions > 0 && (
         <div className="mt-3 pt-3 border-t border-[#334155]/50">
           <div className="flex items-center justify-between text-xs mb-1.5">
-            <span className="text-slate-500">{lang === 'es' ? 'Invertido' : 'Invested'}: <span className="text-slate-300 font-medium">{formatCurrency(netContributions)}</span></span>
-            <span className="text-slate-500">{lang === 'es' ? 'Ganancia' : 'Gains'}: <span className={`font-medium ${displayValue - netContributions >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatCurrency(displayValue - netContributions)}</span></span>
+            <span className="text-slate-500">{lang === 'es' ? 'Invertido' : 'Invested'}: <span className="text-slate-300 font-medium">{formatCurrency(netContributions, displayCur)}</span></span>
+            <span className="text-slate-500">{lang === 'es' ? 'Ganancia' : 'Gains'}: <span className={`font-medium ${displayValue - netContributions >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatCurrency(displayValue - netContributions, displayCur)}</span></span>
           </div>
           <div className="w-full h-1.5 bg-slate-700/30 rounded-full overflow-hidden flex">
             {(() => {
