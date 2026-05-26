@@ -13,7 +13,8 @@ export default class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, info) {
-    console.error('[ErrorBoundary]', error, info?.componentStack)
+    const cardId = this.props.cardId || 'unknown'
+    console.error(`[ErrorBoundary:${cardId}]`, error, info?.componentStack)
   }
 
   render() {
