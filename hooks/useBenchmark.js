@@ -19,6 +19,19 @@ export function useBenchmark(period = 'YTD', symbol = '%5EGSPC') {
   const [error, setError] = useState(null)
 
   const fetchBenchmark = useCallback(async () => {
+    const cacheKey = `chispudo-benchmark-${symbol}-${period}`
+    try {
+      const cached = sessionStorage.getItem(cacheKey)
+      if (cached) {
+        const { data, ts } = JSON.parse(cached)
+        if (Date.now() - ts < 5 * 60 * 1000) {
+          setBenchmarkData(data)
+          setLoading(false)
+          return
+        }
+      }
+    } catch {}
+
     setLoading(true)
     setError(null)
     try {
@@ -26,6 +39,7 @@ export function useBenchmark(period = 'YTD', symbol = '%5EGSPC') {
       if (res.ok) {
         const data = await res.json()
         setBenchmarkData(data)
+        try { sessionStorage.setItem(cacheKey, JSON.stringify({ data, ts: Date.now() })) } catch {}
       } else {
         setError('Failed to fetch benchmark data')
       }

@@ -249,7 +249,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                 const retAbs = hasReturn ? (item.currentPrice - item.purchasePrice) * (item.quantity || 0) : null
 
                 return (
-                  <tr key={item.id || item.symbol} className={`border-b border-[#334155]/30 hover:bg-[#283548]/50 transition-colors group ${selected.has(item.id) ? 'bg-blue-500/5' : ''}`}>
+                  <tr key={item.id || item.symbol} style={{ contentVisibility: 'auto', containIntrinsicSize: '0 60px' }} className={`border-b border-[#334155]/30 hover:bg-[#283548]/50 transition-colors group ${selected.has(item.id) ? 'bg-blue-500/5' : ''}`}>
                     <td className="py-4 w-8">
                       <input type="checkbox"
                         checked={selected.has(item.id)}
