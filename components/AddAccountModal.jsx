@@ -84,7 +84,7 @@ const ACCOUNT_TYPES = [
   { key: 'tax-free', es: 'Libre', en: 'Tax-free' },
 ]
 
-export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAddLot, existingItems = [], activePortfolio, lang = 'es' }) {
+export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAddLot, existingItems = [], activePortfolio, activeEntity = 'default', lang = 'es' }) {
   const [step, setStep] = useState(1)
   const [type, setType] = useState('Stock')
   const [subtype, setSubtype] = useState('')
@@ -402,13 +402,16 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
           ((ei.type || '').toLowerCase() === 'bank' && (ei.institution || '').toLowerCase() === inst.toLowerCase() && /cash/i.test(ei.name || ei.symbol || ''))
         )
         if (!cashExists) {
-          await onAdd({ type: 'Bank', symbol: cashSymbol, name: `${inst} - Cash`, institution: inst, currency: form.currency, quantity: 1, purchasePrice: 0, currentPrice: 0, accountType: form.accountType })
+          await onAdd({ type: 'Bank', symbol: cashSymbol, name: `${inst} - Cash`, institution: inst, currency: form.currency, quantity: 1, purchasePrice: 0, currentPrice: 0, accountType: form.accountType, ...(activeEntity && activeEntity !== 'default' ? { entityId: activeEntity } : {}) })
         }
         item.incomeDestination = cashSymbol
       }
 
       if (activePortfolio && activePortfolio !== '__all__') {
         item.portfolioId = activePortfolio
+      }
+      if (activeEntity && activeEntity !== 'default') {
+        item.entityId = activeEntity
       }
 
       await onAdd(item)
@@ -431,6 +434,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
           description: `${item.name || item.symbol} - ${t('Dinero nuevo', 'New money')}`,
           date: form.acquisitionDate || new Date().toISOString().split('T')[0],
           totalAmount: Math.round(totalValue * 100) / 100, currency: item.currency || 'USD',
+          ...(activeEntity && activeEntity !== 'default' ? { entityId: activeEntity } : {}),
         })
       }
 

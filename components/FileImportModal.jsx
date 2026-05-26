@@ -97,7 +97,7 @@ function parseNumber(val) {
   return isNaN(num) ? 0 : num
 }
 
-export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateItem, existingItems, activePortfolio, lang = 'es' }) {
+export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateItem, existingItems, activePortfolio, activeEntity = 'default', lang = 'es' }) {
   const [mode, setMode] = useState('file')
   const [step, setStep] = useState('upload')
   const [rawData, setRawData] = useState([])
@@ -315,6 +315,9 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         }
         if (activePortfolio && activePortfolio !== '__all__') {
           item.portfolioId = activePortfolio
+        }
+        if (activeEntity && activeEntity !== 'default') {
+          item.entityId = activeEntity
         }
         await onImportItems(item)
         if (onAddLot && item.symbol && item.quantity > 0 && item.purchasePrice > 0 && !/debt|deuda/i.test(item.type || '')) {

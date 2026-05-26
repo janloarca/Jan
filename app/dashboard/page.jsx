@@ -66,6 +66,8 @@ import PerformanceAttribution from '@/components/dashboard/PerformanceAttributio
 import ValueBreakdown from '@/components/dashboard/ValueBreakdown'
 import PriceAlerts from '@/components/dashboard/PriceAlerts'
 import PortfolioSelector from '@/components/dashboard/PortfolioSelector'
+import EntitySwitcher from '@/components/dashboard/EntitySwitcher'
+import { useEntities } from '@/hooks/useEntities'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -79,7 +81,9 @@ export default function DashboardPage() {
   const [lang, setLang] = useState('es')
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [activePortfolio, setActivePortfolio] = useState('__all__')
+  const [activeEntity, setActiveEntity] = useState('__all__')
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
+  const { entities, addEntity, updateEntity: updateEntityData, deleteEntity } = useEntities()
 
   // Theme + lang init
   useEffect(() => {
@@ -175,7 +179,7 @@ export default function DashboardPage() {
     addPortfolio, deletePortfolio,
     addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     saveGoals, saveSettings,
-    enrichedItems, portfolioItems,
+    enrichedItems, portfolioItems, entityTransactions, entityFinanceTransactions,
     pricesLoading, pricesError, pricesUpdate,
     rates, convert,
     ratesLoading, ratesError,
@@ -185,7 +189,7 @@ export default function DashboardPage() {
     netContributions, cashTotal, riskMetrics, insights, dataAge,
     benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName,
     handleIBKRSync,
-  } = useDashboardData({ user, lang, activePortfolio })
+  } = useDashboardData({ user, lang, activePortfolio, activeEntity })
 
   // Export XLSX
   const handleExport = useCallback(async () => {
@@ -422,6 +426,12 @@ export default function DashboardPage() {
           )}
           {baseCurrency !== 'USD' && <span className="text-xs text-cyan-500/70">{baseCurrency}</span>}
           {(pricesLoading || ratesLoading) && <span className="text-xs text-blue-400 animate-pulse">{lang === 'es' ? 'Actualizando...' : 'Updating...'}</span>}
+          {entities && entities.length > 1 && (
+            <EntitySwitcher
+              entities={entities} activeEntity={activeEntity}
+              onSelect={setActiveEntity} onAdd={() => setModal('settings')} lang={lang}
+            />
+          )}
           {portfolios && portfolios.length > 0 && (
             <PortfolioSelector
               portfolios={portfolios} activePortfolio={activePortfolio}
@@ -557,7 +567,8 @@ export default function DashboardPage() {
           onImportTransaction={addTransaction} onImportSnapshot={saveSnapshot}
           onAddLot={addLot} onAddFinanceTransaction={addFinanceTransaction}
           onUpdateItem={updateItem} existingItems={items}
-          activePortfolio={activePortfolio} lang={lang}
+          activePortfolio={activePortfolio} activeEntity={activeEntity !== '__all__' ? activeEntity : 'default'}
+          lang={lang}
         />
       )}
 
@@ -565,7 +576,9 @@ export default function DashboardPage() {
         <AddAccountModal
           onClose={() => setModal(null)} onAdd={addItem}
           onAddTransaction={addTransaction} onAddLot={addLot}
-          existingItems={items} activePortfolio={activePortfolio} lang={lang}
+          existingItems={items} activePortfolio={activePortfolio}
+          activeEntity={activeEntity !== '__all__' ? activeEntity : 'default'}
+          lang={lang}
         />
       )}
 
@@ -605,6 +618,10 @@ export default function DashboardPage() {
           onDeleteAllItems={deleteAllItems} onDeleteAllSnapshots={deleteAllSnapshots}
           onDeleteAllTransactions={deleteAllTransactions}
           onDeleteAllFinanceTransactions={deleteAllFinanceTransactions}
+          entities={entities}
+          onAddEntity={addEntity}
+          onUpdateEntity={updateEntityData}
+          onDeleteEntity={deleteEntity}
           onSyncBroker={async (positions) => {
             const mapped = (positions || []).filter(p => p.quantity !== 0).map(p => ({
               symbol: (p.symbol || '').toUpperCase(), name: p.name || p.symbol,

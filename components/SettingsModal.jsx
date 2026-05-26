@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Settings, Building2 } from 'lucide-react'
+import { Settings, Building2, Users } from 'lucide-react'
+import EntityManager from '@/components/dashboard/EntityManager'
 import { authFetch } from '@/lib/authFetch'
 import { isNotificationSupported, getNotificationPermission, requestNotificationPermission } from '@/lib/notifications'
 import { BENCHMARKS } from '@/hooks/useBenchmark'
@@ -23,7 +24,7 @@ const CURRENCIES = [
   { code: 'CNY', name: 'Chinese Yuan', symbol: '¥' },
 ]
 
-export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onExportBackup, onSyncBroker, theme, onToggleTheme, lang = 'es' }) {
+export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onExportBackup, onSyncBroker, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, lang = 'es' }) {
   const [baseCurrency, setBaseCurrency] = useState(settings?.baseCurrency || 'USD')
   const [benchmarkSymbol, setBenchmarkSymbol] = useState(settings?.benchmarkSymbol || '%5EGSPC')
   const [saving, setSaving] = useState(false)
@@ -184,6 +185,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
 
   const tabs = [
     { key: 'general', label: t('General', 'General') },
+    { key: 'entities', label: t('Entidades', 'Entities') },
     { key: 'brokers', label: t('Brokers', 'Brokers') },
     { key: 'share', label: t('Compartir', 'Share') },
     { key: 'data', label: t('Datos', 'Data') },
@@ -315,6 +317,22 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                 className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium">
                 {saving ? '...' : t('Guardar configuracion', 'Save settings')}
               </button>
+            </div>
+          )}
+
+          {tab === 'entities' && (
+            <div className="space-y-4">
+              {onAddEntity ? (
+                <EntityManager
+                  entities={entities || []}
+                  onAdd={onAddEntity}
+                  onUpdate={onUpdateEntity}
+                  onDelete={onDeleteEntity}
+                  lang={lang}
+                />
+              ) : (
+                <p className="text-xs text-slate-500">{t('No disponible', 'Not available')}</p>
+              )}
             </div>
           )}
 

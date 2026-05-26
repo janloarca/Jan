@@ -9,7 +9,7 @@ import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItem
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
 
-export function useDashboardData({ user, lang, activePortfolio }) {
+export function useDashboardData({ user, lang, activePortfolio, activeEntity = '__all__' }) {
   const firestoreData = useFirestoreItems()
   const {
     items, snapshots, transactions, goals, settings,
@@ -61,10 +61,25 @@ export function useDashboardData({ user, lang, activePortfolio }) {
     })
   }, [rawEnriched, rates, convert, baseCurrency])
 
+  const entityItems = useMemo(() => {
+    if (activeEntity === '__all__') return enrichedItems
+    return enrichedItems.filter((it) => (it.entityId || 'default') === activeEntity)
+  }, [enrichedItems, activeEntity])
+
+  const entityTransactions = useMemo(() => {
+    if (activeEntity === '__all__') return transactions
+    return transactions.filter((tx) => (tx.entityId || 'default') === activeEntity)
+  }, [transactions, activeEntity])
+
+  const entityFinanceTransactions = useMemo(() => {
+    if (activeEntity === '__all__') return financeTransactions
+    return financeTransactions.filter((tx) => (tx.entityId || 'default') === activeEntity)
+  }, [financeTransactions, activeEntity])
+
   const portfolioItems = useMemo(() => {
-    if (activePortfolio === '__all__') return enrichedItems
-    return enrichedItems.filter((it) => (it.portfolioId || '__default__') === activePortfolio)
-  }, [enrichedItems, activePortfolio])
+    if (activePortfolio === '__all__') return entityItems
+    return entityItems.filter((it) => (it.portfolioId || '__default__') === activePortfolio)
+  }, [entityItems, activePortfolio])
 
   // Daily snapshot
   const snapshotSavedRef = useRef(null)
@@ -500,6 +515,7 @@ export function useDashboardData({ user, lang, activePortfolio }) {
   return {
     // Raw Firestore data
     items, snapshots, transactions, goals, settings, alerts, lots, portfolios, financeTransactions,
+    entityTransactions, entityFinanceTransactions,
     dataLoading,
 
     // Firestore actions
