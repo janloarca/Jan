@@ -7,7 +7,7 @@ function isValidJwtFormat(token) {
   try {
     const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
     const payload = JSON.parse(atob(base64))
-    if (payload.exp && payload.exp * 1000 < Date.now()) return false
+    if (payload.exp && (payload.exp * 1000 + 60000) < Date.now()) return false
     return true
   } catch {
     return false
@@ -17,7 +17,7 @@ function isValidJwtFormat(token) {
 export function middleware(request) {
   const { pathname } = request.nextUrl
 
-  if (pathname.startsWith('/dashboard')) {
+  if (pathname.startsWith('/dashboard') || pathname.startsWith('/finances') || pathname.startsWith('/spreadsheet')) {
     const authCookie = request.cookies.get('__session')
 
     if (!authCookie || !isValidJwtFormat(authCookie.value)) {
@@ -31,5 +31,5 @@ export function middleware(request) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*'],
+  matcher: ['/dashboard/:path*', '/finances/:path*', '/spreadsheet/:path*'],
 }

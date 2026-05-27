@@ -153,7 +153,7 @@ export default function DashboardPage() {
     let refreshInterval = null
     const secure = typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : ''
     function setCookie(token) {
-      document.cookie = `__session=${token}; path=/; max-age=3600; SameSite=Lax${secure}`
+      document.cookie = `__session=${token}; path=/; max-age=604800; SameSite=Lax${secure}`
     }
     async function initAuth() {
       const { auth } = await import('@/lib/firebase')
@@ -170,8 +170,10 @@ export default function DashboardPage() {
           if (!refreshInterval) {
             refreshInterval = setInterval(async () => {
               try {
-                const t = await currentUser.getIdToken(true)
-                setCookie(t)
+                if (auth.currentUser) {
+                  const t = await auth.currentUser.getIdToken(true)
+                  setCookie(t)
+                }
               } catch {}
             }, 50 * 60 * 1000)
           }
