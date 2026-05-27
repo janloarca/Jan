@@ -76,9 +76,16 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
   const [returnMode, setReturnMode] = useState('twr')
   const [benchmarkPts, setBenchmarkPts] = useState(null)
 
-  const periods = ['1W', 'MTD', '1M', '3M', 'YTD', '1Y', 'ALL']
+  const periods = ['DAY', '1W', 'MTD', '1M', '3M', 'YTD', '1Y', 'ALL']
   const t = (es, en) => lang === 'es' ? es : en
-  const benchmarkPeriodMap = { '1W': '1M', MTD: '1M', '1M': '1M', '3M': '3M', '6M': '6M', YTD: 'YTD', '1Y': '1Y', ALL: 'ALL' }
+  const benchmarkPeriodMap = { DAY: '1M', '1W': '1M', MTD: '1M', '1M': '1M', '3M': '3M', '6M': '6M', YTD: 'YTD', '1Y': '1Y', ALL: 'ALL' }
+
+  const formatTooltipDate = useCallback((date) => {
+    if (period === 'DAY') {
+      return date.toLocaleTimeString(lang === 'es' ? 'es' : 'en-US', { hour: '2-digit', minute: '2-digit' })
+    }
+    return formatDate(date.toISOString())
+  }, [period, lang])
 
   const fetchHistory = useCallback(async () => {
     if (!items || items.length === 0) return
@@ -92,7 +99,9 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
         body: JSON.stringify({
           items: items.map((it) => ({
             symbol: it.symbol, type: it.type, quantity: it.quantity,
-            currentPrice: it.currentPrice, purchasePrice: it.purchasePrice,
+            currentPrice: it._originalPrice || it.currentPrice,
+            purchasePrice: it._originalPurchasePrice || it.purchasePrice,
+            currency: it._originalCurrency || 'USD',
             acquisitionDate: it.acquisitionDate,
           })),
           period: apiPeriod,
@@ -101,19 +110,30 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
       if (res.ok) {
         const data = await res.json()
         let pts = data.dataPoints || []
+        if (baseCurrency !== 'USD' && convert) {
+          pts = pts.map(dp => ({ ...dp, total: convert(dp.total, 'USD', baseCurrency) }))
+        }
         if (period === 'MTD') {
           const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime()
           pts = pts.filter((dp) => dp.ts >= monthStart)
         }
+        if (period === 'DAY') {
+          const now = new Date()
+          let sevenAM = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 7, 0, 0).getTime()
+          if (now.getTime() < sevenAM) sevenAM -= 86400000
+          pts = pts.filter(dp => dp.ts >= sevenAM)
+        }
         setDataPoints(pts)
-        setStaticTotal(data.staticTotal || 0)
+        setStaticTotal(data.staticTotal != null
+          ? (baseCurrency !== 'USD' && convert ? convert(data.staticTotal, 'USD', baseCurrency) : data.staticTotal)
+          : 0)
       }
     } catch (err) {
       console.error('Failed to fetch portfolio history:', err)
       setFetchError(t('Error cargando historial', 'Failed to load history'))
     }
     setLoading(false)
-  }, [items, period])
+  }, [items, period, baseCurrency, convert])
 
   useEffect(() => { fetchHistory() }, [fetchHistory])
 
@@ -135,6 +155,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
 
   const snapshotData = useMemo(() => {
     if (!snapshots || snapshots.length === 0) return []
+    if (period === 'DAY') return []
     const now = Date.now()
     const periods = { '1W': 7, MTD: null, '1M': 30, '3M': 90, '6M': 180, YTD: null, '1Y': 365, ALL: null }
     let cutoff
@@ -182,8 +203,10 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
     }
 
     const last = pts[pts.length - 1]
-    if (last && currentTotal > 0 && Math.abs(last.value - currentTotal) > 1) {
-      pts.push({ ts: Date.now(), date: new Date(), value: currentTotal })
+    const now = Date.now()
+    const gapOk = period === 'DAY' ? (now - (last?.ts || 0)) < 600000 : true
+    if (last && currentTotal > 0 && Math.abs(last.value - currentTotal) > 1 && gapOk) {
+      pts.push({ ts: now, date: new Date(), value: currentTotal })
     }
     return pts
   }, [dataPoints, snapshotData, currentTotal])
@@ -337,9 +360,19 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
   if (chartData.length < 2) {
     return (
       <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-5 card-primary">
-        <div className="flex items-center justify-center min-h-[200px] text-slate-500 text-sm">
-          {t('Agrega activos para ver la gráfica.', 'Add assets to see the chart.')}
+        <div className="flex flex-col items-center justify-center min-h-[200px] gap-2 text-slate-500 text-sm">
+          {period === 'DAY' ? (
+            <>
+              <p>{t('Sin datos intradía — el mercado puede estar cerrado.', 'No intraday data — market may be closed.')}</p>
+              <button onClick={() => setPeriod('1W')} className="text-xs text-blue-400 hover:text-blue-300">
+                {t('Ver última semana', 'View last week')}
+              </button>
+            </>
+          ) : (
+            <p>{t('Agrega activos para ver la gráfica.', 'Add assets to see the chart.')}</p>
+          )}
         </div>
+        <div className="flex justify-center mt-2">{periodSelector}</div>
       </div>
     )
   }
@@ -391,7 +424,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
           <p className="text-3xl font-bold text-white">{formatCurrency(hd ? hd.value : currentTotal)}</p>
           <p className={`text-sm mt-0.5 ${growthAbs >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
             {growthAbs >= 0 ? '+' : ''}{formatCurrency(growthAbs)} ({growthAbs >= 0 ? '+' : ''}{growthPct.toFixed(2)}%)
-            <span className="text-slate-500 ml-1">{period === 'YTD' ? t('este año', 'this year') : period}</span>
+            <span className="text-slate-500 ml-1">{period === 'YTD' ? t('este año', 'this year') : period === 'DAY' ? t('hoy', 'today') : period}</span>
           </p>
         </div>
       ) : (
@@ -401,7 +434,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
           </p>
           <div className="flex items-center gap-3 mt-0.5">
             <span className="text-sm text-slate-400">
-              {period === 'YTD' ? t('Retorno total del año', 'Total return this year') : `${t('Retorno', 'Return')} ${period}`}
+              {period === 'YTD' ? t('Retorno total del año', 'Total return this year') : period === 'DAY' ? t('Retorno hoy', 'Return today') : `${t('Retorno', 'Return')} ${period}`}
             </span>
             <span className="text-xs text-slate-600">
               {returnMode === 'twr'
@@ -564,7 +597,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
               {viewMode === 'value' ? (
                 <>
                   <div className="font-bold">{formatCurrency(hd.value)}</div>
-                  <div className="text-slate-400">{formatDate(hd.date.toISOString())}</div>
+                  <div className="text-slate-400">{formatTooltipDate(hd.date)}</div>
                 </>
               ) : (
                 <>
@@ -577,7 +610,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
                     </div>
                   )}
                   <div className="text-slate-300">{formatCurrency(hd.value)}</div>
-                  <div className="text-slate-500">{formatDate(hd.date.toISOString())}</div>
+                  <div className="text-slate-500">{formatTooltipDate(hd.date)}</div>
                 </>
               )}
             </div>
