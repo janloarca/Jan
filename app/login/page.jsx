@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 function setSessionCookie(token) {
   const secure = window.location.protocol === 'https:' ? '; Secure' : ''
@@ -13,7 +13,7 @@ function isInAppBrowser() {
   return /FBAN|FBAV|Instagram|Line\/|Twitter|Snapchat|WhatsApp|WebView|wv\)/i.test(ua)
 }
 
-export default function LoginPage() {
+function LoginForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isSignUp, setIsSignUp] = useState(false)
@@ -23,7 +23,11 @@ export default function LoginPage() {
   const [resetSent, setResetSent] = useState(false)
   const [showReset, setShowReset] = useState(false)
   const [inAppBrowser, setInAppBrowser] = useState(false)
+  const [checkingAuth, setCheckingAuth] = useState(true)
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  const redirectTo = searchParams.get('redirect') || '/dashboard'
 
   useEffect(() => {
     if (isInAppBrowser()) setInAppBrowser(true)
@@ -33,18 +37,24 @@ export default function LoginPage() {
     async function check() {
       const { auth } = await import('@/lib/firebase')
       const { onAuthStateChanged } = await import('firebase/auth')
-      if (!auth) return
+      if (!auth) { setCheckingAuth(false); return }
       unsub = onAuthStateChanged(auth, async (u) => {
         if (u) {
-          const token = await u.getIdToken()
-          setSessionCookie(token)
-          router.push('/dashboard')
+          try {
+            const token = await u.getIdToken(true)
+            setSessionCookie(token)
+            router.push(redirectTo)
+          } catch {
+            setCheckingAuth(false)
+          }
+        } else {
+          setCheckingAuth(false)
         }
       })
     }
     check()
     return () => unsub()
-  }, [router])
+  }, [router, redirectTo])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -63,7 +73,7 @@ export default function LoginPage() {
       }
       const token = await cred.user.getIdToken()
       setSessionCookie(token)
-      router.push('/dashboard')
+      router.push(redirectTo)
     } catch (err) {
       const msg = err.code === 'auth/wrong-password' ? 'Contraseña incorrecta'
         : err.code === 'auth/user-not-found' ? 'No existe una cuenta con ese email'
@@ -73,6 +83,7 @@ export default function LoginPage() {
         : err.code === 'auth/invalid-credential' ? 'Email o contraseña incorrectos'
         : err.code === 'auth/network-request-failed' ? 'Error de red. Verifica tu conexión.'
         : err.code === 'auth/too-many-requests' ? 'Demasiados intentos. Espera un momento.'
+        : err.code === 'auth/internal-error' ? 'Error interno. Intenta de nuevo.'
         : err.message
       setError(msg)
     } finally {
@@ -85,20 +96,31 @@ export default function LoginPage() {
     setGoogleLoading(true)
     try {
       const { auth } = await import('@/lib/firebase')
-      const { GoogleAuthProvider, signInWithPopup } = await import('firebase/auth')
+      const { GoogleAuthProvider, signInWithPopup, signInWithRedirect } = await import('firebase/auth')
       if (!auth) throw new Error('Firebase not initialized')
       const provider = new GoogleAuthProvider()
+      if (isInAppBrowser()) {
+        await signInWithRedirect(auth, provider)
+        return
+      }
       const cred = await signInWithPopup(auth, provider)
       const token = await cred.user.getIdToken()
       setSessionCookie(token)
-      router.push('/dashboard')
+      router.push(redirectTo)
     } catch (err) {
-      if (err.code === 'auth/popup-closed-by-user') return
+      if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') return
       if (err.code === 'auth/popup-blocked') {
-        setError('Popup bloqueado. Permite popups para este sitio.')
-      } else {
-        setError(err.message)
+        try {
+          const { auth } = await import('@/lib/firebase')
+          const { GoogleAuthProvider, signInWithRedirect } = await import('firebase/auth')
+          if (auth) await signInWithRedirect(auth, new GoogleAuthProvider())
+          return
+        } catch {}
       }
+      const msg = err.code === 'auth/network-request-failed' ? 'Error de red. Verifica tu conexión.'
+        : err.code === 'auth/internal-error' ? 'Error interno. Intenta de nuevo.'
+        : 'Error al conectar con Google. Intenta de nuevo.'
+      setError(msg)
     } finally {
       setGoogleLoading(false)
     }
@@ -122,6 +144,17 @@ export default function LoginPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (checkingAuth) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-[#0f172a]">
+        <div className="flex items-center gap-2 text-slate-500 text-sm">
+          <div className="w-4 h-4 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
+          Verificando sesión...
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -251,5 +284,19 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen bg-[#0f172a]">
+        <div className="flex items-center gap-2 text-slate-500 text-sm">
+          <div className="w-4 h-4 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   )
 }
