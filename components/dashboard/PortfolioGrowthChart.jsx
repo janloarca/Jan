@@ -113,6 +113,10 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
         if (baseCurrency !== 'USD' && convert) {
           pts = pts.map(dp => ({ ...dp, total: convert(dp.total, 'USD', baseCurrency) }))
         }
+        if (period === 'YTD') {
+          const yearStart = new Date(new Date().getFullYear(), 0, 1).getTime()
+          pts = pts.filter((dp) => dp.ts >= yearStart)
+        }
         if (period === 'MTD') {
           const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime()
           pts = pts.filter((dp) => dp.ts >= monthStart)

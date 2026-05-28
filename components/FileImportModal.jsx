@@ -54,18 +54,18 @@ function guessMapping(headers) {
 }
 
 function inferType(row, mapping) {
-  const name = mapping.name != null ? (row[mapping.name] || '').toString().toLowerCase() : ''
-  const symbol = mapping.symbol != null ? (row[mapping.symbol] || '').toString().toLowerCase() : ''
-  const typeHint = mapping.type != null ? (row[mapping.type] || '').toString().toLowerCase() : ''
+  const name = mapping.name != null ? (row[mapping.name] || '').toString() : ''
+  const symbol = mapping.symbol != null ? (row[mapping.symbol] || '').toString() : ''
+  const typeHint = mapping.type != null ? (row[mapping.type] || '').toString() : ''
   const combined = `${name} ${symbol} ${typeHint}`
 
   if (/btc|eth|sol|ada|dot|bnb|xrp|doge|avax|matic|crypto|cripto|usdt|usdc|bitcoin|ethereum|staking|defi/i.test(combined)) return 'Crypto'
-  if (/debt|deuda|hipoteca|mortgage|loan|prestamo|credit.?card|tarjeta|liability|pasivo/i.test(combined)) return 'Debt'
-  if (/safe|vc.?fund|private.?equity|club.?deal|alternative|alternativ|collectible/i.test(combined)) return 'Alternative'
-  if (/real.?estate|inmueble|property|propiedad|reit|crowdfund/i.test(combined)) return 'RealEstate'
-  if (/etf|fund|fondo|vanguard|ishares|spdr|mutual/i.test(combined)) return 'Fund'
-  if (/bond|bono|cete|letra|pagare|instrumento|treasury|cdt|deposito|certificado/i.test(combined)) return 'Bond'
-  if (/bank|banco|saving|ahorro|cash|efectivo|checking|cuenta/i.test(combined)) return 'Bank'
+  if (/\bdebt\b|deuda|hipoteca|mortgage|\bloan\b|prestamo|credit.?card|tarjeta|liability|pasivo/i.test(combined)) return 'Debt'
+  if (/safe.?note|vc.?fund|private.?equity|club.?deal|\balternative?\b|collectible/i.test(combined)) return 'Alternative'
+  if (/real.?estate|inmueble|property|propiedad|\breit\b|crowdfund/i.test(combined)) return 'RealEstate'
+  if (/\betf\b|\bfund\b|fondo|vanguard|ishares|spdr|mutual/i.test(combined)) return 'Fund'
+  if (/\bbond\b|bono|cete|letra|pagare|instrumento|treasury|cdt|deposito|certificado/i.test(combined)) return 'Bond'
+  if (/\bbank\b|banco|saving|ahorro|\bcash\b|efectivo|checking|cuenta/i.test(combined)) return 'Bank'
   return 'Stock'
 }
 
@@ -89,12 +89,34 @@ function parseCSVLine(line, sep) {
   return fields
 }
 
+function parseEuropeanOrUS(str) {
+  if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(str)) {
+    return parseFloat(str.replace(/\./g, '').replace(',', '.'))
+  }
+  if (/^-?\d+,\d{1,2}$/.test(str)) {
+    return parseFloat(str.replace(',', '.'))
+  }
+  return parseFloat(str.replace(/,/g, ''))
+}
+
 function parseNumber(val) {
   if (val == null) return 0
-  if (typeof val === 'number') return val
-  const str = val.toString().replace(/[$,\s]/g, '').replace(/\((.+)\)/, '-$1')
-  const num = parseFloat(str)
-  return isNaN(num) ? 0 : num
+  if (typeof val === 'number') return isFinite(val) ? val : 0
+  let str = val.toString().trim()
+  str = str.replace(/[$€£¥₡₿Q₱₨]/g, '')
+  const neg = str.match(/^\((.+)\)$/)
+  if (neg) str = '-' + neg[1]
+  str = str.replace(/[\s ]/g, '')
+  str = str.replace(/%$/, '')
+  const shorthand = str.match(/^(-?[\d.,]+)([KkMmBb])$/)
+  if (shorthand) {
+    const mult = { k: 1e3, K: 1e3, m: 1e6, M: 1e6, b: 1e9, B: 1e9 }
+    const base = parseEuropeanOrUS(shorthand[1])
+    const result = base * (mult[shorthand[2]] || 1)
+    return isFinite(result) ? result : 0
+  }
+  const num = parseEuropeanOrUS(str)
+  return isFinite(num) ? num : 0
 }
 
 export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateItem, existingItems, activePortfolio, activeEntity = 'default', lang = 'es' }) {
