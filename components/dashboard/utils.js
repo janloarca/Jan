@@ -12,7 +12,7 @@ let _lang = 'en'
 export function setLang(code) { _lang = code || 'en' }
 
 export function formatCurrency(value, currency) {
-  if (value == null || isNaN(value)) return '$0.00'
+  if (value == null || !isFinite(value)) return '$0.00'
   const cur = currency || _baseCurrency
   const locale = _lang === 'es' ? 'es-US' : 'en-US'
   try {
@@ -24,7 +24,7 @@ export function formatCurrency(value, currency) {
 }
 
 export function formatCompact(value, currency) {
-  if (value == null || isNaN(value)) return '$0'
+  if (value == null || !isFinite(value)) return '$0'
   const sym = CURRENCY_SYMBOLS[currency || _baseCurrency] || '$'
   if (Math.abs(value) >= 1000000) return sym + (value / 1000000).toFixed(1) + 'M'
   if (Math.abs(value) >= 1000) return sym + (value / 1000).toFixed(1) + 'K'
@@ -88,11 +88,17 @@ export const TYPE_COLORS = {
 
 export function getItemPrice(item) {
   if (item.isIlliquid && item.lastManualValuation > 0) return item.lastManualValuation
-  return item.currentPrice || item.purchasePrice || item.price || item.cost || item.averagePrice || 0
+  const candidates = [item.currentPrice, item.purchasePrice, item.price, item.cost, item.averagePrice]
+  for (const c of candidates) {
+    if (c != null && isFinite(c) && c > 0) return c
+  }
+  return 0
 }
 
 export function getItemValue(item) {
-  const val = (item.quantity || 0) * getItemPrice(item)
+  const qty = Number(item.quantity) || 0
+  const val = qty * getItemPrice(item)
+  if (!isFinite(val)) return 0
   return item.isDebt ? -Math.abs(val) : val
 }
 
@@ -128,7 +134,7 @@ export const INVESTMENT_CLASS_META = {
 }
 
 export function formatPercent(value) {
-  if (value == null || isNaN(value)) return '0.00%'
+  if (value == null || !isFinite(value)) return '0.00%'
   const sign = value >= 0 ? '+' : ''
   return `${sign}${value.toFixed(2)}%`
 }

@@ -49,7 +49,8 @@ export function useExchangeRates(baseCurrency) {
     if (from === to) return amount
     const fromRate = ratesRef.current[from] || 1
     const toRate = ratesRef.current[to] || 1
-    return (amount / fromRate) * toRate
+    const result = (amount / fromRate) * toRate
+    return isFinite(result) ? result : amount
   }, [])
 
   const getRate = useCallback((fromCurrency, toCurrency) => {
@@ -67,6 +68,7 @@ export function useExchangeRates(baseCurrency) {
     const price = item.currentPrice || item.purchasePrice || item.price || item.cost || 0
     const itemCurrency = item.marketCurrency || item.currency || 'USD'
     const rawValue = qty * price
+    if (!isFinite(rawValue)) return 0
     return convert(rawValue, itemCurrency, baseRef.current)
   }, [convert])
 

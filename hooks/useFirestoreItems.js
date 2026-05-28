@@ -37,16 +37,18 @@ function toStr(v) {
   return String(v)
 }
 
+function safeNum(v) { const n = Number(v) || 0; return isFinite(n) ? n : 0 }
+
 function sanitizeItem(raw) {
   return {
     ...raw,
-    quantity: Number(raw.quantity) || 0,
-    purchasePrice: Number(raw.purchasePrice) || 0,
-    currentPrice: raw.currentPrice != null ? Number(raw.currentPrice) || 0 : undefined,
-    incomeAmount: raw.incomeAmount != null ? Number(raw.incomeAmount) || 0 : 0,
-    incomeRate: raw.incomeRate != null ? Number(raw.incomeRate) || 0 : 0,
-    rateMin: raw.rateMin != null ? Number(raw.rateMin) || 0 : 0,
-    rateMax: raw.rateMax != null ? Number(raw.rateMax) || 0 : 0,
+    quantity: safeNum(raw.quantity),
+    purchasePrice: safeNum(raw.purchasePrice),
+    currentPrice: raw.currentPrice != null ? safeNum(raw.currentPrice) : undefined,
+    incomeAmount: raw.incomeAmount != null ? safeNum(raw.incomeAmount) : 0,
+    incomeRate: raw.incomeRate != null ? safeNum(raw.incomeRate) : 0,
+    rateMin: raw.rateMin != null ? safeNum(raw.rateMin) : 0,
+    rateMax: raw.rateMax != null ? safeNum(raw.rateMax) : 0,
     incomeMonths: Array.isArray(raw.incomeMonths) ? raw.incomeMonths.filter((m) => typeof m === 'number' && m >= 0 && m < 12) : undefined,
     maturityDate: toStr(raw.maturityDate),
     acquisitionDate: toStr(raw.acquisitionDate),
