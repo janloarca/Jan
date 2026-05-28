@@ -1,22 +1,12 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { formatCurrency, formatCompact, formatDate, computeModifiedDietz } from './utils'
 import { computeTWRSeries } from './analytics'
 import { authFetch } from '@/lib/authFetch'
 
-function smooth(pts) {
-  if (pts.length < 3) return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
-  const tension = 0.3
-  let d = `M ${pts[0].x} ${pts[0].y}`
-  for (let i = 0; i < pts.length - 1; i++) {
-    const p0 = pts[Math.max(0, i - 1)]
-    const p1 = pts[i]
-    const p2 = pts[i + 1]
-    const p3 = pts[Math.min(pts.length - 1, i + 2)]
-    d += ` C ${p1.x + (p2.x - p0.x) * tension / 3} ${p1.y + (p2.y - p0.y) * tension / 3}, ${p2.x - (p3.x - p1.x) * tension / 3} ${p2.y - (p3.y - p1.y) * tension / 3}, ${p2.x} ${p2.y}`
-  }
-  return d
+function polyline(pts) {
+  return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
 }
 
 function buildGeometry(values, mode, height, width, pad, extraSeries) {
@@ -51,7 +41,7 @@ function buildGeometry(values, mode, height, width, pad, extraSeries) {
     y: pad.top + ch - (i / (tickCount - 1)) * ch,
   }))
 
-  return { points, baselineY, yTicks, cw, ch }
+  return { points, baselineY, yTicks, cw, ch, adjustedMin, range }
 }
 
 function findClosestBenchmark(sorted, targetTs) {
@@ -75,10 +65,23 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
   const [viewMode, setViewMode] = useState('value')
   const [returnMode, setReturnMode] = useState('twr')
   const [benchmarkPts, setBenchmarkPts] = useState(null)
+  const [showContributions, setShowContributions] = useState(true)
+  const containerRef = useRef(null)
+  const [chartWidth, setChartWidth] = useState(650)
 
   const periods = ['DAY', '1W', 'MTD', '1M', '3M', 'YTD', '1Y', 'ALL']
   const t = (es, en) => lang === 'es' ? es : en
   const benchmarkPeriodMap = { DAY: '1M', '1W': '1M', MTD: '1M', '1M': '1M', '3M': '3M', '6M': '6M', YTD: 'YTD', '1Y': '1Y', ALL: 'ALL' }
+
+  useEffect(() => {
+    if (!containerRef.current) return
+    const observer = new ResizeObserver(entries => {
+      const w = entries[0]?.contentRect.width
+      if (w && w > 100) setChartWidth(Math.round(w))
+    })
+    observer.observe(containerRef.current)
+    return () => observer.disconnect()
+  }, [])
 
   const formatTooltipDate = useCallback((date) => {
     if (period === 'DAY') {
@@ -191,15 +194,18 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
       : []
     const snapPts = snapshotData.length >= 2 ? [...snapshotData] : []
 
-    const longPeriod = ['YTD', '1Y', 'ALL', '3M', '1M'].includes(period)
+    const shortPeriod = ['DAY', '1W'].includes(period)
     let pts
 
-    if (longPeriod && snapPts.length >= 2) {
-      pts = [...snapPts]
-    } else if (apiPts.length >= 2) {
+    if (shortPeriod && apiPts.length >= 2) {
       pts = apiPts
     } else if (snapPts.length >= 2) {
       pts = [...snapPts]
+      const lastSnapTs = snapPts[snapPts.length - 1].ts
+      const recentApi = apiPts.filter(p => p.ts > lastSnapTs + 3600000)
+      pts.push(...recentApi)
+    } else if (apiPts.length >= 2) {
+      pts = apiPts
     } else {
       return []
     }
@@ -267,7 +273,65 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
     })
   }, [sortedBenchmark, chartData])
 
-  const width = 650
+  const contributionLine = useMemo(() => {
+    if (viewMode !== 'value' || !transactions || chartData.length < 2) return null
+    const flowTypes = { DEPOSIT: 1, BUY: 1, WITHDRAWAL: -1, SELL: -1 }
+    const txs = transactions
+      .filter(tx => flowTypes[tx.type] != null)
+      .sort((a, b) => new Date(a.date) - new Date(b.date))
+
+    const startVal = chartData[0].value
+    return chartData.map(dp => {
+      let cum = startVal
+      for (const tx of txs) {
+        const txTs = new Date(tx.date).getTime()
+        if (txTs <= chartData[0].ts) continue
+        if (txTs > dp.ts) break
+        const amt = tx.totalAmount || tx.amount || 0
+        const convertedAmt = convert ? convert(amt, tx.currency || 'USD', baseCurrency || 'USD') : amt
+        cum += (flowTypes[tx.type] || 0) * convertedAmt
+      }
+      return cum
+    })
+  }, [chartData, transactions, viewMode, convert, baseCurrency])
+
+  const drawdown = useMemo(() => {
+    if (chartData.length < 3) return null
+    let peak = chartData[0].value, peakIdx = 0
+    let maxDd = 0, ddStart = 0, ddEnd = 0
+    for (let i = 1; i < chartData.length; i++) {
+      if (chartData[i].value > peak) { peak = chartData[i].value; peakIdx = i }
+      const dd = peak > 0 ? (peak - chartData[i].value) / peak : 0
+      if (dd > maxDd) { maxDd = dd; ddStart = peakIdx; ddEnd = i }
+    }
+    if (maxDd < 0.01) return null
+    return { start: ddStart, end: ddEnd, pct: maxDd * 100 }
+  }, [chartData])
+
+  const txMarkers = useMemo(() => {
+    if (!transactions || chartData.length < 2) return []
+    const actionTypes = ['BUY', 'SELL', 'DEPOSIT', 'WITHDRAWAL']
+    const startTs = chartData[0].ts
+    const endTs = chartData[chartData.length - 1].ts
+    return transactions
+      .filter(tx => actionTypes.includes(tx.type))
+      .filter(tx => {
+        const txTs = new Date(tx.date).getTime()
+        return txTs >= startTs && txTs <= endTs
+      })
+      .map(tx => {
+        const txTs = new Date(tx.date).getTime()
+        let closest = 0
+        let minDist = Infinity
+        for (let i = 0; i < chartData.length; i++) {
+          const dist = Math.abs(chartData[i].ts - txTs)
+          if (dist < minDist) { minDist = dist; closest = i }
+        }
+        return { ...tx, chartIdx: closest }
+      })
+  }, [transactions, chartData])
+
+  const width = chartWidth
   const chartHeight = 260
   const pad = { top: 16, right: 16, bottom: 32, left: 52 }
 
@@ -296,7 +360,24 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
     if (vals.length < 2) return null
     const extra = (viewMode === 'performance' && benchmarkReturnSeries) ? benchmarkReturnSeries : null
     return buildGeometry(vals, viewMode === 'value' ? 'value' : 'performance', chartHeight, width, pad, extra)
-  }, [viewMode, growthValues, returnData, benchmarkReturnSeries])
+  }, [viewMode, growthValues, returnData, benchmarkReturnSeries, width])
+
+  const contributionGeoPoints = useMemo(() => {
+    if (!geo || !contributionLine || viewMode !== 'value' || !showContributions) return null
+    const ch = chartHeight - pad.top - pad.bottom
+    const allVals = [...growthValues, ...contributionLine]
+    const min = Math.min(...allVals)
+    const max = Math.max(...allVals)
+    const paddingVal = (max - min) * 0.05
+    const adjustedMin = min - paddingVal
+    const adjustedMax = max + paddingVal
+    const range = adjustedMax - adjustedMin || 1
+    return contributionLine.map((v, i) => ({
+      x: pad.left + (i / Math.max(contributionLine.length - 1, 1)) * geo.cw,
+      y: pad.top + ch - ((v - adjustedMin) / range) * ch,
+      v,
+    }))
+  }, [geo, contributionLine, viewMode, showContributions, growthValues, chartHeight, pad])
 
   const resolvedXLabels = useMemo(() => {
     if (!geo) return []
@@ -342,7 +423,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
     </div>
   )
 
-  if (loading) {
+  if (loading && chartData.length < 2) {
     return (
       <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-5 card-primary">
         <div className="flex items-center justify-center min-h-[260px]">
@@ -390,7 +471,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
   const hd = hoverIdx != null ? chartData[hoverIdx] : null
 
   return (
-    <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-5 card-primary">
+    <div ref={containerRef} className="bg-[#1e293b] rounded-2xl border border-[#334155] p-5 card-primary">
       {/* Tab bar: Value | Performance */}
       <div className="flex items-center gap-4 mb-4">
         <button onClick={() => setViewMode('value')}
@@ -410,6 +491,13 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
           {t('Rendimiento', 'Performance')}
         </button>
         <div className="ml-auto flex items-center gap-2">
+          {viewMode === 'value' && contributionLine && (
+            <button onClick={() => setShowContributions(!showContributions)}
+              className={`px-2 py-1 text-xs font-medium rounded-md transition-all ${showContributions ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}
+              title={t('Mostrar/ocultar capital invertido', 'Show/hide invested capital')}>
+              {t('Invertido', 'Invested')}
+            </button>
+          )}
           {viewMode === 'performance' && (
             <div className="flex gap-0.5 bg-[#0f172a] rounded-lg p-0.5">
               <button onClick={() => setReturnMode('twr')}
@@ -470,6 +558,19 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
         </div>
       )}
 
+      {/* Drawdown indicator */}
+      {viewMode === 'value' && drawdown && (
+        <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs mb-3 bg-red-500/5 border border-red-500/20 text-red-400">
+          <span>↓</span>
+          <span>
+            Max drawdown: -{drawdown.pct.toFixed(1)}%
+            <span className="text-slate-500 ml-1">
+              ({formatDate(chartData[drawdown.start].date.toISOString())} → {formatDate(chartData[drawdown.end].date.toISOString())})
+            </span>
+          </span>
+        </div>
+      )}
+
       {/* Chart */}
       {geo && (
         <div className="relative">
@@ -513,21 +614,51 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
 
             {viewMode === 'value' ? (
               <>
-                {/* VALUE MODE: Blue line + blue gradient fill */}
                 <defs>
                   <linearGradient id="grad-value" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.25" />
                     <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.02" />
                   </linearGradient>
                 </defs>
+
+                {/* Drawdown shaded zone */}
+                {drawdown && geo.points[drawdown.start] && geo.points[drawdown.end] && (
+                  <rect
+                    x={geo.points[drawdown.start].x}
+                    y={pad.top}
+                    width={geo.points[drawdown.end].x - geo.points[drawdown.start].x}
+                    height={chartHeight - pad.top - pad.bottom}
+                    fill="#ef4444" opacity="0.06" rx="2" />
+                )}
+
+                {/* Main value area + line */}
                 <path
-                  d={`${smooth(geo.points)} L ${geo.points[geo.points.length - 1].x} ${geo.baselineY} L ${geo.points[0].x} ${geo.baselineY} Z`}
+                  d={`${polyline(geo.points)} L ${geo.points[geo.points.length - 1].x} ${geo.baselineY} L ${geo.points[0].x} ${geo.baselineY} Z`}
                   fill="url(#grad-value)" />
-                <path d={smooth(geo.points)} fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" />
+                <path d={polyline(geo.points)} fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+
+                {/* Contributions line (invested capital) */}
+                {contributionGeoPoints && contributionGeoPoints.length >= 2 && showContributions && (
+                  <path d={polyline(contributionGeoPoints)} fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6 3" opacity="0.5" />
+                )}
+
+                {/* Transaction markers */}
+                {txMarkers.map((tx, i) => {
+                  const pt = geo.points[tx.chartIdx]
+                  if (!pt) return null
+                  const isBuy = tx.type === 'BUY' || tx.type === 'DEPOSIT'
+                  const markerY = chartHeight - pad.bottom
+                  return (
+                    <polygon key={i}
+                      points={isBuy
+                        ? `${pt.x},${markerY + 2} ${pt.x - 4},${markerY + 10} ${pt.x + 4},${markerY + 10}`
+                        : `${pt.x},${markerY + 10} ${pt.x - 4},${markerY + 2} ${pt.x + 4},${markerY + 2}`}
+                      fill={isBuy ? '#10b981' : '#ef4444'} opacity="0.6" />
+                  )
+                })}
               </>
             ) : (
               <>
-                {/* PERFORMANCE MODE: Green above 0%, Red below 0% */}
                 <defs>
                   <linearGradient id="grad-perf-green" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#10b981" stopOpacity="0.3" />
@@ -545,33 +676,27 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
                   </clipPath>
                 </defs>
 
-                {/* 0% baseline */}
                 <line x1={pad.left} y1={geo.baselineY} x2={width - pad.right} y2={geo.baselineY}
                   stroke="#64748b" strokeWidth="1" strokeDasharray="6 4" />
                 <text x={pad.left - 8} y={geo.baselineY + 4} textAnchor="end" fill="#94a3b8" fontSize="10" fontFamily="system-ui" fontWeight="600">0%</text>
 
-                {/* Green area (above baseline) */}
                 <path
-                  d={`${smooth(geo.points)} L ${geo.points[geo.points.length - 1].x} ${geo.baselineY} L ${geo.points[0].x} ${geo.baselineY} Z`}
+                  d={`${polyline(geo.points)} L ${geo.points[geo.points.length - 1].x} ${geo.baselineY} L ${geo.points[0].x} ${geo.baselineY} Z`}
                   fill="url(#grad-perf-green)" clipPath="url(#clip-above-baseline)" />
 
-                {/* Red area (below baseline) */}
                 <path
-                  d={`${smooth(geo.points)} L ${geo.points[geo.points.length - 1].x} ${geo.baselineY} L ${geo.points[0].x} ${geo.baselineY} Z`}
+                  d={`${polyline(geo.points)} L ${geo.points[geo.points.length - 1].x} ${geo.baselineY} L ${geo.points[0].x} ${geo.baselineY} Z`}
                   fill="url(#grad-perf-red)" clipPath="url(#clip-below-baseline)" />
 
-                {/* Green line (above baseline) */}
-                <path d={smooth(geo.points)} fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round"
+                <path d={polyline(geo.points)} fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
                   clipPath="url(#clip-above-baseline)" />
 
-                {/* Red line (below baseline) */}
-                <path d={smooth(geo.points)} fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round"
+                <path d={polyline(geo.points)} fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
                   clipPath="url(#clip-below-baseline)" />
 
-                {/* S&P 500 benchmark overlay */}
                 {benchmarkGeoPoints && benchmarkGeoPoints.length >= 2 && (
                   <>
-                    <path d={smooth(benchmarkGeoPoints)} fill="none" stroke="#f59e0b" strokeWidth="1.5" strokeLinecap="round" strokeDasharray="4 3" strokeOpacity="0.7" />
+                    <path d={polyline(benchmarkGeoPoints)} fill="none" stroke="#f59e0b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="4 3" strokeOpacity="0.7" />
                     <text x={benchmarkGeoPoints[benchmarkGeoPoints.length - 1].x + 4} y={benchmarkGeoPoints[benchmarkGeoPoints.length - 1].y + 3}
                       fill="#f59e0b" fontSize="9" fontFamily="system-ui" fontWeight="600" opacity="0.8">{benchmarkName || 'SPX'}</text>
                   </>
@@ -607,6 +732,25 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
                 <>
                   <div className="font-bold">{formatCurrency(hd.value)}</div>
                   <div className="text-slate-400">{formatTooltipDate(hd.date)}</div>
+                  {hoverIdx > 0 && (() => {
+                    const prev = chartData[hoverIdx - 1]
+                    const chg = hd.value - prev.value
+                    const chgPct = prev.value > 0 ? (chg / prev.value) * 100 : 0
+                    return (
+                      <div className={chg >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                        {chg >= 0 ? '+' : ''}{formatCurrency(chg)} ({chgPct >= 0 ? '+' : ''}{chgPct.toFixed(2)}%)
+                      </div>
+                    )
+                  })()}
+                  {(() => {
+                    const chgFromStart = hd.value - firstVal
+                    const chgPctFromStart = firstVal > 0 ? (chgFromStart / firstVal) * 100 : 0
+                    return (
+                      <div className="text-slate-500">
+                        {chgFromStart >= 0 ? '+' : ''}{formatCurrency(chgFromStart)} ({chgPctFromStart >= 0 ? '+' : ''}{chgPctFromStart.toFixed(2)}%) {t('desde inicio', 'from start')}
+                      </div>
+                    )
+                  })()}
                 </>
               ) : (
                 <>
@@ -628,6 +772,18 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
       )}
 
       {/* Legend + Period selector */}
+      {viewMode === 'value' && (showContributions && contributionLine) && (
+        <div className="flex items-center justify-center gap-4 mt-2 text-xs text-slate-500">
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-0.5 bg-blue-500 rounded-full inline-block" />
+            {t('Valor actual', 'Current value')}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-0.5 bg-slate-400 rounded-full inline-block opacity-50" style={{ borderBottom: '1px dashed' }} />
+            {t('Capital invertido', 'Invested capital')}
+          </span>
+        </div>
+      )}
       {viewMode === 'performance' && (
         <div className="flex items-center justify-center gap-4 mt-2 text-xs text-slate-500">
           <span className="flex items-center gap-1.5">
