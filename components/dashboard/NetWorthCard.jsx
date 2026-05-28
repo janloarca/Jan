@@ -65,9 +65,11 @@ function Sparkline({ snapshots, width = 60, height = 24 }) {
   )
 }
 
-export default function NetWorthCard({ netWorth, returnYTD, ytdChange, yearlyChange, dailyChange, convert, lang, netContributions, cashTotal, snapshots }) {
+export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, yearlyChange, dailyChange, convert, lang, netContributions, cashTotal, snapshots }) {
   const hasYTD = returnYTD != null && isFinite(returnYTD)
-  const isYTDPositive = (returnYTD ?? 0) >= 0
+  const displayReturn = hasYTD ? returnYTD : (returnSinceStart != null && isFinite(returnSinceStart) ? returnSinceStart : null)
+  const hasReturn = displayReturn != null
+  const isYTDPositive = (displayReturn ?? 0) >= 0
   const isYearlyPositive = (yearlyChange ?? 0) >= 0
   const isDayPositive = dailyChange ? dailyChange.abs >= 0 : true
   const baseCur = getBaseCurrency()
@@ -80,7 +82,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, yearlyCha
     : netWorth
 
   const greeting = getGreeting(lang)
-  const milestone = getMilestone(netWorth, returnYTD, lang)
+  const milestone = getMilestone(netWorth, displayReturn, lang)
 
   return (
     <div className="bg-gradient-to-br from-[#1e293b] to-[#1a2536] rounded-2xl border border-[#334155]/60 p-6 card-hero">
@@ -127,9 +129,10 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, yearlyCha
       {/* YTD + yearly in a compact row */}
       <div className="flex items-center gap-3 mt-1.5">
         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-          !hasYTD ? 'bg-slate-500/15 text-slate-400' : isYTDPositive ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'
+          !hasReturn ? 'bg-slate-500/15 text-slate-400' : isYTDPositive ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'
         }`}>
-          YTD {hasYTD ? `${isYTDPositive ? '+' : ''}${returnYTD.toFixed(2)}%` : 'N/A'}
+          {hasYTD ? 'YTD' : sinceStartDate ? (lang === 'es' ? 'Desde ' : 'Since ') + new Date(sinceStartDate).toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short', year: '2-digit' }) : 'YTD'}{' '}
+          {hasReturn ? `${isYTDPositive ? '+' : ''}${displayReturn.toFixed(2)}%` : 'N/A'}
         </span>
         {yearlyChange != null && isFinite(yearlyChange) && (
           <span className={`text-xs ${isYearlyPositive ? 'text-emerald-400/70' : 'text-red-400/70'}`}>

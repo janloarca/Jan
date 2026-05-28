@@ -203,7 +203,8 @@ export default function DashboardPage() {
     ratesLoading, ratesError,
     handleRefresh,
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
-    returnYTD, ytdChange, annualDividends, estimatedAnnualIncome,
+    returnYTD, ytdChange, returnSinceStart, sinceStartDate,
+    annualDividends, estimatedAnnualIncome,
     netContributions, cashTotal, riskMetrics, insights, dataAge,
     benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName,
     handleIBKRSync,
@@ -505,11 +506,12 @@ export default function DashboardPage() {
             <CardBoundary id="OL-01">
             <NetWorthCard
               netWorth={netWorth} returnYTD={returnYTD} ytdChange={ytdChange}
+              returnSinceStart={returnSinceStart} sinceStartDate={sinceStartDate}
               yearlyChange={yearlyChange} dailyChange={dailyChange} convert={convert}
               lang={lang} netContributions={netContributions} cashTotal={cashTotal} snapshots={snapshots}
             />
             </CardBoundary>
-            <CardBoundary id="OL-02"><BenchmarkComparison benchmarkReturn={benchmarkReturn} portfolioReturn={returnYTD} benchmarkName={benchmarkName} lang={lang} /></CardBoundary>
+            <CardBoundary id="OL-02"><BenchmarkComparison benchmarkReturn={benchmarkReturn} portfolioReturn={returnYTD ?? returnSinceStart} benchmarkName={benchmarkName} lang={lang} /></CardBoundary>
             <CardBoundary id="OL-03"><PriceAlerts alerts={alerts} items={portfolioItems} onAddAlert={addAlert} onDeleteAlert={deleteAlert} lang={lang} /></CardBoundary>
             <CardBoundary id="OL-04"><UpcomingDividends items={portfolioItems} lang={lang} /></CardBoundary>
             <CardBoundary id="OL-05"><ContinuousYieldDisplay items={portfolioItems} lang={lang} /></CardBoundary>
