@@ -113,6 +113,10 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
         if (baseCurrency !== 'USD' && convert) {
           pts = pts.map(dp => ({ ...dp, total: convert(dp.total, 'USD', baseCurrency) }))
         }
+        if (period === 'YTD') {
+          const yearStart = new Date(new Date().getFullYear(), 0, 1).getTime()
+          pts = pts.filter((dp) => dp.ts >= yearStart)
+        }
         if (period === 'MTD') {
           const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime()
           pts = pts.filter((dp) => dp.ts >= monthStart)
@@ -200,14 +204,6 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
 
     while (pts.length > 2 && pts[0].value === 0) {
       pts.shift()
-    }
-    if (pts.length > 2) {
-      const maxVal = Math.max(...pts.map(p => p.value))
-      if (maxVal > 0) {
-        while (pts.length > 2 && pts[0].value < maxVal * 0.05) {
-          pts.shift()
-        }
-      }
     }
 
     const last = pts[pts.length - 1]
