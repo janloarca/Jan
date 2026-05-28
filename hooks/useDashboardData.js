@@ -255,8 +255,6 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           purchasePrice: item.purchasePrice,
           conid: item.conid,
           _ibkrAccountId: item._ibkrAccountId,
-          _ibkrMarketValue: item._ibkrMarketValue,
-          _ibkrUnrealizedPL: item._ibkrUnrealizedPL,
           _source: 'ibkr',
         })
       } else {
