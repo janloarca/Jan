@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 
-export default function SectionCollapse({ title, id, children, defaultOpen = true }) {
+export default function SectionCollapse({ title, id, children, defaultOpen = false }) {
   const [open, setOpen] = useState(() => {
     if (typeof window !== 'undefined' && id) {
       const saved = localStorage.getItem(`section-${id}`)

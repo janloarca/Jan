@@ -38,10 +38,9 @@ export default function SellModal({ item, onClose, onSell, onUpdate, onAddTransa
 
     setSaving(true)
     try {
-      // 1. Update the sold item (targeted update avoids writing enriched/converted fields)
       const newQty = (item.quantity || 0) - qtySell
       if (newQty <= QTY_EPSILON) {
-        await onUpdate(item.id, { quantity: 0, currentPrice: 0, purchasePrice: 0 })
+        await onUpdate(item.id, { quantity: 0, currentPrice: 0, purchasePrice: 0, saleDate, salePrice: price, soldFully: true })
       } else {
         await onUpdate(item.id, { quantity: newQty })
       }

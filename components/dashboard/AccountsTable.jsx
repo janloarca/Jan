@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { formatCurrency, getTypeCategory, TYPE_COLORS, getItemValue, getItemPrice, getBaseCurrency, getMaturityInfo } from './utils'
+import { formatCurrency, getTypeCategory, TYPE_COLORS, getItemValue, getItemPrice, getBaseCurrency, getMaturityInfo, formatHoldingPeriod, getEffectiveYield } from './utils'
 
 export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, onViewItem, onSellItem, onQuickBuy }) {
   const [filter, setFilter] = useState('all')
@@ -233,6 +233,9 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                   onClick={() => setSortBy(sortBy === 'value' ? 'value-asc' : 'value')}>
                   {t('Valor $', 'Value $')} {sortBy === 'value' ? '▼' : sortBy === 'value-asc' ? '▲' : ''}
                 </th>
+                <th className="text-center py-2 font-medium">{t('Compra', 'Bought')}</th>
+                <th className="text-center py-2 font-medium">{t('Duración', 'Duration')}</th>
+                <th className="text-center py-2 font-medium">{t('Yield', 'Yield')}</th>
                 <th className="w-16" />
               </tr>
             </thead>
@@ -308,6 +311,11 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                                 {item.rateMin}-{item.rateMax}%
                               </span>
                             )}
+                            {item.incomeDestination && (
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400/70" title={t('Destino de ingresos', 'Income destination')}>
+                                → {(() => { const dest = items.find(it => it.id === item.incomeDestination); return dest ? (dest.name || dest.symbol || '').slice(0, 15) : '?' })()}
+                              </span>
+                            )}
                             {item.subtype && (
                               <span className="text-xs px-1.5 py-0.5 rounded bg-slate-700/30 text-slate-500">
                                 {item.subtype}
@@ -351,6 +359,26 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                         onClick={() => onViewItem && onViewItem(item)}>
                         {formatCurrency(Math.abs(value))}{value < 0 ? ' ⓓ' : ''}
                       </span>
+                    </td>
+                    <td className="text-center py-3">
+                      {item.acquisitionDate ? (
+                        <span className="text-slate-400 text-xs">{new Date(item.acquisitionDate).toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short', year: '2-digit' })}</span>
+                      ) : (
+                        <span className="text-slate-700">—</span>
+                      )}
+                    </td>
+                    <td className="text-center py-3">
+                      <span className="text-slate-400 text-xs">{formatHoldingPeriod(item.acquisitionDate, lang)}</span>
+                    </td>
+                    <td className="text-center py-3">
+                      {(() => {
+                        const y = getEffectiveYield(item)
+                        return y != null ? (
+                          <span className="text-blue-400 text-xs">{y.toFixed(1)}%</span>
+                        ) : (
+                          <span className="text-slate-700">—</span>
+                        )
+                      })()}
                     </td>
                     <td className="text-right py-3 w-24">
                       <div className="flex items-center justify-end gap-1">
