@@ -29,6 +29,14 @@ async function waitForAuth(auth) {
 const QTY_EPSILON = 0.0001
 function roundQty(v) { return Math.round(v * 10000) / 10000 }
 
+function toStr(v) {
+  if (v == null) return v
+  if (typeof v === 'string') return v
+  if (v.toDate) return v.toDate().toISOString()
+  if (v.seconds) return new Date(v.seconds * 1000).toISOString()
+  return String(v)
+}
+
 function sanitizeItem(raw) {
   return {
     ...raw,
@@ -40,6 +48,9 @@ function sanitizeItem(raw) {
     rateMin: raw.rateMin != null ? Number(raw.rateMin) || 0 : 0,
     rateMax: raw.rateMax != null ? Number(raw.rateMax) || 0 : 0,
     incomeMonths: Array.isArray(raw.incomeMonths) ? raw.incomeMonths.filter((m) => typeof m === 'number' && m >= 0 && m < 12) : undefined,
+    maturityDate: toStr(raw.maturityDate),
+    acquisitionDate: toStr(raw.acquisitionDate),
+    createdAt: toStr(raw.createdAt),
   }
 }
 

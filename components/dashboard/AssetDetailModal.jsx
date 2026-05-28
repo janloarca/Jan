@@ -135,7 +135,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
           {(item.maturityDate || item.incomeRate || item.rateType === 'variable' || item.custodyType || item.taxJurisdiction || item.notes) && (
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400">
               {item.maturityDate && (
-                <span>{t('Vence', 'Matures')}: <span className="text-amber-400 font-medium">{item.maturityDate}</span></span>
+                <span>{t('Vence', 'Matures')}: <span className="text-amber-400 font-medium">{typeof item.maturityDate === 'string' ? item.maturityDate : new Date(item.maturityDate?.seconds ? item.maturityDate.seconds * 1000 : item.maturityDate).toLocaleDateString()}</span></span>
               )}
               {item.rateType === 'variable' && item.rateMin > 0 && (
                 <span>{t('Tasa', 'Rate')}: <span className="text-blue-400 font-medium">{item.rateMin}% - {item.rateMax}%</span></span>

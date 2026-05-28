@@ -18,7 +18,7 @@ export default function MaturityCalendar({ items, lang }) {
           const value = (it.quantity || 1) * getItemPrice(it)
           result.push({
             type: 'maturity',
-            date: it.maturityDate,
+            date: typeof it.maturityDate === 'string' ? it.maturityDate : new Date(it.maturityDate?.seconds ? it.maturityDate.seconds * 1000 : it.maturityDate).toLocaleDateString(),
             days,
             name: it.name || it.symbol,
             symbol: it.symbol,
