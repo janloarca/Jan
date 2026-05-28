@@ -7,7 +7,6 @@ import { useDashboardData } from '@/hooks/useDashboardData'
 import { getItemValue, formatCurrency, getTypeCategory } from '@/components/dashboard/utils'
 import Header from '@/components/dashboard/Header'
 import NetWorthCard from '@/components/dashboard/NetWorthCard'
-import TopMovers from '@/components/dashboard/TopMovers'
 import ActionButtons from '@/components/dashboard/ActionButtons'
 import SectionCollapse from '@/components/dashboard/SectionCollapse'
 import MobileNav from '@/components/dashboard/MobileNav'
@@ -46,42 +45,14 @@ const CommandPalette = dynamic(() => import('@/components/dashboard/CommandPalet
 
 const PortfolioGrowthChart = dynamic(() => import('@/components/dashboard/PortfolioGrowthChart'), { loading: () => <SkeletonChart /> })
 const AccountsTable = dynamic(() => import('@/components/dashboard/AccountsTable'), { loading: () => <SkeletonTable /> })
-const PerformanceSummary = dynamic(() => import('@/components/dashboard/PerformanceSummary'), { loading: () => <SkeletonCard /> })
 const DividendIncome = dynamic(() => import('@/components/dashboard/DividendIncome'), { loading: () => <SkeletonCard /> })
-const ProjectionSimulator = dynamic(() => import('@/components/dashboard/ProjectionSimulator'), { loading: () => <SkeletonChart /> })
-const RiskMetrics = dynamic(() => import('@/components/dashboard/RiskMetrics'), { loading: () => <SkeletonCard /> })
-const MonthlyPerformance = dynamic(() => import('@/components/dashboard/MonthlyPerformance'), { loading: () => <SkeletonChart /> })
-const RebalanceSuggestions = dynamic(() => import('@/components/dashboard/RebalanceSuggestions'), { loading: () => <SkeletonCard /> })
-const GainsReport = dynamic(() => import('@/components/dashboard/GainsReport'), { loading: () => <SkeletonCard /> })
 
-import FinancialHealth from '@/components/dashboard/FinancialHealth'
 import RecentTransactions from '@/components/dashboard/RecentTransactions'
 import AssetAllocation from '@/components/dashboard/AssetAllocation'
-import InvestmentClassBreakdown from '@/components/dashboard/InvestmentClassBreakdown'
-import ConcentrationRisk from '@/components/dashboard/ConcentrationRisk'
-import GoalTracker from '@/components/dashboard/GoalTracker'
-import BenchmarkComparison from '@/components/dashboard/BenchmarkComparison'
-import InsightsBanner from '@/components/dashboard/InsightsBanner'
-import CurrencyImpact from '@/components/dashboard/CurrencyImpact'
-import UpcomingDividends from '@/components/dashboard/UpcomingDividends'
-import ContinuousYieldDisplay from '@/components/dashboard/ContinuousYieldDisplay'
-import VariableRateDashboard from '@/components/dashboard/VariableRateDashboard'
-import MaturityCalendar from '@/components/dashboard/MaturityCalendar'
-import IncomeCalendar from '@/components/dashboard/IncomeCalendar'
-import Watchlist from '@/components/dashboard/Watchlist'
 import NotificationCenter from '@/components/dashboard/NotificationCenter'
-import RecurringTransactions from '@/components/dashboard/RecurringTransactions'
-import FeeAnalysis from '@/components/dashboard/FeeAnalysis'
-import DataQuality from '@/components/dashboard/DataQuality'
 import InstallPrompt from '@/components/dashboard/InstallPrompt'
 import EmptyState from '@/components/dashboard/EmptyState'
-import SnapshotComparison from '@/components/dashboard/SnapshotComparison'
-import SavingsRate from '@/components/dashboard/SavingsRate'
-import PerformanceAttribution from '@/components/dashboard/PerformanceAttribution'
-import ValueBreakdown from '@/components/dashboard/ValueBreakdown'
-import PortfolioMap from '@/components/dashboard/PortfolioMap'
 import MonthlyBreakdown from '@/components/dashboard/MonthlyBreakdown'
-import PriceAlerts from '@/components/dashboard/PriceAlerts'
 import PortfolioSelector from '@/components/dashboard/PortfolioSelector'
 import EntitySwitcher from '@/components/dashboard/EntitySwitcher'
 import { useEntities } from '@/hooks/useEntities'
@@ -484,7 +455,6 @@ export default function DashboardPage() {
         <CardBoundary id="ErrorBanner"><ErrorBanner pricesError={pricesError} ratesError={ratesError} lang={lang} /></CardBoundary>
         <CardBoundary id="NotificationCenter"><NotificationCenter items={portfolioItems} transactions={transactions} lang={lang} /></CardBoundary>
         <CardBoundary id="InstallPrompt"><InstallPrompt lang={lang} /></CardBoundary>
-        <CardBoundary id="DataQuality"><DataQuality items={portfolioItems} lang={lang} /></CardBoundary>
 
         {portfolioItems.length === 0 && !dataLoading && (
           <EmptyState
@@ -498,9 +468,7 @@ export default function DashboardPage() {
           />
         )}
 
-        {portfolioItems.length > 0 && <CardBoundary id="InsightsBanner"><InsightsBanner insights={insights} lang={lang} /></CardBoundary>}
-
-        {/* ═══ OVERVIEW ═══ */}
+        {/* ═══ RESUMEN ═══ */}
         {portfolioItems.length > 0 && <>
         <ErrorBoundary lang={lang}>
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6 items-start">
@@ -513,38 +481,15 @@ export default function DashboardPage() {
               lang={lang} netContributions={netContributions} cashTotal={cashTotal} snapshots={snapshots}
             />
             </CardBoundary>
-            <CardBoundary id="OL-02"><BenchmarkComparison benchmarkReturn={benchmarkReturn} portfolioReturn={returnYTD ?? returnSinceStart} benchmarkName={benchmarkName} lang={lang} /></CardBoundary>
-            <CardBoundary id="OL-03"><PriceAlerts alerts={alerts} items={portfolioItems} onAddAlert={addAlert} onDeleteAlert={deleteAlert} lang={lang} /></CardBoundary>
-            <CardBoundary id="OL-04"><UpcomingDividends items={portfolioItems} lang={lang} /></CardBoundary>
-            <CardBoundary id="OL-05"><ContinuousYieldDisplay items={portfolioItems} lang={lang} /></CardBoundary>
-            <CardBoundary id="OL-06"><VariableRateDashboard items={portfolioItems} lang={lang} /></CardBoundary>
-            <CardBoundary id="OL-07"><MaturityCalendar items={portfolioItems} lang={lang} /></CardBoundary>
-            <CardBoundary id="OL-08"><Watchlist lang={lang} /></CardBoundary>
-            <CardBoundary id="OL-09"><TopMovers items={portfolioItems} transactions={transactions} lang={lang} /></CardBoundary>
+            <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} /></CardBoundary>
           </div>
 
           <div className="lg:col-span-3 flex flex-col gap-4">
             <CardBoundary id="OR-01"><PortfolioGrowthChart items={portfolioItems} snapshots={snapshots} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} benchmarkSymbol={benchmarkSymbol} benchmarkName={benchmarkName} /></CardBoundary>
-            <CardBoundary id="OR-PM"><PortfolioMap items={portfolioItems} lang={lang} /></CardBoundary>
             <CardBoundary id="OR-MB"><MonthlyBreakdown items={portfolioItems} snapshots={snapshots} lang={lang} onUpdateItem={updateItem} /></CardBoundary>
-            <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} /></CardBoundary>
-            <CardBoundary id="OR-03"><InvestmentClassBreakdown items={portfolioItems} lang={lang} /></CardBoundary>
-            <CardBoundary id="OR-04"><ValueBreakdown items={portfolioItems} lang={lang} /></CardBoundary>
-            <CardBoundary id="OR-05"><SnapshotComparison snapshots={snapshots} items={portfolioItems} lang={lang} /></CardBoundary>
           </div>
         </div>
         </ErrorBoundary>
-
-        {/* ═══ PERFORMANCE & RISK ═══ */}
-        <SectionCollapse title={lang === 'es' ? 'Rendimiento y Riesgo' : 'Performance & Risk'} id="perf-risk">
-          <ErrorBoundary lang={lang}>
-            <CardBoundary id="PR-01"><PerformanceSummary items={portfolioItems} transactions={transactions} convert={convert} baseCurrency={baseCurrency} netWorth={netWorth} lang={lang} /></CardBoundary>
-            <CardBoundary id="PR-02"><PerformanceAttribution items={portfolioItems} lang={lang} /></CardBoundary>
-            <CardBoundary id="PR-03"><RiskMetrics snapshots={snapshots} benchmarkData={benchmarkData} netWorth={netWorth} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} benchmarkName={benchmarkName} /></CardBoundary>
-            <CardBoundary id="PR-04"><CurrencyImpact items={portfolioItems} convert={convert} baseCurrency={baseCurrency} rates={rates} lang={lang} /></CardBoundary>
-            <CardBoundary id="PR-05"><MonthlyPerformance snapshots={snapshots} transactions={transactions} convert={convert} baseCurrency={baseCurrency} lang={lang} /></CardBoundary>
-          </ErrorBoundary>
-        </SectionCollapse>
 
         <ActionButtons
           onImport={() => setModal('import')} onAddAccount={() => setModal('account')}
@@ -553,34 +498,14 @@ export default function DashboardPage() {
           itemCount={enrichedItems.length} lang={lang}
         />
 
-        {/* ═══ INCOME & GOALS ═══ */}
-        <SectionCollapse title={lang === 'es' ? 'Ingresos y Metas' : 'Income & Goals'} id="income-goals">
+        {/* ═══ INGRESOS ═══ */}
+        <SectionCollapse title={lang === 'es' ? 'Ingresos' : 'Income'} id="income">
           <ErrorBoundary lang={lang}>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-              <CardBoundary id="IG-01"><DividendIncome transactions={transactions} items={portfolioItems} convert={convert} baseCurrency={baseCurrency} lang={lang} netWorth={netWorth} /></CardBoundary>
-              {lots && lots.length > 0 && <CardBoundary id="IG-02"><GainsReport lots={lots} items={portfolioItems} lang={lang} /></CardBoundary>}
-              <CardBoundary id="IG-03"><ConcentrationRisk items={portfolioItems} lang={lang} /></CardBoundary>
-            </div>
-            <CardBoundary id="IG-04"><IncomeCalendar items={portfolioItems} lang={lang} /></CardBoundary>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-              <CardBoundary id="IG-05"><GoalTracker
-                netWorth={netWorth} annualDividends={annualDividends}
-                estimatedAnnualIncome={estimatedAnnualIncome} goals={goals}
-                onSaveGoals={saveGoals} volatility={riskMetrics.volatility} lang={lang}
-              /></CardBoundary>
-              <CardBoundary id="IG-06"><FinancialHealth items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} /></CardBoundary>
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-              <CardBoundary id="IG-07"><RecurringTransactions goals={goals} onSaveGoals={saveGoals} lang={lang} /></CardBoundary>
-              <CardBoundary id="IG-08"><SavingsRate goals={goals} transactions={transactions} netWorth={netWorth} snapshots={snapshots} lang={lang} /></CardBoundary>
-              <CardBoundary id="IG-09"><FeeAnalysis items={portfolioItems} netWorth={netWorth} lang={lang} /></CardBoundary>
-            </div>
-            <CardBoundary id="IG-10"><RebalanceSuggestions items={portfolioItems} netWorth={netWorth} goals={goals} onSaveGoals={saveGoals} lang={lang} /></CardBoundary>
-            <CardBoundary id="IG-11"><ProjectionSimulator netWorth={netWorth} lang={lang} volatility={riskMetrics.volatility} goalValue={goals?.portfolioGoal} /></CardBoundary>
+            <CardBoundary id="IG-01"><DividendIncome transactions={transactions} items={portfolioItems} convert={convert} baseCurrency={baseCurrency} lang={lang} netWorth={netWorth} /></CardBoundary>
           </ErrorBoundary>
         </SectionCollapse>
 
-        {/* ═══ HOLDINGS ═══ */}
+        {/* ═══ MIS ACTIVOS ═══ */}
         <SectionCollapse title={lang === 'es' ? 'Posiciones' : 'Holdings'} id="holdings">
           <ErrorBoundary lang={lang}>
             <CardBoundary id="HO-01"><AccountsTable items={portfolioItems} lang={lang} onDeleteItem={deleteItem}
