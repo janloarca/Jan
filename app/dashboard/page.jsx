@@ -80,6 +80,7 @@ import SavingsRate from '@/components/dashboard/SavingsRate'
 import PerformanceAttribution from '@/components/dashboard/PerformanceAttribution'
 import ValueBreakdown from '@/components/dashboard/ValueBreakdown'
 import PortfolioMap from '@/components/dashboard/PortfolioMap'
+import MonthlyBreakdown from '@/components/dashboard/MonthlyBreakdown'
 import PriceAlerts from '@/components/dashboard/PriceAlerts'
 import PortfolioSelector from '@/components/dashboard/PortfolioSelector'
 import EntitySwitcher from '@/components/dashboard/EntitySwitcher'
@@ -525,6 +526,7 @@ export default function DashboardPage() {
           <div className="lg:col-span-3 flex flex-col gap-4">
             <CardBoundary id="OR-01"><PortfolioGrowthChart items={portfolioItems} snapshots={snapshots} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} benchmarkSymbol={benchmarkSymbol} benchmarkName={benchmarkName} /></CardBoundary>
             <CardBoundary id="OR-PM"><PortfolioMap items={portfolioItems} lang={lang} /></CardBoundary>
+            <CardBoundary id="OR-MB"><MonthlyBreakdown items={portfolioItems} snapshots={snapshots} lang={lang} onUpdateItem={updateItem} /></CardBoundary>
             <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} /></CardBoundary>
             <CardBoundary id="OR-03"><InvestmentClassBreakdown items={portfolioItems} lang={lang} /></CardBoundary>
             <CardBoundary id="OR-04"><ValueBreakdown items={portfolioItems} lang={lang} /></CardBoundary>
