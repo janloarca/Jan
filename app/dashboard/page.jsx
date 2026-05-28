@@ -79,6 +79,8 @@ import SnapshotComparison from '@/components/dashboard/SnapshotComparison'
 import SavingsRate from '@/components/dashboard/SavingsRate'
 import PerformanceAttribution from '@/components/dashboard/PerformanceAttribution'
 import ValueBreakdown from '@/components/dashboard/ValueBreakdown'
+import PortfolioMap from '@/components/dashboard/PortfolioMap'
+import MonthlyBreakdown from '@/components/dashboard/MonthlyBreakdown'
 import PriceAlerts from '@/components/dashboard/PriceAlerts'
 import PortfolioSelector from '@/components/dashboard/PortfolioSelector'
 import EntitySwitcher from '@/components/dashboard/EntitySwitcher'
@@ -203,7 +205,8 @@ export default function DashboardPage() {
     ratesLoading, ratesError,
     handleRefresh,
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
-    returnYTD, ytdChange, annualDividends, estimatedAnnualIncome,
+    returnYTD, ytdChange, returnSinceStart, sinceStartDate,
+    annualDividends, estimatedAnnualIncome,
     netContributions, cashTotal, riskMetrics, insights, dataAge,
     benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName,
     handleIBKRSync,
@@ -505,11 +508,12 @@ export default function DashboardPage() {
             <CardBoundary id="OL-01">
             <NetWorthCard
               netWorth={netWorth} returnYTD={returnYTD} ytdChange={ytdChange}
+              returnSinceStart={returnSinceStart} sinceStartDate={sinceStartDate}
               yearlyChange={yearlyChange} dailyChange={dailyChange} convert={convert}
               lang={lang} netContributions={netContributions} cashTotal={cashTotal} snapshots={snapshots}
             />
             </CardBoundary>
-            <CardBoundary id="OL-02"><BenchmarkComparison benchmarkReturn={benchmarkReturn} portfolioReturn={returnYTD} benchmarkName={benchmarkName} lang={lang} /></CardBoundary>
+            <CardBoundary id="OL-02"><BenchmarkComparison benchmarkReturn={benchmarkReturn} portfolioReturn={returnYTD ?? returnSinceStart} benchmarkName={benchmarkName} lang={lang} /></CardBoundary>
             <CardBoundary id="OL-03"><PriceAlerts alerts={alerts} items={portfolioItems} onAddAlert={addAlert} onDeleteAlert={deleteAlert} lang={lang} /></CardBoundary>
             <CardBoundary id="OL-04"><UpcomingDividends items={portfolioItems} lang={lang} /></CardBoundary>
             <CardBoundary id="OL-05"><ContinuousYieldDisplay items={portfolioItems} lang={lang} /></CardBoundary>
@@ -521,6 +525,8 @@ export default function DashboardPage() {
 
           <div className="lg:col-span-3 flex flex-col gap-4">
             <CardBoundary id="OR-01"><PortfolioGrowthChart items={portfolioItems} snapshots={snapshots} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} benchmarkSymbol={benchmarkSymbol} benchmarkName={benchmarkName} /></CardBoundary>
+            <CardBoundary id="OR-PM"><PortfolioMap items={portfolioItems} lang={lang} /></CardBoundary>
+            <CardBoundary id="OR-MB"><MonthlyBreakdown items={portfolioItems} snapshots={snapshots} lang={lang} onUpdateItem={updateItem} /></CardBoundary>
             <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} /></CardBoundary>
             <CardBoundary id="OR-03"><InvestmentClassBreakdown items={portfolioItems} lang={lang} /></CardBoundary>
             <CardBoundary id="OR-04"><ValueBreakdown items={portfolioItems} lang={lang} /></CardBoundary>

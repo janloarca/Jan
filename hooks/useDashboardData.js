@@ -255,8 +255,6 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           purchasePrice: item.purchasePrice,
           conid: item.conid,
           _ibkrAccountId: item._ibkrAccountId,
-          _ibkrMarketValue: item._ibkrMarketValue,
-          _ibkrUnrealizedPL: item._ibkrUnrealizedPL,
           _source: 'ibkr',
         })
       } else {
@@ -391,7 +389,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     return () => { cancelled = true }
   }, [enrichedItems])
 
-  const { returnYTD, ytdChange } = useMemo(() => {
+  const { returnYTD, ytdChange, returnSinceStart, sinceStartDate } = useMemo(() => {
     const yearStartTs = new Date(new Date().getFullYear(), 0, 1).getTime()
     let startVal = null
     if (snapshots.length >= 2) {
@@ -410,14 +408,40 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       }
     }
     if (startVal == null || startVal <= 0) startVal = jan1Value
-    if (startVal == null || startVal <= 0) return { returnYTD: null, ytdChange: null }
+
+    let returnSinceStart = null
+    let sinceStartDate = null
+    if ((startVal == null || startVal <= 0) && snapshots.length >= 2) {
+      const sorted = [...snapshots]
+        .filter(s => s.date)
+        .sort((a, b) => new Date(a.date) - new Date(b.date))
+      const first = sorted.find(s => (s.netWorthUSD ?? s.totalActivosUSD ?? 0) > 0)
+      if (first) {
+        const firstVal = convertSnapshot(first.netWorthUSD ?? first.totalActivosUSD ?? 0)
+        if (firstVal > 0 && netWorth > 0) {
+          const firstTs = new Date(first.date).getTime()
+          const { pct, abs } = computeModifiedDietz({
+            startValue: firstVal, endValue: netWorth,
+            startTs: firstTs, endTs: Date.now(),
+            transactions, convert, baseCurrency,
+          })
+          returnSinceStart = Math.max(-200, Math.min(200, pct))
+          sinceStartDate = first.date
+          if (startVal == null || startVal <= 0) {
+            startVal = firstVal
+          }
+        }
+      }
+    }
+
+    if (startVal == null || startVal <= 0) return { returnYTD: null, ytdChange: null, returnSinceStart, sinceStartDate }
     const { pct, abs } = computeModifiedDietz({
       startValue: startVal, endValue: netWorth,
       startTs: yearStartTs, endTs: Date.now(),
       transactions, convert, baseCurrency,
     })
     const clampedPct = Math.max(-200, Math.min(200, pct))
-    return { returnYTD: clampedPct, ytdChange: abs }
+    return { returnYTD: clampedPct, ytdChange: abs, returnSinceStart, sinceStartDate }
   }, [jan1Value, netWorth, transactions, convert, baseCurrency, snapshots, convertSnapshot])
 
   const annualDividends = useMemo(() => {
@@ -537,7 +561,8 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
     // Computed values
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
-    returnYTD, ytdChange, annualDividends, estimatedAnnualIncome,
+    returnYTD, ytdChange, returnSinceStart, sinceStartDate,
+    annualDividends, estimatedAnnualIncome,
     netContributions, cashTotal, riskMetrics, insights, dataAge,
 
     // Benchmark
