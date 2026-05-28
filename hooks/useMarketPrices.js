@@ -65,6 +65,8 @@ export function useMarketPrices(items) {
   useEffect(() => {
     if (items && items.length > 0) {
       fetchPrices()
+      const interval = setInterval(fetchPrices, 60000)
+      return () => { clearInterval(interval); abortRef.current?.abort() }
     }
     return () => abortRef.current?.abort()
   }, [fetchPrices])

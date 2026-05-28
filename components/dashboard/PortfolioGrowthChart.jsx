@@ -139,7 +139,11 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
     setLoading(false)
   }, [items, period, baseCurrency, convert])
 
-  useEffect(() => { fetchHistory() }, [fetchHistory])
+  useEffect(() => {
+    fetchHistory()
+    const interval = setInterval(fetchHistory, 60000)
+    return () => clearInterval(interval)
+  }, [fetchHistory])
 
   useEffect(() => {
     const bp = benchmarkPeriodMap[period] || 'YTD'
@@ -182,26 +186,20 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
   }, [snapshots, period, convert, baseCurrency])
 
   const chartData = useMemo(() => {
-    let pts
-
     const apiPts = dataPoints.length >= 2
       ? dataPoints.map((dp) => ({ ts: dp.ts, date: new Date(dp.ts), value: dp.total }))
       : []
     const snapPts = snapshotData.length >= 2 ? [...snapshotData] : []
 
-    const apiStart = apiPts.length > 0 ? apiPts[0].ts : Infinity
-    const snapStart = snapPts.length > 0 ? snapPts[0].ts : Infinity
-
     const longPeriod = ['YTD', '1Y', 'ALL', '3M', '1M'].includes(period)
+    let pts
 
-    if (longPeriod && snapPts.length >= 3) {
-      pts = snapPts
-    } else if (snapPts.length >= 5 && snapStart <= apiStart) {
-      pts = snapPts
+    if (longPeriod && snapPts.length >= 2) {
+      pts = [...snapPts]
     } else if (apiPts.length >= 2) {
       pts = apiPts
     } else if (snapPts.length >= 2) {
-      pts = snapPts
+      pts = [...snapPts]
     } else {
       return []
     }
@@ -210,11 +208,14 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
       pts.shift()
     }
 
-    const last = pts[pts.length - 1]
-    const now = Date.now()
-    const gapOk = period === 'DAY' ? (now - (last?.ts || 0)) < 600000 : true
-    if (last && currentTotal > 0 && Math.abs(last.value - currentTotal) > 1 && gapOk) {
-      pts.push({ ts: now, date: new Date(), value: currentTotal })
+    if (currentTotal > 0) {
+      const now = Date.now()
+      const last = pts[pts.length - 1]
+      if (last && Math.abs(last.ts - now) > 60000) {
+        pts.push({ ts: now, date: new Date(), value: currentTotal })
+      } else if (last) {
+        pts[pts.length - 1] = { ts: now, date: new Date(), value: currentTotal }
+      }
     }
     return pts
   }, [dataPoints, snapshotData, currentTotal, period])
