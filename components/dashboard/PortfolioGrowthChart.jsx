@@ -117,11 +117,11 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
           const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime()
           pts = pts.filter((dp) => dp.ts >= monthStart)
         }
-        if (period === 'DAY') {
-          const now = new Date()
-          let sevenAM = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 7, 0, 0).getTime()
-          if (now.getTime() < sevenAM) sevenAM -= 86400000
-          pts = pts.filter(dp => dp.ts >= sevenAM)
+        if (period === 'DAY' && pts.length > 0) {
+          const latestTs = pts[pts.length - 1].ts
+          const latestDate = new Date(latestTs)
+          const dayStart = new Date(latestDate.getFullYear(), latestDate.getMonth(), latestDate.getDate(), 7, 0, 0).getTime()
+          pts = pts.filter(dp => dp.ts >= dayStart)
         }
         setDataPoints(pts)
         setStaticTotal(data.staticTotal != null
@@ -200,6 +200,14 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
 
     while (pts.length > 2 && pts[0].value === 0) {
       pts.shift()
+    }
+    if (pts.length > 2) {
+      const maxVal = Math.max(...pts.map(p => p.value))
+      if (maxVal > 0) {
+        while (pts.length > 2 && pts[0].value < maxVal * 0.05) {
+          pts.shift()
+        }
+      }
     }
 
     const last = pts[pts.length - 1]

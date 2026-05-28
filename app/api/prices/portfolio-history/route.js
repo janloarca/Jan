@@ -18,7 +18,7 @@ const CRYPTO_MAP = {
 }
 
 const RANGE_MAP = {
-  DAY: { range: '1d', interval: '5m' },
+  DAY: { range: '5d', interval: '5m' },
   '1W': { range: '5d', interval: '30m' },
   '1M': { range: '1mo', interval: '1d' },
   '3M': { range: '3mo', interval: '1d' },
