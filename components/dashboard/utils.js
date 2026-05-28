@@ -31,19 +31,31 @@ export function formatCompact(value, currency) {
   return sym + value.toFixed(0)
 }
 
+function coerceDate(v) {
+  if (!v) return null
+  if (typeof v === 'string' || typeof v === 'number') return new Date(v)
+  if (typeof v.toDate === 'function') return v.toDate()
+  if (v.seconds != null) return new Date(v.seconds * 1000)
+  return new Date(String(v))
+}
+
 export function formatDate(dateStr) {
   if (!dateStr) return '-'
   const locale = _lang === 'es' ? 'es' : 'en-US'
   try {
-    return new Date(dateStr).toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' })
-  } catch { return dateStr }
+    const d = coerceDate(dateStr)
+    if (!d || isNaN(d.getTime())) return typeof dateStr === 'string' ? dateStr : '-'
+    return d.toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' })
+  } catch { return typeof dateStr === 'string' ? dateStr : '-' }
 }
 
 export function formatShortDate(dateStr) {
   if (!dateStr) return ''
   try {
-    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
-  } catch { return dateStr }
+    const d = coerceDate(dateStr)
+    if (!d || isNaN(d.getTime())) return typeof dateStr === 'string' ? dateStr : ''
+    return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+  } catch { return typeof dateStr === 'string' ? dateStr : '' }
 }
 
 export function getTypeCategory(itemOrType) {
@@ -230,8 +242,8 @@ export function getEffectiveYield(item) {
 
 export function getMaturityInfo(item) {
   if (!item.maturityDate) return null
-  const mat = new Date(item.maturityDate)
-  if (isNaN(mat.getTime())) return null
+  const mat = coerceDate(item.maturityDate)
+  if (!mat || isNaN(mat.getTime())) return null
   const now = new Date()
   const diffMs = mat.getTime() - now.getTime()
   if (diffMs <= 0) return { expired: true, days: 0, label: 'Vencido', color: 'red' }

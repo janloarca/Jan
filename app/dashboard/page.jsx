@@ -391,6 +391,12 @@ export default function DashboardPage() {
     }
   }, [handleExport, handleReport, handleRefresh, handleSetTheme, handleSetLang, theme])
 
+  useEffect(() => {
+    if (!dataLoading && enrichedItems.length === 0 && !showOnboarding && typeof window !== 'undefined' && !localStorage.getItem('chispudo-onboarding-done')) {
+      setShowOnboarding(true)
+    }
+  }, [dataLoading, enrichedItems.length])
+
   // Loading state
   if (authLoading || (user && dataLoading)) {
     return (
@@ -410,12 +416,6 @@ export default function DashboardPage() {
   }
 
   if (!user) return null
-
-  useEffect(() => {
-    if (!dataLoading && enrichedItems.length === 0 && !showOnboarding && typeof window !== 'undefined' && !localStorage.getItem('chispudo-onboarding-done')) {
-      setShowOnboarding(true)
-    }
-  }, [dataLoading, enrichedItems.length])
 
   return (
     <div className="min-h-screen bg-[#0f172a]">
@@ -478,10 +478,10 @@ export default function DashboardPage() {
 
         <h1 className="sr-only">{lang === 'es' ? 'Patrimonio — Dashboard' : 'Net Worth — Dashboard'}</h1>
 
-        <ErrorBanner pricesError={pricesError} ratesError={ratesError} lang={lang} />
-        <NotificationCenter items={portfolioItems} transactions={transactions} lang={lang} />
-        <InstallPrompt lang={lang} />
-        <DataQuality items={portfolioItems} lang={lang} />
+        <CardBoundary id="ErrorBanner"><ErrorBanner pricesError={pricesError} ratesError={ratesError} lang={lang} /></CardBoundary>
+        <CardBoundary id="NotificationCenter"><NotificationCenter items={portfolioItems} transactions={transactions} lang={lang} /></CardBoundary>
+        <CardBoundary id="InstallPrompt"><InstallPrompt lang={lang} /></CardBoundary>
+        <CardBoundary id="DataQuality"><DataQuality items={portfolioItems} lang={lang} /></CardBoundary>
 
         {portfolioItems.length === 0 && !dataLoading && (
           <EmptyState
@@ -495,7 +495,7 @@ export default function DashboardPage() {
           />
         )}
 
-        {portfolioItems.length > 0 && <InsightsBanner insights={insights} lang={lang} />}
+        {portfolioItems.length > 0 && <CardBoundary id="InsightsBanner"><InsightsBanner insights={insights} lang={lang} /></CardBoundary>}
 
         {/* ═══ OVERVIEW ═══ */}
         {portfolioItems.length > 0 && <>
