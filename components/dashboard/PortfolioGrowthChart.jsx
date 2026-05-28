@@ -192,7 +192,11 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
     const apiStart = apiPts.length > 0 ? apiPts[0].ts : Infinity
     const snapStart = snapPts.length > 0 ? snapPts[0].ts : Infinity
 
-    if (snapPts.length >= 5 && snapStart <= apiStart) {
+    const longPeriod = ['YTD', '1Y', 'ALL', '3M', '1M'].includes(period)
+
+    if (longPeriod && snapPts.length >= 3) {
+      pts = snapPts
+    } else if (snapPts.length >= 5 && snapStart <= apiStart) {
       pts = snapPts
     } else if (apiPts.length >= 2) {
       pts = apiPts
@@ -205,14 +209,6 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
     while (pts.length > 2 && pts[0].value === 0) {
       pts.shift()
     }
-    if (pts.length > 2) {
-      const maxVal = Math.max(...pts.map(p => p.value))
-      if (maxVal > 0) {
-        while (pts.length > 2 && pts[0].value < maxVal * 0.05) {
-          pts.shift()
-        }
-      }
-    }
 
     const last = pts[pts.length - 1]
     const now = Date.now()
@@ -221,7 +217,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
       pts.push({ ts: now, date: new Date(), value: currentTotal })
     }
     return pts
-  }, [dataPoints, snapshotData, currentTotal])
+  }, [dataPoints, snapshotData, currentTotal, period])
 
   const mwrData = useMemo(() => {
     if (chartData.length < 2) return []
