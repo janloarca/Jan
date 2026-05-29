@@ -51,7 +51,11 @@ function formatNum(val) {
   return Math.abs(val).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-function EditableCell({ value, onSave }) {
+function isMarketAsset(type) {
+  return /stock|crypto|fund|etf/i.test(type) && !/realestate|inmueble/i.test(type)
+}
+
+function EditableCell({ displayValue, editValue, onSave, hint, isNegative }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const ref = useRef(null)
@@ -68,18 +72,22 @@ function EditableCell({ value, onSave }) {
 
   if (editing) {
     return (
-      <input ref={ref} type="text" value={draft}
-        onChange={e => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false) }}
-        className="w-full bg-white border-2 border-blue-400 rounded px-3 py-1.5 text-sm text-slate-900 text-right font-mono focus:outline-none focus:ring-2 focus:ring-blue-300" />
+      <div>
+        <input ref={ref} type="text" value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false) }}
+          className="w-full bg-white border-2 border-blue-400 rounded px-3 py-1.5 text-sm text-slate-900 text-right font-mono focus:outline-none focus:ring-2 focus:ring-blue-300" />
+        {hint && <p className="text-[10px] text-blue-400 text-right mt-0.5 pr-1">{hint}</p>}
+      </div>
     )
   }
 
   return (
     <div className="cursor-pointer rounded px-3 py-1.5 -mx-1 transition-all hover:bg-blue-100 hover:ring-1 hover:ring-blue-300 text-right"
-      onClick={() => { setDraft(Math.abs(value).toFixed(2)); setEditing(true) }}>
-      <span className={`font-mono tabular-nums text-sm ${value < 0 ? 'text-red-600' : 'text-slate-800'}`}>{formatNum(value)}</span>
+      onClick={() => { setDraft(editValue); setEditing(true) }}>
+      <span className={`font-mono tabular-nums text-sm ${isNegative ? 'text-red-600' : 'text-slate-800'}`}>{formatNum(displayValue)}</span>
+      {hint && <p className="text-[10px] text-slate-400 mt-0.5">{hint}</p>}
     </div>
   )
 }
@@ -179,13 +187,17 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
 
   const handleValueUpdate = useCallback((item, newVal) => {
     if (!onUpdateItem || !item.id) return
-    const qty = item.quantity || 1
-    if (showOriginal) {
-      onUpdateItem(item.id, { currentPrice: newVal / qty })
+    if (isMarketAsset(item.type)) {
+      onUpdateItem(item.id, { quantity: newVal })
     } else {
-      const cur = item._originalCurrency || item.currency || 'USD'
-      const originalVal = convert ? convert(newVal, 'USD', cur) : newVal
-      onUpdateItem(item.id, { currentPrice: originalVal / qty })
+      const qty = item.quantity || 1
+      if (showOriginal) {
+        onUpdateItem(item.id, { currentPrice: newVal / qty })
+      } else {
+        const cur = item._originalCurrency || item.currency || 'USD'
+        const originalVal = convert ? convert(newVal, 'USD', cur) : newVal
+        onUpdateItem(item.id, { currentPrice: originalVal / qty })
+      }
     }
   }, [onUpdateItem, showOriginal, convert])
 
@@ -301,6 +313,13 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                       {(!showInst || !isInstCollapsed) && inst.items.map((item, idx) => {
                         const val = itemValue(item)
                         const cur = itemCurrency(item)
+                        const market = isMarketAsset(item.type)
+                        const qty = item.quantity || 0
+                        const qtyLabel = market && qty ? qty.toLocaleString(undefined, { maximumFractionDigits: 4 }) : null
+                        const editVal = market ? qty.toFixed(4).replace(/\.?0+$/, '') : Math.abs(val).toFixed(2)
+                        const editHint = market
+                          ? (item.symbol || item.name || '')
+                          : null
                         return (
                           <tr key={item.id || idx} className="hover:bg-slate-50 transition-colors bg-white border-t border-slate-100/60">
                             <td className={`py-2.5 ${showInst ? 'pl-12' : 'pl-8'} pr-2 sticky left-0 bg-white z-10`}>
@@ -312,8 +331,8 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                                 ) : (
                                   <span className="text-slate-800 text-sm truncate">{item.name || item.symbol}</span>
                                 )}
-                                {item.quantity && item.quantity !== 1 && (
-                                  <span className="text-slate-400 text-xs shrink-0">{item.quantity.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                                {qtyLabel && (
+                                  <span className="text-slate-400 text-xs shrink-0">{qtyLabel}</span>
                                 )}
                               </div>
                             </td>
@@ -327,7 +346,13 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                               return (
                                 <td key={mk} className="text-right py-1 px-1 bg-blue-50">
                                   {onUpdateItem ? (
-                                    <EditableCell value={val} onSave={(v) => handleValueUpdate(item, v)} />
+                                    <EditableCell
+                                      displayValue={val}
+                                      editValue={editVal}
+                                      onSave={(v) => handleValueUpdate(item, v)}
+                                      hint={editHint}
+                                      isNegative={val < 0}
+                                    />
                                   ) : (
                                     <span className={`font-mono tabular-nums text-sm font-medium ${val < 0 ? 'text-red-600' : 'text-slate-800'}`}>
                                       {formatNum(val)}
