@@ -46,7 +46,7 @@ export default function SpreadsheetPage() {
 
   const {
     items, enrichedItems, netWorth, transactions, financeTransactions, returnYTD,
-    snapshots, addItem, updateItem, deleteItem, portfolioItems,
+    snapshots, addItem, updateItem, deleteItem, portfolioItems, convert, rates,
   } = useDashboardData({ user, lang, activePortfolio: '__all__' })
 
   const [editItem, setEditItem] = useState(null)
@@ -202,6 +202,7 @@ export default function SpreadsheetPage() {
             onEditItem={(item) => setEditItem(item)}
             returnYTD={returnYTD}
             netWorth={netWorth}
+            convert={convert}
           />
         </div>
       ) : (

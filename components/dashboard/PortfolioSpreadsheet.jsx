@@ -39,6 +39,18 @@ function getMonthLabel(key, lang) {
   return label.charAt(0).toUpperCase() + label.slice(1) + ' ' + y.slice(2)
 }
 
+function getOriginalValue(item) {
+  if (item._originalPrice == null) return getItemValue(item)
+  const qty = Number(item.quantity) || 0
+  const val = qty * item._originalPrice
+  if (!isFinite(val)) return 0
+  return item.isDebt ? -Math.abs(val) : val
+}
+
+function formatNum(val) {
+  return Math.abs(val).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
 function EditableCell({ value, onSave }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
@@ -64,17 +76,17 @@ function EditableCell({ value, onSave }) {
     )
   }
 
-  const fmt = Math.abs(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   return (
     <div className="cursor-pointer rounded px-3 py-1.5 -mx-1 transition-all hover:bg-blue-100 hover:ring-1 hover:ring-blue-300 text-right"
       onClick={() => { setDraft(Math.abs(value).toFixed(2)); setEditing(true) }}>
-      <span className={`font-mono tabular-nums text-sm ${value < 0 ? 'text-red-600' : 'text-slate-800'}`}>{fmt}</span>
+      <span className={`font-mono tabular-nums text-sm ${value < 0 ? 'text-red-600' : 'text-slate-800'}`}>{formatNum(value)}</span>
     </div>
   )
 }
 
-export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateItem, onEditItem, returnYTD, netWorth }) {
+export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateItem, onEditItem, returnYTD, netWorth, convert }) {
   const t = (es, en) => lang === 'es' ? es : en
+  const [showOriginal, setShowOriginal] = useState(false)
 
   const now = new Date()
   const currentMonthKey = getMonthKey(now)
@@ -104,6 +116,15 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     return byMonth
   }, [snapshots])
 
+  const itemValue = useCallback((item) => {
+    return showOriginal ? getOriginalValue(item) : getItemValue(item)
+  }, [showOriginal])
+
+  const itemCurrency = useCallback((item) => {
+    if (showOriginal) return item._originalCurrency || item.currency || 'USD'
+    return 'USD'
+  }, [showOriginal])
+
   const { categories, totalAssets, totalDebt, currencyBreakdown } = useMemo(() => {
     const catMap = {}
     let totalA = 0
@@ -122,10 +143,13 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       if (val < 0) totalD += Math.abs(val)
       else totalA += val
 
-      const cur = it.currency || 'USD'
+      const cur = it._originalCurrency || it.currency || 'USD'
       const isUSD = cur === 'USD' || cur === '$'
       const bucket = isUSD ? 'USD' : cur
-      curBreak[bucket] = (curBreak[bucket] || 0) + Math.abs(val)
+      const origVal = getOriginalValue(it)
+      curBreak[bucket] = curBreak[bucket] || { usd: 0, original: 0 }
+      curBreak[bucket].usd += Math.abs(val)
+      curBreak[bucket].original += Math.abs(origVal)
     })
 
     const ordered = CATEGORY_ORDER
@@ -135,10 +159,10 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         label: CATEGORY_LABELS[cat]?.[lang] || cat,
         total: catMap[cat].total,
         institutions: Object.entries(catMap[cat].institutions)
-          .map(([name, items]) => ({
+          .map(([name, its]) => ({
             name,
-            items: items.sort((a, b) => Math.abs(getItemValue(b)) - Math.abs(getItemValue(a))),
-            total: items.reduce((s, it) => s + getItemValue(it), 0),
+            items: its.sort((a, b) => Math.abs(getItemValue(b)) - Math.abs(getItemValue(a))),
+            total: its.reduce((s, it) => s + getItemValue(it), 0),
           }))
           .sort((a, b) => Math.abs(b.total) - Math.abs(a.total)),
       }))
@@ -156,8 +180,14 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   const handleValueUpdate = useCallback((item, newVal) => {
     if (!onUpdateItem || !item.id) return
     const qty = item.quantity || 1
-    onUpdateItem(item.id, { currentPrice: newVal / qty })
-  }, [onUpdateItem])
+    if (showOriginal) {
+      onUpdateItem(item.id, { currentPrice: newVal / qty })
+    } else {
+      const cur = item._originalCurrency || item.currency || 'USD'
+      const originalVal = convert ? convert(newVal, 'USD', cur) : newVal
+      onUpdateItem(item.id, { currentPrice: originalVal / qty })
+    }
+  }, [onUpdateItem, showOriginal, convert])
 
   const prevMonthKey = months.length >= 2 ? months[months.length - 2] : null
   const prevTotal = prevMonthKey ? monthlyTotals[prevMonthKey] : null
@@ -170,7 +200,19 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     <div className="bg-[#f8fafc] border border-slate-200 overflow-hidden">
       <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-white">
         <h2 className="text-sm font-bold text-slate-900">{t('Portfolio Spreadsheet', 'Portfolio Spreadsheet')}</h2>
-        <span className="text-xs text-slate-400">{t('Click para editar mes actual', 'Click to edit current month')}</span>
+        <div className="flex items-center gap-3">
+          <div className="flex bg-slate-100 rounded-md border border-slate-200 p-0.5">
+            <button onClick={() => setShowOriginal(false)}
+              className={`px-2.5 py-1 text-xs rounded transition-colors ${!showOriginal ? 'bg-white text-slate-900 font-semibold shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+              USD
+            </button>
+            <button onClick={() => setShowOriginal(true)}
+              className={`px-2.5 py-1 text-xs rounded transition-colors ${showOriginal ? 'bg-white text-slate-900 font-semibold shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+              {t('Original', 'Original')}
+            </button>
+          </div>
+          <span className="text-xs text-slate-400 hidden sm:inline">{t('Click para editar', 'Click to edit')}</span>
+        </div>
       </div>
 
       <div className="overflow-x-auto">
@@ -179,7 +221,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
             <tr className="border-b border-slate-300 bg-slate-50">
               <th className="text-left py-2.5 pl-4 pr-2 text-slate-500 font-semibold text-xs uppercase tracking-wide sticky left-0 bg-slate-50 z-20 min-w-[200px]" />
               <th className="text-right py-2.5 px-2 text-slate-400 font-semibold text-xs w-10">%</th>
-              <th className="text-center py-2.5 px-1 text-slate-400 font-semibold text-xs w-10">{t('Mon', 'Cur')}</th>
+              <th className="text-center py-2.5 px-1 text-slate-400 font-semibold text-xs w-12">{t('Mon', 'Cur')}</th>
               {months.map(mk => {
                 const isCurrent = mk === currentMonthKey
                 return (
@@ -209,7 +251,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                     </div>
                   </td>
                   <td className="text-right py-3 px-2 text-slate-500 font-semibold text-sm">{Math.abs(pct).toFixed(0)}%</td>
-                  <td className="text-center py-3 px-1 text-slate-400 text-xs">$</td>
+                  <td className="text-center py-3 px-1 text-slate-400 text-xs">USD</td>
                   {months.map(mk => {
                     const isCurrent = mk === currentMonthKey
                     return (
@@ -225,6 +267,12 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                   const isInstCollapsed = collapsedInst[instKey]
                   const showInst = inst.items.length > 1
 
+                  const instCurrencies = [...new Set(inst.items.map(it => it._originalCurrency || it.currency || 'USD'))]
+                  const singleCurrency = instCurrencies.length === 1 ? instCurrencies[0] : null
+                  const instOrigTotal = showOriginal && singleCurrency
+                    ? inst.items.reduce((s, it) => s + getOriginalValue(it), 0)
+                    : null
+
                   return (
                     <Fragment key={instKey}>
                       {showInst && (
@@ -235,12 +283,15 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                             <span className="text-slate-400 text-xs ml-1.5">{isInstCollapsed ? '>' : 'v'}</span>
                           </td>
                           <td />
-                          <td className="text-center py-2 px-1 text-slate-400 text-xs">{inst.items[0]?.currency || ''}</td>
+                          <td className="text-center py-2 px-1 text-slate-400 text-xs">
+                            {showOriginal && singleCurrency ? singleCurrency : 'USD'}
+                          </td>
                           {months.map(mk => {
                             const isCurrent = mk === currentMonthKey
+                            const displayVal = showOriginal && instOrigTotal != null ? instOrigTotal : inst.total
                             return (
                               <td key={mk} className={`text-right py-2 px-3 font-medium tabular-nums font-mono text-sm ${isCurrent ? 'bg-blue-50 text-slate-700' : 'text-slate-300'}`}>
-                                {isCurrent ? formatCurrency(inst.total) : ''}
+                                {isCurrent ? formatNum(displayVal) : ''}
                               </td>
                             )
                           })}
@@ -248,7 +299,8 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                       )}
 
                       {(!showInst || !isInstCollapsed) && inst.items.map((item, idx) => {
-                        const val = getItemValue(item)
+                        const val = itemValue(item)
+                        const cur = itemCurrency(item)
                         return (
                           <tr key={item.id || idx} className="hover:bg-slate-50 transition-colors bg-white border-t border-slate-100/60">
                             <td className={`py-2.5 ${showInst ? 'pl-12' : 'pl-8'} pr-2 sticky left-0 bg-white z-10`}>
@@ -266,7 +318,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                               </div>
                             </td>
                             <td />
-                            <td className="text-center py-2.5 px-1 text-slate-400 text-xs">{item.currency || ''}</td>
+                            <td className="text-center py-2.5 px-1 text-slate-400 text-xs">{cur}</td>
                             {months.map(mk => {
                               const isCurrent = mk === currentMonthKey
                               if (!isCurrent) {
@@ -278,7 +330,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                                     <EditableCell value={val} onSave={(v) => handleValueUpdate(item, v)} />
                                   ) : (
                                     <span className={`font-mono tabular-nums text-sm font-medium ${val < 0 ? 'text-red-600' : 'text-slate-800'}`}>
-                                      {Math.abs(val).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      {formatNum(val)}
                                     </span>
                                   )}
                                 </td>
@@ -296,19 +348,26 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
 
           <tfoot>
             {Object.entries(currencyBreakdown)
-              .sort((a, b) => b[1] - a[1])
-              .map(([cur, val]) => {
-                const pct = grandTotal > 0 ? (val / grandTotal) * 100 : 0
+              .sort((a, b) => b[1].usd - a[1].usd)
+              .map(([cur, data]) => {
+                const pct = grandTotal > 0 ? (data.usd / grandTotal) * 100 : 0
+                const displayVal = showOriginal ? data.original : data.usd
+                const rate = data.original > 0 && cur !== 'USD' ? (data.usd / data.original) : null
                 return (
                   <tr key={cur} className="text-slate-400 border-t border-slate-100 bg-white">
-                    <td className="py-1.5 pl-8 pr-2 sticky left-0 bg-white z-10 text-xs">{cur}</td>
+                    <td className="py-1.5 pl-8 pr-2 sticky left-0 bg-white z-10 text-xs">
+                      {cur}
+                      {showOriginal && rate != null && (
+                        <span className="text-slate-300 ml-1.5">1 {cur} = {rate.toFixed(4)} USD</span>
+                      )}
+                    </td>
                     <td className="text-right py-1.5 px-2 text-xs">{pct.toFixed(0)}%</td>
-                    <td className="text-center py-1.5 px-1 text-xs">{cur === 'USD' ? '$' : cur}</td>
+                    <td className="text-center py-1.5 px-1 text-xs">{showOriginal ? cur : 'USD'}</td>
                     {months.map(mk => {
                       const isCurrent = mk === currentMonthKey
                       return (
                         <td key={mk} className={`text-right py-1.5 px-3 text-xs tabular-nums font-mono ${isCurrent ? 'bg-blue-50' : ''}`}>
-                          {isCurrent ? val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''}
+                          {isCurrent ? formatNum(displayVal) : ''}
                         </td>
                       )
                     })}
@@ -319,9 +378,12 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
             <tr className="border-t-2 border-slate-300 bg-slate-100">
               <td className="py-3.5 pl-4 pr-2 sticky left-0 bg-slate-100 z-10">
                 <span className="text-slate-900 font-black text-base">TOTAL</span>
+                {showOriginal && (
+                  <span className="text-slate-400 text-xs ml-2 font-normal">(USD)</span>
+                )}
               </td>
               <td className="text-right py-3.5 px-2 text-slate-700 font-bold text-sm">100%</td>
-              <td className="text-center py-3.5 px-1 text-slate-500 font-bold text-xs">$</td>
+              <td className="text-center py-3.5 px-1 text-slate-500 font-bold text-xs">USD</td>
               {months.map(mk => {
                 const isCurrent = mk === currentMonthKey
                 const val = isCurrent ? grandTotal : (monthlyTotals[mk] || null)
