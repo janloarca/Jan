@@ -165,7 +165,6 @@ async function fetchFlexReport(token, queryId) {
     if (SEND_REQUEST_DELAYS[attempt]) await new Promise((r) => setTimeout(r, SEND_REQUEST_DELAYS[attempt]))
     const requestRes = await fetch(requestUrl)
     const requestXml = await requestRes.text()
-    console.log(`[ibkr] SendRequest attempt ${attempt + 1}/${SEND_REQUEST_ATTEMPTS}:`, requestXml.slice(0, 500))
     const refMatch = requestXml.match(/<ReferenceCode>([^<]+)<\/ReferenceCode>/)
     if (refMatch) {
       referenceCode = refMatch[1]
@@ -174,7 +173,7 @@ async function fetchFlexReport(token, queryId) {
     const errMatch = requestXml.match(/<ErrorMessage>([^<]+)<\/ErrorMessage>/)
     const errCode = requestXml.match(/<ErrorCode>([^<]+)<\/ErrorCode>/)
     const errMsg = errMatch ? errMatch[1] : ''
-    console.log(`[ibkr] Error code: ${errCode?.[1] || 'none'}, message: ${errMsg}`)
+    console.error(`[ibkr] Error code: ${errCode?.[1] || 'none'}, message: ${errMsg}`)
     if (errMsg.toLowerCase().includes('try again') || errMsg.toLowerCase().includes('could not be generated')) {
       if (attempt === SEND_REQUEST_ATTEMPTS - 1) throw new Error(errMsg)
       continue

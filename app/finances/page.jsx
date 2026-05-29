@@ -122,7 +122,7 @@ export default function FinancesPage() {
         lang={lang}
         setLang={handleSetLang}
         onImport={() => setModal('import')}
-        onSettings={() => {}}
+        onSettings={() => router.push('/dashboard')}
         onSignOut={handleSignOut}
         onRefresh={() => {}}
         pricesLoading={false}
@@ -204,10 +204,23 @@ export default function FinancesPage() {
       <MobileNav
         onAdd={() => setModal('add')}
         onImport={() => setModal('import')}
-        onExport={() => {}}
-        onShare={() => {}}
-        onSettings={() => {}}
-        onSearch={() => {}}
+        onExport={() => {
+          if (monthTransactions.length === 0) return
+          const header = 'Date,Type,Category,Description,Amount,Currency'
+          const rows = monthTransactions.map(tx => {
+            const esc = (v) => `"${String(v || '').replace(/"/g, '""')}"`
+            return [tx.date || '', tx.type || '', esc(tx.category || ''), esc(tx.description || ''), tx.amount || 0, tx.currency || 'GTQ'].join(',')
+          })
+          const csv = [header, ...rows].join('\n')
+          const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = `chispudo-finances-${year}-${String(month + 1).padStart(2, '0')}.csv`
+          a.click()
+          URL.revokeObjectURL(url)
+        }}
+        onSettings={() => router.push('/dashboard')}
         lang={lang}
       />
     </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { useDashboardData } from '@/hooks/useDashboardData'
@@ -131,20 +131,6 @@ export default function SpreadsheetPage() {
     setShowTemplates(false)
   }, [sheets, lang, saveToStorage])
 
-  // Firestore persistence
-  const firestoreSaveRef = useRef(null)
-  useEffect(() => {
-    if (!user) return
-    if (firestoreSaveRef.current) clearTimeout(firestoreSaveRef.current)
-    firestoreSaveRef.current = setTimeout(async () => {
-      try {
-        const { default: getFirebase } = await import('@/lib/firebase')
-        const fb = await import('firebase/firestore')
-        const { db } = getFirebase ? await import('@/lib/firebase').then(m => ({ db: null })) : { db: null }
-      } catch {}
-    }, 5000)
-  }, [sheets, user])
-
   if (authLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#0f172a]">
@@ -156,20 +142,20 @@ export default function SpreadsheetPage() {
   if (!user) return null
 
   return (
-    <div className="min-h-screen bg-[#0f172a] flex flex-col">
+    <div className={`min-h-screen flex flex-col ${view === 'portfolio' ? 'bg-slate-100' : 'bg-[#0f172a]'}`}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-[#1e293b] border-b border-[#334155]">
+      <div className={`flex items-center justify-between px-4 py-3 border-b ${view === 'portfolio' ? 'bg-white border-slate-200' : 'bg-[#1e293b] border-[#334155]'}`}>
         <div className="flex items-center gap-3">
-          <button onClick={() => router.push('/dashboard')} className="text-slate-400 hover:text-white transition-colors">
+          <button onClick={() => router.push('/dashboard')} className={`transition-colors ${view === 'portfolio' ? 'text-slate-400 hover:text-slate-900' : 'text-slate-400 hover:text-white'}`}>
             ← {t('Dashboard', 'Dashboard')}
           </button>
-          <div className="w-px h-5 bg-[#334155]" />
-          <h1 className="text-sm font-semibold text-white flex items-center gap-2">
-            ⚡ Spreadsheet
+          <div className={`w-px h-5 ${view === 'portfolio' ? 'bg-slate-200' : 'bg-[#334155]'}`} />
+          <h1 className={`text-sm font-semibold flex items-center gap-2 ${view === 'portfolio' ? 'text-slate-900' : 'text-white'}`}>
+            Spreadsheet
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex bg-[#0f172a] rounded-lg border border-[#334155] p-0.5">
+          <div className={`flex rounded-lg border p-0.5 ${view === 'portfolio' ? 'bg-slate-100 border-slate-200' : 'bg-[#0f172a] border-[#334155]'}`}>
             <button onClick={() => setView('portfolio')}
               className={`px-3 py-1 text-xs rounded-md transition-colors ${view === 'portfolio' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}>
               Portfolio
@@ -185,17 +171,13 @@ export default function SpreadsheetPage() {
               {t('Plantillas', 'Templates')}
             </button>
           )}
-          <div className="flex items-center gap-1 px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded text-xs text-emerald-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            {t('Datos en vivo', 'Live data')}
-          </div>
         </div>
       </div>
 
       {/* Templates dropdown */}
       {showTemplates && (
         <div className="px-4 py-3 bg-[#1e293b]/80 border-b border-[#334155]">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <span className="text-xs text-slate-500">{t('Crear desde plantilla:', 'Create from template:')}</span>
             {TEMPLATES.map(tmpl => (
               <button
@@ -211,7 +193,7 @@ export default function SpreadsheetPage() {
       )}
 
       {view === 'portfolio' ? (
-        <div className="flex-1 p-4 overflow-auto">
+        <div className="flex-1 p-4 sm:p-6 overflow-auto">
           <PortfolioSpreadsheet
             items={portfolioItems || enrichedItems}
             snapshots={snapshots}
