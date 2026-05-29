@@ -471,8 +471,8 @@ export default function DashboardPage() {
         {/* ═══ RESUMEN ═══ */}
         {portfolioItems.length > 0 && <>
         <ErrorBoundary lang={lang}>
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6 items-start">
-          <div className="lg:col-span-2 flex flex-col gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6 items-start">
+          <div className="md:col-span-1 lg:col-span-2 flex flex-col gap-4">
             <CardBoundary id="OL-01">
             <NetWorthCard
               netWorth={netWorth} returnYTD={returnYTD} ytdChange={ytdChange}
@@ -484,7 +484,7 @@ export default function DashboardPage() {
             <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} /></CardBoundary>
           </div>
 
-          <div className="lg:col-span-3 flex flex-col gap-4">
+          <div className="md:col-span-2 lg:col-span-3 flex flex-col gap-4">
             <CardBoundary id="OR-01"><PortfolioGrowthChart items={portfolioItems} snapshots={snapshots} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} benchmarkSymbol={benchmarkSymbol} benchmarkName={benchmarkName} /></CardBoundary>
             <CardBoundary id="OR-MB"><MonthlyBreakdown items={portfolioItems} snapshots={snapshots} lang={lang} onUpdateItem={updateItem} /></CardBoundary>
           </div>

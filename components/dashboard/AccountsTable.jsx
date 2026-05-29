@@ -227,15 +227,15 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                   {t('Instrumento', 'Instrument')} {sortBy === 'name' ? '↕' : ''}
                 </th>
                 <th className="text-center py-2 font-medium">% Port.</th>
-                <th className="text-right py-2 font-medium">{t('Costo', 'Avg Cost')}</th>
-                <th className="text-center py-2 font-medium">P&L</th>
+                <th className="text-right py-2 font-medium hidden sm:table-cell">{t('Costo', 'Avg Cost')}</th>
+                <th className="text-center py-2 font-medium hidden sm:table-cell">P&L</th>
                 <th className="text-right py-2 font-medium cursor-pointer hover:text-slate-300"
                   onClick={() => setSortBy(sortBy === 'value' ? 'value-asc' : 'value')}>
                   {t('Valor $', 'Value $')} {sortBy === 'value' ? '▼' : sortBy === 'value-asc' ? '▲' : ''}
                 </th>
-                <th className="text-center py-2 font-medium">{t('Compra', 'Bought')}</th>
-                <th className="text-center py-2 font-medium">{t('Duración', 'Duration')}</th>
-                <th className="text-center py-2 font-medium">{t('Yield', 'Yield')}</th>
+                <th className="text-center py-2 font-medium hidden sm:table-cell">{t('Compra', 'Bought')}</th>
+                <th className="text-center py-2 font-medium hidden sm:table-cell">{t('Duración', 'Duration')}</th>
+                <th className="text-center py-2 font-medium hidden sm:table-cell">{t('Yield', 'Yield')}</th>
                 <th className="w-16" />
               </tr>
             </thead>
@@ -333,14 +333,14 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                         <span className="text-slate-400 text-xs w-8">{pctPort.toFixed(1)}%</span>
                       </div>
                     </td>
-                    <td className="text-right py-3">
+                    <td className="text-right py-3 hidden sm:table-cell">
                       {item.purchasePrice > 0 ? (
                         <span className="text-slate-400 text-xs">{formatCurrency(item.purchasePrice)}</span>
                       ) : (
                         <span className="text-slate-600">—</span>
                       )}
                     </td>
-                    <td className="text-center py-3">
+                    <td className="text-center py-3 hidden sm:table-cell">
                       {retPct != null ? (
                         <div>
                           <span className={`text-xs font-medium ${retPct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
@@ -360,17 +360,17 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                         {formatCurrency(Math.abs(value))}{value < 0 ? ' ⓓ' : ''}
                       </span>
                     </td>
-                    <td className="text-center py-3">
+                    <td className="text-center py-3 hidden sm:table-cell">
                       {item.acquisitionDate ? (
                         <span className="text-slate-400 text-xs">{new Date(item.acquisitionDate).toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short', year: '2-digit' })}</span>
                       ) : (
                         <span className="text-slate-700">—</span>
                       )}
                     </td>
-                    <td className="text-center py-3">
+                    <td className="text-center py-3 hidden sm:table-cell">
                       <span className="text-slate-400 text-xs">{formatHoldingPeriod(item.acquisitionDate, lang)}</span>
                     </td>
-                    <td className="text-center py-3">
+                    <td className="text-center py-3 hidden sm:table-cell">
                       {(() => {
                         const y = getEffectiveYield(item)
                         return y != null ? (

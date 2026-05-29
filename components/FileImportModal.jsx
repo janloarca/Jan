@@ -499,7 +499,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                 onDrop={handleDrop}
                 onDragOver={(e) => e.preventDefault()}
                 onClick={() => fileRef.current?.click()}
-                className="border-2 border-dashed border-[#334155] rounded-xl p-12 text-center cursor-pointer hover:border-blue-500/50 hover:bg-blue-500/5 transition-colors"
+                className="border-2 border-dashed border-[#334155] rounded-xl p-6 sm:p-12 text-center cursor-pointer hover:border-blue-500/50 hover:bg-blue-500/5 transition-colors"
               >
                 <div className="text-4xl mb-3">📊</div>
                 <p className="text-white font-medium mb-1">{t('Arrastra tu archivo aquí', 'Drag your file here')}</p>
@@ -546,7 +546,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
 
           {step === 'upload' && mode === 'manual' && (
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-slate-400 mb-1 block">{t('Símbolo', 'Symbol')} *</label>
                   <input value={manual.symbol} onChange={(e) => setManual({ ...manual, symbol: e.target.value })}
@@ -558,7 +558,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                     placeholder="Apple Inc" className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-slate-400 mb-1 block">{t('Tipo', 'Type')}</label>
                   <select value={manual.type} onChange={(e) => setManual({ ...manual, type: e.target.value })}
@@ -576,7 +576,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                     placeholder="Interactive Brokers" className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-slate-400 mb-1 block">{t('Cantidad', 'Quantity')} *</label>
                   <input value={manual.quantity} onChange={(e) => setManual({ ...manual, quantity: e.target.value })}
