@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { detectBI, parseBI } from '@/lib/parsers/biParser'
+import { detectCoinbase, parseCoinbase } from '@/lib/parsers/coinbaseParser'
+import { detectKraken, parseKraken } from '@/lib/parsers/krakenParser'
 import { FINANCE_CATEGORIES, CATEGORY_COLORS } from '@/lib/financeCategories'
 import { validateItem, sanitizeImportItem } from '@/lib/validation'
 
@@ -39,6 +41,16 @@ const BROKER_PRESETS = {
   fidelity: {
     detect: (h) => h.some((c) => /^symbol$/i.test(c)) && h.some((c) => /last price/i.test(c)) && h.some((c) => /current value/i.test(c)),
     institution: 'Fidelity',
+  },
+  coinbase: {
+    detect: (h) => detectCoinbase(h.map(c => (c || '').toString().trim())),
+    institution: 'Coinbase',
+    typeOverride: 'Crypto',
+  },
+  kraken: {
+    detect: (h) => detectKraken(h.map(c => (c || '').toString().trim())),
+    institution: 'Kraken',
+    typeOverride: 'Crypto',
   },
 }
 
@@ -229,7 +241,21 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       const hdrs = json[0].map((h) => (h || '').toString().trim())
       const rows = json.slice(1).filter((r) => r.some((cell) => cell !== ''))
 
-      if (detectBI(hdrs)) {
+      if (detectCoinbase(hdrs)) {
+        const items = parseCoinbase(rows, hdrs)
+        const mapped = items.map(it => sanitizeImportItem(it))
+        setHeaders(['symbol', 'name', 'type', 'quantity', 'purchasePrice', 'currentPrice', 'institution', 'currency'])
+        setRawData(mapped.map(it => [it.symbol, it.name, it.type, it.quantity, it.purchasePrice, it.currentPrice, it.institution, it.currency]))
+        setMapping({ symbol: 0, name: 1, type: 2, quantity: 3, purchasePrice: 4, currentPrice: 5, institution: 6, currency: 7 })
+        setStep('map')
+      } else if (detectKraken(hdrs)) {
+        const items = parseKraken(rows, hdrs)
+        const mapped = items.map(it => sanitizeImportItem(it))
+        setHeaders(['symbol', 'name', 'type', 'quantity', 'purchasePrice', 'currentPrice', 'institution', 'currency'])
+        setRawData(mapped.map(it => [it.symbol, it.name, it.type, it.quantity, it.purchasePrice, it.currentPrice, it.institution, it.currency]))
+        setMapping({ symbol: 0, name: 1, type: 2, quantity: 3, purchasePrice: 4, currentPrice: 5, institution: 6, currency: 7 })
+        setStep('map')
+      } else if (detectBI(hdrs)) {
         const parsed = parseBI(rows, hdrs)
         setBiData(parsed)
         setStep('bi-preview')
