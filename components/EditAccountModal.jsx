@@ -53,6 +53,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     beneficiary: item.beneficiary || '',
     managementFee: item.managementFee?.toString() || '',
     expenseRatio: item.expenseRatio?.toString() || '',
+    entryFee: item.entryFee?.toString() || '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -165,6 +166,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
       // Fees
       if (form.managementFee) updated.managementFee = parseFloat(form.managementFee) || 0
       if (form.expenseRatio) updated.expenseRatio = parseFloat(form.expenseRatio) || 0
+      if (form.entryFee) updated.entryFee = parseFloat(form.entryFee) || 0
 
       // Tax jurisdiction
       updated.taxJurisdiction = form.taxJurisdiction || ''
@@ -406,17 +408,39 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           )}
 
           {/* Fees */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelCls}>{t('Comisión mgmt %', 'Management fee %')}</label>
-              <input value={form.managementFee} onChange={e => set('managementFee', e.target.value)}
-                placeholder="0.50" type="number" step="any" className={inputCls} />
+          <div className="border border-amber-500/20 bg-amber-500/5 rounded-lg p-3 space-y-2">
+            <p className="text-xs text-amber-400 font-medium">{t('Costos & Comisiones', 'Costs & Fees')}</p>
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Costo entrada', 'Entry fee')}</label>
+                <input value={form.entryFee} onChange={e => set('entryFee', e.target.value)}
+                  placeholder="80" type="number" step="any" className={inputCls}
+                  title={t('Costo de incorporación, comisión de entrada, etc.', 'Incorporation cost, entry commission, etc.')} />
+              </div>
+              <div>
+                <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Mgmt fee %', 'Mgmt fee %')}</label>
+                <input value={form.managementFee} onChange={e => set('managementFee', e.target.value)}
+                  placeholder="0.50" type="number" step="any" className={inputCls}
+                  title={t('Comisión de administración anual %', 'Annual management fee %')} />
+              </div>
+              <div>
+                <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Expense %', 'Expense %')}</label>
+                <input value={form.expenseRatio} onChange={e => set('expenseRatio', e.target.value)}
+                  placeholder="0.03" type="number" step="any" className={inputCls}
+                  title={t('Ratio de gastos anual %', 'Annual expense ratio %')} />
+              </div>
             </div>
-            <div>
-              <label className={labelCls}>{t('Expense ratio %', 'Expense ratio %')}</label>
-              <input value={form.expenseRatio} onChange={e => set('expenseRatio', e.target.value)}
-                placeholder="0.03" type="number" step="any" className={inputCls} />
-            </div>
+            {(parseFloat(form.entryFee) > 0 || parseFloat(form.managementFee) > 0 || parseFloat(form.expenseRatio) > 0) && (
+              <p className="text-[10px] text-amber-400/60">
+                {parseFloat(form.entryFee) > 0 && `${t('Entrada', 'Entry')}: $${parseFloat(form.entryFee).toFixed(2)}  `}
+                {(parseFloat(form.managementFee) > 0 || parseFloat(form.expenseRatio) > 0) &&
+                  `${t('Anual', 'Annual')}: ${((parseFloat(form.managementFee) || 0) + (parseFloat(form.expenseRatio) || 0)).toFixed(2)}%`
+                }
+                {parseFloat(form.purchasePrice) > 0 && parseFloat(form.quantity) > 0 && (parseFloat(form.managementFee) > 0 || parseFloat(form.expenseRatio) > 0) &&
+                  ` (~$${((parseFloat(form.purchasePrice) * parseFloat(form.quantity) * ((parseFloat(form.managementFee) || 0) + (parseFloat(form.expenseRatio) || 0)) / 100)).toFixed(0)}/yr)`
+                }
+              </p>
+            )}
           </div>
 
           {/* Tax jurisdiction */}

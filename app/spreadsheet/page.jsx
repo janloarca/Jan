@@ -11,6 +11,7 @@ import { TEMPLATES } from '@/lib/spreadsheet/formulas'
 const SpreadsheetGrid = dynamic(() => import('@/components/spreadsheet/SpreadsheetGrid'), { ssr: false })
 const PortfolioSpreadsheet = dynamic(() => import('@/components/dashboard/PortfolioSpreadsheet'), { ssr: false })
 const EditAccountModal = dynamic(() => import('@/components/EditAccountModal'), { ssr: false })
+const AccountReviewModal = dynamic(() => import('@/components/dashboard/AccountReviewModal'), { ssr: false })
 
 function generateId() {
   return `sheet_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
@@ -50,6 +51,7 @@ export default function SpreadsheetPage() {
   } = useDashboardData({ user, lang, activePortfolio: '__all__' })
 
   const [editItem, setEditItem] = useState(null)
+  const [showReview, setShowReview] = useState(false)
 
   const [view, setView] = useState('portfolio')
 
@@ -165,6 +167,12 @@ export default function SpreadsheetPage() {
               {t('Hojas', 'Sheets')}
             </button>
           </div>
+          {view === 'portfolio' && (portfolioItems || enrichedItems)?.length > 0 && (
+            <button onClick={() => setShowReview(true)}
+              className="px-3 py-1.5 text-xs text-slate-600 border border-slate-300 rounded hover:text-slate-900 hover:border-slate-400 hover:bg-slate-50 transition-colors">
+              {t('Revisar todas', 'Review all')}
+            </button>
+          )}
           {view === 'custom' && (
             <button onClick={() => setShowTemplates(!showTemplates)}
               className="px-3 py-1.5 text-xs text-slate-400 border border-slate-600 rounded hover:text-white hover:border-slate-500 transition-colors">
@@ -231,6 +239,15 @@ export default function SpreadsheetPage() {
       {editItem && (
         <EditAccountModal item={editItem} onClose={() => setEditItem(null)}
           onSave={addItem} onDelete={deleteItem} existingItems={items} lang={lang} />
+      )}
+
+      {showReview && (
+        <AccountReviewModal
+          items={portfolioItems || enrichedItems}
+          onClose={() => setShowReview(false)}
+          onEditItem={(item) => { setShowReview(false); setEditItem(item) }}
+          lang={lang}
+        />
       )}
     </div>
   )
