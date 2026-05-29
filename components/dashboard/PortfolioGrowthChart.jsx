@@ -213,8 +213,24 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
       return []
     }
 
-    while (pts.length > 2 && pts[0].value === 0) {
-      pts.shift()
+    const keepLeadingZeros = ['YTD', 'MTD'].includes(period)
+    if (!keepLeadingZeros) {
+      while (pts.length > 2 && pts[0].value === 0) {
+        pts.shift()
+      }
+    }
+
+    if (period === 'YTD' && pts.length > 0) {
+      const yearStart = new Date(new Date().getFullYear(), 0, 1).getTime()
+      if (pts[0].ts > yearStart + 86400000) {
+        pts.unshift({ ts: yearStart, date: new Date(yearStart), value: pts[0].value })
+      }
+    }
+    if (period === 'MTD' && pts.length > 0) {
+      const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime()
+      if (pts[0].ts > monthStart + 86400000) {
+        pts.unshift({ ts: monthStart, date: new Date(monthStart), value: pts[0].value })
+      }
     }
 
     if (currentTotal > 0) {
