@@ -6,14 +6,26 @@ import { formatCurrency, getItemValue, getTypeCategory, TYPE_COLORS } from './ut
 const CATEGORY_ORDER = ['banks', 'funds', 'stocks', 'crypto', 'alternatives', 'bonds', 'other', 'debts']
 const CATEGORY_LABELS = {
   banks: { es: 'Caja & Bancos', en: 'Cash & Banks' },
-  funds: { es: 'Fondos Líquidos', en: 'Liquid Funds' },
+  funds: { es: 'Fondos Liquidos', en: 'Liquid Funds' },
   stocks: { es: 'Bolsa de Valores', en: 'Stock Market' },
   crypto: { es: 'Criptoactivos', en: 'Crypto Assets' },
   alternatives: { es: 'Deuda Privada & Alt.', en: 'Private Debt & Alt.' },
   bonds: { es: 'Bonos Corporativo', en: 'Corporate Bonds' },
-  realestate: { es: 'Bienes Raíces', en: 'Real Estate' },
+  realestate: { es: 'Bienes Raices', en: 'Real Estate' },
   debts: { es: 'Pasivos', en: 'Liabilities' },
   other: { es: 'Otros', en: 'Other' },
+}
+
+const CATEGORY_ACCENT = {
+  banks: '#94a3b8',
+  funds: '#818cf8',
+  stocks: '#3b82f6',
+  crypto: '#f97316',
+  alternatives: '#a78bfa',
+  bonds: '#f59e0b',
+  realestate: '#10b981',
+  debts: '#ef4444',
+  other: '#64748b',
 }
 
 function getMonthKey(d) {
@@ -27,7 +39,7 @@ function getMonthLabel(key, lang) {
   return label.charAt(0).toUpperCase() + label.slice(1) + ' ' + y.slice(2)
 }
 
-function EditableCell({ value, currency, onSave }) {
+function EditableCell({ value, onSave }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const ref = useRef(null)
@@ -48,16 +60,16 @@ function EditableCell({ value, currency, onSave }) {
         onChange={e => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false) }}
-        className="w-full bg-[#0f172a] border border-blue-500/50 rounded px-1 py-0.5 text-[11px] text-white text-right font-mono focus:outline-none" />
+        className="w-full bg-white border-2 border-blue-400 rounded px-3 py-1.5 text-sm text-slate-900 text-right font-mono focus:outline-none focus:ring-2 focus:ring-blue-300" />
     )
   }
 
   const fmt = Math.abs(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   return (
-    <span className="cursor-pointer hover:bg-blue-500/10 rounded px-1 py-0.5 -mx-1 transition-colors"
+    <div className="cursor-pointer rounded px-3 py-1.5 -mx-1 transition-all hover:bg-blue-100 hover:ring-1 hover:ring-blue-300 text-right"
       onClick={() => { setDraft(Math.abs(value).toFixed(2)); setEditing(true) }}>
-      {fmt}
-    </span>
+      <span className={`font-mono tabular-nums text-sm ${value < 0 ? 'text-red-600' : 'text-slate-800'}`}>{fmt}</span>
+    </div>
   )
 }
 
@@ -101,7 +113,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     items.forEach(it => {
       const cat = getTypeCategory(it.type)
       if (!catMap[cat]) catMap[cat] = { institutions: {}, total: 0 }
-      const inst = it.institution || t('Sin institución', 'No institution')
+      const inst = it.institution || t('Sin institucion', 'No institution')
       if (!catMap[cat].institutions[inst]) catMap[cat].institutions[inst] = []
       catMap[cat].institutions[inst].push(it)
 
@@ -155,25 +167,25 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   const janTotal = monthlyTotals[janKey]
 
   return (
-    <div className="bg-[#1e293b] rounded-2xl border border-[#334155] overflow-hidden card-primary">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-[#334155]">
-        <h2 className="text-sm font-bold text-white">{t('Portfolio Spreadsheet', 'Portfolio Spreadsheet')}</h2>
-        <span className="text-xs text-slate-500">{t('Click para editar mes actual', 'Click to edit current month')}</span>
+    <div className="bg-[#f8fafc] border border-slate-200 overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-white">
+        <h2 className="text-sm font-bold text-slate-900">{t('Portfolio Spreadsheet', 'Portfolio Spreadsheet')}</h2>
+        <span className="text-xs text-slate-400">{t('Click para editar mes actual', 'Click to edit current month')}</span>
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-[11px] border-collapse min-w-[700px]">
+        <table className="w-full text-sm border-collapse min-w-[700px]">
           <thead>
-            <tr className="border-b border-[#475569]">
-              <th className="text-left py-2 pl-4 pr-2 text-slate-500 font-semibold sticky left-0 bg-[#1e293b] z-20 min-w-[200px]" />
-              <th className="text-right py-2 px-1 text-slate-600 font-medium w-8">%</th>
-              <th className="text-center py-2 px-1 text-slate-600 font-medium w-10">{t('Mon', 'Cur')}</th>
+            <tr className="border-b border-slate-300 bg-slate-50">
+              <th className="text-left py-2.5 pl-4 pr-2 text-slate-500 font-semibold text-xs uppercase tracking-wide sticky left-0 bg-slate-50 z-20 min-w-[200px]" />
+              <th className="text-right py-2.5 px-2 text-slate-400 font-semibold text-xs w-10">%</th>
+              <th className="text-center py-2.5 px-1 text-slate-400 font-semibold text-xs w-10">{t('Mon', 'Cur')}</th>
               {months.map(mk => {
                 const isCurrent = mk === currentMonthKey
                 return (
-                  <th key={mk} className={`text-right py-2 px-2 font-semibold w-24 ${isCurrent ? 'bg-emerald-500/10 text-emerald-400' : 'text-slate-500'}`}>
+                  <th key={mk} className={`text-right py-2.5 px-3 font-semibold text-xs w-28 ${isCurrent ? 'bg-blue-50 text-blue-600' : 'text-slate-400'}`}>
                     {getMonthLabel(mk, lang)}
-                    {isCurrent && <div className="text-[9px] font-normal opacity-60">{t('Final', 'Final')}</div>}
+                    {isCurrent && <div className="text-[10px] font-normal text-blue-400">{t('actual', 'current')}</div>}
                   </th>
                 )
               })}
@@ -183,27 +195,25 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
           {categories.map(cat => {
             const pct = grandTotal !== 0 ? (cat.total / grandTotal) * 100 : 0
             const isCollapsed = collapsed[cat.key]
-            const color = TYPE_COLORS[cat.key]?.bg || '#64748b'
+            const accent = CATEGORY_ACCENT[cat.key] || '#64748b'
 
             return (
               <tbody key={cat.key}>
-                <tr className="bg-[#0f172a]/50 cursor-pointer hover:bg-[#0f172a]/70 transition-colors border-t border-[#334155]/50"
+                <tr className="cursor-pointer hover:bg-slate-100 transition-colors border-t border-slate-200 bg-white"
                   onClick={() => toggleCat(cat.key)}>
-                  <td className="py-2 pl-4 pr-2 sticky left-0 bg-[#0f172a]/50 z-10">
+                  <td className="py-3 pl-4 pr-2 sticky left-0 bg-white z-10" style={{ borderLeft: `3px solid ${accent}` }}>
                     <div className="flex items-center gap-2">
-                      <span style={{ backgroundColor: color }} className="w-2 h-2 rounded-sm shrink-0" />
-                      <span className="text-white font-bold text-xs">{cat.label}</span>
-                      <span className="text-slate-600 text-[10px]">{isCollapsed ? '▸' : '▾'}</span>
+                      <span className="text-slate-400 text-[10px] w-3">{isCollapsed ? '>' : 'v'}</span>
+                      <span className="text-slate-900 font-bold text-sm">{cat.label}</span>
+                      <span className="text-slate-400 text-xs">({cat.institutions.reduce((s, i) => s + i.items.length, 0)})</span>
                     </div>
                   </td>
-                  <td className="text-right py-2 px-1 text-slate-400 font-bold">{Math.abs(pct).toFixed(0)}%</td>
-                  <td className="text-center py-2 px-1 text-slate-600 font-medium">
-                    {(cat.total < 0 ? '-' : '') + (Math.abs(cat.total) >= 1000 ? '$' : '')}
-                  </td>
+                  <td className="text-right py-3 px-2 text-slate-500 font-semibold text-sm">{Math.abs(pct).toFixed(0)}%</td>
+                  <td className="text-center py-3 px-1 text-slate-400 text-xs">$</td>
                   {months.map(mk => {
                     const isCurrent = mk === currentMonthKey
                     return (
-                      <td key={mk} className={`text-right py-2 px-2 font-bold tabular-nums ${isCurrent ? 'bg-emerald-500/10 text-white' : 'text-slate-400'}`}>
+                      <td key={mk} className={`text-right py-3 px-3 font-bold tabular-nums font-mono text-sm ${isCurrent ? 'bg-blue-50 text-slate-900' : 'text-slate-300'}`}>
                         {isCurrent ? formatCurrency(cat.total) : ''}
                       </td>
                     )
@@ -218,18 +228,18 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                   return (
                     <Fragment key={instKey}>
                       {showInst && (
-                        <tr className="cursor-pointer hover:bg-[#1a2536] transition-colors"
+                        <tr className="cursor-pointer hover:bg-slate-50 transition-colors bg-white border-t border-slate-100"
                           onClick={() => toggleInst(instKey)}>
-                          <td className="py-1 pl-6 pr-2 sticky left-0 bg-[#1e293b] z-10">
-                            <span className="text-slate-300 font-semibold text-[11px]">{inst.name}</span>
-                            <span className="text-slate-600 text-[10px] ml-1">{isInstCollapsed ? '▸' : '▾'}</span>
+                          <td className="py-2 pl-8 pr-2 sticky left-0 bg-white z-10">
+                            <span className="text-slate-700 font-semibold text-sm">{inst.name}</span>
+                            <span className="text-slate-400 text-xs ml-1.5">{isInstCollapsed ? '>' : 'v'}</span>
                           </td>
                           <td />
-                          <td className="text-center py-1 px-1 text-slate-600 text-[10px]">{inst.items[0]?.currency || ''}</td>
+                          <td className="text-center py-2 px-1 text-slate-400 text-xs">{inst.items[0]?.currency || ''}</td>
                           {months.map(mk => {
                             const isCurrent = mk === currentMonthKey
                             return (
-                              <td key={mk} className={`text-right py-1 px-2 font-medium tabular-nums ${isCurrent ? 'bg-emerald-500/10 text-slate-300' : 'text-slate-500'}`}>
+                              <td key={mk} className={`text-right py-2 px-3 font-medium tabular-nums font-mono text-sm ${isCurrent ? 'bg-blue-50 text-slate-700' : 'text-slate-300'}`}>
                                 {isCurrent ? formatCurrency(inst.total) : ''}
                               </td>
                             )
@@ -240,28 +250,28 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                       {(!showInst || !isInstCollapsed) && inst.items.map((item, idx) => {
                         const val = getItemValue(item)
                         return (
-                          <tr key={item.id || idx} className="hover:bg-[#283548]/30 transition-colors">
-                            <td className={`py-1 ${showInst ? 'pl-10' : 'pl-6'} pr-2 sticky left-0 bg-[#1e293b] z-10`}>
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                <span className="text-slate-300 text-[11px] truncate">{item.name || item.symbol}</span>
+                          <tr key={item.id || idx} className="hover:bg-slate-50 transition-colors bg-white border-t border-slate-100/60">
+                            <td className={`py-2.5 ${showInst ? 'pl-12' : 'pl-8'} pr-2 sticky left-0 bg-white z-10`}>
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="text-slate-800 text-sm truncate">{item.name || item.symbol}</span>
                                 {item.quantity && item.quantity !== 1 && (
-                                  <span className="text-slate-600 text-[10px] shrink-0">{item.quantity.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                                  <span className="text-slate-400 text-xs shrink-0">{item.quantity.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
                                 )}
                               </div>
                             </td>
                             <td />
-                            <td className="text-center py-1 px-1 text-slate-600 text-[10px]">{item.currency || ''}</td>
+                            <td className="text-center py-2.5 px-1 text-slate-400 text-xs">{item.currency || ''}</td>
                             {months.map(mk => {
                               const isCurrent = mk === currentMonthKey
                               if (!isCurrent) {
-                                return <td key={mk} className="text-right py-1 px-2 text-slate-700 tabular-nums">-</td>
+                                return <td key={mk} className="text-right py-2.5 px-3 text-slate-300 tabular-nums font-mono text-sm">-</td>
                               }
                               return (
-                                <td key={mk} className="text-right py-1 px-2 bg-emerald-500/10 tabular-nums">
+                                <td key={mk} className="text-right py-1 px-1 bg-blue-50">
                                   {onUpdateItem ? (
-                                    <EditableCell value={val} currency={item.currency} onSave={(v) => handleValueUpdate(item, v)} />
+                                    <EditableCell value={val} onSave={(v) => handleValueUpdate(item, v)} />
                                   ) : (
-                                    <span className={`font-medium ${val < 0 ? 'text-red-400' : 'text-slate-200'}`}>
+                                    <span className={`font-mono tabular-nums text-sm font-medium ${val < 0 ? 'text-red-600' : 'text-slate-800'}`}>
                                       {Math.abs(val).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </span>
                                   )}
@@ -279,24 +289,19 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
           })}
 
           <tfoot>
-            {/* Currency breakdown */}
-            <tr className="border-t border-[#475569]/50">
-              <td colSpan={3} />
-              {months.map(mk => <td key={mk} />)}
-            </tr>
             {Object.entries(currencyBreakdown)
               .sort((a, b) => b[1] - a[1])
               .map(([cur, val]) => {
                 const pct = grandTotal > 0 ? (val / grandTotal) * 100 : 0
                 return (
-                  <tr key={cur} className="text-slate-500">
-                    <td className="py-0.5 pl-6 pr-2 sticky left-0 bg-[#1e293b] z-10 italic text-[10px]">{cur}</td>
-                    <td className="text-right py-0.5 px-1 text-[10px]">{pct.toFixed(0)}%</td>
-                    <td className="text-center py-0.5 px-1 text-[10px]">{cur === 'USD' ? '$' : cur}</td>
+                  <tr key={cur} className="text-slate-400 border-t border-slate-100 bg-white">
+                    <td className="py-1.5 pl-8 pr-2 sticky left-0 bg-white z-10 text-xs">{cur}</td>
+                    <td className="text-right py-1.5 px-2 text-xs">{pct.toFixed(0)}%</td>
+                    <td className="text-center py-1.5 px-1 text-xs">{cur === 'USD' ? '$' : cur}</td>
                     {months.map(mk => {
                       const isCurrent = mk === currentMonthKey
                       return (
-                        <td key={mk} className={`text-right py-0.5 px-2 text-[10px] tabular-nums ${isCurrent ? 'bg-emerald-500/10' : ''}`}>
+                        <td key={mk} className={`text-right py-1.5 px-3 text-xs tabular-nums font-mono ${isCurrent ? 'bg-blue-50' : ''}`}>
                           {isCurrent ? val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''}
                         </td>
                       )
@@ -305,28 +310,26 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                 )
               })}
 
-            {/* Grand total */}
-            <tr className="border-t-2 border-[#475569] bg-[#0f172a]/40">
-              <td className="py-3 pl-4 pr-2 sticky left-0 bg-[#0f172a]/40 z-10">
-                <span className="text-white font-black text-sm">TOTAL</span>
+            <tr className="border-t-2 border-slate-300 bg-slate-100">
+              <td className="py-3.5 pl-4 pr-2 sticky left-0 bg-slate-100 z-10">
+                <span className="text-slate-900 font-black text-base">TOTAL</span>
               </td>
-              <td className="text-right py-3 px-1 text-white font-bold">100%</td>
-              <td className="text-center py-3 px-1 text-slate-400 font-bold">$</td>
+              <td className="text-right py-3.5 px-2 text-slate-700 font-bold text-sm">100%</td>
+              <td className="text-center py-3.5 px-1 text-slate-500 font-bold text-xs">$</td>
               {months.map(mk => {
                 const isCurrent = mk === currentMonthKey
                 const val = isCurrent ? grandTotal : (monthlyTotals[mk] || null)
                 return (
-                  <td key={mk} className={`text-right py-3 px-2 font-black tabular-nums text-sm ${isCurrent ? 'bg-emerald-500/15 text-emerald-400' : val ? 'text-slate-300' : 'text-slate-700'}`}>
+                  <td key={mk} className={`text-right py-3.5 px-3 font-black tabular-nums font-mono text-base ${isCurrent ? 'bg-blue-50 text-slate-900' : val ? 'text-slate-600' : 'text-slate-300'}`}>
                     {val ? formatCurrency(val) : '-'}
                   </td>
                 )
               })}
             </tr>
 
-            {/* Metrics */}
             {monthlyReturn != null && (
-              <tr>
-                <td className="py-1 pl-6 pr-2 sticky left-0 bg-[#1e293b] z-10 text-slate-500 text-[10px]">
+              <tr className="bg-white border-t border-slate-100">
+                <td className="py-2 pl-8 pr-2 sticky left-0 bg-white z-10 text-slate-500 text-xs">
                   {t('Retorno Mensual', 'Monthly Return')}
                 </td>
                 <td />
@@ -334,9 +337,9 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                 {months.map(mk => {
                   const isCurrent = mk === currentMonthKey
                   return (
-                    <td key={mk} className={`text-right py-1 px-2 text-[10px] tabular-nums ${isCurrent ? 'bg-emerald-500/10' : ''}`}>
+                    <td key={mk} className={`text-right py-2 px-3 text-sm tabular-nums font-mono ${isCurrent ? 'bg-blue-50' : ''}`}>
                       {isCurrent ? (
-                        <span className={monthlyReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                        <span className={`font-semibold ${monthlyReturn >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                           {monthlyReturn >= 0 ? '+' : ''}{monthlyReturn.toFixed(1)}%
                         </span>
                       ) : ''}
@@ -346,8 +349,8 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
               </tr>
             )}
             {returnYTD != null && (
-              <tr>
-                <td className="py-1 pl-6 pr-2 sticky left-0 bg-[#1e293b] z-10 text-slate-500 text-[10px]">
+              <tr className="bg-white border-t border-slate-100">
+                <td className="py-2 pl-8 pr-2 sticky left-0 bg-white z-10 text-slate-500 text-xs">
                   Return YTD
                 </td>
                 <td />
@@ -355,9 +358,9 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                 {months.map(mk => {
                   const isCurrent = mk === currentMonthKey
                   return (
-                    <td key={mk} className={`text-right py-1 px-2 text-[10px] tabular-nums ${isCurrent ? 'bg-emerald-500/10' : ''}`}>
+                    <td key={mk} className={`text-right py-2 px-3 text-sm tabular-nums font-mono ${isCurrent ? 'bg-blue-50' : ''}`}>
                       {isCurrent ? (
-                        <span className={returnYTD >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                        <span className={`font-semibold ${returnYTD >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                           {returnYTD >= 0 ? '+' : ''}{returnYTD.toFixed(2)}%
                         </span>
                       ) : ''}
@@ -367,8 +370,8 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
               </tr>
             )}
             {janTotal && grandTotal > 0 && (
-              <tr>
-                <td className="py-1 pl-6 pr-2 sticky left-0 bg-[#1e293b] z-10 text-slate-500 text-[10px]">
+              <tr className="bg-white border-t border-slate-100">
+                <td className="py-2 pl-8 pr-2 sticky left-0 bg-white z-10 text-slate-500 text-xs">
                   {t('Crecimiento Portafolio', 'Portfolio Growth')}
                 </td>
                 <td />
@@ -378,9 +381,9 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                   const val = isCurrent ? grandTotal : (monthlyTotals[mk] || null)
                   const growth = val && janTotal > 0 ? ((val - janTotal) / janTotal) * 100 : null
                   return (
-                    <td key={mk} className={`text-right py-1 px-2 text-[10px] tabular-nums ${isCurrent ? 'bg-emerald-500/10' : ''}`}>
+                    <td key={mk} className={`text-right py-2 px-3 text-sm tabular-nums font-mono ${isCurrent ? 'bg-blue-50' : ''}`}>
                       {growth != null ? (
-                        <span className={growth >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                        <span className={`font-semibold ${growth >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                           {growth >= 0 ? '+' : ''}{growth.toFixed(0)}%
                         </span>
                       ) : ''}
