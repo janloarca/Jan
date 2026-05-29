@@ -96,6 +96,31 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   const t = (es, en) => lang === 'es' ? es : en
   const [showOriginal, setShowOriginal] = useState(false)
 
+  const ZOOM_LEVELS = [0.75, 0.875, 1, 1.125, 1.25]
+  const [zoom, setZoom] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = parseFloat(localStorage.getItem('chispudo-spreadsheet-zoom'))
+      if (ZOOM_LEVELS.includes(saved)) return saved
+    }
+    return 1
+  })
+  const zoomIn = () => {
+    const idx = ZOOM_LEVELS.indexOf(zoom)
+    if (idx < ZOOM_LEVELS.length - 1) {
+      const next = ZOOM_LEVELS[idx + 1]
+      setZoom(next)
+      localStorage.setItem('chispudo-spreadsheet-zoom', next)
+    }
+  }
+  const zoomOut = () => {
+    const idx = ZOOM_LEVELS.indexOf(zoom)
+    if (idx > 0) {
+      const next = ZOOM_LEVELS[idx - 1]
+      setZoom(next)
+      localStorage.setItem('chispudo-spreadsheet-zoom', next)
+    }
+  }
+
   const now = new Date()
   const currentMonthKey = getMonthKey(now)
 
@@ -223,11 +248,23 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
               {t('Original', 'Original')}
             </button>
           </div>
+          <div className="flex items-center gap-1 bg-slate-100 rounded-md border border-slate-200 p-0.5">
+            <button onClick={zoomOut} disabled={zoom <= ZOOM_LEVELS[0]}
+              className="w-6 h-6 flex items-center justify-center text-xs rounded text-slate-500 hover:bg-white hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+              −
+            </button>
+            <span className="text-[10px] text-slate-400 w-8 text-center tabular-nums">{Math.round(zoom * 100)}%</span>
+            <button onClick={zoomIn} disabled={zoom >= ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
+              className="w-6 h-6 flex items-center justify-center text-xs rounded text-slate-500 hover:bg-white hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+              +
+            </button>
+          </div>
           <span className="text-xs text-slate-400 hidden sm:inline">{t('Click para editar', 'Click to edit')}</span>
         </div>
       </div>
 
       <div className="overflow-x-auto">
+        <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', width: `${100 / zoom}%` }}>
         <table className="w-full text-sm border-collapse min-w-[700px]">
           <thead>
             <tr className="border-b border-slate-300 bg-slate-50">
@@ -487,6 +524,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
             )}
           </tfoot>
         </table>
+        </div>
       </div>
     </div>
   )
