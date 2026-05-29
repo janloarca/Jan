@@ -81,6 +81,7 @@ export function useFirestoreItems() {
   const [financeTransactions, setFinanceTransactions] = useState([])
   const [goals, setGoals] = useState(null)
   const [settings, setSettings] = useState(null)
+  const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [uid, setUid] = useState(null)
 
@@ -129,6 +130,8 @@ export function useFirestoreItems() {
         if (!cancelled && goalsDoc.exists()) setGoals(sanitizeDoc(goalsDoc.data()))
         const prefsDoc = await fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'preferences'))
         if (!cancelled && prefsDoc.exists()) setSettings(sanitizeDoc(prefsDoc.data()))
+        const profileDoc = await fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'profile'))
+        if (!cancelled && profileDoc.exists()) setProfile(sanitizeDoc(profileDoc.data()))
       } catch {}
 
       if (!cancelled) setLoading(false)
@@ -249,6 +252,13 @@ export function useFirestoreItems() {
     setSettings((prev) => ({ ...prev, ...prefsData }))
   }, [uid])
 
+  const saveProfile = useCallback(async (profileData) => {
+    if (!uid) return
+    const { db, fs } = await getFirebase()
+    await fs.setDoc(fs.doc(db, `users/${uid}/settings`, 'profile'), { ...profileData, updatedAt: new Date().toISOString() }, { merge: true })
+    setProfile((prev) => ({ ...prev, ...profileData }))
+  }, [uid])
+
   const addAlert = useCallback(async (alert) => {
     if (!uid) return
     const { db, fs } = await getFirebase()
@@ -357,7 +367,7 @@ export function useFirestoreItems() {
   }, [uid])
 
   return {
-    items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, loading,
+    items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, loading,
     addItem, updateItem, deleteItem, deleteAllItems,
     saveSnapshot, deleteAllSnapshots,
     addTransaction, deleteAllTransactions,
@@ -365,6 +375,6 @@ export function useFirestoreItems() {
     addAlert, deleteAlert, updateAlert,
     addLot, updateLot, closeLotsFIFO,
     addPortfolio, deletePortfolio,
-    saveGoals, saveSettings,
+    saveGoals, saveSettings, saveProfile,
   }
 }

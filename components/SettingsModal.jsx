@@ -24,12 +24,25 @@ const CURRENCIES = [
   { code: 'CNY', name: 'Chinese Yuan', symbol: '¥' },
 ]
 
-export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onExportBackup, onSyncBroker, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, lang = 'es' }) {
+export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onExportBackup, onSyncBroker, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, lang = 'es', profile, onSaveProfile }) {
   const [baseCurrency, setBaseCurrency] = useState(settings?.baseCurrency || 'USD')
   const [benchmarkSymbol, setBenchmarkSymbol] = useState(settings?.benchmarkSymbol || '%5EGSPC')
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [tab, setTab] = useState('general')
+  const [profileForm, setProfileForm] = useState({
+    monthlyIncome: profile?.monthlyIncome || '',
+    monthlySavings: profile?.monthlySavings || '',
+    monthlyExpenses: profile?.monthlyExpenses || '',
+    age: profile?.age || '',
+    retirementAge: profile?.retirementAge || '',
+    riskTolerance: profile?.riskTolerance || 'moderate',
+    emergencyMonths: profile?.emergencyMonths || 6,
+    incomeGoal: profile?.incomeGoal || '',
+    portfolioGoal: profile?.portfolioGoal || '',
+    targetYear: profile?.targetYear || '',
+  })
+  const [profileSaving, setProfileSaving] = useState(false)
   const [shareToken, setShareToken] = useState(null)
   const [shareEnabled, setShareEnabled] = useState(false)
   const [shareLoading, setShareLoading] = useState(false)
@@ -183,8 +196,23 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
     setIbkrSyncing(false)
   }
 
+  const handleSaveProfile = async () => {
+    if (!onSaveProfile) return
+    setProfileSaving(true)
+    try {
+      const data = {}
+      Object.entries(profileForm).forEach(([k, v]) => {
+        if (k === 'riskTolerance') { data[k] = v; return }
+        if (v !== '' && v != null) data[k] = Number(v)
+      })
+      await onSaveProfile(data)
+    } catch {}
+    setProfileSaving(false)
+  }
+
   const tabs = [
     { key: 'general', label: t('General', 'General') },
+    { key: 'profile', label: t('Perfil', 'Profile') },
     { key: 'entities', label: t('Entidades', 'Entities') },
     { key: 'brokers', label: t('Brokers', 'Brokers') },
     { key: 'share', label: t('Compartir', 'Share') },
@@ -202,10 +230,10 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
           <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
         </div>
 
-        <div className="flex border-b border-[#334155]">
+        <div className="flex border-b border-[#334155] overflow-x-auto">
           {tabs.map((tb) => (
             <button key={tb.key} onClick={() => { setTab(tb.key); setConfirmDelete(null) }}
-              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+              className={`flex-1 px-3 py-3 text-sm font-medium transition-colors whitespace-nowrap ${
                 tab === tb.key
                   ? 'text-emerald-400 border-b-2 border-emerald-400 bg-emerald-400/5'
                   : 'text-slate-400 hover:text-slate-300'
@@ -316,6 +344,61 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               <button onClick={handleSave} disabled={saving}
                 className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium">
                 {saving ? '...' : t('Guardar configuracion', 'Save settings')}
+              </button>
+            </div>
+          )}
+
+          {tab === 'profile' && (
+            <div className="space-y-5">
+              <p className="text-xs text-slate-500">{t(
+                'Completa tu perfil financiero para recibir insights personalizados.',
+                'Complete your financial profile to get personalized insights.'
+              )}</p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {[
+                  { key: 'monthlyIncome', label: t('Ingreso mensual', 'Monthly income'), placeholder: '5000' },
+                  { key: 'monthlyExpenses', label: t('Gastos mensuales', 'Monthly expenses'), placeholder: '3000' },
+                  { key: 'monthlySavings', label: t('Ahorro mensual', 'Monthly savings'), placeholder: '1000' },
+                  { key: 'age', label: t('Edad', 'Age'), placeholder: '30' },
+                  { key: 'retirementAge', label: t('Edad de retiro', 'Retirement age'), placeholder: '60' },
+                  { key: 'emergencyMonths', label: t('Meses de emergencia', 'Emergency months'), placeholder: '6' },
+                  { key: 'incomeGoal', label: t('Meta ingreso pasivo/mes', 'Passive income goal/mo'), placeholder: '2000' },
+                  { key: 'portfolioGoal', label: t('Meta de portafolio', 'Portfolio goal'), placeholder: '500000' },
+                  { key: 'targetYear', label: t('Año objetivo', 'Target year'), placeholder: '2030' },
+                ].map((field) => (
+                  <div key={field.key}>
+                    <label className="text-[11px] text-slate-500 uppercase tracking-wider mb-1.5 block">{field.label}</label>
+                    <input type="number" value={profileForm[field.key]} onChange={(e) => setProfileForm((p) => ({ ...p, [field.key]: e.target.value }))}
+                      placeholder={field.placeholder}
+                      className="w-full px-4 py-2.5 bg-[#0f172a] border border-[#334155]/60 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                  </div>
+                ))}
+              </div>
+
+              <div>
+                <label className="text-[11px] text-slate-500 uppercase tracking-wider mb-1.5 block">{t('Tolerancia al riesgo', 'Risk tolerance')}</label>
+                <div className="flex gap-2">
+                  {[
+                    { key: 'conservative', label: t('Conservador', 'Conservative') },
+                    { key: 'moderate', label: t('Moderado', 'Moderate') },
+                    { key: 'aggressive', label: t('Agresivo', 'Aggressive') },
+                  ].map((opt) => (
+                    <button key={opt.key} onClick={() => setProfileForm((p) => ({ ...p, riskTolerance: opt.key }))}
+                      className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                        profileForm.riskTolerance === opt.key
+                          ? 'bg-blue-500/15 border border-blue-500/40 text-blue-400'
+                          : 'bg-[#0f172a] border border-[#334155] text-slate-300 hover:border-slate-500'
+                      }`}>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <button onClick={handleSaveProfile} disabled={profileSaving}
+                className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium">
+                {profileSaving ? '...' : t('Guardar perfil', 'Save profile')}
               </button>
             </div>
           )}

@@ -12,7 +12,7 @@ import { checkPriceAlerts } from '@/lib/notifications'
 export function useDashboardData({ user, lang, activePortfolio, activeEntity = '__all__' }) {
   const firestoreData = useFirestoreItems()
   const {
-    items, snapshots, transactions, goals, settings,
+    items, snapshots, transactions, goals, settings, profile,
     loading: dataLoading, addItem, updateItem, deleteItem,
     deleteAllItems, saveSnapshot, deleteAllSnapshots,
     addTransaction, deleteAllTransactions,
@@ -20,7 +20,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     lots, addLot, closeLotsFIFO,
     portfolios, addPortfolio, deletePortfolio,
     financeTransactions, addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
-    saveGoals, saveSettings,
+    saveGoals, saveSettings, saveProfile,
   } = firestoreData
 
   const baseCurrency = settings?.baseCurrency || 'USD'
@@ -538,7 +538,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
   return {
     // Raw Firestore data
-    items, snapshots, transactions, goals, settings, alerts, lots, portfolios, financeTransactions,
+    items, snapshots, transactions, goals, settings, profile, alerts, lots, portfolios, financeTransactions,
     entityTransactions, entityFinanceTransactions,
     dataLoading,
 
@@ -550,7 +550,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     addLot, closeLotsFIFO,
     addPortfolio, deletePortfolio,
     addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
-    saveGoals, saveSettings,
+    saveGoals, saveSettings, saveProfile,
 
     // Market data
     enrichedItems, portfolioItems, marketPrices,

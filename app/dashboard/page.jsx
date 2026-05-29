@@ -46,6 +46,11 @@ const CommandPalette = dynamic(() => import('@/components/dashboard/CommandPalet
 const PortfolioGrowthChart = dynamic(() => import('@/components/dashboard/PortfolioGrowthChart'), { loading: () => <SkeletonChart /> })
 const AccountsTable = dynamic(() => import('@/components/dashboard/AccountsTable'), { loading: () => <SkeletonTable /> })
 const DividendIncome = dynamic(() => import('@/components/dashboard/DividendIncome'), { loading: () => <SkeletonCard /> })
+const GoalTracker = dynamic(() => import('@/components/dashboard/GoalTracker'), { loading: () => <SkeletonCard /> })
+const FinancialHealth = dynamic(() => import('@/components/dashboard/FinancialHealth'), { loading: () => <SkeletonCard /> })
+const ConcentrationRisk = dynamic(() => import('@/components/dashboard/ConcentrationRisk'), { loading: () => <SkeletonCard /> })
+const GainsReport = dynamic(() => import('@/components/dashboard/GainsReport'), { loading: () => <SkeletonCard /> })
+const InsightCards = dynamic(() => import('@/components/dashboard/InsightCards'), { loading: () => <SkeletonCard /> })
 
 import RecentTransactions from '@/components/dashboard/RecentTransactions'
 import AssetAllocation from '@/components/dashboard/AssetAllocation'
@@ -160,7 +165,7 @@ export default function DashboardPage() {
 
   // Data layer
   const {
-    items, snapshots, transactions, goals, settings, alerts, lots, portfolios, financeTransactions,
+    items, snapshots, transactions, goals, settings, profile, alerts, lots, portfolios, financeTransactions,
     dataLoading,
     addItem, updateItem, deleteItem, deleteAllItems,
     saveSnapshot, deleteAllSnapshots,
@@ -169,7 +174,7 @@ export default function DashboardPage() {
     addLot, closeLotsFIFO,
     addPortfolio, deletePortfolio,
     addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
-    saveGoals, saveSettings,
+    saveGoals, saveSettings, saveProfile,
     enrichedItems, portfolioItems, entityTransactions, entityFinanceTransactions,
     pricesLoading, pricesError, pricesUpdate,
     rates, convert,
@@ -491,6 +496,8 @@ export default function DashboardPage() {
         </div>
         </ErrorBoundary>
 
+        <CardBoundary id="INS-01"><InsightCards items={portfolioItems} profile={profile} netWorth={netWorth} estimatedAnnualIncome={estimatedAnnualIncome} lang={lang} /></CardBoundary>
+
         <ActionButtons
           onImport={() => setModal('import')} onAddAccount={() => setModal('account')}
           onTransfer={() => setModal('transfer')} onExport={handleExport}
@@ -512,6 +519,26 @@ export default function DashboardPage() {
               onEditItem={(item) => setEditItem(item)} onViewItem={(item) => setDetailItem(item)}
               onSellItem={(item) => setSellItem(item)} onQuickBuy={() => setModal('account')} /></CardBoundary>
             <CardBoundary id="HO-02"><RecentTransactions transactions={transactions} lang={lang} onExportCSV={handleExportTransactionsCSV} /></CardBoundary>
+          </ErrorBoundary>
+        </SectionCollapse>
+
+        {/* ═══ METAS ═══ */}
+        <SectionCollapse title={lang === 'es' ? 'Metas' : 'Goals'} id="goals">
+          <ErrorBoundary lang={lang}>
+            <CardBoundary id="GO-01"><GoalTracker netWorth={netWorth} annualDividends={annualDividends} estimatedAnnualIncome={estimatedAnnualIncome} goals={goals} onSaveGoals={saveGoals} volatility={riskMetrics?.volatility} lang={lang} /></CardBoundary>
+          </ErrorBoundary>
+        </SectionCollapse>
+
+        {/* ═══ ANALISIS ═══ */}
+        <SectionCollapse title={lang === 'es' ? 'Análisis' : 'Analysis'} id="analysis">
+          <ErrorBoundary lang={lang}>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+              <CardBoundary id="AN-01"><FinancialHealth items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} /></CardBoundary>
+              <CardBoundary id="AN-02"><ConcentrationRisk items={portfolioItems} lang={lang} /></CardBoundary>
+            </div>
+            {lots && lots.length > 0 && (
+              <CardBoundary id="AN-03"><GainsReport lots={lots} items={portfolioItems} lang={lang} /></CardBoundary>
+            )}
           </ErrorBoundary>
         </SectionCollapse>
 
@@ -614,6 +641,7 @@ export default function DashboardPage() {
             URL.revokeObjectURL(url)
           }}
           theme={theme} onToggleTheme={handleSetTheme} lang={lang}
+          profile={profile} onSaveProfile={saveProfile}
         />
       )}
 
