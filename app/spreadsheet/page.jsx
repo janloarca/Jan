@@ -9,6 +9,7 @@ import SheetTabs from '@/components/spreadsheet/SheetTabs'
 import { TEMPLATES } from '@/lib/spreadsheet/formulas'
 
 const SpreadsheetGrid = dynamic(() => import('@/components/spreadsheet/SpreadsheetGrid'), { ssr: false })
+const PortfolioSpreadsheet = dynamic(() => import('@/components/dashboard/PortfolioSpreadsheet'), { ssr: false })
 
 function generateId() {
   return `sheet_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
@@ -44,7 +45,10 @@ export default function SpreadsheetPage() {
 
   const {
     enrichedItems, netWorth, transactions, financeTransactions, returnYTD,
+    snapshots, updateItem, portfolioItems,
   } = useDashboardData({ user, lang, activePortfolio: '__all__' })
+
+  const [view, setView] = useState('portfolio')
 
   const context = useSpreadsheetContext({
     items: enrichedItems,
@@ -162,12 +166,22 @@ export default function SpreadsheetPage() {
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowTemplates(!showTemplates)}
-            className="px-3 py-1.5 text-xs text-slate-400 border border-slate-600 rounded hover:text-white hover:border-slate-500 transition-colors"
-          >
-            {t('Plantillas', 'Templates')}
-          </button>
+          <div className="flex bg-[#0f172a] rounded-lg border border-[#334155] p-0.5">
+            <button onClick={() => setView('portfolio')}
+              className={`px-3 py-1 text-xs rounded-md transition-colors ${view === 'portfolio' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}>
+              Portfolio
+            </button>
+            <button onClick={() => setView('custom')}
+              className={`px-3 py-1 text-xs rounded-md transition-colors ${view === 'custom' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}>
+              {t('Hojas', 'Sheets')}
+            </button>
+          </div>
+          {view === 'custom' && (
+            <button onClick={() => setShowTemplates(!showTemplates)}
+              className="px-3 py-1.5 text-xs text-slate-400 border border-slate-600 rounded hover:text-white hover:border-slate-500 transition-colors">
+              {t('Plantillas', 'Templates')}
+            </button>
+          )}
           <div className="flex items-center gap-1 px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded text-xs text-emerald-400">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             {t('Datos en vivo', 'Live data')}
@@ -193,27 +207,39 @@ export default function SpreadsheetPage() {
         </div>
       )}
 
-      {/* Grid */}
-      <div className="flex-1">
-        <SpreadsheetGrid
-          key={activeSheetId}
-          initialRows={activeSheet?.rows || []}
-          context={context}
-          onSave={handleSaveRows}
-          lang={lang}
-        />
-      </div>
-
-      {/* Sheet tabs */}
-      <SheetTabs
-        sheets={sheets}
-        activeSheet={activeSheetId}
-        onSelect={setActiveSheetId}
-        onAdd={handleAddSheet}
-        onRename={handleRenameSheet}
-        onDelete={handleDeleteSheet}
-        lang={lang}
-      />
+      {view === 'portfolio' ? (
+        <div className="flex-1 p-4 overflow-auto">
+          <PortfolioSpreadsheet
+            items={portfolioItems || enrichedItems}
+            snapshots={snapshots}
+            lang={lang}
+            onUpdateItem={updateItem}
+            returnYTD={returnYTD}
+            netWorth={netWorth}
+          />
+        </div>
+      ) : (
+        <>
+          <div className="flex-1">
+            <SpreadsheetGrid
+              key={activeSheetId}
+              initialRows={activeSheet?.rows || []}
+              context={context}
+              onSave={handleSaveRows}
+              lang={lang}
+            />
+          </div>
+          <SheetTabs
+            sheets={sheets}
+            activeSheet={activeSheetId}
+            onSelect={setActiveSheetId}
+            onAdd={handleAddSheet}
+            onRename={handleRenameSheet}
+            onDelete={handleDeleteSheet}
+            lang={lang}
+          />
+        </>
+      )}
     </div>
   )
 }
