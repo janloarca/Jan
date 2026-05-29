@@ -64,7 +64,7 @@ function EditableCell({ value, onSave, className }) {
   )
 }
 
-export default function MonthlyBreakdown({ items, snapshots, lang, onUpdateItem }) {
+export default function MonthlyBreakdown({ items, snapshots, lang, onUpdateItem, onEditItem }) {
   const [collapsed, setCollapsed] = useState({})
   const t = (es, en) => lang === 'es' ? es : en
 
@@ -212,7 +212,13 @@ export default function MonthlyBreakdown({ items, snapshots, lang, onUpdateItem 
                             'bg-slate-500'
                           }`} />
                           <div className="min-w-0">
-                            <span className="text-slate-200 truncate block text-xs">{item.name || item.symbol}</span>
+                            {onEditItem ? (
+                              <button className="text-slate-200 truncate block text-xs text-left hover:text-blue-400 hover:underline transition-colors" onClick={(e) => { e.stopPropagation(); onEditItem(item) }}>
+                                {item.name || item.symbol}
+                              </button>
+                            ) : (
+                              <span className="text-slate-200 truncate block text-xs">{item.name || item.symbol}</span>
+                            )}
                             <span className="text-[10px] text-slate-600 block">
                               {item.symbol && item.name ? item.symbol : ''}
                               {item.quantity ? ` · ${item.quantity.toLocaleString(undefined, { maximumFractionDigits: 4 })}` : ''}

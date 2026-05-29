@@ -10,6 +10,7 @@ import { TEMPLATES } from '@/lib/spreadsheet/formulas'
 
 const SpreadsheetGrid = dynamic(() => import('@/components/spreadsheet/SpreadsheetGrid'), { ssr: false })
 const PortfolioSpreadsheet = dynamic(() => import('@/components/dashboard/PortfolioSpreadsheet'), { ssr: false })
+const EditAccountModal = dynamic(() => import('@/components/EditAccountModal'), { ssr: false })
 
 function generateId() {
   return `sheet_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
@@ -44,9 +45,11 @@ export default function SpreadsheetPage() {
   }, [router])
 
   const {
-    enrichedItems, netWorth, transactions, financeTransactions, returnYTD,
-    snapshots, updateItem, portfolioItems,
+    items, enrichedItems, netWorth, transactions, financeTransactions, returnYTD,
+    snapshots, addItem, updateItem, deleteItem, portfolioItems,
   } = useDashboardData({ user, lang, activePortfolio: '__all__' })
+
+  const [editItem, setEditItem] = useState(null)
 
   const [view, setView] = useState('portfolio')
 
@@ -214,6 +217,7 @@ export default function SpreadsheetPage() {
             snapshots={snapshots}
             lang={lang}
             onUpdateItem={updateItem}
+            onEditItem={(item) => setEditItem(item)}
             returnYTD={returnYTD}
             netWorth={netWorth}
           />
@@ -239,6 +243,11 @@ export default function SpreadsheetPage() {
             lang={lang}
           />
         </>
+      )}
+
+      {editItem && (
+        <EditAccountModal item={editItem} onClose={() => setEditItem(null)}
+          onSave={addItem} onDelete={deleteItem} existingItems={items} lang={lang} />
       )}
     </div>
   )

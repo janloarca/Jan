@@ -73,7 +73,7 @@ function EditableCell({ value, onSave }) {
   )
 }
 
-export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateItem, returnYTD, netWorth }) {
+export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateItem, onEditItem, returnYTD, netWorth }) {
   const t = (es, en) => lang === 'es' ? es : en
 
   const now = new Date()
@@ -253,7 +253,13 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                           <tr key={item.id || idx} className="hover:bg-slate-50 transition-colors bg-white border-t border-slate-100/60">
                             <td className={`py-2.5 ${showInst ? 'pl-12' : 'pl-8'} pr-2 sticky left-0 bg-white z-10`}>
                               <div className="flex items-center gap-2 min-w-0">
-                                <span className="text-slate-800 text-sm truncate">{item.name || item.symbol}</span>
+                                {onEditItem ? (
+                                  <button className="text-slate-800 text-sm truncate text-left hover:text-blue-600 hover:underline transition-colors" onClick={(e) => { e.stopPropagation(); onEditItem(item) }}>
+                                    {item.name || item.symbol}
+                                  </button>
+                                ) : (
+                                  <span className="text-slate-800 text-sm truncate">{item.name || item.symbol}</span>
+                                )}
                                 {item.quantity && item.quantity !== 1 && (
                                   <span className="text-slate-400 text-xs shrink-0">{item.quantity.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
                                 )}
