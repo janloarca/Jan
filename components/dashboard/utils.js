@@ -200,7 +200,7 @@ export function computeModifiedDietz({ startValue, endValue, startTs, endTs, tra
   const totalMs = endTs - startTs
   if (totalMs <= 0 || startValue <= 0) return { pct: 0, abs: 0 }
 
-  const flowTypes = { DEPOSIT: 1, WITHDRAWAL: -1, BUY: 1, SELL: -1 }
+  const flowTypes = { DEPOSIT: 1, WITHDRAWAL: -1 }
   const flows = (transactions || [])
     .filter((tx) => {
       if (!tx.date) return false

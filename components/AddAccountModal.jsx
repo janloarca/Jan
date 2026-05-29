@@ -267,6 +267,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     const price = parseFloat(form.purchasePrice) || 0
     if (!isBank && price <= 0) { setError(t('El precio debe ser mayor a 0', 'Price must be greater than 0')); return }
     if (isMarketAsset && qty <= 0) { setError(t('La cantidad debe ser mayor a 0', 'Quantity must be greater than 0')); return }
+    if (form.maturityDate && form.acquisitionDate && form.maturityDate < form.acquisitionDate) { setError(t('La fecha de vencimiento debe ser posterior a la de compra', 'Maturity date must be after acquisition date')); return }
 
     setSaving(true)
     try {
@@ -649,7 +650,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 <div>
                   <label className={labelCls}>{t('Precio de entrada', 'Entry price')} *</label>
                   <input value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
-                    placeholder="150.00" type="number" step="any" className={inputCls} />
+                    placeholder="150.00" type="number" step="any" className={inputCls} title={t('Precio por unidad/acción', 'Price per unit/share')} />
                 </div>
               </div>
             )}
@@ -933,6 +934,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
                 {/* Rate inputs */}
                 {form.rateType === 'variable' ? (
+                  <>
                   <div className="grid grid-cols-3 gap-2">
                     <div>
                       <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa mín %', 'Min rate %')}</label>
@@ -950,6 +952,10 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                         placeholder="10" type="number" min="1" max="31" className={inputCls} />
                     </div>
                   </div>
+                  {form.rateMin && !form.rateMax && (
+                    <p className="text-xs text-amber-400">⚠ {t('Falta la tasa máxima — el ingreso se calculará como 0.', 'Missing max rate — income will be calculated as 0.')}</p>
+                  )}
+                  </>
                 ) : (
                   <div className="grid grid-cols-2 gap-2">
                     <div>
@@ -1061,6 +1067,31 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 </select>
               </div>
             )}
+
+            {(() => {
+              const qty = parseFloat(form.quantity) || (isBank || isProperty ? 1 : 0)
+              const price = parseFloat(form.purchasePrice) || 0
+              const cur = parseFloat(form.currentPrice) || 0
+              const total = isDebt ? price : qty * (cur || price)
+              const fmt = (v) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+              if (total > 0) {
+                const warnings = []
+                if (total > 10000000) warnings.push(t('⚠ Valor muy alto — verifica los datos', '⚠ Very high value — check your data'))
+                if (isMarketAsset && qty > 0 && price > 0 && qty === price) warnings.push(t('⚠ Cantidad y precio son iguales — ¿es correcto?', '⚠ Quantity and price are the same — is this correct?'))
+                return (
+                  <div className={`p-3 rounded-lg border text-xs ${warnings.length > 0 ? 'bg-amber-500/10 border-amber-500/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
+                    <div className={`font-medium ${warnings.length > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                      {isDebt ? t('Deuda', 'Debt') : t('Valor total', 'Total value')}: {form.currency} {fmt(total)}
+                    </div>
+                    {isMarketAsset && qty > 0 && price > 0 && (
+                      <div className="text-[var(--text-muted,#64748b)] mt-0.5">{qty} × {form.currency} {fmt(price)} {t('por unidad', 'per unit')}</div>
+                    )}
+                    {warnings.map((w, i) => <div key={i} className="text-amber-400 mt-1">{w}</div>)}
+                  </div>
+                )
+              }
+              return null
+            })()}
 
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={() => setStep(1)}

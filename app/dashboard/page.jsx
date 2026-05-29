@@ -497,7 +497,7 @@ export default function DashboardPage() {
         </div>
         </ErrorBoundary>
 
-        <CardBoundary id="INS-01"><InsightCards items={portfolioItems} profile={profile} netWorth={netWorth} estimatedAnnualIncome={estimatedAnnualIncome} lang={lang} /></CardBoundary>
+        <CardBoundary id="INS-01"><InsightCards items={portfolioItems} profile={profile} netWorth={netWorth} estimatedAnnualIncome={estimatedAnnualIncome} lang={lang} onOpenSettings={() => setModal('settings')} /></CardBoundary>
 
         <ActionButtons
           onImport={() => setModal('import')} onAddAccount={() => setModal('account')}
@@ -524,14 +524,14 @@ export default function DashboardPage() {
         </SectionCollapse>
 
         {/* ═══ METAS ═══ */}
-        <SectionCollapse title={lang === 'es' ? 'Metas' : 'Goals'} id="goals">
+        <SectionCollapse title={lang === 'es' ? 'Metas' : 'Goals'} id="goals" defaultOpen={!!(goals?.incomeGoal || goals?.portfolioGoal)}>
           <ErrorBoundary lang={lang}>
             <CardBoundary id="GO-01"><GoalTracker netWorth={netWorth} annualDividends={annualDividends} estimatedAnnualIncome={estimatedAnnualIncome} goals={goals} onSaveGoals={saveGoals} volatility={riskMetrics?.volatility} lang={lang} /></CardBoundary>
           </ErrorBoundary>
         </SectionCollapse>
 
         {/* ═══ ANALISIS ═══ */}
-        <SectionCollapse title={lang === 'es' ? 'Análisis' : 'Analysis'} id="analysis">
+        <SectionCollapse title={lang === 'es' ? 'Análisis' : 'Analysis'} id="analysis" defaultOpen={!!(lots && lots.length > 0)}>
           <ErrorBoundary lang={lang}>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
               <CardBoundary id="AN-01"><FinancialHealth items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} /></CardBoundary>

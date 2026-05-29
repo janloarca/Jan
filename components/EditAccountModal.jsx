@@ -628,6 +628,19 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               {confirmDelete ? t('Confirmar', 'Confirm') : t('Eliminar', 'Delete')}
             </button>
             <div className="flex-1" />
+            {(() => {
+              const qty = parseFloat(form.quantity) || (isBank ? 1 : 0)
+              const price = parseFloat(form.currentPrice) || parseFloat(form.purchasePrice) || 0
+              const total = qty * price
+              const isDebt = /debt|deuda/i.test(form.type)
+              const fmt = (v) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+              if (total > 0) return (
+                <span className="text-xs text-emerald-400 font-medium px-2 py-1 bg-emerald-500/10 rounded">
+                  {isDebt ? t('Deuda', 'Debt') : ''} {form.currency} {fmt(total)}
+                </span>
+              )
+              return null
+            })()}
             <button type="button" onClick={onClose}
               className="px-4 py-2.5 border border-[var(--card-border,#334155)] text-[var(--text-secondary,#cbd5e1)] rounded-lg hover:bg-[var(--input-bg,#283548)] transition-colors text-sm">
               {t('Cancelar', 'Cancel')}
