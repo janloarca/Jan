@@ -201,7 +201,10 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
       pts = apiPts
     } else if (snapPts.length >= 2) {
       pts = [...snapPts]
+      const firstSnapTs = snapPts[0].ts
       const lastSnapTs = snapPts[snapPts.length - 1].ts
+      const olderApi = apiPts.filter(p => p.ts < firstSnapTs - 3600000)
+      if (olderApi.length > 0) pts.unshift(...olderApi)
       const recentApi = apiPts.filter(p => p.ts > lastSnapTs + 3600000)
       pts.push(...recentApi)
     } else if (apiPts.length >= 2) {
