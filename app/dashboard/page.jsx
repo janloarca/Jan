@@ -58,7 +58,7 @@ import AssetAllocation from '@/components/dashboard/AssetAllocation'
 import NotificationCenter from '@/components/dashboard/NotificationCenter'
 import InstallPrompt from '@/components/dashboard/InstallPrompt'
 import EmptyState from '@/components/dashboard/EmptyState'
-import MonthlyBreakdown from '@/components/dashboard/MonthlyBreakdown'
+// MonthlyBreakdown removed — replaced by /spreadsheet page
 import PortfolioSelector from '@/components/dashboard/PortfolioSelector'
 import EntitySwitcher from '@/components/dashboard/EntitySwitcher'
 import { useEntities } from '@/hooks/useEntities'
@@ -492,7 +492,6 @@ export default function DashboardPage() {
 
           <div className="md:col-span-2 lg:col-span-3 flex flex-col gap-4">
             <CardBoundary id="OR-01"><PortfolioGrowthChart items={portfolioItems} snapshots={snapshots} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} benchmarkSymbol={benchmarkSymbol} benchmarkName={benchmarkName} /></CardBoundary>
-            <CardBoundary id="OR-MB"><MonthlyBreakdown items={portfolioItems} snapshots={snapshots} lang={lang} onUpdateItem={updateItem} onEditItem={(item) => setEditItem(item)} /></CardBoundary>
           </div>
         </div>
         </ErrorBoundary>

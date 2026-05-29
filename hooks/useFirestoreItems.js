@@ -172,6 +172,7 @@ export function useFirestoreItems() {
 
   const updateItem = useCallback(async (itemId, fields) => {
     if (!uid || !itemId) return
+    setItems(cur => cur.map(it => it.id === itemId ? { ...it, ...fields } : it))
     const { db, fs } = await getFirebase()
     const clean = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined))
     await fs.updateDoc(fs.doc(db, `users/${uid}/items`, itemId), clean)
