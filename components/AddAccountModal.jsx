@@ -72,8 +72,10 @@ const TYPES = [
     { key: 'mortgage', es: 'Hipoteca', en: 'Mortgage' },
     { key: 'personal_loan', es: 'Préstamo Personal', en: 'Personal Loan' },
     { key: 'credit_card', es: 'Tarjeta de Crédito', en: 'Credit Card' },
+    { key: 'financing', es: 'Financiamiento', en: 'Financing' },
     { key: 'auto_loan', es: 'Préstamo Auto', en: 'Auto Loan' },
     { key: 'student_loan', es: 'Préstamo Estudiantil', en: 'Student Loan' },
+    { key: 'receivable', es: 'Cuenta por Cobrar', en: 'Receivable' },
     { key: 'other', es: 'Otro', en: 'Other' },
   ]},
 ]
@@ -107,6 +109,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     taxJurisdiction: '',
     safeCap: '', safeDiscount: '', safeType: 'post_money',
     interestRate: '', minimumPayment: '',
+    debtTerm: '', installmentsTotal: '', installmentsRemaining: '', monthlyPayment: '',
+    cardBrand: '', rewardType: '', rewardRate: '', rewardBalance: '',
   })
   const [isNewMoney, setIsNewMoney] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -378,9 +382,24 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
       // Debt fields
       if (isDebt) {
-        item.isDebt = true
+        if (subtype === 'receivable') {
+          item.isReceivable = true
+        } else {
+          item.isDebt = true
+        }
         if (form.interestRate) item.interestRate = parseFloat(form.interestRate) || 0
         if (form.minimumPayment) item.minimumPayment = parseFloat(form.minimumPayment) || 0
+        if (form.monthlyPayment) item.monthlyPayment = parseFloat(form.monthlyPayment) || 0
+        if (form.debtTerm) item.debtTerm = form.debtTerm
+        if (form.installmentsTotal) item.installmentsTotal = parseInt(form.installmentsTotal) || 0
+        if (form.installmentsRemaining) item.installmentsRemaining = parseInt(form.installmentsRemaining) || 0
+        const isCreditCard = subtype === 'credit_card'
+        if (isCreditCard) {
+          if (form.cardBrand) item.cardBrand = form.cardBrand
+          if (form.rewardType) item.rewardType = form.rewardType
+          if (form.rewardRate) item.rewardRate = parseFloat(form.rewardRate) || 0
+          if (form.rewardBalance) item.rewardBalance = parseFloat(form.rewardBalance) || 0
+        }
       }
 
       // Merge with existing if duplicate accepted
@@ -751,31 +770,98 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
             {/* Debt fields */}
             {isDebt && (
-              <div className="space-y-3">
+              <div className="border border-red-500/20 bg-red-500/5 rounded-lg p-3 space-y-3">
+                <p className="text-xs text-red-400 font-medium">
+                  {subtype === 'receivable' ? t('Cuenta por Cobrar', 'Receivable') : t('Deuda / Pasivo', 'Debt / Liability')}
+                </p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className={labelCls}>{t('Saldo actual', 'Current balance')} *</label>
+                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Saldo actual', 'Current balance')} *</label>
                     <input value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
                       placeholder="50000" type="number" step="any" className={inputCls} />
                   </div>
                   <div>
-                    <label className={labelCls}>{t('Tasa de interés %', 'Interest rate %')}</label>
+                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa de interés %', 'Interest rate %')}</label>
                     <input value={form.interestRate} onChange={e => set('interestRate', e.target.value)}
                       placeholder="7.5" type="number" step="any" className={inputCls} />
                   </div>
                 </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Plazo', 'Term')}</label>
+                    <select value={form.debtTerm} onChange={e => set('debtTerm', e.target.value)} className={inputCls}>
+                      <option value="">{t('-- Plazo --', '-- Term --')}</option>
+                      <option value="3m">3 {t('meses', 'months')}</option>
+                      <option value="6m">6 {t('meses', 'months')}</option>
+                      <option value="12m">12 {t('meses', 'months')}</option>
+                      <option value="24m">24 {t('meses', 'months')}</option>
+                      <option value="36m">36 {t('meses', 'months')}</option>
+                      <option value="payday">{t('Día de pago', 'Payday')}</option>
+                      <option value="revolving">Revolving</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Cuotas total', 'Total pmts')}</label>
+                    <input value={form.installmentsTotal} onChange={e => set('installmentsTotal', e.target.value)}
+                      placeholder="24" type="number" step="1" className={inputCls} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Cuotas rest.', 'Pmts left')}</label>
+                    <input value={form.installmentsRemaining} onChange={e => set('installmentsRemaining', e.target.value)}
+                      placeholder="18" type="number" step="1" className={inputCls} />
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className={labelCls}>{t('Pago mínimo', 'Minimum payment')}</label>
-                    <input value={form.minimumPayment} onChange={e => set('minimumPayment', e.target.value)}
+                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Pago mensual', 'Monthly payment')}</label>
+                    <input value={form.monthlyPayment} onChange={e => set('monthlyPayment', e.target.value)}
                       placeholder="500" type="number" step="any" className={inputCls} />
                   </div>
                   <div>
-                    <label className={labelCls}>{t('Fecha vencimiento', 'Maturity date')}</label>
+                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Fecha vencimiento', 'Maturity date')}</label>
                     <input value={form.maturityDate} onChange={e => set('maturityDate', e.target.value)}
                       type="date" className={inputCls} />
                   </div>
                 </div>
+                {subtype === 'credit_card' && (
+                  <div className="border-t border-red-500/10 pt-3 space-y-3">
+                    <p className="text-[10px] text-red-300 uppercase tracking-wide">{t('Tarjeta de crédito', 'Credit Card')}</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Marca', 'Brand')}</label>
+                        <select value={form.cardBrand} onChange={e => set('cardBrand', e.target.value)} className={inputCls}>
+                          <option value="">{t('-- Seleccionar --', '-- Select --')}</option>
+                          <option value="visa">Visa</option>
+                          <option value="mastercard">Mastercard</option>
+                          <option value="amex">American Express</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tipo reward', 'Reward type')}</label>
+                        <select value={form.rewardType} onChange={e => set('rewardType', e.target.value)} className={inputCls}>
+                          <option value="">{t('Ninguno', 'None')}</option>
+                          <option value="miles">{t('Millas', 'Miles')}</option>
+                          <option value="cashback">Cashback</option>
+                          <option value="points">{t('Puntos', 'Points')}</option>
+                        </select>
+                      </div>
+                    </div>
+                    {form.rewardType && (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa reward %', 'Reward rate %')}</label>
+                          <input value={form.rewardRate} onChange={e => set('rewardRate', e.target.value)}
+                            placeholder="1.5" type="number" step="any" className={inputCls} />
+                        </div>
+                        <div>
+                          <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Balance acumulado', 'Accumulated')}</label>
+                          <input value={form.rewardBalance} onChange={e => set('rewardBalance', e.target.value)}
+                            placeholder="5000" type="number" step="any" className={inputCls} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

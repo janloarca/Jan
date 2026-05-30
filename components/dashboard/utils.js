@@ -61,8 +61,10 @@ export function formatShortDate(dateStr) {
 export function getTypeCategory(itemOrType) {
   if (!itemOrType) return 'other'
   const type = typeof itemOrType === 'string' ? itemOrType : itemOrType.type || ''
+  if (typeof itemOrType === 'object' && itemOrType.isReceivable) return 'receivables'
   if (typeof itemOrType === 'object' && itemOrType.isDebt) return 'debts'
   const t = type.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  if (/receivable|cobrar|por.cobrar/i.test(t)) return 'receivables'
   if (/^debt$/i.test(t) || /pasivo|liability|mortgage|hipoteca|loan|prestamo|credit.?card|tarjeta/i.test(t)) return 'debts'
   if (/crypto|cripto|blockchain|bitcoin|btc|eth|token|coin/i.test(t)) return 'crypto'
   if (/realestate|real.?estate|inmueble|property|crowdfund/i.test(t)) return 'realestate'
@@ -82,6 +84,7 @@ export const TYPE_COLORS = {
   banks: { bg: '#6b7280', badge: 'bg-gray-500/20 text-gray-400' },
   realestate: { bg: '#f97316', badge: 'bg-orange-500/20 text-orange-400' },
   alternatives: { bg: '#ec4899', badge: 'bg-pink-500/20 text-pink-400' },
+  receivables: { bg: '#06b6d4', badge: 'bg-cyan-500/20 text-cyan-400' },
   debts: { bg: '#ef4444', badge: 'bg-red-500/20 text-red-400' },
   other: { bg: '#64748b', badge: 'bg-slate-500/20 text-slate-400' },
 }
@@ -99,7 +102,12 @@ export function getItemValue(item) {
   const qty = Number(item.quantity) || 0
   const val = qty * getItemPrice(item)
   if (!isFinite(val)) return 0
-  return item.isDebt ? -Math.abs(val) : val
+  if (item.isDebt) return -Math.abs(val)
+  return val
+}
+
+export function isExcludedFromNetWorth(item) {
+  return !!(item.isReceivable && !item.countInNetWorth)
 }
 
 export const TYPE_ICONS = {
@@ -110,13 +118,14 @@ export const TYPE_ICONS = {
   banks: 'Building2',
   realestate: 'Home',
   alternatives: 'Gem',
+  receivables: 'ArrowDownLeft',
   debts: 'CreditCard',
   other: 'BarChart3',
 }
 
 export function getInvestmentClass(item) {
   const cat = getTypeCategory(item)
-  if (cat === 'debts') return 'debts'
+  if (cat === 'debts' || cat === 'receivables') return 'debts'
   if (cat === 'bonds' || cat === 'banks') return 'renta_fija'
   if (cat === 'stocks' || cat === 'crypto' || cat === 'funds') return 'renta_variable'
   if (cat === 'alternatives' || cat === 'realestate') return 'patrimonio_vc'

@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useMemo, useRef, useEffect, useCallback, Fragment } from 'react'
-import { formatCurrency, getItemValue, getTypeCategory, TYPE_COLORS } from './utils'
+import { formatCurrency, getItemValue, getTypeCategory, isExcludedFromNetWorth, TYPE_COLORS } from './utils'
 
-const CATEGORY_ORDER = ['banks', 'funds', 'stocks', 'crypto', 'alternatives', 'bonds', 'other', 'debts']
+const CATEGORY_ORDER = ['banks', 'funds', 'stocks', 'crypto', 'alternatives', 'bonds', 'other', 'receivables', 'debts']
 const CATEGORY_LABELS = {
   banks: { es: 'Caja & Bancos', en: 'Cash & Banks' },
   funds: { es: 'Fondos Liquidos', en: 'Liquid Funds' },
@@ -12,6 +12,7 @@ const CATEGORY_LABELS = {
   alternatives: { es: 'Deuda Privada & Alt.', en: 'Private Debt & Alt.' },
   bonds: { es: 'Bonos Corporativo', en: 'Corporate Bonds' },
   realestate: { es: 'Bienes Raices', en: 'Real Estate' },
+  receivables: { es: 'Cuentas por Cobrar', en: 'Receivables' },
   debts: { es: 'Pasivos', en: 'Liabilities' },
   other: { es: 'Otros', en: 'Other' },
 }
@@ -24,8 +25,26 @@ const CATEGORY_ACCENT = {
   alternatives: '#a78bfa',
   bonds: '#f59e0b',
   realestate: '#10b981',
+  receivables: '#06b6d4',
   debts: '#ef4444',
   other: '#64748b',
+}
+
+const DEBT_TERM_LABELS = {
+  '3m': '3 meses',
+  '6m': '6 meses',
+  '12m': '12 meses',
+  '24m': '24 meses',
+  '36m': '36 meses',
+  payday: 'Día de pago',
+  revolving: 'Revolving',
+  custom: 'Custom',
+}
+
+const REWARD_ICONS = {
+  miles: '✈',
+  cashback: '$',
+  points: '★',
 }
 
 function getMonthKey(d) {
@@ -165,7 +184,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     const curBreak = {}
 
     items.forEach(it => {
-      const cat = getTypeCategory(it.type)
+      const cat = getTypeCategory(it)
       if (!catMap[cat]) catMap[cat] = { institutions: {}, total: 0 }
       const inst = it.institution || t('Sin institucion', 'No institution')
       if (!catMap[cat].institutions[inst]) catMap[cat].institutions[inst] = []
@@ -173,8 +192,11 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
 
       const val = getItemValue(it)
       catMap[cat].total += val
-      if (val < 0) totalD += Math.abs(val)
-      else totalA += val
+
+      if (!isExcludedFromNetWorth(it)) {
+        if (val < 0) totalD += Math.abs(val)
+        else totalA += val
+      }
 
       const cur = it._originalCurrency || it.currency || 'USD'
       const isUSD = cur === 'USD' || cur === '$'
@@ -191,6 +213,8 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         key: cat,
         label: CATEGORY_LABELS[cat]?.[lang] || cat,
         total: catMap[cat].total,
+        excludedFromTotal: cat === 'receivables' && catMap[cat] ?
+          Object.values(catMap[cat].institutions).flat().some(it => isExcludedFromNetWorth(it)) : false,
         institutions: Object.entries(catMap[cat].institutions)
           .map(([name, its]) => ({
             name,
@@ -297,6 +321,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                       <span className="text-slate-400 text-[10px] w-3">{isCollapsed ? '>' : 'v'}</span>
                       <span className="text-slate-900 font-bold text-sm">{cat.label}</span>
                       <span className="text-slate-400 text-xs">({cat.institutions.reduce((s, i) => s + i.items.length, 0)})</span>
+                      {cat.excludedFromTotal && <span className="text-[10px] text-cyan-500 ml-1">{t('(no incluido en total)', '(not in total)')}</span>}
                     </div>
                   </td>
                   <td className="text-right py-3 px-2 text-slate-500 font-semibold text-sm">{Math.abs(pct).toFixed(0)}%</td>
@@ -358,7 +383,8 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                           ? (item.symbol || item.name || '')
                           : null
                         return (
-                          <tr key={item.id || idx} className="hover:bg-slate-50 transition-colors bg-white border-t border-slate-100/60">
+                          <Fragment key={item.id || idx}>
+                          <tr className="hover:bg-slate-50 transition-colors bg-white border-t border-slate-100/60">
                             <td className={`py-2.5 ${showInst ? 'pl-12' : 'pl-8'} pr-2 sticky left-0 bg-white z-10`}>
                               <div className="flex items-center gap-2 min-w-0">
                                 {onEditItem ? (
@@ -370,6 +396,14 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                                 )}
                                 {qtyLabel && (
                                   <span className="text-slate-400 text-xs shrink-0">{qtyLabel}</span>
+                                )}
+                                {item.rewardType && REWARD_ICONS[item.rewardType] && (
+                                  <span className="text-[10px] bg-cyan-50 text-cyan-600 px-1 rounded shrink-0" title={item.rewardType}>
+                                    {REWARD_ICONS[item.rewardType]}
+                                  </span>
+                                )}
+                                {item.isReceivable && !item.countInNetWorth && (
+                                  <span className="text-[9px] text-cyan-400 shrink-0">*</span>
                                 )}
                               </div>
                             </td>
@@ -399,6 +433,22 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                               )
                             })}
                           </tr>
+                          {(item.isDebt || item.isReceivable) && (item.debtTerm || item.interestRate || item.monthlyPayment || item.installmentsRemaining) && (
+                            <tr className="bg-slate-50/50 border-t-0">
+                              <td className={`py-0.5 ${showInst ? 'pl-12' : 'pl-8'} pr-2 sticky left-0 bg-slate-50/50 z-10`} colSpan={3 + months.length}>
+                                <div className="flex items-center gap-3 text-[10px] text-slate-400">
+                                  {item.debtTerm && <span>{DEBT_TERM_LABELS[item.debtTerm] || item.debtTerm}</span>}
+                                  {item.interestRate > 0 && <span>{item.interestRate}% {t('int.', 'int.')}</span>}
+                                  {item.monthlyPayment > 0 && <span>${item.monthlyPayment.toLocaleString()}/{t('mes', 'mo')}</span>}
+                                  {item.installmentsRemaining > 0 && (
+                                    <span>{item.installmentsRemaining} {t('cuotas rest.', 'pmts left')}</span>
+                                  )}
+                                  {item.maturityDate && <span>{t('Vence', 'Due')}: {item.maturityDate}</span>}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                          </Fragment>
                         )
                       })}
                     </Fragment>
