@@ -36,6 +36,7 @@ const SellModal = dynamic(() => import('@/components/SellModal'), { loading: () 
 const TransferModal = dynamic(() => import('@/components/TransferModal'), { loading: () => <ModalSkeleton /> })
 const IBKRSyncModal = dynamic(() => import('@/components/IBKRSyncModal'), { loading: () => <ModalSkeleton /> })
 const BlockchainSyncModal = dynamic(() => import('@/components/BlockchainSyncModal'), { loading: () => <ModalSkeleton /> })
+const LedgerSyncModal = dynamic(() => import('@/components/LedgerSyncModal'), { loading: () => <ModalSkeleton /> })
 const SettingsModal = dynamic(() => import('@/components/SettingsModal'), { loading: () => <ModalSkeleton /> })
 const EditAccountModal = dynamic(() => import('@/components/EditAccountModal'), { loading: () => <ModalSkeleton /> })
 const OptimizeModal = dynamic(() => import('@/components/OptimizeModal'))
@@ -370,6 +371,7 @@ export default function DashboardPage() {
       case 'lang': handleSetLang('toggle'); break
       case 'ibkr': setModal('ibkr'); break
       case 'blockchain': setModal('blockchain'); break
+      case 'ledger': setModal('ledger'); break
       case 'viewItem': setDetailItem(data); break
     }
   }, [handleExport, handleReport, handleRefresh, handleSetTheme, handleSetLang, theme])
@@ -504,7 +506,7 @@ export default function DashboardPage() {
         <ActionButtons
           onImport={() => setModal('import')} onAddAccount={() => setModal('account')}
           onTransfer={() => setModal('transfer')} onExport={handleExport}
-          onShare={handleShare} onIBKR={() => setModal('ibkr')} onBlockchain={() => setModal('blockchain')}
+          onShare={handleShare} onIBKR={() => setModal('ibkr')} onBlockchain={() => setModal('blockchain')} onLedger={() => setModal('ledger')}
           itemCount={enrichedItems.length} lang={lang}
         />
 
@@ -628,6 +630,29 @@ export default function DashboardPage() {
             showToast(lang === 'es' ? `Blockchain.com: ${syncItems.length} posiciones importadas` : `Blockchain.com: ${syncItems.length} positions imported`)
           }}
           onSaveCredentials={saveSettings} uid={user?.uid} lang={lang}
+        />
+      )}
+
+      {modal === 'ledger' && (
+        <LedgerSyncModal
+          onClose={() => setModal(null)}
+          onSyncComplete={async ({ items: syncItems, mode }) => {
+            for (const item of syncItems) {
+              const existing = items.find(it =>
+                it._walletAddress === item._walletAddress ||
+                ((it.symbol || '').toUpperCase() === (item.symbol || '').toUpperCase() &&
+                 (it._source === 'ledger' || (it.institution || '').toLowerCase() === 'ledger'))
+              )
+              if (existing) {
+                await updateItem(existing.id, { quantity: item.quantity, _source: 'ledger', _walletAddress: item._walletAddress })
+              } else {
+                await addItem(item)
+              }
+            }
+            setModal(null)
+            showToast(lang === 'es' ? `Ledger: ${syncItems.length} balances importados` : `Ledger: ${syncItems.length} balances imported`)
+          }}
+          lang={lang}
         />
       )}
 
