@@ -35,6 +35,7 @@ const AddAccountModal = dynamic(() => import('@/components/AddAccountModal'), { 
 const SellModal = dynamic(() => import('@/components/SellModal'), { loading: () => <ModalSkeleton /> })
 const TransferModal = dynamic(() => import('@/components/TransferModal'), { loading: () => <ModalSkeleton /> })
 const IBKRSyncModal = dynamic(() => import('@/components/IBKRSyncModal'), { loading: () => <ModalSkeleton /> })
+const BlockchainSyncModal = dynamic(() => import('@/components/BlockchainSyncModal'), { loading: () => <ModalSkeleton /> })
 const SettingsModal = dynamic(() => import('@/components/SettingsModal'), { loading: () => <ModalSkeleton /> })
 const EditAccountModal = dynamic(() => import('@/components/EditAccountModal'), { loading: () => <ModalSkeleton /> })
 const OptimizeModal = dynamic(() => import('@/components/OptimizeModal'))
@@ -368,6 +369,7 @@ export default function DashboardPage() {
       case 'theme': handleSetTheme(theme === 'dark' ? 'light' : 'dark'); break
       case 'lang': handleSetLang('toggle'); break
       case 'ibkr': setModal('ibkr'); break
+      case 'blockchain': setModal('blockchain'); break
       case 'viewItem': setDetailItem(data); break
     }
   }, [handleExport, handleReport, handleRefresh, handleSetTheme, handleSetLang, theme])
@@ -502,7 +504,7 @@ export default function DashboardPage() {
         <ActionButtons
           onImport={() => setModal('import')} onAddAccount={() => setModal('account')}
           onTransfer={() => setModal('transfer')} onExport={handleExport}
-          onShare={handleShare} onIBKR={() => setModal('ibkr')}
+          onShare={handleShare} onIBKR={() => setModal('ibkr')} onBlockchain={() => setModal('blockchain')}
           itemCount={enrichedItems.length} lang={lang}
         />
 
@@ -598,6 +600,33 @@ export default function DashboardPage() {
         <IBKRSyncModal
           onClose={() => setModal(null)} onSyncComplete={handleIBKRSync}
           savedToken={settings?.ibkrToken || ''} savedQueryId={settings?.ibkrQueryId || ''}
+          onSaveCredentials={saveSettings} uid={user?.uid} lang={lang}
+        />
+      )}
+
+      {modal === 'blockchain' && (
+        <BlockchainSyncModal
+          onClose={() => setModal(null)}
+          onSyncComplete={async ({ items: syncItems, transactions: syncTxs, mode }) => {
+            if (mode === 'replace') {
+              const bcItems = items.filter(it => it._source === 'blockchain' || (it.institution || '').toLowerCase().includes('blockchain'))
+              for (const it of bcItems) await deleteItem(it.id)
+            }
+            for (const item of syncItems) {
+              const existing = mode === 'merge' ? items.find(it =>
+                (it.symbol || '').toUpperCase() === (item.symbol || '').toUpperCase() &&
+                (it._source === 'blockchain' || (it.institution || '').toLowerCase().includes('blockchain'))
+              ) : null
+              if (existing) {
+                await updateItem(existing.id, { currentPrice: item.currentPrice, quantity: item.quantity, _source: 'blockchain' })
+              } else {
+                await addItem(item)
+              }
+            }
+            for (const tx of (syncTxs || [])) await addTransaction(tx)
+            setModal(null)
+            showToast(lang === 'es' ? `Blockchain.com: ${syncItems.length} posiciones importadas` : `Blockchain.com: ${syncItems.length} positions imported`)
+          }}
           onSaveCredentials={saveSettings} uid={user?.uid} lang={lang}
         />
       )}
