@@ -55,7 +55,7 @@ function findClosestBenchmark(sorted, targetTs) {
   return sorted[lo]
 }
 
-export default function PortfolioGrowthChart({ items, snapshots, transactions, lang, convert, baseCurrency, benchmarkSymbol, benchmarkName }) {
+export default function PortfolioGrowthChart({ items, snapshots, transactions, lang, convert, baseCurrency, benchmarkSymbol, benchmarkName, onSaveSnapshot }) {
   const [period, setPeriod] = useState('YTD')
   const [hoverIdx, setHoverIdx] = useState(null)
   const [dataPoints, setDataPoints] = useState([])
@@ -66,10 +66,15 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
   const [returnMode, setReturnMode] = useState('twr')
   const [benchmarkPts, setBenchmarkPts] = useState(null)
   const [showContributions, setShowContributions] = useState(true)
+  const [customRange, setCustomRange] = useState({ from: '', to: '' })
+  const [showCustomRange, setShowCustomRange] = useState(false)
+  const [showSnapshotImport, setShowSnapshotImport] = useState(false)
+  const [snapshotRows, setSnapshotRows] = useState([{ date: '', value: '' }])
+  const [snapshotSaving, setSnapshotSaving] = useState(false)
   const containerRef = useRef(null)
   const [chartWidth, setChartWidth] = useState(650)
 
-  const periods = ['DAY', '1W', 'MTD', '1M', '3M', 'YTD', '1Y', 'ALL']
+  const periods = ['DAY', '1W', 'MTD', '1M', '3M', 'YTD', '1Y', 'ALL', 'CUSTOM']
   const t = (es, en) => lang === 'es' ? es : en
   const benchmarkPeriodMap = { DAY: '1M', '1W': '1M', MTD: '1M', '1M': '1M', '3M': '3M', '6M': '6M', YTD: 'YTD', '1Y': '1Y', ALL: 'ALL' }
 
@@ -92,10 +97,21 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
 
   const fetchHistory = useCallback(async () => {
     if (!items || items.length === 0) return
+    if (period === 'CUSTOM' && !customRange.from) return
     setLoading(true)
     setFetchError(null)
     try {
-      const apiPeriod = period === 'MTD' ? '1M' : period
+      let apiPeriod = period === 'MTD' ? '1M' : period
+      if (period === 'CUSTOM') {
+        const fromDate = new Date(customRange.from)
+        const toDate = customRange.to ? new Date(customRange.to) : new Date()
+        const diffDays = Math.ceil((toDate - fromDate) / 86400000)
+        if (diffDays <= 30) apiPeriod = '1M'
+        else if (diffDays <= 90) apiPeriod = '3M'
+        else if (diffDays <= 180) apiPeriod = '6M'
+        else if (diffDays <= 365) apiPeriod = '1Y'
+        else apiPeriod = 'ALL'
+      }
       const res = await authFetch('/api/prices/portfolio-history', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -115,6 +131,11 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
         let pts = data.dataPoints || []
         if (baseCurrency !== 'USD' && convert) {
           pts = pts.map(dp => ({ ...dp, total: convert(dp.total, 'USD', baseCurrency) }))
+        }
+        if (period === 'CUSTOM' && customRange.from) {
+          const fromTs = new Date(customRange.from).getTime()
+          const toTs = customRange.to ? new Date(customRange.to + 'T23:59:59').getTime() : Date.now()
+          pts = pts.filter(dp => dp.ts >= fromTs && dp.ts <= toTs)
         }
         if (period === 'YTD') {
           const yearStart = new Date(new Date().getFullYear(), 0, 1).getTime()
@@ -140,7 +161,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
       setFetchError(t('Error cargando historial', 'Failed to load history'))
     }
     setLoading(false)
-  }, [items, period, baseCurrency, convert])
+  }, [items, period, baseCurrency, convert, customRange])
 
   useEffect(() => {
     fetchHistory()
@@ -168,17 +189,27 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
     if (!snapshots || snapshots.length === 0) return []
     if (period === 'DAY') return []
     const now = Date.now()
-    const periods = { '1W': 7, MTD: null, '1M': 30, '3M': 90, '6M': 180, YTD: null, '1Y': 365, ALL: null }
-    let cutoff
-    if (period === 'YTD') cutoff = new Date(new Date().getFullYear(), 0, 1).getTime()
+    const periodDays = { '1W': 7, MTD: null, '1M': 30, '3M': 90, '6M': 180, YTD: null, '1Y': 365, ALL: null, CUSTOM: null }
+    let cutoff, ceiling
+
+    if (period === 'CUSTOM' && customRange.from) {
+      cutoff = new Date(customRange.from).getTime()
+      ceiling = customRange.to ? new Date(customRange.to + 'T23:59:59').getTime() : now
+    } else if (period === 'YTD') cutoff = new Date(new Date().getFullYear(), 0, 1).getTime()
     else if (period === 'MTD') cutoff = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime()
     else if (period === 'ALL') cutoff = 0
-    else cutoff = now - (periods[period] || 365) * 86400000
+    else cutoff = now - (periodDays[period] || 365) * 86400000
 
     const convertVal = (v) => convert ? convert(v, 'USD', baseCurrency || 'USD') : v
 
     return [...snapshots]
-      .filter((s) => s.date && (new Date(s.date).getTime() >= cutoff))
+      .filter((s) => {
+        if (!s.date) return false
+        const ts = new Date(s.date).getTime()
+        if (ts < cutoff) return false
+        if (ceiling && ts > ceiling) return false
+        return true
+      })
       .sort((a, b) => new Date(a.date) - new Date(b.date))
       .map((s) => ({
         ts: new Date(s.date).getTime(),
@@ -186,7 +217,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
         value: convertVal(s.netWorthUSD ?? s.totalActivosUSD ?? 0),
       }))
       .filter((p) => p.value > 0)
-  }, [snapshots, period, convert, baseCurrency])
+  }, [snapshots, period, convert, baseCurrency, customRange])
 
   const chartData = useMemo(() => {
     const apiPts = dataPoints.length >= 2
@@ -431,13 +462,37 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
     return { portfolioRet: lastReturn, benchmarkRet: benchmarkReturn, delta, isOut: delta >= 0 }
   }, [benchmarkReturn, lastReturn, returnData])
 
+  const handleSaveSnapshots = useCallback(async () => {
+    if (!onSaveSnapshot) return
+    const valid = snapshotRows.filter(r => r.date && r.value && !isNaN(parseFloat(r.value)))
+    if (valid.length === 0) return
+    setSnapshotSaving(true)
+    for (const row of valid) {
+      await onSaveSnapshot({
+        date: row.date,
+        totalActivosUSD: parseFloat(row.value),
+        totalDebtUSD: 0,
+        netWorthUSD: parseFloat(row.value),
+        baseCurrency: 'USD',
+        _source: 'manual',
+      })
+    }
+    setSnapshotSaving(false)
+    setShowSnapshotImport(false)
+    setSnapshotRows([{ date: '', value: '' }])
+  }, [snapshotRows, onSaveSnapshot])
+
   const periodSelector = (
-    <div className="flex gap-0.5 bg-[#0f172a] rounded-lg p-0.5">
+    <div className="flex flex-wrap gap-0.5 bg-[#0f172a] rounded-lg p-0.5">
       {periods.map((p) => (
-        <button key={p} onClick={() => setPeriod(p)}
+        <button key={p} onClick={() => {
+          setPeriod(p)
+          if (p === 'CUSTOM') setShowCustomRange(true)
+          else setShowCustomRange(false)
+        }}
           className={`px-2.5 py-1.5 text-xs font-medium rounded-md transition-all ${
             period === p ? 'bg-blue-500 text-white' : 'text-slate-500 hover:text-slate-300'
-          }`}>{p}</button>
+          }`}>{p === 'CUSTOM' ? (lang === 'es' ? 'Rango' : 'Range') : p}</button>
       ))}
     </div>
   )
@@ -540,7 +595,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
           <p className="text-3xl font-bold text-white">{formatCurrency(hd ? hd.value : currentTotal)}</p>
           <p className={`text-sm mt-0.5 ${growthAbs >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
             {growthAbs >= 0 ? '+' : ''}{formatCurrency(growthAbs)} ({growthAbs >= 0 ? '+' : ''}{growthPct.toFixed(2)}%)
-            <span className="text-slate-500 ml-1">{period === 'YTD' ? t('este año', 'this year') : period === 'DAY' ? t('hoy', 'today') : period}</span>
+            <span className="text-slate-500 ml-1">{period === 'YTD' ? t('este año', 'this year') : period === 'DAY' ? t('hoy', 'today') : period === 'CUSTOM' ? t('rango', 'range') : period}</span>
           </p>
         </div>
       ) : (
@@ -820,6 +875,73 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
       <div className="flex justify-center mt-2">
         {periodSelector}
       </div>
+
+      {/* Custom date range inputs */}
+      {showCustomRange && period === 'CUSTOM' && (
+        <div className="flex flex-wrap items-center gap-2 mt-3 justify-center">
+          <label className="text-xs text-slate-400">{t('Desde', 'From')}:</label>
+          <input type="date" value={customRange.from}
+            onChange={e => setCustomRange(prev => ({ ...prev, from: e.target.value }))}
+            className="px-2 py-1 bg-[#0f172a] border border-[#334155] rounded text-xs text-white focus:outline-none focus:border-blue-500" />
+          <label className="text-xs text-slate-400">{t('Hasta', 'To')}:</label>
+          <input type="date" value={customRange.to}
+            onChange={e => setCustomRange(prev => ({ ...prev, to: e.target.value }))}
+            max={new Date().toISOString().split('T')[0]}
+            className="px-2 py-1 bg-[#0f172a] border border-[#334155] rounded text-xs text-white focus:outline-none focus:border-blue-500" />
+        </div>
+      )}
+
+      {/* Snapshot import section */}
+      <div className="flex justify-center mt-3">
+        <button onClick={() => setShowSnapshotImport(!showSnapshotImport)}
+          className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors">
+          {showSnapshotImport ? '▾' : '▸'} {t('Agregar datos históricos', 'Add historical data')}
+        </button>
+      </div>
+
+      {showSnapshotImport && (
+        <div className="mt-2 p-3 bg-[#0f172a] border border-[#334155] rounded-lg">
+          <p className="text-[10px] text-slate-400 mb-2">
+            {t('Agrega valores pasados de tu portafolio para completar la gráfica.',
+               'Add past portfolio values to complete the chart.')}
+          </p>
+          <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
+            {snapshotRows.map((row, i) => (
+              <div key={i} className="flex gap-2 items-center">
+                <input type="date" value={row.date}
+                  onChange={e => setSnapshotRows(prev => prev.map((r, idx) => idx === i ? { ...r, date: e.target.value } : r))}
+                  className="px-2 py-1 bg-[#1e293b] border border-[#334155] rounded text-xs text-white focus:outline-none focus:border-blue-500 w-36" />
+                <div className="flex items-center gap-1 flex-1">
+                  <span className="text-xs text-slate-500">$</span>
+                  <input type="number" value={row.value} placeholder={t('Valor total', 'Total value')}
+                    onChange={e => setSnapshotRows(prev => prev.map((r, idx) => idx === i ? { ...r, value: e.target.value } : r))}
+                    className="w-full px-2 py-1 bg-[#1e293b] border border-[#334155] rounded text-xs text-white focus:outline-none focus:border-blue-500" />
+                </div>
+                {snapshotRows.length > 1 && (
+                  <button onClick={() => setSnapshotRows(prev => prev.filter((_, idx) => idx !== i))}
+                    className="text-slate-500 hover:text-red-400 text-sm px-1">×</button>
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 mt-2">
+            <button onClick={() => setSnapshotRows(prev => [...prev, { date: '', value: '' }])}
+              className="text-[11px] text-blue-400 hover:text-blue-300">
+              + {t('Agregar fila', 'Add row')}
+            </button>
+            <div className="ml-auto flex gap-2">
+              <button onClick={() => { setShowSnapshotImport(false); setSnapshotRows([{ date: '', value: '' }]) }}
+                className="px-3 py-1 text-xs text-slate-400 hover:text-white transition-colors">
+                {t('Cancelar', 'Cancel')}
+              </button>
+              <button onClick={handleSaveSnapshots} disabled={snapshotSaving || !snapshotRows.some(r => r.date && r.value)}
+                className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-500 disabled:opacity-40 transition-colors">
+                {snapshotSaving ? '...' : t('Guardar', 'Save')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
