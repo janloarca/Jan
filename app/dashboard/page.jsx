@@ -742,7 +742,7 @@ export default function DashboardPage() {
 
       <ChatWidget user={user} items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets}
         returnYTD={returnYTD} annualDividends={annualDividends} riskMetrics={riskMetrics}
-        baseCurrency={baseCurrency} lang={lang} />
+        baseCurrency={baseCurrency} lang={lang} onUpdateItem={updateItem} />
     </div>
   )
 }

@@ -40,16 +40,43 @@ async function fetchSOLBalance(address) {
   return (data.result?.value || 0) / 1e9
 }
 
+async function fetchEVMBalance(rpcUrl, address, decimals = 18) {
+  const res = await fetch(rpcUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0', id: 1,
+      method: 'eth_getBalance',
+      params: [address, 'latest'],
+    }),
+  })
+  if (!res.ok) throw new Error(`EVM balance fetch failed for ${address}`)
+  const data = await res.json()
+  if (data.error) throw new Error(`RPC error: ${data.error.message}`)
+  const wei = BigInt(data.result || '0')
+  return Number(wei) / 10 ** decimals
+}
+
 const CHAIN_FETCHERS = {
   BTC: fetchBTCBalance,
   ETH: fetchETHBalance,
   SOL: fetchSOLBalance,
+  MATIC: (addr) => fetchEVMBalance('https://polygon-rpc.com', addr),
+  AVAX: (addr) => fetchEVMBalance('https://api.avax.network/ext/bc/C/rpc', addr),
+  ARB: (addr) => fetchEVMBalance('https://arb1.arbitrum.io/rpc', addr),
+  BASE: (addr) => fetchEVMBalance('https://mainnet.base.org', addr),
+  OP: (addr) => fetchEVMBalance('https://mainnet.optimism.io', addr),
 }
 
 const ADDRESS_PATTERNS = {
   BTC: /^(1|3|bc1)[a-zA-HJ-NP-Z0-9]{25,62}$/,
   ETH: /^0x[a-fA-F0-9]{40}$/,
   SOL: /^[1-9A-HJ-NP-Za-km-z]{32,44}$/,
+  MATIC: /^0x[a-fA-F0-9]{40}$/,
+  AVAX: /^0x[a-fA-F0-9]{40}$/,
+  ARB: /^0x[a-fA-F0-9]{40}$/,
+  BASE: /^0x[a-fA-F0-9]{40}$/,
+  OP: /^0x[a-fA-F0-9]{40}$/,
 }
 
 export async function POST(request) {

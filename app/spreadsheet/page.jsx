@@ -252,7 +252,7 @@ export default function SpreadsheetPage() {
       )}
 
       <ChatWidget user={user} items={portfolioItems || enrichedItems} netWorth={netWorth}
-        returnYTD={returnYTD} baseCurrency="USD" lang={lang} />
+        returnYTD={returnYTD} baseCurrency="USD" lang={lang} onUpdateItem={updateItem} />
     </div>
   )
 }

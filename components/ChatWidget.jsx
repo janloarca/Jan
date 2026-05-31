@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 
 const STORAGE_KEY = 'chispudo-anthropic-key'
 
-export default function ChatWidget({ user, items, netWorth, totalAssets, returnYTD, annualDividends, riskMetrics, baseCurrency, lang }) {
+export default function ChatWidget({ user, items, netWorth, totalAssets, returnYTD, annualDividends, riskMetrics, baseCurrency, lang, onUpdateItem }) {
   const t = (es, en) => lang === 'es' ? es : en
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState([])
@@ -62,6 +62,19 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
     })),
   }), [items, netWorth, totalAssets, returnYTD, annualDividends, riskMetrics, baseCurrency])
 
+  const handleActions = useCallback((actions) => {
+    if (!actions || !onUpdateItem) return
+    for (const action of actions) {
+      if (action.action === 'update_item') {
+        const match = items?.find(it =>
+          (it.name && it.name.toLowerCase() === action.item_name?.toLowerCase()) ||
+          (it.symbol && it.symbol.toLowerCase() === action.item_name?.toLowerCase())
+        )
+        if (match) onUpdateItem(match.id, action.fields)
+      }
+    }
+  }, [items, onUpdateItem])
+
   const sendMessage = useCallback(async () => {
     if (!input.trim() || loading) return
     if (!apiKey) { setShowKeyInput(true); return }
@@ -85,11 +98,12 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
           messages: newMessages,
           portfolioContext: buildContext(),
           apiKey,
+          stream: true,
         }),
       })
 
-      const data = await res.json()
       if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
         if (res.status === 401 && data.error === 'Invalid API key') {
           setError(t('API key inválida. Revisa tu key.', 'Invalid API key. Check your key.'))
           setShowKeyInput(true)
@@ -100,12 +114,50 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
         return
       }
 
-      setMessages(prev => [...prev, { role: 'assistant', content: data.message }])
+      const contentType = res.headers.get('content-type') || ''
+      if (contentType.includes('text/event-stream')) {
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+        let accumulated = ''
+
+        setMessages(prev => [...prev, { role: 'assistant', content: '' }])
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: true })
+
+          const lines = buffer.split('\n')
+          buffer = lines.pop() || ''
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue
+            const payload = line.slice(6)
+            if (payload === '[DONE]') continue
+            try {
+              const evt = JSON.parse(payload)
+              if (evt.text) {
+                accumulated += evt.text
+                setMessages(prev => {
+                  const updated = [...prev]
+                  updated[updated.length - 1] = { role: 'assistant', content: accumulated }
+                  return updated
+                })
+              }
+            } catch {}
+          }
+        }
+      } else {
+        const data = await res.json()
+        setMessages(prev => [...prev, { role: 'assistant', content: data.message }])
+        if (data.actions?.length > 0) handleActions(data.actions)
+      }
     } catch (err) {
       setError(t('Error de conexión', 'Connection error'))
     }
     setLoading(false)
-  }, [input, loading, apiKey, messages, user, buildContext, t])
+  }, [input, loading, apiKey, messages, user, buildContext, t, handleActions])
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {

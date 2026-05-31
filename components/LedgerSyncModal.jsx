@@ -6,6 +6,11 @@ const CHAINS = [
   { key: 'BTC', label: 'Bitcoin', placeholder: 'bc1q... or 1... or 3...' },
   { key: 'ETH', label: 'Ethereum', placeholder: '0x...' },
   { key: 'SOL', label: 'Solana', placeholder: 'So1...' },
+  { key: 'MATIC', label: 'Polygon', placeholder: '0x...' },
+  { key: 'AVAX', label: 'Avalanche', placeholder: '0x...' },
+  { key: 'ARB', label: 'Arbitrum', placeholder: '0x...' },
+  { key: 'BASE', label: 'Base', placeholder: '0x...' },
+  { key: 'OP', label: 'Optimism', placeholder: '0x...' },
 ]
 
 export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }) {
