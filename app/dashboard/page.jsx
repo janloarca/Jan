@@ -42,6 +42,7 @@ const AssetDetailModal = dynamic(() => import('@/components/dashboard/AssetDetai
 const PrintSummary = dynamic(() => import('@/components/dashboard/PrintSummary'))
 const OnboardingTour = dynamic(() => import('@/components/dashboard/OnboardingTour'))
 const CommandPalette = dynamic(() => import('@/components/dashboard/CommandPalette'))
+const ChatWidget = dynamic(() => import('@/components/ChatWidget'), { ssr: false })
 
 const PortfolioGrowthChart = dynamic(() => import('@/components/dashboard/PortfolioGrowthChart'), { loading: () => <SkeletonChart /> })
 const AccountsTable = dynamic(() => import('@/components/dashboard/AccountsTable'), { loading: () => <SkeletonTable /> })
@@ -684,6 +685,10 @@ export default function DashboardPage() {
           {toast}
         </div>
       )}
+
+      <ChatWidget user={user} items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets}
+        returnYTD={returnYTD} annualDividends={annualDividends} riskMetrics={riskMetrics}
+        baseCurrency={baseCurrency} lang={lang} />
     </div>
   )
 }

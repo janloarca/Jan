@@ -12,6 +12,7 @@ const SpreadsheetGrid = dynamic(() => import('@/components/spreadsheet/Spreadshe
 const PortfolioSpreadsheet = dynamic(() => import('@/components/dashboard/PortfolioSpreadsheet'), { ssr: false })
 const EditAccountModal = dynamic(() => import('@/components/EditAccountModal'), { ssr: false })
 const AccountReviewModal = dynamic(() => import('@/components/dashboard/AccountReviewModal'), { ssr: false })
+const ChatWidget = dynamic(() => import('@/components/ChatWidget'), { ssr: false })
 
 function generateId() {
   return `sheet_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
@@ -249,6 +250,9 @@ export default function SpreadsheetPage() {
           lang={lang}
         />
       )}
+
+      <ChatWidget user={user} items={portfolioItems || enrichedItems} netWorth={netWorth}
+        returnYTD={returnYTD} baseCurrency="USD" lang={lang} />
     </div>
   )
 }
