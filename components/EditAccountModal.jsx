@@ -9,7 +9,26 @@ const ACCOUNT_TYPES = [
   { key: 'tax-free', es: 'Libre', en: 'Tax-free' },
 ]
 
-export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es' }) {
+function InfoTip({ text }) {
+  const [show, setShow] = useState(false)
+  return (
+    <span className="relative inline-block ml-1">
+      <button type="button" onClick={(e) => { e.preventDefault(); setShow(!show) }}
+        className="w-4 h-4 rounded-full bg-slate-600/50 text-[10px] text-slate-300 hover:bg-blue-500/30 hover:text-blue-300 inline-flex items-center justify-center transition-colors leading-none">
+        i
+      </button>
+      {show && (
+        <div className="absolute z-50 bottom-6 left-1/2 -translate-x-1/2 w-52 p-2 bg-[#0f172a] border border-[#475569] rounded-lg text-[11px] text-slate-300 shadow-xl"
+          onClick={(e) => e.stopPropagation()}>
+          {text}
+          <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-[#0f172a] border-r border-b border-[#475569] rotate-45 -mt-1" />
+        </div>
+      )}
+    </span>
+  )
+}
+
+export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es', allItems, onNavigate }) {
   const [form, setForm] = useState({
     symbol: item.symbol || '',
     name: item.name || '',
@@ -216,7 +235,11 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
       }
 
       await onSave(updated)
-      onClose()
+      if (onNavigate) {
+        onNavigate('next')
+      } else {
+        onClose()
+      }
     } catch (err) { setError(err.message) }
     setSaving(false)
   }
@@ -308,12 +331,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           ) : (
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={labelCls}>{t('Cantidad', 'Quantity')}</label>
+                <label className={labelCls}>{t('Cantidad', 'Quantity')} <InfoTip text={t('Número de unidades, acciones o participaciones que posees.', 'Number of units, shares or participations you own.')} /></label>
                 <input value={form.quantity} onChange={e => set('quantity', e.target.value)}
                   type="number" step="any" className={inputCls} />
               </div>
               <div>
-                <label className={labelCls}>{isMarket ? t('Precio compra', 'Buy price') : t('Valor compra', 'Purchase value')}</label>
+                <label className={labelCls}>{isMarket ? t('Precio compra', 'Buy price') : t('Valor compra', 'Purchase value')} <InfoTip text={t('Precio por unidad al momento de la compra. Valor total = cantidad × precio.', 'Price per unit at time of purchase. Total value = quantity × price.')} /></label>
                 <input value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
                   type="number" step="any" className={inputCls} />
               </div>
@@ -322,7 +345,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
           {!isMarket && !isBank && (
             <div>
-              <label className={labelCls}>{t('Valor actual', 'Current value')}</label>
+              <label className={labelCls}>{t('Valor actual', 'Current value')} <InfoTip text={t('El valor de mercado actual. Si lo dejas vacío, se usa el precio de compra. Para activos de mercado se actualiza automáticamente.', 'Current market value. If empty, purchase price is used. Market assets update automatically.')} /></label>
               <input value={form.currentPrice} onChange={e => set('currentPrice', e.target.value)}
                 type="number" step="any" placeholder={t('Dejar vacío = precio de compra', 'Empty = purchase price')}
                 className={inputCls} />
@@ -545,19 +568,19 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
             <p className="text-xs text-amber-400 font-medium">{t('Costos & Comisiones', 'Costs & Fees')}</p>
             <div className="grid grid-cols-3 gap-2">
               <div>
-                <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Costo entrada', 'Entry fee')}</label>
+                <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Costo entrada', 'Entry fee')} <InfoTip text={t('Monto fijo en tu moneda (ej: $80). NO es porcentaje. Es el costo de entrada o comisión que pagaste una sola vez.', 'Fixed amount in your currency (e.g. $80). NOT a percentage. One-time entry cost or commission you paid.')} /></label>
                 <input value={form.entryFee} onChange={e => set('entryFee', e.target.value)}
                   placeholder="80" type="number" step="any" className={inputCls}
                   title={t('Costo de incorporación, comisión de entrada, etc.', 'Incorporation cost, entry commission, etc.')} />
               </div>
               <div>
-                <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Mgmt fee %', 'Mgmt fee %')}</label>
+                <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Mgmt fee %', 'Mgmt fee %')} <InfoTip text={t('Comisión de administración ANUAL en porcentaje. Ej: 0.50 = 0.50% por año sobre el valor total.', 'Annual management fee as a PERCENTAGE. E.g. 0.50 = 0.50% per year on total value.')} /></label>
                 <input value={form.managementFee} onChange={e => set('managementFee', e.target.value)}
                   placeholder="0.50" type="number" step="any" className={inputCls}
                   title={t('Comisión de administración anual %', 'Annual management fee %')} />
               </div>
               <div>
-                <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Expense %', 'Expense %')}</label>
+                <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Expense %', 'Expense %')} <InfoTip text={t('Ratio de gastos ANUAL en porcentaje. Ej: 0.03 = 0.03% por año. Este es un costo operativo del fondo/instrumento.', 'Annual expense ratio as a PERCENTAGE. E.g. 0.03 = 0.03% per year. This is the fund/instrument operating cost.')} /></label>
                 <input value={form.expenseRatio} onChange={e => set('expenseRatio', e.target.value)}
                   placeholder="0.03" type="number" step="any" className={inputCls}
                   title={t('Ratio de gastos anual %', 'Annual expense ratio %')} />
@@ -704,11 +727,11 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     {form.incomeMode === 'fixed' ? (<>
-                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Monto por pago', 'Per payment')}</label>
+                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Monto por pago', 'Per payment')} <InfoTip text={t('Monto fijo que recibes en cada pago, en la moneda del activo.', 'Fixed amount you receive each payment, in the asset\'s currency.')} /></label>
                       <input value={form.incomeAmount} onChange={e => set('incomeAmount', e.target.value)}
                         type="number" step="any" className={inputCls} />
                     </>) : (<>
-                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa anual %', 'Annual rate %')}</label>
+                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa anual %', 'Annual rate %')} <InfoTip text={t('Tasa de rendimiento anual en porcentaje. Se divide entre los meses de pago seleccionados.', 'Annual yield rate as percentage. Divided among selected payment months.')} /></label>
                       <input value={form.incomeRate} onChange={e => set('incomeRate', e.target.value)}
                         type="number" step="any" className={inputCls} />
                     </>)}
@@ -789,11 +812,11 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               const qty = parseFloat(form.quantity) || (isBank ? 1 : 0)
               const price = parseFloat(form.currentPrice) || parseFloat(form.purchasePrice) || 0
               const total = qty * price
-              const isDebt = /debt|deuda/i.test(form.type)
+              const isDebtType = /debt|deuda/i.test(form.type)
               const fmt = (v) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
               if (total > 0) return (
                 <span className="text-xs text-emerald-400 font-medium px-2 py-1 bg-emerald-500/10 rounded">
-                  {isDebt ? t('Deuda', 'Debt') : ''} {form.currency} {fmt(total)}
+                  {isDebtType ? t('Deuda', 'Debt') : ''} {form.currency} {fmt(total)}
                 </span>
               )
               return null
@@ -804,7 +827,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
             </button>
             <button type="submit" disabled={saving}
               className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium">
-              {saving ? '...' : t('Guardar', 'Save')}
+              {saving ? '...' : onNavigate ? t('Guardar →', 'Save →') : t('Guardar', 'Save')}
             </button>
           </div>
 

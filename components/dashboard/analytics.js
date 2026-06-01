@@ -209,7 +209,7 @@ export function computeNetContributions(transactions, convert, baseCurrency) {
   }
 }
 
-export function generateInsights({ netWorth, benchmarkReturn, portfolioReturn, sharpe, volatility, maxDrawdown, hhi, incomeYield, goals, topContributor, topDrag, maturingSoon, debtRatio, investmentClassPcts }) {
+export function generateInsights({ netWorth, benchmarkReturn, portfolioReturn, sharpe, volatility, maxDrawdown, hhi, incomeYield, goals, topContributor, topDrag, maturingSoon, debtRatio, investmentClassPcts, netContributions, depositCount }) {
   const insights = []
 
   if (benchmarkReturn != null && portfolioReturn != null && Math.abs(portfolioReturn) <= 200) {
@@ -343,6 +343,15 @@ export function generateInsights({ netWorth, benchmarkReturn, portfolioReturn, s
         })
       }
     }
+  }
+
+  if (netContributions != null && netWorth > 10000 && netContributions === 0 && (depositCount ?? 0) === 0) {
+    insights.push({
+      type: 'warning',
+      textEs: 'No hay depósitos registrados. Registra tus aportes para calcular rendimientos con precisión.',
+      textEn: 'No deposits recorded. Log your contributions for accurate return calculations.',
+      priority: 0.5,
+    })
   }
 
   return insights.sort((a, b) => a.priority - b.priority).slice(0, 6)

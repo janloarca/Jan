@@ -1,0 +1,120 @@
+'use client'
+
+import { useState } from 'react'
+
+const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
+
+export default function CashFlowModal({ onClose, onAddTransaction, lang = 'es', baseCurrency = 'USD' }) {
+  const [flowType, setFlowType] = useState('DEPOSIT')
+  const [amount, setAmount] = useState('')
+  const [currency, setCurrency] = useState(baseCurrency)
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+  const [description, setDescription] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const t = (es, en) => lang === 'es' ? es : en
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    const num = parseFloat(amount)
+    if (!num || num <= 0) return
+    setSaving(true)
+    try {
+      await onAddTransaction({
+        date,
+        type: flowType,
+        symbol: flowType === 'DEPOSIT' ? 'DEPOSIT' : 'WITHDRAWAL',
+        description: description || (flowType === 'DEPOSIT' ? t('Depósito', 'Deposit') : t('Retiro', 'Withdrawal')),
+        totalAmount: num,
+        amount: num,
+        currency,
+        _source: 'manual_cashflow',
+      })
+      onClose()
+    } catch (err) {
+      console.error('CashFlow error:', err)
+    }
+    setSaving(false)
+  }
+
+  const inputCls = 'w-full px-3 py-2.5 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50'
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="bg-[#1e293b] border border-[#334155] rounded-xl shadow-2xl max-w-sm w-full" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#334155]">
+          <h2 className="text-lg font-bold text-white">{t('Registrar Movimiento', 'Log Cash Flow')}</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setFlowType('DEPOSIT')}
+              className={`flex-1 px-3 py-3 text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-2 ${
+                flowType === 'DEPOSIT'
+                  ? 'bg-emerald-500/20 text-emerald-400 border-2 border-emerald-500/50'
+                  : 'bg-[#0f172a] text-slate-400 border-2 border-[#334155] hover:border-slate-500'
+              }`}>
+              <span className="text-lg">+</span> {t('Depósito', 'Deposit')}
+            </button>
+            <button type="button" onClick={() => setFlowType('WITHDRAWAL')}
+              className={`flex-1 px-3 py-3 text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-2 ${
+                flowType === 'WITHDRAWAL'
+                  ? 'bg-red-500/20 text-red-400 border-2 border-red-500/50'
+                  : 'bg-[#0f172a] text-slate-400 border-2 border-[#334155] hover:border-slate-500'
+              }`}>
+              <span className="text-lg">-</span> {t('Retiro', 'Withdrawal')}
+            </button>
+          </div>
+
+          <div>
+            <label className="text-xs text-slate-400 mb-1 block">{t('Monto', 'Amount')}</label>
+            <div className="flex gap-2">
+              <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
+                placeholder="10000" step="any" min="0" autoFocus
+                className={`${inputCls} flex-1 text-lg font-bold`} />
+              <select value={currency} onChange={e => setCurrency(e.target.value)}
+                className="px-3 py-2.5 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50 w-20">
+                {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs text-slate-400 mb-1 block">{t('Fecha', 'Date')}</label>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)}
+              max={new Date().toISOString().split('T')[0]} className={inputCls} />
+          </div>
+
+          <div>
+            <label className="text-xs text-slate-400 mb-1 block">{t('Descripción (opcional)', 'Description (optional)')}</label>
+            <input type="text" value={description} onChange={e => setDescription(e.target.value)}
+              placeholder={flowType === 'DEPOSIT' ? t('Ej: Aporte mensual', 'E.g. Monthly contribution') : t('Ej: Gastos personales', 'E.g. Personal expenses')}
+              className={inputCls} />
+          </div>
+
+          <div className="bg-[#0f172a] rounded-lg p-3 text-xs text-slate-400">
+            {flowType === 'DEPOSIT'
+              ? t('Un depósito indica dinero nuevo que entra a tu portafolio. Esto ajusta el cálculo de retornos para no confundir aportes con ganancias.',
+                  'A deposit indicates new money entering your portfolio. This adjusts return calculations so contributions aren\'t confused with gains.')
+              : t('Un retiro indica dinero que sale de tu portafolio. Esto ajusta el cálculo de retornos correctamente.',
+                  'A withdrawal indicates money leaving your portfolio. This adjusts return calculations correctly.')}
+          </div>
+
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={onClose}
+              className="flex-1 px-4 py-2.5 border border-[#334155] text-slate-300 rounded-lg hover:bg-[#283548] transition-colors text-sm">
+              {t('Cancelar', 'Cancel')}
+            </button>
+            <button type="submit" disabled={saving || !amount || parseFloat(amount) <= 0}
+              className={`flex-1 px-4 py-2.5 rounded-lg text-white text-sm font-medium transition-colors disabled:opacity-40 ${
+                flowType === 'DEPOSIT' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-red-600 hover:bg-red-500'
+              }`}>
+              {saving ? '...' : t('Registrar', 'Log')}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}

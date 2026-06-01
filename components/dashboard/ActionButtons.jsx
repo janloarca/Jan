@@ -1,8 +1,8 @@
 'use client'
 
-import { Upload, Plus, ArrowLeftRight, Share2, Download, RefreshCw, ClipboardCheck } from 'lucide-react'
+import { Upload, Plus, ArrowLeftRight, Share2, Download, RefreshCw, ClipboardCheck, DollarSign } from 'lucide-react'
 
-export default function ActionButtons({ onImport, onAddAccount, onTransfer, onExport, onShare, onIBKR, onBlockchain, onLedger, onReview, itemCount, lang }) {
+export default function ActionButtons({ onImport, onAddAccount, onTransfer, onCashFlow, onExport, onShare, onIBKR, onBlockchain, onLedger, onReview, itemCount, lang }) {
   const btnBase = 'px-2.5 sm:px-4 py-2 text-body font-medium rounded-lg transition-colors flex items-center gap-1.5'
   const btnSecondary = `${btnBase} bg-[var(--card-bg,#1e293b)] border border-[var(--card-border,#334155)] text-slate-300 hover:bg-[var(--input-bg,#283548)] hover:text-white`
   const btnMuted = `${btnBase} bg-[var(--card-bg,#1e293b)] border border-[var(--card-border,#334155)] text-[var(--text-secondary,#94a3b8)] hover:bg-[var(--input-bg,#283548)]`
@@ -33,6 +33,11 @@ export default function ActionButtons({ onImport, onAddAccount, onTransfer, onEx
       <button onClick={onTransfer} className={btnMuted}>
         <ArrowLeftRight size={14} /> <span className="hidden sm:inline">{lang === 'es' ? 'Transferir' : 'Transfer'}</span>
       </button>
+      {onCashFlow && (
+        <button onClick={onCashFlow} className={`${btnBase} bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-600/30 hover:text-emerald-300`}>
+          <DollarSign size={14} /> <span className="hidden sm:inline">{lang === 'es' ? 'Movimiento' : 'Cash Flow'}</span>
+        </button>
+      )}
       <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
         {onReview && (
           <button onClick={onReview} className={btnMuted} aria-label={lang === 'es' ? 'Revisar' : 'Review'}>

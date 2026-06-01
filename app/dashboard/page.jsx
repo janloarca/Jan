@@ -42,6 +42,7 @@ const EditAccountModal = dynamic(() => import('@/components/EditAccountModal'), 
 const OptimizeModal = dynamic(() => import('@/components/OptimizeModal'))
 const AssetDetailModal = dynamic(() => import('@/components/dashboard/AssetDetailModal'), { loading: () => <ModalSkeleton /> })
 const AccountReviewModal = dynamic(() => import('@/components/dashboard/AccountReviewModal'), { loading: () => <ModalSkeleton /> })
+const CashFlowModal = dynamic(() => import('@/components/CashFlowModal'), { loading: () => <ModalSkeleton /> })
 const PrintSummary = dynamic(() => import('@/components/dashboard/PrintSummary'))
 const OnboardingTour = dynamic(() => import('@/components/dashboard/OnboardingTour'))
 const CommandPalette = dynamic(() => import('@/components/dashboard/CommandPalette'))
@@ -227,7 +228,7 @@ export default function DashboardPage() {
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
     returnYTD, ytdChange, returnSinceStart, sinceStartDate,
     annualDividends, estimatedAnnualIncome,
-    netContributions, cashTotal, riskMetrics, insights, dataAge,
+    netContributions, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
     benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName,
     handleIBKRSync,
   } = useDashboardData({ user, lang, activePortfolio, activeEntity })
@@ -328,6 +329,7 @@ export default function DashboardPage() {
       else if ((e.metaKey || e.ctrlKey) && e.key === 'n') { e.preventDefault(); setModal('account') }
       else if ((e.metaKey || e.ctrlKey) && e.key === 'i') { e.preventDefault(); setModal('import') }
       else if ((e.metaKey || e.ctrlKey) && e.key === 'e') { e.preventDefault(); handleExport() }
+      else if ((e.metaKey || e.ctrlKey) && e.key === 'd') { e.preventDefault(); setModal('cashflow') }
       else if ((e.metaKey || e.ctrlKey) && e.key === 'r' && !e.shiftKey) { e.preventDefault(); handleRefresh() }
     }
     window.addEventListener('keydown', handler)
@@ -407,6 +409,9 @@ export default function DashboardPage() {
       case 'print': setModal('print'); break
       case 'share': handleShare(); break
       case 'transfer': setModal('transfer'); break
+      case 'cashflow': setModal('cashflow'); break
+      case 'deposit': setModal('cashflow'); break
+      case 'withdrawal': setModal('cashflow'); break
       case 'settings': setModal('settings'); break
       case 'refresh': handleRefresh(); break
       case 'theme': handleSetTheme(theme === 'dark' ? 'light' : 'dark'); break
@@ -509,6 +514,21 @@ export default function DashboardPage() {
         <CardBoundary id="NotificationCenter"><NotificationCenter items={portfolioItems} transactions={transactions} lang={lang} /></CardBoundary>
         <CardBoundary id="InstallPrompt"><InstallPrompt lang={lang} /></CardBoundary>
 
+        {contributionWarning && (
+          <div className="flex items-center gap-3 px-4 py-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-sm">
+            <span className="text-amber-400 text-lg">!</span>
+            <p className="text-amber-300 flex-1">
+              {lang === 'es'
+                ? 'Tus retornos pueden no ser precisos. Registra tus depósitos y retiros para cálculos correctos.'
+                : 'Your returns may not be accurate. Log your deposits and withdrawals for correct calculations.'}
+            </p>
+            <button onClick={() => setModal('cashflow')}
+              className="px-3 py-1.5 text-xs font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg hover:bg-amber-500/30 transition-colors whitespace-nowrap">
+              {lang === 'es' ? 'Registrar ahora' : 'Log now'}
+            </button>
+          </div>
+        )}
+
         {portfolioItems.length === 0 && !dataLoading && (
           <EmptyState
             onAdd={() => setModal('account')}
@@ -547,7 +567,7 @@ export default function DashboardPage() {
 
         <ActionButtons
           onImport={() => setModal('import')} onAddAccount={() => setModal('account')}
-          onTransfer={() => setModal('transfer')} onExport={handleExport}
+          onTransfer={() => setModal('transfer')} onCashFlow={() => setModal('cashflow')} onExport={handleExport}
           onShare={handleShare} onIBKR={() => setModal('ibkr')} onBlockchain={() => setModal('blockchain')} onLedger={() => setModal('ledger')}
           onReview={() => setShowReview(true)} itemCount={enrichedItems.length} lang={lang}
         />
@@ -688,6 +708,15 @@ export default function DashboardPage() {
         />
       )}
 
+      {modal === 'cashflow' && (
+        <CashFlowModal
+          onClose={() => setModal(null)}
+          onAddTransaction={addTransaction}
+          lang={lang}
+          baseCurrency={baseCurrency}
+        />
+      )}
+
       {modal === 'optimize' && (
         <OptimizeModal items={items} onClose={() => setModal(null)}
           onSave={addItem} onDelete={deleteItem} lang={lang} />
@@ -740,7 +769,16 @@ export default function DashboardPage() {
 
       {editItem && (
         <EditAccountModal item={editItem} onClose={() => setEditItem(null)}
-          onSave={addItem} onDelete={deleteItem} existingItems={items} lang={lang} />
+          onSave={addItem} onDelete={deleteItem} existingItems={items} lang={lang}
+          allItems={portfolioItems}
+          onNavigate={(dir) => {
+            if (dir === 'next') {
+              const sorted = [...portfolioItems].sort((a, b) => Math.abs(getItemValue(b)) - Math.abs(getItemValue(a)))
+              const idx = sorted.findIndex(it => it.id === editItem.id)
+              if (idx >= 0 && idx < sorted.length - 1) setEditItem(sorted[idx + 1])
+              else setEditItem(null)
+            }
+          }} />
       )}
 
       {detailItem && (

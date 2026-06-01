@@ -103,10 +103,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     })
     const netWorthUSD = totalAssetsUSD - totalDebtUSD
     if (totalAssetsUSD > 0 || totalDebtUSD > 0) {
-      saveSnapshot({ date: todayStr, totalActivosUSD: totalAssetsUSD, totalDebtUSD, netWorthUSD, rates: rates || {}, baseCurrency })
+      const { netContributions: totalContributedUSD } = computeNetContributions(transactions, convert, 'USD')
+      saveSnapshot({ date: todayStr, totalActivosUSD: totalAssetsUSD, totalDebtUSD, netWorthUSD, totalContributedUSD, rates: rates || {}, baseCurrency })
       snapshotSavedRef.current = todayStr
     }
-  }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, snapshots, saveSnapshot, convert, baseCurrency])
+  }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, snapshots, saveSnapshot, convert, baseCurrency, transactions])
 
   // Dividend processing
   const dividendsProcessedRef = useRef(null)
@@ -148,13 +149,26 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       for (const it of scheduled) {
         if (cancelled) return
         const payMonths = Array.isArray(it.incomeMonths) ? it.incomeMonths : [0,1,2,3,4,5,6,7,8,9,10,11]
-        if (!payMonths.includes(currentMonth)) continue
-        const effectivePayDay = getEffectivePayDay(it.incomePayDay || 1, it.businessDayRule)
-        if (todayDay < effectivePayDay) continue
 
-        const txKey = `DIV-${it.symbol || it.name}-${todayKey}`
-        const alreadyProcessed = transactions.some((tx) => tx.id === txKey || (tx.symbol === (it.symbol || it.name) && tx.date === todayKey && (tx.type || '').toUpperCase() === 'DIVIDEND'))
-        if (alreadyProcessed) continue
+        // Backfill missed months: check past 3 months for unprocessed dividends
+        const monthsToCheck = []
+        for (let offset = 2; offset >= 0; offset--) {
+          const checkDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - offset, 1))
+          const checkMonth = checkDate.getUTCMonth()
+          const checkYear = checkDate.getUTCFullYear()
+          if (!payMonths.includes(checkMonth)) continue
+          const payDay = it.incomePayDay || 1
+          if (offset === 0 && todayDay < payDay) continue
+          const dateStr = `${checkYear}-${String(checkMonth + 1).padStart(2, '0')}-${String(payDay).padStart(2, '0')}`
+          monthsToCheck.push({ dateStr, month: checkMonth, year: checkYear })
+        }
+
+        for (const { dateStr } of monthsToCheck) {
+          if (cancelled) return
+          const alreadyProcessed = transactions.some((tx) =>
+            (tx.symbol === (it.symbol || it.name) && tx.date === dateStr && (tx.type || '').toUpperCase() === 'DIVIDEND')
+          )
+          if (alreadyProcessed) continue
 
         try {
           const originalPrice = it._originalPrice || it.currentPrice || it.purchasePrice || 0
@@ -179,7 +193,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           if (amount <= 0) continue
 
           await addTransaction({
-            date: todayKey,
+            date: dateStr,
             type: 'DIVIDEND',
             symbol: it.symbol || it.name,
             description: `Dividend from ${it.name || it.symbol}`,
@@ -211,6 +225,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           }
         } catch (err) {
           console.error(`[dividends] Failed for ${it.symbol}:`, err.message)
+        }
         }
       }
       dividendsProcessedRef.current = todayKey
@@ -423,21 +438,26 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   }, [enrichedItems])
 
   const { returnYTD, ytdChange, returnSinceStart, sinceStartDate } = useMemo(() => {
-    const yearStartTs = new Date(new Date().getFullYear(), 0, 1).getTime()
+    const year = new Date().getFullYear()
+    const yearStartTs = new Date(year, 0, 1).getTime()
     let startVal = null
     if (snapshots.length >= 2) {
-      let minDiff = Infinity
-      let bestSnap = null
-      const MAX_SNAP_DISTANCE = 30 * 86400000
-      for (const s of snapshots) {
-        if (!s.date) continue
-        const snapTs = new Date(s.date).getTime()
-        if (snapTs > Date.now()) continue
-        const diff = Math.abs(snapTs - yearStartTs)
-        if (diff < minDiff) { minDiff = diff; bestSnap = s }
+      const sorted = [...snapshots].filter(s => s.date).sort((a, b) => new Date(a.date) - new Date(b.date))
+      let bestSnap = sorted.find(s => {
+        const d = new Date(s.date)
+        return d.getFullYear() === year && d.getMonth() === 0
+      })
+      if (!bestSnap) {
+        bestSnap = [...sorted].reverse().find(s => {
+          const d = new Date(s.date)
+          return d.getFullYear() === year - 1 && d.getMonth() === 11
+        })
       }
-      if (bestSnap && minDiff <= MAX_SNAP_DISTANCE) {
-        startVal = convertSnapshot(bestSnap.netWorthUSD ?? bestSnap.totalActivosUSD ?? 0)
+      if (bestSnap) {
+        const diff = Math.abs(new Date(bestSnap.date).getTime() - yearStartTs)
+        if (diff <= 15 * 86400000) {
+          startVal = convertSnapshot(bestSnap.netWorthUSD ?? bestSnap.totalActivosUSD ?? 0)
+        }
       }
     }
     if (startVal == null || startVal <= 0) startVal = jan1Value
@@ -558,14 +578,30 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     })
     const investmentClassPcts = {}
     Object.entries(classTotals).forEach(([k, v]) => { investmentClassPcts[k] = classTotal > 0 ? (v / classTotal) * 100 : 0 })
+    const depositCount = (transactions || []).filter(tx => (tx.type || '').toUpperCase() === 'DEPOSIT').length
     return generateInsights({
       netWorth, benchmarkReturn,
       portfolioReturn: returnYTD,
       sharpe: riskMetrics.sharpe, volatility: riskMetrics.volatility, maxDrawdown: riskMetrics.maxDrawdown,
       hhi: hhiResult.hhi, incomeYield, goals,
       topContributor, topDrag, maturingSoon, debtRatio, investmentClassPcts,
+      netContributions, depositCount,
     })
-  }, [netWorth, benchmarkReturn, returnYTD, riskMetrics, portfolioItems, annualDividends, goals])
+  }, [netWorth, benchmarkReturn, returnYTD, riskMetrics, portfolioItems, annualDividends, goals, transactions, netContributions])
+
+  const contributionWarning = useMemo(() => {
+    if (netWorth <= 0 || !snapshots || snapshots.length < 2) return false
+    const deposits = (transactions || []).filter(tx => (tx.type || '').toUpperCase() === 'DEPOSIT')
+    if (deposits.length >= 3) return false
+    const sorted = [...snapshots].filter(s => s.date).sort((a, b) => new Date(a.date) - new Date(b.date))
+    const firstSnap = sorted.find(s => (s.netWorthUSD ?? s.totalActivosUSD ?? 0) > 0)
+    if (!firstSnap) return false
+    const firstVal = firstSnap.netWorthUSD ?? firstSnap.totalActivosUSD ?? 0
+    if (firstVal <= 0) return false
+    const growth = netWorth - convert(firstVal, 'USD', baseCurrency)
+    const impliedPct = (growth / convert(firstVal, 'USD', baseCurrency)) * 100
+    return impliedPct > 40 && deposits.length < 3
+  }, [netWorth, snapshots, transactions, convert, baseCurrency])
 
   const dataAge = latestSnapshot ? Math.round((Date.now() - new Date(latestSnapshot.date).getTime()) / 86400000) : null
 
@@ -597,7 +633,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
     returnYTD, ytdChange, returnSinceStart, sinceStartDate,
     annualDividends, estimatedAnnualIncome,
-    netContributions, cashTotal, riskMetrics, insights, dataAge,
+    netContributions, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
 
     // Benchmark
     benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName, benchmarkLoading,

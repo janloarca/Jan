@@ -98,6 +98,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
   const fetchHistory = useCallback(async () => {
     if (!items || items.length === 0) return
     if (period === 'CUSTOM' && !customRange.from) return
+    if (period === 'DAY') { setLoading(false); return }
     setLoading(true)
     setFetchError(null)
     try {
@@ -187,8 +188,22 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
 
   const snapshotData = useMemo(() => {
     if (!snapshots || snapshots.length === 0) return []
-    if (period === 'DAY') return []
     const now = Date.now()
+    const convertVal = (v) => convert ? convert(v, 'USD', baseCurrency || 'USD') : v
+
+    if (period === 'DAY') {
+      const threeDaysAgo = now - 3 * 86400000
+      const recentSnaps = [...snapshots]
+        .filter(s => s.date && new Date(s.date).getTime() >= threeDaysAgo)
+        .sort((a, b) => new Date(a.date) - new Date(b.date))
+        .map(s => ({ ts: new Date(s.date).getTime(), date: new Date(s.date), value: convertVal(s.netWorthUSD ?? s.totalActivosUSD ?? 0) }))
+        .filter(p => p.value > 0)
+      if (currentTotal > 0) {
+        recentSnaps.push({ ts: Date.now(), date: new Date(), value: currentTotal })
+      }
+      return recentSnaps
+    }
+
     const periodDays = { '1W': 7, MTD: null, '1M': 30, '3M': 90, '6M': 180, YTD: null, '1Y': 365, ALL: null, CUSTOM: null }
     let cutoff, ceiling
 
@@ -200,9 +215,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
     else if (period === 'ALL') cutoff = 0
     else cutoff = now - (periodDays[period] || 365) * 86400000
 
-    const convertVal = (v) => convert ? convert(v, 'USD', baseCurrency || 'USD') : v
-
-    return [...snapshots]
+    let pts = [...snapshots]
       .filter((s) => {
         if (!s.date) return false
         const ts = new Date(s.date).getTime()
@@ -217,7 +230,29 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
         value: convertVal(s.netWorthUSD ?? s.totalActivosUSD ?? 0),
       }))
       .filter((p) => p.value > 0)
-  }, [snapshots, period, convert, baseCurrency, customRange])
+
+    if (period === 'MTD' && pts.length < 2) {
+      const sorted = [...snapshots]
+        .filter(s => s.date && new Date(s.date).getTime() < cutoff)
+        .sort((a, b) => new Date(b.date) - new Date(a.date))
+      if (sorted.length > 0) {
+        const prevSnap = sorted[0]
+        const val = convertVal(prevSnap.netWorthUSD ?? prevSnap.totalActivosUSD ?? 0)
+        if (val > 0) {
+          pts.unshift({ ts: cutoff, date: new Date(cutoff), value: val })
+        }
+      }
+    }
+
+    if (currentTotal > 0 && pts.length > 0) {
+      const lastTs = pts[pts.length - 1].ts
+      if (Date.now() - lastTs > 3600000) {
+        pts.push({ ts: Date.now(), date: new Date(), value: currentTotal })
+      }
+    }
+
+    return pts
+  }, [snapshots, period, convert, baseCurrency, customRange, currentTotal])
 
   const chartData = useMemo(() => {
     const apiPts = dataPoints.length >= 2
@@ -225,10 +260,16 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
       : []
     const snapPts = snapshotData.length >= 2 ? [...snapshotData] : []
 
-    const shortPeriod = ['DAY', '1W'].includes(period)
     let pts
 
-    if (shortPeriod && apiPts.length >= 2) {
+    if (period === 'DAY' && snapPts.length >= 2) {
+      pts = [...snapPts]
+      const recentApi = apiPts.filter(p => p.ts > snapPts[0].ts && p.ts < snapPts[snapPts.length - 1].ts)
+      if (recentApi.length > 0) {
+        pts = [...snapPts.slice(0, -1), ...recentApi, snapPts[snapPts.length - 1]]
+          .sort((a, b) => a.ts - b.ts)
+      }
+    } else if (period === '1W' && apiPts.length >= 2) {
       pts = apiPts
     } else if (snapPts.length >= 2) {
       pts = [...snapPts]
@@ -325,7 +366,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
 
   const contributionLine = useMemo(() => {
     if (viewMode !== 'value' || !transactions || chartData.length < 2) return null
-    const flowTypes = { DEPOSIT: 1, BUY: 1, WITHDRAWAL: -1, SELL: -1 }
+    const flowTypes = { DEPOSIT: 1, WITHDRAWAL: -1 }
     const txs = transactions
       .filter(tx => flowTypes[tx.type] != null)
       .sort((a, b) => new Date(a.date) - new Date(b.date))
