@@ -52,6 +52,7 @@ export default function SpreadsheetPage() {
   const {
     items, enrichedItems, netWorth, transactions, financeTransactions, returnYTD,
     snapshots, addItem, updateItem, deleteItem, portfolioItems, convert, rates,
+    saveItemSnapshots, loadItemSnapshots,
   } = useDashboardData({ user, lang, activePortfolio: '__all__' })
 
   const [editItem, setEditItem] = useState(null)
@@ -220,6 +221,8 @@ export default function SpreadsheetPage() {
             returnYTD={returnYTD}
             netWorth={netWorth}
             convert={convert}
+            onSaveItemSnapshots={saveItemSnapshots}
+            onLoadItemSnapshots={loadItemSnapshots}
           />
         </div>
       ) : view === 'debts' ? (

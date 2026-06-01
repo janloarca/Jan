@@ -21,6 +21,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     portfolios, addPortfolio, deletePortfolio,
     financeTransactions, addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     saveGoals, saveSettings, saveProfile,
+    saveItemSnapshots, loadItemSnapshots,
   } = firestoreData
 
   const baseCurrency = settings?.baseCurrency || 'USD'
@@ -583,6 +584,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     addPortfolio, deletePortfolio,
     addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     saveGoals, saveSettings, saveProfile,
+    saveItemSnapshots, loadItemSnapshots,
 
     // Market data
     enrichedItems, portfolioItems, marketPrices,

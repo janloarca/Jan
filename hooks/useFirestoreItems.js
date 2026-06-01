@@ -367,6 +367,29 @@ export function useFirestoreItems() {
     await fs.deleteDoc(fs.doc(db, `users/${uid}/portfolios`, portfolioId))
   }, [uid])
 
+  const saveItemSnapshots = useCallback(async (monthKey, itemsData) => {
+    if (!uid || !monthKey || !itemsData) return
+    const { db, fs } = await getFirebase()
+    await fs.setDoc(fs.doc(db, `users/${uid}/itemSnapshots`, monthKey), {
+      monthKey,
+      items: itemsData,
+      savedAt: new Date().toISOString(),
+    })
+  }, [uid])
+
+  const loadItemSnapshots = useCallback(async (monthKeys) => {
+    if (!uid || !monthKeys || monthKeys.length === 0) return {}
+    const { db, fs } = await getFirebase()
+    const result = {}
+    await Promise.all(monthKeys.map(async (key) => {
+      try {
+        const docSnap = await fs.getDoc(fs.doc(db, `users/${uid}/itemSnapshots`, key))
+        if (docSnap.exists()) result[key] = docSnap.data().items || {}
+      } catch {}
+    }))
+    return result
+  }, [uid])
+
   return {
     items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, loading,
     addItem, updateItem, deleteItem, deleteAllItems,
@@ -377,5 +400,6 @@ export function useFirestoreItems() {
     addLot, updateLot, closeLotsFIFO,
     addPortfolio, deletePortfolio,
     saveGoals, saveSettings, saveProfile,
+    saveItemSnapshots, loadItemSnapshots,
   }
 }

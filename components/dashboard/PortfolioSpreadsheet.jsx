@@ -111,7 +111,7 @@ function EditableCell({ displayValue, editValue, onSave, hint, isNegative }) {
   )
 }
 
-export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateItem, onEditItem, returnYTD, netWorth, convert }) {
+export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateItem, onEditItem, returnYTD, netWorth, convert, onSaveItemSnapshots, onLoadItemSnapshots }) {
   const t = (es, en) => lang === 'es' ? es : en
   const [showOriginal, setShowOriginal] = useState(false)
 
@@ -167,6 +167,29 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     })
     return byMonth
   }, [snapshots])
+
+  const [historicalItems, setHistoricalItems] = useState({})
+  const itemSnapshotSavedRef = useRef(false)
+
+  useEffect(() => {
+    if (!onLoadItemSnapshots || months.length === 0) return
+    const pastMonths = months.filter(mk => mk !== currentMonthKey)
+    if (pastMonths.length === 0) return
+    onLoadItemSnapshots(pastMonths).then(data => {
+      if (data && Object.keys(data).length > 0) setHistoricalItems(data)
+    })
+  }, [onLoadItemSnapshots, months, currentMonthKey])
+
+  useEffect(() => {
+    if (!onSaveItemSnapshots || !items || items.length === 0 || itemSnapshotSavedRef.current) return
+    itemSnapshotSavedRef.current = true
+    const data = {}
+    items.forEach(it => {
+      const val = getItemValue(it)
+      if (it.id) data[it.id] = { value: val, symbol: it.symbol || it.name || '' }
+    })
+    onSaveItemSnapshots(currentMonthKey, data)
+  }, [onSaveItemSnapshots, items, currentMonthKey])
 
   const itemValue = useCallback((item) => {
     return showOriginal ? getOriginalValue(item) : getItemValue(item)
@@ -331,10 +354,27 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                     if (isCurrent) {
                       return <td key={mk} className="text-right py-3 px-2 font-bold tabular-nums font-mono text-sm bg-blue-50 text-slate-900">{formatCurrency(cat.total)}</td>
                     }
+                    const histMonth = historicalItems[mk]
+                    let catHistTotal = null
+                    if (histMonth) {
+                      catHistTotal = 0
+                      cat.institutions.forEach(inst => {
+                        inst.items.forEach(it => {
+                          if (it.id && histMonth[it.id]) catHistTotal += histMonth[it.id].value || 0
+                        })
+                      })
+                    }
+                    if (catHistTotal != null && catHistTotal !== 0) {
+                      return (
+                        <td key={mk} className="text-right py-3 px-2 tabular-nums font-mono text-sm text-slate-400/70">
+                          {formatNum(catHistTotal)}
+                        </td>
+                      )
+                    }
                     const monthTotal = monthlyTotals[mk]
                     const catEstimate = monthTotal && grandTotal > 0 ? monthTotal * (cat.total / grandTotal) : null
                     return (
-                      <td key={mk} className="text-right py-3 px-2 tabular-nums font-mono text-sm text-slate-400">
+                      <td key={mk} className="text-right py-3 px-2 tabular-nums font-mono text-sm text-slate-300/50">
                         {catEstimate ? formatNum(catEstimate) : ''}
                       </td>
                     )
@@ -368,9 +408,20 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                           {months.map(mk => {
                             const isCurrent = mk === currentMonthKey
                             const displayVal = showOriginal && instOrigTotal != null ? instOrigTotal : inst.total
+                            if (isCurrent) {
+                              return <td key={mk} className="text-right py-2 px-2 font-medium tabular-nums font-mono text-sm bg-blue-50 text-slate-700">{formatNum(displayVal)}</td>
+                            }
+                            const histMonth = historicalItems[mk]
+                            let instHistTotal = null
+                            if (histMonth) {
+                              instHistTotal = 0
+                              inst.items.forEach(it => {
+                                if (it.id && histMonth[it.id]) instHistTotal += histMonth[it.id].value || 0
+                              })
+                            }
                             return (
-                              <td key={mk} className={`text-right py-2 px-2 font-medium tabular-nums font-mono text-sm ${isCurrent ? 'bg-blue-50 text-slate-700' : 'text-slate-300'}`}>
-                                {isCurrent ? formatNum(displayVal) : ''}
+                              <td key={mk} className="text-right py-2 px-2 font-medium tabular-nums font-mono text-sm text-slate-300/60">
+                                {instHistTotal != null ? formatNum(instHistTotal) : ''}
                               </td>
                             )
                           })}
@@ -417,7 +468,13 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                             {months.map(mk => {
                               const isCurrent = mk === currentMonthKey
                               if (!isCurrent) {
-                                return <td key={mk} className="text-right py-2.5 px-2 text-slate-300 tabular-nums font-mono text-sm">—</td>
+                                const histMonth = historicalItems[mk]
+                                const histVal = histMonth && item.id ? histMonth[item.id]?.value : null
+                                return (
+                                  <td key={mk} className="text-right py-2.5 px-2 tabular-nums font-mono text-sm text-slate-300/60">
+                                    {histVal != null ? formatNum(histVal) : '—'}
+                                  </td>
+                                )
                               }
                               return (
                                 <td key={mk} className="text-right py-1 px-1 bg-blue-50">
