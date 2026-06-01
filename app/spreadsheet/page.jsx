@@ -268,8 +268,12 @@ export default function SpreadsheetPage() {
       )}
 
       {editItem && (
-        <EditAccountModal item={editItem} onClose={() => setEditItem(null)}
-          onSave={addItem} onDelete={deleteItem} existingItems={items} lang={lang} />
+        <EditAccountModal key={editItem.id} item={editItem} onClose={() => setEditItem(null)}
+          onSave={async (updated) => {
+            const { id, ...fields } = updated
+            await updateItem(editItem.id, fields)
+          }}
+          onDelete={deleteItem} existingItems={items} lang={lang} />
       )}
 
       {showAddModal && (

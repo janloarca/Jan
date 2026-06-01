@@ -768,13 +768,18 @@ export default function DashboardPage() {
       )}
 
       {editItem && (
-        <EditAccountModal item={editItem} onClose={() => setEditItem(null)}
-          onSave={addItem} onDelete={deleteItem} existingItems={items} lang={lang}
+        <EditAccountModal key={editItem.id} item={editItem} onClose={() => setEditItem(null)}
+          onSave={async (updated) => {
+            const { id, ...fields } = updated
+            await updateItem(editItem.id, fields)
+          }}
+          onDelete={deleteItem} existingItems={items} lang={lang}
           allItems={portfolioItems}
-          onNavigate={(dir) => {
+          onNavigate={showReview ? null : (dir) => {
             if (dir === 'next') {
               const sorted = [...portfolioItems].sort((a, b) => Math.abs(getItemValue(b)) - Math.abs(getItemValue(a)))
-              const idx = sorted.findIndex(it => it.id === editItem.id)
+              const currentId = editItem.id
+              const idx = sorted.findIndex(it => it.id === currentId)
               if (idx >= 0 && idx < sorted.length - 1) setEditItem(sorted[idx + 1])
               else setEditItem(null)
             }
@@ -785,12 +790,12 @@ export default function DashboardPage() {
         <AssetDetailModal item={detailItem} onClose={() => setDetailItem(null)} lang={lang} uid={user?.uid} />
       )}
 
-      {showReview && (
+      {showReview && !editItem && (
         <AccountReviewModal
           items={portfolioItems}
           transactions={transactions}
           onClose={() => setShowReview(false)}
-          onEditItem={(item) => { setShowReview(false); setEditItem(item) }}
+          onEditItem={(item) => { setEditItem(item) }}
           lang={lang}
         />
       )}
