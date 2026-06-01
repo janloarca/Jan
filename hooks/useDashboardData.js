@@ -332,8 +332,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         if (!existingDates.has(entry.date)) {
           await saveSnapshot({
             date: entry.date,
-            totalActivosUSD: entry.totalNav,
-            netWorthUSD: entry.totalNav,
+            totalActivosUSD: entry.totalActivosUSD || entry.netWorthUSD || 0,
+            totalDebtUSD: entry.totalDebtUSD || 0,
+            netWorthUSD: entry.netWorthUSD || 0,
             _source: 'ibkr',
           })
         }

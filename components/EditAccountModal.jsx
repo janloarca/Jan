@@ -64,6 +64,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     notes: item.notes || '',
     tags: (item.tags || []).join(', '),
     taxJurisdiction: item.taxJurisdiction || '',
+    assetCountry: item.assetCountry || '',
     safeCap: item.safeCap?.toString() || '',
     safeDiscount: item.safeDiscount?.toString() || '',
     safeType: item.safeType || 'post_money',
@@ -205,8 +206,9 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
       if (form.expenseRatio) updated.expenseRatio = parseFloat(form.expenseRatio) || 0
       if (form.entryFee) updated.entryFee = parseFloat(form.entryFee) || 0
 
-      // Tax jurisdiction
+      // Tax jurisdiction & asset country
       updated.taxJurisdiction = form.taxJurisdiction || ''
+      updated.assetCountry = form.assetCountry || ''
 
       // SAFE fields
       if (isAlternative && form.subtype === 'safe_note') {
@@ -636,6 +638,37 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               <option value="BR">🇧🇷 Brasil</option>
               <option value="PE">🇵🇪 Perú</option>
               <option value="AR">🇦🇷 Argentina</option>
+              <option value="OTHER">{t('Otro', 'Other')}</option>
+            </select>
+          </div>
+
+          {/* Asset country */}
+          <div>
+            <label className={labelCls}>{t('País del activo', 'Asset country')}</label>
+            <select value={form.assetCountry} onChange={e => set('assetCountry', e.target.value)} className={inputCls}>
+              <option value="">{t('-- Opcional --', '-- Optional --')}</option>
+              <option value="GT">🇬🇹 Guatemala</option>
+              <option value="MX">🇲🇽 México</option>
+              <option value="US">🇺🇸 USA</option>
+              <option value="CO">🇨🇴 Colombia</option>
+              <option value="CL">🇨🇱 Chile</option>
+              <option value="BR">🇧🇷 Brasil</option>
+              <option value="PE">🇵🇪 Perú</option>
+              <option value="AR">🇦🇷 Argentina</option>
+              <option value="CR">🇨🇷 Costa Rica</option>
+              <option value="PA">🇵🇦 Panamá</option>
+              <option value="ES">🇪🇸 España</option>
+              <option value="UK">🇬🇧 UK</option>
+              <option value="DE">🇩🇪 Alemania</option>
+              <option value="CH">🇨🇭 Suiza</option>
+              <option value="JP">🇯🇵 Japón</option>
+              <option value="CN">🇨🇳 China</option>
+              <option value="KR">🇰🇷 Corea del Sur</option>
+              <option value="HK">🇭🇰 Hong Kong</option>
+              <option value="SG">🇸🇬 Singapur</option>
+              <option value="AU">🇦🇺 Australia</option>
+              <option value="CA">🇨🇦 Canadá</option>
+              <option value="GLOBAL">{t('Global / Multi-país', 'Global / Multi-country')}</option>
               <option value="OTHER">{t('Otro', 'Other')}</option>
             </select>
           </div>
