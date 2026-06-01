@@ -286,6 +286,38 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         }
       }
     }
+
+    // Post-sync cleanup: remove zero-quantity IBKR items and consolidate duplicates
+    const refreshed = [...items]
+    const incomingSymbols = new Set(data.items.map(it => it.symbol.toUpperCase()))
+    for (const it of refreshed) {
+      const isIbkr = it._source === 'ibkr' || (it.institution || '').toLowerCase().includes('interactive brokers')
+      if (!isIbkr) continue
+      const qty = it.quantity ?? 0
+      if (qty <= 0 && incomingSymbols.has((it.symbol || '').toUpperCase())) {
+        await deleteItem(it.id)
+      }
+    }
+
+    // Consolidate: if a manual item has the same symbol as a synced IBKR item, merge into the IBKR one
+    const afterCleanup = refreshed.filter(it => {
+      const isIbkr = it._source === 'ibkr' || (it.institution || '').toLowerCase().includes('interactive brokers')
+      const qty = it.quantity ?? 0
+      return !(isIbkr && qty <= 0 && incomingSymbols.has((it.symbol || '').toUpperCase()))
+    })
+    for (const it of afterCleanup) {
+      if (it._source === 'ibkr') continue
+      const sym = (it.symbol || '').toUpperCase()
+      if (!sym) continue
+      const ibkrMatch = afterCleanup.find(other =>
+        other.id !== it.id &&
+        other._source === 'ibkr' &&
+        (other.symbol || '').toUpperCase() === sym
+      )
+      if (ibkrMatch && (it.quantity ?? 0) <= 0) {
+        await deleteItem(it.id)
+      }
+    }
   }, [items, addItem, updateItem, deleteItem, addTransaction, addLot, saveSnapshot, snapshots])
 
   useEffect(() => {
