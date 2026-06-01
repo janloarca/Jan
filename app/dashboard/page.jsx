@@ -13,7 +13,7 @@ import MobileNav from '@/components/dashboard/MobileNav'
 import ErrorBanner from '@/components/dashboard/ErrorBanner'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import CardBoundary from '@/components/dashboard/CardBoundary'
-import { SkeletonCard, SkeletonChart, SkeletonTable } from '@/components/dashboard/Skeleton'
+import { SkeletonCard, SkeletonChart } from '@/components/dashboard/Skeleton'
 
 function ModalSkeleton() {
   return (
@@ -47,7 +47,6 @@ const CommandPalette = dynamic(() => import('@/components/dashboard/CommandPalet
 const ChatWidget = dynamic(() => import('@/components/ChatWidget'), { ssr: false })
 
 const PortfolioGrowthChart = dynamic(() => import('@/components/dashboard/PortfolioGrowthChart'), { loading: () => <SkeletonChart /> })
-const AccountsTable = dynamic(() => import('@/components/dashboard/AccountsTable'), { loading: () => <SkeletonTable /> })
 const DividendIncome = dynamic(() => import('@/components/dashboard/DividendIncome'), { loading: () => <SkeletonCard /> })
 const GoalTracker = dynamic(() => import('@/components/dashboard/GoalTracker'), { loading: () => <SkeletonCard /> })
 const FinancialHealth = dynamic(() => import('@/components/dashboard/FinancialHealth'), { loading: () => <SkeletonCard /> })
@@ -517,12 +516,9 @@ export default function DashboardPage() {
           </ErrorBoundary>
         </SectionCollapse>
 
-        {/* ═══ MIS ACTIVOS ═══ */}
-        <SectionCollapse title={lang === 'es' ? 'Posiciones' : 'Holdings'} id="holdings">
+        {/* ═══ ACTIVIDAD RECIENTE ═══ */}
+        <SectionCollapse title={lang === 'es' ? 'Actividad Reciente' : 'Recent Activity'} id="activity" defaultOpen={false}>
           <ErrorBoundary lang={lang}>
-            <CardBoundary id="HO-01"><AccountsTable items={portfolioItems} lang={lang} onDeleteItem={deleteItem}
-              onEditItem={(item) => setEditItem(item)} onViewItem={(item) => setDetailItem(item)}
-              onSellItem={(item) => setSellItem(item)} onQuickBuy={() => setModal('account')} /></CardBoundary>
             <CardBoundary id="HO-02"><RecentTransactions transactions={transactions} lang={lang} onExportCSV={handleExportTransactionsCSV} /></CardBoundary>
           </ErrorBoundary>
         </SectionCollapse>

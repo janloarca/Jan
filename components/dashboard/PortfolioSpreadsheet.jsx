@@ -289,16 +289,16 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
 
       <div className="overflow-x-auto">
         <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', width: `${100 / zoom}%` }}>
-        <table className="w-full text-sm border-collapse min-w-[700px]">
+        <table className="w-full text-sm border-collapse min-w-[600px]">
           <thead>
             <tr className="border-b border-slate-300 bg-slate-50">
-              <th className="text-left py-2.5 pl-4 pr-2 text-slate-500 font-semibold text-xs uppercase tracking-wide sticky left-0 bg-slate-50 z-20 min-w-[200px]" />
-              <th className="text-right py-2.5 px-2 text-slate-400 font-semibold text-xs w-10">%</th>
-              <th className="text-center py-2.5 px-1 text-slate-400 font-semibold text-xs w-12">{t('Mon', 'Cur')}</th>
+              <th className="text-left py-2.5 pl-4 pr-2 text-slate-500 font-semibold text-xs uppercase tracking-wide sticky left-0 bg-slate-50 z-20 min-w-[140px] max-w-[200px]" />
+              <th className="text-right py-2.5 px-1 text-slate-400 font-semibold text-xs w-8">%</th>
+              {showOriginal && <th className="text-center py-2.5 px-1 text-slate-400 font-semibold text-xs w-10">{t('Mon', 'Cur')}</th>}
               {months.map(mk => {
                 const isCurrent = mk === currentMonthKey
                 return (
-                  <th key={mk} className={`text-right py-2.5 px-3 font-semibold text-xs w-28 ${isCurrent ? 'bg-blue-50 text-blue-600' : 'text-slate-400'}`}>
+                  <th key={mk} className={`text-right py-2.5 px-2 font-semibold text-xs w-32 ${isCurrent ? 'bg-blue-50 text-blue-600' : 'text-slate-400'}`}>
                     {getMonthLabel(mk, lang)}
                     {isCurrent && <div className="text-[10px] font-normal text-blue-400">{t('actual', 'current')}</div>}
                   </th>
@@ -324,13 +324,18 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                       {cat.excludedFromTotal && <span className="text-[10px] text-cyan-500 ml-1">{t('(no incluido en total)', '(not in total)')}</span>}
                     </div>
                   </td>
-                  <td className="text-right py-3 px-2 text-slate-500 font-semibold text-sm">{Math.abs(pct).toFixed(0)}%</td>
-                  <td className="text-center py-3 px-1 text-slate-400 text-xs">USD</td>
+                  <td className="text-right py-3 px-1 text-slate-500 font-semibold text-sm">{Math.abs(pct).toFixed(0)}%</td>
+                  {showOriginal && <td className="text-center py-3 px-1 text-slate-400 text-xs">USD</td>}
                   {months.map(mk => {
                     const isCurrent = mk === currentMonthKey
+                    if (isCurrent) {
+                      return <td key={mk} className="text-right py-3 px-2 font-bold tabular-nums font-mono text-sm bg-blue-50 text-slate-900">{formatCurrency(cat.total)}</td>
+                    }
+                    const monthTotal = monthlyTotals[mk]
+                    const catEstimate = monthTotal && grandTotal > 0 ? monthTotal * (cat.total / grandTotal) : null
                     return (
-                      <td key={mk} className={`text-right py-3 px-3 font-bold tabular-nums font-mono text-sm ${isCurrent ? 'bg-blue-50 text-slate-900' : 'text-slate-300'}`}>
-                        {isCurrent ? formatCurrency(cat.total) : ''}
+                      <td key={mk} className="text-right py-3 px-2 tabular-nums font-mono text-sm text-slate-400">
+                        {catEstimate ? formatNum(catEstimate) : ''}
                       </td>
                     )
                   })}
@@ -357,14 +362,14 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                             <span className="text-slate-400 text-xs ml-1.5">{isInstCollapsed ? '>' : 'v'}</span>
                           </td>
                           <td />
-                          <td className="text-center py-2 px-1 text-slate-400 text-xs">
-                            {showOriginal && singleCurrency ? singleCurrency : 'USD'}
-                          </td>
+                          {showOriginal && <td className="text-center py-2 px-1 text-slate-400 text-xs">
+                            {singleCurrency || 'USD'}
+                          </td>}
                           {months.map(mk => {
                             const isCurrent = mk === currentMonthKey
                             const displayVal = showOriginal && instOrigTotal != null ? instOrigTotal : inst.total
                             return (
-                              <td key={mk} className={`text-right py-2 px-3 font-medium tabular-nums font-mono text-sm ${isCurrent ? 'bg-blue-50 text-slate-700' : 'text-slate-300'}`}>
+                              <td key={mk} className={`text-right py-2 px-2 font-medium tabular-nums font-mono text-sm ${isCurrent ? 'bg-blue-50 text-slate-700' : 'text-slate-300'}`}>
                                 {isCurrent ? formatNum(displayVal) : ''}
                               </td>
                             )
@@ -408,11 +413,11 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                               </div>
                             </td>
                             <td />
-                            <td className="text-center py-2.5 px-1 text-slate-400 text-xs">{cur}</td>
+                            {showOriginal && <td className="text-center py-2.5 px-1 text-slate-400 text-xs">{cur}</td>}
                             {months.map(mk => {
                               const isCurrent = mk === currentMonthKey
                               if (!isCurrent) {
-                                return <td key={mk} className="text-right py-2.5 px-3 text-slate-300 tabular-nums font-mono text-sm">-</td>
+                                return <td key={mk} className="text-right py-2.5 px-2 text-slate-300 tabular-nums font-mono text-sm">—</td>
                               }
                               return (
                                 <td key={mk} className="text-right py-1 px-1 bg-blue-50">
@@ -435,7 +440,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                           </tr>
                           {(item.isDebt || item.isReceivable) && (item.debtTerm || item.interestRate || item.monthlyPayment || item.installmentsRemaining) && (
                             <tr className="bg-slate-50/50 border-t-0">
-                              <td className={`py-0.5 ${showInst ? 'pl-12' : 'pl-8'} pr-2 sticky left-0 bg-slate-50/50 z-10`} colSpan={3 + months.length}>
+                              <td className={`py-0.5 ${showInst ? 'pl-12' : 'pl-8'} pr-2 sticky left-0 bg-slate-50/50 z-10`} colSpan={2 + (showOriginal ? 1 : 0) + months.length}>
                                 <div className="flex items-center gap-3 text-[10px] text-slate-400">
                                   {item.debtTerm && <span>{DEBT_TERM_LABELS[item.debtTerm] || item.debtTerm}</span>}
                                   {item.interestRate > 0 && <span>{item.interestRate}% {t('int.', 'int.')}</span>}
@@ -473,12 +478,12 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                         <span className="text-slate-300 ml-1.5">1 {cur} = {rate.toFixed(4)} USD</span>
                       )}
                     </td>
-                    <td className="text-right py-1.5 px-2 text-xs">{pct.toFixed(0)}%</td>
-                    <td className="text-center py-1.5 px-1 text-xs">{showOriginal ? cur : 'USD'}</td>
+                    <td className="text-right py-1.5 px-1 text-xs">{pct.toFixed(0)}%</td>
+                    {showOriginal && <td className="text-center py-1.5 px-1 text-xs">{cur}</td>}
                     {months.map(mk => {
                       const isCurrent = mk === currentMonthKey
                       return (
-                        <td key={mk} className={`text-right py-1.5 px-3 text-xs tabular-nums font-mono ${isCurrent ? 'bg-blue-50' : ''}`}>
+                        <td key={mk} className={`text-right py-1.5 px-2 text-xs tabular-nums font-mono ${isCurrent ? 'bg-blue-50' : ''}`}>
                           {isCurrent ? formatNum(displayVal) : ''}
                         </td>
                       )
@@ -494,14 +499,14 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                   <span className="text-slate-400 text-xs ml-2 font-normal">(USD)</span>
                 )}
               </td>
-              <td className="text-right py-3.5 px-2 text-slate-700 font-bold text-sm">100%</td>
-              <td className="text-center py-3.5 px-1 text-slate-500 font-bold text-xs">USD</td>
+              <td className="text-right py-3.5 px-1 text-slate-700 font-bold text-sm">100%</td>
+              {showOriginal && <td className="text-center py-3.5 px-1 text-slate-500 font-bold text-xs">USD</td>}
               {months.map(mk => {
                 const isCurrent = mk === currentMonthKey
                 const val = isCurrent ? grandTotal : (monthlyTotals[mk] || null)
                 return (
-                  <td key={mk} className={`text-right py-3.5 px-3 font-black tabular-nums font-mono text-base ${isCurrent ? 'bg-blue-50 text-slate-900' : val ? 'text-slate-600' : 'text-slate-300'}`}>
-                    {val ? formatCurrency(val) : '-'}
+                  <td key={mk} className={`text-right py-3.5 px-2 font-black tabular-nums font-mono text-base ${isCurrent ? 'bg-blue-50 text-slate-900' : val ? 'text-slate-600' : 'text-slate-300'}`}>
+                    {val ? formatCurrency(val) : '—'}
                   </td>
                 )
               })}
@@ -513,11 +518,11 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                   {t('Retorno Mensual', 'Monthly Return')}
                 </td>
                 <td />
-                <td />
+                {showOriginal && <td />}
                 {months.map(mk => {
                   const isCurrent = mk === currentMonthKey
                   return (
-                    <td key={mk} className={`text-right py-2 px-3 text-sm tabular-nums font-mono ${isCurrent ? 'bg-blue-50' : ''}`}>
+                    <td key={mk} className={`text-right py-2 px-2 text-sm tabular-nums font-mono ${isCurrent ? 'bg-blue-50' : ''}`}>
                       {isCurrent ? (
                         <span className={`font-semibold ${monthlyReturn >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                           {monthlyReturn >= 0 ? '+' : ''}{monthlyReturn.toFixed(1)}%
@@ -534,11 +539,11 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                   Return YTD
                 </td>
                 <td />
-                <td />
+                {showOriginal && <td />}
                 {months.map(mk => {
                   const isCurrent = mk === currentMonthKey
                   return (
-                    <td key={mk} className={`text-right py-2 px-3 text-sm tabular-nums font-mono ${isCurrent ? 'bg-blue-50' : ''}`}>
+                    <td key={mk} className={`text-right py-2 px-2 text-sm tabular-nums font-mono ${isCurrent ? 'bg-blue-50' : ''}`}>
                       {isCurrent ? (
                         <span className={`font-semibold ${returnYTD >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                           {returnYTD >= 0 ? '+' : ''}{returnYTD.toFixed(2)}%

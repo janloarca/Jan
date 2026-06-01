@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { CheckCircle, Lock } from 'lucide-react'
 
 export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, savedQueryId, onSaveCredentials, lang = 'es', uid }) {
@@ -13,6 +13,8 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   const [preview, setPreview] = useState(null)
   const [syncMode, setSyncMode] = useState('merge')
   const [decrypting, setDecrypting] = useState(false)
+  const [autoSyncAttempted, setAutoSyncAttempted] = useState(false)
+  const [showConfig, setShowConfig] = useState(!savedToken || !savedQueryId)
 
   const t = (es, en) => lang === 'es' ? es : en
 
@@ -32,6 +34,13 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   }, [savedToken, uid])
 
   useEffect(() => {
+    if (!decrypting && token && queryId && savedToken && savedQueryId && !autoSyncAttempted && step === 'config' && !showConfig) {
+      setAutoSyncAttempted(true)
+      handleSyncRef.current?.()
+    }
+  }, [decrypting, token, queryId, savedToken, savedQueryId, autoSyncAttempted, step, showConfig])
+
+  useEffect(() => {
     const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', handleEsc)
     return () => window.removeEventListener('keydown', handleEsc)
@@ -40,6 +49,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   const handleSync = useCallback(async () => {
     if (!token.trim() || !queryId.trim()) {
       setError(t('Ingresa tu token y Query ID.', 'Enter your token and Query ID.'))
+      setShowConfig(true)
       return
     }
     setSyncing(true)
@@ -57,9 +67,13 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       }
     } catch (err) {
       setError(err.message || t('Error conectando con IBKR.', 'Error connecting to IBKR.'))
+      setShowConfig(true)
     }
     setSyncing(false)
   }, [token, queryId, onSaveCredentials, uid, t])
+
+  const handleSyncRef = useRef(handleSync)
+  useEffect(() => { handleSyncRef.current = handleSync }, [handleSync])
 
   const handleConfirm = useCallback(async () => {
     if (!preview || !onSyncComplete) return
@@ -95,7 +109,21 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
             <div className="mb-5 p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-sm">{error}</div>
           )}
 
-          {step === 'config' && (
+          {step === 'config' && !showConfig && (syncing || decrypting) && (
+            <div className="flex flex-col items-center justify-center py-16 gap-4">
+              <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-sm text-slate-400">
+                {decrypting
+                  ? t('Desencriptando credenciales...', 'Decrypting credentials...')
+                  : t('Sincronizando con IBKR...', 'Syncing with IBKR...')}
+              </p>
+              <button onClick={() => setShowConfig(true)} className="text-xs text-slate-600 hover:text-slate-400 transition-colors">
+                {t('Cambiar credenciales', 'Change credentials')}
+              </button>
+            </div>
+          )}
+
+          {step === 'config' && (showConfig || (!syncing && !decrypting && !preview)) && (
             <div className="space-y-6">
               <div>
                 <p className="text-sm text-white font-medium mb-1">{t('Configuración inicial', 'Initial setup')}</p>
@@ -180,6 +208,29 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 )}
               </div>
 
+              {/* Sync mode selector — shown first for visibility */}
+              <div className="bg-[#0f172a]/50 rounded-xl p-4 border border-[#334155]/40">
+                <p className="text-xs text-white font-medium mb-3">
+                  {t('¿Cómo importar?', 'How to import?')}
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={() => setSyncMode('merge')}
+                    className={`px-4 py-3 rounded-lg text-left transition-all border-2 ${syncMode === 'merge' ? 'border-blue-500 bg-blue-500/10' : 'border-[#334155] hover:border-slate-500'}`}>
+                    <p className="text-sm text-white font-medium">{t('Merge', 'Merge')}</p>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      {t('Actualiza existentes + agrega nuevas', 'Updates existing + adds new')}
+                    </p>
+                  </button>
+                  <button onClick={() => setSyncMode('replace')}
+                    className={`px-4 py-3 rounded-lg text-left transition-all border-2 ${syncMode === 'replace' ? 'border-amber-500 bg-amber-500/10' : 'border-[#334155] hover:border-slate-500'}`}>
+                    <p className="text-sm text-white font-medium">{t('Reemplazar', 'Replace')}</p>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      {t('Borra IBKR anteriores y reimporta', 'Deletes old IBKR + reimports')}
+                    </p>
+                  </button>
+                </div>
+              </div>
+
               {preview.items.length > 0 && (
                 <div>
                   <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">
@@ -258,38 +309,6 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   </p>
                 </div>
               )}
-
-              <div className="border-t border-[#334155]/40 pt-5">
-                <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-3">
-                  {t('Modo de sincronización', 'Sync mode')}
-                </p>
-                <div className="space-y-1">
-                  <label className={`flex items-start gap-3 px-4 py-3 rounded-lg cursor-pointer transition-all ${syncMode === 'merge' ? 'border-l-2 border-l-blue-400 bg-blue-500/5' : 'border-l-2 border-l-transparent opacity-60 hover:opacity-80'}`}
-                    onClick={() => setSyncMode('merge')}>
-                    <input type="radio" name="syncMode" value="merge" checked={syncMode === 'merge'} onChange={() => setSyncMode('merge')}
-                      className="mt-0.5 accent-blue-500" />
-                    <div>
-                      <p className="text-sm text-white font-medium">{t('Merge', 'Merge')}</p>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
-                        {t('Actualiza existentes, agrega nuevas. Activos manuales intactos.',
-                           'Updates existing, adds new. Manual assets untouched.')}
-                      </p>
-                    </div>
-                  </label>
-                  <label className={`flex items-start gap-3 px-4 py-3 rounded-lg cursor-pointer transition-all ${syncMode === 'replace' ? 'border-l-2 border-l-amber-400 bg-amber-500/5' : 'border-l-2 border-l-transparent opacity-60 hover:opacity-80'}`}
-                    onClick={() => setSyncMode('replace')}>
-                    <input type="radio" name="syncMode" value="replace" checked={syncMode === 'replace'} onChange={() => setSyncMode('replace')}
-                      className="mt-0.5 accent-amber-500" />
-                    <div>
-                      <p className="text-sm text-white font-medium">{t('Reemplazar', 'Replace')}</p>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
-                        {t('Elimina posiciones IBKR anteriores y reimporta. Activos manuales intactos.',
-                           'Deletes previous IBKR positions and reimports. Manual assets untouched.')}
-                      </p>
-                    </div>
-                  </label>
-                </div>
-              </div>
 
               <div className="flex gap-4 pt-1">
                 <button onClick={() => setStep('config')}
