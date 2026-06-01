@@ -788,6 +788,7 @@ export default function DashboardPage() {
       {showReview && (
         <AccountReviewModal
           items={portfolioItems}
+          transactions={transactions}
           onClose={() => setShowReview(false)}
           onEditItem={(item) => { setShowReview(false); setEditItem(item) }}
           lang={lang}

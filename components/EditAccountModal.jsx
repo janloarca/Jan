@@ -81,6 +81,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     rewardBalance: item.rewardBalance?.toString() || '',
     beneficiary: item.beneficiary || '',
     managementFee: item.managementFee?.toString() || '',
+    managementFeeType: item.managementFeeType || 'percent',
     expenseRatio: item.expenseRatio?.toString() || '',
     entryFee: item.entryFee?.toString() || '',
   })
@@ -195,7 +196,10 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
       updated.beneficiary = form.beneficiary || ''
 
       // Fees
-      if (form.managementFee) updated.managementFee = parseFloat(form.managementFee) || 0
+      if (form.managementFee) {
+        updated.managementFee = parseFloat(form.managementFee) || 0
+        updated.managementFeeType = form.managementFeeType || 'percent'
+      }
       if (form.expenseRatio) updated.expenseRatio = parseFloat(form.expenseRatio) || 0
       if (form.entryFee) updated.entryFee = parseFloat(form.entryFee) || 0
 
@@ -574,10 +578,20 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   title={t('Costo de incorporación, comisión de entrada, etc.', 'Incorporation cost, entry commission, etc.')} />
               </div>
               <div>
-                <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Mgmt fee %', 'Mgmt fee %')} <InfoTip text={t('Comisión de administración ANUAL en porcentaje. Ej: 0.50 = 0.50% por año sobre el valor total.', 'Annual management fee as a PERCENTAGE. E.g. 0.50 = 0.50% per year on total value.')} /></label>
+                <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">
+                  {t('Mgmt fee', 'Mgmt fee')}
+                  {' '}
+                  <button type="button" onClick={() => set('managementFeeType', form.managementFeeType === 'fixed' ? 'percent' : 'fixed')}
+                    className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--input-bg,#0f172a)] border border-[var(--card-border,#334155)] text-blue-400 hover:text-blue-300 transition-colors">
+                    {form.managementFeeType === 'fixed' ? '$' : '%'}
+                  </button>
+                  {' '}
+                  <InfoTip text={form.managementFeeType === 'fixed'
+                    ? t('Monto FIJO anual en tu moneda. Ej: 50 = $50/año. Toca $ para cambiar a porcentaje.', 'FIXED annual amount in your currency. E.g. 50 = $50/yr. Tap $ to switch to percentage.')
+                    : t('Porcentaje ANUAL sobre el valor total. Ej: 0.50 = 0.50%/año. Toca % para cambiar a monto fijo.', 'Annual PERCENTAGE on total value. E.g. 0.50 = 0.50%/yr. Tap % to switch to fixed amount.')} />
+                </label>
                 <input value={form.managementFee} onChange={e => set('managementFee', e.target.value)}
-                  placeholder="0.50" type="number" step="any" className={inputCls}
-                  title={t('Comisión de administración anual %', 'Annual management fee %')} />
+                  placeholder={form.managementFeeType === 'fixed' ? '50' : '0.50'} type="number" step="any" className={inputCls} />
               </div>
               <div>
                 <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Expense %', 'Expense %')} <InfoTip text={t('Ratio de gastos ANUAL en porcentaje. Ej: 0.03 = 0.03% por año. Este es un costo operativo del fondo/instrumento.', 'Annual expense ratio as a PERCENTAGE. E.g. 0.03 = 0.03% per year. This is the fund/instrument operating cost.')} /></label>
@@ -589,12 +603,20 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
             {(parseFloat(form.entryFee) > 0 || parseFloat(form.managementFee) > 0 || parseFloat(form.expenseRatio) > 0) && (
               <p className="text-[10px] text-amber-400/60">
                 {parseFloat(form.entryFee) > 0 && `${t('Entrada', 'Entry')}: $${parseFloat(form.entryFee).toFixed(2)}  `}
-                {(parseFloat(form.managementFee) > 0 || parseFloat(form.expenseRatio) > 0) &&
-                  `${t('Anual', 'Annual')}: ${((parseFloat(form.managementFee) || 0) + (parseFloat(form.expenseRatio) || 0)).toFixed(2)}%`
-                }
-                {parseFloat(form.purchasePrice) > 0 && parseFloat(form.quantity) > 0 && (parseFloat(form.managementFee) > 0 || parseFloat(form.expenseRatio) > 0) &&
-                  ` (~$${((parseFloat(form.purchasePrice) * parseFloat(form.quantity) * ((parseFloat(form.managementFee) || 0) + (parseFloat(form.expenseRatio) || 0)) / 100)).toFixed(0)}/yr)`
-                }
+                {parseFloat(form.managementFee) > 0 && (
+                  form.managementFeeType === 'fixed'
+                    ? `${t('Mgmt', 'Mgmt')}: $${parseFloat(form.managementFee).toFixed(2)}/yr  `
+                    : `${t('Mgmt', 'Mgmt')}: ${parseFloat(form.managementFee).toFixed(2)}%  `
+                )}
+                {parseFloat(form.expenseRatio) > 0 && `Expense: ${parseFloat(form.expenseRatio).toFixed(2)}%  `}
+                {(() => {
+                  const bal = (parseFloat(form.purchasePrice) || 0) * (parseFloat(form.quantity) || 0)
+                  if (bal <= 0) return null
+                  const mgmt = form.managementFeeType === 'fixed' ? (parseFloat(form.managementFee) || 0) : bal * ((parseFloat(form.managementFee) || 0) / 100)
+                  const exp = bal * ((parseFloat(form.expenseRatio) || 0) / 100)
+                  const total = mgmt + exp
+                  return total > 0 ? `(~$${total.toFixed(0)}/yr)` : null
+                })()}
               </p>
             )}
           </div>

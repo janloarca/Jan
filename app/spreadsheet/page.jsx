@@ -285,6 +285,7 @@ export default function SpreadsheetPage() {
       {showReview && (
         <AccountReviewModal
           items={portfolioItems || enrichedItems}
+          transactions={transactions}
           onClose={() => setShowReview(false)}
           onEditItem={(item) => { setShowReview(false); setEditItem(item) }}
           lang={lang}

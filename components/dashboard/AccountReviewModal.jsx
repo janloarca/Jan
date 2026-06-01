@@ -15,7 +15,7 @@ const CATEGORY_LABELS = {
   other: { es: 'Otro', en: 'Other' },
 }
 
-export default function AccountReviewModal({ items, onClose, onEditItem, lang }) {
+export default function AccountReviewModal({ items, onClose, onEditItem, lang, transactions }) {
   const t = (es, en) => lang === 'es' ? es : en
   const [index, setIndex] = useState(0)
   const [reviewed, setReviewed] = useState({})
@@ -127,25 +127,32 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang })
                 const cost = (item.quantity || 1) * item.purchasePrice
                 const current = (item.quantity || 1) * item.currentPrice
                 const pnl = current - cost
-                const pnlPct = cost > 0 ? (pnl / cost) * 100 : 0
+                const sym = (item.symbol || item.name || '').toUpperCase()
+                const dividendsReceived = (transactions || [])
+                  .filter(tx => (tx.type || '').toUpperCase() === 'DIVIDEND' && (tx.symbol || '').toUpperCase() === sym)
+                  .reduce((s, tx) => s + (tx.totalAmount || tx.amount || 0), 0)
                 const entryFee = item.entryFee || 0
-                const totalFees = entryFee
-                const netPnl = pnl - totalFees
-                const netPnlPct = cost > 0 ? (netPnl / (cost + entryFee)) * 100 : 0
+                const mgmtFee = item.managementFee || 0
+                const mgmtFeeAmt = item.managementFeeType === 'fixed' ? mgmtFee : cost * (mgmtFee / 100)
+                const expenseAmt = cost * ((item.expenseRatio || 0) / 100)
+                const totalFees = entryFee + mgmtFeeAmt + expenseAmt
+                const totalReturn = pnl + dividendsReceived - totalFees
+                const totalReturnPct = cost > 0 ? (totalReturn / cost) * 100 : 0
                 return (
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-slate-400">{t('Retorno', 'Return')}</p>
-                      <p className={`text-lg font-bold ${pnl >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                        {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)} ({pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(1)}%)
-                      </p>
-                    </div>
-                    {entryFee > 0 && (
-                      <div className="text-right">
-                        <p className="text-xs text-slate-400">{t('Neto de fees', 'Net of fees')}</p>
-                        <p className={`text-sm font-semibold ${netPnl >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                          {netPnl >= 0 ? '+' : ''}{formatCurrency(netPnl)} ({netPnlPct >= 0 ? '+' : ''}{netPnlPct.toFixed(1)}%)
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-slate-400">{t('Retorno total', 'Total return')}</p>
+                        <p className={`text-lg font-bold ${totalReturn >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                          {totalReturn >= 0 ? '+' : ''}{formatCurrency(totalReturn)} ({totalReturnPct >= 0 ? '+' : ''}{totalReturnPct.toFixed(1)}%)
                         </p>
+                      </div>
+                    </div>
+                    {(dividendsReceived > 0 || totalFees > 0) && (
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-slate-500">
+                        <span>{t('Precio', 'Price')}: {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}</span>
+                        {dividendsReceived > 0 && <span className="text-emerald-500">{t('Dividendos', 'Dividends')}: +{formatCurrency(dividendsReceived)}</span>}
+                        {totalFees > 0 && <span className="text-red-400">{t('Costos', 'Fees')}: -{formatCurrency(totalFees)}</span>}
                       </div>
                     )}
                   </div>

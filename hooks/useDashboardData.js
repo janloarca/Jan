@@ -150,12 +150,17 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         if (cancelled) return
         const payMonths = Array.isArray(it.incomeMonths) ? it.incomeMonths : [0,1,2,3,4,5,6,7,8,9,10,11]
 
-        // Backfill missed months: check past 3 months for unprocessed dividends
+        // Backfill missed months: from acquisition date (or 12 months back) to now
         const monthsToCheck = []
-        for (let offset = 2; offset >= 0; offset--) {
+        const acqDate = it.acquisitionDate ? new Date(it.acquisitionDate) : null
+        const lookbackMonths = acqDate
+          ? Math.min(24, Math.ceil((now.getTime() - acqDate.getTime()) / (30 * 86400000)))
+          : 3
+        for (let offset = lookbackMonths; offset >= 0; offset--) {
           const checkDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - offset, 1))
           const checkMonth = checkDate.getUTCMonth()
           const checkYear = checkDate.getUTCFullYear()
+          if (acqDate && checkDate < new Date(Date.UTC(acqDate.getFullYear(), acqDate.getMonth(), 1))) continue
           if (!payMonths.includes(checkMonth)) continue
           const payDay = it.incomePayDay || 1
           if (offset === 0 && todayDay < payDay) continue

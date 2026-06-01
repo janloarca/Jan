@@ -28,8 +28,17 @@ export default function FeeAnalysis({ items, netWorth, lang }) {
       const value = Math.abs((it.quantity || 0) * (it.currentPrice || it.purchasePrice || 0))
       if (value <= 0) return
 
-      const feePct = it.managementFee ?? it.expenseRatio ?? FEE_PRESETS[cat]?.defaultPct ?? 0
-      const feeAmount = value * (feePct / 100)
+      let feeAmount = 0
+      if (it.managementFee > 0) {
+        feeAmount += it.managementFeeType === 'fixed' ? it.managementFee : value * (it.managementFee / 100)
+      }
+      if (it.expenseRatio > 0) {
+        feeAmount += value * (it.expenseRatio / 100)
+      }
+      if (feeAmount === 0) {
+        const defaultPct = FEE_PRESETS[cat]?.defaultPct ?? 0
+        feeAmount = value * (defaultPct / 100)
+      }
 
       if (!byCategory[cat]) byCategory[cat] = { value: 0, fees: 0, count: 0 }
       byCategory[cat].value += value

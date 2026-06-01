@@ -143,14 +143,33 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   const now = new Date()
   const currentMonthKey = getMonthKey(now)
 
+  const earliestYear = useMemo(() => {
+    let earliest = now.getFullYear()
+    items.forEach(it => {
+      if (it.acquisitionDate) {
+        const y = new Date(it.acquisitionDate).getFullYear()
+        if (y >= 2000 && y < earliest) earliest = y
+      }
+    })
+    return earliest
+  }, [items])
+
+  const availableYears = useMemo(() => {
+    const years = []
+    for (let y = earliestYear; y <= now.getFullYear(); y++) years.push(y)
+    return years
+  }, [earliestYear])
+
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear())
+
   const months = useMemo(() => {
     const result = []
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      result.push(getMonthKey(d))
+    const endMonth = selectedYear === now.getFullYear() ? now.getMonth() : 11
+    for (let m = 0; m <= endMonth; m++) {
+      result.push(getMonthKey(new Date(selectedYear, m, 1)))
     }
     return result
-  }, [])
+  }, [selectedYear])
 
   const monthlyTotals = useMemo(() => {
     if (!snapshots || snapshots.length === 0) return {}
@@ -173,10 +192,12 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
 
   useEffect(() => {
     if (!onLoadItemSnapshots || months.length === 0) return
-    const pastMonths = months.filter(mk => mk !== currentMonthKey)
-    if (pastMonths.length === 0) return
-    onLoadItemSnapshots(pastMonths).then(data => {
-      if (data && Object.keys(data).length > 0) setHistoricalItems(data)
+    const toLoad = months.filter(mk => mk !== currentMonthKey)
+    if (toLoad.length === 0) return
+    onLoadItemSnapshots(toLoad).then(data => {
+      if (data && Object.keys(data).length > 0) {
+        setHistoricalItems(prev => ({ ...prev, ...data }))
+      }
     })
   }, [onLoadItemSnapshots, months, currentMonthKey])
 
@@ -273,11 +294,12 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     }
   }, [onUpdateItem, showOriginal, convert])
 
+  const isCurrentYear = selectedYear === now.getFullYear()
   const prevMonthKey = months.length >= 2 ? months[months.length - 2] : null
   const prevTotal = prevMonthKey ? monthlyTotals[prevMonthKey] : null
-  const monthlyReturn = prevTotal && grandTotal > 0 ? ((grandTotal - prevTotal) / prevTotal) * 100 : null
+  const monthlyReturn = isCurrentYear && prevTotal && grandTotal > 0 ? ((grandTotal - prevTotal) / prevTotal) * 100 : null
 
-  const janKey = `${now.getFullYear()}-01`
+  const janKey = `${selectedYear}-01`
   const janTotal = monthlyTotals[janKey]
 
   return (
@@ -306,6 +328,16 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
               +
             </button>
           </div>
+          {availableYears.length > 1 && (
+            <div className="flex bg-slate-100 rounded-md border border-slate-200 p-0.5">
+              {availableYears.map(y => (
+                <button key={y} onClick={() => setSelectedYear(y)}
+                  className={`px-2 py-1 text-xs rounded transition-colors ${selectedYear === y ? 'bg-white text-slate-900 font-semibold shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+                  {y}
+                </button>
+              ))}
+            </div>
+          )}
           <span className="text-xs text-slate-400 hidden sm:inline">{t('Click para editar', 'Click to edit')}</span>
         </div>
       </div>
