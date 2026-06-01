@@ -3,7 +3,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback, Fragment } from 'react'
 import { formatCurrency, getItemValue, getTypeCategory, isExcludedFromNetWorth, TYPE_COLORS } from './utils'
 
-const CATEGORY_ORDER = ['banks', 'funds', 'stocks', 'crypto', 'alternatives', 'bonds', 'other', 'receivables', 'debts']
+const CATEGORY_ORDER = ['banks', 'funds', 'stocks', 'crypto', 'alternatives', 'bonds', 'realestate', 'other', 'receivables', 'debts']
 const CATEGORY_LABELS = {
   banks: { es: 'Caja & Bancos', en: 'Cash & Banks' },
   funds: { es: 'Fondos Liquidos', en: 'Liquid Funds' },

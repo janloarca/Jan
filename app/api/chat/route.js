@@ -60,6 +60,21 @@ const TOOLS = [
       required: ['spending_category'],
     },
   },
+  {
+    name: 'estimate_asset_value',
+    description: 'Estimate the current market value of a physical asset (real estate, vehicle, collectible). Use when user asks "how much is my X worth?" or asks to update the value of a property, car, etc. Provide your best estimate based on the information available.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        item_name: { type: 'string', description: 'Name of the asset to value' },
+        asset_type: { type: 'string', enum: ['real_estate', 'vehicle', 'collectible', 'other'], description: 'Type of physical asset' },
+        estimated_value: { type: 'number', description: 'Your estimated current market value in USD' },
+        confidence: { type: 'string', enum: ['high', 'medium', 'low'], description: 'Your confidence in the estimate' },
+        reasoning: { type: 'string', description: 'Brief explanation of how you arrived at the estimate' },
+      },
+      required: ['item_name', 'asset_type', 'estimated_value', 'confidence', 'reasoning'],
+    },
+  },
 ]
 
 const REWARD_VALUES = {
@@ -122,6 +137,20 @@ function executeToolCall(tool, input, ctx) {
         rate: d.rate,
         payment: d.payment,
       })),
+    })
+  }
+
+  if (tool === 'estimate_asset_value') {
+    return JSON.stringify({
+      action: 'update_item',
+      item_name: input.item_name,
+      fields: { currentPrice: input.estimated_value, quantity: 1 },
+      estimate: {
+        asset_type: input.asset_type,
+        estimated_value: input.estimated_value,
+        confidence: input.confidence,
+        reasoning: input.reasoning,
+      },
     })
   }
 
@@ -247,7 +276,7 @@ async function handleNonStreaming(apiKey, systemPrompt, messages, ctx) {
 
     const toolResults = toolBlocks.map(tb => {
       const result = executeToolCall(tb.name, tb.input, ctx)
-      if (tb.name === 'update_item') {
+      if (tb.name === 'update_item' || tb.name === 'estimate_asset_value') {
         try { toolActions.push(JSON.parse(result)) } catch {}
       }
       return { type: 'tool_result', tool_use_id: tb.id, content: result }
@@ -349,6 +378,7 @@ function buildSystemPrompt(ctx) {
     'When estimating credit card reward values, use the estimate_rewards tool.',
     'When the user asks which card to use or which gives better rewards, use the compare_cards tool.',
     'When the user asks to update a value, use the update_item tool.',
+    'When the user asks about the value of a physical asset (property, car, collectible), use estimate_asset_value to provide your best estimate and optionally update the value.',
     'Never make up data the user hasn\'t provided. If you need more info, ask.',
     '',
   ]

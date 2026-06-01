@@ -10,6 +10,8 @@ import { TEMPLATES } from '@/lib/spreadsheet/formulas'
 
 const SpreadsheetGrid = dynamic(() => import('@/components/spreadsheet/SpreadsheetGrid'), { ssr: false })
 const PortfolioSpreadsheet = dynamic(() => import('@/components/dashboard/PortfolioSpreadsheet'), { ssr: false })
+const DebtSpreadsheet = dynamic(() => import('@/components/dashboard/DebtSpreadsheet'), { ssr: false })
+const PatrimonioSpreadsheet = dynamic(() => import('@/components/dashboard/PatrimonioSpreadsheet'), { ssr: false })
 const EditAccountModal = dynamic(() => import('@/components/EditAccountModal'), { ssr: false })
 const AccountReviewModal = dynamic(() => import('@/components/dashboard/AccountReviewModal'), { ssr: false })
 const ChatWidget = dynamic(() => import('@/components/ChatWidget'), { ssr: false })
@@ -145,30 +147,33 @@ export default function SpreadsheetPage() {
   if (!user) return null
 
   return (
-    <div className={`min-h-screen flex flex-col ${view === 'portfolio' ? 'bg-slate-100' : 'bg-[#0f172a]'}`}>
+    <div className={`min-h-screen flex flex-col ${view === 'custom' ? 'bg-[#0f172a]' : 'bg-slate-100'}`}>
       {/* Header */}
-      <div className={`flex items-center justify-between px-4 py-3 border-b ${view === 'portfolio' ? 'bg-white border-slate-200' : 'bg-[#1e293b] border-[#334155]'}`}>
+      <div className={`flex items-center justify-between px-4 py-3 border-b ${view === 'custom' ? 'bg-[#1e293b] border-[#334155]' : 'bg-white border-slate-200'}`}>
         <div className="flex items-center gap-3">
-          <button onClick={() => router.push('/dashboard')} className={`transition-colors ${view === 'portfolio' ? 'text-slate-400 hover:text-slate-900' : 'text-slate-400 hover:text-white'}`}>
+          <button onClick={() => router.push('/dashboard')} className={`transition-colors ${view === 'custom' ? 'text-slate-400 hover:text-white' : 'text-slate-400 hover:text-slate-900'}`}>
             ← {t('Dashboard', 'Dashboard')}
           </button>
-          <div className={`w-px h-5 ${view === 'portfolio' ? 'bg-slate-200' : 'bg-[#334155]'}`} />
-          <h1 className={`text-sm font-semibold flex items-center gap-2 ${view === 'portfolio' ? 'text-slate-900' : 'text-white'}`}>
+          <div className={`w-px h-5 ${view === 'custom' ? 'bg-[#334155]' : 'bg-slate-200'}`} />
+          <h1 className={`text-sm font-semibold flex items-center gap-2 ${view === 'custom' ? 'text-white' : 'text-slate-900'}`}>
             Spreadsheet
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          <div className={`flex rounded-lg border p-0.5 ${view === 'portfolio' ? 'bg-slate-100 border-slate-200' : 'bg-[#0f172a] border-[#334155]'}`}>
-            <button onClick={() => setView('portfolio')}
-              className={`px-3 py-1 text-xs rounded-md transition-colors ${view === 'portfolio' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}>
-              Portfolio
-            </button>
-            <button onClick={() => setView('custom')}
-              className={`px-3 py-1 text-xs rounded-md transition-colors ${view === 'custom' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}>
-              {t('Hojas', 'Sheets')}
-            </button>
+          <div className={`flex rounded-lg border p-0.5 ${view === 'custom' ? 'bg-[#0f172a] border-[#334155]' : 'bg-slate-100 border-slate-200'}`}>
+            {[
+              { key: 'portfolio', label: 'Portfolio' },
+              { key: 'debts', label: t('Deudas', 'Debts') },
+              { key: 'patrimonio', label: t('Patrimonio', 'Estate') },
+              { key: 'custom', label: t('Hojas', 'Sheets') },
+            ].map(tab => (
+              <button key={tab.key} onClick={() => setView(tab.key)}
+                className={`px-3 py-1 text-xs rounded-md transition-colors ${view === tab.key ? 'bg-blue-600 text-white' : view === 'custom' ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-800'}`}>
+                {tab.label}
+              </button>
+            ))}
           </div>
-          {view === 'portfolio' && (portfolioItems || enrichedItems)?.length > 0 && (
+          {['portfolio', 'debts', 'patrimonio'].includes(view) && (portfolioItems || enrichedItems)?.length > 0 && (
             <button onClick={() => setShowReview(true)}
               className="px-3 py-1.5 text-xs text-slate-600 border border-slate-300 rounded hover:text-slate-900 hover:border-slate-400 hover:bg-slate-50 transition-colors">
               {t('Revisar todas', 'Review all')}
@@ -212,6 +217,23 @@ export default function SpreadsheetPage() {
             returnYTD={returnYTD}
             netWorth={netWorth}
             convert={convert}
+          />
+        </div>
+      ) : view === 'debts' ? (
+        <div className="flex-1 p-4 sm:p-6 overflow-auto">
+          <DebtSpreadsheet
+            items={portfolioItems || enrichedItems}
+            lang={lang}
+            onEditItem={(item) => setEditItem(item)}
+          />
+        </div>
+      ) : view === 'patrimonio' ? (
+        <div className="flex-1 p-4 sm:p-6 overflow-auto">
+          <PatrimonioSpreadsheet
+            items={portfolioItems || enrichedItems}
+            lang={lang}
+            onEditItem={(item) => setEditItem(item)}
+            onUpdateItem={updateItem}
           />
         </div>
       ) : (
