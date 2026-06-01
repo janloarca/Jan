@@ -213,22 +213,28 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 <p className="text-xs text-white font-medium mb-3">
                   {t('¿Cómo importar?', 'How to import?')}
                 </p>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-3">
                   <button onClick={() => setSyncMode('merge')}
                     className={`px-4 py-3 rounded-lg text-left transition-all border-2 ${syncMode === 'merge' ? 'border-blue-500 bg-blue-500/10' : 'border-[#334155] hover:border-slate-500'}`}>
-                    <p className="text-sm text-white font-medium">{t('Merge', 'Merge')}</p>
-                    <p className="text-[10px] text-slate-500 mt-1">
-                      {t('Actualiza existentes + agrega nuevas', 'Updates existing + adds new')}
+                    <p className="text-sm text-white font-medium">🔄 {t('Actualizar', 'Update')}</p>
+                    <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
+                      {t('Actualiza precios y cantidades de posiciones existentes. Agrega nuevas posiciones. No borra nada.',
+                         'Updates prices and quantities for existing positions. Adds new ones. Deletes nothing.')}
                     </p>
                   </button>
                   <button onClick={() => setSyncMode('replace')}
-                    className={`px-4 py-3 rounded-lg text-left transition-all border-2 ${syncMode === 'replace' ? 'border-amber-500 bg-amber-500/10' : 'border-[#334155] hover:border-slate-500'}`}>
-                    <p className="text-sm text-white font-medium">{t('Reemplazar', 'Replace')}</p>
-                    <p className="text-[10px] text-slate-500 mt-1">
-                      {t('Borra IBKR anteriores y reimporta', 'Deletes old IBKR + reimports')}
+                    className={`px-4 py-3 rounded-lg text-left transition-all border-2 ${syncMode === 'replace' ? 'border-red-500 bg-red-500/10' : 'border-[#334155] hover:border-slate-500'}`}>
+                    <p className="text-sm text-white font-medium">♻️ {t('Sustituir todo', 'Replace all')}</p>
+                    <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
+                      {t('Borra TODAS las posiciones de IBKR anteriores y reimporta desde cero. Útil si hay errores.',
+                         'Deletes ALL previous IBKR positions and reimports from scratch. Useful to fix errors.')}
                     </p>
                   </button>
                 </div>
+                <p className="text-[10px] text-slate-600 mt-2">
+                  {t('El historial de transacciones y NAV se importa siempre (no se duplica).',
+                     'Transaction history and NAV are always imported (no duplicates).')}
+                </p>
               </div>
 
               {preview.items.length > 0 && (
