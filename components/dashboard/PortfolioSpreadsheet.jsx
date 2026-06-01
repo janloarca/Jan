@@ -207,7 +207,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     const data = {}
     items.forEach(it => {
       const val = getItemValue(it)
-      if (it.id) data[it.id] = { value: val, symbol: it.symbol || it.name || '' }
+      if (it.id) data[it.id] = { value: val, symbol: it.symbol || it.name || '', category: getTypeCategory(it), institution: it.institution || '' }
     })
     onSaveItemSnapshots(currentMonthKey, data)
   }, [onSaveItemSnapshots, items, currentMonthKey])
@@ -302,6 +302,29 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   const janKey = `${selectedYear}-01`
   const janTotal = monthlyTotals[janKey]
 
+  const currentItemIds = useMemo(() => new Set(items.map(it => it.id).filter(Boolean)), [items])
+
+  const removedItems = useMemo(() => {
+    const found = {}
+    Object.entries(historicalItems).forEach(([mk, monthData]) => {
+      Object.entries(monthData).forEach(([itemId, data]) => {
+        if (!currentItemIds.has(itemId) && data.value != null) {
+          if (!found[itemId]) found[itemId] = { symbol: data.symbol || itemId, months: {} }
+          found[itemId].months[mk] = data.value
+        }
+      })
+    })
+    return Object.entries(found)
+      .map(([id, info]) => ({ id, symbol: info.symbol, months: info.months }))
+      .sort((a, b) => {
+        const maxA = Math.max(...Object.values(a.months).map(Math.abs))
+        const maxB = Math.max(...Object.values(b.months).map(Math.abs))
+        return maxB - maxA
+      })
+  }, [historicalItems, currentItemIds])
+
+  const [showRemoved, setShowRemoved] = useState(false)
+
   return (
     <div className="bg-[#f8fafc] border border-slate-200 overflow-hidden">
       <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-white">
@@ -395,10 +418,15 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                           if (it.id && histMonth[it.id]) catHistTotal += histMonth[it.id].value || 0
                         })
                       })
+                      Object.entries(histMonth).forEach(([itemId, data]) => {
+                        if (!currentItemIds.has(itemId) && data.category === cat.key) {
+                          catHistTotal += data.value || 0
+                        }
+                      })
                     }
                     if (catHistTotal != null && catHistTotal !== 0) {
                       return (
-                        <td key={mk} className="text-right py-3 px-2 tabular-nums font-mono text-sm text-slate-400/70">
+                        <td key={mk} className="text-right py-3 px-2 tabular-nums font-mono text-sm text-slate-600">
                           {formatNum(catHistTotal)}
                         </td>
                       )
@@ -406,7 +434,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                     const monthTotal = monthlyTotals[mk]
                     const catEstimate = monthTotal && grandTotal > 0 ? monthTotal * (cat.total / grandTotal) : null
                     return (
-                      <td key={mk} className="text-right py-3 px-2 tabular-nums font-mono text-sm text-slate-300/50">
+                      <td key={mk} className="text-right py-3 px-2 tabular-nums font-mono text-sm text-slate-400 italic">
                         {catEstimate ? formatNum(catEstimate) : ''}
                       </td>
                     )
@@ -452,7 +480,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                               })
                             }
                             return (
-                              <td key={mk} className="text-right py-2 px-2 font-medium tabular-nums font-mono text-sm text-slate-300/60">
+                              <td key={mk} className="text-right py-2 px-2 font-medium tabular-nums font-mono text-sm text-slate-500">
                                 {instHistTotal != null ? formatNum(instHistTotal) : ''}
                               </td>
                             )
@@ -503,7 +531,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                                 const histMonth = historicalItems[mk]
                                 const histVal = histMonth && item.id ? histMonth[item.id]?.value : null
                                 return (
-                                  <td key={mk} className="text-right py-2.5 px-2 tabular-nums font-mono text-sm text-slate-300/60">
+                                  <td key={mk} className={`text-right py-2.5 px-2 tabular-nums font-mono text-sm ${histVal != null ? 'text-slate-500' : 'text-slate-300'}`}>
                                     {histVal != null ? formatNum(histVal) : '—'}
                                   </td>
                                 )
@@ -551,6 +579,42 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
               </tbody>
             )
           })}
+
+          {removedItems.length > 0 && (
+            <tbody>
+              <tr className="cursor-pointer hover:bg-amber-50/50 transition-colors border-t-2 border-dashed border-slate-300 bg-slate-50"
+                onClick={() => setShowRemoved(p => !p)}>
+                <td className="py-2.5 pl-4 pr-2 sticky left-0 bg-slate-50 z-10" colSpan={2 + (showOriginal ? 1 : 0)}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-400 text-[10px] w-3">{showRemoved ? 'v' : '>'}</span>
+                    <span className="text-slate-500 font-semibold text-xs">{t('Activos anteriores', 'Previous assets')}</span>
+                    <span className="text-slate-400 text-[10px]">({removedItems.length})</span>
+                  </div>
+                </td>
+                {months.map(mk => (
+                  <td key={mk} className={`py-2.5 px-2 ${mk === currentMonthKey ? 'bg-blue-50' : ''}`} />
+                ))}
+              </tr>
+              {showRemoved && removedItems.map(ri => (
+                <tr key={ri.id} className="bg-amber-50/30 hover:bg-amber-50/60 transition-colors border-t border-slate-100/60">
+                  <td className="py-2 pl-8 pr-2 sticky left-0 bg-amber-50/30 z-10">
+                    <span className="text-slate-500 text-sm">{ri.symbol}</span>
+                  </td>
+                  <td />
+                  {showOriginal && <td />}
+                  {months.map(mk => {
+                    const isCurrent = mk === currentMonthKey
+                    const val = ri.months[mk]
+                    return (
+                      <td key={mk} className={`text-right py-2 px-2 tabular-nums font-mono text-sm ${isCurrent ? 'bg-blue-50 text-slate-300' : val != null ? 'text-slate-500' : 'text-slate-300'}`}>
+                        {isCurrent ? '—' : val != null ? formatNum(val) : '—'}
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          )}
 
           <tfoot>
             {Object.entries(currencyBreakdown)
@@ -649,7 +713,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                   {t('Crecimiento Portafolio', 'Portfolio Growth')}
                 </td>
                 <td />
-                <td />
+                {showOriginal && <td />}
                 {months.map(mk => {
                   const isCurrent = mk === currentMonthKey
                   const val = isCurrent ? grandTotal : (monthlyTotals[mk] || null)
