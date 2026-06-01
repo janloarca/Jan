@@ -74,7 +74,7 @@ function isMarketAsset(type) {
   return /stock|crypto|fund|etf/i.test(type) && !/realestate|inmueble/i.test(type)
 }
 
-function EditableCell({ displayValue, editValue, onSave, hint, isNegative }) {
+function EditableCell({ displayValue, editValue, onSave, hint, isNegative, currency, onEditStart, onEditEnd }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const ref = useRef(null)
@@ -83,20 +83,35 @@ function EditableCell({ displayValue, editValue, onSave, hint, isNegative }) {
     if (editing && ref.current) { ref.current.focus(); ref.current.select() }
   }, [editing])
 
+  const startEdit = () => {
+    setDraft(editValue)
+    setEditing(true)
+    onEditStart?.()
+  }
+
   const commit = () => {
     const num = parseFloat(draft.replace(/[^0-9.\-]/g, ''))
     if (!isNaN(num) && num >= 0) onSave(num)
     setEditing(false)
+    onEditEnd?.()
+  }
+
+  const cancel = () => {
+    setEditing(false)
+    onEditEnd?.()
   }
 
   if (editing) {
     return (
       <div>
-        <input ref={ref} type="text" value={draft}
-          onChange={e => setDraft(e.target.value)}
-          onBlur={commit}
-          onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false) }}
-          className="w-full bg-white border-2 border-blue-400 rounded px-3 py-1.5 text-sm text-slate-900 text-right font-mono focus:outline-none focus:ring-2 focus:ring-blue-300" />
+        <div className="flex items-center gap-1">
+          {currency && <span className="text-[10px] text-blue-500 font-semibold shrink-0">{currency}</span>}
+          <input ref={ref} type="text" value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') cancel() }}
+            className="w-full bg-white border-2 border-blue-400 rounded px-3 py-1.5 text-sm text-slate-900 text-right font-mono focus:outline-none focus:ring-2 focus:ring-blue-300" />
+        </div>
         {hint && <p className="text-[10px] text-blue-400 text-right mt-0.5 pr-1">{hint}</p>}
       </div>
     )
@@ -104,8 +119,9 @@ function EditableCell({ displayValue, editValue, onSave, hint, isNegative }) {
 
   return (
     <div className="cursor-pointer rounded px-3 py-1.5 -mx-1 transition-all hover:bg-blue-100 hover:ring-1 hover:ring-blue-300 text-right"
-      onClick={() => { setDraft(editValue); setEditing(true) }}>
+      onClick={startEdit}>
       <span className={`font-mono tabular-nums text-sm ${isNegative ? 'text-red-600' : 'text-slate-800'}`}>{formatNum(displayValue)}</span>
+      {currency && <span className="text-[10px] text-slate-400 ml-1">{currency}</span>}
       {hint && <p className="text-[10px] text-slate-400 mt-0.5">{hint}</p>}
     </div>
   )
@@ -274,6 +290,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   const grandTotal = totalAssets - totalDebt
   const [collapsed, setCollapsed] = useState({})
   const [collapsedInst, setCollapsedInst] = useState({})
+  const [editingItemId, setEditingItemId] = useState(null)
 
   const toggleCat = (key) => setCollapsed(p => ({ ...p, [key]: !p[key] }))
   const toggleInst = (key) => setCollapsedInst(p => ({ ...p, [key]: !p[key] }))
@@ -498,21 +515,25 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                         const editHint = market
                           ? (item.symbol || item.name || '')
                           : null
+                        const isEditing = editingItemId === item.id
+                        const rowBg = isEditing ? 'bg-blue-50 ring-2 ring-inset ring-blue-300' : 'bg-white'
+                        const stickyBg = isEditing ? 'bg-blue-50' : 'bg-white'
                         return (
                           <Fragment key={item.id || idx}>
-                          <tr className="hover:bg-slate-50 transition-colors bg-white border-t border-slate-100/60">
-                            <td className={`py-2.5 ${showInst ? 'pl-12' : 'pl-8'} pr-2 sticky left-0 bg-white z-10`}>
+                          <tr className={`hover:bg-slate-50 transition-colors border-t border-slate-100/60 ${rowBg}`}>
+                            <td className={`py-2.5 ${showInst ? 'pl-12' : 'pl-8'} pr-2 sticky left-0 ${stickyBg} z-10`}>
                               <div className="flex items-center gap-2 min-w-0">
                                 {onEditItem ? (
-                                  <button className="text-slate-800 text-sm truncate text-left hover:text-blue-600 hover:underline transition-colors" onClick={(e) => { e.stopPropagation(); onEditItem(item) }}>
+                                  <button className={`text-sm truncate text-left hover:text-blue-600 hover:underline transition-colors ${isEditing ? 'text-blue-700 font-semibold' : 'text-slate-800'}`} onClick={(e) => { e.stopPropagation(); onEditItem(item) }}>
                                     {item.name || item.symbol}
                                   </button>
                                 ) : (
-                                  <span className="text-slate-800 text-sm truncate">{item.name || item.symbol}</span>
+                                  <span className={`text-sm truncate ${isEditing ? 'text-blue-700 font-semibold' : 'text-slate-800'}`}>{item.name || item.symbol}</span>
                                 )}
                                 {qtyLabel && (
                                   <span className="text-slate-400 text-xs shrink-0">{qtyLabel}</span>
                                 )}
+                                <span className={`text-[10px] font-semibold shrink-0 ${isEditing ? 'text-blue-500' : 'text-slate-400'}`}>{cur}</span>
                                 {item.rewardType && REWARD_ICONS[item.rewardType] && (
                                   <span className="text-[10px] bg-cyan-50 text-cyan-600 px-1 rounded shrink-0" title={item.rewardType}>
                                     {REWARD_ICONS[item.rewardType]}
@@ -524,7 +545,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                               </div>
                             </td>
                             <td />
-                            {showOriginal && <td className="text-center py-2.5 px-1 text-slate-400 text-xs">{cur}</td>}
+                            {showOriginal && <td className={`text-center py-2.5 px-1 text-xs ${isEditing ? 'text-blue-500 font-semibold' : 'text-slate-400'}`}>{cur}</td>}
                             {months.map(mk => {
                               const isCurrent = mk === currentMonthKey
                               if (!isCurrent) {
@@ -537,7 +558,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                                 )
                               }
                               return (
-                                <td key={mk} className="text-right py-1 px-1 bg-blue-50">
+                                <td key={mk} className={`text-right py-1 px-1 ${isEditing ? 'bg-blue-100' : 'bg-blue-50'}`}>
                                   {onUpdateItem ? (
                                     <EditableCell
                                       displayValue={val}
@@ -545,6 +566,9 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                                       onSave={(v) => handleValueUpdate(item, v)}
                                       hint={editHint}
                                       isNegative={val < 0}
+                                      currency={cur}
+                                      onEditStart={() => setEditingItemId(item.id)}
+                                      onEditEnd={() => setEditingItemId(null)}
                                     />
                                   ) : (
                                     <span className={`font-mono tabular-nums text-sm font-medium ${val < 0 ? 'text-red-600' : 'text-slate-800'}`}>
