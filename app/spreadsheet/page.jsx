@@ -14,6 +14,7 @@ const DebtSpreadsheet = dynamic(() => import('@/components/dashboard/DebtSpreads
 const PatrimonioSpreadsheet = dynamic(() => import('@/components/dashboard/PatrimonioSpreadsheet'), { ssr: false })
 const EditAccountModal = dynamic(() => import('@/components/EditAccountModal'), { ssr: false })
 const AccountReviewModal = dynamic(() => import('@/components/dashboard/AccountReviewModal'), { ssr: false })
+const AddAccountModal = dynamic(() => import('@/components/AddAccountModal'), { ssr: false })
 const ChatWidget = dynamic(() => import('@/components/ChatWidget'), { ssr: false })
 
 function generateId() {
@@ -55,6 +56,8 @@ export default function SpreadsheetPage() {
 
   const [editItem, setEditItem] = useState(null)
   const [showReview, setShowReview] = useState(false)
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [addModalDefaults, setAddModalDefaults] = useState(null)
 
   const [view, setView] = useState('portfolio')
 
@@ -225,6 +228,7 @@ export default function SpreadsheetPage() {
             items={portfolioItems || enrichedItems}
             lang={lang}
             onEditItem={(item) => setEditItem(item)}
+            onAdd={() => { setAddModalDefaults({ isDebt: true }); setShowAddModal(true) }}
           />
         </div>
       ) : view === 'patrimonio' ? (
@@ -234,6 +238,7 @@ export default function SpreadsheetPage() {
             lang={lang}
             onEditItem={(item) => setEditItem(item)}
             onUpdateItem={updateItem}
+            onAdd={(defaults) => { setAddModalDefaults(defaults || {}); setShowAddModal(true) }}
           />
         </div>
       ) : (
@@ -262,6 +267,16 @@ export default function SpreadsheetPage() {
       {editItem && (
         <EditAccountModal item={editItem} onClose={() => setEditItem(null)}
           onSave={addItem} onDelete={deleteItem} existingItems={items} lang={lang} />
+      )}
+
+      {showAddModal && (
+        <AddAccountModal
+          onClose={() => { setShowAddModal(false); setAddModalDefaults(null) }}
+          onAdd={addItem}
+          existingItems={items}
+          lang={lang}
+          defaults={addModalDefaults}
+        />
       )}
 
       {showReview && (

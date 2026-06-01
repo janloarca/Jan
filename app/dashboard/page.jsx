@@ -41,6 +41,7 @@ const SettingsModal = dynamic(() => import('@/components/SettingsModal'), { load
 const EditAccountModal = dynamic(() => import('@/components/EditAccountModal'), { loading: () => <ModalSkeleton /> })
 const OptimizeModal = dynamic(() => import('@/components/OptimizeModal'))
 const AssetDetailModal = dynamic(() => import('@/components/dashboard/AssetDetailModal'), { loading: () => <ModalSkeleton /> })
+const AccountReviewModal = dynamic(() => import('@/components/dashboard/AccountReviewModal'), { loading: () => <ModalSkeleton /> })
 const PrintSummary = dynamic(() => import('@/components/dashboard/PrintSummary'))
 const OnboardingTour = dynamic(() => import('@/components/dashboard/OnboardingTour'))
 const CommandPalette = dynamic(() => import('@/components/dashboard/CommandPalette'))
@@ -65,6 +66,45 @@ import PortfolioSelector from '@/components/dashboard/PortfolioSelector'
 import EntitySwitcher from '@/components/dashboard/EntitySwitcher'
 import { useEntities } from '@/hooks/useEntities'
 
+function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, lots }) {
+  const [tab, setTab] = useState('health')
+  const t = (es, en) => lang === 'es' ? es : en
+  const hasLots = lots && lots.length > 0
+  const tabs = [
+    { key: 'health', label: t('Salud', 'Health') },
+    { key: 'concentration', label: t('Concentración', 'Concentration') },
+    ...(hasLots ? [{ key: 'gains', label: t('Ganancias', 'Gains') }] : []),
+    { key: 'attribution', label: t('Atribución', 'Attribution') },
+  ]
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+        {tabs.map(tb => (
+          <button key={tb.key} onClick={() => setTab(tb.key)}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${tab === tb.key ? 'bg-blue-600 text-white' : 'text-slate-400 border border-[#334155] hover:text-white hover:bg-[#283548]'}`}>
+            {tb.label}
+          </button>
+        ))}
+      </div>
+      {tab === 'health' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <CardBoundary id="AN-01"><FinancialHealth items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} /></CardBoundary>
+          <CardBoundary id="AN-02"><ConcentrationRisk items={portfolioItems} lang={lang} /></CardBoundary>
+        </div>
+      )}
+      {tab === 'concentration' && (
+        <CardBoundary id="AN-02b"><ConcentrationRisk items={portfolioItems} lang={lang} /></CardBoundary>
+      )}
+      {tab === 'gains' && hasLots && (
+        <CardBoundary id="AN-03"><GainsReport lots={lots} items={portfolioItems} lang={lang} /></CardBoundary>
+      )}
+      {tab === 'attribution' && (
+        <CardBoundary id="AN-04"><PerformanceAttribution items={portfolioItems} lang={lang} /></CardBoundary>
+      )}
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const router = useRouter()
   const [user, setUser] = useState(null)
@@ -79,6 +119,7 @@ export default function DashboardPage() {
   const [activePortfolio, setActivePortfolio] = useState('__all__')
   const [activeEntity, setActiveEntity] = useState('__all__')
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
+  const [showReview, setShowReview] = useState(false)
   const [toast, setToast] = useState(null)
   const { entities, addEntity, updateEntity: updateEntityData, deleteEntity } = useEntities()
 
@@ -298,8 +339,10 @@ export default function DashboardPage() {
     await generateReport({
       items: enrichedItems, snapshots, transactions,
       netWorth, totalAssets, lang, returnYTD, annualDividends,
+      profileName: profile?.name || user?.displayName || '',
     })
-  }, [enrichedItems, snapshots, transactions, lang, netWorth, totalAssets, returnYTD, annualDividends])
+    showToast(lang === 'es' ? 'PDF descargado' : 'PDF downloaded')
+  }, [enrichedItems, snapshots, transactions, lang, netWorth, totalAssets, returnYTD, annualDividends, profile, user, showToast])
 
   const handleShare = useCallback(async () => {
     const t = (es, en) => lang === 'es' ? es : en
@@ -506,7 +549,7 @@ export default function DashboardPage() {
           onImport={() => setModal('import')} onAddAccount={() => setModal('account')}
           onTransfer={() => setModal('transfer')} onExport={handleExport}
           onShare={handleShare} onIBKR={() => setModal('ibkr')} onBlockchain={() => setModal('blockchain')} onLedger={() => setModal('ledger')}
-          itemCount={enrichedItems.length} lang={lang}
+          onReview={() => setShowReview(true)} itemCount={enrichedItems.length} lang={lang}
         />
 
         {/* ═══ INGRESOS ═══ */}
@@ -533,25 +576,18 @@ export default function DashboardPage() {
         {/* ═══ ANALISIS ═══ */}
         <SectionCollapse title={lang === 'es' ? 'Análisis' : 'Analysis'} id="analysis" defaultOpen={!!(lots && lots.length > 0)}>
           <ErrorBoundary lang={lang}>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-              <CardBoundary id="AN-01"><FinancialHealth items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} /></CardBoundary>
-              <CardBoundary id="AN-02"><ConcentrationRisk items={portfolioItems} lang={lang} /></CardBoundary>
-            </div>
-            {lots && lots.length > 0 && (
-              <CardBoundary id="AN-03"><GainsReport lots={lots} items={portfolioItems} lang={lang} /></CardBoundary>
-            )}
-            <CardBoundary id="AN-04"><PerformanceAttribution items={portfolioItems} lang={lang} /></CardBoundary>
+            <AnalysisTabs lang={lang} portfolioItems={portfolioItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lots={lots} />
           </ErrorBoundary>
         </SectionCollapse>
 
-        <div className="text-center py-6 flex items-center justify-center gap-3">
+        <div className="flex items-center justify-center gap-3 pt-4 pb-8">
           <button onClick={handleReport}
-            className="px-6 py-3 text-sm font-medium text-slate-300 bg-[#1e293b] border border-[#334155] rounded-xl hover:bg-[#283548] hover:text-white transition-colors inline-flex items-center gap-2">
-            {lang === 'es' ? 'Generar Reporte PDF' : 'Generate PDF Report'}
+            className="px-5 py-2.5 text-sm font-medium text-slate-400 bg-[#1e293b] border border-[#334155]/60 rounded-xl hover:bg-[#283548] hover:text-white hover:border-[#475569] transition-all inline-flex items-center gap-2">
+            {lang === 'es' ? 'Descargar PDF' : 'Download PDF'}
           </button>
           <button onClick={() => setModal('print')}
-            className="px-6 py-3 text-sm font-medium text-slate-300 bg-[#1e293b] border border-[#334155] rounded-xl hover:bg-[#283548] hover:text-white transition-colors inline-flex items-center gap-2">
-            {lang === 'es' ? 'Resumen para Imprimir' : 'Print Summary'}
+            className="px-5 py-2.5 text-sm font-medium text-slate-400 bg-[#1e293b] border border-[#334155]/60 rounded-xl hover:bg-[#283548] hover:text-white hover:border-[#475569] transition-all inline-flex items-center gap-2">
+            {lang === 'es' ? 'Imprimir Resumen' : 'Print Summary'}
           </button>
         </div>
         </>}
@@ -709,6 +745,15 @@ export default function DashboardPage() {
 
       {detailItem && (
         <AssetDetailModal item={detailItem} onClose={() => setDetailItem(null)} lang={lang} uid={user?.uid} />
+      )}
+
+      {showReview && (
+        <AccountReviewModal
+          items={portfolioItems}
+          onClose={() => setShowReview(false)}
+          onEditItem={(item) => { setShowReview(false); setEditItem(item) }}
+          lang={lang}
+        />
       )}
 
       <CommandPalette open={cmdPaletteOpen} onClose={() => setCmdPaletteOpen(false)}

@@ -40,10 +40,11 @@ export default function PerformanceAttribution({ items, lang }) {
   )
 
   return (
-    <div className="bg-[#1e293b]/80 rounded-xl border border-[#334155]/50 p-4 sm:p-5">
+    <div className="bg-[#1e293b]/80 rounded-xl border border-[#334155]/50 p-4">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-          🏆 {t('Atribución de Rendimiento', 'Performance Attribution')}
+        <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-purple-400" />
+          {t('ATRIBUCIÓN DE RENDIMIENTO', 'PERFORMANCE ATTRIBUTION')}
         </h3>
         <span className={`text-sm font-bold ${attribution.totalGain >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
           {attribution.totalGain >= 0 ? '+' : ''}{formatCurrency(attribution.totalGain)}

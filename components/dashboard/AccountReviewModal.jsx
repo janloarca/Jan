@@ -25,6 +25,20 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang })
     [items]
   )
 
+  const dataQuality = useMemo(() => {
+    let complete = 0
+    const issues = []
+    sorted.forEach(it => {
+      const missing = []
+      if (!it.purchasePrice && !it.currentPrice) missing.push('price')
+      if (!it.acquisitionDate) missing.push('date')
+      if (!it.institution) missing.push('institution')
+      if (missing.length === 0) complete++
+      else issues.push({ id: it.id, name: it.name || it.symbol, missing })
+    })
+    return { complete, total: sorted.length, pct: sorted.length > 0 ? Math.round((complete / sorted.length) * 100) : 100, issues }
+  }, [sorted])
+
   const item = sorted[index]
   if (!item) return null
 
@@ -65,6 +79,11 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang })
           <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
             <div className="h-full bg-blue-500 rounded-full transition-all duration-300"
               style={{ width: `${((index + 1) / totalCount) * 100}%` }} />
+          </div>
+
+          <div className={`mt-2 flex items-center justify-between px-2 py-1.5 rounded-lg text-xs ${dataQuality.pct === 100 ? 'bg-emerald-50 text-emerald-600' : dataQuality.pct >= 60 ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'}`}>
+            <span>{dataQuality.complete}/{dataQuality.total} {t('completos', 'complete')}</span>
+            <span className="font-semibold">{dataQuality.pct}% {t('calidad', 'quality')}</span>
           </div>
         </div>
 

@@ -120,6 +120,26 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
   const estAnnual = projected.annualTotal > 0 ? projected.annualTotal : (stats.avgMonthly * 12)
   const portfolioYield = netWorth > 0 && estAnnual > 0 ? (estAnnual / netWorth) * 100 : 0
 
+  const yoyComparison = useMemo(() => {
+    if (!transactions || transactions.length === 0) return null
+    const divs = transactions.filter(tx => (tx.type || '').toUpperCase() === 'DIVIDEND')
+    if (divs.length === 0) return null
+    const now = new Date()
+    const thisYear = now.getFullYear()
+    const lastYear = thisYear - 1
+    let thisYearTotal = 0, lastYearTotal = 0
+    divs.forEach(tx => {
+      const d = tx.date ? new Date(tx.date) : null
+      if (!d) return
+      const amt = convert ? convert(tx.totalAmount ?? 0, tx.currency || 'USD', baseCurrency || 'USD') : (tx.totalAmount ?? 0)
+      if (d.getFullYear() === thisYear) thisYearTotal += amt
+      if (d.getFullYear() === lastYear) lastYearTotal += amt
+    })
+    if (lastYearTotal === 0 && thisYearTotal === 0) return null
+    const growth = lastYearTotal > 0 ? ((thisYearTotal - lastYearTotal) / lastYearTotal) * 100 : null
+    return { thisYear: thisYearTotal, lastYear: lastYearTotal, growth }
+  }, [transactions, convert, baseCurrency])
+
   const incomeByType = useMemo(() => {
     const types = { dividend: 0, coupon: 0, interest: 0 }
     projected.sources.forEach((s) => {
@@ -186,6 +206,26 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
           <span className="text-lg font-bold text-white">{formatCurrency(stats.totalYTD)}</span>
         </div>
       </div>
+
+      {yoyComparison && yoyComparison.lastYear > 0 && (
+        <div className="flex items-center gap-3 mb-4 p-2.5 bg-[#0f172a] rounded-lg border border-[#334155]/50">
+          <div className="flex-1">
+            <span className="text-xs text-slate-500 block">{new Date().getFullYear() - 1}</span>
+            <span className="text-sm font-medium text-slate-400">{formatCurrency(yoyComparison.lastYear)}</span>
+          </div>
+          <div className="text-center">
+            {yoyComparison.growth != null && (
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${yoyComparison.growth >= 0 ? 'text-emerald-400 bg-emerald-500/10' : 'text-red-400 bg-red-500/10'}`}>
+                {yoyComparison.growth >= 0 ? '+' : ''}{yoyComparison.growth.toFixed(0)}% YoY
+              </span>
+            )}
+          </div>
+          <div className="flex-1 text-right">
+            <span className="text-xs text-slate-500 block">{new Date().getFullYear()} YTD</span>
+            <span className="text-sm font-medium text-white">{formatCurrency(yoyComparison.thisYear)}</span>
+          </div>
+        </div>
+      )}
 
       {incomeByType.length > 1 && (
         <div className="flex items-center gap-2 mb-3">

@@ -29,7 +29,7 @@ function pctFmt(val) {
   return val.toFixed(2) + '%'
 }
 
-export default function DebtSpreadsheet({ items, lang, onEditItem }) {
+export default function DebtSpreadsheet({ items, lang, onEditItem, onAdd }) {
   const t = (es, en) => lang === 'es' ? es : en
   const [sortBy, setSortBy] = useState('balance')
   const [sortDir, setSortDir] = useState('desc')
@@ -106,6 +106,14 @@ export default function DebtSpreadsheet({ items, lang, onEditItem }) {
 
   return (
     <div className="space-y-4">
+      {onAdd && (
+        <div className="flex justify-end">
+          <button onClick={onAdd}
+            className="px-4 py-2 text-xs font-medium bg-red-600 text-white rounded-lg hover:bg-red-500 transition-colors flex items-center gap-1.5">
+            + {t('Agregar deuda', 'Add debt')}
+          </button>
+        </div>
+      )}
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl border border-slate-200 p-4">

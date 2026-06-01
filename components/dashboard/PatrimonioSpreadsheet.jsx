@@ -51,7 +51,7 @@ function categorizePatrimonio(item) {
   return 'other'
 }
 
-export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdateItem }) {
+export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdateItem, onAdd }) {
   const t = (es, en) => lang === 'es' ? es : en
   const [expanded, setExpanded] = useState({})
   const [editingValue, setEditingValue] = useState(null)
@@ -111,8 +111,26 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
     )
   }
 
+  const quickAddTemplates = [
+    { label: t('Propiedad', 'Property'), icon: '🏠', defaults: { type: 'RealEstate', subtype: 'property' } },
+    { label: t('Vehículo', 'Vehicle'), icon: '🚗', defaults: { type: 'Alternative', subtype: 'vehicle' } },
+    { label: t('Coleccionable', 'Collectible'), icon: '🎨', defaults: { type: 'Alternative', subtype: 'collectible' } },
+    { label: t('Otro bien', 'Other asset'), icon: '📦', defaults: { type: 'Other' } },
+  ]
+
   return (
     <div className="space-y-4">
+      {onAdd && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-slate-400">{t('Agregar:', 'Add:')}</span>
+          {quickAddTemplates.map(tmpl => (
+            <button key={tmpl.label} onClick={() => onAdd(tmpl.defaults)}
+              className="px-3 py-1.5 text-xs font-medium bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-colors flex items-center gap-1.5">
+              {tmpl.icon} {tmpl.label}
+            </button>
+          ))}
+        </div>
+      )}
       {/* Summary */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl border border-slate-200 p-4">

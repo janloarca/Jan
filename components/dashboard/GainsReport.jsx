@@ -41,9 +41,10 @@ export default function GainsReport({ lots, items, lang }) {
   if (!report) return null
 
   return (
-    <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-5 card-primary">
-      <h3 className="text-base font-semibold text-white mb-4">
-        {t('Ganancias y Pérdidas', 'Gains & Losses')}
+    <div className="bg-[#1e293b]/80 rounded-xl border border-[#334155]/50 p-4">
+      <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
+        <span className="w-2 h-2 rounded-full bg-cyan-400" />
+        {t('GANANCIAS Y PÉRDIDAS', 'GAINS & LOSSES')}
       </h3>
 
       <div className="grid grid-cols-3 gap-3 mb-4">

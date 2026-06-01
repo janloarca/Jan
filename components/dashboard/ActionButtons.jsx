@@ -1,8 +1,8 @@
 'use client'
 
-import { Upload, Plus, ArrowLeftRight, Share2, Download, RefreshCw } from 'lucide-react'
+import { Upload, Plus, ArrowLeftRight, Share2, Download, RefreshCw, ClipboardCheck } from 'lucide-react'
 
-export default function ActionButtons({ onImport, onAddAccount, onTransfer, onExport, onShare, onIBKR, onBlockchain, onLedger, itemCount, lang }) {
+export default function ActionButtons({ onImport, onAddAccount, onTransfer, onExport, onShare, onIBKR, onBlockchain, onLedger, onReview, itemCount, lang }) {
   const btnBase = 'px-2.5 sm:px-4 py-2 text-body font-medium rounded-lg transition-colors flex items-center gap-1.5'
   const btnSecondary = `${btnBase} bg-[var(--card-bg,#1e293b)] border border-[var(--card-border,#334155)] text-slate-300 hover:bg-[var(--input-bg,#283548)] hover:text-white`
   const btnMuted = `${btnBase} bg-[var(--card-bg,#1e293b)] border border-[var(--card-border,#334155)] text-[var(--text-secondary,#94a3b8)] hover:bg-[var(--input-bg,#283548)]`
@@ -34,6 +34,11 @@ export default function ActionButtons({ onImport, onAddAccount, onTransfer, onEx
         <ArrowLeftRight size={14} /> <span className="hidden sm:inline">{lang === 'es' ? 'Transferir' : 'Transfer'}</span>
       </button>
       <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+        {onReview && (
+          <button onClick={onReview} className={btnMuted} aria-label={lang === 'es' ? 'Revisar' : 'Review'}>
+            <ClipboardCheck size={14} /> <span className="hidden sm:inline">{lang === 'es' ? 'Revisar' : 'Review'}</span>
+          </button>
+        )}
         {onShare && (
           <button onClick={onShare} className={btnMuted} aria-label={lang === 'es' ? 'Compartir' : 'Share'}>
             <Share2 size={14} /> <span className="hidden sm:inline">{lang === 'es' ? 'Compartir' : 'Share'}</span>
