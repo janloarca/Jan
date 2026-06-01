@@ -232,6 +232,12 @@ export function useFirestoreItems() {
     await fs.setDoc(fs.doc(db, `users/${uid}/transactions`, id), { ...transaction, createdAt: new Date().toISOString() })
   }, [uid])
 
+  const deleteTransaction = useCallback(async (txId) => {
+    if (!uid || !txId) return
+    const { db, fs } = await getFirebase()
+    await fs.deleteDoc(fs.doc(db, `users/${uid}/transactions`, txId))
+  }, [uid])
+
   const deleteAllTransactions = useCallback(async () => {
     if (!uid) return
     const { db, fs } = await getFirebase()
@@ -394,7 +400,7 @@ export function useFirestoreItems() {
     items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, loading,
     addItem, updateItem, deleteItem, deleteAllItems,
     saveSnapshot, deleteAllSnapshots,
-    addTransaction, deleteAllTransactions,
+    addTransaction, deleteTransaction, deleteAllTransactions,
     addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     addAlert, deleteAlert, updateAlert,
     addLot, updateLot, closeLotsFIFO,

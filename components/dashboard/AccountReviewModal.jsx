@@ -151,7 +151,19 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
                     {(dividendsReceived > 0 || totalFees > 0) && (
                       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-slate-500">
                         <span>{t('Precio', 'Price')}: {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}</span>
-                        {dividendsReceived > 0 && <span className="text-emerald-500">{t('Dividendos', 'Dividends')}: +{formatCurrency(dividendsReceived)}</span>}
+                        {dividendsReceived > 0 && (
+                          <span className="text-emerald-500" title={
+                            (transactions || [])
+                              .filter(tx => (tx.type || '').toUpperCase() === 'DIVIDEND' && (tx.symbol || '').toUpperCase() === sym)
+                              .map(tx => `${tx.date}: $${(tx.totalAmount || tx.amount || 0).toFixed(2)}`)
+                              .join('\n')
+                          }>
+                            {t('Dividendos', 'Dividends')}: +{formatCurrency(dividendsReceived)}
+                            <span className="text-emerald-400 ml-1">
+                              ({(transactions || []).filter(tx => (tx.type || '').toUpperCase() === 'DIVIDEND' && (tx.symbol || '').toUpperCase() === sym).length}x)
+                            </span>
+                          </span>
+                        )}
                         {totalFees > 0 && <span className="text-red-400">{t('Costos', 'Fees')}: -{formatCurrency(totalFees)}</span>}
                       </div>
                     )}

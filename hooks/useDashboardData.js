@@ -15,7 +15,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     items, snapshots, transactions, goals, settings, profile,
     loading: dataLoading, addItem, updateItem, deleteItem,
     deleteAllItems, saveSnapshot, deleteAllSnapshots,
-    addTransaction, deleteAllTransactions,
+    addTransaction, deleteTransaction, deleteAllTransactions,
     alerts, addAlert, deleteAlert, updateAlert,
     lots, addLot, closeLotsFIFO,
     portfolios, addPortfolio, deletePortfolio,
@@ -146,26 +146,58 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
 
     async function processDividends() {
+      // Clean up excess auto-dividends from items that don't have explicit month config
+      for (const it of scheduled) {
+        if (cancelled) return
+        if (it.incomeMonthsExplicit) continue
+        const sym = it.symbol || it.name
+        const autoDivs = transactions.filter(tx =>
+          tx._source === 'auto' &&
+          (tx.type || '').toUpperCase() === 'DIVIDEND' &&
+          tx.symbol === sym
+        )
+        if (autoDivs.length > 1) {
+          // Keep only the most recent auto-dividend, delete the rest
+          const sorted = [...autoDivs].sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+          for (let i = 1; i < sorted.length; i++) {
+            if (sorted[i].id && deleteTransaction) {
+              await deleteTransaction(sorted[i].id)
+            }
+          }
+        }
+      }
+
       for (const it of scheduled) {
         if (cancelled) return
         const payMonths = Array.isArray(it.incomeMonths) ? it.incomeMonths : [0,1,2,3,4,5,6,7,8,9,10,11]
+        const canBackfill = it.incomeMonthsExplicit === true
 
-        // Backfill missed months: from acquisition date (or 12 months back) to now
         const monthsToCheck = []
         const acqDate = it.acquisitionDate ? new Date(it.acquisitionDate) : null
-        const lookbackMonths = acqDate
-          ? Math.min(24, Math.ceil((now.getTime() - acqDate.getTime()) / (30 * 86400000)))
-          : 3
-        for (let offset = lookbackMonths; offset >= 0; offset--) {
-          const checkDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - offset, 1))
-          const checkMonth = checkDate.getUTCMonth()
-          const checkYear = checkDate.getUTCFullYear()
-          if (acqDate && checkDate < new Date(Date.UTC(acqDate.getFullYear(), acqDate.getMonth(), 1))) continue
-          if (!payMonths.includes(checkMonth)) continue
-          const payDay = it.incomePayDay || 1
-          if (offset === 0 && todayDay < payDay) continue
-          const dateStr = `${checkYear}-${String(checkMonth + 1).padStart(2, '0')}-${String(payDay).padStart(2, '0')}`
-          monthsToCheck.push({ dateStr, month: checkMonth, year: checkYear })
+        if (canBackfill) {
+          const lookbackMonths = acqDate
+            ? Math.min(24, Math.ceil((now.getTime() - acqDate.getTime()) / (30 * 86400000)))
+            : 3
+          for (let offset = lookbackMonths; offset >= 0; offset--) {
+            const checkDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - offset, 1))
+            const checkMonth = checkDate.getUTCMonth()
+            const checkYear = checkDate.getUTCFullYear()
+            if (acqDate && checkDate < new Date(Date.UTC(acqDate.getFullYear(), acqDate.getMonth(), 1))) continue
+            if (!payMonths.includes(checkMonth)) continue
+            const payDay = it.incomePayDay || 1
+            if (offset === 0 && todayDay < payDay) continue
+            const dateStr = `${checkYear}-${String(checkMonth + 1).padStart(2, '0')}-${String(payDay).padStart(2, '0')}`
+            monthsToCheck.push({ dateStr, month: checkMonth, year: checkYear })
+          }
+        } else {
+          // Without explicit months, only process current month
+          if (payMonths.includes(currentMonth)) {
+            const payDay = it.incomePayDay || 1
+            if (todayDay >= payDay) {
+              const dateStr = `${now.getUTCFullYear()}-${String(currentMonth + 1).padStart(2, '0')}-${String(payDay).padStart(2, '0')}`
+              monthsToCheck.push({ dateStr, month: currentMonth, year: now.getUTCFullYear() })
+            }
+          }
         }
 
         for (const { dateStr } of monthsToCheck) {
@@ -238,7 +270,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
     processDividends()
     return () => { cancelled = true }
-  }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, transactions, addTransaction, updateItem, convert])
+  }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, transactions, addTransaction, deleteTransaction, updateItem, convert])
 
   const handleRefresh = useCallback(() => {
     refreshPrices()
@@ -619,7 +651,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // Firestore actions
     addItem, updateItem, deleteItem, deleteAllItems,
     saveSnapshot, deleteAllSnapshots,
-    addTransaction, deleteAllTransactions,
+    addTransaction, deleteTransaction, deleteAllTransactions,
     addAlert, deleteAlert, updateAlert,
     addLot, closeLotsFIFO,
     addPortfolio, deletePortfolio,

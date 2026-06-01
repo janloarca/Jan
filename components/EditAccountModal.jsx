@@ -154,11 +154,13 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         }
         if (form.rateType !== 'continuous') {
           updated.incomePayDay = parseInt(form.incomePayDay) || 1
+          updated.incomeMonthsExplicit = form.incomeMonths.length > 0
           updated.incomeMonths = form.incomeMonths.length > 0 ? form.incomeMonths : [0,1,2,3,4,5,6,7,8,9,10,11]
           updated.businessDayRule = form.businessDayRule
         } else {
           updated.accrualMethod = 'compound_continuous'
           updated.incomeMonths = [0,1,2,3,4,5,6,7,8,9,10,11]
+          updated.incomeMonthsExplicit = true
         }
         if (form.incomeDestination) updated.incomeDestination = form.incomeDestination
         if (form.capitalReturn) {
