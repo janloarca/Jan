@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { CheckCircle, Lock, ChevronDown, ChevronUp } from 'lucide-react'
+import { CheckCircle, Lock, ChevronDown, ChevronUp, Upload } from 'lucide-react'
+import { parseIBKRFile, formatIBKRFileResult } from '@/lib/parsers/ibkrFileParser'
 
 export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, savedQueryId, onSaveCredentials, lang = 'es', uid, lastSyncTime, existingItems = [], existingTransactions = [], existingSnapshots = [] }) {
   const [token, setToken] = useState('')
@@ -18,7 +19,10 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   const [showHistory, setShowHistory] = useState(false)
   const [syncStatus, setSyncStatus] = useState('')
   const [pollProgress, setPollProgress] = useState(null)
+  const [importMode, setImportMode] = useState('api')
+  const [dragOver, setDragOver] = useState(false)
   const abortRef = useRef(null)
+  const fileInputRef = useRef(null)
 
   const ibkrHistory = useMemo(() => {
     const items = existingItems.filter(it => it._source === 'ibkr' || (it.institution || '').toLowerCase().includes('interactive brokers'))
@@ -158,6 +162,62 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       abortRef.current.abort()
     }
   }, [])
+
+  const handleFileImport = useCallback(async (file) => {
+    if (!file) return
+    setError('')
+    setErrorCode('')
+    setSyncing(true)
+
+    try {
+      const isCSV = file.name.toLowerCase().endsWith('.csv')
+      let parsed
+
+      if (isCSV) {
+        const text = await file.text()
+        parsed = parseIBKRFile(text)
+      } else {
+        const XLSX = (await import('xlsx')).default || await import('xlsx')
+        const buf = await file.arrayBuffer()
+        const wb = XLSX.read(buf, { type: 'array' })
+        const sheet = wb.Sheets[wb.SheetNames[0]]
+        const json = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
+        if (json.length < 2) throw new Error(t('Archivo vacío o sin datos', 'File is empty or has no data'))
+        const headers = json[0].map(h => (h || '').toString().trim())
+        const rows = json.slice(1).filter(r => r.some(c => c !== ''))
+        parsed = parseIBKRFile(rows, headers)
+      }
+
+      const data = formatIBKRFileResult(parsed)
+
+      if (data.items.length === 0 && data.transactions.length === 0) {
+        throw new Error(t(
+          'No se encontraron posiciones ni transacciones en el archivo. Verifica que sea un export de IBKR.',
+          'No positions or transactions found in the file. Verify it is an IBKR export.'
+        ))
+      }
+
+      setPreview(data)
+      setStep('preview')
+    } catch (err) {
+      setError(err.message || t('Error leyendo archivo', 'Error reading file'))
+    } finally {
+      setSyncing(false)
+    }
+  }, [t])
+
+  const handleFileDrop = useCallback((e) => {
+    e.preventDefault()
+    setDragOver(false)
+    const file = e.dataTransfer?.files?.[0]
+    if (file) handleFileImport(file)
+  }, [handleFileImport])
+
+  const handleFileSelect = useCallback((e) => {
+    const file = e.target?.files?.[0]
+    if (file) handleFileImport(file)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }, [handleFileImport])
 
   const handleConfirm = useCallback(async () => {
     if (!preview || !onSyncComplete) return
@@ -302,6 +362,26 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
 
           {step === 'config' && (showConfig || (!syncing && !decrypting && !preview)) && (
             <div className="space-y-6">
+              {/* Mode tabs: API Sync vs File Import */}
+              <div className="flex bg-[#0d1117] rounded-lg border border-[#21262d] p-0.5">
+                <button onClick={() => { setImportMode('api'); setError(''); setErrorCode('') }}
+                  className={`flex-1 py-2 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-1.5 ${
+                    importMode === 'api' ? 'bg-[#161b22] text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'
+                  }`}>
+                  <Lock size={11} />
+                  {t('Sync automático', 'Auto sync')}
+                </button>
+                <button onClick={() => { setImportMode('file'); setError(''); setErrorCode('') }}
+                  className={`flex-1 py-2 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-1.5 ${
+                    importMode === 'file' ? 'bg-[#161b22] text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'
+                  }`}>
+                  <Upload size={11} />
+                  {t('Importar archivo', 'Import file')}
+                </button>
+              </div>
+
+              {importMode === 'api' && (
+                <>
               <div>
                 <p className="text-sm text-white font-medium mb-1">{t('Configuración inicial', 'Initial setup')}</p>
                 <p className="text-xs text-slate-500">
@@ -456,6 +536,84 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 <Lock size={10} />
                 {t('Solo lectura · AES-256 · HTTPS', 'Read-only · AES-256 · HTTPS')}
               </p>
+                </>
+              )}
+
+              {importMode === 'file' && (
+                <>
+                  <div>
+                    <p className="text-sm text-white font-medium mb-1">{t('Importar desde archivo', 'Import from file')}</p>
+                    <p className="text-xs text-slate-500">
+                      {t('Sube un archivo exportado de IBKR (Activity Statement, Portfolio Analyst, o Flex Query).',
+                         'Upload an exported IBKR file (Activity Statement, Portfolio Analyst, or Flex Query).')}
+                    </p>
+                  </div>
+
+                  <div className="space-y-5 pl-1">
+                    <div className="flex gap-4">
+                      <span className="text-xs text-slate-500 font-mono pt-0.5 shrink-0">1.</span>
+                      <div>
+                        <p className="text-xs text-white font-medium">{t('Exportar desde IBKR', 'Export from IBKR')}</p>
+                        <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                          <span className="text-blue-400 font-mono">interactivebrokers.com</span> → Performance & Reports → {t('descargar', 'download')} <span className="text-white">Activity Statement</span> {t('o', 'or')} <span className="text-white">Portfolio Analyst</span> {t('como CSV o Excel', 'as CSV or Excel')}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-4">
+                      <span className="text-xs text-slate-500 font-mono pt-0.5 shrink-0">2.</span>
+                      <p className="text-xs text-white font-medium">{t('Arrastra o selecciona el archivo abajo', 'Drag or select the file below')}</p>
+                    </div>
+                  </div>
+
+                  <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" onChange={handleFileSelect} className="hidden" />
+
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+                    onDragLeave={() => setDragOver(false)}
+                    onDrop={handleFileDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
+                      dragOver
+                        ? 'border-blue-500 bg-blue-500/10'
+                        : 'border-[#21262d] hover:border-slate-500 hover:bg-[#1c2129]/30'
+                    }`}>
+                    {syncing ? (
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                        <p className="text-sm text-slate-400">{t('Procesando archivo...', 'Processing file...')}</p>
+                      </div>
+                    ) : (
+                      <>
+                        <Upload size={24} className="mx-auto text-slate-500 mb-3" />
+                        <p className="text-sm text-slate-300 font-medium">
+                          {t('Arrastra tu archivo aquí', 'Drag your file here')}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-1">
+                          {t('o haz clic para seleccionar', 'or click to browse')}
+                        </p>
+                        <p className="text-[10px] text-slate-600 mt-3">CSV, XLSX, XLS · Max 5MB</p>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Sync mode for file import */}
+                  <div className="border-t border-[#21262d]/40 pt-4">
+                    <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">{t('Modo de importación', 'Import mode')}</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button type="button" onClick={() => setSyncMode('merge')}
+                        className={`px-3 py-2.5 rounded-lg text-left transition-all border-2 ${syncMode === 'merge' ? 'border-blue-500 bg-blue-500/10' : 'border-[#21262d] hover:border-slate-500'}`}>
+                        <p className="text-xs text-white font-medium">{t('Actualizar', 'Update')}</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">{t('Actualiza existentes + agrega nuevas', 'Updates existing + adds new')}</p>
+                      </button>
+                      <button type="button" onClick={() => setSyncMode('replace')}
+                        className={`px-3 py-2.5 rounded-lg text-left transition-all border-2 ${syncMode === 'replace' ? 'border-red-500 bg-red-500/10' : 'border-[#21262d] hover:border-slate-500'}`}>
+                        <p className="text-xs text-white font-medium">{t('Sustituir todo', 'Replace all')}</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">{t('Borra IBKR anteriores, reimporta', 'Deletes old IBKR, reimports')}</p>
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
