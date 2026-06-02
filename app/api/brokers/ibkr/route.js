@@ -9,8 +9,8 @@ export const maxDuration = 120
 const FLEX_REQUEST_URL = 'https://gdcdyn.interactivebrokers.com/Universal/servlet/FlexStatementService.SendRequest'
 const FLEX_FETCH_URL = 'https://gdcdyn.interactivebrokers.com/Universal/servlet/FlexStatementService.GetStatement'
 
-const REQUEST_ATTEMPTS = 3
-const REQUEST_DELAYS = [0, 3000, 8000]
+const REQUEST_ATTEMPTS = 5
+const REQUEST_DELAYS = [0, 5000, 15000, 25000, 40000]
 const FETCH_TIMEOUT_MS = 15000
 const POLL_TIMEOUT_MS = 10000
 
@@ -348,7 +348,7 @@ export async function POST(request) {
     try {
       const refResult = await requestFlexReference(creds.token, creds.queryId)
       if (refResult.error) {
-        return NextResponse.json({ ...refResult.error, detail: 'IBKR Flex Service rechazó la solicitud. Verifica que tu Flex Query esté activo y que el Token no haya expirado.' }, { status: 502 })
+        return NextResponse.json(refResult.error, { status: 502 })
       }
 
       const { referenceCode } = refResult
@@ -381,7 +381,7 @@ export async function POST(request) {
       throw new Error('Flex statement generation timed out')
     } catch (err) {
       const classified = classifyError(err.message)
-      return NextResponse.json({ ...classified, detail: 'IBKR Flex Service rechazó la solicitud. Verifica que tu Flex Query esté activo y que el Token no haya expirado.' }, { status: 502 })
+      return NextResponse.json(classified, { status: 502 })
     }
   }
 

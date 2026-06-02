@@ -77,6 +77,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
 
   const statusMessages = {
     requesting: t('Solicitando reporte a IBKR...', 'Requesting report from IBKR...'),
+    'requesting-retry': t('IBKR está ocupado, reintentando...', 'IBKR is busy, retrying...'),
     polling: t('Esperando respuesta de IBKR...', 'Waiting for IBKR response...'),
     processing: t('Procesando datos...', 'Processing data...'),
     importing: t('Importando datos...', 'Importing data...'),
