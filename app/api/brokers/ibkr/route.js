@@ -4,13 +4,32 @@ import { rateLimit } from '@/lib/rateLimit'
 import { getAdminDb } from '@/lib/firebase-admin'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 120
 
 const FLEX_REQUEST_URL = 'https://gdcdyn.interactivebrokers.com/Universal/servlet/FlexStatementService.SendRequest'
 const FLEX_FETCH_URL = 'https://gdcdyn.interactivebrokers.com/Universal/servlet/FlexStatementService.GetStatement'
-const MAX_POLL_ATTEMPTS = 20
-const POLL_DELAY_MS = 3000
-const SEND_REQUEST_ATTEMPTS = 8
-const SEND_REQUEST_DELAYS = [0, 3000, 8000, 15000, 25000, 35000, 45000, 60000]
+
+const REQUEST_ATTEMPTS = 3
+const REQUEST_DELAYS = [0, 3000, 8000]
+const FETCH_TIMEOUT_MS = 15000
+const POLL_TIMEOUT_MS = 10000
+
+// Legacy sync constants (kept for backward compat)
+const LEGACY_POLL_ATTEMPTS = 8
+const LEGACY_POLL_DELAY_MS = 3000
+
+function classifyError(errMsg) {
+  const msg = (errMsg || '').toLowerCase()
+  if (msg.includes('invalid token') || msg.includes('token is not valid') || msg.includes('not authenticated'))
+    return { errorCode: 'TOKEN_EXPIRED', error: 'Tu Flex Token expiró o es inválido. Genera uno nuevo en IBKR.' }
+  if (msg.includes('invalid query') || msg.includes('no matching flex') || msg.includes('query id'))
+    return { errorCode: 'INVALID_QUERY', error: 'El Query ID no existe o no está activo. Verifica en IBKR → Flex Queries.' }
+  if (msg.includes('try again') || msg.includes('could not be generated') || msg.includes('please try'))
+    return { errorCode: 'RATE_LIMITED', error: 'IBKR está ocupado generando el reporte. Reintentando...' }
+  if (msg.includes('timeout') || msg.includes('timed out') || msg.includes('abort'))
+    return { errorCode: 'TIMEOUT', error: 'IBKR no respondió a tiempo. Intenta de nuevo en unos minutos.' }
+  return { errorCode: 'UNKNOWN', error: errMsg || 'Error desconocido de IBKR.' }
+}
 
 function parseFlexPositions(xml) {
   const positions = []
@@ -157,45 +176,89 @@ function formatDate(dt) {
   return undefined
 }
 
-async function fetchFlexReport(token, queryId) {
+function parseXmlToData(xml) {
+  const positions = parseFlexPositions(xml)
+  const cash = parseCashPositions(xml)
+  const trades = parseTrades(xml)
+  const equityHistory = parseEquitySummary(xml)
+  const all = [...positions, ...cash]
+
+  if (all.length === 0 && trades.length === 0) {
+    return { empty: true }
+  }
+
+  return {
+    positions: all,
+    trades,
+    equityHistory,
+    count: all.length,
+    syncedAt: new Date().toISOString(),
+  }
+}
+
+async function requestFlexReference(token, queryId) {
   const requestUrl = `${FLEX_REQUEST_URL}?t=${encodeURIComponent(token)}&q=${encodeURIComponent(queryId)}&v=3`
 
-  let referenceCode = null
-  for (let attempt = 0; attempt < SEND_REQUEST_ATTEMPTS; attempt++) {
-    if (SEND_REQUEST_DELAYS[attempt]) await new Promise((r) => setTimeout(r, SEND_REQUEST_DELAYS[attempt]))
-    const requestRes = await fetch(requestUrl)
-    const requestXml = await requestRes.text()
-    const refMatch = requestXml.match(/<ReferenceCode>([^<]+)<\/ReferenceCode>/)
-    if (refMatch) {
-      referenceCode = refMatch[1]
-      break
-    }
-    const errMatch = requestXml.match(/<ErrorMessage>([^<]+)<\/ErrorMessage>/)
-    const errCode = requestXml.match(/<ErrorCode>([^<]+)<\/ErrorCode>/)
-    const errMsg = errMatch ? errMatch[1] : ''
-    console.error(`[ibkr] Error code: ${errCode?.[1] || 'none'}, message: ${errMsg}`)
-    if (errMsg.toLowerCase().includes('try again') || errMsg.toLowerCase().includes('could not be generated')) {
-      if (attempt === SEND_REQUEST_ATTEMPTS - 1) throw new Error(errMsg)
+  for (let attempt = 0; attempt < REQUEST_ATTEMPTS; attempt++) {
+    if (REQUEST_DELAYS[attempt]) await new Promise((r) => setTimeout(r, REQUEST_DELAYS[attempt]))
+
+    let requestXml
+    try {
+      const res = await fetch(requestUrl, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
+      requestXml = await res.text()
+    } catch (err) {
+      if (attempt === REQUEST_ATTEMPTS - 1) {
+        return { error: classifyError(err.name === 'TimeoutError' ? 'timed out' : err.message) }
+      }
       continue
     }
-    if (errMsg) throw new Error(errMsg)
-    throw new Error('Failed to request Flex statement')
+
+    const refMatch = requestXml.match(/<ReferenceCode>([^<]+)<\/ReferenceCode>/)
+    if (refMatch) {
+      return { referenceCode: refMatch[1] }
+    }
+
+    const errMatch = requestXml.match(/<ErrorMessage>([^<]+)<\/ErrorMessage>/)
+    const errMsg = errMatch ? errMatch[1] : ''
+    const classified = classifyError(errMsg)
+
+    if (classified.errorCode === 'RATE_LIMITED') {
+      if (attempt === REQUEST_ATTEMPTS - 1) return { error: classified }
+      continue
+    }
+
+    return { error: classified }
   }
 
-  for (let i = 0; i < MAX_POLL_ATTEMPTS; i++) {
-    await new Promise((r) => setTimeout(r, POLL_DELAY_MS))
-    const fetchUrl = `${FLEX_FETCH_URL}?q=${referenceCode}&t=${encodeURIComponent(token)}&v=3`
-    const fetchRes = await fetch(fetchUrl)
-    const fetchXml = await fetchRes.text()
-    if (fetchXml.includes('<FlexStatement') || fetchXml.includes('<OpenPosition')) {
-      return fetchXml
-    }
-    if (fetchXml.includes('Statement generation in progress')) continue
-    if (fetchXml.toLowerCase().includes('try again')) continue
-    const errMatch = fetchXml.match(/<ErrorMessage>([^<]+)<\/ErrorMessage>/)
-    if (errMatch) throw new Error(errMatch[1])
+  return { error: classifyError('timed out') }
+}
+
+async function resolveCredentials(body, uid) {
+  let { token, queryId } = body
+  if (!queryId) {
+    return { error: NextResponse.json({ error: 'Query ID is required' }, { status: 400 }) }
   }
-  throw new Error('Flex statement generation timed out')
+
+  if (!token || token === '__stored__') {
+    const db = getAdminDb()
+    if (!db) return { error: NextResponse.json({ error: 'Server not configured' }, { status: 500 }) }
+    const doc = await db.collection('users').doc(uid).collection('settings').doc('ibkr').get()
+    if (!doc.exists || !doc.data().flexToken) {
+      return { error: NextResponse.json({ error: 'No stored token found. Enter your Flex Token.' }, { status: 400 }) }
+    }
+    token = doc.data().flexToken
+    if (!queryId) queryId = doc.data().flexQueryId
+  }
+
+  if (typeof token !== 'string' || typeof queryId !== 'string' || token.length > 200 || queryId.length > 50) {
+    return { error: NextResponse.json({ error: 'Invalid credentials format' }, { status: 400 }) }
+  }
+
+  if (!/^[a-zA-Z0-9]+$/.test(queryId)) {
+    return { error: NextResponse.json({ error: 'Invalid query ID format' }, { status: 400 }) }
+  }
+
+  return { token, queryId }
 }
 
 export async function POST(request) {
@@ -213,52 +276,112 @@ export async function POST(request) {
   }
   const { action } = body
 
-  if (!action || !['sync', 'save-credentials', 'get-credentials'].includes(action)) {
+  const validActions = ['sync', 'request-sync', 'poll-sync', 'save-credentials', 'get-credentials']
+  if (!action || !validActions.includes(action)) {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   }
 
-  if (action === 'sync') {
-    let { token, queryId } = body
-    if (!queryId) {
-      return NextResponse.json({ error: 'Query ID is required' }, { status: 400 })
+  // --- NEW: request-sync (Step 1 — get reference code) ---
+  if (action === 'request-sync') {
+    const creds = await resolveCredentials(body, uid)
+    if (creds.error) return creds.error
+
+    const result = await requestFlexReference(creds.token, creds.queryId)
+    if (result.error) {
+      return NextResponse.json(result.error, { status: 502 })
     }
 
-    if (!token || token === '__stored__') {
-      const db = getAdminDb()
-      if (!db) return NextResponse.json({ error: 'Server not configured' }, { status: 500 })
-      const doc = await db.collection('users').doc(uid).collection('settings').doc('ibkr').get()
-      if (!doc.exists || !doc.data().flexToken) {
-        return NextResponse.json({ error: 'No stored token found. Enter your Flex Token.' }, { status: 400 })
+    return NextResponse.json({ referenceCode: result.referenceCode, status: 'pending' })
+  }
+
+  // --- NEW: poll-sync (Step 2 — poll for result) ---
+  if (action === 'poll-sync') {
+    const { referenceCode } = body
+    if (!referenceCode || typeof referenceCode !== 'string') {
+      return NextResponse.json({ error: 'referenceCode is required' }, { status: 400 })
+    }
+
+    const creds = await resolveCredentials(body, uid)
+    if (creds.error) return creds.error
+
+    const fetchUrl = `${FLEX_FETCH_URL}?q=${encodeURIComponent(referenceCode)}&t=${encodeURIComponent(creds.token)}&v=3`
+
+    let fetchXml
+    try {
+      const fetchRes = await fetch(fetchUrl, { signal: AbortSignal.timeout(POLL_TIMEOUT_MS) })
+      fetchXml = await fetchRes.text()
+    } catch (err) {
+      const classified = classifyError(err.name === 'TimeoutError' ? 'timed out' : err.message)
+      return NextResponse.json({ ...classified, status: 'error' }, { status: 502 })
+    }
+
+    if (fetchXml.includes('<FlexStatement') || fetchXml.includes('<OpenPosition')) {
+      const data = parseXmlToData(fetchXml)
+      if (data.empty) {
+        return NextResponse.json({
+          errorCode: 'EMPTY_REPORT',
+          error: 'El reporte no tiene posiciones ni trades. Verifica que tu Flex Query incluya Open Positions y Trades.',
+          status: 'error',
+        }, { status: 200 })
       }
-      token = doc.data().flexToken
-      if (!queryId) queryId = doc.data().flexQueryId
+      return NextResponse.json({ ...data, status: 'ready' })
     }
 
-    if (typeof token !== 'string' || typeof queryId !== 'string' || token.length > 200 || queryId.length > 50) {
-      return NextResponse.json({ error: 'Invalid credentials format' }, { status: 400 })
+    if (fetchXml.includes('Statement generation in progress') || fetchXml.toLowerCase().includes('try again')) {
+      return NextResponse.json({ status: 'pending' })
     }
 
-    if (!/^[a-zA-Z0-9]+$/.test(queryId)) {
-      return NextResponse.json({ error: 'Invalid query ID format' }, { status: 400 })
+    const errMatch = fetchXml.match(/<ErrorMessage>([^<]+)<\/ErrorMessage>/)
+    if (errMatch) {
+      const classified = classifyError(errMatch[1])
+      return NextResponse.json({ ...classified, status: 'error' }, { status: 502 })
     }
+
+    return NextResponse.json({ status: 'pending' })
+  }
+
+  // --- LEGACY: sync (backward compat, with reduced timeouts) ---
+  if (action === 'sync') {
+    const creds = await resolveCredentials(body, uid)
+    if (creds.error) return creds.error
 
     try {
-      const xml = await fetchFlexReport(token, queryId)
-      const positions = parseFlexPositions(xml)
-      const cash = parseCashPositions(xml)
-      const trades = parseTrades(xml)
-      const equityHistory = parseEquitySummary(xml)
-      const all = [...positions, ...cash]
+      const refResult = await requestFlexReference(creds.token, creds.queryId)
+      if (refResult.error) {
+        return NextResponse.json({ ...refResult.error, detail: 'IBKR Flex Service rechazó la solicitud. Verifica que tu Flex Query esté activo y que el Token no haya expirado.' }, { status: 502 })
+      }
 
-      return NextResponse.json({
-        positions: all,
-        trades,
-        equityHistory,
-        count: all.length,
-        syncedAt: new Date().toISOString(),
-      })
+      const { referenceCode } = refResult
+
+      for (let i = 0; i < LEGACY_POLL_ATTEMPTS; i++) {
+        await new Promise((r) => setTimeout(r, LEGACY_POLL_DELAY_MS))
+        const fetchUrl = `${FLEX_FETCH_URL}?q=${encodeURIComponent(referenceCode)}&t=${encodeURIComponent(creds.token)}&v=3`
+
+        let fetchXml
+        try {
+          const fetchRes = await fetch(fetchUrl, { signal: AbortSignal.timeout(POLL_TIMEOUT_MS) })
+          fetchXml = await fetchRes.text()
+        } catch {
+          if (i === LEGACY_POLL_ATTEMPTS - 1) throw new Error('IBKR no respondió a tiempo.')
+          continue
+        }
+
+        if (fetchXml.includes('<FlexStatement') || fetchXml.includes('<OpenPosition')) {
+          const data = parseXmlToData(fetchXml)
+          if (data.empty) {
+            return NextResponse.json({ error: 'El reporte no tiene posiciones.', errorCode: 'EMPTY_REPORT' }, { status: 200 })
+          }
+          return NextResponse.json(data)
+        }
+        if (fetchXml.includes('Statement generation in progress')) continue
+        if (fetchXml.toLowerCase().includes('try again')) continue
+        const errMatch = fetchXml.match(/<ErrorMessage>([^<]+)<\/ErrorMessage>/)
+        if (errMatch) throw new Error(errMatch[1])
+      }
+      throw new Error('Flex statement generation timed out')
     } catch (err) {
-      return NextResponse.json({ error: err.message, detail: 'IBKR Flex Service rechazó la solicitud. Verifica que tu Flex Query esté activo y que el Token no haya expirado.' }, { status: 502 })
+      const classified = classifyError(err.message)
+      return NextResponse.json({ ...classified, detail: 'IBKR Flex Service rechazó la solicitud. Verifica que tu Flex Query esté activo y que el Token no haya expirado.' }, { status: 502 })
     }
   }
 

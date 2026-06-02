@@ -9,15 +9,16 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   const [step, setStep] = useState('config')
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState('')
+  const [errorCode, setErrorCode] = useState('')
   const [result, setResult] = useState(null)
   const [preview, setPreview] = useState(null)
   const [syncMode, setSyncMode] = useState('merge')
   const [decrypting, setDecrypting] = useState(false)
   const [showConfig, setShowConfig] = useState(true)
   const [showHistory, setShowHistory] = useState(false)
-  const [syncAttempt, setSyncAttempt] = useState(0)
   const [syncStatus, setSyncStatus] = useState('')
-  const cancelRetryRef = useRef(false)
+  const [pollProgress, setPollProgress] = useState(null)
+  const abortRef = useRef(null)
 
   const ibkrHistory = useMemo(() => {
     const items = existingItems.filter(it => it._source === 'ibkr' || (it.institution || '').toLowerCase().includes('interactive brokers'))
@@ -68,8 +69,18 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
     return () => window.removeEventListener('keydown', handleEsc)
   }, [onClose])
 
-  const CLIENT_RETRIES = 3
-  const CLIENT_RETRY_DELAYS = [10000, 20000, 40000]
+  useEffect(() => {
+    return () => {
+      if (abortRef.current) abortRef.current.abort()
+    }
+  }, [])
+
+  const statusMessages = {
+    requesting: t('Solicitando reporte a IBKR...', 'Requesting report from IBKR...'),
+    polling: t('Esperando respuesta de IBKR...', 'Waiting for IBKR response...'),
+    processing: t('Procesando datos...', 'Processing data...'),
+    importing: t('Importando datos...', 'Importing data...'),
+  }
 
   const handleSync = useCallback(async () => {
     if (!token.trim() || !queryId.trim()) {
@@ -79,84 +90,79 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
     }
     setSyncing(true)
     setError('')
-    setSyncAttempt(0)
-    setSyncStatus('')
-    cancelRetryRef.current = false
+    setErrorCode('')
+    setSyncStatus('requesting')
+    setPollProgress(null)
+    setShowConfig(false)
 
-    const { syncIBKR } = await import('@/lib/ibkrSync')
+    const controller = new AbortController()
+    abortRef.current = controller
 
-    for (let attempt = 0; attempt <= CLIENT_RETRIES; attempt++) {
-      if (cancelRetryRef.current) break
-      if (attempt > 0) {
-        const delay = CLIENT_RETRY_DELAYS[attempt - 1] || 30000
-        setSyncStatus(t(
-          `IBKR no respondió. Reintentando en ${delay / 1000}s... (${attempt}/${CLIENT_RETRIES})`,
-          `IBKR didn't respond. Retrying in ${delay / 1000}s... (${attempt}/${CLIENT_RETRIES})`
-        ))
-        await new Promise(r => setTimeout(r, delay))
-        if (cancelRetryRef.current) break
-        setSyncStatus(t(
-          `Reintentando... (${attempt}/${CLIENT_RETRIES})`,
-          `Retrying... (${attempt}/${CLIENT_RETRIES})`
-        ))
+    try {
+      const { syncIBKR } = await import('@/lib/ibkrSync')
+
+      const data = await syncIBKR(token.trim(), queryId.trim(), {
+        signal: controller.signal,
+        onStatus: (status, current, total) => {
+          setSyncStatus(status)
+          if (current && total) setPollProgress({ current, total })
+        },
+      })
+
+      if (onSaveCredentials && uid) {
+        const { encryptToken } = await import('@/lib/crypto')
+        const encrypted = await encryptToken(token.trim(), uid)
+        onSaveCredentials({ ibkrToken: encrypted, ibkrQueryId: queryId.trim() })
       }
-      setSyncAttempt(attempt + 1)
 
-      try {
-        const data = await syncIBKR(token.trim(), queryId.trim())
-
-        if (onSaveCredentials && uid) {
-          const { encryptToken } = await import('@/lib/crypto')
-          const encrypted = await encryptToken(token.trim(), uid)
-          onSaveCredentials({ ibkrToken: encrypted, ibkrQueryId: queryId.trim() })
-        }
-
-        if (onSyncComplete) {
-          setSyncStatus(t('Importando datos...', 'Importing data...'))
-          await onSyncComplete(data, syncMode)
-          setResult({
-            items: data.items.length,
-            transactions: data.transactions.length,
-            equityHistory: (data.equityHistory || []).length,
-            accounts: data.accounts || [],
-            syncedAt: data.syncedAt,
-            mode: syncMode,
-          })
-          setStep('done')
-        } else {
-          setPreview(data)
-          setStep('preview')
-        }
-
-        setSyncing(false)
-        setSyncStatus('')
-        return
-      } catch (err) {
-        const msg = err.message || ''
-        const isRetryable = msg.toLowerCase().includes('could not be generated') ||
-          msg.toLowerCase().includes('try again') ||
-          msg.toLowerCase().includes('rechazó') ||
-          msg.includes('502') || msg.includes('timeout')
-
-        if (!isRetryable || attempt === CLIENT_RETRIES) {
-          setError(msg || t('Error conectando con IBKR.', 'Error connecting to IBKR.'))
-          setShowConfig(true)
-          if (ibkrHistory.items.length > 0) setShowHistory(true)
-          break
-        }
+      if (onSyncComplete) {
+        setSyncStatus('importing')
+        await onSyncComplete(data, syncMode)
+        setResult({
+          items: data.items.length,
+          transactions: data.transactions.length,
+          equityHistory: (data.equityHistory || []).length,
+          accounts: data.accounts || [],
+          syncedAt: data.syncedAt,
+          mode: syncMode,
+        })
+        setStep('done')
+      } else {
+        setPreview(data)
+        setStep('preview')
       }
+    } catch (err) {
+      if (err.name === 'AbortError' || err.errorCode === 'CANCELLED') {
+        setError('')
+        setShowConfig(true)
+      } else {
+        setError(err.message || t('Error conectando con IBKR.', 'Error connecting to IBKR.'))
+        setErrorCode(err.errorCode || '')
+        setShowConfig(true)
+        if (ibkrHistory.items.length > 0) setShowHistory(true)
+      }
+    } finally {
+      setSyncing(false)
+      setSyncStatus('')
+      setPollProgress(null)
+      abortRef.current = null
     }
-    setSyncing(false)
-    setSyncStatus('')
-  }, [token, queryId, onSaveCredentials, onSyncComplete, uid, syncMode, t])
+  }, [token, queryId, onSaveCredentials, onSyncComplete, uid, syncMode, t, ibkrHistory.items.length])
 
   const handleSyncRef = useRef(handleSync)
   useEffect(() => { handleSyncRef.current = handleSync }, [handleSync])
+
+  const handleCancel = useCallback(() => {
+    if (abortRef.current) {
+      abortRef.current.abort()
+    }
+  }, [])
 
   const handleConfirm = useCallback(async () => {
     if (!preview || !onSyncComplete) return
     setSyncing(true)
     setError('')
+    setErrorCode('')
     try {
       await onSyncComplete(preview, syncMode)
       setResult({
@@ -173,6 +179,39 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
     }
     setSyncing(false)
   }, [preview, onSyncComplete, syncMode])
+
+  const errorHint = useMemo(() => {
+    if (!errorCode) return null
+    switch (errorCode) {
+      case 'TOKEN_EXPIRED':
+        return t(
+          'Ve a IBKR → Settings → API → Flex Web Service y genera un nuevo Token.',
+          'Go to IBKR → Settings → API → Flex Web Service and generate a new Token.'
+        )
+      case 'INVALID_QUERY':
+        return t(
+          'Ve a IBKR → Performance & Reports → Flex Queries y verifica que tu Query esté activo.',
+          'Go to IBKR → Performance & Reports → Flex Queries and verify your Query is active.'
+        )
+      case 'RATE_LIMITED':
+        return t(
+          'IBKR limita las solicitudes. Espera 1-2 minutos antes de intentar de nuevo.',
+          'IBKR rate-limits requests. Wait 1-2 minutes before trying again.'
+        )
+      case 'TIMEOUT':
+        return t(
+          'El servicio de IBKR está lento. Esto pasa a veces fuera de horario de mercado.',
+          'IBKR service is slow. This sometimes happens outside market hours.'
+        )
+      case 'EMPTY_REPORT':
+        return t(
+          'Verifica que tu Flex Query incluya "Open Positions" y "Trades" en su configuración.',
+          'Verify your Flex Query includes "Open Positions" and "Trades" in its configuration.'
+        )
+      default:
+        return null
+    }
+  }, [errorCode, lang])
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="ibkr-modal-title">
@@ -204,7 +243,10 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   {t('Última sincronización:', 'Last synced:')} {lastSyncLabel}
                 </p>
               )}
-              {!hasData && (error.toLowerCase().includes('could not be generated') || error.toLowerCase().includes('try again') || error.toLowerCase().includes('rechazó')) && (
+              {!hasData && errorHint && (
+                <p className="text-red-400/60 text-xs mt-1.5">{errorHint}</p>
+              )}
+              {!hasData && !errorHint && (errorCode === 'RATE_LIMITED' || error.toLowerCase().includes('try again')) && (
                 <p className="text-red-400/60 text-xs mt-1.5">
                   {t('IBKR a veces tarda en generar reportes. Intenta de nuevo en unos minutos.',
                      'IBKR sometimes takes time to generate reports. Try again in a few minutes.')}
@@ -213,29 +255,42 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
             </div>
           )}
 
-          {step === 'config' && !showConfig && (syncing || decrypting) && (
+          {step === 'config' && !showConfig && syncing && (
             <div className="flex flex-col items-center justify-center py-16 gap-4">
               <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
               <p className="text-sm text-slate-400">
-                {decrypting
-                  ? t('Desencriptando credenciales...', 'Decrypting credentials...')
-                  : syncStatus || t('Sincronizando con IBKR...', 'Syncing with IBKR...')}
+                {statusMessages[syncStatus] || t('Sincronizando con IBKR...', 'Syncing with IBKR...')}
               </p>
-              {syncAttempt > 1 && (
-                <div className="flex items-center gap-1.5">
-                  {Array.from({ length: CLIENT_RETRIES + 1 }).map((_, i) => (
-                    <div key={i} className={`w-1.5 h-1.5 rounded-full transition-colors ${i < syncAttempt ? 'bg-blue-400' : 'bg-slate-700'}`} />
-                  ))}
+              {pollProgress && (
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-48 h-1 bg-slate-700 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min((pollProgress.current / pollProgress.total) * 100, 100)}%` }}
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-600">
+                    {t(`Esperando... ${pollProgress.current * 3}s`, `Waiting... ${pollProgress.current * 3}s`)}
+                  </p>
                 </div>
               )}
               <div className="flex items-center gap-3">
                 <button onClick={() => setShowConfig(true)} className="text-xs text-slate-600 hover:text-slate-400 transition-colors">
                   {t('Cambiar credenciales', 'Change credentials')}
                 </button>
-                <button onClick={() => { cancelRetryRef.current = true }} className="text-xs text-red-500/60 hover:text-red-400 transition-colors">
+                <button onClick={handleCancel} className="text-xs text-red-500/60 hover:text-red-400 transition-colors">
                   {t('Cancelar', 'Cancel')}
                 </button>
               </div>
+            </div>
+          )}
+
+          {step === 'config' && !showConfig && decrypting && !syncing && (
+            <div className="flex flex-col items-center justify-center py-16 gap-4">
+              <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-sm text-slate-400">
+                {t('Desencriptando credenciales...', 'Decrypting credentials...')}
+              </p>
             </div>
           )}
 
@@ -282,14 +337,20 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   <input type="password" value={token} onChange={e => setToken(e.target.value)}
                     placeholder={decrypting ? t('Desencriptando...', 'Decrypting...') : t('Flex Web Service Token', 'Flex Web Service Token')}
                     disabled={decrypting}
-                    className="w-full px-4 py-2.5 bg-[#0f172a] border border-[#334155]/60 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono" />
+                    className={`w-full px-4 py-2.5 bg-[#0f172a] border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono ${errorCode === 'TOKEN_EXPIRED' ? 'border-red-500/60' : 'border-[#334155]/60'}`} />
+                  {errorCode === 'TOKEN_EXPIRED' && (
+                    <p className="text-[10px] text-red-400 mt-1">{t('Este token expiró o es inválido.', 'This token has expired or is invalid.')}</p>
+                  )}
                 </div>
 
                 <div>
                   <label className="text-[11px] text-slate-500 uppercase tracking-wider mb-1.5 block">Query ID</label>
                   <input type="text" value={queryId} onChange={e => setQueryId(e.target.value)}
                     placeholder={t('Ej: 123456', 'E.g.: 123456')}
-                    className="w-full px-4 py-2.5 bg-[#0f172a] border border-[#334155]/60 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono" />
+                    className={`w-full px-4 py-2.5 bg-[#0f172a] border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono ${errorCode === 'INVALID_QUERY' ? 'border-red-500/60' : 'border-[#334155]/60'}`} />
+                  {errorCode === 'INVALID_QUERY' && (
+                    <p className="text-[10px] text-red-400 mt-1">{t('Este Query ID no existe o no está activo.', 'This Query ID does not exist or is not active.')}</p>
+                  )}
                 </div>
               </div>
 
