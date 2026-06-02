@@ -146,7 +146,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
           {monthlySummary.map((m) => (
             <div key={m.month} className="bg-[#0d1117] rounded-lg p-2.5 border border-[#21262d]/50 text-center">
               <div className="text-xs text-slate-500 mb-1">{m.month}</div>
-              <div className={`text-xs font-semibold ${m.net >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              <div className={`text-xs font-semibold font-mono tabular-nums ${m.net >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                 {m.net >= 0 ? '+' : ''}{formatCurrency(m.net)}
               </div>
               <div className="text-[10px] text-slate-600">{m.count} txs</div>
@@ -183,14 +183,14 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
                   </div>
                 </div>
                 <div className="text-right">
-                  <span className={`text-sm font-medium ${
+                  <span className={`text-sm font-medium font-mono tabular-nums ${
                     (tx.type || '').toUpperCase() === 'SELL' || (tx.type || '').toUpperCase() === 'WITHDRAWAL'
                       ? 'text-red-400' : 'text-emerald-400'
                   }`}>
                     {formatCurrency(tx.totalAmount ?? 0)}
                   </span>
                   {tx.quantity > 0 && (
-                    <div className="text-xs text-slate-500">
+                    <div className="text-xs text-slate-500 font-mono tabular-nums">
                       {tx.quantity} x {formatCurrency(tx.pricePerUnit || 0)}
                     </div>
                   )}

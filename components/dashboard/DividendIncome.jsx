@@ -195,15 +195,15 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       <div className="grid grid-cols-3 gap-3 mb-4">
         <div>
           <span className="text-xs text-slate-500 block">{t('Ingreso anual est.', 'Est. Annual Income')}</span>
-          <span className="text-lg font-bold text-emerald-400">{formatCurrency(estAnnual)}</span>
+          <span className="text-lg font-bold text-emerald-400 font-mono tabular-nums">{formatCurrency(estAnnual)}</span>
         </div>
         <div className="text-center">
           <span className="text-xs text-slate-500 block">Yield</span>
-          <span className="text-lg font-bold text-cyan-400">{portfolioYield.toFixed(2)}%</span>
+          <span className="text-lg font-bold text-cyan-400 font-mono tabular-nums">{portfolioYield.toFixed(2)}%</span>
         </div>
         <div className="text-right">
           <span className="text-xs text-slate-500 block">YTD {t('recibido', 'received')}</span>
-          <span className="text-lg font-bold text-white">{formatCurrency(stats.totalYTD)}</span>
+          <span className="text-lg font-bold text-white font-mono tabular-nums">{formatCurrency(stats.totalYTD)}</span>
         </div>
       </div>
 

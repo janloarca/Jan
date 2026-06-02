@@ -142,10 +142,10 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
                 <span className="text-xs text-slate-500 font-medium">{p.label}</span>
                 {p.pct != null && isFinite(p.pct) ? (
                   <>
-                    <div className={`text-sm sm:text-base font-bold mt-1 ${isPos ? 'text-emerald-400' : 'text-red-400'}`}>
+                    <div className={`text-sm sm:text-base font-bold font-mono tabular-nums mt-1 ${isPos ? 'text-emerald-400' : 'text-red-400'}`}>
                       {isPos ? '+' : ''}{p.pct.toFixed(2)}%
                     </div>
-                    <div className={`text-xs sm:text-xs mt-0.5 ${isPos ? 'text-emerald-500/70' : 'text-red-500/70'}`}>
+                    <div className={`text-xs sm:text-xs font-mono tabular-nums mt-0.5 ${isPos ? 'text-emerald-500/70' : 'text-red-500/70'}`}>
                       {isPos ? '+' : ''}{formatCurrency(p.abs)}
                     </div>
                   </>

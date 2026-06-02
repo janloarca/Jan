@@ -114,14 +114,14 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
 
       {/* Main value */}
       <div className="flex items-center mb-1">
-        <p className="text-kpi text-white tracking-tight">{formatCurrency(displayValue, displayCur)}</p>
+        <p className="text-kpi text-white tracking-tight font-mono tabular-nums">{formatCurrency(displayValue, displayCur)}</p>
         <Sparkline snapshots={snapshots} />
       </div>
 
       {/* Daily change */}
       {dailyChange && isFinite(dailyChange.pct) && (
         <p className={`text-body font-medium ${isDayPositive ? 'text-emerald-400' : 'text-red-400'}`}>
-          {isDayPositive ? '+' : ''}{formatCurrency(dailyChange.abs, displayCur)} ({isDayPositive ? '+' : ''}{dailyChange.pct.toFixed(2)}%)
+          <span className="font-mono tabular-nums">{isDayPositive ? '+' : ''}{formatCurrency(dailyChange.abs, displayCur)} ({isDayPositive ? '+' : ''}{dailyChange.pct.toFixed(2)}%)</span>
           <span className="text-slate-500 font-normal ml-1">{lang === 'es' ? 'hoy' : 'today'}</span>
         </p>
       )}
@@ -132,11 +132,11 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
           !hasReturn ? 'bg-slate-500/15 text-slate-400' : isYTDPositive ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'
         }`}>
           {hasYTD ? 'YTD' : sinceStartDate ? (lang === 'es' ? 'Desde ' : 'Since ') + new Date(sinceStartDate).toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short', year: '2-digit' }) : 'YTD'}{' '}
-          {hasReturn ? `${isYTDPositive ? '+' : ''}${displayReturn.toFixed(2)}%` : 'N/A'}
+          <span className="font-mono">{hasReturn ? `${isYTDPositive ? '+' : ''}${displayReturn.toFixed(2)}%` : 'N/A'}</span>
         </span>
         {yearlyChange != null && isFinite(yearlyChange) && (
           <span className={`text-xs ${isYearlyPositive ? 'text-emerald-400/70' : 'text-red-400/70'}`}>
-            {isYearlyPositive ? '▲' : '▼'} {Math.abs(yearlyChange).toFixed(1)}% {lang === 'es' ? 'vs año anterior' : 'vs prior year'}
+            {isYearlyPositive ? '▲' : '▼'} <span className="font-mono">{Math.abs(yearlyChange).toFixed(1)}%</span> {lang === 'es' ? 'vs año anterior' : 'vs prior year'}
           </span>
         )}
       </div>
@@ -145,8 +145,8 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
       {netContributions != null && netContributions > 0 && (
         <div className="mt-3 pt-3 border-t border-[#21262d]/50">
           <div className="flex items-center justify-between text-xs mb-1.5">
-            <span className="text-slate-500">{lang === 'es' ? 'Invertido' : 'Invested'}: <span className="text-slate-300 font-medium">{formatCurrency(netContributions, displayCur)}</span></span>
-            <span className="text-slate-500">{lang === 'es' ? 'Ganancia' : 'Gains'}: <span className={`font-medium ${displayValue - netContributions >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatCurrency(displayValue - netContributions, displayCur)}</span></span>
+            <span className="text-slate-500">{lang === 'es' ? 'Invertido' : 'Invested'}: <span className="text-slate-300 font-medium font-mono tabular-nums">{formatCurrency(netContributions, displayCur)}</span></span>
+            <span className="text-slate-500">{lang === 'es' ? 'Ganancia' : 'Gains'}: <span className={`font-medium font-mono tabular-nums ${displayValue - netContributions >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatCurrency(displayValue - netContributions, displayCur)}</span></span>
           </div>
           <div className="w-full h-1.5 bg-slate-700/30 rounded-full overflow-hidden flex">
             {(() => {

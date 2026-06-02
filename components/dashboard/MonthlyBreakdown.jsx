@@ -234,13 +234,13 @@ export default function MonthlyBreakdown({ items, snapshots, lang, onUpdateItem,
                             className={`font-medium tabular-nums ${isDebt ? 'text-red-400' : 'text-slate-200'}`}
                           />
                         ) : (
-                          <span className={`font-medium tabular-nums ${isDebt ? 'text-red-400' : 'text-slate-200'}`}>
+                          <span className={`font-medium font-mono tabular-nums ${isDebt ? 'text-red-400' : 'text-slate-200'}`}>
                             {isDebt ? '-' : ''}{formatCurrency(Math.abs(val))}
                           </span>
                         )}
                       </td>
-                      <td className="text-right py-1.5 px-2 text-slate-600 tabular-nums">{Math.abs(pct).toFixed(1)}</td>
-                      <td className="text-right py-1.5 px-2 tabular-nums">
+                      <td className="text-right py-1.5 px-2 text-slate-600 font-mono tabular-nums">{Math.abs(pct).toFixed(1)}</td>
+                      <td className="text-right py-1.5 px-2 font-mono tabular-nums">
                         {retPct != null ? (
                           <span className={retPct >= 0 ? 'text-emerald-400/80' : 'text-red-400/80'}>
                             {retPct >= 0 ? '+' : ''}{retPct.toFixed(1)}%

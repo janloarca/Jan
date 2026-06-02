@@ -330,12 +330,12 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                         <div className="w-14 h-1.5 bg-slate-700/50 rounded-full overflow-hidden">
                           <div className="h-full rounded-full" style={{ width: `${Math.min(pctPort, 100)}%`, backgroundColor: colors.bg }} />
                         </div>
-                        <span className="text-slate-400 text-xs w-8">{pctPort.toFixed(1)}%</span>
+                        <span className="text-slate-400 text-xs w-8 font-mono tabular-nums">{pctPort.toFixed(1)}%</span>
                       </div>
                     </td>
                     <td className="text-right py-3 hidden sm:table-cell">
                       {item.purchasePrice > 0 ? (
-                        <span className="text-slate-400 text-xs">{formatCurrency(item.purchasePrice)}</span>
+                        <span className="text-slate-400 text-xs font-mono tabular-nums">{formatCurrency(item.purchasePrice)}</span>
                       ) : (
                         <span className="text-slate-600">—</span>
                       )}
@@ -343,10 +343,10 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                     <td className="text-center py-3 hidden sm:table-cell">
                       {retPct != null ? (
                         <div>
-                          <span className={`text-xs font-medium ${retPct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          <span className={`text-xs font-medium font-mono tabular-nums ${retPct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                             {retPct >= 0 ? '+' : ''}{formatCurrency(retAbs)}
                           </span>
-                          <div className={`text-xs ${retPct >= 0 ? 'text-emerald-500/70' : 'text-red-500/70'}`}>
+                          <div className={`text-xs font-mono tabular-nums ${retPct >= 0 ? 'text-emerald-500/70' : 'text-red-500/70'}`}>
                             {retPct >= 0 ? '+' : ''}{retPct.toFixed(1)}%
                           </div>
                         </div>
@@ -355,7 +355,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                       )}
                     </td>
                     <td className="text-right py-3">
-                      <span className={`${value < 0 ? 'text-red-400' : 'text-emerald-400'} font-medium cursor-pointer hover:underline`}
+                      <span className={`${value < 0 ? 'text-red-400' : 'text-emerald-400'} font-medium font-mono tabular-nums cursor-pointer hover:underline`}
                         onClick={() => onViewItem && onViewItem(item)}>
                         {formatCurrency(Math.abs(value))}{value < 0 ? ' ⓓ' : ''}
                       </span>

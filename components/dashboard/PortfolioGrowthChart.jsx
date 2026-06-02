@@ -633,15 +633,15 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
       {/* Header stats */}
       {viewMode === 'value' ? (
         <div className="mb-3">
-          <p className="text-3xl font-bold text-white">{formatCurrency(hd ? hd.value : currentTotal)}</p>
+          <p className="text-3xl font-bold text-white font-mono tabular-nums">{formatCurrency(hd ? hd.value : currentTotal)}</p>
           <p className={`text-sm mt-0.5 ${growthAbs >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-            {growthAbs >= 0 ? '+' : ''}{formatCurrency(growthAbs)} ({growthAbs >= 0 ? '+' : ''}{growthPct.toFixed(2)}%)
+            <span className="font-mono tabular-nums">{growthAbs >= 0 ? '+' : ''}{formatCurrency(growthAbs)} ({growthAbs >= 0 ? '+' : ''}{growthPct.toFixed(2)}%)</span>
             <span className="text-slate-500 ml-1">{period === 'YTD' ? t('este año', 'this year') : period === 'DAY' ? t('hoy', 'today') : period === 'CUSTOM' ? t('rango', 'range') : period}</span>
           </p>
         </div>
       ) : (
         <div className="mb-3">
-          <p className={`text-3xl font-bold ${lastReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+          <p className={`text-3xl font-bold font-mono tabular-nums ${lastReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
             {lastReturn >= 0 ? '+' : ''}{(hoverIdx != null && returnData[hoverIdx] != null ? returnData[hoverIdx] : lastReturn).toFixed(2)}%
           </p>
           <div className="flex items-center gap-3 mt-0.5">

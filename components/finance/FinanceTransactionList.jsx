@@ -72,7 +72,7 @@ export default function FinanceTransactionList({ transactions, onDelete, lang = 
                       <span className="text-slate-300">{tx.category}</span>
                     </span>
                   </td>
-                  <td className={`py-2 px-2 text-right font-medium whitespace-nowrap ${tx.type === 'INCOME' ? 'text-emerald-400' : 'text-red-400'}`}>
+                  <td className={`py-2 px-2 text-right font-medium font-mono tabular-nums whitespace-nowrap ${tx.type === 'INCOME' ? 'text-emerald-400' : 'text-red-400'}`}>
                     {tx.type === 'INCOME' ? '+' : '-'}Q{fmt(tx.amount)}
                   </td>
                   <td className="py-2 px-2 text-center">
