@@ -24,7 +24,7 @@ const CURRENCIES = [
   { code: 'CNY', name: 'Chinese Yuan', symbol: '¥' },
 ]
 
-export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onExportBackup, onSyncBroker, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, lang = 'es', profile, onSaveProfile }) {
+export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onExportBackup, onSyncBroker, onOpenIBKR, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, lang = 'es', profile, onSaveProfile }) {
   const [baseCurrency, setBaseCurrency] = useState(settings?.baseCurrency || 'USD')
   const [benchmarkSymbol, setBenchmarkSymbol] = useState(settings?.benchmarkSymbol || '%5EGSPC')
   const [saving, setSaving] = useState(false)
@@ -51,8 +51,6 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   const [ibkrQueryId, setIbkrQueryId] = useState('')
   const [ibkrConfigured, setIbkrConfigured] = useState(false)
   const [ibkrSaving, setIbkrSaving] = useState(false)
-  const [ibkrSyncing, setIbkrSyncing] = useState(false)
-  const [ibkrResult, setIbkrResult] = useState(null)
   const [ibkrError, setIbkrError] = useState('')
 
   const t = (es, en) => lang === 'es' ? es : en
@@ -161,40 +159,10 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
       setIbkrConfigured(false)
       setIbkrToken('')
       setIbkrQueryId('')
-      setIbkrResult(null)
     } catch {}
     setIbkrSaving(false)
   }
 
-  const handleIbkrSync = async () => {
-    setIbkrSyncing(true)
-    setIbkrError('')
-    setIbkrResult(null)
-    try {
-      const credsRes = await authFetch('/api/brokers/ibkr', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'get-credentials' }),
-      })
-      if (!credsRes.ok) throw new Error('Could not load credentials')
-      const creds = await credsRes.json()
-      if (!creds.configured) throw new Error(t('Configura IBKR primero', 'Configure IBKR first'))
-
-      const syncRes = await authFetch('/api/brokers/ibkr', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'sync', token: '__stored__', queryId: creds.flexQueryId }),
-      })
-      if (!syncRes.ok) {
-        const d = await syncRes.json()
-        throw new Error(d.error || `Sync failed (${syncRes.status})`)
-      }
-      const data = await syncRes.json()
-      setIbkrResult(data)
-      if (onSyncBroker) await onSyncBroker(data.positions)
-    } catch (e) { setIbkrError(e.message) }
-    setIbkrSyncing(false)
-  }
 
   const handleSaveProfile = async () => {
     if (!onSaveProfile) return
@@ -433,13 +401,6 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                 <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-xs">{ibkrError}</div>
               )}
 
-              {ibkrResult && (
-                <div className="flex items-center gap-2 text-xs text-emerald-400">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                  {ibkrResult.count} {t('posiciones importadas', 'positions imported')}
-                </div>
-              )}
-
               {!ibkrConfigured ? (
                 <div className="space-y-4">
                   <div className="pl-1 space-y-2">
@@ -487,14 +448,14 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                     </button>
                   </div>
 
-                  <button onClick={handleIbkrSync} disabled={ibkrSyncing}
-                    className="w-full py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-500 disabled:opacity-50 transition-all text-sm font-medium flex items-center justify-center gap-2">
-                    {ibkrSyncing ? (
-                      <><span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> {t('Sincronizando...', 'Syncing...')}</>
-                    ) : (
-                      <>{t('Sincronizar ahora', 'Sync now')}</>
-                    )}
+                  <button onClick={() => { onClose(); setTimeout(() => { if (onOpenIBKR) onOpenIBKR() }, 50) }}
+                    className="w-full py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-all text-sm font-medium flex items-center justify-center gap-2">
+                    {t('Sincronizar ahora', 'Sync now')}
                   </button>
+                  <p className="text-[10px] text-slate-600 text-center">
+                    {t('Abre el panel de sincronización con vista previa y opciones de importación',
+                       'Opens the sync panel with preview and import options')}
+                  </p>
                 </div>
               )}
 

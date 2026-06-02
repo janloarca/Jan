@@ -760,6 +760,7 @@ export default function DashboardPage() {
             a.click()
             URL.revokeObjectURL(url)
           }}
+          onOpenIBKR={() => setModal('ibkr')}
           theme={theme} onToggleTheme={handleSetTheme} lang={lang}
           profile={profile} onSaveProfile={saveProfile}
         />

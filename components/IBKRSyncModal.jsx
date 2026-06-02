@@ -252,6 +252,11 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                      'IBKR sometimes takes time to generate reports. Try again in a few minutes.')}
                 </p>
               )}
+              {!syncing && (
+                <button onClick={handleSync} className="mt-2 text-xs text-blue-400 hover:text-blue-300 transition-colors">
+                  {t('Reintentar', 'Retry')} →
+                </button>
+              )}
             </div>
           )}
 
