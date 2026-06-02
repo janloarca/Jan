@@ -15,6 +15,9 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   const [decrypting, setDecrypting] = useState(false)
   const [showConfig, setShowConfig] = useState(true)
   const [showHistory, setShowHistory] = useState(false)
+  const [syncAttempt, setSyncAttempt] = useState(0)
+  const [syncStatus, setSyncStatus] = useState('')
+  const cancelRetryRef = useRef(false)
 
   const ibkrHistory = useMemo(() => {
     const items = existingItems.filter(it => it._source === 'ibkr' || (it.institution || '').toLowerCase().includes('interactive brokers'))
@@ -51,6 +54,9 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
     return () => window.removeEventListener('keydown', handleEsc)
   }, [onClose])
 
+  const CLIENT_RETRIES = 3
+  const CLIENT_RETRY_DELAYS = [10000, 20000, 40000]
+
   const handleSync = useCallback(async () => {
     if (!token.trim() || !queryId.trim()) {
       setError(t('Ingresa tu token y Query ID.', 'Enter your token and Query ID.'))
@@ -59,22 +65,74 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
     }
     setSyncing(true)
     setError('')
-    try {
-      const { syncIBKR } = await import('@/lib/ibkrSync')
-      const data = await syncIBKR(token.trim(), queryId.trim())
-      setPreview(data)
-      setStep('preview')
+    setSyncAttempt(0)
+    setSyncStatus('')
+    cancelRetryRef.current = false
 
-      if (onSaveCredentials && uid) {
-        const { encryptToken } = await import('@/lib/crypto')
-        const encrypted = await encryptToken(token.trim(), uid)
-        onSaveCredentials({ ibkrToken: encrypted, ibkrQueryId: queryId.trim() })
+    const { syncIBKR } = await import('@/lib/ibkrSync')
+
+    for (let attempt = 0; attempt <= CLIENT_RETRIES; attempt++) {
+      if (cancelRetryRef.current) break
+      if (attempt > 0) {
+        const delay = CLIENT_RETRY_DELAYS[attempt - 1] || 30000
+        setSyncStatus(t(
+          `IBKR no respondió. Reintentando en ${delay / 1000}s... (${attempt}/${CLIENT_RETRIES})`,
+          `IBKR didn't respond. Retrying in ${delay / 1000}s... (${attempt}/${CLIENT_RETRIES})`
+        ))
+        await new Promise(r => setTimeout(r, delay))
+        if (cancelRetryRef.current) break
+        setSyncStatus(t(
+          `Reintentando... (${attempt}/${CLIENT_RETRIES})`,
+          `Retrying... (${attempt}/${CLIENT_RETRIES})`
+        ))
       }
-    } catch (err) {
-      setError(err.message || t('Error conectando con IBKR.', 'Error connecting to IBKR.'))
-      setShowConfig(true)
+      setSyncAttempt(attempt + 1)
+
+      try {
+        const data = await syncIBKR(token.trim(), queryId.trim())
+
+        if (onSaveCredentials && uid) {
+          const { encryptToken } = await import('@/lib/crypto')
+          const encrypted = await encryptToken(token.trim(), uid)
+          onSaveCredentials({ ibkrToken: encrypted, ibkrQueryId: queryId.trim() })
+        }
+
+        if (onSyncComplete) {
+          setSyncStatus(t('Importando datos...', 'Importing data...'))
+          await onSyncComplete(data, syncMode)
+          setResult({
+            items: data.items.length,
+            transactions: data.transactions.length,
+            equityHistory: (data.equityHistory || []).length,
+            accounts: data.accounts || [],
+            syncedAt: data.syncedAt,
+            mode: syncMode,
+          })
+          setStep('done')
+        } else {
+          setPreview(data)
+          setStep('preview')
+        }
+
+        setSyncing(false)
+        setSyncStatus('')
+        return
+      } catch (err) {
+        const msg = err.message || ''
+        const isRetryable = msg.toLowerCase().includes('could not be generated') ||
+          msg.toLowerCase().includes('try again') ||
+          msg.toLowerCase().includes('rechazó') ||
+          msg.includes('502') || msg.includes('timeout')
+
+        if (!isRetryable || attempt === CLIENT_RETRIES) {
+          setError(msg || t('Error conectando con IBKR.', 'Error connecting to IBKR.'))
+          setShowConfig(true)
+          break
+        }
+      }
     }
     setSyncing(false)
+    setSyncStatus('')
   }, [token, queryId, onSaveCredentials, onSyncComplete, uid, syncMode, t])
 
   const handleSyncRef = useRef(handleSync)
@@ -111,7 +169,15 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
 
         <div className="flex-1 overflow-y-auto px-6 py-5">
           {error && (
-            <div className="mb-5 p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-sm">{error}</div>
+            <div className="mb-5 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+              <p className="text-red-400 text-sm">{error}</p>
+              {error.toLowerCase().includes('could not be generated') || error.toLowerCase().includes('try again') || error.toLowerCase().includes('rechazó') ? (
+                <p className="text-red-400/60 text-xs mt-1.5">
+                  {t('IBKR a veces tarda en generar reportes. Intenta de nuevo en unos minutos.',
+                     'IBKR sometimes takes time to generate reports. Try again in a few minutes.')}
+                </p>
+              ) : null}
+            </div>
           )}
 
           {step === 'config' && !showConfig && (syncing || decrypting) && (
@@ -120,11 +186,23 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
               <p className="text-sm text-slate-400">
                 {decrypting
                   ? t('Desencriptando credenciales...', 'Decrypting credentials...')
-                  : t('Sincronizando con IBKR...', 'Syncing with IBKR...')}
+                  : syncStatus || t('Sincronizando con IBKR...', 'Syncing with IBKR...')}
               </p>
-              <button onClick={() => setShowConfig(true)} className="text-xs text-slate-600 hover:text-slate-400 transition-colors">
-                {t('Cambiar credenciales', 'Change credentials')}
-              </button>
+              {syncAttempt > 1 && (
+                <div className="flex items-center gap-1.5">
+                  {Array.from({ length: CLIENT_RETRIES + 1 }).map((_, i) => (
+                    <div key={i} className={`w-1.5 h-1.5 rounded-full transition-colors ${i < syncAttempt ? 'bg-blue-400' : 'bg-slate-700'}`} />
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center gap-3">
+                <button onClick={() => setShowConfig(true)} className="text-xs text-slate-600 hover:text-slate-400 transition-colors">
+                  {t('Cambiar credenciales', 'Change credentials')}
+                </button>
+                <button onClick={() => { cancelRetryRef.current = true }} className="text-xs text-red-500/60 hover:text-red-400 transition-colors">
+                  {t('Cancelar', 'Cancel')}
+                </button>
+              </div>
             </div>
           )}
 

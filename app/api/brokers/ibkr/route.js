@@ -7,10 +7,10 @@ export const dynamic = 'force-dynamic'
 
 const FLEX_REQUEST_URL = 'https://gdcdyn.interactivebrokers.com/Universal/servlet/FlexStatementService.SendRequest'
 const FLEX_FETCH_URL = 'https://gdcdyn.interactivebrokers.com/Universal/servlet/FlexStatementService.GetStatement'
-const MAX_POLL_ATTEMPTS = 15
+const MAX_POLL_ATTEMPTS = 20
 const POLL_DELAY_MS = 3000
-const SEND_REQUEST_ATTEMPTS = 6
-const SEND_REQUEST_DELAYS = [0, 5000, 10000, 15000, 20000, 30000]
+const SEND_REQUEST_ATTEMPTS = 8
+const SEND_REQUEST_DELAYS = [0, 3000, 8000, 15000, 25000, 35000, 45000, 60000]
 
 function parseFlexPositions(xml) {
   const positions = []
