@@ -58,16 +58,30 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       const { syncIBKR } = await import('@/lib/ibkrSync')
       const data = await syncIBKR(token.trim(), queryId.trim())
       setPreview(data)
-      setStep('preview')
 
       if (onSaveCredentials && uid) {
         const { encryptToken } = await import('@/lib/crypto')
         const encrypted = await encryptToken(token.trim(), uid)
         onSaveCredentials({ ibkrToken: encrypted, ibkrQueryId: queryId.trim() })
       }
+
+      // Auto-import with the selected mode
+      if (onSyncComplete) {
+        await onSyncComplete(data, syncMode)
+        setResult({
+          items: data.items.length,
+          transactions: data.transactions.length,
+          equityHistory: (data.equityHistory || []).length,
+          accounts: data.accounts || [],
+          syncedAt: data.syncedAt,
+          mode: syncMode,
+        })
+        setStep('done')
+      } else {
+        setStep('preview')
+      }
     } catch (err) {
       setError(err.message || t('Error conectando con IBKR.', 'Error connecting to IBKR.'))
-      setShowConfig(true)
     }
     setSyncing(false)
   }, [token, queryId, onSaveCredentials, uid, t])
@@ -106,7 +120,14 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
 
         <div className="flex-1 overflow-y-auto px-6 py-5">
           {error && (
-            <div className="mb-5 p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-sm">{error}</div>
+            <div className="mb-5 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+              <p className="text-red-400 text-sm">{error}</p>
+              {!syncing && (
+                <button onClick={handleSync} className="mt-2 text-xs text-blue-400 hover:text-blue-300 transition-colors">
+                  {t('Reintentar', 'Retry')} →
+                </button>
+              )}
+            </div>
           )}
 
           {step === 'config' && !showConfig && (syncing || decrypting) && (
@@ -177,14 +198,31 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 </div>
               </div>
 
+              {/* Sync mode selector */}
+              <div className="border-t border-[#334155]/40 pt-4">
+                <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">{t('Modo de importación', 'Import mode')}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => setSyncMode('merge')}
+                    className={`px-3 py-2.5 rounded-lg text-left transition-all border-2 ${syncMode === 'merge' ? 'border-blue-500 bg-blue-500/10' : 'border-[#334155] hover:border-slate-500'}`}>
+                    <p className="text-xs text-white font-medium">🔄 {t('Actualizar', 'Update')}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{t('Actualiza existentes + agrega nuevas', 'Updates existing + adds new')}</p>
+                  </button>
+                  <button type="button" onClick={() => setSyncMode('replace')}
+                    className={`px-3 py-2.5 rounded-lg text-left transition-all border-2 ${syncMode === 'replace' ? 'border-red-500 bg-red-500/10' : 'border-[#334155] hover:border-slate-500'}`}>
+                    <p className="text-xs text-white font-medium">♻️ {t('Sustituir todo', 'Replace all')}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{t('Borra IBKR anteriores, reimporta', 'Deletes old IBKR, reimports')}</p>
+                  </button>
+                </div>
+              </div>
+
               <button onClick={handleSync} disabled={syncing || !token || !queryId || decrypting}
-                className="w-full py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-500 disabled:opacity-50 transition-all text-sm font-medium flex items-center justify-center gap-2">
+                className={`w-full py-3 text-white rounded-xl disabled:opacity-50 transition-all text-sm font-medium flex items-center justify-center gap-2 ${syncMode === 'replace' ? 'bg-red-600 hover:bg-red-500' : 'bg-blue-600 hover:bg-blue-500'}`}>
                 {syncing ? (
                   <>
                     <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                     {t('Conectando con IBKR...', 'Connecting to IBKR...')}
                   </>
-                ) : t('Sincronizar', 'Sync')}
+                ) : syncMode === 'replace' ? t('Sustituir y sincronizar', 'Replace and sync') : t('Sincronizar', 'Sync')}
               </button>
 
               <p className="flex items-center justify-center gap-1.5 text-[11px] text-slate-600">
