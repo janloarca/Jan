@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { CheckCircle, Lock } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { CheckCircle, Lock, ChevronDown, ChevronUp } from 'lucide-react'
 
-export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, savedQueryId, onSaveCredentials, lang = 'es', uid }) {
+export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, savedQueryId, onSaveCredentials, lang = 'es', uid, existingItems = [], existingTransactions = [], existingSnapshots = [] }) {
   const [token, setToken] = useState('')
   const [queryId, setQueryId] = useState(savedQueryId || '')
   const [step, setStep] = useState('config')
@@ -13,8 +13,20 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   const [preview, setPreview] = useState(null)
   const [syncMode, setSyncMode] = useState('merge')
   const [decrypting, setDecrypting] = useState(false)
-  const [autoSyncAttempted, setAutoSyncAttempted] = useState(false)
-  const [showConfig, setShowConfig] = useState(!savedToken || !savedQueryId)
+  const [showConfig, setShowConfig] = useState(true)
+  const [showHistory, setShowHistory] = useState(false)
+
+  const ibkrHistory = useMemo(() => {
+    const items = existingItems.filter(it => it._source === 'ibkr' || (it.institution || '').toLowerCase().includes('interactive brokers'))
+    const txs = existingTransactions.filter(tx => tx._source === 'ibkr' || (tx.institution || '').toLowerCase().includes('interactive brokers'))
+    const snaps = existingSnapshots.filter(s => s._source === 'ibkr')
+    const allSnaps = [...existingSnapshots].sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+    const totalValue = items.reduce((s, it) => {
+      const v = (it.currentPrice || it.purchasePrice || 0) * (it.quantity || 1)
+      return s + v
+    }, 0)
+    return { items, txs, snaps, allSnaps, totalValue }
+  }, [existingItems, existingTransactions, existingSnapshots])
 
   const t = (es, en) => lang === 'es' ? es : en
 
@@ -32,13 +44,6 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       })
     }
   }, [savedToken, uid])
-
-  useEffect(() => {
-    if (!decrypting && token && queryId && savedToken && savedQueryId && !autoSyncAttempted && step === 'config' && !showConfig) {
-      setAutoSyncAttempted(true)
-      handleSyncRef.current?.()
-    }
-  }, [decrypting, token, queryId, savedToken, savedQueryId, autoSyncAttempted, step, showConfig])
 
   useEffect(() => {
     const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
@@ -70,7 +75,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       setShowConfig(true)
     }
     setSyncing(false)
-  }, [token, queryId, onSaveCredentials, uid, t])
+  }, [token, queryId, onSaveCredentials, onSyncComplete, uid, syncMode, t])
 
   const handleSyncRef = useRef(handleSync)
   useEffect(() => { handleSyncRef.current = handleSync }, [handleSync])
@@ -177,14 +182,96 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 </div>
               </div>
 
+              {/* Sync mode selector */}
+              <div className="border-t border-[#334155]/40 pt-4">
+                <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">{t('Modo de importación', 'Import mode')}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => setSyncMode('merge')}
+                    className={`px-3 py-2.5 rounded-lg text-left transition-all border-2 ${syncMode === 'merge' ? 'border-blue-500 bg-blue-500/10' : 'border-[#334155] hover:border-slate-500'}`}>
+                    <p className="text-xs text-white font-medium">🔄 {t('Actualizar', 'Update')}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{t('Actualiza existentes + agrega nuevas', 'Updates existing + adds new')}</p>
+                  </button>
+                  <button type="button" onClick={() => setSyncMode('replace')}
+                    className={`px-3 py-2.5 rounded-lg text-left transition-all border-2 ${syncMode === 'replace' ? 'border-red-500 bg-red-500/10' : 'border-[#334155] hover:border-slate-500'}`}>
+                    <p className="text-xs text-white font-medium">♻️ {t('Sustituir todo', 'Replace all')}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{t('Borra IBKR anteriores, reimporta', 'Deletes old IBKR, reimports')}</p>
+                  </button>
+                </div>
+              </div>
+
+              {/* IBKR imported history */}
+              {ibkrHistory.items.length > 0 && (
+                <div className="border-t border-[#334155]/40 pt-4">
+                  <button type="button" onClick={() => setShowHistory(h => !h)}
+                    className="w-full flex items-center justify-between text-left group">
+                    <div>
+                      <p className="text-[11px] text-slate-500 uppercase tracking-wider">{t('Historial importado', 'Imported history')}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {ibkrHistory.items.length} {t('posiciones', 'positions')}
+                        {ibkrHistory.txs.length > 0 && <> · {ibkrHistory.txs.length} {t('transacciones', 'trades')}</>}
+                        {ibkrHistory.snaps.length > 0 && <> · {ibkrHistory.snaps.length} {t('días NAV', 'NAV days')}</>}
+                      </p>
+                    </div>
+                    <span className="text-slate-500 group-hover:text-slate-300 transition-colors">
+                      {showHistory ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </span>
+                  </button>
+
+                  {showHistory && (
+                    <div className="mt-3 space-y-3">
+                      <div className="overflow-x-auto max-h-40 overflow-y-auto rounded-lg border border-[#334155]/40">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="text-[10px] text-slate-500 border-b border-[#334155]/60 bg-[#0f172a]/50 sticky top-0">
+                              <th className="text-left py-2 px-2.5 font-normal">Symbol</th>
+                              <th className="text-left py-2 px-2.5 font-normal">{t('Tipo', 'Type')}</th>
+                              <th className="text-right py-2 px-2.5 font-normal">{t('Cant', 'Qty')}</th>
+                              <th className="text-right py-2 px-2.5 font-normal">{t('Valor', 'Value')}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {ibkrHistory.items
+                              .sort((a, b) => Math.abs((b.currentPrice || b.purchasePrice || 0) * (b.quantity || 1)) - Math.abs((a.currentPrice || a.purchasePrice || 0) * (a.quantity || 1)))
+                              .map((it, i) => {
+                                const val = (it.currentPrice || it.purchasePrice || 0) * (it.quantity || 1)
+                                return (
+                                  <tr key={i} className="border-b border-[#334155]/20 hover:bg-slate-700/20">
+                                    <td className="py-1.5 px-2.5 text-white font-medium">{it.symbol || it.name}</td>
+                                    <td className="py-1.5 px-2.5 text-slate-500">{it.type}</td>
+                                    <td className="py-1.5 px-2.5 text-right text-slate-400">{(it.quantity || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+                                    <td className={`py-1.5 px-2.5 text-right font-medium ${val < 0 ? 'text-red-400' : 'text-white'}`}>
+                                      ${Math.abs(val).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                    </td>
+                                  </tr>
+                                )
+                              })}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {ibkrHistory.snaps.length > 0 && (
+                        <div className="bg-[#0f172a]/50 rounded-lg p-2.5 text-xs text-slate-400">
+                          <span className="text-slate-500">{t('NAV historial:', 'NAV history:')}</span>{' '}
+                          {ibkrHistory.snaps[0].date} → {ibkrHistory.snaps[ibkrHistory.snaps.length - 1].date}
+                        </div>
+                      )}
+
+                      <p className="text-xs text-slate-500">
+                        {t('Total:', 'Total:')} <span className="text-white font-medium">${ibkrHistory.totalValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <button onClick={handleSync} disabled={syncing || !token || !queryId || decrypting}
-                className="w-full py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-500 disabled:opacity-50 transition-all text-sm font-medium flex items-center justify-center gap-2">
+                className={`w-full py-3 text-white rounded-xl disabled:opacity-50 transition-all text-sm font-medium flex items-center justify-center gap-2 ${syncMode === 'replace' ? 'bg-red-600 hover:bg-red-500' : 'bg-blue-600 hover:bg-blue-500'}`}>
                 {syncing ? (
                   <>
                     <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                     {t('Conectando con IBKR...', 'Connecting to IBKR...')}
                   </>
-                ) : t('Sincronizar', 'Sync')}
+                ) : syncMode === 'replace' ? t('Sustituir y sincronizar', 'Replace and sync') : t('Sincronizar', 'Sync')}
               </button>
 
               <p className="flex items-center justify-center gap-1.5 text-[11px] text-slate-600">
