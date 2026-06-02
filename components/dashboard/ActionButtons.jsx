@@ -2,7 +2,7 @@
 
 import { Upload, Plus, ArrowLeftRight, Share2, Download, RefreshCw, ClipboardCheck, DollarSign } from 'lucide-react'
 
-export default function ActionButtons({ onImport, onAddAccount, onTransfer, onCashFlow, onExport, onShare, onIBKR, onBlockchain, onLedger, onReview, itemCount, lang }) {
+export default function ActionButtons({ onImport, onAddAccount, onTransfer, onCashFlow, onExport, onShare, onIBKR, onBlockchain, onLedger, onReview, itemCount, lang, ibkrSyncStatus, ibkrLastSync }) {
   const btnBase = 'px-2.5 sm:px-4 py-2 text-body font-medium rounded-lg transition-colors flex items-center gap-1.5'
   const btnSecondary = `${btnBase} bg-[var(--card-bg,#161b22)] border border-[var(--card-border,#21262d)] text-slate-300 hover:bg-[var(--input-bg,#1c2129)] hover:text-white`
   const btnMuted = `${btnBase} bg-[var(--card-bg,#161b22)] border border-[var(--card-border,#21262d)] text-[var(--text-secondary,#94a3b8)] hover:bg-[var(--input-bg,#1c2129)]`
@@ -13,8 +13,16 @@ export default function ActionButtons({ onImport, onAddAccount, onTransfer, onCa
         <Upload size={14} /> <span className="hidden sm:inline">{lang === 'es' ? 'Importar' : 'Import'}</span>
       </button>
       {onIBKR && (
-        <button onClick={onIBKR} className={btnSecondary}>
+        <button onClick={onIBKR} className={`${btnSecondary} relative`}>
           <RefreshCw size={14} /> <span className="hidden sm:inline">IBKR</span>
+          {ibkrSyncStatus === 'error' && (
+            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-400" />
+          )}
+          {ibkrSyncStatus === 'ok' && ibkrLastSync && (
+            <span className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ${
+              Date.now() - new Date(ibkrLastSync).getTime() < 2 * 60 * 60 * 1000 ? 'bg-emerald-400' : 'bg-amber-400'
+            }`} />
+          )}
         </button>
       )}
       {onBlockchain && (
