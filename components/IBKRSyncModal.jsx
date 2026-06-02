@@ -596,6 +596,13 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                     )}
                   </div>
 
+                  <div className="bg-blue-500/5 border border-blue-500/15 rounded-lg p-3">
+                    <p className="text-[11px] text-blue-400/80">
+                      {t('Configura el sync automático (pestaña izquierda) para mantener tus datos actualizados sin subir archivos.',
+                         'Set up auto sync (left tab) to keep your data updated without uploading files.')}
+                    </p>
+                  </div>
+
                   {/* Sync mode for file import */}
                   <div className="border-t border-[#21262d]/40 pt-4">
                     <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">{t('Modo de importación', 'Import mode')}</p>

@@ -231,6 +231,7 @@ export default function DashboardPage() {
     netContributions, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
     benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName,
     handleIBKRSync,
+    ibkrSyncStatus, ibkrSyncErrorCode,
   } = useDashboardData({ user, lang, activePortfolio, activeEntity })
 
   const showToast = useCallback((msg, duration = 3000) => {
@@ -464,6 +465,33 @@ export default function DashboardPage() {
         onCommandPalette={() => setCmdPaletteOpen(true)}
       />
 
+      {ibkrSyncErrorCode === 'TOKEN_EXPIRED' && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3">
+          <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center justify-between">
+            <div>
+              <p className="text-sm text-amber-300 font-medium">{lang === 'es' ? 'Tu token de IBKR expiró' : 'Your IBKR token has expired'}</p>
+              <p className="text-xs text-amber-400/60 mt-0.5">{lang === 'es' ? 'Genera uno nuevo para mantener tu portafolio actualizado.' : 'Generate a new one to keep your portfolio updated.'}</p>
+            </div>
+            <button onClick={() => setModal('ibkr')} className="text-xs text-amber-400 hover:text-amber-300 font-medium px-3 py-1.5 rounded-lg hover:bg-amber-500/10 transition-colors shrink-0">
+              {lang === 'es' ? 'Actualizar' : 'Update'} →
+            </button>
+          </div>
+        </div>
+      )}
+      {ibkrSyncErrorCode === 'INVALID_QUERY' && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3">
+          <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center justify-between">
+            <div>
+              <p className="text-sm text-amber-300 font-medium">{lang === 'es' ? 'Query ID de IBKR inválido' : 'Invalid IBKR Query ID'}</p>
+              <p className="text-xs text-amber-400/60 mt-0.5">{lang === 'es' ? 'Verifica tu Flex Query en IBKR.' : 'Verify your Flex Query in IBKR.'}</p>
+            </div>
+            <button onClick={() => setModal('ibkr')} className="text-xs text-amber-400 hover:text-amber-300 font-medium px-3 py-1.5 rounded-lg hover:bg-amber-500/10 transition-colors shrink-0">
+              {lang === 'es' ? 'Configurar' : 'Configure'} →
+            </button>
+          </div>
+        </div>
+      )}
+
       <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
         <div className="flex items-center gap-3 flex-wrap">
           {dataAge === 0 ? (
@@ -570,6 +598,7 @@ export default function DashboardPage() {
           onTransfer={() => setModal('transfer')} onCashFlow={() => setModal('cashflow')} onExport={handleExport}
           onShare={handleShare} onIBKR={() => setModal('ibkr')} onBlockchain={() => setModal('blockchain')} onLedger={() => setModal('ledger')}
           onReview={() => setShowReview(true)} itemCount={enrichedItems.length} lang={lang}
+          ibkrSyncStatus={ibkrSyncStatus} ibkrLastSync={settings?._ibkrLastAutoSync || settings?._ibkrLastSync}
         />
 
         {/* ═══ INGRESOS ═══ */}
@@ -654,7 +683,7 @@ export default function DashboardPage() {
         <IBKRSyncModal
           onClose={() => setModal(null)} onSyncComplete={handleIBKRSync}
           savedToken={settings?.ibkrToken || ''} savedQueryId={settings?.ibkrQueryId || ''}
-          onSaveCredentials={(creds) => { saveSettings({ ...creds, _ibkrLastSync: new Date().toISOString() }) }}
+          onSaveCredentials={(creds) => { saveSettings({ ...creds, _ibkrLastSync: new Date().toISOString(), _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
           uid={user?.uid} lang={lang}
           lastSyncTime={settings?._ibkrLastSync || settings?._ibkrLastAutoSync || null}
           existingItems={enrichedItems} existingTransactions={transactions} existingSnapshots={snapshots}

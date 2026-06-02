@@ -374,9 +374,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
   }, [items, addItem, updateItem, deleteItem, addTransaction, addLot, saveSnapshot, snapshots])
 
+  const FATAL_ERROR_CODES = ['TOKEN_EXPIRED', 'INVALID_QUERY']
+
   useEffect(() => {
     if (dataLoading || ibkrAutoSyncRef.current) return
     if (!settings?.ibkrToken || !settings?.ibkrQueryId) return
+    if (FATAL_ERROR_CODES.includes(settings?._ibkrAutoSyncErrorCode)) return
     ibkrAutoSyncRef.current = true
     const SYNC_INTERVAL = 60 * 60 * 1000
     const lastSync = settings._ibkrLastAutoSync ? new Date(settings._ibkrLastAutoSync).getTime() : 0
@@ -390,10 +393,21 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         const plain = await decryptToken(settings.ibkrToken, user?.uid)
         const data = await syncIBKR(plain, settings.ibkrQueryId)
         await handleIBKRSync(data, 'merge')
-        saveSettings({ _ibkrLastAutoSync: new Date().toISOString() })
+        saveSettings({
+          _ibkrLastAutoSync: new Date().toISOString(),
+          _ibkrAutoSyncStatus: 'ok',
+          _ibkrAutoSyncError: null,
+          _ibkrAutoSyncErrorCode: null,
+        })
         console.log(`[ibkr] Auto-sync OK: ${data.items.length} positions`)
       } catch (err) {
-        console.log(`[ibkr] Auto-sync failed: ${err.message}`)
+        const code = err.errorCode || 'UNKNOWN'
+        saveSettings({
+          _ibkrAutoSyncStatus: 'error',
+          _ibkrAutoSyncError: err.message,
+          _ibkrAutoSyncErrorCode: code,
+        })
+        console.log(`[ibkr] Auto-sync failed (${code}): ${err.message}`)
       } finally {
         releaseLock('ibkr-sync')
       }
@@ -678,5 +692,8 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
     // IBKR
     handleIBKRSync,
+    ibkrSyncStatus: settings?._ibkrAutoSyncStatus || null,
+    ibkrSyncError: settings?._ibkrAutoSyncError || null,
+    ibkrSyncErrorCode: settings?._ibkrAutoSyncErrorCode || null,
   }
 }
