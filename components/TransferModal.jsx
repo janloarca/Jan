@@ -76,13 +76,13 @@ export default function TransferModal({ onClose, onSave, onAddTransaction, exist
     setSaving(false)
   }
 
-  const inputCls = 'w-full px-3 py-2 bg-[var(--input-bg,#0f172a)] border border-[var(--card-border,#334155)] rounded-lg text-sm text-[var(--text-primary,white)] focus:outline-none focus:border-blue-500/50'
+  const inputCls = 'w-full px-3 py-2 bg-[var(--input-bg,#0d1117)] border border-[var(--card-border,#21262d)] rounded-lg text-sm text-[var(--text-primary,white)] focus:outline-none focus:border-blue-500/50'
   const labelCls = 'text-xs text-[var(--text-secondary,#94a3b8)] mb-1 block'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="transfer-modal-title">
-      <div className="bg-[var(--card-bg,#1e293b)] border border-[var(--card-border,#334155)] rounded-xl shadow-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border,#334155)]">
+      <div className="bg-[var(--card-bg,#161b22)] border border-[var(--card-border,#21262d)] rounded-xl shadow-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border,#21262d)]">
           <h2 id="transfer-modal-title" className="text-lg font-bold text-[var(--text-primary,white)]">{t('Transferencia', 'Transfer')}</h2>
           <button onClick={onClose} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-xl leading-none">&times;</button>
         </div>
@@ -138,7 +138,7 @@ export default function TransferModal({ onClose, onSave, onAddTransaction, exist
 
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose}
-              className="flex-1 py-2.5 border border-[var(--card-border,#334155)] text-[var(--text-secondary,#cbd5e1)] rounded-lg hover:bg-[#283548] transition-colors text-sm">
+              className="flex-1 py-2.5 border border-[var(--card-border,#21262d)] text-[var(--text-secondary,#cbd5e1)] rounded-lg hover:bg-[#1c2129] transition-colors text-sm">
               {t('Cancelar', 'Cancel')}
             </button>
             <button type="submit" disabled={saving}

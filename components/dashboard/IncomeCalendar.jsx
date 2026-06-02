@@ -60,7 +60,7 @@ export default function IncomeCalendar({ items, lang }) {
   if (annualTotal <= 0) return null
 
   return (
-    <div className="bg-[#1e293b]/80 rounded-xl border border-[#334155]/50 p-4">
+    <div className="bg-[#161b22]/80 rounded-xl border border-[#21262d]/50 p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-emerald-400" />
@@ -79,7 +79,7 @@ export default function IncomeCalendar({ items, lang }) {
 
           return (
             <div key={i} className={`text-center p-1.5 rounded-lg transition-colors ${
-              isCurrent ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-[#0f172a] border border-[#334155]/20'
+              isCurrent ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-[#0d1117] border border-[#21262d]/20'
             }`}>
               <div className="text-xs text-slate-500 mb-1">{monthNames[i]}</div>
               <div className="flex justify-center items-end h-8 mb-1">
@@ -108,7 +108,7 @@ export default function IncomeCalendar({ items, lang }) {
 
         if (upcoming.length === 0) return null
         return (
-          <div className="space-y-2 pt-2 border-t border-[#334155]/30">
+          <div className="space-y-2 pt-2 border-t border-[#21262d]/30">
             {upcoming.map((m) => (
               <div key={m.idx}>
                 <div className="text-xs text-slate-400 font-medium mb-1">{monthNames[m.idx]}</div>

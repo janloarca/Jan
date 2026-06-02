@@ -37,12 +37,12 @@ export default function CashFlowModal({ onClose, onAddTransaction, lang = 'es', 
     setSaving(false)
   }
 
-  const inputCls = 'w-full px-3 py-2.5 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50'
+  const inputCls = 'w-full px-3 py-2.5 bg-[#0d1117] border border-[#21262d] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="bg-[#1e293b] border border-[#334155] rounded-xl shadow-2xl max-w-sm w-full" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#334155]">
+      <div className="bg-[#161b22] border border-[#21262d] rounded-xl shadow-2xl max-w-sm w-full" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#21262d]">
           <h2 className="text-lg font-bold text-white">{t('Registrar Movimiento', 'Log Cash Flow')}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
         </div>
@@ -53,7 +53,7 @@ export default function CashFlowModal({ onClose, onAddTransaction, lang = 'es', 
               className={`flex-1 px-3 py-3 text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-2 ${
                 flowType === 'DEPOSIT'
                   ? 'bg-emerald-500/20 text-emerald-400 border-2 border-emerald-500/50'
-                  : 'bg-[#0f172a] text-slate-400 border-2 border-[#334155] hover:border-slate-500'
+                  : 'bg-[#0d1117] text-slate-400 border-2 border-[#21262d] hover:border-slate-500'
               }`}>
               <span className="text-lg">+</span> {t('Depósito', 'Deposit')}
             </button>
@@ -61,7 +61,7 @@ export default function CashFlowModal({ onClose, onAddTransaction, lang = 'es', 
               className={`flex-1 px-3 py-3 text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-2 ${
                 flowType === 'WITHDRAWAL'
                   ? 'bg-red-500/20 text-red-400 border-2 border-red-500/50'
-                  : 'bg-[#0f172a] text-slate-400 border-2 border-[#334155] hover:border-slate-500'
+                  : 'bg-[#0d1117] text-slate-400 border-2 border-[#21262d] hover:border-slate-500'
               }`}>
               <span className="text-lg">-</span> {t('Retiro', 'Withdrawal')}
             </button>
@@ -74,7 +74,7 @@ export default function CashFlowModal({ onClose, onAddTransaction, lang = 'es', 
                 placeholder="10000" step="any" min="0" autoFocus
                 className={`${inputCls} flex-1 text-lg font-bold`} />
               <select value={currency} onChange={e => setCurrency(e.target.value)}
-                className="px-3 py-2.5 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50 w-20">
+                className="px-3 py-2.5 bg-[#0d1117] border border-[#21262d] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50 w-20">
                 {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
@@ -93,7 +93,7 @@ export default function CashFlowModal({ onClose, onAddTransaction, lang = 'es', 
               className={inputCls} />
           </div>
 
-          <div className="bg-[#0f172a] rounded-lg p-3 text-xs text-slate-400">
+          <div className="bg-[#0d1117] rounded-lg p-3 text-xs text-slate-400">
             {flowType === 'DEPOSIT'
               ? t('Un depósito indica dinero nuevo que entra a tu portafolio. Esto ajusta el cálculo de retornos para no confundir aportes con ganancias.',
                   'A deposit indicates new money entering your portfolio. This adjusts return calculations so contributions aren\'t confused with gains.')
@@ -103,7 +103,7 @@ export default function CashFlowModal({ onClose, onAddTransaction, lang = 'es', 
 
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose}
-              className="flex-1 px-4 py-2.5 border border-[#334155] text-slate-300 rounded-lg hover:bg-[#283548] transition-colors text-sm">
+              className="flex-1 px-4 py-2.5 border border-[#21262d] text-slate-300 rounded-lg hover:bg-[#1c2129] transition-colors text-sm">
               {t('Cancelar', 'Cancel')}
             </button>
             <button type="submit" disabled={saving || !amount || parseFloat(amount) <= 0}

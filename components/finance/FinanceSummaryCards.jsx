@@ -9,15 +9,15 @@ export default function FinanceSummaryCards({ income, expenses, lang = 'es' }) {
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-      <div className="bg-[#1e293b] border border-[#334155] rounded-xl p-4">
+      <div className="bg-[#161b22] border border-[#21262d] rounded-xl p-4">
         <p className="text-caption text-slate-500 mb-1">{t('Ingresos', 'Income')}</p>
         <p className="text-h2 text-emerald-400">Q{fmt(income)}</p>
       </div>
-      <div className="bg-[#1e293b] border border-[#334155] rounded-xl p-4">
+      <div className="bg-[#161b22] border border-[#21262d] rounded-xl p-4">
         <p className="text-caption text-slate-500 mb-1">{t('Gastos', 'Expenses')}</p>
         <p className="text-h2 text-red-400">Q{fmt(expenses)}</p>
       </div>
-      <div className="bg-[#1e293b] border border-[#334155] rounded-xl p-4">
+      <div className="bg-[#161b22] border border-[#21262d] rounded-xl p-4">
         <p className="text-caption text-slate-500 mb-1">{t('Ahorro', 'Savings')}</p>
         <p className={`text-h2 ${savings >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
           Q{fmt(savings)}

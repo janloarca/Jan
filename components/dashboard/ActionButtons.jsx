@@ -4,8 +4,8 @@ import { Upload, Plus, ArrowLeftRight, Share2, Download, RefreshCw, ClipboardChe
 
 export default function ActionButtons({ onImport, onAddAccount, onTransfer, onCashFlow, onExport, onShare, onIBKR, onBlockchain, onLedger, onReview, itemCount, lang }) {
   const btnBase = 'px-2.5 sm:px-4 py-2 text-body font-medium rounded-lg transition-colors flex items-center gap-1.5'
-  const btnSecondary = `${btnBase} bg-[var(--card-bg,#1e293b)] border border-[var(--card-border,#334155)] text-slate-300 hover:bg-[var(--input-bg,#283548)] hover:text-white`
-  const btnMuted = `${btnBase} bg-[var(--card-bg,#1e293b)] border border-[var(--card-border,#334155)] text-[var(--text-secondary,#94a3b8)] hover:bg-[var(--input-bg,#283548)]`
+  const btnSecondary = `${btnBase} bg-[var(--card-bg,#161b22)] border border-[var(--card-border,#21262d)] text-slate-300 hover:bg-[var(--input-bg,#1c2129)] hover:text-white`
+  const btnMuted = `${btnBase} bg-[var(--card-bg,#161b22)] border border-[var(--card-border,#21262d)] text-[var(--text-secondary,#94a3b8)] hover:bg-[var(--input-bg,#1c2129)]`
 
   return (
     <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">

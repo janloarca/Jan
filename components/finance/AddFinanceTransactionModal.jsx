@@ -48,14 +48,14 @@ export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="add-finance-tx-title">
-      <div className="bg-[#1e293b] border border-[#334155] rounded-xl shadow-2xl max-w-md w-full" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#334155]">
+      <div className="bg-[#161b22] border border-[#21262d] rounded-xl shadow-2xl max-w-md w-full" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#21262d]">
           <h2 id="add-finance-tx-title" className="text-lg font-bold text-white">{t('Agregar Transacción', 'Add Transaction')}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-xl">&times;</button>
         </div>
 
         <div className="p-6 space-y-4">
-          <div className="flex bg-[#0f172a] rounded-lg border border-[#334155]">
+          <div className="flex bg-[#0d1117] rounded-lg border border-[#21262d]">
             {['EXPENSE', 'INCOME'].map(type => (
               <button key={type} onClick={() => setForm({ ...form, type })}
                 className={`flex-1 py-2.5 text-sm font-medium transition-colors rounded-lg ${
@@ -73,13 +73,13 @@ export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es'
             <input type="number" step="0.01" value={form.amount}
               onChange={e => setForm({ ...form, amount: e.target.value })}
               placeholder="0.00"
-              className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+              className="w-full px-3 py-2 bg-[#0d1117] border border-[#21262d] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
           </div>
 
           <div>
             <label className="text-xs text-slate-400 mb-1 block">{t('Categoría', 'Category')}</label>
             <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
-              className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
+              className="w-full px-3 py-2 bg-[#0d1117] border border-[#21262d] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
               {categories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
@@ -89,7 +89,7 @@ export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es'
             <input type="text" value={form.description}
               onChange={e => setForm({ ...form, description: e.target.value })}
               placeholder={t('Descripción opcional', 'Optional description')}
-              className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+              className="w-full px-3 py-2 bg-[#0d1117] border border-[#21262d] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -97,12 +97,12 @@ export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es'
               <label className="text-xs text-slate-400 mb-1 block">{t('Fecha', 'Date')}</label>
               <input type="date" value={form.date}
                 onChange={e => setForm({ ...form, date: e.target.value })}
-                className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
+                className="w-full px-3 py-2 bg-[#0d1117] border border-[#21262d] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
             </div>
             <div>
               <label className="text-xs text-slate-400 mb-1 block">{t('Moneda', 'Currency')}</label>
               <select value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value })}
-                className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
+                className="w-full px-3 py-2 bg-[#0d1117] border border-[#21262d] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
                 <option value="GTQ">GTQ</option>
                 <option value="USD">USD</option>
               </select>

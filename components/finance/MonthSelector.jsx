@@ -18,13 +18,13 @@ export default function MonthSelector({ month, year, onChange, lang = 'es' }) {
 
   return (
     <div className="flex items-center gap-3">
-      <button onClick={prev} className="px-2 py-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-[#283548]">
+      <button onClick={prev} className="px-2 py-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-[#1c2129]">
         &larr;
       </button>
       <span className="text-white font-semibold text-sm min-w-[140px] text-center">
         {months[month]} {year}
       </span>
-      <button onClick={next} className="px-2 py-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-[#283548]">
+      <button onClick={next} className="px-2 py-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-[#1c2129]">
         &rarr;
       </button>
     </div>

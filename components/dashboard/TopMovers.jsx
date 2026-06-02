@@ -52,7 +52,7 @@ export default function TopMovers({ items, transactions, lang }) {
   const top = withValue.slice(0, 3)
 
   return (
-    <div className="bg-[#1e293b]/80 rounded-xl border border-[#334155]/50 p-4">
+    <div className="bg-[#161b22]/80 rounded-xl border border-[#21262d]/50 p-4">
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-3">
         <span className="w-2 h-2 rounded-full bg-emerald-400" />
         {lang === 'es' ? 'TOP POSICIONES' : 'TOP HOLDINGS'}

@@ -5,7 +5,7 @@ import { computeModifiedDietz } from './utils'
 export default function MonthlyPerformance({ snapshots, transactions, convert, baseCurrency, lang }) {
   const t = (es, en) => lang === 'es' ? es : en
   if (!snapshots || snapshots.length < 2) return (
-    <div className="bg-[#1e293b]/40 rounded-xl border border-[#334155]/30 p-4 text-center">
+    <div className="bg-[#161b22]/40 rounded-xl border border-[#21262d]/30 p-4 text-center">
       <p className="text-sm text-slate-500">{t('Agrega 2+ snapshots para ver rendimiento mensual', 'Add 2+ snapshots to see monthly performance')}</p>
     </div>
   )
@@ -123,7 +123,7 @@ export default function MonthlyPerformance({ snapshots, transactions, convert, b
   }
 
   return (
-    <div className="bg-[#1e293b]/80 rounded-xl border border-[#334155]/50 p-4">
+    <div className="bg-[#161b22]/80 rounded-xl border border-[#21262d]/50 p-4">
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
         <span className="w-2 h-2 rounded-full bg-amber-400" />
         MONTHLY PERFORMANCE

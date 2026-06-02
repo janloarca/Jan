@@ -25,14 +25,14 @@ export default function Home() {
 
   if (checking) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#0f172a]">
+      <div className="flex items-center justify-center min-h-screen bg-[#0d1117]">
         <div className="text-blue-400 animate-pulse text-lg font-bold">Chispudo</div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-[#0f172a] text-white">
+    <div className="min-h-screen bg-[#0d1117] text-white">
       {/* Hero */}
       <header className="max-w-5xl mx-auto px-6 py-6 flex items-center justify-between">
         <span className="text-emerald-400 font-bold text-xl">Chispudo</span>
@@ -102,7 +102,7 @@ export default function Home() {
                 desc: 'Attach contracts, certificates, and receipts directly to each asset.',
               },
             ].map((f, i) => (
-              <div key={i} className="bg-[#1e293b]/60 border border-[#334155]/50 rounded-xl p-6">
+              <div key={i} className="bg-[#161b22]/60 border border-[#21262d]/50 rounded-xl p-6">
                 <span className="text-2xl mb-3 block">{f.icon}</span>
                 <h3 className="text-base font-bold text-white mb-2">{f.title}</h3>
                 <p className="text-sm text-slate-400 leading-relaxed">{f.desc}</p>
@@ -117,7 +117,7 @@ export default function Home() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#334155]">
+                <tr className="border-b border-[#21262d]">
                   <th className="text-left py-3 px-4 text-slate-400 font-medium">Feature</th>
                   <th className="py-3 px-4 text-emerald-400 font-bold">Chispudo</th>
                   <th className="py-3 px-4 text-slate-500 font-medium">Kubera</th>
@@ -137,7 +137,7 @@ export default function Home() {
                   ['Multi-currency income', '✓', '~', '~'],
                   ['Price', 'Free', '$150/yr', 'Varies'],
                 ].map(([feat, c, k, o], i) => (
-                  <tr key={i} className="border-b border-[#334155]/30">
+                  <tr key={i} className="border-b border-[#21262d]/30">
                     <td className="py-2.5 px-4 text-slate-300">{feat}</td>
                     <td className="py-2.5 px-4 text-center text-emerald-400 font-medium">{c}</td>
                     <td className="py-2.5 px-4 text-center">{k}</td>
@@ -160,7 +160,7 @@ export default function Home() {
         </section>
       </main>
 
-      <footer className="border-t border-[#334155]/50 py-8">
+      <footer className="border-t border-[#21262d]/50 py-8">
         <div className="max-w-5xl mx-auto px-6 flex items-center justify-between text-xs text-slate-600">
           <span>Chispudo · chispu.xyz</span>
           <span>The portfolio tracker that actually works for Latin America.</span>

@@ -85,7 +85,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
   const t = (es, en) => lang === 'es' ? es : en
 
   return (
-    <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-5 card-primary">
+    <div className="bg-[#161b22] rounded-2xl border border-[#21262d] p-5 card-primary">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-base font-semibold text-white">
           {t('Cuentas e Instrumentos', 'Accounts & Instruments')}
@@ -110,7 +110,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
             className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
               filter === tab.key
                 ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                : 'text-slate-400 border border-slate-600/50 hover:bg-[#283548]'
+                : 'text-slate-400 border border-slate-600/50 hover:bg-[#1c2129]'
             }`}>
             {tab.icon} {tab.label}
           </button>
@@ -125,7 +125,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t('Buscar por nombre, símbolo o institución...', 'Search by name, symbol, or institution...')}
-            className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+            className="w-full px-3 py-2 bg-[#0d1117] border border-[#21262d] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
           />
         </div>
       )}
@@ -178,7 +178,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
             className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
               breakdown === opt.key
                 ? 'bg-slate-600 text-white'
-                : 'text-slate-400 border border-slate-600/50 hover:bg-[#283548]'
+                : 'text-slate-400 border border-slate-600/50 hover:bg-[#1c2129]'
             }`}>
             {opt.label}
           </button>
@@ -187,7 +187,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
 
       {/* Breakdown summary */}
       {breakdownData && (
-        <div className="mb-4 p-3 bg-[#0f172a] rounded-lg border border-[#334155]/50">
+        <div className="mb-4 p-3 bg-[#0d1117] rounded-lg border border-[#21262d]/50">
           <div className="space-y-1.5">
             {breakdownData.map((row) => (
               <div key={row.name} className="flex items-center gap-3">
@@ -213,7 +213,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="text-slate-500 border-b border-[#334155]">
+              <tr className="text-slate-500 border-b border-[#21262d]">
                 <th className="w-8 py-2">
                   <input type="checkbox"
                     checked={displayItems.length > 0 && displayItems.every((it) => selected.has(it.id))}
@@ -252,7 +252,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                 const retAbs = hasReturn ? (item.currentPrice - item.purchasePrice) * (item.quantity || 0) : null
 
                 return (
-                  <tr key={item.id || item.symbol} style={{ contentVisibility: 'auto', containIntrinsicSize: '0 60px' }} className={`border-b border-[#334155]/30 hover:bg-[#283548]/50 transition-colors group ${selected.has(item.id) ? 'bg-blue-500/5' : ''}`}>
+                  <tr key={item.id || item.symbol} style={{ contentVisibility: 'auto', containIntrinsicSize: '0 60px' }} className={`border-b border-[#21262d]/30 hover:bg-[#1c2129]/50 transition-colors group ${selected.has(item.id) ? 'bg-blue-500/5' : ''}`}>
                     <td className="py-4 w-8">
                       <input type="checkbox"
                         checked={selected.has(item.id)}
@@ -422,7 +422,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
           </table>
           {filtered.length > 10 && (
             <button onClick={() => setShowAll(!showAll)}
-              className="w-full mt-3 py-2 text-xs text-slate-400 hover:text-emerald-400 border border-[#334155]/50 rounded-lg hover:bg-[#283548] transition-colors">
+              className="w-full mt-3 py-2 text-xs text-slate-400 hover:text-emerald-400 border border-[#21262d]/50 rounded-lg hover:bg-[#1c2129] transition-colors">
               {showAll
                 ? t('Mostrar menos', 'Show less')
                 : t(`Ver todos (${filtered.length})`, `View all (${filtered.length})`)}
