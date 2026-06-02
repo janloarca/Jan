@@ -159,7 +159,6 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
       setIbkrConfigured(false)
       setIbkrToken('')
       setIbkrQueryId('')
-      setIbkrResult(null)
     } catch {}
     setIbkrSaving(false)
   }
