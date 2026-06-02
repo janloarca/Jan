@@ -448,7 +448,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                     </button>
                   </div>
 
-                  <button onClick={() => { if (onOpenIBKR) { onClose(); onOpenIBKR() } }}
+                  <button onClick={() => { onClose(); setTimeout(() => { if (onOpenIBKR) onOpenIBKR() }, 50) }}
                     className="w-full py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-all text-sm font-medium flex items-center justify-center gap-2">
                     {t('Sincronizar ahora', 'Sync now')}
                   </button>
