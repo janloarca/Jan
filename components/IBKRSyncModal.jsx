@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { CheckCircle, Lock, ChevronDown, ChevronUp } from 'lucide-react'
 
-export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, savedQueryId, onSaveCredentials, lang = 'es', uid, existingItems = [], existingTransactions = [], existingSnapshots = [] }) {
+export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, savedQueryId, onSaveCredentials, lang = 'es', uid, lastSyncTime, existingItems = [], existingTransactions = [], existingSnapshots = [] }) {
   const [token, setToken] = useState('')
   const [queryId, setQueryId] = useState(savedQueryId || '')
   const [step, setStep] = useState('config')
@@ -32,6 +32,20 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   }, [existingItems, existingTransactions, existingSnapshots])
 
   const t = (es, en) => lang === 'es' ? es : en
+
+  const lastSyncLabel = useMemo(() => {
+    if (!lastSyncTime) return null
+    const diff = Date.now() - new Date(lastSyncTime).getTime()
+    const mins = Math.floor(diff / 60000)
+    if (mins < 1) return t('hace un momento', 'just now')
+    if (mins < 60) return `${t('hace', '')} ${mins}m ${lang === 'en' ? 'ago' : ''}`
+    const hrs = Math.floor(mins / 60)
+    if (hrs < 24) return `${t('hace', '')} ${hrs}h ${lang === 'en' ? 'ago' : ''}`
+    const days = Math.floor(hrs / 24)
+    return `${t('hace', '')} ${days}d ${lang === 'en' ? 'ago' : ''}`
+  }, [lastSyncTime, lang])
+
+  const hasData = ibkrHistory.items.length > 0
 
   useEffect(() => {
     if (savedToken && uid) {
@@ -127,6 +141,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
         if (!isRetryable || attempt === CLIENT_RETRIES) {
           setError(msg || t('Error conectando con IBKR.', 'Error connecting to IBKR.'))
           setShowConfig(true)
+          if (ibkrHistory.items.length > 0) setShowHistory(true)
           break
         }
       }
@@ -163,20 +178,38 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="ibkr-modal-title">
       <div className="bg-[#1e293b] border border-[#334155]/60 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-5 border-b border-[#334155]/60">
-          <h2 id="ibkr-modal-title" className="text-base font-semibold text-white">Interactive Brokers</h2>
+          <div>
+            <h2 id="ibkr-modal-title" className="text-base font-semibold text-white">Interactive Brokers</h2>
+            {lastSyncLabel && (
+              <p className="text-[10px] text-slate-500 mt-0.5">
+                {t('Última sync:', 'Last sync:')} {lastSyncLabel}
+                {hasData && <> · {ibkrHistory.items.length} {t('posiciones', 'positions')}</>}
+              </p>
+            )}
+          </div>
           <button onClick={onClose} className="text-slate-500 hover:text-white text-lg transition-colors">&times;</button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-5">
           {error && (
-            <div className="mb-5 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-              <p className="text-red-400 text-sm">{error}</p>
-              {error.toLowerCase().includes('could not be generated') || error.toLowerCase().includes('try again') || error.toLowerCase().includes('rechazó') ? (
+            <div className={`mb-5 p-3 rounded-lg border ${hasData ? 'bg-amber-500/10 border-amber-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
+              <p className={`text-sm ${hasData ? 'text-amber-300' : 'text-red-400'}`}>
+                {hasData
+                  ? t('No se pudo conectar con IBKR, pero tus datos están actualizados.',
+                      'Couldn\'t connect to IBKR, but your data is up to date.')
+                  : error}
+              </p>
+              {hasData && lastSyncLabel && (
+                <p className="text-amber-400/60 text-xs mt-1">
+                  {t('Última sincronización:', 'Last synced:')} {lastSyncLabel}
+                </p>
+              )}
+              {!hasData && (error.toLowerCase().includes('could not be generated') || error.toLowerCase().includes('try again') || error.toLowerCase().includes('rechazó')) && (
                 <p className="text-red-400/60 text-xs mt-1.5">
                   {t('IBKR a veces tarda en generar reportes. Intenta de nuevo en unos minutos.',
                      'IBKR sometimes takes time to generate reports. Try again in a few minutes.')}
                 </p>
-              ) : null}
+              )}
             </div>
           )}
 

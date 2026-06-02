@@ -654,7 +654,9 @@ export default function DashboardPage() {
         <IBKRSyncModal
           onClose={() => setModal(null)} onSyncComplete={handleIBKRSync}
           savedToken={settings?.ibkrToken || ''} savedQueryId={settings?.ibkrQueryId || ''}
-          onSaveCredentials={saveSettings} uid={user?.uid} lang={lang}
+          onSaveCredentials={(creds) => { saveSettings({ ...creds, _ibkrLastSync: new Date().toISOString() }) }}
+          uid={user?.uid} lang={lang}
+          lastSyncTime={settings?._ibkrLastSync || settings?._ibkrLastAutoSync || null}
           existingItems={enrichedItems} existingTransactions={transactions} existingSnapshots={snapshots}
         />
       )}
