@@ -81,7 +81,7 @@ export default function SavingsRate({ goals, transactions, netWorth, snapshots, 
   const ringColor = rates.savingsRate >= 30 ? '#10b981' : rates.savingsRate >= 15 ? '#f59e0b' : '#ef4444'
 
   return (
-    <div className="bg-[#1e293b]/80 rounded-xl border border-[#334155]/50 p-4 sm:p-5">
+    <div className="bg-[#161b22]/80 rounded-xl border border-[#21262d]/50 p-4 sm:p-5">
       <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
         🎯 {t('Tasa de Ahorro', 'Savings Rate')}
       </h3>
@@ -90,7 +90,7 @@ export default function SavingsRate({ goals, transactions, netWorth, snapshots, 
         <div className="flex items-center gap-4 mb-4">
           <div className="relative w-16 h-16 shrink-0">
             <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
-              <circle cx="18" cy="18" r="15" fill="none" stroke="#334155" strokeWidth="3" />
+              <circle cx="18" cy="18" r="15" fill="none" stroke="#21262d" strokeWidth="3" />
               <circle cx="18" cy="18" r="15" fill="none" stroke={ringColor} strokeWidth="3"
                 strokeDasharray={`${ringPct * 0.94} 100`} strokeLinecap="round" />
             </svg>
@@ -116,7 +116,7 @@ export default function SavingsRate({ goals, transactions, netWorth, snapshots, 
       )}
 
       {growthFromSavings && (
-        <div className="mb-3 p-3 bg-[#0f172a] rounded-lg border border-[#334155]/50">
+        <div className="mb-3 p-3 bg-[#0d1117] rounded-lg border border-[#21262d]/50">
           <div className="text-xs text-slate-500 mb-2">{t('Crecimiento del portafolio', 'Portfolio growth breakdown')}</div>
           <div className="grid grid-cols-2 gap-3">
             <div className="text-center">
@@ -136,7 +136,7 @@ export default function SavingsRate({ goals, transactions, netWorth, snapshots, 
       )}
 
       {fireNumber && netWorth > 0 && (
-        <div className="pt-3 border-t border-[#334155]/30">
+        <div className="pt-3 border-t border-[#21262d]/30">
           <div className="flex items-center justify-between text-xs mb-1.5">
             <span className="text-slate-500">FIRE {t('número', 'number')} (25x)</span>
             <span className="text-white font-medium">{formatCurrency(fireNumber)}</span>

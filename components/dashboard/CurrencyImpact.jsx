@@ -65,7 +65,7 @@ export default function CurrencyImpact({ items, convert, baseCurrency, rates, la
   const baseRate = rates[baseCurrency] || 1
 
   return (
-    <div className="bg-[#1e293b]/80 rounded-xl border border-[#334155]/50 p-4">
+    <div className="bg-[#161b22]/80 rounded-xl border border-[#21262d]/50 p-4">
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
         <span className="w-2 h-2 rounded-full bg-blue-400" />
         {t('IMPACTO CAMBIARIO', 'CURRENCY IMPACT')}
@@ -113,7 +113,7 @@ export default function CurrencyImpact({ items, convert, baseCurrency, rates, la
           {sensitivity.map((s) => {
             const isNeg = s.impact < 0
             return (
-              <div key={s.pct} className="bg-[#0f172a] rounded-lg px-3 py-2 border border-[#334155]/50">
+              <div key={s.pct} className="bg-[#0d1117] rounded-lg px-3 py-2 border border-[#21262d]/50">
                 <span className="text-xs text-slate-500 block">
                   {s.pct > 0
                     ? t(`${baseCurrency} se debilita ${s.pct}%`, `${baseCurrency} weakens ${s.pct}%`)
@@ -142,7 +142,7 @@ export default function CurrencyImpact({ items, convert, baseCurrency, rates, la
               const rawRate = rates[g.currency] > 0 ? (baseRate / rates[g.currency]) : null
               const rate = rawRate != null && isFinite(rawRate) ? rawRate : null
               return (
-                <div key={g.currency} className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]/50">
+                <div key={g.currency} className="bg-[#0d1117] rounded-lg p-3 border border-[#21262d]/50">
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-2">
                       <span
@@ -166,7 +166,7 @@ export default function CurrencyImpact({ items, convert, baseCurrency, rates, la
                   )}
                   <div className="flex flex-wrap gap-1.5">
                     {g.items.map((item) => (
-                      <span key={item.symbol} className="text-xs text-slate-400 bg-[#1e293b] px-1.5 py-0.5 rounded">
+                      <span key={item.symbol} className="text-xs text-slate-400 bg-[#161b22] px-1.5 py-0.5 rounded">
                         {item.symbol}
                       </span>
                     ))}

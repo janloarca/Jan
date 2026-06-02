@@ -42,7 +42,7 @@ export default function InvestmentClassBreakdown({ items, lang }) {
   if (items.length === 0 || totalValue === 0) return null
 
   return (
-    <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-5 card-primary">
+    <div className="bg-[#161b22] rounded-2xl border border-[#21262d] p-5 card-primary">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-blue-400" />

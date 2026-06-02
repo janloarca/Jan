@@ -89,7 +89,7 @@ export default function FinancesPage() {
 
   if (authLoading || (user && dataLoading)) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#0f172a]">
+      <div className="flex items-center justify-center min-h-screen bg-[#0d1117]">
         <div className="text-center">
           <div className="inline-flex items-center gap-2 mb-4">
             <span className="text-blue-400 text-2xl">⚡</span>
@@ -115,7 +115,7 @@ export default function FinancesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0f172a]">
+    <div className="min-h-screen bg-[#0d1117]">
       <a href="#main-content" className="skip-link">{t('Ir al contenido', 'Skip to content')}</a>
       <Header
         user={user}
@@ -141,7 +141,7 @@ export default function FinancesPage() {
               + {t('Agregar', 'Add')}
             </button>
             <button onClick={() => setModal('import')}
-              className="px-3 py-1.5 text-xs font-medium text-slate-300 border border-slate-600/50 rounded-lg hover:bg-[#283548] transition-colors">
+              className="px-3 py-1.5 text-xs font-medium text-slate-300 border border-slate-600/50 rounded-lg hover:bg-[#1c2129] transition-colors">
               {t('Importar BI', 'Import BI')}
             </button>
           </div>
@@ -174,7 +174,7 @@ export default function FinancesPage() {
                 {t('Importar Estado de Cuenta', 'Import Bank Statement')}
               </button>
               <button onClick={() => setModal('add')}
-                className="px-4 py-2 border border-[#334155] text-slate-300 rounded-lg hover:bg-[#283548] transition-colors text-sm">
+                className="px-4 py-2 border border-[#21262d] text-slate-300 rounded-lg hover:bg-[#1c2129] transition-colors text-sm">
                 {t('Agregar Manual', 'Add Manually')}
               </button>
             </div>

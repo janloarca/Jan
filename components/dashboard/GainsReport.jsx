@@ -41,26 +41,26 @@ export default function GainsReport({ lots, items, lang }) {
   if (!report) return null
 
   return (
-    <div className="bg-[#1e293b]/80 rounded-xl border border-[#334155]/50 p-4">
+    <div className="bg-[#161b22]/80 rounded-xl border border-[#21262d]/50 p-4">
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
         <span className="w-2 h-2 rounded-full bg-cyan-400" />
         {t('GANANCIAS Y PÉRDIDAS', 'GAINS & LOSSES')}
       </h3>
 
       <div className="grid grid-cols-3 gap-3 mb-4">
-        <div className="bg-[#0f172a] rounded-lg p-3 text-center border border-[#334155]/50">
+        <div className="bg-[#0d1117] rounded-lg p-3 text-center border border-[#21262d]/50">
           <span className="text-xs text-slate-500 block">{t('Realizada', 'Realized')}</span>
           <span className={`text-sm font-bold block ${report.totalRealized >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
             {report.totalRealized >= 0 ? '+' : ''}{formatCurrency(report.totalRealized)}
           </span>
         </div>
-        <div className="bg-[#0f172a] rounded-lg p-3 text-center border border-[#334155]/50">
+        <div className="bg-[#0d1117] rounded-lg p-3 text-center border border-[#21262d]/50">
           <span className="text-xs text-slate-500 block">{t('No Realizada', 'Unrealized')}</span>
           <span className={`text-sm font-bold block ${report.totalUnrealized >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
             {report.totalUnrealized >= 0 ? '+' : ''}{formatCurrency(report.totalUnrealized)}
           </span>
         </div>
-        <div className="bg-[#0f172a] rounded-lg p-3 text-center border border-[#334155]/50">
+        <div className="bg-[#0d1117] rounded-lg p-3 text-center border border-[#21262d]/50">
           <span className="text-xs text-slate-500 block">Total</span>
           <span className={`text-sm font-bold block ${report.totalGain >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
             {report.totalGain >= 0 ? '+' : ''}{formatCurrency(report.totalGain)}
@@ -71,7 +71,7 @@ export default function GainsReport({ lots, items, lang }) {
       {report.symbols.length > 0 ? (
         <div className="space-y-1.5">
           {report.symbols.slice(0, 8).map((s) => (
-            <div key={s.symbol} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-[#283548]/30 transition-colors">
+            <div key={s.symbol} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-[#1c2129]/30 transition-colors">
               <span className="text-sm text-white font-medium">{s.symbol}</span>
               <div className="flex items-center gap-3 text-xs">
                 {s.realized !== 0 && (

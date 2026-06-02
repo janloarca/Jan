@@ -2,7 +2,7 @@
 
 export default function BenchmarkComparison({ benchmarkReturn, portfolioReturn, benchmarkName, lang }) {
   if (benchmarkReturn == null || !isFinite(benchmarkReturn)) return (
-    <div className="bg-[#1e293b]/40 rounded-xl border border-[#334155]/30 p-4 text-center">
+    <div className="bg-[#161b22]/40 rounded-xl border border-[#21262d]/30 p-4 text-center">
       <p className="text-sm text-slate-500">{lang === 'es' ? 'Benchmark no disponible' : 'Benchmark unavailable'}</p>
     </div>
   )
@@ -17,7 +17,7 @@ export default function BenchmarkComparison({ benchmarkReturn, portfolioReturn, 
 
   if (unreliable) {
     return (
-      <div className="bg-[#1e293b]/80 rounded-xl border border-[#334155]/50 p-4">
+      <div className="bg-[#161b22]/80 rounded-xl border border-[#21262d]/50 p-4">
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">
             {t('Benchmark', 'Benchmark')}
@@ -37,7 +37,7 @@ export default function BenchmarkComparison({ benchmarkReturn, portfolioReturn, 
   }
 
   return (
-    <div className="bg-[#1e293b]/80 rounded-xl border border-[#334155]/50 p-4">
+    <div className="bg-[#161b22]/80 rounded-xl border border-[#21262d]/50 p-4">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">
           {t('Benchmark', 'Benchmark')}

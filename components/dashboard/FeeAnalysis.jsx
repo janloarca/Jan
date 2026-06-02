@@ -72,7 +72,7 @@ export default function FeeAnalysis({ items, netWorth, lang }) {
   const feeColor = analysis.avgPct < 0.3 ? 'text-emerald-400' : analysis.avgPct < 1.0 ? 'text-amber-400' : 'text-red-400'
 
   return (
-    <div className="bg-[#1e293b]/80 rounded-xl border border-[#334155]/50 p-4 sm:p-5">
+    <div className="bg-[#161b22]/80 rounded-xl border border-[#21262d]/50 p-4 sm:p-5">
       <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
         💸 {t('Análisis de Comisiones', 'Fee Analysis')}
       </h3>
@@ -110,7 +110,7 @@ export default function FeeAnalysis({ items, netWorth, lang }) {
       )}
 
       {netWorth > 0 && analysis.totalFees > 0 && (
-        <div className="pt-3 border-t border-[#334155]/30 text-xs text-slate-500">
+        <div className="pt-3 border-t border-[#21262d]/30 text-xs text-slate-500">
           {t(
             `Las comisiones representan ${(analysis.totalFees / netWorth * 100).toFixed(2)}% de tu patrimonio neto`,
             `Fees represent ${(analysis.totalFees / netWorth * 100).toFixed(2)}% of your net worth`

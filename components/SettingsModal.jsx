@@ -189,8 +189,8 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
-      <div className="bg-[#1e293b] border border-[#334155] rounded-xl shadow-2xl max-w-md w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#334155]">
+      <div className="bg-[#161b22] border border-[#21262d] rounded-xl shadow-2xl max-w-md w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#21262d]">
           <h2 id="settings-modal-title" className="text-lg font-bold text-white flex items-center gap-2">
             <Settings size={20} className="text-slate-400" />
             {t('Configuracion', 'Settings')}
@@ -198,7 +198,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
           <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
         </div>
 
-        <div className="flex border-b border-[#334155] overflow-x-auto">
+        <div className="flex border-b border-[#21262d] overflow-x-auto">
           {tabs.map((tb) => (
             <button key={tb.key} onClick={() => { setTab(tb.key); setConfirmDelete(null) }}
               className={`flex-1 px-3 py-3 text-sm font-medium transition-colors whitespace-nowrap ${
@@ -227,7 +227,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                       className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg transition-all ${
                         theme === opt.key
                           ? 'bg-blue-500/15 border border-blue-500/40 text-blue-400'
-                          : 'bg-[#0f172a] border border-[#334155] text-slate-300 hover:border-slate-500'
+                          : 'bg-[#0d1117] border border-[#21262d] text-slate-300 hover:border-slate-500'
                       }`}>
                       <span className="text-lg">{opt.icon}</span>
                       <span className="text-sm font-medium">{opt.label}</span>
@@ -245,7 +245,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                       className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-left transition-all ${
                         baseCurrency === c.code
                           ? 'bg-blue-500/15 border border-blue-500/40 text-blue-400'
-                          : 'bg-[#0f172a] border border-[#334155] text-slate-300 hover:border-slate-500'
+                          : 'bg-[#0d1117] border border-[#21262d] text-slate-300 hover:border-slate-500'
                       }`}>
                       <span className="text-sm font-bold w-8">{c.symbol}</span>
                       <div className="min-w-0">
@@ -271,7 +271,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                       className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-left transition-all ${
                         benchmarkSymbol === key
                           ? 'bg-blue-500/15 border border-blue-500/40 text-blue-400'
-                          : 'bg-[#0f172a] border border-[#334155] text-slate-300 hover:border-slate-500'
+                          : 'bg-[#0d1117] border border-[#21262d] text-slate-300 hover:border-slate-500'
                       }`}>
                       <div className="min-w-0">
                         <div className="text-xs font-medium">{bm.short}</div>
@@ -290,7 +290,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               {isNotificationSupported() && (
                 <div>
                   <label className="text-xs text-slate-400 mb-2 block font-medium">{t('Notificaciones', 'Notifications')}</label>
-                  <div className="p-3 bg-[#0f172a] border border-[#334155] rounded-lg flex items-center justify-between">
+                  <div className="p-3 bg-[#0d1117] border border-[#21262d] rounded-lg flex items-center justify-between">
                     <div>
                       <p className="text-sm text-white font-medium">{t('Alertas del navegador', 'Browser alerts')}</p>
                       <p className="text-xs text-slate-500">{t('Pagos próximos y vencimientos', 'Upcoming payments and maturities')}</p>
@@ -339,7 +339,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                     <label className="text-[11px] text-slate-500 uppercase tracking-wider mb-1.5 block">{field.label}</label>
                     <input type="number" value={profileForm[field.key]} onChange={(e) => setProfileForm((p) => ({ ...p, [field.key]: e.target.value }))}
                       placeholder={field.placeholder}
-                      className="w-full px-4 py-2.5 bg-[#0f172a] border border-[#334155]/60 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                      className="w-full px-4 py-2.5 bg-[#0d1117] border border-[#21262d]/60 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
                   </div>
                 ))}
               </div>
@@ -356,7 +356,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                       className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                         profileForm.riskTolerance === opt.key
                           ? 'bg-blue-500/15 border border-blue-500/40 text-blue-400'
-                          : 'bg-[#0f172a] border border-[#334155] text-slate-300 hover:border-slate-500'
+                          : 'bg-[#0d1117] border border-[#21262d] text-slate-300 hover:border-slate-500'
                       }`}>
                       {opt.label}
                     </button>
@@ -413,19 +413,19 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                     </ol>
                   </div>
 
-                  <div className="border-t border-[#334155]/40 pt-4 space-y-3">
+                  <div className="border-t border-[#21262d]/40 pt-4 space-y-3">
                     <div>
                       <label className="text-[11px] text-slate-500 uppercase tracking-wider mb-1.5 block">{t('Flex Token', 'Flex Token')}</label>
                       <input type="password" value={ibkrToken} onChange={(e) => setIbkrToken(e.target.value)}
                         placeholder="••••••••••••••••"
-                        className="w-full px-4 py-2.5 bg-[#0f172a] border border-[#334155]/60 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                        className="w-full px-4 py-2.5 bg-[#0d1117] border border-[#21262d]/60 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
                     </div>
 
                     <div>
                       <label className="text-[11px] text-slate-500 uppercase tracking-wider mb-1.5 block">{t('Query ID', 'Query ID')}</label>
                       <input type="text" value={ibkrQueryId} onChange={(e) => setIbkrQueryId(e.target.value)}
                         placeholder="123456"
-                        className="w-full px-4 py-2.5 bg-[#0f172a] border border-[#334155]/60 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                        className="w-full px-4 py-2.5 bg-[#0d1117] border border-[#21262d]/60 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
                     </div>
 
                     <button onClick={handleIbkrSave} disabled={ibkrSaving || !ibkrToken || !ibkrQueryId}
@@ -459,7 +459,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                 </div>
               )}
 
-              <p className="text-[11px] text-slate-600 italic border-t border-[#334155]/40 pt-4">{t(
+              <p className="text-[11px] text-slate-600 italic border-t border-[#21262d]/40 pt-4">{t(
                 'Próximamente: GBM+, Binance, Bitso y más.',
                 'Coming soon: GBM+, Binance, Bitso and more.'
               )}</p>
@@ -490,7 +490,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                 </button>
               ) : (
                 <div className="space-y-3">
-                  <div className="bg-[#0f172a] border border-[#334155] rounded-lg p-3">
+                  <div className="bg-[#0d1117] border border-[#21262d] rounded-lg p-3">
                     <label className="text-xs text-slate-500 block mb-1.5">{t('Link de solo lectura', 'Read-only link')}</label>
                     <div className="flex items-center gap-2">
                       <input type="text" readOnly value={shareUrl}
@@ -504,7 +504,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
 
                   <div className="flex gap-2">
                     <button onClick={() => handleShareAction('regenerate')} disabled={shareLoading}
-                      className="flex-1 py-2 border border-[#334155] text-slate-300 rounded-lg hover:bg-slate-700/50 disabled:opacity-50 transition-colors text-xs">
+                      className="flex-1 py-2 border border-[#21262d] text-slate-300 rounded-lg hover:bg-slate-700/50 disabled:opacity-50 transition-colors text-xs">
                       {t('Regenerar link', 'Regenerate link')}
                     </button>
                     <button onClick={() => handleShareAction('disable')} disabled={shareLoading}
@@ -527,7 +527,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
           {tab === 'data' && (
             <div className="space-y-4">
               {onExportBackup && (
-                <div className="flex items-center justify-between p-3 bg-[#0f172a] border border-emerald-500/20 rounded-lg">
+                <div className="flex items-center justify-between p-3 bg-[#0d1117] border border-emerald-500/20 rounded-lg">
                   <div>
                     <div className="text-sm text-white font-medium">{t('Exportar Backup', 'Export Backup')}</div>
                     <div className="text-xs text-slate-500">{t('Descarga todos tus datos en formato JSON.', 'Download all your data as JSON.')}</div>
@@ -548,7 +548,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                 { key: 'financeTransactions', label: t('Eliminar finanzas', 'Delete finance data'), desc: t('Borra todos los ingresos y gastos.', 'Deletes all income and expense data.') },
                 { key: 'all', label: t('Eliminar todo', 'Delete everything'), desc: t('Borra todos los datos del portfolio.', 'Deletes all portfolio data.') },
               ].map((action) => (
-                <div key={action.key} className="flex items-center justify-between p-3 bg-[#0f172a] border border-[#334155] rounded-lg">
+                <div key={action.key} className="flex items-center justify-between p-3 bg-[#0d1117] border border-[#21262d] rounded-lg">
                   <div>
                     <div className="text-sm text-white font-medium">{action.label}</div>
                     <div className="text-xs text-slate-500">{action.desc}</div>

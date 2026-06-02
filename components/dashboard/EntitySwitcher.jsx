@@ -23,7 +23,7 @@ export default function EntitySwitcher({ entities, activeEntity, onSelect, onAdd
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-slate-300 bg-[#1e293b] border border-[#334155] rounded-lg hover:bg-[#283548] transition-colors"
+        className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-slate-300 bg-[#161b22] border border-[#21262d] rounded-lg hover:bg-[#1c2129] transition-colors"
       >
         <Users size={12} className="text-slate-400" />
         <span>{activeEntity === '__all__' ? allLabel : (current?.icon ? `${current.icon} ` : '') + (current?.name || 'Personal')}</span>
@@ -31,22 +31,22 @@ export default function EntitySwitcher({ entities, activeEntity, onSelect, onAdd
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-1 w-48 bg-[#1e293b] border border-[#334155] rounded-lg shadow-xl z-50 py-1">
+        <div className="absolute top-full left-0 mt-1 w-48 bg-[#161b22] border border-[#21262d] rounded-lg shadow-xl z-50 py-1">
           <button
             onClick={() => { onSelect('__all__'); setOpen(false) }}
             className={`w-full text-left px-3 py-2 text-xs transition-colors ${
-              activeEntity === '__all__' ? 'text-blue-400 bg-blue-400/10' : 'text-slate-300 hover:bg-[#283548]'
+              activeEntity === '__all__' ? 'text-blue-400 bg-blue-400/10' : 'text-slate-300 hover:bg-[#1c2129]'
             }`}
           >
             📊 {allLabel}
           </button>
-          <div className="border-t border-[#334155] my-1" />
+          <div className="border-t border-[#21262d] my-1" />
           {entities.map(entity => (
             <button
               key={entity.id}
               onClick={() => { onSelect(entity.id); setOpen(false) }}
               className={`w-full text-left px-3 py-2 text-xs transition-colors ${
-                activeEntity === entity.id ? 'text-blue-400 bg-blue-400/10' : 'text-slate-300 hover:bg-[#283548]'
+                activeEntity === entity.id ? 'text-blue-400 bg-blue-400/10' : 'text-slate-300 hover:bg-[#1c2129]'
               }`}
             >
               {entity.icon || '📁'} {entity.name}
@@ -54,10 +54,10 @@ export default function EntitySwitcher({ entities, activeEntity, onSelect, onAdd
           ))}
           {onAdd && (
             <>
-              <div className="border-t border-[#334155] my-1" />
+              <div className="border-t border-[#21262d] my-1" />
               <button
                 onClick={() => { onAdd(); setOpen(false) }}
-                className="w-full text-left px-3 py-2 text-xs text-slate-400 hover:text-blue-400 hover:bg-[#283548] transition-colors flex items-center gap-1.5"
+                className="w-full text-left px-3 py-2 text-xs text-slate-400 hover:text-blue-400 hover:bg-[#1c2129] transition-colors flex items-center gap-1.5"
               >
                 <Plus size={12} /> {t('Nueva entidad', 'New entity')}
               </button>

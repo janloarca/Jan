@@ -76,7 +76,7 @@ export default function Watchlist({ lang }) {
 
   if (items.length === 0 && !adding) {
     return (
-      <div className="bg-[#1e293b]/80 rounded-xl border border-[#334155]/50 p-4">
+      <div className="bg-[#161b22]/80 rounded-xl border border-[#21262d]/50 p-4">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-slate-500" />
@@ -93,7 +93,7 @@ export default function Watchlist({ lang }) {
   }
 
   return (
-    <div className="bg-[#1e293b]/80 rounded-xl border border-[#334155]/50 p-4">
+    <div className="bg-[#161b22]/80 rounded-xl border border-[#21262d]/50 p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-slate-500" />
@@ -110,14 +110,14 @@ export default function Watchlist({ lang }) {
           <input type="text" value={query} onChange={(e) => handleSearch(e.target.value)}
             placeholder={t('Buscar símbolo...', 'Search symbol...')}
             autoFocus
-            className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+            className="w-full px-3 py-2 bg-[#0d1117] border border-[#21262d] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
           {searching && <p className="text-xs text-slate-600 mt-1 animate-pulse">{t('Buscando...', 'Searching...')}</p>}
           {searchError && <p className="text-xs text-red-400 mt-1">{searchError}</p>}
           {results.length > 0 && (
             <div className="mt-1 space-y-0.5">
               {results.map((r) => (
                 <button key={r.symbol} onClick={() => addSymbol(r)}
-                  className="w-full flex items-center justify-between px-3 py-2 text-xs bg-[#0f172a] hover:bg-[#1a2744] rounded-lg transition-colors text-left">
+                  className="w-full flex items-center justify-between px-3 py-2 text-xs bg-[#0d1117] hover:bg-[#1a2744] rounded-lg transition-colors text-left">
                   <span className="text-white font-medium">{r.symbol}</span>
                   <span className="text-slate-500 truncate ml-2">{r.name}</span>
                 </button>

@@ -138,7 +138,7 @@ export default function PortfolioMap({ items, lang }) {
   ]
 
   return (
-    <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-5 card-primary">
+    <div className="bg-[#161b22] rounded-2xl border border-[#21262d] p-5 card-primary">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-cyan-400" />
@@ -153,7 +153,7 @@ export default function PortfolioMap({ items, lang }) {
             className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
               groupBy === v.key
                 ? 'bg-slate-600 text-white'
-                : 'text-slate-400 border border-slate-600/50 hover:bg-[#283548]'
+                : 'text-slate-400 border border-slate-600/50 hover:bg-[#1c2129]'
             }`}>
             {v.label}
           </button>
@@ -223,7 +223,7 @@ export default function PortfolioMap({ items, lang }) {
 
       {/* Detail panel */}
       {selectedGroup && (
-        <div className="mt-3 p-3 bg-[#0f172a] rounded-xl border border-[#334155]/50 animate-in fade-in duration-200">
+        <div className="mt-3 p-3 bg-[#0d1117] rounded-xl border border-[#21262d]/50 animate-in fade-in duration-200">
           <div className="flex items-center justify-between mb-2.5">
             <h4 className="text-sm font-semibold text-white flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: selectedGroup.color }} />
@@ -244,7 +244,7 @@ export default function PortfolioMap({ items, lang }) {
               const retPct = hasRet ? ((item.currentPrice - item.purchasePrice) / item.purchasePrice) * 100 : null
 
               return (
-                <div key={item.id || i} className="flex items-center gap-2.5 py-1.5 border-b border-[#334155]/20 last:border-0">
+                <div key={item.id || i} className="flex items-center gap-2.5 py-1.5 border-b border-[#21262d]/20 last:border-0">
                   <div className="w-1 h-7 rounded-full shrink-0" style={{ backgroundColor: clr }} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">

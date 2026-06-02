@@ -186,7 +186,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
   const calendarMax = Math.max(...incomeCalendar, 1)
 
   return (
-    <div className="bg-[#1e293b]/80 rounded-xl border border-[#334155]/50 p-4">
+    <div className="bg-[#161b22]/80 rounded-xl border border-[#21262d]/50 p-4">
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
         <span className="w-2 h-2 rounded-full bg-emerald-400" />
         {t('INGRESOS PASIVOS', 'PASSIVE INCOME')}
@@ -195,20 +195,20 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       <div className="grid grid-cols-3 gap-3 mb-4">
         <div>
           <span className="text-xs text-slate-500 block">{t('Ingreso anual est.', 'Est. Annual Income')}</span>
-          <span className="text-lg font-bold text-emerald-400">{formatCurrency(estAnnual)}</span>
+          <span className="text-lg font-bold text-emerald-400 font-mono tabular-nums">{formatCurrency(estAnnual)}</span>
         </div>
         <div className="text-center">
           <span className="text-xs text-slate-500 block">Yield</span>
-          <span className="text-lg font-bold text-cyan-400">{portfolioYield.toFixed(2)}%</span>
+          <span className="text-lg font-bold text-cyan-400 font-mono tabular-nums">{portfolioYield.toFixed(2)}%</span>
         </div>
         <div className="text-right">
           <span className="text-xs text-slate-500 block">YTD {t('recibido', 'received')}</span>
-          <span className="text-lg font-bold text-white">{formatCurrency(stats.totalYTD)}</span>
+          <span className="text-lg font-bold text-white font-mono tabular-nums">{formatCurrency(stats.totalYTD)}</span>
         </div>
       </div>
 
       {yoyComparison && yoyComparison.lastYear > 0 && (
-        <div className="flex items-center gap-3 mb-4 p-2.5 bg-[#0f172a] rounded-lg border border-[#334155]/50">
+        <div className="flex items-center gap-3 mb-4 p-2.5 bg-[#0d1117] rounded-lg border border-[#21262d]/50">
           <div className="flex-1">
             <span className="text-xs text-slate-500 block">{new Date().getFullYear() - 1}</span>
             <span className="text-sm font-medium text-slate-400">{formatCurrency(yoyComparison.lastYear)}</span>
@@ -230,7 +230,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       {incomeByType.length > 1 && (
         <div className="flex items-center gap-2 mb-3">
           {incomeByType.map((bt) => (
-            <div key={bt.type} className="flex-1 bg-[#0f172a] rounded-lg p-2 border border-[#334155]/50 text-center">
+            <div key={bt.type} className="flex-1 bg-[#0d1117] rounded-lg p-2 border border-[#21262d]/50 text-center">
               <span className="text-xs text-slate-500 block">{lang === 'es' ? bt.label : bt.labelEn}</span>
               <span className="text-xs font-semibold text-white">{formatCurrency(bt.annual)}/yr</span>
             </div>
@@ -239,7 +239,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       )}
 
       {incomeByCurrency.length > 1 && (
-        <div className="mb-3 p-2.5 bg-[#0f172a] rounded-lg border border-[#334155]/50">
+        <div className="mb-3 p-2.5 bg-[#0d1117] rounded-lg border border-[#21262d]/50">
           <span className="text-xs text-slate-500 mb-1.5 block">{t('Ingreso por moneda', 'Income by currency')}</span>
           <div className="space-y-1">
             {incomeByCurrency.map((c) => (
@@ -258,15 +258,15 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       )}
 
       <div className="grid grid-cols-3 gap-3 mb-4">
-        <div className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]/50">
+        <div className="bg-[#0d1117] rounded-lg p-3 border border-[#21262d]/50">
           <span className="text-xs text-slate-500">{t('Mensual est.', 'Monthly est.')}</span>
           <span className="text-sm font-semibold text-white block">{formatCurrency(estAnnual / 12)}</span>
         </div>
-        <div className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]/50">
+        <div className="bg-[#0d1117] rounded-lg p-3 border border-[#21262d]/50">
           <span className="text-xs text-slate-500">{t('Este mes', 'This month')}</span>
           <span className="text-sm font-semibold text-white block">{formatCurrency(stats.totalThisMonth)}</span>
         </div>
-        <div className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]/50">
+        <div className="bg-[#0d1117] rounded-lg p-3 border border-[#21262d]/50">
           <span className="text-xs text-slate-500">{t('Pagos', 'Payments')}</span>
           <span className="text-sm font-semibold text-white block">{stats.divCount}</span>
         </div>
@@ -278,7 +278,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
           <span className="text-xs text-slate-500 mb-2 block">{t('Próximos pagos esperados', 'Upcoming expected payments')}</span>
           <div className="space-y-1">
             {projected.upcoming.map((u, i) => (
-              <div key={i} className="flex items-center justify-between text-xs py-1 px-2 rounded bg-[#0f172a]/60">
+              <div key={i} className="flex items-center justify-between text-xs py-1 px-2 rounded bg-[#0d1117]/60">
                 <span className="text-slate-400 font-medium w-16 truncate">{u.symbol}</span>
                 <span className="text-slate-500">{monthName(u.month)} {u.day}</span>
                 <span className="text-emerald-400 font-medium">{formatCurrency(u.amount)}</span>

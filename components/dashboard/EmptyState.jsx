@@ -29,21 +29,21 @@ export default function EmptyState({ onAdd, onImport, onTemplate, lang }) {
         </button>
 
         <button onClick={onImport}
-          className="bg-[#1e293b] hover:bg-[#283548] border border-[#334155] text-white rounded-xl p-5 transition-colors text-left">
+          className="bg-[#161b22] hover:bg-[#1c2129] border border-[#21262d] text-white rounded-xl p-5 transition-colors text-left">
           <Upload size={24} className="mb-2 text-slate-400" />
           <div className="font-semibold text-sm mb-1">{t('Importar archivo', 'Import file')}</div>
           <div className="text-xs text-slate-400">{t('Excel o CSV de tu broker', 'Excel or CSV from your broker')}</div>
         </button>
 
         <button onClick={onTemplate}
-          className="bg-[#1e293b] hover:bg-[#283548] border border-[#334155] text-white rounded-xl p-5 transition-colors text-left">
+          className="bg-[#161b22] hover:bg-[#1c2129] border border-[#21262d] text-white rounded-xl p-5 transition-colors text-left">
           <Download size={24} className="mb-2 text-slate-400" />
           <div className="font-semibold text-sm mb-1">{t('Descargar plantilla', 'Download template')}</div>
           <div className="text-xs text-slate-400">{t('Llena y sube después', 'Fill in and upload later')}</div>
         </button>
       </div>
 
-      <div className="bg-[#1e293b]/60 border border-[#334155]/30 rounded-xl p-5 text-left">
+      <div className="bg-[#161b22]/60 border border-[#21262d]/30 rounded-xl p-5 text-left">
         <h3 className="text-xs font-semibold text-slate-400 mb-3 uppercase tracking-wider">
           {t('Tipos de activos soportados', 'Supported asset types')}
         </h3>

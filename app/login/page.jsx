@@ -148,7 +148,7 @@ function LoginForm() {
 
   if (checkingAuth) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#0f172a]">
+      <div className="flex items-center justify-center min-h-screen bg-[#0d1117]">
         <div className="flex items-center gap-2 text-slate-500 text-sm">
           <div className="w-4 h-4 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
           Verificando sesión...
@@ -158,7 +158,7 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-[#0f172a]">
+    <div className="flex items-center justify-center min-h-screen bg-[#0d1117]">
       <div className="w-full max-w-md px-6">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-2">
@@ -168,7 +168,7 @@ function LoginForm() {
           <p className="text-slate-500 text-sm">Tu control financiero personal</p>
         </div>
 
-        <div className="bg-[#1e293b] border border-[#334155] rounded-xl p-6">
+        <div className="bg-[#161b22] border border-[#21262d] rounded-xl p-6">
           <h2 className="text-lg font-semibold text-white text-center mb-5">
             {isSignUp ? 'Crear cuenta' : 'Iniciar sesión'}
           </h2>
@@ -200,7 +200,7 @@ function LoginForm() {
                 placeholder="tu@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2.5 bg-[#0f172a] border border-[#334155] rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 text-base"
+                className="w-full px-4 py-2.5 bg-[#0d1117] border border-[#21262d] rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 text-base"
                 required
               />
             </div>
@@ -212,7 +212,7 @@ function LoginForm() {
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2.5 bg-[#0f172a] border border-[#334155] rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 text-base"
+                className="w-full px-4 py-2.5 bg-[#0d1117] border border-[#21262d] rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 text-base"
                 required
               />
             </div>
@@ -233,7 +233,7 @@ function LoginForm() {
           )}
 
           {showReset && (
-            <div className="mt-3 p-3 bg-[#0f172a] rounded-lg border border-[#334155]/50">
+            <div className="mt-3 p-3 bg-[#0d1117] rounded-lg border border-[#21262d]/50">
               {resetSent ? (
                 <p className="text-sm text-emerald-400 text-center">
                   Revisa tu email para restablecer tu contraseña.
@@ -251,9 +251,9 @@ function LoginForm() {
           )}
 
           <div className="relative my-5">
-            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-[#334155]" /></div>
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-[#21262d]" /></div>
             <div className="relative flex justify-center">
-              <span className="bg-[#1e293b] px-3 text-xs text-slate-500">o</span>
+              <span className="bg-[#161b22] px-3 text-xs text-slate-500">o</span>
             </div>
           </div>
 
@@ -290,7 +290,7 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <div className="flex items-center justify-center min-h-screen bg-[#0f172a]">
+      <div className="flex items-center justify-center min-h-screen bg-[#0d1117]">
         <div className="flex items-center gap-2 text-slate-500 text-sm">
           <div className="w-4 h-4 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
         </div>

@@ -18,7 +18,7 @@ export default function CategoryBreakdown({ transactions, type = 'EXPENSE', lang
 
   if (sorted.length === 0) {
     return (
-      <div className="bg-[#1e293b] border border-[#334155] rounded-xl p-4">
+      <div className="bg-[#161b22] border border-[#21262d] rounded-xl p-4">
         <h3 className="text-sm font-semibold text-white mb-3">
           {type === 'EXPENSE' ? t('Gastos por Categoría', 'Expenses by Category') : t('Ingresos por Categoría', 'Income by Category')}
         </h3>
@@ -30,7 +30,7 @@ export default function CategoryBreakdown({ transactions, type = 'EXPENSE', lang
   const fmt = (v) => v.toLocaleString(lang === 'es' ? 'es-GT' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
   return (
-    <div className="bg-[#1e293b] border border-[#334155] rounded-xl p-4">
+    <div className="bg-[#161b22] border border-[#21262d] rounded-xl p-4">
       <h3 className="text-sm font-semibold text-white mb-3">
         {type === 'EXPENSE' ? t('Gastos por Categoría', 'Expenses by Category') : t('Ingresos por Categoría', 'Income by Category')}
       </h3>
@@ -47,7 +47,7 @@ export default function CategoryBreakdown({ transactions, type = 'EXPENSE', lang
                 <span className="text-slate-500 w-10 text-right">{pct.toFixed(1)}%</span>
               </div>
             </div>
-            <div className="w-full h-1.5 bg-[#0f172a] rounded-full overflow-hidden">
+            <div className="w-full h-1.5 bg-[#0d1117] rounded-full overflow-hidden">
               <div
                 className="h-full rounded-full transition-all"
                 style={{ width: `${pct}%`, backgroundColor: CATEGORY_COLORS[category] || '#64748b' }}

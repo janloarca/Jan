@@ -189,9 +189,9 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
 
       {/* Chat panel */}
       {open && (
-        <div className="fixed bottom-36 sm:bottom-20 right-4 sm:right-6 z-50 w-[340px] sm:w-[380px] max-h-[70vh] bg-[#1e293b] border border-[#334155] rounded-xl shadow-2xl flex flex-col overflow-hidden">
+        <div className="fixed bottom-36 sm:bottom-20 right-4 sm:right-6 z-50 w-[340px] sm:w-[380px] max-h-[70vh] bg-[#161b22] border border-[#21262d] rounded-xl shadow-2xl flex flex-col overflow-hidden">
           {/* Header */}
-          <div className="px-4 py-3 border-b border-[#334155] flex items-center justify-between">
+          <div className="px-4 py-3 border-b border-[#21262d] flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-emerald-400 rounded-full" />
               <span className="text-sm font-semibold text-white">{t('Asistente AI', 'AI Assistant')}</span>
@@ -214,14 +214,14 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
 
           {/* API Key input */}
           {showKeyInput && (
-            <div className="px-4 py-3 border-b border-[#334155] bg-[#0f172a]">
+            <div className="px-4 py-3 border-b border-[#21262d] bg-[#0d1117]">
               <label className="text-[10px] text-slate-400 uppercase tracking-wide mb-1 block">Anthropic API Key</label>
               <div className="flex gap-2">
                 <input
                   type="password"
                   defaultValue={apiKey}
                   placeholder="sk-ant-..."
-                  className="flex-1 px-2 py-1.5 bg-[#1e293b] border border-[#334155] rounded text-xs text-white focus:outline-none focus:border-blue-500"
+                  className="flex-1 px-2 py-1.5 bg-[#161b22] border border-[#21262d] rounded text-xs text-white focus:outline-none focus:border-blue-500"
                   onKeyDown={(e) => { if (e.key === 'Enter') saveKey(e.target.value) }}
                 />
                 <button
@@ -263,7 +263,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
                 <div className={`max-w-[85%] px-3 py-2 rounded-xl text-sm leading-relaxed ${
                   msg.role === 'user'
                     ? 'bg-blue-600 text-white rounded-br-sm'
-                    : 'bg-[#0f172a] text-slate-200 border border-[#334155] rounded-bl-sm'
+                    : 'bg-[#0d1117] text-slate-200 border border-[#21262d] rounded-bl-sm'
                 }`}>
                   <MessageContent content={msg.content} />
                 </div>
@@ -272,7 +272,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
 
             {loading && (
               <div className="flex justify-start">
-                <div className="bg-[#0f172a] border border-[#334155] rounded-xl rounded-bl-sm px-4 py-3">
+                <div className="bg-[#0d1117] border border-[#21262d] rounded-xl rounded-bl-sm px-4 py-3">
                   <div className="flex gap-1">
                     <span className="w-2 h-2 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                     <span className="w-2 h-2 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -290,7 +290,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
           </div>
 
           {/* Input */}
-          <div className="px-3 py-3 border-t border-[#334155]">
+          <div className="px-3 py-3 border-t border-[#21262d]">
             <div className="flex gap-2">
               <input
                 ref={inputRef}
@@ -299,7 +299,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
                 onKeyDown={handleKeyDown}
                 placeholder={t('Escribe tu pregunta...', 'Type your question...')}
                 disabled={loading}
-                className="flex-1 px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 disabled:opacity-50"
+                className="flex-1 px-3 py-2 bg-[#0d1117] border border-[#21262d] rounded-lg text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 disabled:opacity-50"
               />
               <button
                 onClick={sendMessage}

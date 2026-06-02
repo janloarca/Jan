@@ -18,7 +18,7 @@ import { SkeletonCard, SkeletonChart } from '@/components/dashboard/Skeleton'
 function ModalSkeleton() {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-[#1e293b] border border-[#334155] rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
+      <div className="bg-[#161b22] border border-[#21262d] rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
         <div className="h-5 w-32 bg-slate-700/50 rounded animate-pulse mb-4" />
         <div className="space-y-3">
           <div className="h-10 bg-slate-700/30 rounded animate-pulse" />
@@ -82,7 +82,7 @@ function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, 
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
         {tabs.map(tb => (
           <button key={tb.key} onClick={() => setTab(tb.key)}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${tab === tb.key ? 'bg-blue-600 text-white' : 'text-slate-400 border border-[#334155] hover:text-white hover:bg-[#283548]'}`}>
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${tab === tb.key ? 'bg-blue-600 text-white' : 'text-slate-400 border border-[#21262d] hover:text-white hover:bg-[#1c2129]'}`}>
             {tb.label}
           </button>
         ))}
@@ -432,7 +432,7 @@ export default function DashboardPage() {
   // Loading state
   if (authLoading || (user && dataLoading)) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#0f172a]">
+      <div className="flex items-center justify-center min-h-screen bg-[#0d1117]">
         <div className="text-center">
           <div className="inline-flex items-center gap-2 mb-4">
             <span className="text-blue-400 text-2xl">⚡</span>
@@ -450,7 +450,7 @@ export default function DashboardPage() {
   if (!user) return null
 
   return (
-    <div className="min-h-screen bg-[#0f172a]">
+    <div className="min-h-screen bg-[#0d1117]">
       <a href="#main-content" className="skip-link">{lang === 'es' ? 'Ir al contenido' : 'Skip to content'}</a>
       <Header
         user={user} lang={lang}
@@ -602,11 +602,11 @@ export default function DashboardPage() {
 
         <div className="flex items-center justify-center gap-3 pt-4 pb-8">
           <button onClick={handleReport}
-            className="px-5 py-2.5 text-sm font-medium text-slate-400 bg-[#1e293b] border border-[#334155]/60 rounded-xl hover:bg-[#283548] hover:text-white hover:border-[#475569] transition-all inline-flex items-center gap-2">
+            className="px-5 py-2.5 text-sm font-medium text-slate-400 bg-[#161b22] border border-[#21262d]/60 rounded-xl hover:bg-[#1c2129] hover:text-white hover:border-[#475569] transition-all inline-flex items-center gap-2">
             {lang === 'es' ? 'Descargar PDF' : 'Download PDF'}
           </button>
           <button onClick={() => setModal('print')}
-            className="px-5 py-2.5 text-sm font-medium text-slate-400 bg-[#1e293b] border border-[#334155]/60 rounded-xl hover:bg-[#283548] hover:text-white hover:border-[#475569] transition-all inline-flex items-center gap-2">
+            className="px-5 py-2.5 text-sm font-medium text-slate-400 bg-[#161b22] border border-[#21262d]/60 rounded-xl hover:bg-[#1c2129] hover:text-white hover:border-[#475569] transition-all inline-flex items-center gap-2">
             {lang === 'es' ? 'Imprimir Resumen' : 'Print Summary'}
           </button>
         </div>
@@ -654,7 +654,10 @@ export default function DashboardPage() {
         <IBKRSyncModal
           onClose={() => setModal(null)} onSyncComplete={handleIBKRSync}
           savedToken={settings?.ibkrToken || ''} savedQueryId={settings?.ibkrQueryId || ''}
-          onSaveCredentials={saveSettings} uid={user?.uid} lang={lang}
+          onSaveCredentials={(creds) => { saveSettings({ ...creds, _ibkrLastSync: new Date().toISOString() }) }}
+          uid={user?.uid} lang={lang}
+          lastSyncTime={settings?._ibkrLastSync || settings?._ibkrLastAutoSync || null}
+          existingItems={enrichedItems} existingTransactions={transactions} existingSnapshots={snapshots}
         />
       )}
 
@@ -821,7 +824,7 @@ export default function DashboardPage() {
       )}
 
       {toast && (
-        <div className="fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-[#1e293b] border border-[#334155] rounded-lg shadow-xl text-xs text-white animate-fade-in">
+        <div className="fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-[#161b22] border border-[#21262d] rounded-lg shadow-xl text-xs text-white animate-fade-in">
           {toast}
         </div>
       )}
