@@ -18,7 +18,7 @@ export default function ActionButtons({ onImport, onAddAccount, onTransfer, onCa
           {ibkrSyncStatus === 'error' && (
             <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-400" />
           )}
-          {ibkrSyncStatus === 'ok' && ibkrLastSync && (
+          {ibkrSyncStatus === 'ok' && ibkrLastSync && !isNaN(new Date(ibkrLastSync).getTime()) && (
             <span className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ${
               Date.now() - new Date(ibkrLastSync).getTime() < 2 * 60 * 60 * 1000 ? 'bg-emerald-400' : 'bg-amber-400'
             }`} />

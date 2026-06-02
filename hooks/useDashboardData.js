@@ -343,7 +343,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
     // Post-sync cleanup: remove zero-quantity IBKR items and consolidate duplicates
     const refreshed = [...items]
-    const incomingSymbols = new Set(data.items.map(it => it.symbol.toUpperCase()))
+    const incomingSymbols = new Set(data.items.filter(it => it.symbol).map(it => it.symbol.toUpperCase()))
     for (const it of refreshed) {
       const isIbkr = it._source === 'ibkr' || (it.institution || '').toLowerCase().includes('interactive brokers')
       if (!isIbkr) continue
@@ -377,9 +377,13 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   const FATAL_ERROR_CODES = ['TOKEN_EXPIRED', 'INVALID_QUERY']
 
   useEffect(() => {
-    if (dataLoading || ibkrAutoSyncRef.current) return
+    if (dataLoading) return
     if (!settings?.ibkrToken || !settings?.ibkrQueryId) return
-    if (FATAL_ERROR_CODES.includes(settings?._ibkrAutoSyncErrorCode)) return
+    if (FATAL_ERROR_CODES.includes(settings?._ibkrAutoSyncErrorCode)) {
+      ibkrAutoSyncRef.current = false
+      return
+    }
+    if (ibkrAutoSyncRef.current) return
     ibkrAutoSyncRef.current = true
     const SYNC_INTERVAL = 60 * 60 * 1000
     const lastSync = settings._ibkrLastAutoSync ? new Date(settings._ibkrLastAutoSync).getTime() : 0

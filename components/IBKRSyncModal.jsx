@@ -59,9 +59,12 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
         decryptToken(savedToken, uid).then(plain => {
           setToken(plain)
           setDecrypting(false)
+        }).catch(() => {
+          setToken('')
+          setDecrypting(false)
         })
       }).catch(() => {
-        setToken(savedToken)
+        setToken('')
         setDecrypting(false)
       })
     }
@@ -153,9 +156,6 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       abortRef.current = null
     }
   }, [token, queryId, onSaveCredentials, onSyncComplete, uid, syncMode, t, ibkrHistory.items.length])
-
-  const handleSyncRef = useRef(handleSync)
-  useEffect(() => { handleSyncRef.current = handleSync }, [handleSync])
 
   const handleCancel = useCallback(() => {
     if (abortRef.current) {
