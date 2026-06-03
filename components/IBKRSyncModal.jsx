@@ -258,22 +258,8 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
         ))
       }
 
-      if (syncMode === 'merge' && onSyncComplete) {
-        await onSyncComplete(data, 'merge')
-        setResult({
-          items: data.items.length,
-          transactions: data.transactions.length,
-          equityHistory: (data.equityHistory || []).length,
-          accounts: data.accounts || [],
-          syncedAt: data.syncedAt || new Date().toISOString(),
-          mode: 'merge',
-        })
-        setStep('done')
-      } else {
-        setPreview(data)
-        setSyncMode('replace')
-        setStep('preview')
-      }
+      setPreview(data)
+      setStep('preview')
     } catch (err) {
       setError(err.message || t('Error leyendo archivo', 'Error reading file'))
     } finally {
