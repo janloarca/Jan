@@ -4,6 +4,42 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { CheckCircle, Lock, ChevronDown, ChevronUp, Upload } from 'lucide-react'
 import { parseIBKRFile, formatIBKRFileResult } from '@/lib/parsers/ibkrFileParser'
 
+function DoneStep({ result, onClose, t }) {
+  const [countdown, setCountdown] = useState(2)
+
+  useEffect(() => {
+    if (countdown <= 0) { onClose(); return }
+    const timer = setTimeout(() => setCountdown(c => c - 1), 1000)
+    return () => clearTimeout(timer)
+  }, [countdown, onClose])
+
+  return (
+    <div className="text-center py-10">
+      <CheckCircle size={36} strokeWidth={1.5} className="text-emerald-400 mx-auto mb-5" />
+      <p className="text-white font-medium text-base mb-3">
+        {t('Sincronización exitosa', 'Sync successful')}
+      </p>
+      <p className="text-slate-400 text-sm">
+        {result.items} {t('posiciones', 'positions')}
+        {result.transactions > 0 && <> · {result.transactions} {t('transacciones', 'trades')}</>}
+        {result.accounts.length > 0 && <> · {result.accounts.join(', ')}</>}
+      </p>
+      {result.equityHistory > 0 && (
+        <p className="text-emerald-400/80 text-xs mt-2">
+          {result.equityHistory} {t('días de historial guardados', 'days of history saved')}
+        </p>
+      )}
+      <p className="text-[11px] text-slate-600 mt-2">
+        {new Date(result.syncedAt).toLocaleString()}
+      </p>
+      <button onClick={onClose}
+        className="mt-8 px-10 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-all text-sm font-medium">
+        {t('Cerrar', 'Close')} ({countdown}s)
+      </button>
+    </div>
+  )
+}
+
 export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, savedQueryId, onSaveCredentials, lang = 'es', uid, lastSyncTime, existingItems = [], existingTransactions = [], existingSnapshots = [] }) {
   const [token, setToken] = useState('')
   const [queryId, setQueryId] = useState(savedQueryId || '')
@@ -15,7 +51,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   const [preview, setPreview] = useState(null)
   const [syncMode, setSyncMode] = useState('merge')
   const [decrypting, setDecrypting] = useState(false)
-  const [showConfig, setShowConfig] = useState(true)
+  const [showConfig, setShowConfig] = useState(!(savedToken && savedQueryId))
   const [showHistory, setShowHistory] = useState(false)
   const [syncStatus, setSyncStatus] = useState('')
   const [pollProgress, setPollProgress] = useState(null)
@@ -23,6 +59,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   const [dragOver, setDragOver] = useState(false)
   const abortRef = useRef(null)
   const fileInputRef = useRef(null)
+  const autoStartedRef = useRef(false)
 
   const ibkrHistory = useMemo(() => {
     const items = existingItems.filter(it => it._source === 'ibkr' || (it.institution || '').toLowerCase().includes('interactive brokers'))
@@ -69,6 +106,15 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       })
     }
   }, [savedToken, uid])
+
+  // Auto-start sync when credentials already exist
+  useEffect(() => {
+    if (autoStartedRef.current) return
+    if (token && savedQueryId && !decrypting && step === 'config') {
+      autoStartedRef.current = true
+      handleSync()
+    }
+  }, [token, savedQueryId, decrypting]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
@@ -123,20 +169,23 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
         onSaveCredentials({ ibkrToken: encrypted, ibkrQueryId: queryId.trim() })
       }
 
-      if (onSyncComplete) {
+      if (syncMode === 'merge' && onSyncComplete) {
+        // Skip preview for merge mode — go straight to done
         setSyncStatus('importing')
-        await onSyncComplete(data, syncMode)
+        await onSyncComplete(data, 'merge')
         setResult({
           items: data.items.length,
           transactions: data.transactions.length,
           equityHistory: (data.equityHistory || []).length,
           accounts: data.accounts || [],
           syncedAt: data.syncedAt,
-          mode: syncMode,
+          mode: 'merge',
         })
         setStep('done')
       } else {
+        // Show preview for replace mode (destructive — needs confirmation)
         setPreview(data)
+        setSyncMode('replace')
         setStep('preview')
       }
     } catch (err) {
@@ -445,23 +494,6 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 </div>
               </div>
 
-              {/* Sync mode selector */}
-              <div className="border-t border-[#38383A]/40 pt-4">
-                <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">{t('Modo de importación', 'Import mode')}</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <button type="button" onClick={() => setSyncMode('merge')}
-                    className={`px-3 py-2.5 rounded-lg text-left transition-all border-2 ${syncMode === 'merge' ? 'border-blue-500 bg-blue-500/10' : 'border-[#38383A] hover:border-slate-500'}`}>
-                    <p className="text-xs text-white font-medium">🔄 {t('Actualizar', 'Update')}</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">{t('Actualiza existentes + agrega nuevas', 'Updates existing + adds new')}</p>
-                  </button>
-                  <button type="button" onClick={() => setSyncMode('replace')}
-                    className={`px-3 py-2.5 rounded-lg text-left transition-all border-2 ${syncMode === 'replace' ? 'border-red-500 bg-red-500/10' : 'border-[#38383A] hover:border-slate-500'}`}>
-                    <p className="text-xs text-white font-medium">♻️ {t('Sustituir todo', 'Replace all')}</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">{t('Borra IBKR anteriores, reimporta', 'Deletes old IBKR, reimports')}</p>
-                  </button>
-                </div>
-              </div>
-
               {/* IBKR imported history */}
               {ibkrHistory.items.length > 0 && (
                 <div className="border-t border-[#38383A]/40 pt-4">
@@ -528,13 +560,13 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
               )}
 
               <button onClick={handleSync} disabled={syncing || !token || !queryId || decrypting}
-                className={`w-full py-3 text-white rounded-xl disabled:opacity-50 transition-all text-sm font-medium flex items-center justify-center gap-2 ${syncMode === 'replace' ? 'bg-red-600 hover:bg-red-500' : 'bg-blue-600 hover:bg-blue-500'}`}>
+                className="w-full py-3 text-white rounded-xl disabled:opacity-50 transition-all text-sm font-medium flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500">
                 {syncing ? (
                   <>
                     <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                     {t('Conectando con IBKR...', 'Connecting to IBKR...')}
                   </>
-                ) : syncMode === 'replace' ? t('Sustituir y sincronizar', 'Replace and sync') : t('Sincronizar', 'Sync')}
+                ) : t('Sincronizar', 'Sync')}
               </button>
 
               <p className="flex items-center justify-center gap-1.5 text-[11px] text-slate-600">
@@ -617,22 +649,6 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                     </p>
                   </div>
 
-                  {/* Sync mode for file import */}
-                  <div className="border-t border-[#38383A]/40 pt-4">
-                    <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">{t('Modo de importación', 'Import mode')}</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button type="button" onClick={() => setSyncMode('merge')}
-                        className={`px-3 py-2.5 rounded-lg text-left transition-all border-2 ${syncMode === 'merge' ? 'border-blue-500 bg-blue-500/10' : 'border-[#38383A] hover:border-slate-500'}`}>
-                        <p className="text-xs text-white font-medium">{t('Actualizar', 'Update')}</p>
-                        <p className="text-[10px] text-slate-400 mt-0.5">{t('Actualiza existentes + agrega nuevas', 'Updates existing + adds new')}</p>
-                      </button>
-                      <button type="button" onClick={() => setSyncMode('replace')}
-                        className={`px-3 py-2.5 rounded-lg text-left transition-all border-2 ${syncMode === 'replace' ? 'border-red-500 bg-red-500/10' : 'border-[#38383A] hover:border-slate-500'}`}>
-                        <p className="text-xs text-white font-medium">{t('Sustituir todo', 'Replace all')}</p>
-                        <p className="text-[10px] text-slate-400 mt-0.5">{t('Borra IBKR anteriores, reimporta', 'Deletes old IBKR, reimports')}</p>
-                      </button>
-                    </div>
-                  </div>
                 </>
               )}
             </div>
@@ -774,25 +790,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
           )}
 
           {step === 'done' && result && (
-            <div className="text-center py-10">
-              <CheckCircle size={36} strokeWidth={1.5} className="text-emerald-400 mx-auto mb-5" />
-              <p className="text-white font-medium text-base mb-3">
-                {t('Sincronización exitosa', 'Sync successful')}
-              </p>
-              <p className="text-slate-400 text-sm">
-                {result.items} {t('posiciones', 'positions')}
-                {result.transactions > 0 && <> · {result.transactions} {t('transacciones', 'trades')}</>}
-                {result.equityHistory > 0 && <> · {result.equityHistory} {t('días de historial', 'days of history')}</>}
-                {result.accounts.length > 0 && <> · {result.accounts.join(', ')}</>}
-              </p>
-              <p className="text-[11px] text-slate-600 mt-2">
-                {new Date(result.syncedAt).toLocaleString()}
-              </p>
-              <button onClick={onClose}
-                className="mt-8 px-10 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-all text-sm font-medium">
-                {t('Cerrar', 'Close')}
-              </button>
-            </div>
+            <DoneStep result={result} onClose={onClose} t={t} />
           )}
         </div>
       </div>

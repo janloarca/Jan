@@ -56,6 +56,7 @@ const ConcentrationRisk = dynamic(() => import('@/components/dashboard/Concentra
 const GainsReport = dynamic(() => import('@/components/dashboard/GainsReport'), { loading: () => <SkeletonCard /> })
 const PerformanceAttribution = dynamic(() => import('@/components/dashboard/PerformanceAttribution'), { loading: () => <SkeletonCard /> })
 const InsightCards = dynamic(() => import('@/components/dashboard/InsightCards'), { loading: () => <SkeletonCard /> })
+const InstitutionPerformance = dynamic(() => import('@/components/dashboard/InstitutionPerformance'), { loading: () => <SkeletonCard /> })
 
 import RecentTransactions from '@/components/dashboard/RecentTransactions'
 import AssetAllocation from '@/components/dashboard/AssetAllocation'
@@ -592,6 +593,9 @@ export default function DashboardPage() {
         </ErrorBoundary>
 
         <CardBoundary id="INS-01"><InsightCards items={portfolioItems} profile={profile} netWorth={netWorth} estimatedAnnualIncome={estimatedAnnualIncome} lang={lang} onOpenSettings={() => setModal('settings')} /></CardBoundary>
+
+        {/* ═══ RENDIMIENTO POR INSTITUCIÓN ═══ */}
+        <CardBoundary id="INST-01"><InstitutionPerformance items={portfolioItems} lang={lang} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
 
         <ActionButtons
           onImport={() => setModal('import')} onAddAccount={() => setModal('account')}
