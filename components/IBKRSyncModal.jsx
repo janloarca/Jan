@@ -57,6 +57,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   const [pollProgress, setPollProgress] = useState(null)
   const [importMode, setImportMode] = useState('api')
   const [dragOver, setDragOver] = useState(false)
+  const [importProgress, setImportProgress] = useState(null)
   const abortRef = useRef(null)
   const fileInputRef = useRef(null)
   const autoStartedRef = useRef(false)
@@ -285,11 +286,12 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
     setSyncing(true)
     setError('')
     setErrorCode('')
+    setImportProgress({ done: 0, total: 0 })
     try {
       const timeout = new Promise((_, reject) =>
         setTimeout(() => reject(new Error(t('La importación tardó demasiado. Intenta de nuevo.', 'Import took too long. Please try again.'))), 120000)
       )
-      await Promise.race([onSyncComplete(preview, syncMode), timeout])
+      await Promise.race([onSyncComplete(preview, syncMode, (done, total) => setImportProgress({ done, total })), timeout])
       setResult({
         items: preview.items.length,
         transactions: preview.transactions.length,
@@ -303,6 +305,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       setError(err.message || t('Error importando datos', 'Error importing data'))
     } finally {
       setSyncing(false)
+      setImportProgress(null)
     }
   }, [preview, onSyncComplete, syncMode, t])
 
@@ -793,8 +796,17 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   {t('Atrás', 'Back')}
                 </button>
                 <button onClick={handleConfirm} disabled={syncing}
-                  className="flex-1 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-500 disabled:opacity-50 transition-all text-sm font-medium">
-                  {syncing ? t('Importando...', 'Importing...') : t('Confirmar', 'Confirm')}
+                  className="flex-1 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-500 disabled:opacity-50 transition-all text-sm font-medium relative overflow-hidden">
+                  {syncing && importProgress && importProgress.total > 0 && (
+                    <div className="absolute inset-0 bg-blue-500/30" style={{ width: `${Math.round((importProgress.done / importProgress.total) * 100)}%`, transition: 'width 0.3s' }} />
+                  )}
+                  <span className="relative">
+                    {syncing
+                      ? importProgress && importProgress.total > 0
+                        ? `${Math.round((importProgress.done / importProgress.total) * 100)}%`
+                        : t('Preparando...', 'Preparing...')
+                      : t('Confirmar', 'Confirm')}
+                  </span>
                 </button>
               </div>
             </div>

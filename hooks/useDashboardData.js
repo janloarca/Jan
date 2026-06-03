@@ -281,7 +281,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   const { acquireLock, releaseLock } = useTabCoordination()
   const ibkrAutoSyncRef = useRef(false)
 
-  const handleIBKRSync = useCallback(async (data, mode = 'merge') => {
+  const handleIBKRSync = useCallback(async (data, mode = 'merge', onProgress) => {
+    const totalOps = data.items.length + (data.transactions || []).length + (data.equityHistory || []).length
+    let completed = 0
+    const tick = () => { completed++; if (onProgress) onProgress(completed, totalOps) }
+
     if (mode === 'replace') {
       const ibkrItems = items.filter(it =>
         it._source === 'ibkr' || (it.institution || '').toLowerCase().includes('interactive brokers')
@@ -289,7 +293,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       await Promise.all(ibkrItems.map(it => deleteItem(it.id).catch(() => {})))
     }
 
-    const BATCH = 5
+    const BATCH = 20
     const itemOps = data.items.map(item => async () => {
       try {
         let existing = null
@@ -324,13 +328,14 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           }
         }
       } catch (e) { console.warn('IBKR sync item error:', item.symbol, e) }
+      tick()
     })
     for (let i = 0; i < itemOps.length; i += BATCH) {
       await Promise.all(itemOps.slice(i, i + BATCH).map(fn => fn()))
     }
 
     const txOps = (data.transactions || []).map(tx => () =>
-      addTransaction(tx).catch(e => console.warn('IBKR sync tx error:', e))
+      addTransaction(tx).catch(e => console.warn('IBKR sync tx error:', e)).finally(tick)
     )
     for (let i = 0; i < txOps.length; i += BATCH) {
       await Promise.all(txOps.slice(i, i + BATCH).map(fn => fn()))
@@ -347,7 +352,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             totalDebtUSD: entry.totalDebtUSD || 0,
             netWorthUSD: entry.netWorthUSD || 0,
             _source: 'ibkr',
-          }).catch(e => console.warn('IBKR sync snapshot error:', e))
+          }).catch(e => console.warn('IBKR sync snapshot error:', e)).finally(tick)
         )
       for (let i = 0; i < snapOps.length; i += BATCH) {
         await Promise.all(snapOps.slice(i, i + BATCH).map(fn => fn()))
