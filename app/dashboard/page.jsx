@@ -123,6 +123,7 @@ export default function DashboardPage() {
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
   const [showReview, setShowReview] = useState(false)
   const [toast, setToast] = useState(null)
+  const toastTimer = useRef(null)
   const { entities, addEntity, updateEntity: updateEntityData, deleteEntity } = useEntities()
 
   // Theme + lang init
@@ -235,15 +236,16 @@ export default function DashboardPage() {
     ibkrSyncStatus, ibkrSyncErrorCode,
   } = useDashboardData({ user, lang, activePortfolio, activeEntity })
 
-  const showToast = useCallback((msg, duration = 3000) => {
-    setToast(msg)
-    setTimeout(() => setToast(null), duration)
+  const showToast = useCallback((msg, type = 'success', duration = 3000) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    setToast({ msg, type })
+    toastTimer.current = setTimeout(() => setToast(null), duration)
   }, [])
 
   // Export XLSX
   const handleExport = useCallback(async () => {
     if (items.length === 0) return
-    showToast(lang === 'es' ? 'Generando Excel...' : 'Generating Excel...')
+    showToast(lang === 'es' ? 'Generando Excel...' : 'Generating Excel...', 'info')
     const XLSX = await import('xlsx')
     const ws = XLSX.utils.json_to_sheet(enrichedItems.map((it) => {
       const value = (it.quantity || 0) * (it.currentPrice || it.purchasePrice || 0)
@@ -659,7 +661,11 @@ export default function DashboardPage() {
 
       {modal === 'account' && (
         <AddAccountModal
-          onClose={() => setModal(null)} onAdd={addItem}
+          onClose={() => setModal(null)}
+          onAdd={async (item) => {
+            await addItem(item)
+            showToast(lang === 'es' ? `${item.symbol || item.name} agregado` : `${item.symbol || item.name} added`)
+          }}
           onAddTransaction={addTransaction} onAddLot={addLot}
           existingItems={items} activePortfolio={activePortfolio}
           activeEntity={activeEntity !== '__all__' ? activeEntity : 'default'}
@@ -669,15 +675,28 @@ export default function DashboardPage() {
 
       {modal === 'transfer' && (
         <TransferModal
-          onClose={() => setModal(null)} onSave={addItem}
-          onAddTransaction={addTransaction} existingItems={items} lang={lang}
+          onClose={() => setModal(null)}
+          onSave={async (item) => {
+            await addItem(item)
+          }}
+          onAddTransaction={async (tx) => {
+            await addTransaction(tx)
+            showToast(lang === 'es' ? 'Transferencia registrada' : 'Transfer recorded')
+          }}
+          existingItems={items} lang={lang}
         />
       )}
 
       {sellItem && (
         <SellModal
-          item={sellItem} onClose={() => setSellItem(null)}
-          onSell={addItem} onUpdate={updateItem}
+          item={sellItem} onClose={() => {
+            setSellItem(null)
+          }}
+          onSell={async (item) => {
+            await addItem(item)
+            showToast(lang === 'es' ? `${sellItem.symbol} vendido` : `${sellItem.symbol} sold`)
+          }}
+          onUpdate={updateItem}
           onAddTransaction={addTransaction} onCloseLots={closeLotsFIFO}
           existingItems={items} lang={lang}
         />
@@ -685,7 +704,11 @@ export default function DashboardPage() {
 
       {modal === 'ibkr' && (
         <IBKRSyncModal
-          onClose={() => setModal(null)} onSyncComplete={handleIBKRSync}
+          onClose={() => setModal(null)}
+          onSyncComplete={async (data, mode, onProgress) => {
+            await handleIBKRSync(data, mode, onProgress)
+            showToast(lang === 'es' ? `IBKR: ${data.items?.length || 0} posiciones sincronizadas` : `IBKR: ${data.items?.length || 0} positions synced`)
+          }}
           savedToken={settings?.ibkrToken || ''} savedQueryId={settings?.ibkrQueryId || ''}
           onSaveCredentials={(creds) => { saveSettings({ ...creds, _ibkrLastSync: new Date().toISOString(), _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
           uid={user?.uid} lang={lang}
@@ -747,7 +770,10 @@ export default function DashboardPage() {
       {modal === 'cashflow' && (
         <CashFlowModal
           onClose={() => setModal(null)}
-          onAddTransaction={addTransaction}
+          onAddTransaction={async (tx) => {
+            await addTransaction(tx)
+            showToast(lang === 'es' ? 'Flujo de caja registrado' : 'Cash flow recorded')
+          }}
           lang={lang}
           baseCurrency={baseCurrency}
         />
@@ -811,8 +837,13 @@ export default function DashboardPage() {
           onSave={async (updated) => {
             const { id, ...fields } = updated
             await updateItem(editItem.id, fields)
+            showToast(lang === 'es' ? 'Cambios guardados' : 'Changes saved')
           }}
-          onDelete={deleteItem} existingItems={items} lang={lang}
+          onDelete={async (id) => {
+            await deleteItem(id)
+            showToast(lang === 'es' ? 'Activo eliminado' : 'Asset deleted')
+          }}
+          existingItems={items} lang={lang}
           allItems={portfolioItems}
           onNavigate={showReview ? null : (dir) => {
             if (dir === 'next') {
@@ -859,8 +890,13 @@ export default function DashboardPage() {
       )}
 
       {toast && (
-        <div className="fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-[#1C1C1E] border border-[#38383A] rounded-lg shadow-xl text-xs text-white animate-fade-in">
-          {toast}
+        <div className={`fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2.5 rounded-lg shadow-xl text-sm font-medium animate-fade-in ${
+          toast.type === 'error' ? 'bg-red-900/90 border border-red-700/50 text-red-100' :
+          toast.type === 'info' ? 'bg-blue-900/90 border border-blue-700/50 text-blue-100' :
+          'bg-emerald-900/90 border border-emerald-700/50 text-emerald-100'
+        }`}>
+          <span>{toast.type === 'error' ? '✕' : toast.type === 'info' ? 'ℹ' : '✓'}</span>
+          {toast.msg}
         </div>
       )}
 
