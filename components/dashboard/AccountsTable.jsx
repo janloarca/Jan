@@ -227,6 +227,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                   {t('Instrumento', 'Instrument')} {sortBy === 'name' ? '↕' : ''}
                 </th>
                 <th className="text-center py-2 font-medium">% Port.</th>
+                <th className="text-right py-2 font-medium hidden sm:table-cell">{t('Precio', 'Price')}</th>
                 <th className="text-right py-2 font-medium hidden sm:table-cell">{t('Costo', 'Avg Cost')}</th>
                 <th className="text-center py-2 font-medium hidden sm:table-cell">P&L</th>
                 <th className="text-right py-2 font-medium cursor-pointer hover:text-slate-300"
@@ -332,6 +333,20 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                         </div>
                         <span className="text-slate-400 text-xs w-8 font-mono tabular-nums">{pctPort.toFixed(1)}%</span>
                       </div>
+                    </td>
+                    <td className="text-right py-3 hidden sm:table-cell">
+                      {getItemPrice(item) > 0 ? (
+                        <div>
+                          <span className="text-white text-sm font-medium font-mono tabular-nums">{formatCurrency(getItemPrice(item), item.currency)}</span>
+                          {item.change7d != null && (
+                            <div className={`text-[10px] font-mono tabular-nums ${item.change7d >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                              {item.change7d >= 0 ? '+' : ''}{item.change7d.toFixed(1)}%
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-slate-600">—</span>
+                      )}
                     </td>
                     <td className="text-right py-3 hidden sm:table-cell">
                       {item.purchasePrice > 0 ? (
