@@ -47,20 +47,20 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
 
   const filterOptions = [
     { key: 'ALL', icon: '○', label: lang === 'es' ? 'Todos' : 'All', color: 'blue' },
-    { key: 'BUY', icon: '↗', label: lang === 'es' ? 'Compras' : 'Buys', color: 'emerald' },
-    { key: 'SELL', icon: '↘', label: lang === 'es' ? 'Ventas' : 'Sells', color: 'red' },
+    { key: 'BUY', icon: '↗', label: lang === 'es' ? 'Compras' : 'Buys', color: 'blue' },
+    { key: 'SELL', icon: '↘', label: lang === 'es' ? 'Ventas' : 'Sells', color: 'slate' },
     { key: 'DIVIDEND', icon: '$', label: lang === 'es' ? 'Dividendos' : 'Dividends', color: 'emerald' },
-    { key: 'DEPOSIT', icon: '+', label: lang === 'es' ? 'Depósitos' : 'Deposits', color: 'blue' },
-    { key: 'WITHDRAWAL', icon: '−', label: lang === 'es' ? 'Retiros' : 'Withdrawals', color: 'amber' },
+    { key: 'DEPOSIT', icon: '+', label: lang === 'es' ? 'Depósitos' : 'Deposits', color: 'slate' },
+    { key: 'WITHDRAWAL', icon: '−', label: lang === 'es' ? 'Retiros' : 'Withdrawals', color: 'slate' },
   ]
 
   const typeBadge = (type) => {
     const t = (type || '').toUpperCase()
-    if (t === 'BUY') return 'bg-emerald-500/20 text-emerald-400'
-    if (t === 'SELL') return 'bg-red-500/20 text-red-400'
+    if (t === 'BUY') return 'bg-blue-500/20 text-blue-400'
+    if (t === 'SELL') return 'bg-slate-500/20 text-slate-400'
     if (t === 'DIVIDEND') return 'bg-emerald-500/15 text-emerald-300'
-    if (t === 'DEPOSIT') return 'bg-blue-500/20 text-blue-400'
-    if (t === 'WITHDRAWAL') return 'bg-amber-500/20 text-amber-400'
+    if (t === 'DEPOSIT') return 'bg-slate-500/20 text-slate-300'
+    if (t === 'WITHDRAWAL') return 'bg-slate-500/20 text-slate-400'
     return 'bg-slate-500/20 text-slate-400'
   }
 
@@ -105,6 +105,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
             emerald: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400',
             red: 'bg-red-500/15 border-red-500/30 text-red-400',
             amber: 'bg-amber-500/15 border-amber-500/30 text-amber-400',
+            slate: 'bg-slate-500/15 border-slate-500/30 text-slate-300',
           }
           return (
             <button key={opt.key} onClick={() => { setTypeFilter(opt.key); setShowAll(false) }}

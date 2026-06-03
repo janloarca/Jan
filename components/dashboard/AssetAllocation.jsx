@@ -1,12 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { formatCurrency, getTypeCategory, TYPE_COLORS, getItemValue, getSectorFromType, getGeographyFromSymbol, getInvestmentClass, INVESTMENT_CLASS_META } from './utils'
-
-const DONUT_COLORS = [
-  '#3b82f6', '#f59e0b', '#10b981', '#a855f7', '#ec4899',
-  '#06b6d4', '#ef4444', '#84cc16', '#f97316', '#6366f1',
-]
+import { formatCurrency, getTypeCategory, TYPE_COLORS, CHART_PALETTE, getItemValue, getSectorFromType, getGeographyFromSymbol, getInvestmentClass, INVESTMENT_CLASS_META } from './utils'
 
 export default function AssetAllocation({ items, lang }) {
   const [view, setView] = useState('type')
@@ -43,9 +38,9 @@ export default function AssetAllocation({ items, lang }) {
         value,
         pct: total > 0 ? (value / total) * 100 : 0,
         contribution: total > 0 ? ((gainByGroup[name] || 0) / total) * 100 : 0,
-        color: view === 'type' ? (TYPE_COLORS[name]?.bg || DONUT_COLORS[i % DONUT_COLORS.length])
-             : view === 'returnType' ? (INVESTMENT_CLASS_META[name]?.color || DONUT_COLORS[i % DONUT_COLORS.length])
-             : DONUT_COLORS[i % DONUT_COLORS.length],
+        color: view === 'type' ? (TYPE_COLORS[name]?.bg || CHART_PALETTE[i % CHART_PALETTE.length])
+             : view === 'returnType' ? (INVESTMENT_CLASS_META[name]?.color || CHART_PALETTE[i % CHART_PALETTE.length])
+             : CHART_PALETTE[i % CHART_PALETTE.length],
       }))
       .sort((a, b) => b.value - a.value)
   }, [items, view, lang])

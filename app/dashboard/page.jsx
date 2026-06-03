@@ -610,7 +610,7 @@ export default function DashboardPage() {
         <ActionButtons
           onImport={() => setModal('import')} onAddAccount={() => setModal('account')}
           onTransfer={() => setModal('transfer')} onCashFlow={() => setModal('cashflow')} onExport={handleExport}
-          onShare={handleShare} onIBKR={() => setModal('ibkr')} onBlockchain={() => setModal('blockchain')} onLedger={() => setModal('ledger')}
+          onShare={handleShare} onIntegrations={() => setModal('settings')}
           onReview={() => setShowReview(true)} itemCount={enrichedItems.length} lang={lang}
           ibkrSyncStatus={ibkrSyncStatus} ibkrLastSync={settings?._ibkrLastAutoSync || settings?._ibkrLastSync}
         />
@@ -830,6 +830,9 @@ export default function DashboardPage() {
             URL.revokeObjectURL(url)
           }}
           onOpenIBKR={() => setModal('ibkr')}
+          onImport={() => setModal('import')}
+          onAddAccount={() => setModal('account')}
+          onOpenBlockchain={() => setModal('blockchain')}
           theme={theme} onToggleTheme={handleSetTheme} lang={lang}
           profile={profile} onSaveProfile={saveProfile}
         />

@@ -77,6 +77,13 @@ export default function IncomeCalendar({ items, lang }) {
           const isPast = i < now.getMonth()
           const barH = maxMonthly > 0 ? Math.max(4, (m.total / maxMonthly) * 32) : 0
 
+          const intensity = maxMonthly > 0 ? m.total / maxMonthly : 0
+          const barColor = m.total <= 0 ? 'bg-slate-700/30'
+            : intensity > 0.75 ? 'bg-emerald-400'
+            : intensity > 0.5  ? 'bg-emerald-500'
+            : intensity > 0.25 ? 'bg-emerald-600'
+            : 'bg-emerald-700'
+
           return (
             <div key={i} className={`text-center p-1.5 rounded-lg transition-colors ${
               isCurrent ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-[#000000] border border-[#38383A]/20'
@@ -84,7 +91,7 @@ export default function IncomeCalendar({ items, lang }) {
               <div className="text-xs text-slate-500 mb-1">{monthNames[i]}</div>
               <div className="flex justify-center items-end h-8 mb-1">
                 {m.total > 0 ? (
-                  <div className={`w-3 rounded-t transition-all ${isPast ? 'bg-emerald-600/40' : 'bg-emerald-500'}`}
+                  <div className={`w-3 rounded-t transition-all ${isPast ? barColor + '/60' : barColor}`}
                     style={{ height: `${barH}px` }} />
                 ) : (
                   <div className="w-3 h-1 bg-slate-700/30 rounded" />

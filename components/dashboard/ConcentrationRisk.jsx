@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { getTypeCategory, TYPE_COLORS, getItemValue, getSectorFromType, getGeographyFromSymbol } from './utils'
+import { getTypeCategory, TYPE_COLORS, CHART_PALETTE, getItemValue, getSectorFromType, getGeographyFromSymbol } from './utils'
 import { computeHHI, computeHHIByDimension } from './analytics'
 
 export default function ConcentrationRisk({ items, lang }) {
@@ -37,9 +37,9 @@ export default function ConcentrationRisk({ items, lang }) {
 
   const displayHHI = dimension === 'asset' ? individualHHI : data
   const levelLabel = {
-    high: { es: 'Alta Concentración', en: 'High Concentration', color: 'text-red-400 bg-red-500/10 border-red-500/20' },
-    medium: { es: 'Media Concentración', en: 'Medium Concentration', color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
-    low: { es: 'Baja Concentración', en: 'Low Concentration', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
+    high: { es: 'Alta Concentración', en: 'High Concentration', color: 'text-red-400 bg-[#1C1C1E] border-red-500/40' },
+    medium: { es: 'Media Concentración', en: 'Medium Concentration', color: 'text-amber-400 bg-[#1C1C1E] border-amber-500/40' },
+    low: { es: 'Baja Concentración', en: 'Low Concentration', color: 'text-emerald-400 bg-[#1C1C1E] border-emerald-500/40' },
   }
 
   const topPosition = data.groups[0]
@@ -69,7 +69,7 @@ export default function ConcentrationRisk({ items, lang }) {
     { key: 'geography', label: t('Geografía', 'Geography') },
   ]
 
-  const PALETTE = ['#3b82f6', '#f59e0b', '#10b981', '#a855f7', '#ec4899', '#06b6d4', '#ef4444', '#84cc16', '#f97316', '#6366f1']
+  const PALETTE = CHART_PALETTE
 
   return (
     <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 p-4">

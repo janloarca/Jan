@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { formatCurrency, getItemValue } from './utils'
+import { formatCurrency, getItemValue, CHART_PALETTE } from './utils'
 
 const CURRENCY_FLAGS = {
   USD: '$', EUR: '€', GBP: '£', MXN: '$', GTQ: 'Q', COP: '$',
@@ -9,7 +9,7 @@ const CURRENCY_FLAGS = {
   JPY: '¥', CNY: '¥',
 }
 
-const PALETTE = ['#3b82f6', '#f59e0b', '#10b981', '#a855f7', '#ec4899', '#06b6d4', '#ef4444', '#84cc16']
+const PALETTE = CHART_PALETTE
 
 export default function CurrencyImpact({ items, convert, baseCurrency, rates, lang }) {
   const t = (es, en) => lang === 'es' ? es : en

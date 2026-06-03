@@ -76,18 +76,7 @@ export function getTypeCategory(itemOrType) {
   return 'other'
 }
 
-export const TYPE_COLORS = {
-  stocks: { bg: '#3b82f6', badge: 'bg-blue-500/20 text-blue-400' },
-  crypto: { bg: '#f59e0b', badge: 'bg-amber-500/20 text-amber-400' },
-  bonds: { bg: '#10b981', badge: 'bg-emerald-500/20 text-emerald-400' },
-  funds: { bg: '#a855f7', badge: 'bg-purple-500/20 text-purple-400' },
-  banks: { bg: '#6b7280', badge: 'bg-gray-500/20 text-gray-400' },
-  realestate: { bg: '#f97316', badge: 'bg-orange-500/20 text-orange-400' },
-  alternatives: { bg: '#ec4899', badge: 'bg-pink-500/20 text-pink-400' },
-  receivables: { bg: '#06b6d4', badge: 'bg-cyan-500/20 text-cyan-400' },
-  debts: { bg: '#ef4444', badge: 'bg-red-500/20 text-red-400' },
-  other: { bg: '#64748b', badge: 'bg-slate-500/20 text-slate-400' },
-}
+export { CATEGORY as TYPE_COLORS, CHART_PALETTE } from '@/lib/colors'
 
 export function getItemPrice(item) {
   if (item.isIlliquid && item.lastManualValuation > 0) return item.lastManualValuation
@@ -135,11 +124,13 @@ export function getInvestmentClass(item) {
   return 'renta_variable'
 }
 
+import { INVESTMENT_CLASS_COLORS } from '@/lib/colors'
+
 export const INVESTMENT_CLASS_META = {
-  renta_variable: { label: { es: 'Renta Variable', en: 'Variable Income' }, returnType: { es: 'Retorno variable', en: 'Variable return' }, color: '#3b82f6', icon: 'TrendingUp' },
-  renta_fija: { label: { es: 'Renta Fija', en: 'Fixed Income' }, returnType: { es: 'Retorno predefinido', en: 'Predefined return' }, color: '#10b981', icon: 'Landmark' },
-  patrimonio_vc: { label: { es: 'Patrimonio / VC', en: 'Equity / VC' }, returnType: { es: 'Largo plazo', en: 'Long-term' }, color: '#f59e0b', icon: 'Gem' },
-  debts: { label: { es: 'Deuda', en: 'Debt' }, returnType: { es: 'Pasivo', en: 'Liability' }, color: '#ef4444', icon: 'CreditCard' },
+  renta_variable: { label: { es: 'Renta Variable', en: 'Variable Income' }, returnType: { es: 'Retorno variable', en: 'Variable return' }, color: INVESTMENT_CLASS_COLORS.renta_variable, icon: 'TrendingUp' },
+  renta_fija: { label: { es: 'Renta Fija', en: 'Fixed Income' }, returnType: { es: 'Retorno predefinido', en: 'Predefined return' }, color: INVESTMENT_CLASS_COLORS.renta_fija, icon: 'Landmark' },
+  patrimonio_vc: { label: { es: 'Patrimonio / VC', en: 'Equity / VC' }, returnType: { es: 'Largo plazo', en: 'Long-term' }, color: INVESTMENT_CLASS_COLORS.patrimonio_vc, icon: 'Gem' },
+  debts: { label: { es: 'Deuda', en: 'Debt' }, returnType: { es: 'Pasivo', en: 'Liability' }, color: INVESTMENT_CLASS_COLORS.debts, icon: 'CreditCard' },
 }
 
 export function formatPercent(value) {
