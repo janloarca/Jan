@@ -52,6 +52,8 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   const [ibkrConfigured, setIbkrConfigured] = useState(false)
   const [ibkrSaving, setIbkrSaving] = useState(false)
   const [ibkrError, setIbkrError] = useState('')
+  const [showConfig, setShowConfig] = useState(false)
+  const [confirmUnlink, setConfirmUnlink] = useState(false)
 
   const t = (es, en) => lang === 'es' ? es : en
 
@@ -483,11 +485,30 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               )}
 
               {/* IBKR disconnect */}
-              {ibkrConfigured && (
-                <button onClick={handleIbkrDisconnect} disabled={ibkrSaving}
+              {ibkrConfigured && !confirmUnlink && (
+                <button onClick={() => setConfirmUnlink(true)}
                   className="text-[11px] text-red-400/60 hover:text-red-400 transition-colors">
                   {t('Desvincular IBKR', 'Unlink IBKR')}
                 </button>
+              )}
+              {ibkrConfigured && confirmUnlink && (
+                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg space-y-2">
+                  <p className="text-xs text-red-400 font-medium">{t('¿Desvincular Interactive Brokers?', 'Unlink Interactive Brokers?')}</p>
+                  <p className="text-[11px] text-slate-400">
+                    {t('Se eliminará la conexión API. Tus posiciones importadas se mantienen, pero ya no se actualizarán automáticamente.',
+                       'The API connection will be removed. Your imported positions will be kept, but will no longer update automatically.')}
+                  </p>
+                  <div className="flex gap-2">
+                    <button onClick={async () => { await handleIbkrDisconnect(); setConfirmUnlink(false) }} disabled={ibkrSaving}
+                      className="px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-500 transition-colors">
+                      {ibkrSaving ? '...' : t('Sí, desvincular', 'Yes, unlink')}
+                    </button>
+                    <button onClick={() => setConfirmUnlink(false)}
+                      className="px-3 py-1.5 border border-[#38383A] text-slate-400 text-xs rounded-lg hover:bg-[#2C2C2E] transition-colors">
+                      {t('Cancelar', 'Cancel')}
+                    </button>
+                  </div>
+                </div>
               )}
 
               {/* All other institutions */}
