@@ -181,19 +181,24 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
         const buf = await file.arrayBuffer()
         const wb = XLSX.read(buf, { type: 'array' })
         const sheet = wb.Sheets[wb.SheetNames[0]]
-        const json = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
-        if (json.length < 2) throw new Error(t('Archivo vacío o sin datos', 'File is empty or has no data'))
-        const headers = json[0].map(h => (h || '').toString().trim())
-        const rows = json.slice(1).filter(r => r.some(c => c !== ''))
-        parsed = parseIBKRFile(rows, headers)
+        const csv = XLSX.utils.sheet_to_csv(sheet)
+        if (csv && (/,Header,/.test(csv) || /,Data,/.test(csv))) {
+          parsed = parseIBKRFile(csv)
+        } else {
+          const json = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
+          if (json.length < 2) throw new Error(t('Archivo vacío o sin datos', 'File is empty or has no data'))
+          const headers = json[0].map(h => (h || '').toString().trim())
+          const rows = json.slice(1).filter(r => r.some(c => c !== ''))
+          parsed = parseIBKRFile(rows, headers)
+        }
       }
 
       const data = formatIBKRFileResult(parsed)
 
-      if (data.items.length === 0 && data.transactions.length === 0) {
+      if (data.items.length === 0 && data.transactions.length === 0 && (data.equityHistory || []).length === 0) {
         throw new Error(t(
-          'No se encontraron posiciones ni transacciones en el archivo. Verifica que sea un export de IBKR.',
-          'No positions or transactions found in the file. Verify it is an IBKR export.'
+          'No se encontraron datos en el archivo. Descarga un reporte de Portfolio Analyst desde IBKR (Performance & Reports → PortfolioAnalyst → Reports → CSV).',
+          'No data found in the file. Download a Portfolio Analyst report from IBKR (Performance & Reports → PortfolioAnalyst → Reports → CSV).'
         ))
       }
 
@@ -544,8 +549,8 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   <div>
                     <p className="text-sm text-white font-medium mb-1">{t('Importar desde archivo', 'Import from file')}</p>
                     <p className="text-xs text-slate-500">
-                      {t('Sube un archivo exportado de IBKR (Activity Statement, Portfolio Analyst, o Flex Query).',
-                         'Upload an exported IBKR file (Activity Statement, Portfolio Analyst, or Flex Query).')}
+                      {t('Sube un reporte CSV exportado de Portfolio Analyst de IBKR.',
+                         'Upload a CSV report exported from IBKR Portfolio Analyst.')}
                     </p>
                   </div>
 
@@ -553,14 +558,23 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                     <div className="flex gap-4">
                       <span className="text-xs text-slate-500 font-mono pt-0.5 shrink-0">1.</span>
                       <div>
-                        <p className="text-xs text-white font-medium">{t('Exportar desde IBKR', 'Export from IBKR')}</p>
+                        <p className="text-xs text-white font-medium">{t('Abrir Portfolio Analyst', 'Open Portfolio Analyst')}</p>
                         <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                          <span className="text-blue-400 font-mono">interactivebrokers.com</span> → Performance & Reports → {t('descargar', 'download')} <span className="text-white">Activity Statement</span> {t('o', 'or')} <span className="text-white">Portfolio Analyst</span> {t('como CSV o Excel', 'as CSV or Excel')}
+                          <span className="text-blue-400 font-mono">interactivebrokers.com</span> → <span className="text-white">Performance & Reports</span> → <span className="text-white">PortfolioAnalyst</span>
                         </p>
                       </div>
                     </div>
                     <div className="flex gap-4">
                       <span className="text-xs text-slate-500 font-mono pt-0.5 shrink-0">2.</span>
+                      <div>
+                        <p className="text-xs text-white font-medium">{t('Descargar reporte', 'Download report')}</p>
+                        <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                          {t('Ve a la pestaña', 'Go to the')} <span className="text-white">Reports</span> → {t('elige un periodo (ej: Year to Date) y haz clic en el ícono de CSV', 'choose a period (e.g. Year to Date) and click the CSV icon')} <span className="text-white">📄</span>
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-4">
+                      <span className="text-xs text-slate-500 font-mono pt-0.5 shrink-0">3.</span>
                       <p className="text-xs text-white font-medium">{t('Arrastra o selecciona el archivo abajo', 'Drag or select the file below')}</p>
                     </div>
                   </div>
