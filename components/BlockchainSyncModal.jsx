@@ -53,12 +53,12 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
     onClose()
   }, [preview, syncMode, onSyncComplete, onClose])
 
-  const inputCls = 'w-full px-3 py-2 bg-[#0d1117] border border-[#21262d] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50'
+  const inputCls = 'w-full px-3 py-2 bg-[#000000] border border-[#38383A] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="bg-[#161b22] border border-[#21262d] rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#21262d]">
+      <div className="bg-[#1C1C1E] border border-[#38383A] rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#38383A]">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <span className="text-xl">₿</span> Blockchain.com Sync
           </h2>
@@ -116,7 +116,7 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
                 <p className="text-xs text-slate-400 font-medium mb-2">{t('Posiciones encontradas:', 'Positions found:')}</p>
                 <div className="space-y-1 max-h-40 overflow-y-auto">
                   {preview.items.map((item, i) => (
-                    <div key={i} className="flex items-center justify-between px-3 py-1.5 bg-[#0d1117] rounded text-xs">
+                    <div key={i} className="flex items-center justify-between px-3 py-1.5 bg-[#000000] rounded text-xs">
                       <span className="text-white font-medium">{item.symbol}</span>
                       <span className="text-slate-400">
                         {item.quantity.toLocaleString(undefined, { maximumFractionDigits: 8 })}
@@ -136,12 +136,12 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
               <p className="text-xs text-slate-400 font-medium mb-2">{t('Modo de importación:', 'Import mode:')}</p>
               <div className="flex gap-2">
                 <button onClick={() => setSyncMode('merge')}
-                  className={`flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors ${syncMode === 'merge' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#0d1117] text-slate-400 border border-[#21262d]'}`}>
+                  className={`flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors ${syncMode === 'merge' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#000000] text-slate-400 border border-[#38383A]'}`}>
                   {t('Fusionar', 'Merge')}
                   <span className="block text-[10px] mt-0.5 opacity-60">{t('Actualiza existentes, agrega nuevos', 'Update existing, add new')}</span>
                 </button>
                 <button onClick={() => setSyncMode('replace')}
-                  className={`flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors ${syncMode === 'replace' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' : 'bg-[#0d1117] text-slate-400 border border-[#21262d]'}`}>
+                  className={`flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors ${syncMode === 'replace' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' : 'bg-[#000000] text-slate-400 border border-[#38383A]'}`}>
                   {t('Reemplazar', 'Replace')}
                   <span className="block text-[10px] mt-0.5 opacity-60">{t('Borra todo de Blockchain.com', 'Delete all from Blockchain.com')}</span>
                 </button>
@@ -150,7 +150,7 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
 
             <div className="flex gap-3">
               <button onClick={() => { setStep('config'); setPreview(null) }}
-                className="flex-1 py-2.5 border border-[#21262d] text-slate-300 rounded-lg hover:bg-[#0d1117] transition-colors text-sm">
+                className="flex-1 py-2.5 border border-[#38383A] text-slate-300 rounded-lg hover:bg-[#000000] transition-colors text-sm">
                 {t('Atrás', 'Back')}
               </button>
               <button onClick={handleConfirm}

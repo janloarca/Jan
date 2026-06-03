@@ -41,7 +41,7 @@ export default function DataQuality({ items, lang }) {
   const barColor = quality.score >= 80 ? 'bg-emerald-500' : quality.score >= 60 ? 'bg-amber-500' : 'bg-red-500'
 
   return (
-    <div className="bg-[#161b22]/80 rounded-xl border border-[#21262d]/50 px-4 py-3">
+    <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 px-4 py-3">
       <div className="flex items-center gap-3">
         <div className="text-center shrink-0">
           <div className={`text-lg font-bold ${color}`}>{quality.score}%</div>

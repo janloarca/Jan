@@ -70,7 +70,7 @@ export default function UpcomingDividends({ items, lang }) {
   const totalExpected = upcoming.reduce((s, d) => s + d.amount, 0)
 
   return (
-    <div className="bg-[#161b22]/80 rounded-xl border border-[#21262d]/50 p-4">
+    <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-xs font-semibold text-white flex items-center gap-1.5">
           <span className="text-emerald-400">$</span>

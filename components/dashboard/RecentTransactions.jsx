@@ -80,7 +80,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
   }
 
   return (
-    <div className="bg-[#161b22] rounded-2xl border border-[#21262d] p-5 card-primary">
+    <div className="bg-[#1C1C1E] rounded-2xl border border-[#38383A] p-5 card-primary">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-base font-semibold text-white">
           {lang === 'es' ? 'Transacciones' : 'Transactions'}
@@ -111,7 +111,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
               className={`flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg transition-all text-center border ${
                 isActive
                   ? activeColors[opt.color]
-                  : 'bg-[#0d1117]/50 border-transparent text-slate-500 hover:text-slate-300 hover:bg-[#1c2129]'
+                  : 'bg-[#000000]/50 border-transparent text-slate-500 hover:text-slate-300 hover:bg-[#2C2C2E]'
               }`}>
               <span className="text-sm font-bold">{opt.icon}</span>
               <span className="text-xs font-medium">{opt.label}</span>
@@ -144,7 +144,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
       {monthlySummary && monthlySummary.length > 0 && dateRange === 'all' && typeFilter === 'ALL' && (
         <div className="grid grid-cols-3 gap-2 mb-4">
           {monthlySummary.map((m) => (
-            <div key={m.month} className="bg-[#0d1117] rounded-lg p-2.5 border border-[#21262d]/50 text-center">
+            <div key={m.month} className="bg-[#000000] rounded-lg p-2.5 border border-[#38383A]/50 text-center">
               <div className="text-xs text-slate-500 mb-1">{m.month}</div>
               <div className={`text-xs font-semibold font-mono tabular-nums ${m.net >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                 {m.net >= 0 ? '+' : ''}{formatCurrency(m.net)}
@@ -167,7 +167,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
         <>
           <div className="space-y-0">
             {display.map((tx, i) => (
-              <div key={tx.id || i} className="flex items-center justify-between py-3 border-b border-[#21262d]/30 last:border-0 hover:bg-[#1c2129]/30 transition-colors -mx-2 px-2 rounded">
+              <div key={tx.id || i} className="flex items-center justify-between py-3 border-b border-[#38383A]/30 last:border-0 hover:bg-[#2C2C2E]/30 transition-colors -mx-2 px-2 rounded">
                 <div className="flex items-center gap-3">
                   <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold ${typeBadge(tx.type)}`}>
                     {typeIcon(tx.type)}
@@ -200,7 +200,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
           </div>
           {all.length > 5 && (
             <button onClick={() => setShowAll(!showAll)}
-              className="w-full mt-3 py-2 text-xs text-slate-400 hover:text-emerald-400 border border-[#21262d]/50 rounded-lg hover:bg-[#1c2129] transition-colors">
+              className="w-full mt-3 py-2 text-xs text-slate-400 hover:text-emerald-400 border border-[#38383A]/50 rounded-lg hover:bg-[#2C2C2E] transition-colors">
               {showAll
                 ? (lang === 'es' ? 'Mostrar menos' : 'Show less')
                 : (lang === 'es' ? `Ver todas (${all.length})` : `View all (${all.length})`)}

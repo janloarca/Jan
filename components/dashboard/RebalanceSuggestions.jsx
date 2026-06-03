@@ -53,7 +53,7 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
   }
 
   return (
-    <div className="bg-[#161b22]/80 rounded-xl border border-[#21262d]/50 p-4">
+    <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-purple-400" />
@@ -84,7 +84,7 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
               <input type="number" min="0" max="100" step="5"
                 value={form[c.cat] || 0}
                 onChange={(e) => setForm({ ...form, [c.cat]: parseInt(e.target.value) || 0 })}
-                className="w-16 px-2 py-1 text-xs bg-[#0d1117] border border-[#21262d] rounded text-white text-center" />
+                className="w-16 px-2 py-1 text-xs bg-[#000000] border border-[#38383A] rounded text-white text-center" />
               <span className="text-xs text-slate-500">%</span>
             </div>
           ))}
@@ -134,7 +134,7 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
           })}
 
           {!isBalanced && (
-            <div className="pt-2 border-t border-[#21262d]/30 space-y-1">
+            <div className="pt-2 border-t border-[#38383A]/30 space-y-1">
               {allocation.categories
                 .filter((c) => Math.abs(c.diff) > 2 && c.targetPct > 0)
                 .slice(0, 3)

@@ -142,7 +142,7 @@ export default function SpreadsheetPage() {
 
   if (authLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#0d1117]">
+      <div className="flex items-center justify-center min-h-screen bg-[#000000]">
         <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent" />
       </div>
     )
@@ -151,20 +151,20 @@ export default function SpreadsheetPage() {
   if (!user) return null
 
   return (
-    <div className={`min-h-screen flex flex-col ${view === 'custom' ? 'bg-[#0d1117]' : 'bg-slate-100'}`}>
+    <div className={`min-h-screen flex flex-col ${view === 'custom' ? 'bg-[#000000]' : 'bg-slate-100'}`}>
       {/* Header */}
-      <div className={`flex items-center justify-between px-4 py-3 border-b ${view === 'custom' ? 'bg-[#161b22] border-[#21262d]' : 'bg-white border-slate-200'}`}>
+      <div className={`flex items-center justify-between px-4 py-3 border-b ${view === 'custom' ? 'bg-[#1C1C1E] border-[#38383A]' : 'bg-white border-slate-200'}`}>
         <div className="flex items-center gap-3">
           <button onClick={() => router.push('/dashboard')} className={`transition-colors ${view === 'custom' ? 'text-slate-400 hover:text-white' : 'text-slate-400 hover:text-slate-900'}`}>
             ← {t('Dashboard', 'Dashboard')}
           </button>
-          <div className={`w-px h-5 ${view === 'custom' ? 'bg-[#21262d]' : 'bg-slate-200'}`} />
+          <div className={`w-px h-5 ${view === 'custom' ? 'bg-[#38383A]' : 'bg-slate-200'}`} />
           <h1 className={`text-sm font-semibold flex items-center gap-2 ${view === 'custom' ? 'text-white' : 'text-slate-900'}`}>
             Spreadsheet
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          <div className={`flex rounded-lg border p-0.5 ${view === 'custom' ? 'bg-[#0d1117] border-[#21262d]' : 'bg-slate-100 border-slate-200'}`}>
+          <div className={`flex rounded-lg border p-0.5 ${view === 'custom' ? 'bg-[#000000] border-[#38383A]' : 'bg-slate-100 border-slate-200'}`}>
             {[
               { key: 'portfolio', label: 'Portfolio' },
               { key: 'debts', label: t('Deudas', 'Debts') },
@@ -194,7 +194,7 @@ export default function SpreadsheetPage() {
 
       {/* Templates dropdown */}
       {showTemplates && (
-        <div className="px-4 py-3 bg-[#161b22]/80 border-b border-[#21262d]">
+        <div className="px-4 py-3 bg-[#1C1C1E]/80 border-b border-[#38383A]">
           <div className="flex items-center gap-3 flex-wrap">
             <span className="text-xs text-slate-500">{t('Crear desde plantilla:', 'Create from template:')}</span>
             {TEMPLATES.map(tmpl => (

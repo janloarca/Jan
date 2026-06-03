@@ -8,17 +8,17 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
-        mono: ['JetBrains Mono', 'SF Mono', 'Fira Code', 'monospace'],
+        sans: ['-apple-system', 'BlinkMacSystemFont', 'SF Pro Text', 'SF Pro Display', 'system-ui', 'Helvetica Neue', 'sans-serif'],
+        mono: ['SF Mono', 'JetBrains Mono', 'Fira Code', 'monospace'],
       },
       fontSize: {
-        'kpi': ['2.25rem', { lineHeight: '1.2', fontWeight: '900', letterSpacing: '-0.02em' }],
-        'h1': ['1.75rem', { lineHeight: '1.3', fontWeight: '700', letterSpacing: '-0.01em' }],
-        'h2': ['1.25rem', { lineHeight: '1.4', fontWeight: '600' }],
-        'h3': ['1rem', { lineHeight: '1.4', fontWeight: '600' }],
-        'body': ['0.875rem', { lineHeight: '1.5' }],
-        'caption': ['0.75rem', { lineHeight: '1.4' }],
-        'micro': ['0.6875rem', { lineHeight: '1.3' }],
+        'kpi': ['2.125rem', { lineHeight: '1.15', fontWeight: '700', letterSpacing: '0.01em' }],
+        'h1': ['1.375rem', { lineHeight: '1.3', fontWeight: '700', letterSpacing: '0.01em' }],
+        'h2': ['1.0625rem', { lineHeight: '1.4', fontWeight: '600' }],
+        'h3': ['0.9375rem', { lineHeight: '1.4', fontWeight: '600' }],
+        'body': ['0.9375rem', { lineHeight: '1.47' }],
+        'caption': ['0.8125rem', { lineHeight: '1.38' }],
+        'micro': ['0.6875rem', { lineHeight: '1.27' }],
       },
     },
   },

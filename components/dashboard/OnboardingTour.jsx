@@ -127,7 +127,7 @@ export default function OnboardingTour({ lang, onAction, onComplete }) {
 
   return (
     <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 transition-opacity duration-200 ${visible ? 'opacity-100' : 'opacity-0'}`}>
-      <div className="bg-[#161b22] border border-[#21262d] rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+      <div className="bg-[#1C1C1E] border border-[#38383A] rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
         <div className="p-8 text-center">
           <div className="flex justify-center mb-4">
             {(() => { const IconComp = ICON_MAP[current.icon]; return IconComp ? <IconComp size={40} className="text-blue-400" /> : null })()}
@@ -150,19 +150,19 @@ export default function OnboardingTour({ lang, onAction, onComplete }) {
         </div>
 
         {/* Actions */}
-        <div className="flex border-t border-[#21262d]">
+        <div className="flex border-t border-[#38383A]">
           <button onClick={handleFinish}
             className="flex-1 px-4 py-3.5 text-sm text-slate-500 hover:text-slate-300 transition-colors">
             {t('Omitir', 'Skip')}
           </button>
           {current.action && (
             <button onClick={handleAction}
-              className="flex-1 px-4 py-3.5 text-sm text-cyan-400 hover:text-cyan-300 font-medium transition-colors border-l border-[#21262d]">
+              className="flex-1 px-4 py-3.5 text-sm text-cyan-400 hover:text-cyan-300 font-medium transition-colors border-l border-[#38383A]">
               {current.action === 'add' ? t('Agregar ahora', 'Add now') : t('Ir a ajustes', 'Go to settings')}
             </button>
           )}
           <button onClick={handleNext}
-            className="flex-1 px-4 py-3.5 text-sm text-blue-400 hover:text-blue-300 font-medium transition-colors border-l border-[#21262d]">
+            className="flex-1 px-4 py-3.5 text-sm text-blue-400 hover:text-blue-300 font-medium transition-colors border-l border-[#38383A]">
             {step < steps.length - 1 ? t('Siguiente', 'Next') : t('Empezar', 'Start')}
           </button>
         </div>

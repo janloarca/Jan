@@ -105,7 +105,7 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
   }, [historyPoints, netWorth, transactions, convert, baseCurrency, returnMode])
 
   if (periods.length === 0 && !loading) return (
-    <div className="bg-[#161b22]/40 rounded-xl border border-[#21262d]/30 p-4 text-center">
+    <div className="bg-[#1C1C1E]/40 rounded-xl border border-[#38383A]/30 p-4 text-center">
       <p className={`text-sm ${fetchError ? 'text-red-400/70' : 'text-slate-500'}`}>
         {fetchError || (lang === 'es' ? 'Sin datos de rendimiento aún' : 'No performance data yet')}
       </p>
@@ -115,13 +115,13 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
   const t = (es, en) => lang === 'es' ? es : en
 
   return (
-    <div className="bg-[#161b22] rounded-2xl border border-[#21262d] p-5 card-primary">
+    <div className="bg-[#1C1C1E] rounded-2xl border border-[#38383A] p-5 card-primary">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-purple-400" />
           {t('RENDIMIENTO', 'PERFORMANCE SUMMARY')}
         </h3>
-        <div className="flex gap-0.5 bg-[#0d1117] rounded p-0.5">
+        <div className="flex gap-0.5 bg-[#000000] rounded p-0.5">
           <button onClick={() => setReturnMode('twr')}
             className={`px-1.5 py-0.5 text-xs font-medium rounded transition-all ${returnMode === 'twr' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}>TWR</button>
           <button onClick={() => setReturnMode('mwr')}
@@ -138,7 +138,7 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
           {periods.map((p) => {
             const isPos = (p.pct ?? 0) >= 0
             return (
-              <div key={p.key} className="text-center p-2 sm:p-3 bg-[#0d1117] rounded-lg border border-[#21262d]/50">
+              <div key={p.key} className="text-center p-2 sm:p-3 bg-[#000000] rounded-lg border border-[#38383A]/50">
                 <span className="text-xs text-slate-500 font-medium">{p.label}</span>
                 {p.pct != null && isFinite(p.pct) ? (
                   <>
