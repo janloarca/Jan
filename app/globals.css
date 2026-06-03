@@ -22,6 +22,9 @@
   --focus-ring: #0A84FF;
   --fill-primary: rgba(120, 120, 128, 0.36);
   --fill-secondary: rgba(120, 120, 128, 0.32);
+  --card-bg: #1C1C1E;
+  --card-border: rgba(84, 84, 88, 0.65);
+  --input-bg: #000000;
 }
 
 [data-theme="light"] {
@@ -44,6 +47,9 @@
   --focus-ring: #007AFF;
   --fill-primary: rgba(120, 120, 128, 0.2);
   --fill-secondary: rgba(120, 120, 128, 0.16);
+  --card-bg: #FFFFFF;
+  --card-border: rgba(60, 60, 67, 0.29);
+  --input-bg: #F2F2F7;
 }
 
 * {
