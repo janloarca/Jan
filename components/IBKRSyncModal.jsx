@@ -58,6 +58,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   const [importMode, setImportMode] = useState('api')
   const [dragOver, setDragOver] = useState(false)
   const [importProgress, setImportProgress] = useState(null)
+  const [selectedAccounts, setSelectedAccounts] = useState(null)
   const abortRef = useRef(null)
   const fileInputRef = useRef(null)
   const autoStartedRef = useRef(false)
@@ -186,6 +187,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       } else {
         // Show preview for replace mode (destructive — needs confirmation)
         setPreview(data)
+        setSelectedAccounts(null)
         setSyncMode('replace')
         setStep('preview')
       }
@@ -260,6 +262,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       }
 
       setPreview(data)
+      setSelectedAccounts(null)
       setStep('preview')
     } catch (err) {
       setError(err.message || t('Error leyendo archivo', 'Error reading file'))
@@ -289,7 +292,16 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
     const progress = { done: 0, total: 0 }
     setImportProgress({ done: 0, total: 0 })
 
-    const totalItems = preview.items.length + preview.transactions.length + (preview.equityHistory || []).length
+    const accounts = preview.accounts || []
+    const activeAccounts = selectedAccounts || accounts
+    const hasFilter = accounts.length > 1 && selectedAccounts
+    const dataToImport = hasFilter ? {
+      ...preview,
+      items: preview.items.filter(it => !it._ibkrAccountId || activeAccounts.includes(it._ibkrAccountId)),
+      transactions: preview.transactions.filter(tx => !tx._ibkrAccountId || activeAccounts.includes(tx._ibkrAccountId)),
+    } : preview
+
+    const totalItems = dataToImport.items.length + dataToImport.transactions.length + (dataToImport.equityHistory || []).length
     const timeoutMs = Math.max(120000, totalItems * 1500)
     const MAX_RETRIES = 1
     let lastError = null
@@ -300,7 +312,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
           setTimeout(() => reject(new Error(t('La importación tardó demasiado. Intenta de nuevo.', 'Import took too long. Please try again.'))), timeoutMs)
         )
         await Promise.race([
-          onSyncComplete(preview, syncMode, (done, total) => {
+          onSyncComplete(dataToImport, syncMode, (done, total) => {
             progress.done = done
             progress.total = total
             setImportProgress({ done, total })
@@ -308,11 +320,11 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
           timeout,
         ])
         setResult({
-          items: preview.items.length,
-          transactions: preview.transactions.length,
-          equityHistory: (preview.equityHistory || []).length,
-          accounts: preview.accounts || [],
-          syncedAt: preview.syncedAt || new Date().toISOString(),
+          items: dataToImport.items.length,
+          transactions: dataToImport.transactions.length,
+          equityHistory: (dataToImport.equityHistory || []).length,
+          accounts: activeAccounts,
+          syncedAt: dataToImport.syncedAt || new Date().toISOString(),
           mode: syncMode,
         })
         setStep('done')
@@ -333,7 +345,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
     setError((lastError?.message || t('Error importando datos', 'Error importing data')) + partialMsg)
     setSyncing(false)
     setImportProgress(null)
-  }, [preview, onSyncComplete, syncMode, t])
+  }, [preview, onSyncComplete, syncMode, selectedAccounts, t])
 
   const errorHint = useMemo(() => {
     if (!errorCode) return null
@@ -694,19 +706,66 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
             </div>
           )}
 
-          {step === 'preview' && preview && (
+          {step === 'preview' && preview && (() => {
+            const accounts = preview.accounts || []
+            const hasMultiple = accounts.length > 1
+            const activeAccounts = selectedAccounts || accounts
+            const filteredPreview = hasMultiple ? {
+              ...preview,
+              items: preview.items.filter(it => !it._ibkrAccountId || activeAccounts.includes(it._ibkrAccountId)),
+              transactions: preview.transactions.filter(tx => !tx._ibkrAccountId || activeAccounts.includes(tx._ibkrAccountId)),
+            } : preview
+
+            return (
             <div className="space-y-5">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                 <span className="text-xs text-slate-400">
                   {t('Datos recibidos de IBKR', 'Data received from IBKR')}
                 </span>
-                {preview.accounts && preview.accounts.length > 0 && (
-                  <span className="text-[11px] text-slate-600 font-mono ml-auto">
-                    {preview.accounts.join(', ')}
-                  </span>
-                )}
               </div>
+
+              {hasMultiple && (
+                <div className="bg-[#000000]/50 rounded-xl p-4 border border-[#38383A]/40">
+                  <p className="text-xs text-white font-medium mb-3">
+                    {t('Cuentas detectadas', 'Accounts detected')}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {accounts.map(acc => {
+                      const isSelected = activeAccounts.includes(acc)
+                      const count = preview.items.filter(it => it._ibkrAccountId === acc).length
+                      return (
+                        <button key={acc} onClick={() => {
+                          if (!selectedAccounts) {
+                            setSelectedAccounts([acc])
+                          } else if (isSelected && activeAccounts.length > 1) {
+                            setSelectedAccounts(activeAccounts.filter(a => a !== acc))
+                          } else if (!isSelected) {
+                            setSelectedAccounts([...activeAccounts, acc])
+                          }
+                        }}
+                          className={`px-3 py-2 rounded-lg text-xs font-mono transition-all border ${
+                            isSelected
+                              ? 'border-blue-500 bg-blue-500/10 text-blue-400'
+                              : 'border-[#38383A] text-slate-500 hover:border-slate-500'
+                          }`}>
+                          {acc} <span className="text-slate-600 ml-1">({count})</span>
+                        </button>
+                      )
+                    })}
+                    {selectedAccounts && (
+                      <button onClick={() => setSelectedAccounts(null)}
+                        className="px-3 py-2 rounded-lg text-xs text-slate-500 hover:text-slate-300 transition-colors">
+                        {t('Todas', 'All')}
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-600 mt-2">
+                    {t('Selecciona qué cuentas importar. Cada cuenta se mantiene separada.',
+                       'Select which accounts to import. Each account is kept separate.')}
+                  </p>
+                </div>
+              )}
 
               {/* Sync mode selector — shown first for visibility */}
               <div className="bg-[#000000]/50 rounded-xl p-4 border border-[#38383A]/40">
@@ -738,16 +797,16 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
               </div>
 
               {(() => {
-                const totalValue = preview.items.reduce((s, it) => s + (it.currentPrice || 0) * (it.quantity || 0), 0)
-                const sortedNav = (preview.equityHistory || []).length > 0
-                  ? [...preview.equityHistory].sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+                const totalValue = filteredPreview.items.reduce((s, it) => s + (it.currentPrice || 0) * (it.quantity || 0), 0)
+                const sortedNav = (filteredPreview.equityHistory || []).length > 0
+                  ? [...filteredPreview.equityHistory].sort((a, b) => (a.date || '').localeCompare(b.date || ''))
                   : []
                 return (
                   <>
                     <div className="grid grid-cols-3 gap-3">
                       <div className="bg-[#000000]/50 rounded-lg p-3 border border-[#38383A]/30">
                         <p className="text-[10px] text-slate-500 uppercase tracking-wider">{t('Posiciones', 'Positions')}</p>
-                        <p className="text-lg text-white font-semibold mt-1">{preview.items.length}</p>
+                        <p className="text-lg text-white font-semibold mt-1">{filteredPreview.items.length}</p>
                         {totalValue > 0 && (
                           <p className="text-[10px] text-slate-400 mt-0.5">
                             ${totalValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
@@ -756,7 +815,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                       </div>
                       <div className="bg-[#000000]/50 rounded-lg p-3 border border-[#38383A]/30">
                         <p className="text-[10px] text-slate-500 uppercase tracking-wider">Trades</p>
-                        <p className="text-lg text-white font-semibold mt-1">{preview.transactions.length}</p>
+                        <p className="text-lg text-white font-semibold mt-1">{filteredPreview.transactions.length}</p>
                       </div>
                       <div className="bg-[#000000]/50 rounded-lg p-3 border border-[#38383A]/30">
                         <p className="text-[10px] text-slate-500 uppercase tracking-wider">{t('Historial', 'History')}</p>
@@ -772,10 +831,10 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 )
               })()}
 
-              {preview.items.length > 0 && (
+              {filteredPreview.items.length > 0 && (
                 <div>
                   <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">
-                    {t('Posiciones', 'Positions')}
+                    {filteredPreview.items.length} {t('posiciones', 'positions')}
                   </p>
                   <div className="overflow-x-auto max-h-48 overflow-y-auto rounded-lg border border-[#38383A]/40">
                     <table className="w-full text-xs">
@@ -790,7 +849,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                         </tr>
                       </thead>
                       <tbody>
-                        {preview.items.map((item, i) => (
+                        {filteredPreview.items.map((item, i) => (
                           <tr key={i} className="border-b border-[#38383A]/30 hover:bg-slate-700/20 transition-colors">
                             <td className="py-2.5 px-3 text-white font-medium">{item.symbol}</td>
                             <td className="py-2.5 px-3 text-slate-300 max-w-[150px] truncate">{item.name}</td>
@@ -808,10 +867,10 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 </div>
               )}
 
-              {preview.transactions.length > 0 && (
+              {filteredPreview.transactions.length > 0 && (
                 <div>
                   <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">
-                    {preview.transactions.length} {t('transacciones', 'trades')}
+                    {filteredPreview.transactions.length} {t('transacciones', 'trades')}
                   </p>
                   <div className="overflow-x-auto max-h-36 overflow-y-auto rounded-lg border border-[#38383A]/40">
                     <table className="w-full text-xs">
@@ -825,7 +884,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                         </tr>
                       </thead>
                       <tbody>
-                        {preview.transactions.slice(0, 20).map((tx, i) => (
+                        {filteredPreview.transactions.slice(0, 20).map((tx, i) => (
                           <tr key={i} className="border-b border-[#38383A]/30 hover:bg-slate-700/20 transition-colors">
                             <td className="py-2.5 px-3 text-slate-500">{tx.date}</td>
                             <td className="py-2.5 px-3 text-white">{tx.symbol}</td>
@@ -843,14 +902,21 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
               {syncing ? (
                 <div className="space-y-3 pt-2">
                   <div className="w-full h-2.5 bg-slate-700 rounded-full overflow-hidden">
-                    <div className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                    <div
+                      className={`h-full rounded-full transition-all duration-300 ${importProgress && importProgress.total > 0 && importProgress.done >= importProgress.total ? 'bg-emerald-500' : 'bg-blue-500'}`}
                       style={{ width: `${importProgress && importProgress.total > 0 ? Math.round((importProgress.done / importProgress.total) * 100) : 0}%` }} />
                   </div>
                   <div className="flex items-center justify-center gap-2">
-                    <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                    {importProgress && importProgress.total > 0 && importProgress.done >= importProgress.total ? (
+                      <CheckCircle size={16} className="text-emerald-400" />
+                    ) : (
+                      <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                    )}
                     <p className="text-sm text-slate-400">
                       {importProgress && importProgress.total > 0
-                        ? `${t('Importando', 'Importing')} ${importProgress.done}/${importProgress.total} (${Math.round((importProgress.done / importProgress.total) * 100)}%)`
+                        ? importProgress.done >= importProgress.total
+                          ? t('¡Listo! Guardando...', 'Done! Saving...')
+                          : `${t('Importando', 'Importing')} ${importProgress.done}/${importProgress.total} (${Math.round((importProgress.done / importProgress.total) * 100)}%)`
                         : t('Preparando...', 'Preparing...')}
                     </p>
                   </div>
@@ -868,7 +934,8 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 </div>
               )}
             </div>
-          )}
+            )
+          })()}
 
           {step === 'done' && result && (
             <DoneStep result={result} onClose={onClose} t={t} />

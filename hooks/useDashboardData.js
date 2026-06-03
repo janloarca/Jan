@@ -296,13 +296,14 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     for (const item of data.items) {
       let existing = null
       if (mode === 'merge') {
-        existing = items.find(it =>
-          (it.conid && it.conid === item.conid) ||
-          (
-            (it.symbol || '').toUpperCase() === item.symbol &&
-            ((it.institution || '').toLowerCase().includes('interactive brokers') || it._source === 'ibkr')
-          )
-        )
+        existing = items.find(it => {
+          if (it.conid && it.conid === item.conid) return true
+          const isIbkr = (it.institution || '').toLowerCase().includes('interactive brokers') || it._source === 'ibkr'
+          if (!isIbkr) return false
+          if ((it.symbol || '').toUpperCase() !== item.symbol) return false
+          if (item._ibkrAccountId && it._ibkrAccountId && item._ibkrAccountId !== it._ibkrAccountId) return false
+          return true
+        })
       }
       if (existing) {
         updateOps.push({
