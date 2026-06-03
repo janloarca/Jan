@@ -44,7 +44,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
 
   const currentPrice = getItemPrice(item)
   const totalValue = (item.quantity || 0) * currentPrice
-  const cost = (item.quantity || 0) * (item._originalPurchasePrice || item.purchasePrice || 0)
+  const cost = (item.quantity || 0) * (item.purchasePrice || 0)
   const pnl = totalValue - cost
   const pnlPct = cost > 0 ? (pnl / cost) * 100 : 0
 

@@ -77,9 +77,8 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
   const [showPicker, setShowPicker] = useState(false)
 
   const displayCur = tempCurrency || baseCur
-  const displayValue = tempCurrency && convert
-    ? convert(netWorth, baseCur, tempCurrency)
-    : netWorth
+  const cv = (val) => tempCurrency && convert ? convert(val, baseCur, tempCurrency) : val
+  const displayValue = cv(netWorth)
 
   const greeting = getGreeting(lang)
   const milestone = getMilestone(netWorth, displayReturn, lang)
@@ -121,7 +120,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
       {/* Daily change */}
       {dailyChange && isFinite(dailyChange.pct) && (
         <p className={`text-body font-medium ${isDayPositive ? 'text-emerald-400' : 'text-red-400'}`}>
-          <span className="font-mono tabular-nums">{isDayPositive ? '+' : ''}{formatCurrency(dailyChange.abs, displayCur)} ({isDayPositive ? '+' : ''}{dailyChange.pct.toFixed(2)}%)</span>
+          <span className="font-mono tabular-nums">{isDayPositive ? '+' : ''}{formatCurrency(cv(dailyChange.abs), displayCur)} ({isDayPositive ? '+' : ''}{dailyChange.pct.toFixed(2)}%)</span>
           <span className="text-slate-500 font-normal ml-1">{lang === 'es' ? 'hoy' : 'today'}</span>
         </p>
       )}
@@ -145,13 +144,14 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
       {netContributions != null && netContributions > 0 && (
         <div className="mt-3 pt-3 border-t border-[#38383A]/50">
           <div className="flex items-center justify-between text-xs mb-1.5">
-            <span className="text-slate-500">{lang === 'es' ? 'Invertido' : 'Invested'}: <span className="text-slate-300 font-medium font-mono tabular-nums">{formatCurrency(netContributions, displayCur)}</span></span>
-            <span className="text-slate-500">{lang === 'es' ? 'Ganancia' : 'Gains'}: <span className={`font-medium font-mono tabular-nums ${displayValue - netContributions >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatCurrency(displayValue - netContributions, displayCur)}</span></span>
+            <span className="text-slate-500">{lang === 'es' ? 'Invertido' : 'Invested'}: <span className="text-slate-300 font-medium font-mono tabular-nums">{formatCurrency(cv(netContributions), displayCur)}</span></span>
+            <span className="text-slate-500">{lang === 'es' ? 'Ganancia' : 'Gains'}: <span className={`font-medium font-mono tabular-nums ${displayValue - cv(netContributions) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatCurrency(displayValue - cv(netContributions), displayCur)}</span></span>
           </div>
           <div className="w-full h-1.5 bg-slate-700/30 rounded-full overflow-hidden flex">
             {(() => {
-              const contribPct = netContributions > 0 && displayValue > 0
-                ? Math.min((netContributions / displayValue) * 100, 100)
+              const displayContrib = cv(netContributions)
+              const contribPct = displayContrib > 0 && displayValue > 0
+                ? Math.min((displayContrib / displayValue) * 100, 100)
                 : 100
               return (
                 <>
@@ -175,7 +175,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
             <span className="w-1.5 h-1.5 rounded-full bg-cyan-500/60" />
             {lang === 'es' ? 'Disponible' : 'Cash available'}
           </span>
-          <span className="text-xs font-medium text-cyan-400">{formatCurrency(cashTotal, displayCur)}</span>
+          <span className="text-xs font-medium text-cyan-400">{formatCurrency(cv(cashTotal), displayCur)}</span>
         </div>
       )}
     </div>
