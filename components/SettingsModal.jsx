@@ -54,8 +54,11 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   const [ibkrError, setIbkrError] = useState('')
   const [showConfig, setShowConfig] = useState(false)
   const [confirmUnlink, setConfirmUnlink] = useState(false)
+  const [saveStatus, setSaveStatus] = useState(null)
 
   const t = (es, en) => lang === 'es' ? es : en
+
+  const flash = (type, msg) => { setSaveStatus({ type, msg }); setTimeout(() => setSaveStatus(null), 3000) }
 
   const institutionSummaries = useMemo(() => {
     const map = {}
@@ -83,9 +86,10 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
     setSaving(true)
     try {
       await onSaveSettings({ baseCurrency, benchmarkSymbol })
-    } catch {}
+      flash('ok', t('Guardado', 'Saved'))
+      setTimeout(() => onClose(), 500)
+    } catch (e) { flash('err', e.message || t('Error al guardar', 'Error saving')) }
     setSaving(false)
-    onClose()
   }
 
   const handleDelete = async (type) => {
@@ -104,8 +108,9 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
         await onDeleteAllTransactions()
         if (onDeleteAllFinanceTransactions) await onDeleteAllFinanceTransactions()
       }
-    } catch {}
+    } catch (e) { flash('err', e.message || t('Error al borrar', 'Error deleting')) }
     setConfirmDelete(null)
+    flash('ok', t('Datos eliminados', 'Data deleted'))
   }
 
   const handleShareAction = useCallback(async (action) => {
@@ -177,7 +182,8 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
       setIbkrConfigured(false)
       setIbkrToken('')
       setIbkrQueryId('')
-    } catch {}
+      flash('ok', t('IBKR desvinculado', 'IBKR unlinked'))
+    } catch (e) { flash('err', e.message || t('Error al desvincular', 'Error unlinking')) }
     setIbkrSaving(false)
   }
 
@@ -192,7 +198,8 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
         if (v !== '' && v != null) data[k] = Number(v)
       })
       await onSaveProfile(data)
-    } catch {}
+      flash('ok', t('Perfil guardado', 'Profile saved'))
+    } catch (e) { flash('err', e.message || t('Error al guardar perfil', 'Error saving profile')) }
     setProfileSaving(false)
   }
 
@@ -215,6 +222,12 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
           </h2>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
         </div>
+
+        {saveStatus && (
+          <div className={`mx-6 mt-3 px-3 py-2 rounded-lg text-xs font-medium transition-all ${saveStatus.type === 'ok' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>
+            {saveStatus.msg}
+          </div>
+        )}
 
         <div className="flex border-b border-[#38383A] overflow-x-auto">
           {tabs.map((tb) => (
