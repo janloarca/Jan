@@ -18,7 +18,7 @@ export default function InvestmentClassBreakdown({ items, lang }) {
       const cls = getInvestmentClass(it)
       if (!grouped[cls]) grouped[cls] = { value: 0, count: 0, gainAbs: 0, topItems: [] }
       const val = Math.abs(getItemValue(it))
-      const cost = (it.quantity || 0) * (it._originalPurchasePrice || it.purchasePrice || it.currentPrice || 0)
+      const cost = (it.quantity || 0) * (it.purchasePrice || it.currentPrice || 0)
       grouped[cls].value += val
       grouped[cls].count += 1
       grouped[cls].gainAbs += val - cost
