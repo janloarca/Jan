@@ -284,6 +284,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   const handleIBKRSync = useCallback(async (data, mode = 'merge', onProgress) => {
     const totalOps = data.items.length + (data.transactions || []).length + (data.equityHistory || []).length
     let completed = 0
+    if (onProgress) onProgress(0, totalOps)
     const tick = () => { completed++; if (onProgress) onProgress(completed, totalOps) }
 
     if (mode === 'replace') {
@@ -314,6 +315,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             conid: item.conid,
             _ibkrAccountId: item._ibkrAccountId,
             _source: 'ibkr',
+            ...(item.acquisitionDate && !existing.acquisitionDate ? { acquisitionDate: item.acquisitionDate } : {}),
           })
         } else {
           await addItem(item)
@@ -323,7 +325,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
               quantity: item.quantity,
               costBasis: item.purchasePrice,
               currency: item.currency || 'USD',
-              acquisitionDate: new Date().toISOString().split('T')[0],
+              acquisitionDate: item.acquisitionDate || new Date().toISOString().split('T')[0],
             })
           }
         }

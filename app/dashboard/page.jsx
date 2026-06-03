@@ -890,7 +890,7 @@ export default function DashboardPage() {
       )}
 
       {toast && (
-        <div className={`fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2.5 rounded-lg shadow-xl text-sm font-medium animate-fade-in ${
+        <div className={`fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 px-4 py-2.5 rounded-lg shadow-xl text-sm font-medium animate-fade-in ${
           toast.type === 'error' ? 'bg-red-900/90 border border-red-700/50 text-red-100' :
           toast.type === 'info' ? 'bg-blue-900/90 border border-blue-700/50 text-blue-100' :
           'bg-emerald-900/90 border border-emerald-700/50 text-emerald-100'

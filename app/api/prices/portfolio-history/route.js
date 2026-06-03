@@ -180,7 +180,8 @@ export async function POST(request) {
       let earliest = allDates.length > 0 ? Math.min(...allDates) : 0
 
       if (earliest === 0 && allTs.size > 0) {
-        earliest = Math.min(...allTs)
+        const threeYearsAgo = Date.now() - 3 * 365.25 * 86400000
+        earliest = Math.max(Math.min(...allTs), threeYearsAgo)
       }
 
       if (earliest > 0) {
