@@ -670,7 +670,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
 
           {step === 'preview' && preview && (
             <div className="space-y-5">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                 <span className="text-xs text-slate-400">
                   {t('Datos recibidos de IBKR', 'Data received from IBKR')}
@@ -678,6 +678,11 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 {preview.accounts && preview.accounts.length > 0 && (
                   <span className="text-[11px] text-slate-600 font-mono ml-auto">
                     {preview.accounts.join(', ')}
+                  </span>
+                )}
+                {preview._sectionNames && preview._sectionNames.length > 0 && (
+                  <span className="text-[10px] text-slate-600 font-mono w-full mt-1 truncate">
+                    {t('Secciones', 'Sections')}: {preview._sectionNames.join(', ')}
                   </span>
                 )}
               </div>
