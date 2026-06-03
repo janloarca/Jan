@@ -437,7 +437,7 @@ export function useFirestoreItems() {
       ops.push({ type: 'set', ref: fs.doc(db, `users/${uid}/snapshots`, id), data: { ...snap, createdAt: now } })
     }
 
-    const CHUNK = 450
+    const CHUNK = 30
     let done = 0
     const total = ops.length
     if (onProgress) onProgress(0, total)
@@ -451,7 +451,12 @@ export function useFirestoreItems() {
         else if (op.merge) batch.set(op.ref, op.data, { merge: true })
         else batch.set(op.ref, op.data)
       }
-      await batch.commit()
+      try {
+        await batch.commit()
+      } catch (err) {
+        console.error(`[bulkImport] Batch ${i / CHUNK + 1} failed (ops ${i}-${i + chunk.length}):`, err)
+        throw err
+      }
       done += chunk.length
       if (onProgress) onProgress(done, total)
     }
