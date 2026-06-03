@@ -80,7 +80,7 @@ export default function RecurringTransactions({ goals, onSaveGoals, lang }) {
   }
 
   return (
-    <div className="bg-[#161b22]/80 rounded-xl border border-[#21262d]/50 p-4 sm:p-5">
+    <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 p-4 sm:p-5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold text-white flex items-center gap-2">
           🔄 {t('Transacciones Recurrentes', 'Recurring Transactions')}
@@ -94,12 +94,12 @@ export default function RecurringTransactions({ goals, onSaveGoals, lang }) {
       </div>
 
       {showForm && (
-        <div className="mb-4 p-3 bg-[#0d1117] rounded-lg border border-[#21262d]/50 space-y-3">
+        <div className="mb-4 p-3 bg-[#000000] rounded-lg border border-[#38383A]/50 space-y-3">
           <div className="flex gap-2">
             <button
               onClick={() => setForm({ ...form, isInflow: true })}
               className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${
-                form.isInflow ? 'bg-emerald-600/20 border-emerald-500/30 text-emerald-400' : 'border-[#21262d] text-slate-400'
+                form.isInflow ? 'bg-emerald-600/20 border-emerald-500/30 text-emerald-400' : 'border-[#38383A] text-slate-400'
               }`}
             >
               ↓ {t('Ingreso', 'Inflow')}
@@ -107,7 +107,7 @@ export default function RecurringTransactions({ goals, onSaveGoals, lang }) {
             <button
               onClick={() => setForm({ ...form, isInflow: false })}
               className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${
-                !form.isInflow ? 'bg-red-600/20 border-red-500/30 text-red-400' : 'border-[#21262d] text-slate-400'
+                !form.isInflow ? 'bg-red-600/20 border-red-500/30 text-red-400' : 'border-[#38383A] text-slate-400'
               }`}
             >
               ↑ {t('Gasto', 'Outflow')}
@@ -116,18 +116,18 @@ export default function RecurringTransactions({ goals, onSaveGoals, lang }) {
           <div className="grid grid-cols-2 gap-2">
             <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder={t('Nombre', 'Name')}
-              className="px-3 py-2 bg-[#161b22] border border-[#21262d] rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+              className="px-3 py-2 bg-[#1C1C1E] border border-[#38383A] rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
             <input value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })}
               placeholder={t('Monto', 'Amount')} type="number" step="any"
-              className="px-3 py-2 bg-[#161b22] border border-[#21262d] rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+              className="px-3 py-2 bg-[#1C1C1E] border border-[#38383A] rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <select value={form.frequency} onChange={(e) => setForm({ ...form, frequency: e.target.value })}
-              className="px-3 py-2 bg-[#161b22] border border-[#21262d] rounded-lg text-xs text-white focus:outline-none focus:border-blue-500/50">
+              className="px-3 py-2 bg-[#1C1C1E] border border-[#38383A] rounded-lg text-xs text-white focus:outline-none focus:border-blue-500/50">
               {FREQUENCIES.map((f) => <option key={f.value} value={f.value}>{lang === 'es' ? f.labelEs : f.labelEn}</option>)}
             </select>
             <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
-              className="px-3 py-2 bg-[#161b22] border border-[#21262d] rounded-lg text-xs text-white focus:outline-none focus:border-blue-500/50">
+              className="px-3 py-2 bg-[#1C1C1E] border border-[#38383A] rounded-lg text-xs text-white focus:outline-none focus:border-blue-500/50">
               {CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.icon} {lang === 'es' ? c.labelEs : c.labelEn}</option>)}
             </select>
           </div>
@@ -164,7 +164,7 @@ export default function RecurringTransactions({ goals, onSaveGoals, lang }) {
             })}
           </div>
 
-          <div className="pt-3 border-t border-[#21262d]/30 space-y-1.5">
+          <div className="pt-3 border-t border-[#38383A]/30 space-y-1.5">
             <div className="flex justify-between text-xs">
               <span className="text-slate-500">{t('Ingresos mensuales', 'Monthly inflows')}</span>
               <span className="text-emerald-400 font-medium">+{formatCurrency(summary.monthlyIn)}</span>
@@ -173,7 +173,7 @@ export default function RecurringTransactions({ goals, onSaveGoals, lang }) {
               <span className="text-slate-500">{t('Gastos mensuales', 'Monthly outflows')}</span>
               <span className="text-red-400 font-medium">-{formatCurrency(summary.monthlyOut)}</span>
             </div>
-            <div className="flex justify-between text-xs font-medium pt-1 border-t border-[#21262d]/20">
+            <div className="flex justify-between text-xs font-medium pt-1 border-t border-[#38383A]/20">
               <span className="text-slate-400">{t('Flujo neto mensual', 'Net monthly flow')}</span>
               <span className={summary.net >= 0 ? 'text-emerald-400' : 'text-red-400'}>
                 {summary.net >= 0 ? '+' : ''}{formatCurrency(summary.net)}

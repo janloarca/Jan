@@ -85,7 +85,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
   const milestone = getMilestone(netWorth, displayReturn, lang)
 
   return (
-    <div className="bg-gradient-to-br from-[#161b22] to-[#131920] rounded-2xl border border-[#21262d]/60 p-6 card-hero">
+    <div className="bg-gradient-to-br from-[#1C1C1E] to-[#1C1C1E] rounded-2xl border border-[#38383A]/60 p-6 card-hero">
       {/* Greeting + milestone */}
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm text-slate-400">{greeting}</span>
@@ -97,11 +97,11 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
               {displayCur}
             </button>
             {showPicker && (
-              <div className="absolute right-0 top-full mt-1 bg-[#161b22] border border-[#21262d] rounded-lg shadow-xl z-10 p-1 min-w-[80px]">
+              <div className="absolute right-0 top-full mt-1 bg-[#1C1C1E] border border-[#38383A] rounded-lg shadow-xl z-10 p-1 min-w-[80px]">
                 {QUICK_CURRENCIES.map((c) => (
                   <button key={c} onClick={() => { setTempCurrency(c === baseCur ? null : c); setShowPicker(false) }}
                     className={`block w-full text-left px-3 py-1.5 text-xs rounded transition-colors ${
-                      displayCur === c ? 'text-blue-400 bg-blue-500/10' : 'text-slate-400 hover:text-white hover:bg-[#1c2129]'
+                      displayCur === c ? 'text-blue-400 bg-blue-500/10' : 'text-slate-400 hover:text-white hover:bg-[#2C2C2E]'
                     }`}>
                     {c}
                   </button>
@@ -143,7 +143,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
 
       {/* Contributions vs Gains */}
       {netContributions != null && netContributions > 0 && (
-        <div className="mt-3 pt-3 border-t border-[#21262d]/50">
+        <div className="mt-3 pt-3 border-t border-[#38383A]/50">
           <div className="flex items-center justify-between text-xs mb-1.5">
             <span className="text-slate-500">{lang === 'es' ? 'Invertido' : 'Invested'}: <span className="text-slate-300 font-medium font-mono tabular-nums">{formatCurrency(netContributions, displayCur)}</span></span>
             <span className="text-slate-500">{lang === 'es' ? 'Ganancia' : 'Gains'}: <span className={`font-medium font-mono tabular-nums ${displayValue - netContributions >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatCurrency(displayValue - netContributions, displayCur)}</span></span>
@@ -170,7 +170,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
 
       {/* Cash available */}
       {cashTotal != null && cashTotal > 0 && (
-        <div className={`${netContributions > 0 ? 'mt-2' : 'mt-3 pt-3 border-t border-[#21262d]/50'} flex items-center justify-between`}>
+        <div className={`${netContributions > 0 ? 'mt-2' : 'mt-3 pt-3 border-t border-[#38383A]/50'} flex items-center justify-between`}>
           <span className="text-xs text-slate-500 flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-cyan-500/60" />
             {lang === 'es' ? 'Disponible' : 'Cash available'}

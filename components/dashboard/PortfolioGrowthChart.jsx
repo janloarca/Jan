@@ -524,7 +524,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
   }, [snapshotRows, onSaveSnapshot])
 
   const periodSelector = (
-    <div className="flex flex-wrap gap-0.5 bg-[#0d1117] rounded-lg p-0.5">
+    <div className="flex flex-wrap gap-0.5 bg-[#000000] rounded-lg p-0.5">
       {periods.map((p) => (
         <button key={p} onClick={() => {
           setPeriod(p)
@@ -540,7 +540,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
 
   if (loading && chartData.length < 2) {
     return (
-      <div className="bg-[#161b22] rounded-2xl border border-[#21262d] p-5 card-primary">
+      <div className="bg-[#1C1C1E] rounded-2xl border border-[#38383A] p-5 card-primary">
         <div className="flex items-center justify-center min-h-[260px]">
           <div className="flex items-center gap-2 text-slate-500 text-sm">
             <div className="w-4 h-4 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
@@ -553,7 +553,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
 
   if (fetchError && chartData.length < 2) {
     return (
-      <div className="bg-[#161b22] rounded-2xl border border-[#21262d] p-5 card-primary">
+      <div className="bg-[#1C1C1E] rounded-2xl border border-[#38383A] p-5 card-primary">
         <div className="flex flex-col items-center justify-center min-h-[200px] gap-2">
           <p className="text-red-400 text-sm">{fetchError}</p>
           <button onClick={fetchHistory} className="text-xs text-blue-400 hover:text-blue-300">{t('Reintentar', 'Retry')}</button>
@@ -564,7 +564,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
 
   if (chartData.length < 2) {
     return (
-      <div className="bg-[#161b22] rounded-2xl border border-[#21262d] p-5 card-primary">
+      <div className="bg-[#1C1C1E] rounded-2xl border border-[#38383A] p-5 card-primary">
         <div className="flex flex-col items-center justify-center min-h-[200px] gap-2 text-slate-500 text-sm">
           {period === 'DAY' ? (
             <>
@@ -586,7 +586,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
   const hd = hoverIdx != null ? chartData[hoverIdx] : null
 
   return (
-    <div ref={containerRef} className="bg-[#161b22] rounded-2xl border border-[#21262d] p-5 card-primary">
+    <div ref={containerRef} className="bg-[#1C1C1E] rounded-2xl border border-[#38383A] p-5 card-primary">
       {/* Tab bar: Value | Performance */}
       <div className="flex items-center gap-4 mb-4">
         <button onClick={() => setViewMode('value')}
@@ -614,7 +614,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
             </button>
           )}
           {viewMode === 'performance' && (
-            <div className="flex gap-0.5 bg-[#0d1117] rounded-lg p-0.5">
+            <div className="flex gap-0.5 bg-[#000000] rounded-lg p-0.5">
               <button onClick={() => setReturnMode('twr')}
                 className={`px-2 py-1 text-xs font-medium rounded-md transition-all ${returnMode === 'twr' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}
                 title={t('Retorno ponderado por tiempo — mide el rendimiento del portafolio sin importar depósitos/retiros', 'Time-Weighted Return — measures portfolio performance regardless of deposits/withdrawals')}>
@@ -720,7 +720,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
             {/* Y-axis grid lines and labels */}
             {geo.yTicks.map((tk, i) => (
               <g key={i}>
-                <line x1={pad.left} y1={tk.y} x2={width - pad.right} y2={tk.y} stroke="#21262d" strokeDasharray="4 4" strokeOpacity="0.5" />
+                <line x1={pad.left} y1={tk.y} x2={width - pad.right} y2={tk.y} stroke="#38383A" strokeDasharray="4 4" strokeOpacity="0.5" />
                 <text x={pad.left - 8} y={tk.y + 4} textAnchor="end" fill="#64748b" fontSize="10" fontFamily="system-ui">
                   {viewMode === 'performance' ? `${tk.val >= 0 ? '+' : ''}${tk.val.toFixed(tk.val === 0 ? 0 : 2)}%` : formatCompact(tk.val)}
                 </text>
@@ -830,14 +830,14 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
                 <line x1={hp.x} y1={pad.top} x2={hp.x} y2={chartHeight - pad.bottom} stroke="#94a3b8" strokeWidth="1" strokeDasharray="4 3" />
                 <circle cx={hp.x} cy={hp.y} r="4.5"
                   fill={viewMode === 'value' ? '#3b82f6' : (hp.v >= 0 ? '#10b981' : '#ef4444')}
-                  stroke="#0d1117" strokeWidth="2" />
+                  stroke="#000000" strokeWidth="2" />
               </g>
             )}
           </svg>
 
           {/* Hover tooltip */}
           {hd && hp && (
-            <div className="absolute pointer-events-none bg-[#0d1117] border border-[#475569] text-white text-xs rounded-lg px-3 py-2 shadow-xl z-10"
+            <div className="absolute pointer-events-none bg-[#000000] border border-[#475569] text-white text-xs rounded-lg px-3 py-2 shadow-xl z-10"
               style={{
                 left: `${Math.min(85, Math.max(15, (hp.x / width) * 100))}%`,
                 top: `${(hp.y / chartHeight) * 100 - 14}%`,
@@ -923,12 +923,12 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
           <label className="text-xs text-slate-400">{t('Desde', 'From')}:</label>
           <input type="date" value={customRange.from}
             onChange={e => setCustomRange(prev => ({ ...prev, from: e.target.value }))}
-            className="px-2 py-1 bg-[#0d1117] border border-[#21262d] rounded text-xs text-white focus:outline-none focus:border-blue-500" />
+            className="px-2 py-1 bg-[#000000] border border-[#38383A] rounded text-xs text-white focus:outline-none focus:border-blue-500" />
           <label className="text-xs text-slate-400">{t('Hasta', 'To')}:</label>
           <input type="date" value={customRange.to}
             onChange={e => setCustomRange(prev => ({ ...prev, to: e.target.value }))}
             max={new Date().toISOString().split('T')[0]}
-            className="px-2 py-1 bg-[#0d1117] border border-[#21262d] rounded text-xs text-white focus:outline-none focus:border-blue-500" />
+            className="px-2 py-1 bg-[#000000] border border-[#38383A] rounded text-xs text-white focus:outline-none focus:border-blue-500" />
         </div>
       )}
 
@@ -941,7 +941,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
       </div>
 
       {showSnapshotImport && (
-        <div className="mt-2 p-3 bg-[#0d1117] border border-[#21262d] rounded-lg">
+        <div className="mt-2 p-3 bg-[#000000] border border-[#38383A] rounded-lg">
           <p className="text-[10px] text-slate-400 mb-2">
             {t('Agrega valores pasados de tu portafolio para completar la gráfica.',
                'Add past portfolio values to complete the chart.')}
@@ -951,12 +951,12 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
               <div key={i} className="flex gap-2 items-center">
                 <input type="date" value={row.date}
                   onChange={e => setSnapshotRows(prev => prev.map((r, idx) => idx === i ? { ...r, date: e.target.value } : r))}
-                  className="px-2 py-1 bg-[#161b22] border border-[#21262d] rounded text-xs text-white focus:outline-none focus:border-blue-500 w-36" />
+                  className="px-2 py-1 bg-[#1C1C1E] border border-[#38383A] rounded text-xs text-white focus:outline-none focus:border-blue-500 w-36" />
                 <div className="flex items-center gap-1 flex-1">
                   <span className="text-xs text-slate-500">$</span>
                   <input type="number" value={row.value} placeholder={t('Valor total', 'Total value')}
                     onChange={e => setSnapshotRows(prev => prev.map((r, idx) => idx === i ? { ...r, value: e.target.value } : r))}
-                    className="w-full px-2 py-1 bg-[#161b22] border border-[#21262d] rounded text-xs text-white focus:outline-none focus:border-blue-500" />
+                    className="w-full px-2 py-1 bg-[#1C1C1E] border border-[#38383A] rounded text-xs text-white focus:outline-none focus:border-blue-500" />
                 </div>
                 {snapshotRows.length > 1 && (
                   <button onClick={() => setSnapshotRows(prev => prev.filter((_, idx) => idx !== i))}

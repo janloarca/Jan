@@ -96,14 +96,14 @@ export default function SellModal({ item, onClose, onSell, onUpdate, onAddTransa
     setSaving(false)
   }
 
-  const inputCls = 'w-full px-3 py-2 bg-[var(--input-bg,#0d1117)] border border-[var(--card-border,#21262d)] rounded-lg text-sm text-[var(--text-primary,white)] placeholder-slate-600 focus:outline-none focus:border-blue-500/50'
+  const inputCls = 'w-full px-3 py-2 bg-[var(--input-bg,#000000)] border border-[var(--card-border,#38383A)] rounded-lg text-sm text-[var(--text-primary,white)] placeholder-slate-600 focus:outline-none focus:border-blue-500/50'
   const labelCls = 'text-xs text-[var(--text-secondary,#94a3b8)] mb-1 block'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="sell-modal-title">
-      <div className="bg-[var(--card-bg,#161b22)] border border-[var(--card-border,#21262d)] rounded-xl shadow-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-[var(--card-bg,#1C1C1E)] border border-[var(--card-border,#38383A)] rounded-xl shadow-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border,#21262d)]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border,#38383A)]">
           <h2 id="sell-modal-title" className="text-lg font-bold text-[var(--text-primary,white)]">{t('Vender', 'Sell')} {item.symbol}</h2>
           <button onClick={onClose} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-xl leading-none">&times;</button>
         </div>
@@ -112,7 +112,7 @@ export default function SellModal({ item, onClose, onSell, onUpdate, onAddTransa
           {error && <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-sm">{error}</div>}
 
           {/* Current position (read-only) */}
-          <div className="grid grid-cols-3 gap-3 p-3 bg-[var(--input-bg,#0d1117)] rounded-lg">
+          <div className="grid grid-cols-3 gap-3 p-3 bg-[var(--input-bg,#000000)] rounded-lg">
             <div className="text-center">
               <p className={labelCls}>{t('Cantidad', 'Quantity')}</p>
               <p className="text-sm font-semibold text-[var(--text-primary,white)]">{item.quantity ?? 0}</p>
@@ -164,7 +164,7 @@ export default function SellModal({ item, onClose, onSell, onUpdate, onAddTransa
           </div>
 
           {/* Where does the money go? */}
-          <div className="border border-[var(--card-border,#21262d)] rounded-lg p-3 space-y-2">
+          <div className="border border-[var(--card-border,#38383A)] rounded-lg p-3 space-y-2">
             <label className="text-xs text-[var(--text-secondary,#94a3b8)] font-medium">
               {t('A donde va el dinero?', 'Where does the money go?')}
             </label>
@@ -173,13 +173,13 @@ export default function SellModal({ item, onClose, onSell, onUpdate, onAddTransa
                 className={`flex-1 px-2 py-2 text-xs font-medium rounded-lg transition-all ${
                   destination === '__exit__'
                     ? 'bg-red-500/20 text-red-400 border border-red-500/40'
-                    : 'bg-[var(--input-bg,#0d1117)] text-[var(--text-secondary,#94a3b8)] border border-[var(--card-border,#21262d)]'
+                    : 'bg-[var(--input-bg,#000000)] text-[var(--text-secondary,#94a3b8)] border border-[var(--card-border,#38383A)]'
                 }`}>{t('Sale del portafolio', 'Exits portfolio')}</button>
               <button type="button" onClick={() => setDestination('__stay__')}
                 className={`flex-1 px-2 py-2 text-xs font-medium rounded-lg transition-all ${
                   destination === '__stay__'
                     ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
-                    : 'bg-[var(--input-bg,#0d1117)] text-[var(--text-secondary,#94a3b8)] border border-[var(--card-border,#21262d)]'
+                    : 'bg-[var(--input-bg,#000000)] text-[var(--text-secondary,#94a3b8)] border border-[var(--card-border,#38383A)]'
                 }`}>{t('Queda en el portafolio', 'Stays in portfolio')}</button>
             </div>
             {destination === '__exit__' && (
@@ -207,7 +207,7 @@ export default function SellModal({ item, onClose, onSell, onUpdate, onAddTransa
           {/* Action buttons */}
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose}
-              className="flex-1 py-2.5 border border-[var(--card-border,#21262d)] text-[var(--text-secondary,#cbd5e1)] rounded-lg hover:bg-[#1c2129] transition-colors text-sm">
+              className="flex-1 py-2.5 border border-[var(--card-border,#38383A)] text-[var(--text-secondary,#cbd5e1)] rounded-lg hover:bg-[#2C2C2E] transition-colors text-sm">
               {t('Cancelar', 'Cancel')}
             </button>
             <button type="submit" disabled={saving}

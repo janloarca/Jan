@@ -30,7 +30,7 @@ export default function PriceAlerts({ alerts, items, onAddAlert, onDeleteAlert, 
   const triggeredAlerts = (alerts || []).filter((a) => a.triggered)
 
   return (
-    <div className="bg-[#161b22] rounded-2xl border border-[#21262d] p-5 card-primary">
+    <div className="bg-[#1C1C1E] rounded-2xl border border-[#38383A] p-5 card-primary">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-base font-semibold text-white flex items-center gap-2">
           <svg className="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -45,17 +45,17 @@ export default function PriceAlerts({ alerts, items, onAddAlert, onDeleteAlert, 
       </div>
 
       {showForm && (
-        <div className="bg-[#0d1117] rounded-lg p-3 mb-3 border border-[#21262d]/50 space-y-2">
+        <div className="bg-[#000000] rounded-lg p-3 mb-3 border border-[#38383A]/50 space-y-2">
           <div className="flex gap-2">
             <select value={symbol} onChange={(e) => setSymbol(e.target.value)}
-              className="flex-1 bg-[#161b22] border border-[#21262d] rounded-lg px-3 py-2 text-sm text-white">
+              className="flex-1 bg-[#1C1C1E] border border-[#38383A] rounded-lg px-3 py-2 text-sm text-white">
               <option value="">{t('Seleccionar...', 'Select...')}</option>
               {symbolOptions.map((s) => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
             <select value={direction} onChange={(e) => setDirection(e.target.value)}
-              className="bg-[#161b22] border border-[#21262d] rounded-lg px-3 py-2 text-sm text-white">
+              className="bg-[#1C1C1E] border border-[#38383A] rounded-lg px-3 py-2 text-sm text-white">
               <option value="above">{t('Mayor que', 'Above')}</option>
               <option value="below">{t('Menor que', 'Below')}</option>
             </select>
@@ -63,7 +63,7 @@ export default function PriceAlerts({ alerts, items, onAddAlert, onDeleteAlert, 
           <div className="flex gap-2">
             <input type="number" value={targetPrice} onChange={(e) => setTargetPrice(e.target.value)}
               placeholder={t('Precio objetivo', 'Target price')} step="0.01"
-              className="flex-1 bg-[#161b22] border border-[#21262d] rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500" />
+              className="flex-1 bg-[#1C1C1E] border border-[#38383A] rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500" />
             <button onClick={handleAdd} disabled={!symbol || !targetPrice}
               className="px-4 py-2 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-500 disabled:opacity-40 transition-colors">
               {t('Crear', 'Create')}
@@ -87,7 +87,7 @@ export default function PriceAlerts({ alerts, items, onAddAlert, onDeleteAlert, 
       {activeAlerts.length > 0 && (
         <div className="space-y-1.5 mb-2">
           {activeAlerts.map((alert) => (
-            <div key={alert.id} className="flex items-center justify-between py-2 px-2.5 rounded-lg bg-[#0d1117]/50 border border-[#21262d]/30">
+            <div key={alert.id} className="flex items-center justify-between py-2 px-2.5 rounded-lg bg-[#000000]/50 border border-[#38383A]/30">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
                 <span className="text-sm text-white font-medium">{alert.symbol}</span>

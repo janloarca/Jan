@@ -26,7 +26,7 @@ export default function VariableRateDashboard({ items, lang }) {
   const weightedRate = totalBalance > 0 ? (totalEstAnnual / totalBalance) * 100 : 0
 
   return (
-    <div className="bg-[#161b22]/80 rounded-xl border border-[#21262d]/50 p-4">
+    <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 p-4">
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-3">
         <span className="w-2 h-2 rounded-full bg-blue-400" />
         {t('TASAS VARIABLES', 'VARIABLE RATES')}
@@ -51,7 +51,7 @@ export default function VariableRateDashboard({ items, lang }) {
         {variableItems.map(it => {
           const isVariable = it.rateType === 'variable'
           return (
-            <div key={it.id || it.symbol} className="bg-[#0d1117] rounded-lg p-2.5 border border-[#21262d]/30">
+            <div key={it.id || it.symbol} className="bg-[#000000] rounded-lg p-2.5 border border-[#38383A]/30">
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-xs text-white font-medium truncate">{it.name || it.symbol}</span>
                 <span className="text-xs text-emerald-400 font-medium">{formatCurrency(it.estAnnual)}/yr</span>

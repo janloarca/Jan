@@ -276,8 +276,8 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="ibkr-modal-title">
-      <div className="bg-[#161b22] border border-[#21262d]/60 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-5 border-b border-[#21262d]/60">
+      <div className="bg-[#1C1C1E] border border-[#38383A]/60 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-5 border-b border-[#38383A]/60">
           <div>
             <h2 id="ibkr-modal-title" className="text-base font-semibold text-white">Interactive Brokers</h2>
             {lastSyncLabel && (
@@ -363,17 +363,17 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
           {step === 'config' && (showConfig || (!syncing && !decrypting && !preview)) && (
             <div className="space-y-6">
               {/* Mode tabs: API Sync vs File Import */}
-              <div className="flex bg-[#0d1117] rounded-lg border border-[#21262d] p-0.5">
+              <div className="flex bg-[#000000] rounded-lg border border-[#38383A] p-0.5">
                 <button onClick={() => { setImportMode('api'); setError(''); setErrorCode('') }}
                   className={`flex-1 py-2 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-1.5 ${
-                    importMode === 'api' ? 'bg-[#161b22] text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'
+                    importMode === 'api' ? 'bg-[#1C1C1E] text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'
                   }`}>
                   <Lock size={11} />
                   {t('Sync automático', 'Auto sync')}
                 </button>
                 <button onClick={() => { setImportMode('file'); setError(''); setErrorCode('') }}
                   className={`flex-1 py-2 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-1.5 ${
-                    importMode === 'file' ? 'bg-[#161b22] text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'
+                    importMode === 'file' ? 'bg-[#1C1C1E] text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'
                   }`}>
                   <Upload size={11} />
                   {t('Importar archivo', 'Import file')}
@@ -417,13 +417,13 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 </div>
               </div>
 
-              <div className="border-t border-[#21262d]/40 pt-5 space-y-4">
+              <div className="border-t border-[#38383A]/40 pt-5 space-y-4">
                 <div>
                   <label className="text-[11px] text-slate-500 uppercase tracking-wider mb-1.5 block">Token</label>
                   <input type="password" value={token} onChange={e => setToken(e.target.value)}
                     placeholder={decrypting ? t('Desencriptando...', 'Decrypting...') : t('Flex Web Service Token', 'Flex Web Service Token')}
                     disabled={decrypting}
-                    className={`w-full px-4 py-2.5 bg-[#0d1117] border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono ${errorCode === 'TOKEN_EXPIRED' ? 'border-red-500/60' : 'border-[#21262d]/60'}`} />
+                    className={`w-full px-4 py-2.5 bg-[#000000] border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono ${errorCode === 'TOKEN_EXPIRED' ? 'border-red-500/60' : 'border-[#38383A]/60'}`} />
                   {errorCode === 'TOKEN_EXPIRED' && (
                     <p className="text-[10px] text-red-400 mt-1">{t('Este token expiró o es inválido.', 'This token has expired or is invalid.')}</p>
                   )}
@@ -433,7 +433,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   <label className="text-[11px] text-slate-500 uppercase tracking-wider mb-1.5 block">Query ID</label>
                   <input type="text" value={queryId} onChange={e => setQueryId(e.target.value)}
                     placeholder={t('Ej: 123456', 'E.g.: 123456')}
-                    className={`w-full px-4 py-2.5 bg-[#0d1117] border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono ${errorCode === 'INVALID_QUERY' ? 'border-red-500/60' : 'border-[#21262d]/60'}`} />
+                    className={`w-full px-4 py-2.5 bg-[#000000] border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono ${errorCode === 'INVALID_QUERY' ? 'border-red-500/60' : 'border-[#38383A]/60'}`} />
                   {errorCode === 'INVALID_QUERY' && (
                     <p className="text-[10px] text-red-400 mt-1">{t('Este Query ID no existe o no está activo.', 'This Query ID does not exist or is not active.')}</p>
                   )}
@@ -441,16 +441,16 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
               </div>
 
               {/* Sync mode selector */}
-              <div className="border-t border-[#21262d]/40 pt-4">
+              <div className="border-t border-[#38383A]/40 pt-4">
                 <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">{t('Modo de importación', 'Import mode')}</p>
                 <div className="grid grid-cols-2 gap-2">
                   <button type="button" onClick={() => setSyncMode('merge')}
-                    className={`px-3 py-2.5 rounded-lg text-left transition-all border-2 ${syncMode === 'merge' ? 'border-blue-500 bg-blue-500/10' : 'border-[#21262d] hover:border-slate-500'}`}>
+                    className={`px-3 py-2.5 rounded-lg text-left transition-all border-2 ${syncMode === 'merge' ? 'border-blue-500 bg-blue-500/10' : 'border-[#38383A] hover:border-slate-500'}`}>
                     <p className="text-xs text-white font-medium">🔄 {t('Actualizar', 'Update')}</p>
                     <p className="text-[10px] text-slate-400 mt-0.5">{t('Actualiza existentes + agrega nuevas', 'Updates existing + adds new')}</p>
                   </button>
                   <button type="button" onClick={() => setSyncMode('replace')}
-                    className={`px-3 py-2.5 rounded-lg text-left transition-all border-2 ${syncMode === 'replace' ? 'border-red-500 bg-red-500/10' : 'border-[#21262d] hover:border-slate-500'}`}>
+                    className={`px-3 py-2.5 rounded-lg text-left transition-all border-2 ${syncMode === 'replace' ? 'border-red-500 bg-red-500/10' : 'border-[#38383A] hover:border-slate-500'}`}>
                     <p className="text-xs text-white font-medium">♻️ {t('Sustituir todo', 'Replace all')}</p>
                     <p className="text-[10px] text-slate-400 mt-0.5">{t('Borra IBKR anteriores, reimporta', 'Deletes old IBKR, reimports')}</p>
                   </button>
@@ -459,7 +459,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
 
               {/* IBKR imported history */}
               {ibkrHistory.items.length > 0 && (
-                <div className="border-t border-[#21262d]/40 pt-4">
+                <div className="border-t border-[#38383A]/40 pt-4">
                   <button type="button" onClick={() => setShowHistory(h => !h)}
                     className="w-full flex items-center justify-between text-left group">
                     <div>
@@ -477,10 +477,10 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
 
                   {showHistory && (
                     <div className="mt-3 space-y-3">
-                      <div className="overflow-x-auto max-h-40 overflow-y-auto rounded-lg border border-[#21262d]/40">
+                      <div className="overflow-x-auto max-h-40 overflow-y-auto rounded-lg border border-[#38383A]/40">
                         <table className="w-full text-xs">
                           <thead>
-                            <tr className="text-[10px] text-slate-500 border-b border-[#21262d]/60 bg-[#0d1117]/50 sticky top-0">
+                            <tr className="text-[10px] text-slate-500 border-b border-[#38383A]/60 bg-[#000000]/50 sticky top-0">
                               <th className="text-left py-2 px-2.5 font-normal">Symbol</th>
                               <th className="text-left py-2 px-2.5 font-normal">{t('Tipo', 'Type')}</th>
                               <th className="text-right py-2 px-2.5 font-normal">{t('Cant', 'Qty')}</th>
@@ -493,7 +493,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                               .map((it, i) => {
                                 const val = (it.currentPrice || it.purchasePrice || 0) * (it.quantity || 1)
                                 return (
-                                  <tr key={i} className="border-b border-[#21262d]/20 hover:bg-slate-700/20">
+                                  <tr key={i} className="border-b border-[#38383A]/20 hover:bg-slate-700/20">
                                     <td className="py-1.5 px-2.5 text-white font-medium">{it.symbol || it.name}</td>
                                     <td className="py-1.5 px-2.5 text-slate-500">{it.type}</td>
                                     <td className="py-1.5 px-2.5 text-right text-slate-400">{(it.quantity || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
@@ -508,7 +508,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                       </div>
 
                       {ibkrHistory.snaps.length > 0 && (
-                        <div className="bg-[#0d1117]/50 rounded-lg p-2.5 text-xs text-slate-400">
+                        <div className="bg-[#000000]/50 rounded-lg p-2.5 text-xs text-slate-400">
                           <span className="text-slate-500">{t('NAV historial:', 'NAV history:')}</span>{' '}
                           {ibkrHistory.snaps[0].date} → {ibkrHistory.snaps[ibkrHistory.snaps.length - 1].date}
                         </div>
@@ -575,7 +575,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                     className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
                       dragOver
                         ? 'border-blue-500 bg-blue-500/10'
-                        : 'border-[#21262d] hover:border-slate-500 hover:bg-[#1c2129]/30'
+                        : 'border-[#38383A] hover:border-slate-500 hover:bg-[#2C2C2E]/30'
                     }`}>
                     {syncing ? (
                       <div className="flex flex-col items-center gap-3">
@@ -604,16 +604,16 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   </div>
 
                   {/* Sync mode for file import */}
-                  <div className="border-t border-[#21262d]/40 pt-4">
+                  <div className="border-t border-[#38383A]/40 pt-4">
                     <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">{t('Modo de importación', 'Import mode')}</p>
                     <div className="grid grid-cols-2 gap-2">
                       <button type="button" onClick={() => setSyncMode('merge')}
-                        className={`px-3 py-2.5 rounded-lg text-left transition-all border-2 ${syncMode === 'merge' ? 'border-blue-500 bg-blue-500/10' : 'border-[#21262d] hover:border-slate-500'}`}>
+                        className={`px-3 py-2.5 rounded-lg text-left transition-all border-2 ${syncMode === 'merge' ? 'border-blue-500 bg-blue-500/10' : 'border-[#38383A] hover:border-slate-500'}`}>
                         <p className="text-xs text-white font-medium">{t('Actualizar', 'Update')}</p>
                         <p className="text-[10px] text-slate-400 mt-0.5">{t('Actualiza existentes + agrega nuevas', 'Updates existing + adds new')}</p>
                       </button>
                       <button type="button" onClick={() => setSyncMode('replace')}
-                        className={`px-3 py-2.5 rounded-lg text-left transition-all border-2 ${syncMode === 'replace' ? 'border-red-500 bg-red-500/10' : 'border-[#21262d] hover:border-slate-500'}`}>
+                        className={`px-3 py-2.5 rounded-lg text-left transition-all border-2 ${syncMode === 'replace' ? 'border-red-500 bg-red-500/10' : 'border-[#38383A] hover:border-slate-500'}`}>
                         <p className="text-xs text-white font-medium">{t('Sustituir todo', 'Replace all')}</p>
                         <p className="text-[10px] text-slate-400 mt-0.5">{t('Borra IBKR anteriores, reimporta', 'Deletes old IBKR, reimports')}</p>
                       </button>
@@ -639,13 +639,13 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
               </div>
 
               {/* Sync mode selector — shown first for visibility */}
-              <div className="bg-[#0d1117]/50 rounded-xl p-4 border border-[#21262d]/40">
+              <div className="bg-[#000000]/50 rounded-xl p-4 border border-[#38383A]/40">
                 <p className="text-xs text-white font-medium mb-3">
                   {t('¿Cómo importar?', 'How to import?')}
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   <button onClick={() => setSyncMode('merge')}
-                    className={`px-4 py-3 rounded-lg text-left transition-all border-2 ${syncMode === 'merge' ? 'border-blue-500 bg-blue-500/10' : 'border-[#21262d] hover:border-slate-500'}`}>
+                    className={`px-4 py-3 rounded-lg text-left transition-all border-2 ${syncMode === 'merge' ? 'border-blue-500 bg-blue-500/10' : 'border-[#38383A] hover:border-slate-500'}`}>
                     <p className="text-sm text-white font-medium">🔄 {t('Actualizar', 'Update')}</p>
                     <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
                       {t('Actualiza precios y cantidades de posiciones existentes. Agrega nuevas posiciones. No borra nada.',
@@ -653,7 +653,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                     </p>
                   </button>
                   <button onClick={() => setSyncMode('replace')}
-                    className={`px-4 py-3 rounded-lg text-left transition-all border-2 ${syncMode === 'replace' ? 'border-red-500 bg-red-500/10' : 'border-[#21262d] hover:border-slate-500'}`}>
+                    className={`px-4 py-3 rounded-lg text-left transition-all border-2 ${syncMode === 'replace' ? 'border-red-500 bg-red-500/10' : 'border-[#38383A] hover:border-slate-500'}`}>
                     <p className="text-sm text-white font-medium">♻️ {t('Sustituir todo', 'Replace all')}</p>
                     <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
                       {t('Borra TODAS las posiciones de IBKR anteriores y reimporta desde cero. Útil si hay errores.',
@@ -672,10 +672,10 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">
                     {preview.items.length} {t('posiciones', 'positions')}
                   </p>
-                  <div className="overflow-x-auto max-h-48 overflow-y-auto rounded-lg border border-[#21262d]/40">
+                  <div className="overflow-x-auto max-h-48 overflow-y-auto rounded-lg border border-[#38383A]/40">
                     <table className="w-full text-xs">
                       <thead>
-                        <tr className="text-[11px] text-slate-500 border-b border-[#21262d]/60 bg-[#0d1117]/50">
+                        <tr className="text-[11px] text-slate-500 border-b border-[#38383A]/60 bg-[#000000]/50">
                           <th className="text-left py-2.5 px-3 font-normal">Symbol</th>
                           <th className="text-left py-2.5 px-3 font-normal">Name</th>
                           <th className="text-left py-2.5 px-3 font-normal">Type</th>
@@ -686,7 +686,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                       </thead>
                       <tbody>
                         {preview.items.map((item, i) => (
-                          <tr key={i} className="border-b border-[#21262d]/30 hover:bg-slate-700/20 transition-colors">
+                          <tr key={i} className="border-b border-[#38383A]/30 hover:bg-slate-700/20 transition-colors">
                             <td className="py-2.5 px-3 text-white font-medium">{item.symbol}</td>
                             <td className="py-2.5 px-3 text-slate-300 max-w-[150px] truncate">{item.name}</td>
                             <td className="py-2.5 px-3 text-slate-500">{item.type}</td>
@@ -708,10 +708,10 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">
                     {preview.transactions.length} {t('transacciones', 'trades')}
                   </p>
-                  <div className="overflow-x-auto max-h-36 overflow-y-auto rounded-lg border border-[#21262d]/40">
+                  <div className="overflow-x-auto max-h-36 overflow-y-auto rounded-lg border border-[#38383A]/40">
                     <table className="w-full text-xs">
                       <thead>
-                        <tr className="text-[11px] text-slate-500 border-b border-[#21262d]/60 bg-[#0d1117]/50">
+                        <tr className="text-[11px] text-slate-500 border-b border-[#38383A]/60 bg-[#000000]/50">
                           <th className="text-left py-2.5 px-3 font-normal">{t('Fecha', 'Date')}</th>
                           <th className="text-left py-2.5 px-3 font-normal">Symbol</th>
                           <th className="text-left py-2.5 px-3 font-normal">Type</th>
@@ -721,7 +721,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                       </thead>
                       <tbody>
                         {preview.transactions.slice(0, 20).map((tx, i) => (
-                          <tr key={i} className="border-b border-[#21262d]/30 hover:bg-slate-700/20 transition-colors">
+                          <tr key={i} className="border-b border-[#38383A]/30 hover:bg-slate-700/20 transition-colors">
                             <td className="py-2.5 px-3 text-slate-500">{tx.date}</td>
                             <td className="py-2.5 px-3 text-white">{tx.symbol}</td>
                             <td className={`py-2.5 px-3 font-medium ${tx.type === 'BUY' ? 'text-emerald-400' : 'text-red-400'}`}>{tx.type}</td>
@@ -748,7 +748,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
 
               <div className="flex gap-4 pt-1">
                 <button onClick={() => setStep('config')}
-                  className="flex-1 py-3 border border-[#21262d]/60 text-slate-400 rounded-xl hover:bg-[#1c2129] hover:text-slate-200 transition-all text-sm">
+                  className="flex-1 py-3 border border-[#38383A]/60 text-slate-400 rounded-xl hover:bg-[#2C2C2E] hover:text-slate-200 transition-all text-sm">
                   {t('Atrás', 'Back')}
                 </button>
                 <button onClick={handleConfirm} disabled={syncing}

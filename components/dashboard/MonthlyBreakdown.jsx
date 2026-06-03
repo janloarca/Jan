@@ -48,7 +48,7 @@ function EditableCell({ value, onSave, className }) {
         onChange={e => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false) }}
-        className="w-full bg-[#0d1117] border border-blue-500/50 rounded px-1.5 py-0.5 text-xs text-white text-right font-medium tabular-nums focus:outline-none focus:ring-1 focus:ring-blue-500/30"
+        className="w-full bg-[#000000] border border-blue-500/50 rounded px-1.5 py-0.5 text-xs text-white text-right font-medium tabular-nums focus:outline-none focus:ring-1 focus:ring-blue-500/30"
       />
     )
   }
@@ -140,7 +140,7 @@ export default function MonthlyBreakdown({ items, snapshots, lang, onUpdateItem,
   }
 
   return (
-    <div className="bg-[#161b22] rounded-2xl border border-[#21262d] p-5 card-primary">
+    <div className="bg-[#1C1C1E] rounded-2xl border border-[#38383A] p-5 card-primary">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-emerald-400" />
@@ -153,7 +153,7 @@ export default function MonthlyBreakdown({ items, snapshots, lang, onUpdateItem,
         <table className="w-full text-xs border-collapse min-w-[480px]">
           <thead>
             <tr className="border-b-2 border-[#475569]">
-              <th className="text-left py-2 pr-2 text-slate-500 font-semibold sticky left-0 bg-[#161b22] z-10 min-w-[180px]">
+              <th className="text-left py-2 pr-2 text-slate-500 font-semibold sticky left-0 bg-[#1C1C1E] z-10 min-w-[180px]">
                 {t('Cuenta / Activo', 'Account / Asset')}
               </th>
               <th className="text-right py-2 px-2 text-slate-400 font-semibold w-24">{currentMonthLabel.toUpperCase()}</th>
@@ -170,9 +170,9 @@ export default function MonthlyBreakdown({ items, snapshots, lang, onUpdateItem,
             const isCollapsed = collapsed[group.name]
             return (
               <tbody key={group.name}>
-                <tr className="bg-[#0d1117]/60 cursor-pointer hover:bg-[#0d1117]/80 transition-colors"
+                <tr className="bg-[#000000]/60 cursor-pointer hover:bg-[#000000]/80 transition-colors"
                   onClick={() => toggleGroup(group.name)}>
-                  <td className="py-2 pr-2 sticky left-0 bg-[#0d1117]/60 z-10">
+                  <td className="py-2 pr-2 sticky left-0 bg-[#000000]/60 z-10">
                     <div className="flex items-center gap-2">
                       <span className="text-slate-500 text-[10px] w-3">{isCollapsed ? '▸' : '▾'}</span>
                       <span className="text-white font-semibold text-xs">{group.name}</span>
@@ -198,8 +198,8 @@ export default function MonthlyBreakdown({ items, snapshots, lang, onUpdateItem,
                   const isDebt = val < 0
 
                   return (
-                    <tr key={item.id || i} className="border-b border-[#161b22] hover:bg-[#1c2129]/30 transition-colors">
-                      <td className="py-1.5 pr-2 pl-7 sticky left-0 bg-[#161b22] z-10">
+                    <tr key={item.id || i} className="border-b border-[#1C1C1E] hover:bg-[#2C2C2E]/30 transition-colors">
+                      <td className="py-1.5 pr-2 pl-7 sticky left-0 bg-[#1C1C1E] z-10">
                         <div className="flex items-center gap-2 min-w-0">
                           <span className={`w-1 h-5 rounded-full shrink-0 ${
                             cat === 'banks' ? 'bg-cyan-500' :
@@ -260,7 +260,7 @@ export default function MonthlyBreakdown({ items, snapshots, lang, onUpdateItem,
           })}
           <tfoot>
             <tr className="border-t-2 border-[#475569]">
-              <td className="py-2.5 pr-2 sticky left-0 bg-[#161b22] z-10">
+              <td className="py-2.5 pr-2 sticky left-0 bg-[#1C1C1E] z-10">
                 <span className="text-white font-bold text-xs">TOTAL</span>
               </td>
               <td className="text-right py-2.5 px-2 text-white font-bold tabular-nums">{formatCurrency(netWorth)}</td>

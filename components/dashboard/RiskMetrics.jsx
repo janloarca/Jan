@@ -75,7 +75,7 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
   }, [hasData, metrics, lang])
 
   return (
-    <div className="bg-[#161b22]/80 rounded-xl border border-[#21262d]/50 p-4">
+    <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 p-4">
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
         <span className="w-2 h-2 rounded-full bg-red-400" />
         {t('MÉTRICAS DE RIESGO', 'RISK METRICS')}
@@ -88,7 +88,7 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
       ) : (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-            <div className="bg-[#0d1117] rounded-lg p-3 border border-[#21262d]/50 text-center">
+            <div className="bg-[#000000] rounded-lg p-3 border border-[#38383A]/50 text-center">
               <span className="text-xs text-slate-500 block">Sharpe</span>
               <span className={`text-base sm:text-lg font-bold block ${sharpeColor}`}>
                 {metrics.sharpe != null ? metrics.sharpe.toFixed(2) : '---'}
@@ -98,7 +98,7 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
               </span>
             </div>
 
-            <div className="bg-[#0d1117] rounded-lg p-3 border border-[#21262d]/50 text-center">
+            <div className="bg-[#000000] rounded-lg p-3 border border-[#38383A]/50 text-center">
               <span className="text-xs text-slate-500 block">{t('Volatilidad', 'Volatility')}</span>
               <span className={`text-base sm:text-lg font-bold block ${volColor}`}>
                 {metrics.vol != null ? `${metrics.vol.toFixed(1)}%` : '---'}
@@ -106,7 +106,7 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
               <span className="text-xs text-slate-600">{t('Anualizada', 'Annualized')}</span>
             </div>
 
-            <div className="bg-[#0d1117] rounded-lg p-3 border border-[#21262d]/50 text-center">
+            <div className="bg-[#000000] rounded-lg p-3 border border-[#38383A]/50 text-center">
               <span className="text-xs text-slate-500 block">Max Drawdown</span>
               <span className={`text-base sm:text-lg font-bold block ${ddColor}`}>
                 {metrics.drawdown.maxDrawdownPct > 0 ? `-${metrics.drawdown.maxDrawdownPct.toFixed(1)}%` : '0%'}
@@ -118,7 +118,7 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
               )}
             </div>
 
-            <div className="bg-[#0d1117] rounded-lg p-3 border border-[#21262d]/50 text-center">
+            <div className="bg-[#000000] rounded-lg p-3 border border-[#38383A]/50 text-center">
               <span className="text-xs text-slate-500 block">Beta</span>
               <span className="text-base sm:text-lg font-bold text-slate-300 block">
                 {metrics.beta != null ? metrics.beta.toFixed(2) : 'N/A'}

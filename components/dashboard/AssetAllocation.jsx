@@ -72,7 +72,7 @@ export default function AssetAllocation({ items, lang }) {
   ]
 
   return (
-    <div className="bg-[#161b22] rounded-2xl border border-[#21262d] p-5 card-primary">
+    <div className="bg-[#1C1C1E] rounded-2xl border border-[#38383A] p-5 card-primary">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-blue-400" />
@@ -86,7 +86,7 @@ export default function AssetAllocation({ items, lang }) {
             className={`px-2 py-1 text-xs font-medium rounded-md transition-colors ${
               view === v.key
                 ? 'bg-slate-600 text-white'
-                : 'text-slate-400 border border-slate-600/50 hover:bg-[#1c2129]'
+                : 'text-slate-400 border border-slate-600/50 hover:bg-[#2C2C2E]'
             }`}>
             {v.label}
           </button>
@@ -96,7 +96,7 @@ export default function AssetAllocation({ items, lang }) {
       <div className="flex items-center gap-6">
         <div className="relative shrink-0">
           <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-            <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#21262d" strokeWidth={strokeWidth} />
+            <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#38383A" strokeWidth={strokeWidth} />
             {allocation.map((seg) => {
               const dash = (seg.pct / 100) * circumference
               const gap = circumference - dash

@@ -59,13 +59,13 @@ export default function ValueBreakdown({ items, lang }) {
   let offset = 0
 
   return (
-    <div className="bg-[#161b22]/80 rounded-xl border border-[#21262d]/50 p-4">
+    <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 p-4">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-purple-400" />
           {lang === 'es' ? 'DESGLOSE DE VALOR' : 'VALUE BREAKDOWN'}
         </h3>
-        <div className="flex gap-0.5 bg-[#0d1117] rounded-lg p-0.5">
+        <div className="flex gap-0.5 bg-[#000000] rounded-lg p-0.5">
           {[
             { key: 'type', label: lang === 'es' ? 'Tipo' : 'Type' },
             { key: 'currency', label: lang === 'es' ? 'Moneda' : 'Currency' },
@@ -85,7 +85,7 @@ export default function ValueBreakdown({ items, lang }) {
         {/* Donut */}
         <div className="relative shrink-0">
           <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-            <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#21262d" strokeWidth={strokeWidth} />
+            <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#38383A" strokeWidth={strokeWidth} />
             {data.map((seg) => {
               const dash = (seg.pct / 100) * circumference
               const gap = circumference - dash
@@ -122,7 +122,7 @@ export default function ValueBreakdown({ items, lang }) {
             </thead>
             <tbody>
               {data.map((row) => (
-                <tr key={row.name} className="border-t border-[#21262d]/30">
+                <tr key={row.name} className="border-t border-[#38383A]/30">
                   <td className="py-1.5">
                     <div className="flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: row.color }} />
