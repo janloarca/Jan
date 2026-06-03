@@ -99,18 +99,22 @@ export default function InstitutionPerformance({ items, lang, convert, baseCurre
             symbol: it.symbol,
             type: it.type,
             quantity: it.quantity,
-            currentPrice: it.currentPrice,
-            purchasePrice: it.purchasePrice,
+            currentPrice: it._originalPrice || it.currentPrice,
+            purchasePrice: it._originalPurchasePrice || it.purchasePrice,
+            currency: it._originalCurrency || 'USD',
             acquisitionDate: it.acquisitionDate,
           })),
           period: apiPeriod,
-          baseCurrency,
         }),
       })
 
       if (data && data.ok) {
         const json = await data.json()
         let pts = json.dataPoints || []
+
+        if (baseCurrency !== 'USD' && convert) {
+          pts = pts.map(dp => ({ ...dp, total: convert(dp.total, 'USD', baseCurrency) }))
+        }
 
         if (period === 'YTD') {
           const yearStart = new Date(new Date().getFullYear(), 0, 1).getTime()

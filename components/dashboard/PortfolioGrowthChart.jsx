@@ -464,7 +464,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const contributionGeoPoints = useMemo(() => {
     if (!geo || !contributionLine || viewMode !== 'value' || !showContributions) return null
     const ch = chartHeight - pad.top - pad.bottom
-    const allVals = [...growthValues, ...contributionLine]
+    const allVals = [...growthValues, ...contributionLine].filter(v => isFinite(v))
     const min = Math.min(...allVals)
     const max = Math.max(...allVals)
     const paddingVal = (max - min) * 0.05
