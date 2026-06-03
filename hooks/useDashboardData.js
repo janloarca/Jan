@@ -291,52 +291,56 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       }
     }
     for (const item of data.items) {
-      let existing = null
-      if (mode === 'merge') {
-        existing = items.find(it =>
-          (it.conid && it.conid === item.conid) ||
-          (
-            (it.symbol || '').toUpperCase() === item.symbol &&
-            ((it.institution || '').toLowerCase().includes('interactive brokers') || it._source === 'ibkr')
+      try {
+        let existing = null
+        if (mode === 'merge') {
+          existing = items.find(it =>
+            (it.conid && it.conid === item.conid) ||
+            (
+              (it.symbol || '').toUpperCase() === item.symbol &&
+              ((it.institution || '').toLowerCase().includes('interactive brokers') || it._source === 'ibkr')
+            )
           )
-        )
-      }
-      if (existing) {
-        await updateItem(existing.id, {
-          currentPrice: item.currentPrice,
-          quantity: item.quantity,
-          purchasePrice: item.purchasePrice,
-          conid: item.conid,
-          _ibkrAccountId: item._ibkrAccountId,
-          _source: 'ibkr',
-        })
-      } else {
-        await addItem(item)
-        if (item.quantity > 0 && item.purchasePrice > 0 && item.type !== 'Bank') {
-          await addLot({
-            symbol: item.symbol,
-            quantity: item.quantity,
-            costBasis: item.purchasePrice,
-            currency: item.currency || 'USD',
-            acquisitionDate: new Date().toISOString().split('T')[0],
-          })
         }
-      }
+        if (existing) {
+          await updateItem(existing.id, {
+            currentPrice: item.currentPrice,
+            quantity: item.quantity,
+            purchasePrice: item.purchasePrice,
+            conid: item.conid,
+            _ibkrAccountId: item._ibkrAccountId,
+            _source: 'ibkr',
+          })
+        } else {
+          await addItem(item)
+          if (item.quantity > 0 && item.purchasePrice > 0 && item.type !== 'Bank') {
+            await addLot({
+              symbol: item.symbol,
+              quantity: item.quantity,
+              costBasis: item.purchasePrice,
+              currency: item.currency || 'USD',
+              acquisitionDate: new Date().toISOString().split('T')[0],
+            })
+          }
+        }
+      } catch (e) { console.warn('IBKR sync item error:', item.symbol, e) }
     }
     for (const tx of (data.transactions || [])) {
-      await addTransaction(tx)
+      try { await addTransaction(tx) } catch (e) { console.warn('IBKR sync tx error:', e) }
     }
     if (data.equityHistory && data.equityHistory.length > 0) {
       const existingDates = new Set(snapshots.map(s => s.date))
       for (const entry of data.equityHistory) {
         if (!existingDates.has(entry.date)) {
-          await saveSnapshot({
-            date: entry.date,
-            totalActivosUSD: entry.totalActivosUSD || entry.netWorthUSD || 0,
-            totalDebtUSD: entry.totalDebtUSD || 0,
-            netWorthUSD: entry.netWorthUSD || 0,
-            _source: 'ibkr',
-          })
+          try {
+            await saveSnapshot({
+              date: entry.date,
+              totalActivosUSD: entry.totalActivosUSD || entry.netWorthUSD || 0,
+              totalDebtUSD: entry.totalDebtUSD || 0,
+              netWorthUSD: entry.netWorthUSD || 0,
+              _source: 'ibkr',
+            })
+          } catch (e) { console.warn('IBKR sync snapshot error:', e) }
         }
       }
     }
