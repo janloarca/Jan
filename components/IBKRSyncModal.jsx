@@ -5,7 +5,7 @@ import { CheckCircle, Lock, ChevronDown, ChevronUp, Upload } from 'lucide-react'
 import { parseIBKRFile, formatIBKRFileResult } from '@/lib/parsers/ibkrFileParser'
 
 function DoneStep({ result, onClose, t }) {
-  const [countdown, setCountdown] = useState(2)
+  const [countdown, setCountdown] = useState(5)
 
   useEffect(() => {
     if (countdown <= 0) { onClose(); return }
@@ -286,27 +286,53 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
     setSyncing(true)
     setError('')
     setErrorCode('')
+    const progress = { done: 0, total: 0 }
     setImportProgress({ done: 0, total: 0 })
-    try {
-      const timeout = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error(t('La importación tardó demasiado. Intenta de nuevo.', 'Import took too long. Please try again.'))), 120000)
-      )
-      await Promise.race([onSyncComplete(preview, syncMode, (done, total) => setImportProgress({ done, total })), timeout])
-      setResult({
-        items: preview.items.length,
-        transactions: preview.transactions.length,
-        equityHistory: (preview.equityHistory || []).length,
-        accounts: preview.accounts || [],
-        syncedAt: preview.syncedAt || new Date().toISOString(),
-        mode: syncMode,
-      })
-      setStep('done')
-    } catch (err) {
-      setError(err.message || t('Error importando datos', 'Error importing data'))
-    } finally {
-      setSyncing(false)
-      setImportProgress(null)
+
+    const totalItems = preview.items.length + preview.transactions.length + (preview.equityHistory || []).length
+    const timeoutMs = Math.max(120000, totalItems * 1500)
+    const MAX_RETRIES = 1
+    let lastError = null
+
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const timeout = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(t('La importación tardó demasiado. Intenta de nuevo.', 'Import took too long. Please try again.'))), timeoutMs)
+        )
+        await Promise.race([
+          onSyncComplete(preview, syncMode, (done, total) => {
+            progress.done = done
+            progress.total = total
+            setImportProgress({ done, total })
+          }),
+          timeout,
+        ])
+        setResult({
+          items: preview.items.length,
+          transactions: preview.transactions.length,
+          equityHistory: (preview.equityHistory || []).length,
+          accounts: preview.accounts || [],
+          syncedAt: preview.syncedAt || new Date().toISOString(),
+          mode: syncMode,
+        })
+        setStep('done')
+        return
+      } catch (err) {
+        lastError = err
+        const isTimeout = (err.message || '').includes('tardó demasiado') || (err.message || '').includes('too long')
+        if (attempt < MAX_RETRIES && !isTimeout) {
+          await new Promise(r => setTimeout(r, 2000))
+          continue
+        }
+      }
     }
+
+    const partialMsg = progress.done > 0
+      ? ` (${progress.done}/${progress.total} ${t('operaciones completadas', 'operations completed')})`
+      : ''
+    setError((lastError?.message || t('Error importando datos', 'Error importing data')) + partialMsg)
+    setSyncing(false)
+    setImportProgress(null)
   }, [preview, onSyncComplete, syncMode, t])
 
   const errorHint = useMemo(() => {
@@ -680,11 +706,6 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                     {preview.accounts.join(', ')}
                   </span>
                 )}
-                {preview._sectionNames && preview._sectionNames.length > 0 && (
-                  <span className="text-[10px] text-slate-600 font-mono w-full mt-1 truncate">
-                    {t('Secciones', 'Sections')}: {preview._sectionNames.join(', ')}
-                  </span>
-                )}
               </div>
 
               {/* Sync mode selector — shown first for visibility */}
@@ -716,10 +737,45 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 </p>
               </div>
 
+              {(() => {
+                const totalValue = preview.items.reduce((s, it) => s + (it.currentPrice || 0) * (it.quantity || 0), 0)
+                const sortedNav = (preview.equityHistory || []).length > 0
+                  ? [...preview.equityHistory].sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+                  : []
+                return (
+                  <>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="bg-[#000000]/50 rounded-lg p-3 border border-[#38383A]/30">
+                        <p className="text-[10px] text-slate-500 uppercase tracking-wider">{t('Posiciones', 'Positions')}</p>
+                        <p className="text-lg text-white font-semibold mt-1">{preview.items.length}</p>
+                        {totalValue > 0 && (
+                          <p className="text-[10px] text-slate-400 mt-0.5">
+                            ${totalValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                          </p>
+                        )}
+                      </div>
+                      <div className="bg-[#000000]/50 rounded-lg p-3 border border-[#38383A]/30">
+                        <p className="text-[10px] text-slate-500 uppercase tracking-wider">Trades</p>
+                        <p className="text-lg text-white font-semibold mt-1">{preview.transactions.length}</p>
+                      </div>
+                      <div className="bg-[#000000]/50 rounded-lg p-3 border border-[#38383A]/30">
+                        <p className="text-[10px] text-slate-500 uppercase tracking-wider">{t('Historial', 'History')}</p>
+                        <p className="text-lg text-white font-semibold mt-1">{sortedNav.length}</p>
+                        {sortedNav.length > 0 && (
+                          <p className="text-[10px] text-slate-400 mt-0.5">
+                            {sortedNav[0].date} → {sortedNav[sortedNav.length - 1].date}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )
+              })()}
+
               {preview.items.length > 0 && (
                 <div>
                   <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">
-                    {preview.items.length} {t('posiciones', 'positions')}
+                    {t('Posiciones', 'Positions')}
                   </p>
                   <div className="overflow-x-auto max-h-48 overflow-y-auto rounded-lg border border-[#38383A]/40">
                     <table className="w-full text-xs">
@@ -784,36 +840,33 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 </div>
               )}
 
-              {(preview.equityHistory || []).length > 0 && (
-                <div>
-                  <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">
-                    {(preview.equityHistory || []).length} {t('días de historial NAV', 'days of NAV history')}
-                  </p>
-                  <p className="text-xs text-slate-400">
-                    {preview.equityHistory[0].date} → {preview.equityHistory[preview.equityHistory.length - 1].date}
-                  </p>
+              {syncing ? (
+                <div className="space-y-3 pt-2">
+                  <div className="w-full h-2.5 bg-slate-700 rounded-full overflow-hidden">
+                    <div className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                      style={{ width: `${importProgress && importProgress.total > 0 ? Math.round((importProgress.done / importProgress.total) * 100) : 0}%` }} />
+                  </div>
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                    <p className="text-sm text-slate-400">
+                      {importProgress && importProgress.total > 0
+                        ? `${t('Importando', 'Importing')} ${importProgress.done}/${importProgress.total} (${Math.round((importProgress.done / importProgress.total) * 100)}%)`
+                        : t('Preparando...', 'Preparing...')}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex gap-4 pt-1">
+                  <button onClick={() => setStep('config')}
+                    className="flex-1 py-3 border border-[#38383A]/60 text-slate-400 rounded-xl hover:bg-[#2C2C2E] hover:text-slate-200 transition-all text-sm">
+                    {t('Atrás', 'Back')}
+                  </button>
+                  <button onClick={handleConfirm}
+                    className="flex-1 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-all text-sm font-medium">
+                    {t('Confirmar', 'Confirm')}
+                  </button>
                 </div>
               )}
-
-              <div className="flex gap-4 pt-1">
-                <button onClick={() => setStep('config')}
-                  className="flex-1 py-3 border border-[#38383A]/60 text-slate-400 rounded-xl hover:bg-[#2C2C2E] hover:text-slate-200 transition-all text-sm">
-                  {t('Atrás', 'Back')}
-                </button>
-                <button onClick={handleConfirm} disabled={syncing}
-                  className="flex-1 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-500 disabled:opacity-50 transition-all text-sm font-medium relative overflow-hidden">
-                  {syncing && importProgress && importProgress.total > 0 && (
-                    <div className="absolute inset-0 bg-blue-500/30" style={{ width: `${Math.round((importProgress.done / importProgress.total) * 100)}%`, transition: 'width 0.3s' }} />
-                  )}
-                  <span className="relative">
-                    {syncing
-                      ? importProgress && importProgress.total > 0
-                        ? `${Math.round((importProgress.done / importProgress.total) * 100)}%`
-                        : t('Preparando...', 'Preparing...')
-                      : t('Confirmar', 'Confirm')}
-                  </span>
-                </button>
-              </div>
             </div>
           )}
 
