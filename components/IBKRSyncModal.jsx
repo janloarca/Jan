@@ -293,21 +293,25 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
     setError('')
     setErrorCode('')
     try {
-      await onSyncComplete(preview, syncMode)
+      const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(t('La importación tardó demasiado. Intenta de nuevo.', 'Import took too long. Please try again.'))), 120000)
+      )
+      await Promise.race([onSyncComplete(preview, syncMode), timeout])
       setResult({
         items: preview.items.length,
         transactions: preview.transactions.length,
         equityHistory: (preview.equityHistory || []).length,
         accounts: preview.accounts || [],
-        syncedAt: preview.syncedAt,
+        syncedAt: preview.syncedAt || new Date().toISOString(),
         mode: syncMode,
       })
       setStep('done')
     } catch (err) {
-      setError(err.message)
+      setError(err.message || t('Error importando datos', 'Error importing data'))
+    } finally {
+      setSyncing(false)
     }
-    setSyncing(false)
-  }, [preview, onSyncComplete, syncMode])
+  }, [preview, onSyncComplete, syncMode, t])
 
   const errorHint = useMemo(() => {
     if (!errorCode) return null
