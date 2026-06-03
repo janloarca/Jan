@@ -7,7 +7,7 @@ const DEFAULT_TARGETS = {
   stocks: 40, crypto: 10, funds: 20, bonds: 15, banks: 5, realestate: 5, alternatives: 5,
 }
 
-export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoals, lang }) {
+export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoals, lang, onDismiss }) {
   const t = (es, en) => lang === 'es' ? es : en
   const [editing, setEditing] = useState(false)
 
@@ -73,6 +73,12 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
             className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
             {editing ? t('Cancelar', 'Cancel') : t('Editar', 'Edit')}
           </button>
+          {onDismiss && (
+            <button onClick={onDismiss}
+              className="text-xs text-slate-600 hover:text-slate-400 transition-colors">
+              ✕
+            </button>
+          )}
         </div>
       </div>
 

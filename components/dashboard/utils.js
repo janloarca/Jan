@@ -184,7 +184,29 @@ const GEO_SUFFIXES = {
   '.KS': 'South Korea', '.AX': 'Australia', '.NS': 'India', '.BO': 'India',
 }
 
-const CRYPTO_SYMBOLS = new Set(['BTC', 'ETH', 'SOL', 'ADA', 'DOT', 'AVAX', 'MATIC', 'LINK', 'UNI', 'XRP', 'DOGE', 'BNB', 'ATOM', 'NEAR', 'LTC', 'USDT', 'USDC', 'AAVE', 'SHIB'])
+const CRYPTO_SYMBOLS = new Set(['BTC', 'ETH', 'SOL', 'ADA', 'DOT', 'AVAX', 'MATIC', 'LINK', 'UNI', 'XRP', 'DOGE', 'BNB', 'ATOM', 'NEAR', 'LTC', 'USDT', 'USDC', 'AAVE', 'SHIB', 'FIL', 'ICP', 'CRO', 'VET', 'EOS', 'XTZ', 'THETA', 'FTM', 'ALGO', 'DAI', 'OSMO'])
+
+const KNOWN_GEO = {
+  NVO: 'Denmark', NOVO: 'Denmark', ASML: 'Netherlands', TSM: 'Taiwan', SAP: 'Germany',
+  TM: 'Japan', SONY: 'Japan', HMC: 'Japan', MUFG: 'Japan', SMFG: 'Japan',
+  BABA: 'China', JD: 'China', PDD: 'China', BIDU: 'China', NIO: 'China', LI: 'China', XPEV: 'China',
+  SE: 'Singapore', GRAB: 'Singapore', SHOP: 'Canada', RY: 'Canada', TD: 'Canada', BNS: 'Canada',
+  SAN: 'Spain', BBVA: 'Spain', TEF: 'Spain', IBE: 'Spain',
+  AZN: 'UK', GSK: 'UK', BP: 'UK', SHEL: 'UK', HSBC: 'UK', RIO: 'UK', BHP: 'Australia',
+  UL: 'UK', DEO: 'UK', BTI: 'UK', LIN: 'Ireland',
+  TCEHY: 'China', NTES: 'China', WBD: 'US',
+  VALE: 'Brazil', PBR: 'Brazil', ITUB: 'Brazil', BBD: 'Brazil', SID: 'Brazil',
+  MELI: 'Argentina', GLOB: 'Argentina', YPF: 'Argentina', GGAL: 'Argentina',
+  AMX: 'Mexico', FEMSA: 'Mexico', TV: 'Mexico', BSMX: 'Mexico',
+  SQM: 'Chile', BSAC: 'Chile',
+  XOCHI: 'Guatemala', BI: 'Guatemala',
+  INFY: 'India', WIT: 'India', HDB: 'India', IBN: 'India',
+  KB: 'South Korea', SHG: 'South Korea', PKX: 'South Korea',
+  UMC: 'Taiwan', ASX: 'Taiwan', IMOS: 'Taiwan',
+  ERIC: 'Sweden', SPOT: 'Sweden', VOLV: 'Sweden',
+  RACE: 'Italy', STLA: 'Netherlands', ING: 'Netherlands',
+  CS: 'Switzerland', UBS: 'Switzerland', NOVN: 'Switzerland',
+}
 
 export function getGeographyFromSymbol(symbol) {
   if (!symbol) return 'Unknown'
@@ -193,7 +215,28 @@ export function getGeographyFromSymbol(symbol) {
   for (const [suffix, geo] of Object.entries(GEO_SUFFIXES)) {
     if (symbol.endsWith(suffix)) return geo
   }
+  if (KNOWN_GEO[upper]) return KNOWN_GEO[upper]
   return 'US'
+}
+
+export function getGeographyFromItem(item) {
+  if (item.assetCountry) return item.assetCountry
+  const cat = getTypeCategory(item)
+  if (cat === 'crypto') return 'Global'
+  return getGeographyFromSymbol(item.symbol)
+}
+
+export function getSectorFromItem(item) {
+  if (item.sector) return item.sector
+  const cat = getTypeCategory(item)
+  if (cat === 'crypto') return 'Crypto'
+  if (cat === 'realestate') return 'Real Estate'
+  if (cat === 'banks') return 'Financials'
+  if (cat === 'bonds') return 'Fixed Income'
+  if (cat === 'alternatives') return 'Alternatives'
+  if (cat === 'receivables') return 'Receivables'
+  if (cat === 'debts') return 'Liabilities'
+  return getSectorFromType(item.type) !== 'Unknown' ? getSectorFromType(item.type) : getSectorFromType(item.name || '')
 }
 
 export function computeModifiedDietz({ startValue, endValue, startTs, endTs, transactions, convert, baseCurrency }) {

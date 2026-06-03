@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { getTypeCategory, TYPE_COLORS, CHART_PALETTE, getItemValue, getSectorFromType, getGeographyFromSymbol } from './utils'
+import { getTypeCategory, TYPE_COLORS, CHART_PALETTE, getItemValue, getSectorFromItem, getGeographyFromItem } from './utils'
 import { computeHHI, computeHHIByDimension } from './analytics'
 
 export default function ConcentrationRisk({ items, lang }) {
@@ -11,8 +11,8 @@ export default function ConcentrationRisk({ items, lang }) {
     const dimensionFns = {
       asset: (it) => it.symbol || it.name || 'Unknown',
       type: (it) => getTypeCategory(it.type),
-      sector: (it) => getSectorFromType(it.type),
-      geography: (it) => getGeographyFromSymbol(it.symbol),
+      sector: (it) => getSectorFromItem(it),
+      geography: (it) => getGeographyFromItem(it),
     }
 
     const fn = dimensionFns[dimension] || dimensionFns.type
