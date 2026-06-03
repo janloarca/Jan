@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Settings, Building2, Users } from 'lucide-react'
 import EntityManager from '@/components/dashboard/EntityManager'
 import { authFetch } from '@/lib/authFetch'
@@ -24,7 +24,7 @@ const CURRENCIES = [
   { code: 'CNY', name: 'Chinese Yuan', symbol: '¥' },
 ]
 
-export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onExportBackup, onSyncBroker, onOpenIBKR, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, lang = 'es', profile, onSaveProfile, lastSyncTime }) {
+export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onExportBackup, onSyncBroker, onOpenIBKR, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, lang = 'es', profile, onSaveProfile, lastSyncTime, portfolioItems = [] }) {
   const [baseCurrency, setBaseCurrency] = useState(settings?.baseCurrency || 'USD')
   const [benchmarkSymbol, setBenchmarkSymbol] = useState(settings?.benchmarkSymbol || '%5EGSPC')
   const [saving, setSaving] = useState(false)
@@ -54,6 +54,22 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   const [ibkrError, setIbkrError] = useState('')
 
   const t = (es, en) => lang === 'es' ? es : en
+
+  const institutionSummaries = useMemo(() => {
+    const map = {}
+    for (const item of portfolioItems) {
+      const inst = (item.institution || '').trim()
+      if (!inst) continue
+      if (!map[inst]) map[inst] = { name: inst, count: 0, value: 0, isIbkr: false }
+      map[inst].count++
+      const val = (item.currentPrice || item.purchasePrice || 0) * (item.quantity || 1)
+      map[inst].value += val
+      if (item._source === 'ibkr' || inst.toLowerCase().includes('interactive brokers') || inst.toLowerCase() === 'ibkr') {
+        map[inst].isIbkr = true
+      }
+    }
+    return Object.values(map).sort((a, b) => Math.abs(b.value) - Math.abs(a.value))
+  }, [portfolioItems])
 
   useEffect(() => {
     const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
@@ -390,124 +406,109 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
           {tab === 'brokers' && (() => {
             const syncAge = lastSyncTime ? Date.now() - new Date(lastSyncTime).getTime() : null
             const syncDays = syncAge ? Math.floor(syncAge / 86400000) : null
-            const syncStatus = !ibkrConfigured
-              ? 'disconnected'
-              : !lastSyncTime ? 'never'
-              : syncDays > 7 ? 'stale'
-              : 'ok'
+            const syncStatus = !ibkrConfigured ? 'disconnected' : !lastSyncTime ? 'never' : syncDays > 7 ? 'stale' : 'ok'
             const statusColor = {
-              disconnected: { dot: 'bg-red-500', bg: 'bg-red-500/10 border-red-500/20', text: 'text-red-400' },
-              never: { dot: 'bg-amber-500', bg: 'bg-amber-500/10 border-amber-500/20', text: 'text-amber-400' },
-              stale: { dot: 'bg-amber-500', bg: 'bg-amber-500/10 border-amber-500/20', text: 'text-amber-400' },
-              ok: { dot: 'bg-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', text: 'text-emerald-400' },
+              disconnected: { dot: 'bg-red-500', text: 'text-red-400' },
+              never: { dot: 'bg-amber-500', text: 'text-amber-400' },
+              stale: { dot: 'bg-amber-500', text: 'text-amber-400' },
+              ok: { dot: 'bg-emerald-400', text: 'text-emerald-400' },
             }[syncStatus]
             const statusLabel = {
-              disconnected: t('No vinculado', 'Not connected'),
-              never: t('Conectado · Nunca sincronizado', 'Connected · Never synced'),
-              stale: t(`Última sync hace ${syncDays}d`, `Last sync ${syncDays}d ago`),
-              ok: syncDays === 0
-                ? t('Actualizado hoy', 'Updated today')
-                : t(`Actualizado hace ${syncDays}d`, `Updated ${syncDays}d ago`),
+              disconnected: t('No vinculado', 'Not linked'),
+              never: t('Nunca sincronizado', 'Never synced'),
+              stale: t(`Hace ${syncDays}d`, `${syncDays}d ago`),
+              ok: syncDays === 0 ? t('Hoy', 'Today') : t(`Hace ${syncDays}d`, `${syncDays}d ago`),
             }[syncStatus]
 
-            const syncTimeLabel = lastSyncTime
-              ? new Date(lastSyncTime).toLocaleString(lang === 'es' ? 'es' : 'en', {
-                  month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-                })
-              : null
+            const nonIbkrInstitutions = institutionSummaries.filter(inst => !inst.isIbkr)
 
             return (
-            <div className="space-y-5">
-              {/* Status card */}
-              <div className={`p-4 rounded-xl border ${statusColor.bg}`}>
+            <div className="space-y-4">
+              <p className="text-[11px] text-slate-500 uppercase tracking-wider">{t('Instituciones', 'Institutions')}</p>
+
+              {/* IBKR — syncable */}
+              <div className="p-3 bg-[#000000] border border-[#38383A] rounded-xl">
                 <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <div className="w-10 h-10 rounded-full bg-[#000000] border border-[#38383A] flex items-center justify-center text-lg">
-                      🏦
-                    </div>
-                    <span className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 ${statusColor.dot} rounded-full border-2 border-[#1C1C1E]`} />
+                  <div className="relative shrink-0">
+                    <span className="text-xl">🏦</span>
+                    <span className={`absolute -bottom-1 -right-1 w-2.5 h-2.5 ${statusColor.dot} rounded-full border-2 border-[#1C1C1E]`} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-white">Interactive Brokers</p>
-                    <p className={`text-xs font-medium ${statusColor.text}`}>{statusLabel}</p>
-                    {syncTimeLabel && (
-                      <p className="text-[10px] text-slate-500 mt-0.5">{syncTimeLabel}</p>
-                    )}
+                    <p className="text-sm font-medium text-white">Interactive Brokers</p>
+                    <p className={`text-[11px] ${statusColor.text}`}>
+                      {ibkrConfigured ? statusLabel : t('No vinculado', 'Not linked')}
+                      {ibkrConfigured && <span className="text-slate-600 ml-1">· ID: {ibkrQueryId}</span>}
+                    </p>
                   </div>
-                  {ibkrConfigured && (
-                    <span className="text-[10px] text-slate-500 font-mono shrink-0">ID: {ibkrQueryId}</span>
+                  {ibkrConfigured ? (
+                    <button onClick={() => { onClose(); setTimeout(() => { if (onOpenIBKR) onOpenIBKR() }, 50) }}
+                      className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-500 transition-colors shrink-0">
+                      Sync
+                    </button>
+                  ) : (
+                    <button onClick={() => setShowConfig(true)}
+                      className="px-3 py-1.5 border border-blue-500/40 text-blue-400 text-xs font-medium rounded-lg hover:bg-blue-500/10 transition-colors shrink-0">
+                      {t('Vincular', 'Link')}
+                    </button>
                   )}
                 </div>
+                {ibkrConfigured && syncStatus === 'stale' && (
+                  <p className="text-[10px] text-amber-400 mt-2 pl-9">
+                    {t('Tus datos podrían estar desactualizados', 'Your data may be outdated')}
+                  </p>
+                )}
               </div>
 
-              {ibkrError && (
-                <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-xs">{ibkrError}</div>
-              )}
-
-              {!ibkrConfigured ? (
-                <div className="space-y-4">
-                  <p className="text-xs text-slate-400">
-                    {t('Vincula tu cuenta de IBKR para sincronizar tus posiciones automáticamente.',
-                       'Link your IBKR account to sync your positions automatically.')}
-                  </p>
-
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-[11px] text-slate-500 uppercase tracking-wider mb-1.5 block">{t('Flex Token', 'Flex Token')}</label>
-                      <input type="password" value={ibkrToken} onChange={(e) => setIbkrToken(e.target.value)}
-                        placeholder="••••••••••••••••"
-                        className="w-full px-4 py-2.5 bg-[#000000] border border-[#38383A]/60 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] text-slate-500 uppercase tracking-wider mb-1.5 block">{t('Query ID', 'Query ID')}</label>
-                      <input type="text" value={ibkrQueryId} onChange={(e) => setIbkrQueryId(e.target.value)}
-                        placeholder="123456"
-                        className="w-full px-4 py-2.5 bg-[#000000] border border-[#38383A]/60 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-                    </div>
-
-                    <button onClick={handleIbkrSave} disabled={ibkrSaving || !ibkrToken || !ibkrQueryId}
-                      className="w-full py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-500 disabled:opacity-50 transition-all text-sm font-medium">
-                      {ibkrSaving ? '...' : t('Vincular cuenta', 'Link account')}
-                    </button>
+              {/* IBKR setup form */}
+              {!ibkrConfigured && showConfig && (
+                <div className="space-y-3 p-3 bg-[#000000] border border-[#38383A] rounded-xl">
+                  {ibkrError && <p className="text-xs text-red-400">{ibkrError}</p>}
+                  <div>
+                    <label className="text-[11px] text-slate-500 mb-1 block">Token</label>
+                    <input type="password" value={ibkrToken} onChange={(e) => setIbkrToken(e.target.value)}
+                      placeholder="••••••••••••••••"
+                      className="w-full px-3 py-2 bg-[#1C1C1E] border border-[#38383A]/60 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
                   </div>
-
-                  <details className="group">
-                    <summary className="text-[11px] text-slate-500 cursor-pointer hover:text-slate-300 transition-colors">
-                      {t('¿Cómo obtener el Token y Query ID?', 'How to get Token and Query ID?')}
-                    </summary>
-                    <ol className="text-xs text-slate-400 space-y-1.5 list-decimal list-inside leading-relaxed mt-2 pl-1">
-                      <li>{t('Entra a tu cuenta IBKR → Account Management', 'Log into your IBKR account → Account Management')}</li>
-                      <li>{t('Ve a Reports → Flex Queries → Activity Flex Queries', 'Go to Reports → Flex Queries → Activity Flex Queries')}</li>
-                      <li>{t('Crea un query con: Open Positions + Cash Report', 'Create a query with: Open Positions + Cash Report')}</li>
-                      <li>{t('Copia el Query ID y genera un Flex Web Service Token en Settings → API', 'Copy the Query ID and generate a Flex Web Service Token in Settings → API')}</li>
-                    </ol>
-                  </details>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <button onClick={() => { onClose(); setTimeout(() => { if (onOpenIBKR) onOpenIBKR() }, 50) }}
-                    className="w-full py-3.5 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-all text-sm font-semibold flex items-center justify-center gap-2">
-                    {t('Sincronizar ahora', 'Sync now')}
-                  </button>
-
-                  {syncStatus === 'stale' && (
-                    <div className="p-3 bg-amber-500/8 border border-amber-500/20 rounded-lg">
-                      <p className="text-xs text-amber-400">
-                        {t(`Llevas ${syncDays} días sin sincronizar. Tus precios y posiciones podrían estar desactualizados.`,
-                           `It's been ${syncDays} days since your last sync. Prices and positions may be outdated.`)}
-                      </p>
-                    </div>
-                  )}
-
-                  <button onClick={handleIbkrDisconnect} disabled={ibkrSaving}
-                    className="w-full py-2.5 border border-red-500/30 text-red-400 rounded-xl hover:bg-red-500/10 transition-all text-xs font-medium">
-                    {t('Desvincular cuenta', 'Unlink account')}
+                  <div>
+                    <label className="text-[11px] text-slate-500 mb-1 block">Query ID</label>
+                    <input type="text" value={ibkrQueryId} onChange={(e) => setIbkrQueryId(e.target.value)}
+                      placeholder="123456"
+                      className="w-full px-3 py-2 bg-[#1C1C1E] border border-[#38383A]/60 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                  </div>
+                  <button onClick={handleIbkrSave} disabled={ibkrSaving || !ibkrToken || !ibkrQueryId}
+                    className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 text-sm font-medium">
+                    {ibkrSaving ? '...' : t('Conectar', 'Connect')}
                   </button>
                 </div>
               )}
 
-              <p className="text-[11px] text-slate-500 italic border-t border-[#38383A]/40 pt-4">{t(
+              {/* IBKR disconnect */}
+              {ibkrConfigured && (
+                <button onClick={handleIbkrDisconnect} disabled={ibkrSaving}
+                  className="text-[11px] text-red-400/60 hover:text-red-400 transition-colors">
+                  {t('Desvincular IBKR', 'Unlink IBKR')}
+                </button>
+              )}
+
+              {/* All other institutions */}
+              {nonIbkrInstitutions.length > 0 && (
+                <div className="space-y-1.5">
+                  {nonIbkrInstitutions.map(inst => (
+                    <div key={inst.name} className="flex items-center gap-3 px-3 py-2.5 bg-[#000000] border border-[#38383A]/60 rounded-lg">
+                      <span className="text-slate-500 text-sm">🏢</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-white font-medium truncate">{inst.name}</p>
+                        <p className="text-[11px] text-slate-500">
+                          {inst.count} {t('posiciones', 'positions')} · ${Math.abs(inst.value).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </p>
+                      </div>
+                      <span className="text-[10px] text-slate-600">{t('Manual', 'Manual')}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <p className="text-[11px] text-slate-500 italic border-t border-[#38383A]/40 pt-3">{t(
                 'Próximamente: GBM+, Binance, Bitso y más.',
                 'Coming soon: GBM+, Binance, Bitso and more.'
               )}</p>

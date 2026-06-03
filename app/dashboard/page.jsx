@@ -770,6 +770,7 @@ export default function DashboardPage() {
           onUpdateEntity={updateEntityData}
           onDeleteEntity={deleteEntity}
           lastSyncTime={settings?._ibkrLastSync || settings?._ibkrLastAutoSync || null}
+          portfolioItems={portfolioItems}
           onSyncBroker={async (positions) => {
             const mapped = (positions || []).filter(p => p.quantity !== 0).map(p => ({
               symbol: (p.symbol || '').toUpperCase(), name: p.name || p.symbol,

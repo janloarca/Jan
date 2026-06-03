@@ -286,11 +286,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       const ibkrItems = items.filter(it =>
         it._source === 'ibkr' || (it.institution || '').toLowerCase().includes('interactive brokers')
       )
-      for (const it of ibkrItems) {
-        await deleteItem(it.id)
-      }
+      await Promise.all(ibkrItems.map(it => deleteItem(it.id).catch(() => {})))
     }
-    for (const item of data.items) {
+
+    const BATCH = 5
+    const itemOps = data.items.map(item => async () => {
       try {
         let existing = null
         if (mode === 'merge') {
@@ -324,58 +324,55 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           }
         }
       } catch (e) { console.warn('IBKR sync item error:', item.symbol, e) }
+    })
+    for (let i = 0; i < itemOps.length; i += BATCH) {
+      await Promise.all(itemOps.slice(i, i + BATCH).map(fn => fn()))
     }
-    for (const tx of (data.transactions || [])) {
-      try { await addTransaction(tx) } catch (e) { console.warn('IBKR sync tx error:', e) }
+
+    const txOps = (data.transactions || []).map(tx => () =>
+      addTransaction(tx).catch(e => console.warn('IBKR sync tx error:', e))
+    )
+    for (let i = 0; i < txOps.length; i += BATCH) {
+      await Promise.all(txOps.slice(i, i + BATCH).map(fn => fn()))
     }
+
     if (data.equityHistory && data.equityHistory.length > 0) {
       const existingDates = new Set(snapshots.map(s => s.date))
-      for (const entry of data.equityHistory) {
-        if (!existingDates.has(entry.date)) {
-          try {
-            await saveSnapshot({
-              date: entry.date,
-              totalActivosUSD: entry.totalActivosUSD || entry.netWorthUSD || 0,
-              totalDebtUSD: entry.totalDebtUSD || 0,
-              netWorthUSD: entry.netWorthUSD || 0,
-              _source: 'ibkr',
-            })
-          } catch (e) { console.warn('IBKR sync snapshot error:', e) }
-        }
+      const snapOps = data.equityHistory
+        .filter(entry => !existingDates.has(entry.date))
+        .map(entry => () =>
+          saveSnapshot({
+            date: entry.date,
+            totalActivosUSD: entry.totalActivosUSD || entry.netWorthUSD || 0,
+            totalDebtUSD: entry.totalDebtUSD || 0,
+            netWorthUSD: entry.netWorthUSD || 0,
+            _source: 'ibkr',
+          }).catch(e => console.warn('IBKR sync snapshot error:', e))
+        )
+      for (let i = 0; i < snapOps.length; i += BATCH) {
+        await Promise.all(snapOps.slice(i, i + BATCH).map(fn => fn()))
       }
     }
 
-    // Post-sync cleanup: remove zero-quantity IBKR items and consolidate duplicates
     const refreshed = [...items]
     const incomingSymbols = new Set(data.items.filter(it => it.symbol).map(it => it.symbol.toUpperCase()))
-    for (const it of refreshed) {
+    const cleanupDeletes = refreshed.filter(it => {
       const isIbkr = it._source === 'ibkr' || (it.institution || '').toLowerCase().includes('interactive brokers')
-      if (!isIbkr) continue
-      const qty = it.quantity ?? 0
-      if (qty <= 0 && incomingSymbols.has((it.symbol || '').toUpperCase())) {
-        await deleteItem(it.id)
-      }
-    }
-
-    // Consolidate: if a manual item has the same symbol as a synced IBKR item, merge into the IBKR one
-    const afterCleanup = refreshed.filter(it => {
-      const isIbkr = it._source === 'ibkr' || (it.institution || '').toLowerCase().includes('interactive brokers')
-      const qty = it.quantity ?? 0
-      return !(isIbkr && qty <= 0 && incomingSymbols.has((it.symbol || '').toUpperCase()))
+      return isIbkr && (it.quantity ?? 0) <= 0 && incomingSymbols.has((it.symbol || '').toUpperCase())
     })
-    for (const it of afterCleanup) {
-      if (it._source === 'ibkr') continue
+    await Promise.all(cleanupDeletes.map(it => deleteItem(it.id).catch(() => {})))
+
+    const afterCleanup = refreshed.filter(it => !cleanupDeletes.some(d => d.id === it.id))
+    const consolidateDeletes = afterCleanup.filter(it => {
+      if (it._source === 'ibkr') return false
       const sym = (it.symbol || '').toUpperCase()
-      if (!sym) continue
+      if (!sym) return false
       const ibkrMatch = afterCleanup.find(other =>
-        other.id !== it.id &&
-        other._source === 'ibkr' &&
-        (other.symbol || '').toUpperCase() === sym
+        other.id !== it.id && other._source === 'ibkr' && (other.symbol || '').toUpperCase() === sym
       )
-      if (ibkrMatch && (it.quantity ?? 0) <= 0) {
-        await deleteItem(it.id)
-      }
-    }
+      return ibkrMatch && (it.quantity ?? 0) <= 0
+    })
+    await Promise.all(consolidateDeletes.map(it => deleteItem(it.id).catch(() => {})))
   }, [items, addItem, updateItem, deleteItem, addTransaction, addLot, saveSnapshot, snapshots])
 
   const FATAL_ERROR_CODES = ['TOKEN_EXPIRED', 'INVALID_QUERY']
