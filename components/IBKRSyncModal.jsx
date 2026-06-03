@@ -219,30 +219,37 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
     setSyncing(true)
 
     try {
-      const isCSV = file.name.toLowerCase().endsWith('.csv')
-      let parsed
+      const parsePromise = (async () => {
+        const isCSV = file.name.toLowerCase().endsWith('.csv')
+        let parsed
 
-      if (isCSV) {
-        const text = await file.text()
-        parsed = parseIBKRFile(text)
-      } else {
-        const XLSX = (await import('xlsx')).default || await import('xlsx')
-        const buf = await file.arrayBuffer()
-        const wb = XLSX.read(buf, { type: 'array' })
-        const sheet = wb.Sheets[wb.SheetNames[0]]
-        const csv = XLSX.utils.sheet_to_csv(sheet)
-        if (csv && (/,Header,/.test(csv) || /,Data,/.test(csv))) {
-          parsed = parseIBKRFile(csv)
+        if (isCSV) {
+          const text = await file.text()
+          parsed = parseIBKRFile(text)
         } else {
-          const json = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
-          if (json.length < 2) throw new Error(t('Archivo vacío o sin datos', 'File is empty or has no data'))
-          const headers = json[0].map(h => (h || '').toString().trim())
-          const rows = json.slice(1).filter(r => r.some(c => c !== ''))
-          parsed = parseIBKRFile(rows, headers)
+          const XLSX = (await import('xlsx')).default || await import('xlsx')
+          const buf = await file.arrayBuffer()
+          const wb = XLSX.read(buf, { type: 'array' })
+          const sheet = wb.Sheets[wb.SheetNames[0]]
+          const csv = XLSX.utils.sheet_to_csv(sheet)
+          if (csv && (/,Header,/.test(csv) || /,Data,/.test(csv))) {
+            parsed = parseIBKRFile(csv)
+          } else {
+            const json = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
+            if (json.length < 2) throw new Error(t('Archivo vacío o sin datos', 'File is empty or has no data'))
+            const headers = json[0].map(h => (h || '').toString().trim())
+            const rows = json.slice(1).filter(r => r.some(c => c !== ''))
+            parsed = parseIBKRFile(rows, headers)
+          }
         }
-      }
+        return formatIBKRFileResult(parsed)
+      })()
 
-      const data = formatIBKRFileResult(parsed)
+      const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(t('El archivo tardó demasiado en procesarse.', 'File took too long to process.'))), 30000)
+      )
+
+      const data = await Promise.race([parsePromise, timeout])
 
       if (data.items.length === 0 && data.transactions.length === 0 && (data.equityHistory || []).length === 0) {
         throw new Error(t(
