@@ -78,10 +78,24 @@ export async function POST(request) {
   if (auth.error) return auth.error
 
   try {
-    const { items, period } = await request.json()
+    const { items, lots, period } = await request.json()
     if (!items || !Array.isArray(items) || items.length > 100) {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
     }
+
+    const lotsBySymbol = {}
+    if (lots && Array.isArray(lots) && lots.length <= 500) {
+      for (const lot of lots) {
+        const sym = (lot.symbol || '').toUpperCase().trim()
+        if (!sym || !lot.quantity) continue
+        if (!lotsBySymbol[sym]) lotsBySymbol[sym] = []
+        lotsBySymbol[sym].push({
+          qty: lot.quantity,
+          acquiredTs: lot.acquisitionDate ? new Date(lot.acquisitionDate).getTime() : 0,
+        })
+      }
+    }
+    const hasLots = Object.keys(lotsBySymbol).length > 0
 
     const per = period || 'YTD'
     if (!VALID_PERIODS.includes(per)) {
@@ -129,6 +143,7 @@ export async function POST(request) {
             qty: it.quantity || 0,
             acquiredTs: it.acquisitionDate ? new Date(it.acquisitionDate).getTime() : 0,
             costBasis: (it.quantity || 0) * (it.purchasePrice || 0),
+            lots: hasLots && lotsBySymbol[sym] ? lotsBySymbol[sym] : null,
           }
         }
       }))
@@ -146,6 +161,7 @@ export async function POST(request) {
           qty: it.quantity || 0,
           acquiredTs: it.acquisitionDate ? new Date(it.acquisitionDate).getTime() : 0,
           costBasis: (it.quantity || 0) * (it.purchasePrice || 0),
+          lots: hasLots && lotsBySymbol[sym] ? lotsBySymbol[sym] : null,
         }
       }
     }))
@@ -173,9 +189,10 @@ export async function POST(request) {
     })
 
     if (per === 'ALL') {
-      const allDates = items
-        .map((it) => it.acquisitionDate ? new Date(it.acquisitionDate).getTime() : 0)
-        .filter((d) => d > 0)
+      const allDates = [
+        ...items.map((it) => it.acquisitionDate ? new Date(it.acquisitionDate).getTime() : 0),
+        ...(lots || []).map((l) => l.acquisitionDate ? new Date(l.acquisitionDate).getTime() : 0),
+      ].filter((d) => d > 0)
 
       let earliest = allDates.length > 0 ? Math.min(...allDates) : 0
 
@@ -203,14 +220,22 @@ export async function POST(request) {
       })
 
       Object.entries(allTimeSeries).forEach(([, data]) => {
-        if (ts < data.acquiredTs) return
-
         let price = null
         for (let i = data.history.length - 1; i >= 0; i--) {
           if (data.history[i].ts <= ts) { price = data.history[i].close; break }
         }
         if (price == null && data.history.length > 0) price = data.history[0].close
-        total += (data.qty || 0) * (price || 0)
+
+        if (data.lots) {
+          let qtyAtTime = 0
+          for (const lot of data.lots) {
+            if (ts >= lot.acquiredTs) qtyAtTime += lot.qty
+          }
+          total += qtyAtTime * (price || 0)
+        } else {
+          if (ts < data.acquiredTs) return
+          total += (data.qty || 0) * (price || 0)
+        }
       })
 
       return { ts, total: Math.round(total * 100) / 100 }

@@ -397,9 +397,10 @@ export function useFirestoreItems() {
   }, [uid])
 
   const bulkImport = useCallback(async ({ items: newItems, lots: newLots, transactions: newTxs, snapshots: newSnaps, updateItems, deleteIds }, onProgress) => {
-    if (!uid) return
+    if (!uid) throw new Error('Not authenticated')
     const { db, fs } = await getFirebase()
     const now = new Date().toISOString()
+    const strip = (obj) => Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined))
 
     const ops = []
 
@@ -411,7 +412,7 @@ export function useFirestoreItems() {
       const id = item.id || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
       const { id: _removed, ...raw } = item
       const data = sanitizeImportItem(raw)
-      ops.push({ type: 'set', ref: fs.doc(db, `users/${uid}/items`, id), data: { ...data, createdAt: now }, merge: true })
+      ops.push({ type: 'set', ref: fs.doc(db, `users/${uid}/items`, id), data: strip({ ...data, createdAt: now }), merge: true })
     }
 
     for (const { id, fields } of (updateItems || [])) {
@@ -423,18 +424,18 @@ export function useFirestoreItems() {
       const qty = Math.round((lot.quantity || 0) * 10000)
       const cost = Math.round((lot.costBasis || 0) * 100)
       const id = `${(lot.symbol || 'lot').toUpperCase()}-${lot.acquisitionDate || 'nodate'}-${qty}-${cost}`
-      ops.push({ type: 'set', ref: fs.doc(db, `users/${uid}/lots`, id), data: { ...lot, status: 'open', createdAt: now } })
+      ops.push({ type: 'set', ref: fs.doc(db, `users/${uid}/lots`, id), data: strip({ ...lot, status: 'open', createdAt: now }) })
     }
 
     for (const tx of (newTxs || [])) {
       const amt = Math.round((tx.totalAmount || tx.amount || 0) * 100)
       const id = `${tx.date || 'nodate'}-${(tx.symbol || 'nosym').toUpperCase()}-${tx.type || 'tx'}-${amt}`
-      ops.push({ type: 'set', ref: fs.doc(db, `users/${uid}/transactions`, id), data: { ...tx, createdAt: now } })
+      ops.push({ type: 'set', ref: fs.doc(db, `users/${uid}/transactions`, id), data: strip({ ...tx, createdAt: now }) })
     }
 
     for (const snap of (newSnaps || [])) {
       const id = snap.date || now.split('T')[0]
-      ops.push({ type: 'set', ref: fs.doc(db, `users/${uid}/snapshots`, id), data: { ...snap, createdAt: now } })
+      ops.push({ type: 'set', ref: fs.doc(db, `users/${uid}/snapshots`, id), data: strip({ ...snap, createdAt: now }) })
     }
 
     const CHUNK = 30

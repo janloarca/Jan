@@ -42,13 +42,12 @@ export default function InstitutionPerformance({ items, lang, convert, baseCurre
     items.forEach((it) => {
       const inst = it.institution || t('Sin institución', 'No institution')
       if (!map[inst]) map[inst] = { name: inst, count: 0, value: 0, items: [] }
-      const val = convert ? convert(getItemValue(it), it.currency || 'USD') : getItemValue(it)
       map[inst].count += 1
-      map[inst].value += val
+      map[inst].value += getItemValue(it)
       map[inst].items.push(it)
     })
     return Object.values(map).sort((a, b) => b.value - a.value)
-  }, [items, convert, lang])
+  }, [items, lang])
 
   const allTotal = useMemo(() => {
     return institutions.reduce((s, inst) => s + inst.value, 0)
@@ -63,20 +62,16 @@ export default function InstitutionPerformance({ items, lang, convert, baseCurre
 
   // ---------- summary ----------
   const summary = useMemo(() => {
-    const totalValue = filteredItems.reduce((s, it) => {
-      const val = convert ? convert(getItemValue(it), it.currency || 'USD') : getItemValue(it)
-      return s + val
-    }, 0)
+    const totalValue = filteredItems.reduce((s, it) => s + getItemValue(it), 0)
     const totalCost = filteredItems.reduce((s, it) => {
       const qty = Number(it.quantity) || 0
       const pp = it.purchasePrice || 0
-      const cost = convert ? convert(qty * pp, it.currency || 'USD') : qty * pp
-      return s + cost
+      return s + qty * pp
     }, 0)
     const gainLoss = totalValue - totalCost
     const gainPct = totalCost > 0 ? (gainLoss / totalCost) * 100 : 0
     return { totalValue, totalCost, gainLoss, gainPct, positions: filteredItems.length }
-  }, [filteredItems, convert])
+  }, [filteredItems])
 
   // ---------- chartable? ----------
   const hasChartableItems = useMemo(() => {
