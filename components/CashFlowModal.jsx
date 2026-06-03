@@ -11,6 +11,7 @@ export default function CashFlowModal({ onClose, onAddTransaction, lang = 'es', 
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [description, setDescription] = useState('')
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   const t = (es, en) => lang === 'es' ? es : en
 
@@ -19,6 +20,7 @@ export default function CashFlowModal({ onClose, onAddTransaction, lang = 'es', 
     const num = parseFloat(amount)
     if (!num || num <= 0) return
     setSaving(true)
+    setError('')
     try {
       await onAddTransaction({
         date,
@@ -33,6 +35,7 @@ export default function CashFlowModal({ onClose, onAddTransaction, lang = 'es', 
       onClose()
     } catch (err) {
       console.error('CashFlow error:', err)
+      setError(t('Error guardando. Intenta de nuevo.', 'Error saving. Please try again.'))
     }
     setSaving(false)
   }
@@ -48,6 +51,11 @@ export default function CashFlowModal({ onClose, onAddTransaction, lang = 'es', 
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && (
+            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+              <p className="text-sm text-red-400">{error}</p>
+            </div>
+          )}
           <div className="flex gap-2">
             <button type="button" onClick={() => setFlowType('DEPOSIT')}
               className={`flex-1 px-3 py-3 text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-2 ${

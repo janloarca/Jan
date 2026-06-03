@@ -149,7 +149,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
             a.click()
           }}
             className="text-xs text-blue-400 hover:text-blue-300 px-2 py-1 rounded border border-blue-500/30 hover:bg-blue-500/10">
-            CSV
+            {t('Exportar CSV', 'Export CSV')}
           </button>
           <button onClick={async () => {
             if (!confirmBulkDelete) { setConfirmBulkDelete(true); return }

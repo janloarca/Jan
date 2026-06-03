@@ -206,11 +206,11 @@ export default function InstitutionPerformance({ items, lang, convert, baseCurre
                 .toString()
                 .padStart(2, '0')}`
             : useDay
-              ? d.date.toLocaleDateString('en-US', {
+              ? d.date.toLocaleDateString(lang === 'es' ? 'es' : 'en-US', {
                   month: 'short',
                   day: 'numeric',
                 })
-              : d.date.toLocaleDateString('en-US', {
+              : d.date.toLocaleDateString(lang === 'es' ? 'es' : 'en-US', {
                   month: 'short',
                   year: '2-digit',
                 }),
@@ -218,7 +218,7 @@ export default function InstitutionPerformance({ items, lang, convert, baseCurre
       }))
       .filter((_, i) => i % step === 0 || i === chartData.length - 1)
       .filter((xl, i, arr) => i === 0 || xl.label !== arr[i - 1].label)
-  }, [chartData, period])
+  }, [chartData, period, lang])
 
   // ---------- growth stats ----------
   const firstVal = chartData.length > 0 ? chartData[0].value : 0

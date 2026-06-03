@@ -4,6 +4,8 @@ import { useMemo } from 'react'
 import { formatCurrency, getTypeCategory } from './utils'
 
 export default function DividendIncome({ transactions, items, convert, baseCurrency, lang, netWorth }) {
+  const t = (es, en) => lang === 'es' ? es : en
+
   const projected = useMemo(() => {
     if (!items || items.length === 0) return { annualTotal: 0, sources: [], upcoming: [] }
 
@@ -150,7 +152,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       annual,
       label: type === 'dividend' ? t('Dividendos', 'Dividends') : type === 'coupon' ? t('Cupones', 'Coupons') : t('Intereses', 'Interest'),
     }))
-  }, [projected.sources])
+  }, [projected.sources, lang])
 
   const incomeByCurrency = useMemo(() => {
     const byCur = {}
@@ -180,7 +182,6 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
   const hasData = stats.divCount > 0 || projected.annualTotal > 0
   if (!hasData) return null
 
-  const t = (es, en) => lang === 'es' ? es : en
   const monthName = (m) => new Date(2024, m).toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short' })
   const calendarMax = Math.max(...incomeCalendar, 1)
 
@@ -197,7 +198,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
           <span className="text-lg font-bold text-emerald-400 font-mono tabular-nums">{formatCurrency(estAnnual)}</span>
         </div>
         <div className="text-center">
-          <span className="text-xs text-slate-500 block">Yield</span>
+          <span className="text-xs text-slate-500 block">{t('Rendimiento', 'Yield')}</span>
           <span className="text-lg font-bold text-cyan-400 font-mono tabular-nums">{portfolioYield.toFixed(2)}%</span>
         </div>
         <div className="text-right">
