@@ -148,8 +148,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
     return Object.entries(types).filter(([, v]) => v > 0).map(([type, annual]) => ({
       type,
       annual,
-      label: type === 'dividend' ? 'Dividendos' : type === 'coupon' ? 'Cupones' : 'Intereses',
-      labelEn: type === 'dividend' ? 'Dividends' : type === 'coupon' ? 'Coupons' : 'Interest',
+      label: type === 'dividend' ? t('Dividendos', 'Dividends') : type === 'coupon' ? t('Cupones', 'Coupons') : t('Intereses', 'Interest'),
     }))
   }, [projected.sources])
 
@@ -231,7 +230,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
         <div className="flex items-center gap-2 mb-3">
           {incomeByType.map((bt) => (
             <div key={bt.type} className="flex-1 bg-[#000000] rounded-lg p-2 border border-[#38383A]/50 text-center">
-              <span className="text-xs text-slate-500 block">{lang === 'es' ? bt.label : bt.labelEn}</span>
+              <span className="text-xs text-slate-500 block">{bt.label}</span>
               <span className="text-xs font-semibold text-white">{formatCurrency(bt.annual)}/yr</span>
             </div>
           ))}

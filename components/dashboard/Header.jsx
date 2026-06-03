@@ -50,7 +50,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
                 aria-label={lang === 'es' ? 'Buscar' : 'Search'}
                 className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-caption text-slate-500 border border-slate-600/50 rounded-lg hover:bg-[#2C2C2E] hover:text-slate-300 transition-colors">
                 <Search size={12} />
-                <kbd className="text-micro text-slate-600 bg-slate-800/50 px-1 rounded">⌘K</kbd>
+                <kbd className="text-micro text-slate-600 bg-slate-800/50 px-1 rounded">{typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl+K'}</kbd>
               </button>
             )}
             <button onClick={onRefresh} disabled={pricesLoading} aria-label={lang === 'es' ? 'Actualizar precios' : 'Refresh prices'}

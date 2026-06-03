@@ -137,7 +137,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
           <div className="flex-1" />
           <button onClick={() => {
             const selectedItems = items.filter((it) => selected.has(it.id))
-            const rows = [['Symbol', 'Name', 'Type', 'Qty', 'Price', 'Value'].join(',')]
+            const rows = [[t('Símbolo','Symbol'), t('Nombre','Name'), t('Tipo','Type'), t('Cant.','Qty'), t('Precio','Price'), t('Valor','Value')].join(',')]
             selectedItems.forEach((it) => {
               const val = getItemValue(it)
               rows.push([it.symbol || '', it.name || '', it.type || '', it.quantity || 0, getItemPrice(it).toFixed(2), val.toFixed(2)].join(','))
@@ -372,7 +372,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                     <td className="text-right py-3">
                       <span className={`${value < 0 ? 'text-red-400' : 'text-emerald-400'} font-medium font-mono tabular-nums cursor-pointer hover:underline`}
                         onClick={() => onViewItem && onViewItem(item)}>
-                        {formatCurrency(Math.abs(value))}{value < 0 ? ' ⓓ' : ''}
+                        {formatCurrency(Math.abs(value))}{value < 0 && <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-red-500/10 text-red-400">{t('Deuda','Debt')}</span>}
                       </span>
                     </td>
                     <td className="text-center py-3 hidden sm:table-cell">
