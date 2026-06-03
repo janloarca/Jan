@@ -258,14 +258,28 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
         ))
       }
 
-      setPreview(data)
-      setStep('preview')
+      if (syncMode === 'merge' && onSyncComplete) {
+        await onSyncComplete(data, 'merge')
+        setResult({
+          items: data.items.length,
+          transactions: data.transactions.length,
+          equityHistory: (data.equityHistory || []).length,
+          accounts: data.accounts || [],
+          syncedAt: data.syncedAt || new Date().toISOString(),
+          mode: 'merge',
+        })
+        setStep('done')
+      } else {
+        setPreview(data)
+        setSyncMode('replace')
+        setStep('preview')
+      }
     } catch (err) {
       setError(err.message || t('Error leyendo archivo', 'Error reading file'))
     } finally {
       setSyncing(false)
     }
-  }, [t])
+  }, [t, syncMode, onSyncComplete])
 
   const handleFileDrop = useCallback((e) => {
     e.preventDefault()
