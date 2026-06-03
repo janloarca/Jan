@@ -55,7 +55,7 @@ function findClosestBenchmark(sorted, targetTs) {
   return sorted[lo]
 }
 
-export default function PortfolioGrowthChart({ items, snapshots, transactions, lang, convert, baseCurrency, benchmarkSymbol, benchmarkName, onSaveSnapshot }) {
+export default function PortfolioGrowthChart({ items, lots, snapshots, transactions, lang, convert, baseCurrency, benchmarkSymbol, benchmarkName, onSaveSnapshot }) {
   const [period, setPeriod] = useState('YTD')
   const [hoverIdx, setHoverIdx] = useState(null)
   const [dataPoints, setDataPoints] = useState([])
@@ -113,6 +113,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
         else if (diffDays <= 365) apiPeriod = '1Y'
         else apiPeriod = 'ALL'
       }
+      const openLots = (lots || []).filter(l => l.status === 'open' && l.quantity > 0)
       const res = await authFetch('/api/prices/portfolio-history', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -124,6 +125,11 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
             currency: it._originalCurrency || 'USD',
             acquisitionDate: it.acquisitionDate,
           })),
+          lots: openLots.length > 0 ? openLots.map(l => ({
+            symbol: l.symbol, quantity: l.quantity,
+            acquisitionDate: l.acquisitionDate,
+            costBasis: l.costBasis,
+          })) : undefined,
           period: apiPeriod,
         }),
       })
@@ -162,7 +168,7 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
       setFetchError(t('Error cargando historial', 'Failed to load history'))
     }
     setLoading(false)
-  }, [items, period, baseCurrency, convert, customRange])
+  }, [items, lots, period, baseCurrency, convert, customRange])
 
   useEffect(() => {
     fetchHistory()
@@ -275,8 +281,10 @@ export default function PortfolioGrowthChart({ items, snapshots, transactions, l
       pts = [...snapPts]
       const firstSnapTs = snapPts[0].ts
       const lastSnapTs = snapPts[snapPts.length - 1].ts
-      const olderApi = apiPts.filter(p => p.ts < firstSnapTs - 3600000)
-      if (olderApi.length > 0) pts.unshift(...olderApi)
+      if (period !== 'ALL') {
+        const olderApi = apiPts.filter(p => p.ts < firstSnapTs - 3600000)
+        if (olderApi.length > 0) pts.unshift(...olderApi)
+      }
       const recentApi = apiPts.filter(p => p.ts > lastSnapTs + 3600000)
       pts.push(...recentApi)
     } else if (apiPts.length >= 2) {
