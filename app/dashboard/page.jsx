@@ -242,6 +242,10 @@ export default function DashboardPage() {
     toastTimer.current = setTimeout(() => setToast(null), duration)
   }, [])
 
+  useEffect(() => {
+    return () => { if (toastTimer.current) clearTimeout(toastTimer.current) }
+  }, [])
+
   // Export XLSX
   const handleExport = useCallback(async () => {
     if (items.length === 0) return
@@ -391,8 +395,12 @@ export default function DashboardPage() {
     if (navigator.share) {
       try { await navigator.share({ title: 'Chispudo Portfolio', text }) } catch {}
     } else {
-      await navigator.clipboard.writeText(text)
-      alert(t('Resumen copiado al portapapeles', 'Summary copied to clipboard'))
+      try {
+        await navigator.clipboard.writeText(text)
+        showToast(t('Resumen copiado al portapapeles', 'Summary copied to clipboard'), 'success')
+      } catch {
+        showToast(t('No se pudo copiar', 'Could not copy to clipboard'), 'error')
+      }
     }
   }, [enrichedItems, netWorth, totalAssets, returnYTD, lang])
 

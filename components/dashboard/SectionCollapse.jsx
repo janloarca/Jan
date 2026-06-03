@@ -4,19 +4,23 @@ import { useState } from 'react'
 
 export default function SectionCollapse({ title, id, children, defaultOpen = false }) {
   const [open, setOpen] = useState(() => {
-    if (typeof window !== 'undefined' && id) {
-      const saved = localStorage.getItem(`section-${id}`)
-      if (saved !== null) return saved === '1'
-    }
+    try {
+      if (typeof window !== 'undefined' && id) {
+        const saved = localStorage.getItem(`section-${id}`)
+        if (saved !== null) return saved === '1'
+      }
+    } catch {}
     return defaultOpen
   })
 
   const toggle = () => {
     const next = !open
     setOpen(next)
-    if (typeof window !== 'undefined' && id) {
-      localStorage.setItem(`section-${id}`, next ? '1' : '0')
-    }
+    try {
+      if (typeof window !== 'undefined' && id) {
+        localStorage.setItem(`section-${id}`, next ? '1' : '0')
+      }
+    } catch {}
   }
 
   return (

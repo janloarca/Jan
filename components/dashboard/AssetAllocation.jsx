@@ -120,7 +120,7 @@ export default function AssetAllocation({ items, lang }) {
             })}
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-xs text-slate-500">Total</span>
+            <span className="text-xs text-slate-500">{t('Total', 'Total')}</span>
             <span className="text-sm font-bold text-white">{formatCurrency(totalValue)}</span>
           </div>
         </div>
