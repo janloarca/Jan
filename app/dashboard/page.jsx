@@ -112,6 +112,7 @@ export default function DashboardPage() {
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [modal, setModal] = useState(null)
+  const [importBrokerHint, setImportBrokerHint] = useState(null)
   const [editItem, setEditItem] = useState(null)
   const [sellItem, setSellItem] = useState(null)
   const [detailItem, setDetailItem] = useState(null)
@@ -467,7 +468,7 @@ export default function DashboardPage() {
       <Header
         user={user} lang={lang}
         setLang={() => handleSetLang('toggle')}
-        onImport={() => setModal('import')}
+        onImport={(bh) => { setImportBrokerHint(bh || null); setModal('import') }}
         onSettings={() => setModal('settings')}
         onSignOut={handleSignOut}
         onRefresh={handleRefresh}
@@ -571,7 +572,7 @@ export default function DashboardPage() {
         {portfolioItems.length === 0 && !dataLoading && (
           <EmptyState
             onAdd={() => setModal('account')}
-            onImport={() => setModal('import')}
+            onImport={(bh) => { setImportBrokerHint(bh || null); setModal('import') }}
             onTemplate={async () => {
               const { generateTemplate } = await import('@/lib/generateTemplate')
               await generateTemplate()
@@ -608,7 +609,7 @@ export default function DashboardPage() {
         <CardBoundary id="INST-01"><InstitutionPerformance items={portfolioItems} lang={lang} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
 
         <ActionButtons
-          onImport={() => setModal('import')} onAddAccount={() => setModal('account')}
+          onImport={(bh) => { setImportBrokerHint(bh || null); setModal('import') }} onAddAccount={() => setModal('account')}
           onTransfer={() => setModal('transfer')} onCashFlow={() => setModal('cashflow')} onExport={handleExport}
           onShare={handleShare} onIntegrations={() => setModal('settings')}
           onReview={() => setShowReview(true)} itemCount={enrichedItems.length} lang={lang}
@@ -658,12 +659,12 @@ export default function DashboardPage() {
 
       {modal === 'import' && (
         <FileImportModal
-          onClose={() => setModal(null)} onImportItems={addItem}
+          onClose={() => { setModal(null); setImportBrokerHint(null) }} onImportItems={addItem}
           onImportTransaction={addTransaction} onImportSnapshot={saveSnapshot}
           onAddLot={addLot} onAddFinanceTransaction={addFinanceTransaction}
           onUpdateItem={updateItem} existingItems={items}
           activePortfolio={activePortfolio} activeEntity={activeEntity !== '__all__' ? activeEntity : 'default'}
-          lang={lang}
+          lang={lang} brokerHint={importBrokerHint}
         />
       )}
 
@@ -837,7 +838,7 @@ export default function DashboardPage() {
             URL.revokeObjectURL(url)
           }}
           onOpenIBKR={() => setModal('ibkr')}
-          onImport={() => setModal('import')}
+          onImport={(bh) => { setImportBrokerHint(bh || null); setModal('import') }}
           onAddAccount={() => setModal('account')}
           onOpenBlockchain={() => setModal('blockchain')}
           theme={theme} onToggleTheme={handleSetTheme} lang={lang}
@@ -892,7 +893,7 @@ export default function DashboardPage() {
         items={portfolioItems} lang={lang} onAction={handleCmdAction} />
 
       <MobileNav
-        onAdd={() => setModal('account')} onImport={() => setModal('import')}
+        onAdd={() => setModal('account')} onImport={(bh) => { setImportBrokerHint(bh || null); setModal('import') }}
         onExport={handleExport} onShare={handleShare}
         onSettings={() => setModal('settings')} onSearch={() => setCmdPaletteOpen(true)} lang={lang}
       />

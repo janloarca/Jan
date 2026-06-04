@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { detectBI, parseBI } from '@/lib/parsers/biParser'
 import { detectCoinbase, parseCoinbase } from '@/lib/parsers/coinbaseParser'
 import { detectKraken, parseKraken } from '@/lib/parsers/krakenParser'
+import { isIBKRSectionedFormat, parseIBKRFile, formatIBKRFileResult } from '@/lib/parsers/ibkrFileParser'
 import { FINANCE_CATEGORIES, CATEGORY_COLORS } from '@/lib/financeCategories'
 import { validateItem, sanitizeImportItem } from '@/lib/validation'
 
@@ -227,7 +228,7 @@ function parseNumber(val) {
   return isFinite(num) ? num : 0
 }
 
-export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateItem, existingItems, activePortfolio, activeEntity = 'default', lang = 'es' }) {
+export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateItem, existingItems, activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null }) {
   const [mode, setMode] = useState('file')
   const [step, setStep] = useState('upload')
   const [rawData, setRawData] = useState([])
@@ -239,6 +240,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   const [error, setError] = useState('')
   const [pasteText, setPasteText] = useState('')
   const fileRef = useRef(null)
+  const [ibkrData, setIbkrData] = useState(null)
 
   // Manual form
   const [manual, setManual] = useState({
@@ -277,6 +279,24 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     }
 
     try {
+      if (ext === 'csv') {
+        const rawText = await file.text()
+        if (isIBKRSectionedFormat(rawText)) {
+          const parsed = parseIBKRFile(rawText)
+          if (parsed._isPerformanceReport || (parsed.positions.length === 0 && parsed.cashPositions.length === 0)) {
+            const sectionList = (parsed._sectionNames || []).join(', ')
+            setError(lang === 'es'
+              ? `Este archivo parece ser un reporte de rendimiento de IBKR (secciones: ${sectionList}). Por favor exporta un Activity Statement con "Open Positions" y "Trades".`
+              : `This file appears to be an IBKR Performance Report (sections: ${sectionList}). Please export an Activity Statement with "Open Positions" and "Trades".`)
+            return
+          }
+          const formatted = formatIBKRFileResult(parsed)
+          setIbkrData(formatted)
+          setStep('ibkr-preview')
+          return
+        }
+      }
+
       const XLSX = await import('xlsx')
       const data = await file.arrayBuffer()
       const wb = XLSX.read(data, { type: 'array' })
@@ -571,6 +591,46 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     setImporting(false)
   }, [biData, onAddFinanceTransaction, onImportItems, onUpdateItem, existingItems, selectedBankAccount])
 
+  const doIBKRImport = useCallback(async () => {
+    if (!ibkrData || !ibkrData.items || ibkrData.items.length === 0) return
+    setImporting(true)
+    setError('')
+    let success = 0
+    let failed = 0
+
+    for (const item of ibkrData.items) {
+      try {
+        const clean = sanitizeImportItem(item)
+        const errors = validateItem(clean)
+        if (errors.length > 0) { failed++; continue }
+        if (activePortfolio && activePortfolio !== '__all__') clean.portfolioId = activePortfolio
+        if (activeEntity && activeEntity !== 'default') clean.entityId = activeEntity
+        await onImportItems(clean)
+        if (onAddLot && clean.symbol && clean.quantity > 0 && clean.purchasePrice > 0 && !/debt|deuda/i.test(clean.type || '')) {
+          await onAddLot({
+            symbol: (clean.symbol || '').toUpperCase(),
+            quantity: clean.quantity,
+            costBasis: clean.purchasePrice,
+            currency: clean.currency || 'USD',
+            acquisitionDate: clean.acquisitionDate || new Date().toISOString().split('T')[0],
+            ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
+          })
+        }
+        success++
+      } catch { failed++ }
+    }
+
+    if (onImportSnapshot && ibkrData.equityHistory?.length > 0) {
+      for (const snap of ibkrData.equityHistory) {
+        try { await onImportSnapshot(snap) } catch {}
+      }
+    }
+
+    setResult({ success, failed, total: ibkrData.items.length })
+    setStep('done')
+    setImporting(false)
+  }, [ibkrData, onImportItems, onImportSnapshot, onAddLot, activePortfolio, activeEntity])
+
   const handleDrop = useCallback((e) => {
     e.preventDefault()
     const file = e.dataTransfer.files[0]
@@ -579,12 +639,37 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
 
   const t = (es, en) => lang === 'es' ? es : en
 
+  const BROKER_INSTRUCTIONS = {
+    ibkr: { name: 'Interactive Brokers', icon: '🏦', steps: t(
+      'IBKR → Performance & Reports → Statements → Activity → Exportar CSV. Asegúrate de exportar un "Activity Statement", NO un "Performance Report".',
+      'IBKR → Performance & Reports → Statements → Activity → Export CSV. Make sure to export an "Activity Statement", NOT a "Performance Report".'
+    )},
+    alpaca: { name: 'Alpaca Markets', icon: '🦙', steps: t('Alpaca → Dashboard → Portfolio → Export CSV', 'Alpaca → Dashboard → Portfolio → Export CSV') },
+    schwab: { name: 'Charles Schwab', icon: '🇺🇸', steps: t('Schwab → Positions → Export → CSV', 'Schwab → Positions → Export → CSV') },
+    fidelity: { name: 'Fidelity', icon: '🇺🇸', steps: t('Fidelity → Positions → Download Positions', 'Fidelity → Positions → Download Positions') },
+    vanguard: { name: 'Vanguard', icon: '🇺🇸', steps: t('Vanguard → My Accounts → Download holdings', 'Vanguard → My Accounts → Download holdings') },
+    degiro: { name: 'DEGIRO', icon: '🇪🇺', steps: t('DEGIRO → Actividad → Portafolio → Exportar', 'DEGIRO → Activity → Portfolio → Export') },
+    trading212: { name: 'Trading 212', icon: '📊', steps: t('Trading 212 → Menú → Historial → Exportar CSV', 'Trading 212 → Menu → History → Export CSV') },
+    traderepublic: { name: 'Trade Republic', icon: '🇩🇪', steps: t('Trade Republic → Perfil → Actividad → Exportar', 'Trade Republic → Profile → Activity → Export') },
+    etoro: { name: 'eToro', icon: '📈', steps: t('eToro → Portfolio → Configuración → Descargar datos', 'eToro → Portfolio → Settings → Download data') },
+    webull: { name: 'Webull', icon: '📱', steps: t('Webull → Positions → Export CSV', 'Webull → Positions → Export CSV') },
+    coinbase: { name: 'Coinbase', icon: '🟠', steps: t('Coinbase → Configuración → Reportes → Generar reporte de transacciones', 'Coinbase → Settings → Reports → Generate transaction report') },
+    kraken: { name: 'Kraken', icon: '🦑', steps: t('Kraken → History → Export → Trades o Ledger', 'Kraken → History → Export → Trades or Ledger') },
+    binance: { name: 'Binance', icon: '🟡', steps: t('Binance → Wallet → Spot → Export', 'Binance → Wallet → Spot → Export') },
+    bitso: { name: 'Bitso', icon: '🟢', steps: t('Bitso → Actividad → Exportar transacciones', 'Bitso → Activity → Export transactions') },
+  }
+
+  const brokerInfo = brokerHint ? BROKER_INSTRUCTIONS[brokerHint] : null
+  const modalTitle = brokerInfo
+    ? t(`Importar CSV — ${brokerInfo.name}`, `Import CSV — ${brokerInfo.name}`)
+    : t('Importar Portfolio', 'Import Portfolio')
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="import-modal-title">
       <div className="bg-[#1C1C1E] border border-[#38383A] rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#38383A]">
-          <h2 id="import-modal-title" className="text-lg font-bold text-white">{t('Importar Portfolio', 'Import Portfolio')}</h2>
+          <h2 id="import-modal-title" className="text-lg font-bold text-white">{brokerInfo ? `${brokerInfo.icon} ` : ''}{modalTitle}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
         </div>
 
@@ -617,13 +702,19 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
           {/* Upload step */}
           {step === 'upload' && mode === 'file' && (
             <div>
+              {brokerInfo && (
+                <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                  <p className="text-blue-400 text-xs font-medium mb-1">{t('Instrucciones', 'Instructions')}</p>
+                  <p className="text-slate-400 text-xs">{brokerInfo.steps}</p>
+                </div>
+              )}
               <div
                 onDrop={handleDrop}
                 onDragOver={(e) => e.preventDefault()}
                 onClick={() => fileRef.current?.click()}
                 className="border-2 border-dashed border-[#38383A] rounded-xl p-6 sm:p-12 text-center cursor-pointer hover:border-blue-500/50 hover:bg-blue-500/5 transition-colors"
               >
-                <div className="text-4xl mb-3">📊</div>
+                <div className="text-4xl mb-3">{brokerInfo ? brokerInfo.icon : '📊'}</div>
                 <p className="text-white font-medium mb-1">{t('Arrastra tu archivo aquí', 'Drag your file here')}</p>
                 <p className="text-slate-500 text-sm">{t('o haz clic para seleccionar', 'or click to browse')}</p>
                 <p className="text-slate-600 text-xs mt-3">.xlsx, .xls, .csv</p>
@@ -906,6 +997,66 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                 <button onClick={doBIImport} disabled={importing}
                   className="flex-1 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-50 transition-colors text-sm font-medium">
                   {importing ? t('Importando...', 'Importing...') : t(`Importar ${biData.transactions.length} transacciones`, `Import ${biData.transactions.length} transactions`)}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* IBKR Preview step */}
+          {step === 'ibkr-preview' && ibkrData && (
+            <div>
+              <div className="flex items-center gap-2 px-3 py-2 mb-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                <span className="text-blue-400 text-xs font-medium">
+                  {t('Formato detectado: Interactive Brokers Activity Statement', 'Format detected: Interactive Brokers Activity Statement')}
+                </span>
+              </div>
+              <p className="text-slate-400 text-sm mb-1">
+                {t(`${ibkrData.items.length} posiciones encontradas`, `${ibkrData.items.length} positions found`)}
+                {ibkrData.transactions?.length > 0 && ` + ${ibkrData.transactions.length} ${t('trades', 'trades')}`}
+                {ibkrData.equityHistory?.length > 0 && ` + ${ibkrData.equityHistory.length} ${t('snapshots NAV', 'NAV snapshots')}`}
+              </p>
+              {ibkrData._sectionNames?.length > 0 && (
+                <p className="text-[10px] text-slate-600 mb-3">
+                  {t('Secciones', 'Sections')}: {ibkrData._sectionNames.join(', ')}
+                </p>
+              )}
+
+              <div className="overflow-x-auto max-h-60 overflow-y-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-slate-500 border-b border-[#38383A] sticky top-0 bg-[#1C1C1E]">
+                      <th className="text-left py-2 px-2">Symbol</th>
+                      <th className="text-left py-2 px-2">Name</th>
+                      <th className="text-left py-2 px-2">Type</th>
+                      <th className="text-right py-2 px-2">Qty</th>
+                      <th className="text-right py-2 px-2">{t('Costo', 'Cost')}</th>
+                      <th className="text-right py-2 px-2">{t('Precio', 'Price')}</th>
+                      <th className="text-left py-2 px-2">CCY</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ibkrData.items.map((item, i) => (
+                      <tr key={i} className="border-b border-[#38383A]/50 hover:bg-[#2C2C2E]">
+                        <td className="py-2 px-2 text-blue-400 font-medium">{item.symbol}</td>
+                        <td className="py-2 px-2 text-white max-w-[150px] truncate">{item.name}</td>
+                        <td className="py-2 px-2 text-slate-400">{item.type}</td>
+                        <td className="py-2 px-2 text-right text-slate-300">{item.quantity?.toLocaleString()}</td>
+                        <td className="py-2 px-2 text-right text-slate-300">${item.purchasePrice?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td className="py-2 px-2 text-right text-slate-300">${item.currentPrice?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td className="py-2 px-2 text-slate-500">{item.currency}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex gap-3 mt-4">
+                <button onClick={() => { setIbkrData(null); setStep('upload') }}
+                  className="flex-1 py-2.5 border border-[#38383A] text-slate-300 rounded-lg hover:bg-[#2C2C2E] transition-colors text-sm">
+                  {t('Atrás', 'Back')}
+                </button>
+                <button onClick={doIBKRImport} disabled={importing}
+                  className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium">
+                  {importing ? t('Importando...', 'Importing...') : t(`Importar ${ibkrData.items.length} posiciones`, `Import ${ibkrData.items.length} positions`)}
                 </button>
               </div>
             </div>

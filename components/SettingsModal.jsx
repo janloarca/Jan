@@ -608,7 +608,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                           {broker.apiNote}
                         </span>
                       ) : null}
-                      <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport() }, 50) }}
+                      <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport(broker.id) }, 50) }}
                         className="px-2.5 py-1 border border-[#38383A] text-slate-400 text-[11px] font-medium rounded-md hover:bg-[#2C2C2E] transition-colors">
                         CSV
                       </button>
@@ -672,7 +672,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                           API
                         </button>
                       )}
-                      <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport() }, 50) }}
+                      <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport('ibkr') }, 50) }}
                         className="px-2.5 py-1 border border-[#38383A] text-slate-400 text-[11px] font-medium rounded-md hover:bg-[#2C2C2E] transition-colors">
                         CSV
                       </button>
