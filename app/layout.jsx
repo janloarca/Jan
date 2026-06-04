@@ -36,12 +36,16 @@ export default function RootLayout({ children }) {
   const themeScript = `
     (function() {
       try {
-        var saved = localStorage.getItem('chispudo-theme');
-        if (saved === 'light' || saved === 'dark') {
-          document.documentElement.setAttribute('data-theme', saved);
+        if (window.location.pathname === '/') {
+          document.documentElement.setAttribute('data-theme', 'dark');
         } else {
-          var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-          document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+          var saved = localStorage.getItem('chispudo-theme');
+          if (saved === 'light' || saved === 'dark') {
+            document.documentElement.setAttribute('data-theme', saved);
+          } else {
+            var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+          }
         }
       } catch(e) {}
       if ('serviceWorker' in navigator) {
