@@ -287,6 +287,13 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const newLots = []
     const deleteIds = []
 
+    // Tag imported items with the active portfolio/entity so they're never
+    // filtered out of the current view (items without these fields get hidden
+    // when a specific portfolio/entity is selected).
+    const tag = {}
+    if (activePortfolio && activePortfolio !== '__all__') tag.portfolioId = activePortfolio
+    if (activeEntity && activeEntity !== '__all__' && activeEntity !== 'default') tag.entityId = activeEntity
+
     if (mode === 'replace') {
       items.filter(it =>
         it._source === 'ibkr' || (it.institution || '').toLowerCase().includes('interactive brokers')
@@ -319,7 +326,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           },
         })
       } else {
-        newItems.push(item)
+        newItems.push({ ...item, ...tag })
         if (item.quantity > 0 && item.purchasePrice > 0 && item.type !== 'Bank') {
           newLots.push({
             symbol: item.symbol,
@@ -327,6 +334,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             costBasis: item.purchasePrice,
             currency: item.currency || 'USD',
             acquisitionDate: item.acquisitionDate || new Date().toISOString().split('T')[0],
+            ...(tag.portfolioId ? { portfolioId: tag.portfolioId } : {}),
           })
         }
       }
@@ -371,7 +379,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       updateItems: updateOps,
       deleteIds,
     }, onProgress)
-  }, [items, snapshots, bulkImport])
+  }, [items, snapshots, bulkImport, activePortfolio, activeEntity])
 
   const FATAL_ERROR_CODES = ['TOKEN_EXPIRED', 'INVALID_QUERY']
 

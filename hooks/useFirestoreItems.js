@@ -412,6 +412,14 @@ export function useFirestoreItems() {
     const now = new Date().toISOString()
     const strip = (obj) => Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined))
 
+    // iOS Safari suspends background tabs and drops the Firestore websocket,
+    // leaving the SDK offline: writes hit the local cache (visible in the UI)
+    // but never reach the server, so they vanish on refresh. Force the network
+    // back online and confirm a clean connection before writing.
+    try {
+      await fs.enableNetwork(db)
+    } catch {}
+
     const ops = []
 
     for (const id of (deleteIds || [])) {
@@ -454,6 +462,7 @@ export function useFirestoreItems() {
     if (onProgress) onProgress(0, total)
 
     let failures = 0
+    let timedOut = false
     for (let i = 0; i < ops.length; i += CHUNK) {
       const chunk = ops.slice(i, i + CHUNK)
       const batch = fs.writeBatch(db)
@@ -464,14 +473,22 @@ export function useFirestoreItems() {
         else batch.set(op.ref, op.data)
       }
       try {
-        await batch.commit()
+        // Per-batch timeout: if the websocket is wedged, commit() can hang
+        // forever (writes stay in the local cache, progress freezes at the
+        // current value). Fail fast so the error surfaces instead of hanging.
+        await Promise.race([
+          batch.commit(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('commit-timeout')), 20000)),
+        ])
       } catch (err) {
-        console.error(`[bulkImport] Batch ${Math.floor(i / CHUNK) + 1} failed:`, err)
+        console.error(`[bulkImport] Batch ${Math.floor(i / CHUNK) + 1} failed:`, err?.code || err?.message)
         failures += chunk.length
+        if (err?.message === 'commit-timeout') { timedOut = true; break }
       }
       done += chunk.length
       if (onProgress) onProgress(done, total)
     }
+    if (timedOut) throw new Error('No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.')
     if (failures > 0) throw new Error(`${failures} of ${total} operations failed`)
   }, [uid])
 
