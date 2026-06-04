@@ -57,6 +57,7 @@ const GainsReport = dynamic(() => import('@/components/dashboard/GainsReport'), 
 const PerformanceAttribution = dynamic(() => import('@/components/dashboard/PerformanceAttribution'), { loading: () => <SkeletonCard /> })
 const InsightCards = dynamic(() => import('@/components/dashboard/InsightCards'), { loading: () => <SkeletonCard /> })
 const InstitutionPerformance = dynamic(() => import('@/components/dashboard/InstitutionPerformance'), { loading: () => <SkeletonCard /> })
+const RebalanceSuggestions = dynamic(() => import('@/components/dashboard/RebalanceSuggestions'), { loading: () => <SkeletonCard /> })
 
 import RecentTransactions from '@/components/dashboard/RecentTransactions'
 import AssetAllocation from '@/components/dashboard/AssetAllocation'
@@ -67,6 +68,7 @@ import EmptyState from '@/components/dashboard/EmptyState'
 import PortfolioSelector from '@/components/dashboard/PortfolioSelector'
 import EntitySwitcher from '@/components/dashboard/EntitySwitcher'
 import { useEntities } from '@/hooks/useEntities'
+import { authFetch } from '@/lib/authFetch'
 
 function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, lots }) {
   const [tab, setTab] = useState('health')
@@ -246,6 +248,59 @@ export default function DashboardPage() {
   useEffect(() => {
     return () => { if (toastTimer.current) clearTimeout(toastTimer.current) }
   }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const oauthCode = params.get('oauth_code')
+    const oauthBroker = params.get('oauth_broker')
+    const oauthError = params.get('oauth_error')
+    if (oauthError) {
+      showToast(`OAuth error: ${oauthError}`, 'error', 5000)
+      window.history.replaceState({}, '', '/dashboard')
+      return
+    }
+    if (oauthCode && oauthBroker) {
+      window.history.replaceState({}, '', '/dashboard')
+      authFetch(`/api/brokers/${oauthBroker}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'exchange-code', code: oauthCode }),
+      }).then(r => r.ok ? r.json() : r.json().then(d => { throw new Error(d.error || 'OAuth failed') }))
+        .then(() => showToast(lang === 'es' ? 'Broker vinculado via OAuth' : 'Broker linked via OAuth'))
+        .catch(e => showToast(e.message, 'error', 5000))
+    }
+  }, [])
+
+  const enrichCacheRef = useRef({})
+  useEffect(() => {
+    if (!portfolioItems || portfolioItems.length === 0) return
+    const needEnrich = portfolioItems
+      .filter(it => it.symbol && !it.sector && !it.assetCountry && !enrichCacheRef.current[it.symbol])
+      .map(it => it.symbol)
+    const unique = [...new Set(needEnrich)].slice(0, 30)
+    if (unique.length === 0) return
+
+    unique.forEach(s => { enrichCacheRef.current[s] = 'pending' })
+    authFetch('/api/prices/enrich', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbols: unique }),
+    }).then(r => r.ok ? r.json() : null).then(data => {
+      if (!data?.results) return
+      for (const [sym, info] of Object.entries(data.results)) {
+        enrichCacheRef.current[sym] = info
+      }
+      for (const item of portfolioItems) {
+        const info = enrichCacheRef.current[item.symbol]
+        if (info && typeof info === 'object') {
+          if (info.sector && !item.sector) item.sector = info.sector
+          if (info.country && !item.assetCountry) item.assetCountry = info.country
+          if (info.industry && !item.industry) item.industry = info.industry
+        }
+      }
+    }).catch(() => {})
+  }, [portfolioItems])
 
   // Export XLSX
   const handleExport = useCallback(async () => {
@@ -634,6 +689,9 @@ export default function DashboardPage() {
         <SectionCollapse title={lang === 'es' ? 'Metas' : 'Goals'} id="goals" defaultOpen={!!(goals?.incomeGoal || goals?.portfolioGoal)}>
           <ErrorBoundary lang={lang}>
             <CardBoundary id="GO-01"><GoalTracker netWorth={netWorth} annualDividends={annualDividends} estimatedAnnualIncome={estimatedAnnualIncome} goals={goals} onSaveGoals={saveGoals} volatility={riskMetrics?.volatility} lang={lang} /></CardBoundary>
+            {!settings?.hideRebalanceSuggestions && (
+              <CardBoundary id="IG-10"><RebalanceSuggestions items={portfolioItems} netWorth={netWorth} goals={goals} onSaveGoals={saveGoals} lang={lang} onDismiss={() => saveSettings({ ...settings, hideRebalanceSuggestions: true })} /></CardBoundary>
+            )}
           </ErrorBoundary>
         </SectionCollapse>
 

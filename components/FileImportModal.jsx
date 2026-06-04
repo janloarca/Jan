@@ -257,6 +257,12 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     return () => window.removeEventListener('keydown', handleEsc)
   }, [onClose])
 
+  useEffect(() => {
+    if (brokerHint && step === 'upload' && mode === 'file') {
+      setTimeout(() => fileRef.current?.click(), 150)
+    }
+  }, [brokerHint])
+
   const handleFile = useCallback(async (file) => {
     setError('')
 
@@ -284,10 +290,9 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         if (isIBKRSectionedFormat(rawText)) {
           const parsed = parseIBKRFile(rawText)
           if (parsed._isPerformanceReport || (parsed.positions.length === 0 && parsed.cashPositions.length === 0)) {
-            const sectionList = (parsed._sectionNames || []).join(', ')
             setError(lang === 'es'
-              ? `Este archivo parece ser un reporte de rendimiento de IBKR (secciones: ${sectionList}). Por favor exporta un Activity Statement con "Open Positions" y "Trades".`
-              : `This file appears to be an IBKR Performance Report (sections: ${sectionList}). Please export an Activity Statement with "Open Positions" and "Trades".`)
+              ? 'No se encontraron posiciones en este archivo. Exporta un Activity Statement desde IBKR → Reports → Statements → Activity.'
+              : 'No positions found in this file. Export an Activity Statement from IBKR → Reports → Statements → Activity.')
             return
           }
           const formatted = formatIBKRFileResult(parsed)
@@ -640,23 +645,20 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   const t = (es, en) => lang === 'es' ? es : en
 
   const BROKER_INSTRUCTIONS = {
-    ibkr: { name: 'Interactive Brokers', icon: '🏦', steps: t(
-      'IBKR → Performance & Reports → Statements → Activity → Exportar CSV. Asegúrate de exportar un "Activity Statement", NO un "Performance Report".',
-      'IBKR → Performance & Reports → Statements → Activity → Export CSV. Make sure to export an "Activity Statement", NOT a "Performance Report".'
-    )},
-    alpaca: { name: 'Alpaca Markets', icon: '🦙', steps: t('Alpaca → Dashboard → Portfolio → Export CSV', 'Alpaca → Dashboard → Portfolio → Export CSV') },
-    schwab: { name: 'Charles Schwab', icon: '🇺🇸', steps: t('Schwab → Positions → Export → CSV', 'Schwab → Positions → Export → CSV') },
-    fidelity: { name: 'Fidelity', icon: '🇺🇸', steps: t('Fidelity → Positions → Download Positions', 'Fidelity → Positions → Download Positions') },
-    vanguard: { name: 'Vanguard', icon: '🇺🇸', steps: t('Vanguard → My Accounts → Download holdings', 'Vanguard → My Accounts → Download holdings') },
-    degiro: { name: 'DEGIRO', icon: '🇪🇺', steps: t('DEGIRO → Actividad → Portafolio → Exportar', 'DEGIRO → Activity → Portfolio → Export') },
-    trading212: { name: 'Trading 212', icon: '📊', steps: t('Trading 212 → Menú → Historial → Exportar CSV', 'Trading 212 → Menu → History → Export CSV') },
-    traderepublic: { name: 'Trade Republic', icon: '🇩🇪', steps: t('Trade Republic → Perfil → Actividad → Exportar', 'Trade Republic → Profile → Activity → Export') },
-    etoro: { name: 'eToro', icon: '📈', steps: t('eToro → Portfolio → Configuración → Descargar datos', 'eToro → Portfolio → Settings → Download data') },
-    webull: { name: 'Webull', icon: '📱', steps: t('Webull → Positions → Export CSV', 'Webull → Positions → Export CSV') },
-    coinbase: { name: 'Coinbase', icon: '🟠', steps: t('Coinbase → Configuración → Reportes → Generar reporte de transacciones', 'Coinbase → Settings → Reports → Generate transaction report') },
-    kraken: { name: 'Kraken', icon: '🦑', steps: t('Kraken → History → Export → Trades o Ledger', 'Kraken → History → Export → Trades or Ledger') },
-    binance: { name: 'Binance', icon: '🟡', steps: t('Binance → Wallet → Spot → Export', 'Binance → Wallet → Spot → Export') },
-    bitso: { name: 'Bitso', icon: '🟢', steps: t('Bitso → Actividad → Exportar transacciones', 'Bitso → Activity → Export transactions') },
+    ibkr: { name: 'Interactive Brokers', icon: '🏦' },
+    alpaca: { name: 'Alpaca Markets', icon: '🦙' },
+    schwab: { name: 'Charles Schwab', icon: '🇺🇸' },
+    fidelity: { name: 'Fidelity', icon: '🇺🇸' },
+    vanguard: { name: 'Vanguard', icon: '🇺🇸' },
+    degiro: { name: 'DEGIRO', icon: '🇪🇺' },
+    trading212: { name: 'Trading 212', icon: '📊' },
+    traderepublic: { name: 'Trade Republic', icon: '🇩🇪' },
+    etoro: { name: 'eToro', icon: '📈' },
+    webull: { name: 'Webull', icon: '📱' },
+    coinbase: { name: 'Coinbase', icon: '🟠' },
+    kraken: { name: 'Kraken', icon: '🦑' },
+    binance: { name: 'Binance', icon: '🟡' },
+    bitso: { name: 'Bitso', icon: '🟢' },
   }
 
   const brokerInfo = brokerHint ? BROKER_INSTRUCTIONS[brokerHint] : null
@@ -702,12 +704,6 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
           {/* Upload step */}
           {step === 'upload' && mode === 'file' && (
             <div>
-              {brokerInfo && (
-                <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-                  <p className="text-blue-400 text-xs font-medium mb-1">{t('Instrucciones', 'Instructions')}</p>
-                  <p className="text-slate-400 text-xs">{brokerInfo.steps}</p>
-                </div>
-              )}
               <div
                 onDrop={handleDrop}
                 onDragOver={(e) => e.preventDefault()}

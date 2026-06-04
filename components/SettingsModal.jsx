@@ -198,14 +198,14 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
       { key: 'apiKey', label: 'API Key', placeholder: 'PK...' },
       { key: 'apiSecret', label: 'API Secret', placeholder: '••••••••', type: 'password' },
     ], instructions: { es: 'Ve a tu cuenta Alpaca → Paper/Live → API Keys → Generar', en: 'Go to Alpaca account → Paper/Live → API Keys → Generate' } },
-    { id: 'schwab', name: 'Charles Schwab', icon: '🇺🇸', category: 'traditional', hasApi: false, apiNote: 'OAuth', fields: [], instructions: { es: 'Schwab requiere OAuth 2.0. Próximamente.', en: 'Schwab requires OAuth 2.0. Coming soon.' } },
+    { id: 'schwab', name: 'Charles Schwab', icon: '🇺🇸', category: 'traditional', hasApi: true, authType: 'oauth', fields: [], instructions: { es: 'Conecta tu cuenta Schwab via OAuth. Se abrirá una ventana de autorización.', en: 'Connect your Schwab account via OAuth. An authorization window will open.' } },
     { id: 'etoro', name: 'eToro', icon: '📈', category: 'traditional', hasApi: true, fields: [
       { key: 'apiKey', label: 'API Key (x-api-key)', placeholder: 'Tu API key' },
       { key: 'userKey', label: 'User Key (x-user-key)', placeholder: 'Tu user key' },
     ], instructions: { es: 'Ve a eToro → Configuración → API → Generar keys', en: 'Go to eToro → Settings → API → Generate keys' } },
-    { id: 'tradestation', name: 'TradeStation', icon: '🖥️', category: 'traditional', hasApi: false, apiNote: 'OAuth', fields: [], instructions: { es: 'TradeStation requiere OAuth. Próximamente.', en: 'TradeStation requires OAuth. Coming soon.' } },
+    { id: 'tradestation', name: 'TradeStation', icon: '🖥️', category: 'traditional', hasApi: true, authType: 'oauth', fields: [], instructions: { es: 'Conecta tu cuenta TradeStation via OAuth. Requiere cuenta con $10k mínimo.', en: 'Connect your TradeStation account via OAuth. Requires $10k minimum funded account.' } },
     { id: 'tastytrade', name: 'Tastytrade', icon: '🇺🇸', category: 'traditional', hasApi: false, apiNote: 'OAuth', fields: [], instructions: { es: 'Tastytrade usa sesiones OAuth. Próximamente.', en: 'Tastytrade uses OAuth sessions. Coming soon.' } },
-    { id: 'saxo', name: 'Saxo Bank', icon: '🏦', category: 'traditional', hasApi: false, apiNote: 'OAuth', fields: [], instructions: { es: 'Saxo Bank requiere aprobación OAuth. Próximamente.', en: 'Saxo Bank requires OAuth approval. Coming soon.' } },
+    { id: 'saxo', name: 'Saxo Bank', icon: '🏦', category: 'traditional', hasApi: true, authType: 'oauth', fields: [], instructions: { es: 'Conecta tu cuenta Saxo Bank via OAuth. Ambiente sim disponible.', en: 'Connect your Saxo Bank account via OAuth. Sim environment available.' } },
     { id: 'ig', name: 'IG Markets', icon: '🇬🇧', category: 'traditional', hasApi: false, apiNote: t('Sesión', 'Session'), fields: [], instructions: { es: 'IG usa sesión con API key. Próximamente.', en: 'IG uses session-based API key. Coming soon.' } },
     { id: 'degiro', name: 'DEGIRO', icon: '🇪🇺', category: 'traditional', hasApi: false, apiNote: t('No oficial', 'Unofficial'), fields: [] },
     { id: 'trading212', name: 'Trading 212', icon: '📊', category: 'traditional', hasApi: false, apiNote: t('Limitado', 'Limited'), fields: [] },
@@ -257,6 +257,29 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   const handleBrokerConnect = async (broker) => {
     setBrokerSyncing(broker.id)
     setBrokerError(null)
+
+    if (broker.authType === 'oauth') {
+      try {
+        const res = await authFetch(`/api/brokers/${broker.id}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'get-auth-url' }),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          if (data.url) {
+            window.open(data.url, '_blank', 'width=600,height=700')
+            flash('ok', t('Ventana de autorización abierta. Completa el proceso allí.', 'Authorization window opened. Complete the process there.'))
+          }
+        } else {
+          const d = await res.json()
+          setBrokerError(d.error || 'OAuth not configured')
+        }
+      } catch (e) { setBrokerError(e.message) }
+      setBrokerSyncing(null)
+      return
+    }
+
     try {
       const res = await authFetch(`/api/brokers/${broker.id}`, {
         method: 'POST',
@@ -599,9 +622,12 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                           </button>
                         </>
                       ) : broker.hasApi ? (
-                        <button onClick={() => { setExpandedBroker(isExpanded ? null : broker.id); setBrokerForm({}); setBrokerError(null) }}
+                        <button onClick={() => {
+                          if (broker.authType === 'oauth') { handleBrokerConnect(broker); return }
+                          setExpandedBroker(isExpanded ? null : broker.id); setBrokerForm({}); setBrokerError(null)
+                        }}
                           className="px-2.5 py-1 border border-blue-500/40 text-blue-400 text-[11px] font-medium rounded-md hover:bg-blue-500/10 transition-colors">
-                          {isExpanded ? t('Cancelar', 'Cancel') : 'API'}
+                          {isSyncing ? '...' : broker.authType === 'oauth' ? 'OAuth' : isExpanded ? t('Cancelar', 'Cancel') : 'API'}
                         </button>
                       ) : broker.apiNote ? (
                         <span className="px-2 py-0.5 text-[10px] text-slate-600 border border-[#38383A]/40 rounded">
@@ -614,7 +640,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                       </button>
                     </div>
                   </div>
-                  {isExpanded && broker.hasApi && (
+                  {isExpanded && broker.hasApi && !broker.authType && (
                     <div className="px-3 pb-3 pt-1 border-t border-[#38383A]/30 space-y-2">
                       {broker.instructions && (
                         <p className="text-[10px] text-slate-600">{broker.instructions[lang] || broker.instructions.en}</p>
