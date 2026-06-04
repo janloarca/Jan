@@ -123,7 +123,7 @@ export default function DashboardPage() {
   const [editItem, setEditItem] = useState(null)
   const [sellItem, setSellItem] = useState(null)
   const [detailItem, setDetailItem] = useState(null)
-  const [theme, setTheme] = useState('system')
+  const [theme, setTheme] = useState('dark')
   const [lang, setLang] = useState('es')
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [activePortfolio, setActivePortfolio] = useState('__all__')
@@ -149,11 +149,11 @@ export default function DashboardPage() {
           document.documentElement.setAttribute('data-theme', t)
         }
       }
-      applyTheme(savedTheme || 'system')
+      applyTheme(savedTheme || 'dark')
       const mq = window.matchMedia('(prefers-color-scheme: dark)')
       const handler = () => {
         const current = localStorage.getItem('chispudo-theme')
-        if (!current || current === 'system') document.documentElement.setAttribute('data-theme', mq.matches ? 'dark' : 'light')
+        if (current === 'system') document.documentElement.setAttribute('data-theme', mq.matches ? 'dark' : 'light')
       }
       mq.addEventListener('change', handler)
       return () => mq.removeEventListener('change', handler)
