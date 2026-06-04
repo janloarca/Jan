@@ -55,6 +55,11 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   const [showConfig, setShowConfig] = useState(false)
   const [confirmUnlink, setConfirmUnlink] = useState(false)
   const [saveStatus, setSaveStatus] = useState(null)
+  const [brokerConnections, setBrokerConnections] = useState({})
+  const [expandedBroker, setExpandedBroker] = useState(null)
+  const [brokerForm, setBrokerForm] = useState({})
+  const [brokerSyncing, setBrokerSyncing] = useState(null)
+  const [brokerError, setBrokerError] = useState(null)
 
   const t = (es, en) => lang === 'es' ? es : en
 
@@ -188,6 +193,126 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   }
 
 
+  const BROKER_REGISTRY = [
+    { id: 'alpaca', name: 'Alpaca Markets', icon: '🦙', category: 'traditional', hasApi: true, fields: [
+      { key: 'apiKey', label: 'API Key', placeholder: 'PK...' },
+      { key: 'apiSecret', label: 'API Secret', placeholder: '••••••••', type: 'password' },
+    ], instructions: { es: 'Ve a tu cuenta Alpaca → Paper/Live → API Keys → Generar', en: 'Go to Alpaca account → Paper/Live → API Keys → Generate' } },
+    { id: 'schwab', name: 'Charles Schwab', icon: '🇺🇸', category: 'traditional', hasApi: false, apiNote: 'OAuth', fields: [], instructions: { es: 'Schwab requiere OAuth 2.0. Próximamente.', en: 'Schwab requires OAuth 2.0. Coming soon.' } },
+    { id: 'etoro', name: 'eToro', icon: '📈', category: 'traditional', hasApi: true, fields: [
+      { key: 'apiKey', label: 'API Key (x-api-key)', placeholder: 'Tu API key' },
+      { key: 'userKey', label: 'User Key (x-user-key)', placeholder: 'Tu user key' },
+    ], instructions: { es: 'Ve a eToro → Configuración → API → Generar keys', en: 'Go to eToro → Settings → API → Generate keys' } },
+    { id: 'tradestation', name: 'TradeStation', icon: '🖥️', category: 'traditional', hasApi: false, apiNote: 'OAuth', fields: [], instructions: { es: 'TradeStation requiere OAuth. Próximamente.', en: 'TradeStation requires OAuth. Coming soon.' } },
+    { id: 'tastytrade', name: 'Tastytrade', icon: '🇺🇸', category: 'traditional', hasApi: false, apiNote: 'OAuth', fields: [], instructions: { es: 'Tastytrade usa sesiones OAuth. Próximamente.', en: 'Tastytrade uses OAuth sessions. Coming soon.' } },
+    { id: 'saxo', name: 'Saxo Bank', icon: '🏦', category: 'traditional', hasApi: false, apiNote: 'OAuth', fields: [], instructions: { es: 'Saxo Bank requiere aprobación OAuth. Próximamente.', en: 'Saxo Bank requires OAuth approval. Coming soon.' } },
+    { id: 'ig', name: 'IG Markets', icon: '🇬🇧', category: 'traditional', hasApi: false, apiNote: t('Sesión', 'Session'), fields: [], instructions: { es: 'IG usa sesión con API key. Próximamente.', en: 'IG uses session-based API key. Coming soon.' } },
+    { id: 'degiro', name: 'DEGIRO', icon: '🇪🇺', category: 'traditional', hasApi: false, apiNote: t('No oficial', 'Unofficial'), fields: [] },
+    { id: 'trading212', name: 'Trading 212', icon: '📊', category: 'traditional', hasApi: false, apiNote: t('Limitado', 'Limited'), fields: [] },
+    { id: 'traderepublic', name: 'Trade Republic', icon: '🇩🇪', category: 'traditional', hasApi: false, apiNote: t('No oficial', 'Unofficial'), fields: [] },
+    { id: 'lightyear', name: 'Lightyear', icon: '💡', category: 'traditional', hasApi: false },
+    { id: 'fidelity', name: 'Fidelity', icon: '🇺🇸', category: 'traditional', hasApi: false },
+    { id: 'vanguard', name: 'Vanguard', icon: '🇺🇸', category: 'traditional', hasApi: false },
+    { id: 'webull', name: 'Webull', icon: '📱', category: 'traditional', hasApi: false, apiNote: t('Partner', 'Partner') },
+    { id: 'm1finance', name: 'M1 Finance', icon: '🇺🇸', category: 'traditional', hasApi: false },
+    { id: 'revolut', name: 'Revolut Investments', icon: '💳', category: 'traditional', hasApi: false },
+    { id: 'myinvestor', name: 'MyInvestor', icon: '🇪🇸', category: 'traditional', hasApi: false },
+    { id: 'dukascopy', name: 'Dukascopy', icon: '🇨🇭', category: 'traditional', hasApi: false },
+    { id: 'ppiglobal', name: 'PPI Global', icon: '🇦🇷', category: 'traditional', hasApi: false, apiNote: t('API oficial', 'Official API') },
+    { id: 'tdameritrade', name: 'TD Ameritrade', icon: '🇺🇸', category: 'traditional', hasApi: false, apiNote: '→ Schwab' },
+    { id: 'binance', name: 'Binance', icon: '🟡', category: 'crypto', hasApi: true, fields: [
+      { key: 'apiKey', label: 'API Key', placeholder: 'Tu API key' },
+      { key: 'apiSecret', label: 'Secret Key', placeholder: '••••••••', type: 'password' },
+    ], instructions: { es: 'Ve a Binance → API Management → Crear API → Solo lectura', en: 'Go to Binance → API Management → Create API → Read-only' } },
+    { id: 'coinbase', name: 'Coinbase', icon: '🟠', category: 'crypto', hasApi: true, fields: [
+      { key: 'apiKey', label: 'API Key', placeholder: 'Tu API key' },
+      { key: 'apiSecret', label: 'API Secret', placeholder: '••••••••', type: 'password' },
+    ], instructions: { es: 'Ve a Coinbase → Settings → API → New API Key → Portfolio read', en: 'Go to Coinbase → Settings → API → New API Key → Portfolio read' } },
+    { id: 'kraken', name: 'Kraken', icon: '🦑', category: 'crypto', hasApi: true, fields: [
+      { key: 'apiKey', label: 'API Key', placeholder: 'Tu API key' },
+      { key: 'apiSecret', label: 'Private Key', placeholder: '••••••••', type: 'password' },
+    ], instructions: { es: 'Ve a Kraken → Security → API → Create Key → Solo consulta', en: 'Go to Kraken → Security → API → Create Key → Query only' } },
+    { id: 'bitso', name: 'Bitso', icon: '🟢', category: 'crypto', hasApi: true, fields: [
+      { key: 'apiKey', label: 'API Key', placeholder: 'Tu API key' },
+      { key: 'apiSecret', label: 'API Secret', placeholder: '••••••••', type: 'password' },
+    ], instructions: { es: 'Ve a Bitso → API → Crear key → 2FA requerido', en: 'Go to Bitso → API → Create key → 2FA required' } },
+  ]
+
+  useEffect(() => {
+    if (tab !== 'brokers') return
+    const apiBrokers = BROKER_REGISTRY.filter(b => b.hasApi)
+    apiBrokers.forEach(broker => {
+      authFetch(`/api/brokers/${broker.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'get-credentials' }),
+      }).then(r => r.ok ? r.json() : null).then(d => {
+        if (d?.configured) {
+          setBrokerConnections(prev => ({ ...prev, [broker.id]: { configured: true, lastSync: d.lastSync } }))
+        }
+      }).catch(() => {})
+    })
+  }, [tab])
+
+  const handleBrokerConnect = async (broker) => {
+    setBrokerSyncing(broker.id)
+    setBrokerError(null)
+    try {
+      const res = await authFetch(`/api/brokers/${broker.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'save-credentials', ...brokerForm }),
+      })
+      if (res.ok) {
+        setBrokerConnections(prev => ({ ...prev, [broker.id]: { configured: true } }))
+        setExpandedBroker(null)
+        setBrokerForm({})
+        flash('ok', `${broker.name} ${t('vinculado', 'linked')}`)
+      } else {
+        const d = await res.json()
+        setBrokerError(d.error || 'Error')
+      }
+    } catch (e) { setBrokerError(e.message) }
+    setBrokerSyncing(null)
+  }
+
+  const handleBrokerSync = async (broker) => {
+    setBrokerSyncing(broker.id)
+    setBrokerError(null)
+    try {
+      const res = await authFetch(`/api/brokers/${broker.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'sync' }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.positions && onSyncBroker) {
+          onSyncBroker(broker.id, data)
+        }
+        flash('ok', `${broker.name}: ${data.count || 0} ${t('posiciones sincronizadas', 'positions synced')}`)
+      } else {
+        const d = await res.json()
+        setBrokerError(d.error || 'Sync failed')
+      }
+    } catch (e) { setBrokerError(e.message) }
+    setBrokerSyncing(null)
+  }
+
+  const handleBrokerDisconnect = async (broker) => {
+    setBrokerSyncing(broker.id)
+    try {
+      await authFetch(`/api/brokers/${broker.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'save-credentials' }),
+      })
+      setBrokerConnections(prev => { const n = { ...prev }; delete n[broker.id]; return n })
+      flash('ok', `${broker.name} ${t('desvinculado', 'unlinked')}`)
+    } catch (e) { flash('err', e.message) }
+    setBrokerSyncing(null)
+  }
+
   const handleSaveProfile = async () => {
     if (!onSaveProfile) return
     setProfileSaving(true)
@@ -234,7 +359,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
             <button key={tb.key} onClick={() => { setTab(tb.key); setConfirmDelete(null) }}
               className={`flex-1 px-3 py-3 text-sm font-medium transition-colors whitespace-nowrap ${
                 tab === tb.key
-                  ? 'text-emerald-400 border-b-2 border-emerald-400 bg-emerald-400/5'
+                  ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-400/5'
                   : 'text-slate-400 hover:text-slate-300'
               }`}>
               {tb.label}
@@ -436,42 +561,92 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
             }[syncStatus]
 
             const nonIbkrInstitutions = institutionSummaries.filter(inst => !inst.isIbkr)
+            const traditionalBrokers = BROKER_REGISTRY.filter(b => b.category === 'traditional')
+            const cryptoBrokers = BROKER_REGISTRY.filter(b => b.category === 'crypto')
 
-            const csvBrokers = [
-              { name: 'DEGIRO', icon: '🇪🇺' },
-              { name: 'Trading 212', icon: '📊' },
-              { name: 'Trade Republic', icon: '🇩🇪' },
-              { name: 'Lightyear', icon: '💡' },
-              { name: 'Saxo Bank', icon: '🏦' },
-              { name: 'Charles Schwab', icon: '🇺🇸' },
-              { name: 'Fidelity', icon: '🇺🇸' },
-              { name: 'Vanguard', icon: '🇺🇸' },
-              { name: 'eToro', icon: '📈' },
-              { name: 'Webull', icon: '📱' },
-              { name: 'TradeStation', icon: '🖥️' },
-              { name: 'Tastytrade', icon: '🇺🇸' },
-              { name: 'IG', icon: '🇬🇧' },
-              { name: 'Dukascopy', icon: '🇨🇭' },
-              { name: 'Alpaca Markets', icon: '🦙' },
-              { name: 'PPI Global', icon: '🇦🇷' },
-              { name: 'TD Ameritrade', icon: '🇺🇸' },
-              { name: 'M1 Finance', icon: '🇺🇸' },
-              { name: 'Revolut Investments', icon: '💳' },
-              { name: 'MyInvestor', icon: '🇪🇸' },
-            ]
-
-            const cryptoExchanges = [
-              { name: 'Coinbase', icon: '🟠' },
-              { name: 'Binance', icon: '🟡' },
-              { name: 'Kraken', icon: '🦑' },
-              { name: 'Bitso', icon: '🟢' },
-            ]
+            const renderBrokerCard = (broker) => {
+              const conn = brokerConnections[broker.id]
+              const isExpanded = expandedBroker === broker.id
+              const isSyncing = brokerSyncing === broker.id
+              return (
+                <div key={broker.id} className="bg-[#000000] border border-[#38383A]/60 rounded-lg overflow-hidden">
+                  <div className="flex items-center gap-3 px-3 py-2">
+                    <div className="relative shrink-0">
+                      <span className="text-sm">{broker.icon}</span>
+                      {conn?.configured && (
+                        <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-emerald-400 rounded-full border border-[#000000]" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white">{broker.name}</p>
+                      {conn?.configured && (
+                        <p className="text-[10px] text-emerald-400">{t('Vinculado', 'Linked')}</p>
+                      )}
+                      {!conn?.configured && broker.apiNote && !broker.hasApi && (
+                        <p className="text-[10px] text-slate-600">{broker.apiNote}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {broker.hasApi && conn?.configured ? (
+                        <>
+                          <button onClick={() => handleBrokerSync(broker)} disabled={isSyncing}
+                            className="px-2.5 py-1 bg-blue-600 text-white text-[11px] font-medium rounded-md hover:bg-blue-500 disabled:opacity-50 transition-colors">
+                            {isSyncing ? '...' : 'Sync'}
+                          </button>
+                          <button onClick={() => handleBrokerDisconnect(broker)} disabled={isSyncing}
+                            className="px-2 py-1 text-[11px] text-red-400/60 hover:text-red-400 transition-colors">
+                            ✕
+                          </button>
+                        </>
+                      ) : broker.hasApi ? (
+                        <button onClick={() => { setExpandedBroker(isExpanded ? null : broker.id); setBrokerForm({}); setBrokerError(null) }}
+                          className="px-2.5 py-1 border border-blue-500/40 text-blue-400 text-[11px] font-medium rounded-md hover:bg-blue-500/10 transition-colors">
+                          {isExpanded ? t('Cancelar', 'Cancel') : 'API'}
+                        </button>
+                      ) : broker.apiNote ? (
+                        <span className="px-2 py-0.5 text-[10px] text-slate-600 border border-[#38383A]/40 rounded">
+                          {broker.apiNote}
+                        </span>
+                      ) : null}
+                      <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport() }, 50) }}
+                        className="px-2.5 py-1 border border-[#38383A] text-slate-400 text-[11px] font-medium rounded-md hover:bg-[#2C2C2E] transition-colors">
+                        CSV
+                      </button>
+                    </div>
+                  </div>
+                  {isExpanded && broker.hasApi && (
+                    <div className="px-3 pb-3 pt-1 border-t border-[#38383A]/30 space-y-2">
+                      {broker.instructions && (
+                        <p className="text-[10px] text-slate-600">{broker.instructions[lang] || broker.instructions.en}</p>
+                      )}
+                      {brokerError && expandedBroker === broker.id && (
+                        <p className="text-xs text-red-400">{brokerError}</p>
+                      )}
+                      {broker.fields.map(f => (
+                        <div key={f.key}>
+                          <label className="text-[10px] text-slate-500 mb-0.5 block">{f.label}</label>
+                          <input type={f.type || 'text'} value={brokerForm[f.key] || ''}
+                            onChange={(e) => setBrokerForm(prev => ({ ...prev, [f.key]: e.target.value }))}
+                            placeholder={f.placeholder}
+                            className="w-full px-3 py-1.5 bg-[#1C1C1E] border border-[#38383A]/60 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                        </div>
+                      ))}
+                      <button onClick={() => handleBrokerConnect(broker)}
+                        disabled={isSyncing || broker.fields.some(f => !brokerForm[f.key])}
+                        className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 text-xs font-medium">
+                        {isSyncing ? '...' : t('Conectar', 'Connect')}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            }
 
             return (
             <div className="space-y-5">
               {/* ── IBKR (API + CSV) ── */}
               <div>
-                <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">{t('Conexión API', 'API Connection')}</p>
+                <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">Interactive Brokers</p>
                 <div className="p-3 bg-[#000000] border border-[#38383A] rounded-xl">
                   <div className="flex items-center gap-3">
                     <div className="relative shrink-0">
@@ -485,17 +660,23 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                         {ibkrConfigured && <span className="text-slate-600 ml-1">· ID: {ibkrQueryId}</span>}
                       </p>
                     </div>
-                    {ibkrConfigured ? (
-                      <button onClick={() => { onClose(); setTimeout(() => { if (onOpenIBKR) onOpenIBKR() }, 50) }}
-                        className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-500 transition-colors shrink-0">
-                        Sync
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {ibkrConfigured ? (
+                        <button onClick={() => { onClose(); setTimeout(() => { if (onOpenIBKR) onOpenIBKR() }, 50) }}
+                          className="px-2.5 py-1 bg-blue-600 text-white text-[11px] font-medium rounded-md hover:bg-blue-500 transition-colors">
+                          Sync
+                        </button>
+                      ) : (
+                        <button onClick={() => setShowConfig(true)}
+                          className="px-2.5 py-1 border border-blue-500/40 text-blue-400 text-[11px] font-medium rounded-md hover:bg-blue-500/10 transition-colors">
+                          API
+                        </button>
+                      )}
+                      <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport() }, 50) }}
+                        className="px-2.5 py-1 border border-[#38383A] text-slate-400 text-[11px] font-medium rounded-md hover:bg-[#2C2C2E] transition-colors">
+                        CSV
                       </button>
-                    ) : (
-                      <button onClick={() => setShowConfig(true)}
-                        className="px-3 py-1.5 border border-blue-500/40 text-blue-400 text-xs font-medium rounded-lg hover:bg-blue-500/10 transition-colors shrink-0">
-                        {t('Vincular', 'Link')}
-                      </button>
-                    )}
+                    </div>
                   </div>
                   {ibkrConfigured && syncStatus === 'stale' && (
                     <p className="text-[10px] text-amber-400 mt-2 pl-9">
@@ -506,21 +687,25 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
 
                 {!ibkrConfigured && showConfig && (
                   <div className="space-y-3 p-3 bg-[#000000] border border-[#38383A] rounded-xl mt-2">
+                    <p className="text-[10px] text-slate-600">
+                      {t('Ve a IBKR → Reports → Flex Queries → crear query con Open Positions + Trades. Genera un Flex Token en Settings.',
+                         'Go to IBKR → Reports → Flex Queries → create query with Open Positions + Trades. Generate a Flex Token in Settings.')}
+                    </p>
                     {ibkrError && <p className="text-xs text-red-400">{ibkrError}</p>}
                     <div>
-                      <label className="text-[11px] text-slate-500 mb-1 block">Token</label>
+                      <label className="text-[10px] text-slate-500 mb-0.5 block">Flex Token</label>
                       <input type="password" value={ibkrToken} onChange={(e) => setIbkrToken(e.target.value)}
                         placeholder="••••••••••••••••"
-                        className="w-full px-3 py-2 bg-[#1C1C1E] border border-[#38383A]/60 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                        className="w-full px-3 py-1.5 bg-[#1C1C1E] border border-[#38383A]/60 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
                     </div>
                     <div>
-                      <label className="text-[11px] text-slate-500 mb-1 block">Query ID</label>
+                      <label className="text-[10px] text-slate-500 mb-0.5 block">Query ID</label>
                       <input type="text" value={ibkrQueryId} onChange={(e) => setIbkrQueryId(e.target.value)}
                         placeholder="123456"
-                        className="w-full px-3 py-2 bg-[#1C1C1E] border border-[#38383A]/60 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                        className="w-full px-3 py-1.5 bg-[#1C1C1E] border border-[#38383A]/60 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
                     </div>
                     <button onClick={handleIbkrSave} disabled={ibkrSaving || !ibkrToken || !ibkrQueryId}
-                      className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 text-sm font-medium">
+                      className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 text-xs font-medium">
                       {ibkrSaving ? '...' : t('Conectar', 'Connect')}
                     </button>
                   </div>
@@ -529,7 +714,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                 {ibkrConfigured && !confirmUnlink && (
                   <button onClick={() => setConfirmUnlink(true)}
                     className="text-[11px] text-red-400/60 hover:text-red-400 transition-colors mt-2">
-                    {t('Desvincular IBKR', 'Unlink IBKR')}
+                    {t('Desvincular', 'Unlink')}
                   </button>
                 )}
                 {ibkrConfigured && confirmUnlink && (
@@ -542,72 +727,54 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                     <div className="flex gap-2">
                       <button onClick={async () => { await handleIbkrDisconnect(); setConfirmUnlink(false) }} disabled={ibkrSaving}
                         className="px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-500 transition-colors">
-                        {ibkrSaving ? '...' : t('Sí, desvincular', 'Yes, unlink')}
+                        {ibkrSaving ? '...' : t('Sí', 'Yes')}
                       </button>
                       <button onClick={() => setConfirmUnlink(false)}
                         className="px-3 py-1.5 border border-[#38383A] text-slate-400 text-xs rounded-lg hover:bg-[#2C2C2E] transition-colors">
-                        {t('Cancelar', 'Cancel')}
+                        {t('No', 'No')}
                       </button>
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* ── BROKERS TRADICIONALES (CSV) ── */}
-              <details className="group">
+              {/* ── BROKERS TRADICIONALES ── */}
+              <details className="group" open>
                 <summary className="flex items-center justify-between cursor-pointer">
-                  <p className="text-[11px] text-slate-500 uppercase tracking-wider">{t('Brokers Tradicionales', 'Traditional Brokers')}</p>
+                  <p className="text-[11px] text-slate-500 uppercase tracking-wider">
+                    {t('Brokers Tradicionales', 'Traditional Brokers')}
+                    <span className="text-slate-600 ml-1">({traditionalBrokers.length})</span>
+                  </p>
                   <span className="text-[10px] text-slate-600 group-open:rotate-180 transition-transform">▼</span>
                 </summary>
                 <div className="mt-2 space-y-1">
-                  <p className="text-[11px] text-slate-600 mb-2">
-                    {t('Exporta un CSV desde tu broker e impórtalo. El formato se detecta automáticamente.',
-                       'Export a CSV from your broker and import it. The format is auto-detected.')}
-                  </p>
-                  {csvBrokers.map(b => (
-                    <div key={b.name} className="flex items-center gap-3 px-3 py-2 bg-[#000000] border border-[#38383A]/60 rounded-lg">
-                      <span className="text-sm">{b.icon}</span>
-                      <p className="text-sm text-white flex-1">{b.name}</p>
-                      <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport() }, 50) }}
-                        className="px-2.5 py-1 border border-blue-500/40 text-blue-400 text-[11px] font-medium rounded-md hover:bg-blue-500/10 transition-colors">
-                        {t('Importar CSV', 'Import CSV')}
-                      </button>
-                    </div>
-                  ))}
+                  {traditionalBrokers.map(renderBrokerCard)}
                 </div>
               </details>
 
               {/* ── CRYPTO ── */}
-              <details className="group">
+              <details className="group" open>
                 <summary className="flex items-center justify-between cursor-pointer">
-                  <p className="text-[11px] text-slate-500 uppercase tracking-wider">Crypto</p>
+                  <p className="text-[11px] text-slate-500 uppercase tracking-wider">
+                    Crypto
+                    <span className="text-slate-600 ml-1">({cryptoBrokers.length + 1})</span>
+                  </p>
                   <span className="text-[10px] text-slate-600 group-open:rotate-180 transition-transform">▼</span>
                 </summary>
                 <div className="mt-2 space-y-1">
-                  <p className="text-[11px] text-slate-600 mb-2">
-                    {t('Importa CSV de exchanges, o usa Blockchain/Ledger sync para wallets.',
-                       'Import CSV from exchanges, or use Blockchain/Ledger sync for wallets.')}
-                  </p>
-                  {cryptoExchanges.map(b => (
-                    <div key={b.name} className="flex items-center gap-3 px-3 py-2 bg-[#000000] border border-[#38383A]/60 rounded-lg">
-                      <span className="text-sm">{b.icon}</span>
-                      <p className="text-sm text-white flex-1">{b.name}</p>
-                      <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport() }, 50) }}
+                  {cryptoBrokers.map(renderBrokerCard)}
+                  <div className="bg-[#000000] border border-[#38383A]/60 rounded-lg">
+                    <div className="flex items-center gap-3 px-3 py-2">
+                      <span className="text-sm">🔗</span>
+                      <div className="flex-1">
+                        <p className="text-sm text-white">{t('Wallet on-chain', 'On-chain Wallet')}</p>
+                        <p className="text-[10px] text-slate-600">Blockchain.com, Ledger, MetaMask</p>
+                      </div>
+                      <button onClick={() => { onClose(); setTimeout(() => { if (onOpenBlockchain) onOpenBlockchain() }, 50) }}
                         className="px-2.5 py-1 border border-blue-500/40 text-blue-400 text-[11px] font-medium rounded-md hover:bg-blue-500/10 transition-colors">
-                        {t('Importar CSV', 'Import CSV')}
+                        {t('Conectar', 'Connect')}
                       </button>
                     </div>
-                  ))}
-                  <div className="flex items-center gap-3 px-3 py-2 bg-[#000000] border border-[#38383A]/60 rounded-lg mt-1">
-                    <span className="text-sm">🔗</span>
-                    <div className="flex-1">
-                      <p className="text-sm text-white">{t('Wallet on-chain', 'On-chain Wallet')}</p>
-                      <p className="text-[10px] text-slate-600">{t('Blockchain.com, Ledger, dirección de wallet', 'Blockchain.com, Ledger, wallet address')}</p>
-                    </div>
-                    <button onClick={() => { onClose(); setTimeout(() => { if (onOpenBlockchain) onOpenBlockchain() }, 50) }}
-                      className="px-2.5 py-1 border border-blue-500/40 text-blue-400 text-[11px] font-medium rounded-md hover:bg-blue-500/10 transition-colors">
-                      {t('Conectar', 'Connect')}
-                    </button>
                   </div>
                 </div>
               </details>
@@ -620,17 +787,17 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                 </summary>
                 <div className="mt-2 space-y-2">
                   <p className="text-[11px] text-slate-600 mb-1">
-                    {t('Para inversiones privadas (SAFE notes, VC funds, PE, club deals), agrega manualmente o importa CSV.',
-                       'For private investments (SAFE notes, VC funds, PE, club deals), add manually or import CSV.')}
+                    {t('SAFE notes, VC funds, PE, club deals.',
+                       'SAFE notes, VC funds, PE, club deals.')}
                   </p>
                   <div className="flex gap-2">
                     <button onClick={() => { onClose(); setTimeout(() => { if (onAddAccount) onAddAccount() }, 50) }}
                       className="flex-1 px-3 py-2 border border-blue-500/40 text-blue-400 text-xs font-medium rounded-lg hover:bg-blue-500/10 transition-colors">
-                      {t('Agregar manualmente', 'Add manually')}
+                      {t('Agregar', 'Add')}
                     </button>
                     <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport() }, 50) }}
                       className="flex-1 px-3 py-2 border border-[#38383A] text-slate-400 text-xs font-medium rounded-lg hover:bg-[#2C2C2E] transition-colors">
-                      {t('Importar CSV', 'Import CSV')}
+                      CSV
                     </button>
                   </div>
                 </div>
