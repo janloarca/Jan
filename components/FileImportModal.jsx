@@ -604,6 +604,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     let success = 0
     let failed = 0
     let replaced = 0
+    const failedItems = []
 
     try {
       if (ibkrImportMode === 'replace' && onDeleteItem && existingItems) {
@@ -613,14 +614,19 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         }
       }
 
-      const importPromises = ibkrData.items.map(async (item) => {
+      for (const item of ibkrData.items) {
         try {
           const clean = sanitizeImportItem(item)
           const errors = validateItem(clean)
-          if (errors.length > 0) return 'failed'
+          if (errors.length > 0) {
+            failedItems.push(`${item.symbol}: ${errors.join(', ')}`)
+            failed++
+            continue
+          }
           if (activePortfolio && activePortfolio !== '__all__') clean.portfolioId = activePortfolio
           if (activeEntity && activeEntity !== 'default') clean.entityId = activeEntity
-          await onImportItems(clean)
+          const stripped = Object.fromEntries(Object.entries(clean).filter(([, v]) => v !== undefined))
+          await onImportItems(stripped)
           if (onAddLot && clean.symbol && clean.quantity > 0 && clean.purchasePrice > 0 && !/debt|deuda/i.test(clean.type || '')) {
             await onAddLot({
               symbol: (clean.symbol || '').toUpperCase(),
@@ -631,24 +637,29 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
               ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
             })
           }
-          return 'success'
-        } catch { return 'failed' }
-      })
-
-      const results = await Promise.all(importPromises)
-      success = results.filter(r => r === 'success').length
-      failed = results.filter(r => r === 'failed').length
+          success++
+        } catch (err) {
+          failedItems.push(`${item.symbol}: ${err.message || 'unknown error'}`)
+          failed++
+        }
+      }
 
       if (onImportSnapshot && ibkrData.equityHistory?.length > 0) {
-        await Promise.all(ibkrData.equityHistory.map(snap =>
-          onImportSnapshot(snap).catch(() => {})
-        ))
+        const chunks = []
+        for (let i = 0; i < ibkrData.equityHistory.length; i += 5) {
+          chunks.push(ibkrData.equityHistory.slice(i, i + 5))
+        }
+        for (const chunk of chunks) {
+          await Promise.all(chunk.map(snap => onImportSnapshot(snap).catch(() => {})))
+        }
       }
     } catch (err) {
       console.error('[IBKR Import]', err)
+      setError(err.message || 'Import error')
     }
 
-    setResult({ success, failed, total: ibkrData.items.length, replaced })
+    if (failedItems.length > 0) console.warn('[IBKR Import] Failed:', failedItems)
+    setResult({ success, failed, total: ibkrData.items.length, replaced, failedItems })
     setStep('done')
     setImporting(false)
   }, [ibkrData, onImportItems, onImportSnapshot, onAddLot, onDeleteItem, existingItems, activePortfolio, activeEntity, ibkrImportMode])
@@ -1136,6 +1147,13 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
               )}
               {result.txCount > 0 && (
                 <p className="text-emerald-400 text-xs mt-1">💰 {result.txCount} {t('transacciones', 'transactions')}</p>
+              )}
+              {result.failedItems?.length > 0 && (
+                <div className="mt-3 max-h-24 overflow-y-auto text-left px-4">
+                  {result.failedItems.map((msg, i) => (
+                    <p key={i} className="text-red-400/70 text-[10px] font-mono">{msg}</p>
+                  ))}
+                </div>
               )}
               <button onClick={onClose}
                 className="mt-6 px-8 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors text-sm font-medium">
