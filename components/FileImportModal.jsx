@@ -242,6 +242,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   const fileRef = useRef(null)
   const [ibkrData, setIbkrData] = useState(null)
   const [ibkrImportMode, setIbkrImportMode] = useState('merge')
+  const [importProgress, setImportProgress] = useState({ done: 0, total: 0 })
 
   // Manual form
   const [manual, setManual] = useState({
@@ -601,6 +602,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     if (!ibkrData || !ibkrData.items || ibkrData.items.length === 0) return
     setImporting(true)
     setError('')
+    setImportProgress({ done: 0, total: 0 })
 
     const deleteIds = []
     if (ibkrImportMode === 'replace' && existingItems) {
@@ -633,16 +635,19 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         lots: validLots,
         snapshots: ibkrData.equityHistory || [],
         deleteIds,
-      })
+      }, (done, total) => setImportProgress({ done, total }))
       setResult({ success: validItems.length, failed: 0, total: ibkrData.items.length, replaced: deleteIds.length })
     } catch (err) {
       console.error('[IBKR Import]', err)
-      setResult({ success: 0, failed: validItems.length, total: ibkrData.items.length, replaced: 0, errorMsg: err.message })
+      const partialDone = importProgress.done
+      const opsPerItem = validLots.length > 0 ? 2 : 1
+      const itemsDone = Math.floor(partialDone / opsPerItem)
+      setResult({ success: itemsDone, failed: validItems.length - itemsDone, total: ibkrData.items.length, replaced: deleteIds.length, errorMsg: err.message })
     } finally {
       setStep('done')
       setImporting(false)
     }
-  }, [ibkrData, onBulkImport, existingItems, activePortfolio, activeEntity, ibkrImportMode])
+  }, [ibkrData, onBulkImport, existingItems, activePortfolio, activeEntity, ibkrImportMode, importProgress.done])
 
   const handleDrop = useCallback((e) => {
     e.preventDefault()
@@ -1097,11 +1102,18 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                     ibkrImportMode === 'replace' ? 'bg-orange-600 hover:bg-orange-500' : 'bg-blue-600 hover:bg-blue-500'
                   }`}>
                   {importing
-                    ? t('Importando...', 'Importing...')
+                    ? importProgress.total > 0
+                      ? t(`Importando ${importProgress.done}/${importProgress.total}`, `Importing ${importProgress.done}/${importProgress.total}`)
+                      : t('Preparando...', 'Preparing...')
                     : ibkrImportMode === 'replace'
                       ? t(`Reemplazar con ${ibkrData.items.length} posiciones`, `Replace with ${ibkrData.items.length} positions`)
                       : t(`Importar ${ibkrData.items.length} posiciones`, `Import ${ibkrData.items.length} positions`)}
                 </button>
+                {importing && importProgress.total > 0 && (
+                  <div className="mt-2 h-1.5 bg-slate-700/30 rounded-full overflow-hidden">
+                    <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${Math.round((importProgress.done / importProgress.total) * 100)}%` }} />
+                  </div>
+                )}
               </div>
             </div>
           )}
