@@ -674,6 +674,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     addLot, closeLotsFIFO,
     addPortfolio, deletePortfolio,
     addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
+    bulkImport,
     saveGoals, saveSettings, saveProfile,
     saveItemSnapshots, loadItemSnapshots,
 
