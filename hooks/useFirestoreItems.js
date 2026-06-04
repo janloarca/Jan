@@ -183,24 +183,28 @@ export function useFirestoreItems() {
     await fs.updateDoc(fs.doc(db, `users/${uid}/items`, itemId), clean)
   }, [uid])
 
-  const deleteItem = useCallback(async (itemId) => {
+  const deleteItem = useCallback(async (itemId, { skipRefCleanup = false } = {}) => {
     if (!uid) return
     const prev = items
     setItems((cur) => cur.filter((it) => it.id !== itemId))
     try {
       const { db, fs } = await getFirebase()
-      const snap = await fs.getDocs(fs.collection(db, `users/${uid}/items`))
-      const batch = fs.writeBatch(db)
-      snap.docs.forEach((d) => {
-        if (d.id === itemId) return
-        const data = d.data()
-        const updates = {}
-        if (data.incomeDestination === itemId) updates.incomeDestination = ''
-        if (data.capitalDestination === itemId) updates.capitalDestination = ''
-        if (Object.keys(updates).length > 0) batch.update(d.ref, updates)
-      })
-      batch.delete(fs.doc(db, `users/${uid}/items`, itemId))
-      await batch.commit()
+      if (skipRefCleanup) {
+        await fs.deleteDoc(fs.doc(db, `users/${uid}/items`, itemId))
+      } else {
+        const snap = await fs.getDocs(fs.collection(db, `users/${uid}/items`))
+        const batch = fs.writeBatch(db)
+        snap.docs.forEach((d) => {
+          if (d.id === itemId) return
+          const data = d.data()
+          const updates = {}
+          if (data.incomeDestination === itemId) updates.incomeDestination = ''
+          if (data.capitalDestination === itemId) updates.capitalDestination = ''
+          if (Object.keys(updates).length > 0) batch.update(d.ref, updates)
+        })
+        batch.delete(fs.doc(db, `users/${uid}/items`, itemId))
+        await batch.commit()
+      }
     } catch (err) {
       setItems(prev)
       throw err

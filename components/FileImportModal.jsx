@@ -605,39 +605,47 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     let failed = 0
     let replaced = 0
 
-    if (ibkrImportMode === 'replace' && onDeleteItem && existingItems) {
-      const ibkrItems = existingItems.filter(it => it.institution === 'Interactive Brokers' || it._source === 'ibkr')
-      for (const it of ibkrItems) {
-        try { await onDeleteItem(it.id); replaced++ } catch {}
-      }
-    }
-
-    for (const item of ibkrData.items) {
-      try {
-        const clean = sanitizeImportItem(item)
-        const errors = validateItem(clean)
-        if (errors.length > 0) { failed++; continue }
-        if (activePortfolio && activePortfolio !== '__all__') clean.portfolioId = activePortfolio
-        if (activeEntity && activeEntity !== 'default') clean.entityId = activeEntity
-        await onImportItems(clean)
-        if (onAddLot && clean.symbol && clean.quantity > 0 && clean.purchasePrice > 0 && !/debt|deuda/i.test(clean.type || '')) {
-          await onAddLot({
-            symbol: (clean.symbol || '').toUpperCase(),
-            quantity: clean.quantity,
-            costBasis: clean.purchasePrice,
-            currency: clean.currency || 'USD',
-            acquisitionDate: clean.acquisitionDate || new Date().toISOString().split('T')[0],
-            ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
-          })
+    try {
+      if (ibkrImportMode === 'replace' && onDeleteItem && existingItems) {
+        const ibkrItems = existingItems.filter(it => it.institution === 'Interactive Brokers' || it._source === 'ibkr')
+        for (const it of ibkrItems) {
+          try { await onDeleteItem(it.id, { skipRefCleanup: true }); replaced++ } catch {}
         }
-        success++
-      } catch { failed++ }
-    }
-
-    if (onImportSnapshot && ibkrData.equityHistory?.length > 0) {
-      for (const snap of ibkrData.equityHistory) {
-        try { await onImportSnapshot(snap) } catch {}
       }
+
+      const importPromises = ibkrData.items.map(async (item) => {
+        try {
+          const clean = sanitizeImportItem(item)
+          const errors = validateItem(clean)
+          if (errors.length > 0) return 'failed'
+          if (activePortfolio && activePortfolio !== '__all__') clean.portfolioId = activePortfolio
+          if (activeEntity && activeEntity !== 'default') clean.entityId = activeEntity
+          await onImportItems(clean)
+          if (onAddLot && clean.symbol && clean.quantity > 0 && clean.purchasePrice > 0 && !/debt|deuda/i.test(clean.type || '')) {
+            await onAddLot({
+              symbol: (clean.symbol || '').toUpperCase(),
+              quantity: clean.quantity,
+              costBasis: clean.purchasePrice,
+              currency: clean.currency || 'USD',
+              acquisitionDate: clean.acquisitionDate || new Date().toISOString().split('T')[0],
+              ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
+            })
+          }
+          return 'success'
+        } catch { return 'failed' }
+      })
+
+      const results = await Promise.all(importPromises)
+      success = results.filter(r => r === 'success').length
+      failed = results.filter(r => r === 'failed').length
+
+      if (onImportSnapshot && ibkrData.equityHistory?.length > 0) {
+        await Promise.all(ibkrData.equityHistory.map(snap =>
+          onImportSnapshot(snap).catch(() => {})
+        ))
+      }
+    } catch (err) {
+      console.error('[IBKR Import]', err)
     }
 
     setResult({ success, failed, total: ibkrData.items.length, replaced })
