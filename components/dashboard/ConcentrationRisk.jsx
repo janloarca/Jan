@@ -10,7 +10,7 @@ export default function ConcentrationRisk({ items, lang }) {
   const data = useMemo(() => {
     const dimensionFns = {
       asset: (it) => it.symbol || it.name || 'Unknown',
-      type: (it) => getTypeCategory(it.type),
+      type: (it) => getTypeCategory(it),
       sector: (it) => getSectorFromItem(it),
       geography: (it) => getGeographyFromItem(it),
     }

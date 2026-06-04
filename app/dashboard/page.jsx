@@ -55,6 +55,7 @@ const FinancialHealth = dynamic(() => import('@/components/dashboard/FinancialHe
 const ConcentrationRisk = dynamic(() => import('@/components/dashboard/ConcentrationRisk'), { loading: () => <SkeletonCard /> })
 const GainsReport = dynamic(() => import('@/components/dashboard/GainsReport'), { loading: () => <SkeletonCard /> })
 const PerformanceAttribution = dynamic(() => import('@/components/dashboard/PerformanceAttribution'), { loading: () => <SkeletonCard /> })
+const RiskMetrics = dynamic(() => import('@/components/dashboard/RiskMetrics'), { loading: () => <SkeletonCard /> })
 const InsightCards = dynamic(() => import('@/components/dashboard/InsightCards'), { loading: () => <SkeletonCard /> })
 const InstitutionPerformance = dynamic(() => import('@/components/dashboard/InstitutionPerformance'), { loading: () => <SkeletonCard /> })
 const RebalanceSuggestions = dynamic(() => import('@/components/dashboard/RebalanceSuggestions'), { loading: () => <SkeletonCard /> })
@@ -70,12 +71,13 @@ import EntitySwitcher from '@/components/dashboard/EntitySwitcher'
 import { useEntities } from '@/hooks/useEntities'
 import { authFetch } from '@/lib/authFetch'
 
-function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, lots }) {
+function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, lots, transactions, convert, baseCurrency, benchmarkData, benchmarkName }) {
   const [tab, setTab] = useState('health')
   const t = (es, en) => lang === 'es' ? es : en
   const hasLots = lots && lots.length > 0
   const tabs = [
     { key: 'health', label: t('Salud', 'Health') },
+    { key: 'risk', label: t('Riesgo', 'Risk') },
     { key: 'concentration', label: t('Concentración', 'Concentration') },
     ...(hasLots ? [{ key: 'gains', label: t('Ganancias', 'Gains') }] : []),
     { key: 'attribution', label: t('Atribución', 'Attribution') },
@@ -95,6 +97,9 @@ function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, 
           <CardBoundary id="AN-01"><FinancialHealth items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} /></CardBoundary>
           <CardBoundary id="AN-02"><ConcentrationRisk items={portfolioItems} lang={lang} /></CardBoundary>
         </div>
+      )}
+      {tab === 'risk' && (
+        <CardBoundary id="AN-05"><RiskMetrics snapshots={snapshots} benchmarkData={benchmarkData} netWorth={netWorth} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} benchmarkName={benchmarkName} /></CardBoundary>
       )}
       {tab === 'concentration' && (
         <CardBoundary id="AN-02b"><ConcentrationRisk items={portfolioItems} lang={lang} /></CardBoundary>
@@ -699,7 +704,7 @@ export default function DashboardPage() {
         {/* ═══ ANALISIS ═══ */}
         <SectionCollapse title={lang === 'es' ? 'Análisis' : 'Analysis'} id="analysis" defaultOpen={!!(lots && lots.length > 0)}>
           <ErrorBoundary lang={lang}>
-            <AnalysisTabs lang={lang} portfolioItems={portfolioItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lots={lots} />
+            <AnalysisTabs lang={lang} portfolioItems={portfolioItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lots={lots} transactions={transactions} convert={convert} baseCurrency={baseCurrency} benchmarkData={benchmarkData} benchmarkName={benchmarkName} />
           </ErrorBoundary>
         </SectionCollapse>
 

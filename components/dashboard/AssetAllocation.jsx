@@ -8,7 +8,7 @@ export default function AssetAllocation({ items, lang }) {
 
   const allocation = useMemo(() => {
     const groupFns = {
-      type: (it) => getTypeCategory(it.type),
+      type: (it) => getTypeCategory(it),
       returnType: (it) => getInvestmentClass(it),
       sector: (it) => getSectorFromItem(it),
       geography: (it) => getGeographyFromItem(it),
