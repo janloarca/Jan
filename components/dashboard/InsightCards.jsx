@@ -3,12 +3,15 @@
 import { useMemo } from 'react'
 import { generateInsights } from '@/lib/insights'
 
-const TYPE_STYLES = {
-  success: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
-  warning: 'bg-amber-500/10 border-amber-500/20 text-amber-400',
-  danger: 'bg-red-500/10 border-red-500/20 text-red-400',
-  info: 'bg-blue-500/10 border-blue-500/20 text-blue-400',
-  cta: 'bg-violet-500/10 border-violet-500/20 text-violet-400',
+// Neutral card with a single colored accent (left border + icon).
+// Reduces the "everything is colored" noise — color carries one meaning:
+// green = good money, red = problem, amber = attention, blue = action/info.
+const TYPE_ACCENT = {
+  success: { border: 'border-l-emerald-500', icon: 'text-emerald-400' },
+  warning: { border: 'border-l-amber-500', icon: 'text-amber-400' },
+  danger: { border: 'border-l-red-500', icon: 'text-red-400' },
+  info: { border: 'border-l-slate-500', icon: 'text-slate-400' },
+  cta: { border: 'border-l-blue-500', icon: 'text-blue-400' },
 }
 
 const TYPE_ICONS = {
@@ -61,20 +64,23 @@ export default function InsightCards({ items, profile, netWorth, estimatedAnnual
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-      {cards.map((card, i) => (
-        <div key={i}
-          className={`p-3 rounded-lg border ${TYPE_STYLES[card.type] || TYPE_STYLES.info} ${card.action ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
-          onClick={card.action === 'profile' && onOpenSettings ? onOpenSettings : undefined}
-          role={card.action ? 'button' : undefined}
-          tabIndex={card.action ? 0 : undefined}
-        >
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-sm">{TYPE_ICONS[card.type] || TYPE_ICONS.info}</span>
-            <span className="text-xs font-semibold">{lang === 'es' ? card.titleEs : card.titleEn}</span>
+      {cards.map((card, i) => {
+        const accent = TYPE_ACCENT[card.type] || TYPE_ACCENT.info
+        return (
+          <div key={i}
+            className={`p-3 rounded-lg bg-[#1C1C1E]/80 border border-[#38383A]/50 border-l-2 ${accent.border} ${card.action ? 'cursor-pointer hover:bg-[#2C2C2E]/60 transition-colors' : ''}`}
+            onClick={card.action === 'profile' && onOpenSettings ? onOpenSettings : undefined}
+            role={card.action ? 'button' : undefined}
+            tabIndex={card.action ? 0 : undefined}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <span className={`text-sm ${accent.icon}`}>{TYPE_ICONS[card.type] || TYPE_ICONS.info}</span>
+              <span className="text-xs font-semibold text-slate-200">{lang === 'es' ? card.titleEs : card.titleEn}</span>
+            </div>
+            <p className="text-xs text-slate-400">{lang === 'es' ? card.descEs : card.descEn}</p>
           </div>
-          <p className="text-xs opacity-80">{lang === 'es' ? card.descEs : card.descEn}</p>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
