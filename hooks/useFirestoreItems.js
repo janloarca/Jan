@@ -172,7 +172,8 @@ export function useFirestoreItems() {
     const id = item.id || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
     const { id: _removed, ...raw } = item
     const data = sanitizeImportItem(raw)
-    await fs.setDoc(fs.doc(db, `users/${uid}/items`, id), { ...data, createdAt: new Date().toISOString() }, { merge: true })
+    const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined))
+    await fs.setDoc(fs.doc(db, `users/${uid}/items`, id), { ...clean, createdAt: new Date().toISOString() }, { merge: true })
   }, [uid])
 
   const updateItem = useCallback(async (itemId, fields) => {
