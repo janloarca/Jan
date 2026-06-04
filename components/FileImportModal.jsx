@@ -602,47 +602,47 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     setImporting(true)
     setError('')
 
+    const deleteIds = []
+    if (ibkrImportMode === 'replace' && existingItems) {
+      const ibkrItems = existingItems.filter(it => it.institution === 'Interactive Brokers' || it._source === 'ibkr')
+      for (const it of ibkrItems) deleteIds.push(it.id)
+    }
+
+    const validItems = []
+    const validLots = []
+    for (const item of ibkrData.items) {
+      const clean = sanitizeImportItem(item)
+      if (activePortfolio && activePortfolio !== '__all__') clean.portfolioId = activePortfolio
+      if (activeEntity && activeEntity !== 'default') clean.entityId = activeEntity
+      validItems.push(clean)
+      if (clean.symbol && clean.quantity > 0 && clean.purchasePrice > 0 && !/debt|deuda/i.test(clean.type || '')) {
+        validLots.push({
+          symbol: (clean.symbol || '').toUpperCase(),
+          quantity: clean.quantity,
+          costBasis: clean.purchasePrice,
+          currency: clean.currency || 'USD',
+          acquisitionDate: clean.acquisitionDate || new Date().toISOString().split('T')[0],
+          ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
+        })
+      }
+    }
+
     try {
-      const deleteIds = []
-      if (ibkrImportMode === 'replace' && existingItems) {
-        const ibkrItems = existingItems.filter(it => it.institution === 'Interactive Brokers' || it._source === 'ibkr')
-        for (const it of ibkrItems) deleteIds.push(it.id)
-      }
-
-      const validItems = []
-      const validLots = []
-      for (const item of ibkrData.items) {
-        const clean = sanitizeImportItem(item)
-        if (activePortfolio && activePortfolio !== '__all__') clean.portfolioId = activePortfolio
-        if (activeEntity && activeEntity !== 'default') clean.entityId = activeEntity
-        validItems.push(clean)
-        if (clean.symbol && clean.quantity > 0 && clean.purchasePrice > 0 && !/debt|deuda/i.test(clean.type || '')) {
-          validLots.push({
-            symbol: (clean.symbol || '').toUpperCase(),
-            quantity: clean.quantity,
-            costBasis: clean.purchasePrice,
-            currency: clean.currency || 'USD',
-            acquisitionDate: clean.acquisitionDate || new Date().toISOString().split('T')[0],
-            ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
-          })
-        }
-      }
-
       await onBulkImport({
         items: validItems,
         lots: validLots,
         snapshots: ibkrData.equityHistory || [],
         deleteIds,
       })
-
       setResult({ success: validItems.length, failed: 0, total: ibkrData.items.length, replaced: deleteIds.length })
-      setStep('done')
     } catch (err) {
       console.error('[IBKR Import]', err)
-      setError(lang === 'es' ? `Error al importar: ${err.message}` : `Import error: ${err.message}`)
+      setResult({ success: 0, failed: validItems.length, total: ibkrData.items.length, replaced: 0, errorMsg: err.message })
+    } finally {
+      setStep('done')
+      setImporting(false)
     }
-    setImporting(false)
-  }, [ibkrData, onBulkImport, existingItems, activePortfolio, activeEntity, ibkrImportMode, lang])
+  }, [ibkrData, onBulkImport, existingItems, activePortfolio, activeEntity, ibkrImportMode])
 
   const handleDrop = useCallback((e) => {
     e.preventDefault()
@@ -1128,12 +1128,8 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
               {result.txCount > 0 && (
                 <p className="text-emerald-400 text-xs mt-1">💰 {result.txCount} {t('transacciones', 'transactions')}</p>
               )}
-              {result.failedItems?.length > 0 && (
-                <div className="mt-3 max-h-24 overflow-y-auto text-left px-4">
-                  {result.failedItems.map((msg, i) => (
-                    <p key={i} className="text-red-400/70 text-[10px] font-mono">{msg}</p>
-                  ))}
-                </div>
+              {result.errorMsg && (
+                <p className="text-red-400 text-xs mt-2">{result.errorMsg}</p>
               )}
               <button onClick={onClose}
                 className="mt-6 px-8 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors text-sm font-medium">

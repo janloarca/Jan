@@ -453,6 +453,7 @@ export function useFirestoreItems() {
     const total = ops.length
     if (onProgress) onProgress(0, total)
 
+    let failures = 0
     for (let i = 0; i < ops.length; i += CHUNK) {
       const chunk = ops.slice(i, i + CHUNK)
       const batch = fs.writeBatch(db)
@@ -465,12 +466,13 @@ export function useFirestoreItems() {
       try {
         await batch.commit()
       } catch (err) {
-        console.error(`[bulkImport] Batch ${i / CHUNK + 1} failed (ops ${i}-${i + chunk.length}):`, err)
-        throw err
+        console.error(`[bulkImport] Batch ${Math.floor(i / CHUNK) + 1} failed:`, err)
+        failures += chunk.length
       }
       done += chunk.length
       if (onProgress) onProgress(done, total)
     }
+    if (failures > 0) throw new Error(`${failures} of ${total} operations failed`)
   }, [uid])
 
   return {
