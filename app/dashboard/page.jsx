@@ -224,6 +224,7 @@ export default function DashboardPage() {
     addLot, closeLotsFIFO,
     addPortfolio, deletePortfolio,
     addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
+    bulkImport,
     saveGoals, saveSettings, saveProfile,
     enrichedItems, portfolioItems, entityTransactions, entityFinanceTransactions,
     pricesLoading, pricesError, pricesUpdate,
@@ -720,7 +721,8 @@ export default function DashboardPage() {
           onClose={() => { setModal(null); setImportBrokerHint(null) }} onImportItems={addItem}
           onImportTransaction={addTransaction} onImportSnapshot={saveSnapshot}
           onAddLot={addLot} onAddFinanceTransaction={addFinanceTransaction}
-          onUpdateItem={updateItem} onDeleteItem={deleteItem} existingItems={items}
+          onUpdateItem={updateItem} onDeleteItem={deleteItem} onBulkImport={bulkImport}
+          existingItems={items}
           activePortfolio={activePortfolio} activeEntity={activeEntity !== '__all__' ? activeEntity : 'default'}
           lang={lang} brokerHint={importBrokerHint}
         />

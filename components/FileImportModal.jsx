@@ -228,7 +228,7 @@ function parseNumber(val) {
   return isFinite(num) ? num : 0
 }
 
-export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateItem, onDeleteItem, existingItems, activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null }) {
+export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateItem, onDeleteItem, onBulkImport, existingItems, activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null }) {
   const [mode, setMode] = useState('file')
   const [step, setStep] = useState('upload')
   const [rawData, setRawData] = useState([])
@@ -601,68 +601,48 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     if (!ibkrData || !ibkrData.items || ibkrData.items.length === 0) return
     setImporting(true)
     setError('')
-    let success = 0
-    let failed = 0
-    let replaced = 0
-    const failedItems = []
 
     try {
-      if (ibkrImportMode === 'replace' && onDeleteItem && existingItems) {
+      const deleteIds = []
+      if (ibkrImportMode === 'replace' && existingItems) {
         const ibkrItems = existingItems.filter(it => it.institution === 'Interactive Brokers' || it._source === 'ibkr')
-        for (const it of ibkrItems) {
-          try { await onDeleteItem(it.id, { skipRefCleanup: true }); replaced++ } catch {}
-        }
+        for (const it of ibkrItems) deleteIds.push(it.id)
       }
 
+      const validItems = []
+      const validLots = []
       for (const item of ibkrData.items) {
-        try {
-          const clean = sanitizeImportItem(item)
-          const errors = validateItem(clean)
-          if (errors.length > 0) {
-            failedItems.push(`${item.symbol}: ${errors.join(', ')}`)
-            failed++
-            continue
-          }
-          if (activePortfolio && activePortfolio !== '__all__') clean.portfolioId = activePortfolio
-          if (activeEntity && activeEntity !== 'default') clean.entityId = activeEntity
-          const stripped = Object.fromEntries(Object.entries(clean).filter(([, v]) => v !== undefined))
-          await onImportItems(stripped)
-          if (onAddLot && clean.symbol && clean.quantity > 0 && clean.purchasePrice > 0 && !/debt|deuda/i.test(clean.type || '')) {
-            await onAddLot({
-              symbol: (clean.symbol || '').toUpperCase(),
-              quantity: clean.quantity,
-              costBasis: clean.purchasePrice,
-              currency: clean.currency || 'USD',
-              acquisitionDate: clean.acquisitionDate || new Date().toISOString().split('T')[0],
-              ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
-            })
-          }
-          success++
-        } catch (err) {
-          failedItems.push(`${item.symbol}: ${err.message || 'unknown error'}`)
-          failed++
+        const clean = sanitizeImportItem(item)
+        if (activePortfolio && activePortfolio !== '__all__') clean.portfolioId = activePortfolio
+        if (activeEntity && activeEntity !== 'default') clean.entityId = activeEntity
+        validItems.push(clean)
+        if (clean.symbol && clean.quantity > 0 && clean.purchasePrice > 0 && !/debt|deuda/i.test(clean.type || '')) {
+          validLots.push({
+            symbol: (clean.symbol || '').toUpperCase(),
+            quantity: clean.quantity,
+            costBasis: clean.purchasePrice,
+            currency: clean.currency || 'USD',
+            acquisitionDate: clean.acquisitionDate || new Date().toISOString().split('T')[0],
+            ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
+          })
         }
       }
 
-      if (onImportSnapshot && ibkrData.equityHistory?.length > 0) {
-        const chunks = []
-        for (let i = 0; i < ibkrData.equityHistory.length; i += 5) {
-          chunks.push(ibkrData.equityHistory.slice(i, i + 5))
-        }
-        for (const chunk of chunks) {
-          await Promise.all(chunk.map(snap => onImportSnapshot(snap).catch(() => {})))
-        }
-      }
+      await onBulkImport({
+        items: validItems,
+        lots: validLots,
+        snapshots: ibkrData.equityHistory || [],
+        deleteIds,
+      })
+
+      setResult({ success: validItems.length, failed: 0, total: ibkrData.items.length, replaced: deleteIds.length })
+      setStep('done')
     } catch (err) {
       console.error('[IBKR Import]', err)
-      setError(err.message || 'Import error')
+      setError(lang === 'es' ? `Error al importar: ${err.message}` : `Import error: ${err.message}`)
     }
-
-    if (failedItems.length > 0) console.warn('[IBKR Import] Failed:', failedItems)
-    setResult({ success, failed, total: ibkrData.items.length, replaced, failedItems })
-    setStep('done')
     setImporting(false)
-  }, [ibkrData, onImportItems, onImportSnapshot, onAddLot, onDeleteItem, existingItems, activePortfolio, activeEntity, ibkrImportMode])
+  }, [ibkrData, onBulkImport, existingItems, activePortfolio, activeEntity, ibkrImportMode, lang])
 
   const handleDrop = useCallback((e) => {
     e.preventDefault()
