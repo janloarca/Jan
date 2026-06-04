@@ -106,13 +106,17 @@ export function useFirestoreItems() {
       const currentUid = user.uid
       setUid(currentUid)
 
+      const onErr = (label) => (err) => { console.error(`[Firestore] ${label} listener error:`, err.code, err.message) }
+
       unsubItems = fs.onSnapshot(
         fs.collection(db, `users/${currentUid}/items`),
-        (snap) => { if (!cancelled) setItems(snap.docs.map((d) => sanitizeItem({ id: d.id, ...d.data() }))) }
+        (snap) => { if (!cancelled) setItems(snap.docs.map((d) => sanitizeItem({ id: d.id, ...d.data() }))) },
+        onErr('items')
       )
       unsubSnapshots = fs.onSnapshot(
         fs.query(fs.collection(db, `users/${currentUid}/snapshots`), fs.orderBy('date')),
-        (snap) => { if (!cancelled) setSnapshots(snap.docs.map((d) => sanitizeDoc({ id: d.id, ...d.data() }))) }
+        (snap) => { if (!cancelled) setSnapshots(snap.docs.map((d) => sanitizeDoc({ id: d.id, ...d.data() }))) },
+        onErr('snapshots')
       )
       unsubTransactions = fs.onSnapshot(
         fs.query(fs.collection(db, `users/${currentUid}/transactions`), fs.orderBy('date')),
@@ -121,7 +125,8 @@ export function useFirestoreItems() {
             setTransactions(snap.docs.map((d) => sanitizeDoc({ id: d.id, ...d.data() })))
             setLoading(false)
           }
-        }
+        },
+        onErr('transactions')
       )
 
       try {
@@ -137,19 +142,23 @@ export function useFirestoreItems() {
 
       unsubAlerts = fs.onSnapshot(
         fs.collection(db, `users/${currentUid}/alerts`),
-        (snap) => { if (!cancelled) setAlerts(snap.docs.map((d) => sanitizeDoc({ id: d.id, ...d.data() }))) }
+        (snap) => { if (!cancelled) setAlerts(snap.docs.map((d) => sanitizeDoc({ id: d.id, ...d.data() }))) },
+        onErr('alerts')
       )
       unsubLots = fs.onSnapshot(
         fs.collection(db, `users/${currentUid}/lots`),
-        (snap) => { if (!cancelled) setLots(snap.docs.map((d) => sanitizeDoc({ id: d.id, ...d.data() }))) }
+        (snap) => { if (!cancelled) setLots(snap.docs.map((d) => sanitizeDoc({ id: d.id, ...d.data() }))) },
+        onErr('lots')
       )
       unsubPortfolios = fs.onSnapshot(
         fs.collection(db, `users/${currentUid}/portfolios`),
-        (snap) => { if (!cancelled) setPortfolios(snap.docs.map((d) => sanitizeDoc({ id: d.id, ...d.data() }))) }
+        (snap) => { if (!cancelled) setPortfolios(snap.docs.map((d) => sanitizeDoc({ id: d.id, ...d.data() }))) },
+        onErr('portfolios')
       )
       unsubFinanceTx = fs.onSnapshot(
         fs.query(fs.collection(db, `users/${currentUid}/financeTransactions`), fs.orderBy('date', 'desc')),
-        (snap) => { if (!cancelled) setFinanceTransactions(snap.docs.map((d) => sanitizeDoc({ id: d.id, ...d.data() }))) }
+        (snap) => { if (!cancelled) setFinanceTransactions(snap.docs.map((d) => sanitizeDoc({ id: d.id, ...d.data() }))) },
+        onErr('financeTransactions')
       )
     }
 

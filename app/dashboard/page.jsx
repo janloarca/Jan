@@ -805,16 +805,23 @@ export default function DashboardPage() {
           onDeleteEntity={deleteEntity}
           lastSyncTime={settings?._ibkrLastSync || settings?._ibkrLastAutoSync || null}
           portfolioItems={portfolioItems}
-          onSyncBroker={async (positions) => {
-            const mapped = (positions || []).filter(p => p.quantity !== 0).map(p => ({
+          onSyncBroker={async (brokerId, data) => {
+            const positions = data?.positions || data || []
+            const posArray = Array.isArray(positions) ? positions : []
+            const mapped = posArray.filter(p => p.quantity !== 0).map(p => ({
               symbol: (p.symbol || '').toUpperCase(), name: p.name || p.symbol,
               type: p.type || 'Stock', quantity: Math.abs(p.quantity || 0),
               purchasePrice: p.purchasePrice || 0, currentPrice: p.currentPrice || 0,
-              institution: p.institution || 'Interactive Brokers', currency: p.currency || 'USD',
-              acquisitionDate: p.acquisitionDate, conid: p._ibkrConId || '',
-              _ibkrAccountId: p._ibkrAccountId || '', _source: 'ibkr',
+              institution: p.institution || brokerId || 'Unknown', currency: p.currency || 'USD',
+              acquisitionDate: p.acquisitionDate,
+              _source: brokerId || 'broker',
             }))
-            await handleIBKRSync({ items: mapped, transactions: [], accounts: [] }, 'merge')
+            if (mapped.length > 0) {
+              await bulkImport({ items: mapped }, (done, total) => {
+                showToast(`Sync ${brokerId}: ${done}/${total}`, 'info', 2000)
+              })
+              showToast(`${brokerId}: ${mapped.length} positions synced`, 'success')
+            }
           }}
           onExportBackup={() => {
             const data = {
