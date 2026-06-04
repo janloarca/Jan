@@ -228,7 +228,7 @@ function parseNumber(val) {
   return isFinite(num) ? num : 0
 }
 
-export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateItem, existingItems, activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null }) {
+export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateItem, onDeleteItem, existingItems, activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null }) {
   const [mode, setMode] = useState('file')
   const [step, setStep] = useState('upload')
   const [rawData, setRawData] = useState([])
@@ -241,6 +241,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   const [pasteText, setPasteText] = useState('')
   const fileRef = useRef(null)
   const [ibkrData, setIbkrData] = useState(null)
+  const [ibkrImportMode, setIbkrImportMode] = useState('merge')
 
   // Manual form
   const [manual, setManual] = useState({
@@ -602,6 +603,14 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     setError('')
     let success = 0
     let failed = 0
+    let replaced = 0
+
+    if (ibkrImportMode === 'replace' && onDeleteItem && existingItems) {
+      const ibkrItems = existingItems.filter(it => it.institution === 'Interactive Brokers' || it._source === 'ibkr')
+      for (const it of ibkrItems) {
+        try { await onDeleteItem(it.id); replaced++ } catch {}
+      }
+    }
 
     for (const item of ibkrData.items) {
       try {
@@ -631,10 +640,10 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       }
     }
 
-    setResult({ success, failed, total: ibkrData.items.length })
+    setResult({ success, failed, total: ibkrData.items.length, replaced })
     setStep('done')
     setImporting(false)
-  }, [ibkrData, onImportItems, onImportSnapshot, onAddLot, activePortfolio, activeEntity])
+  }, [ibkrData, onImportItems, onImportSnapshot, onAddLot, onDeleteItem, existingItems, activePortfolio, activeEntity, ibkrImportMode])
 
   const handleDrop = useCallback((e) => {
     e.preventDefault()
@@ -1003,56 +1012,96 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
             <div>
               <div className="flex items-center gap-2 px-3 py-2 mb-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
                 <span className="text-blue-400 text-xs font-medium">
-                  {t('Formato detectado: Interactive Brokers Activity Statement', 'Format detected: Interactive Brokers Activity Statement')}
+                  {t('Formato detectado: Interactive Brokers', 'Format detected: Interactive Brokers')}
                 </span>
               </div>
-              <p className="text-slate-400 text-sm mb-1">
-                {t(`${ibkrData.items.length} posiciones encontradas`, `${ibkrData.items.length} positions found`)}
-                {ibkrData.transactions?.length > 0 && ` + ${ibkrData.transactions.length} ${t('trades', 'trades')}`}
-                {ibkrData.equityHistory?.length > 0 && ` + ${ibkrData.equityHistory.length} ${t('snapshots NAV', 'NAV snapshots')}`}
+              <p className="text-slate-400 text-sm mb-3">
+                {t(`${ibkrData.items.length} posiciones`, `${ibkrData.items.length} positions`)}
+                {ibkrData.transactions?.length > 0 && ` · ${ibkrData.transactions.length} trades`}
+                {ibkrData.equityHistory?.length > 0 && ` · ${ibkrData.equityHistory.length} NAV`}
               </p>
-              {ibkrData._sectionNames?.length > 0 && (
-                <p className="text-[10px] text-slate-600 mb-3">
-                  {t('Secciones', 'Sections')}: {ibkrData._sectionNames.join(', ')}
-                </p>
-              )}
 
-              <div className="overflow-x-auto max-h-60 overflow-y-auto">
+              <div className="overflow-x-auto max-h-52 overflow-y-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="text-slate-500 border-b border-[#38383A] sticky top-0 bg-[#1C1C1E]">
-                      <th className="text-left py-2 px-2">Symbol</th>
-                      <th className="text-left py-2 px-2">Name</th>
-                      <th className="text-left py-2 px-2">Type</th>
-                      <th className="text-right py-2 px-2">Qty</th>
-                      <th className="text-right py-2 px-2">{t('Costo', 'Cost')}</th>
-                      <th className="text-right py-2 px-2">{t('Precio', 'Price')}</th>
-                      <th className="text-left py-2 px-2">CCY</th>
+                      <th className="text-left py-2 px-1.5">Symbol</th>
+                      <th className="text-left py-2 px-1.5">Name</th>
+                      <th className="text-right py-2 px-1.5">Qty</th>
+                      <th className="text-right py-2 px-1.5">{t('Precio', 'Price')}</th>
+                      <th className="text-right py-2 px-1.5">{t('Valor', 'Value')}</th>
+                      <th className="text-right py-2 px-1.5">%</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {ibkrData.items.map((item, i) => (
-                      <tr key={i} className="border-b border-[#38383A]/50 hover:bg-[#2C2C2E]">
-                        <td className="py-2 px-2 text-blue-400 font-medium">{item.symbol}</td>
-                        <td className="py-2 px-2 text-white max-w-[150px] truncate">{item.name}</td>
-                        <td className="py-2 px-2 text-slate-400">{item.type}</td>
-                        <td className="py-2 px-2 text-right text-slate-300">{item.quantity?.toLocaleString()}</td>
-                        <td className="py-2 px-2 text-right text-slate-300">${item.purchasePrice?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                        <td className="py-2 px-2 text-right text-slate-300">${item.currentPrice?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                        <td className="py-2 px-2 text-slate-500">{item.currency}</td>
-                      </tr>
-                    ))}
+                    {ibkrData.items.map((item, i) => {
+                      const val = (item.currentPrice || 0) * (item.quantity || 0)
+                      const cost = (item.purchasePrice || 0) * (item.quantity || 0)
+                      const gain = cost > 0 ? ((val - cost) / cost * 100) : 0
+                      return (
+                        <tr key={i} className="border-b border-[#38383A]/50 hover:bg-[#2C2C2E]">
+                          <td className="py-1.5 px-1.5 text-blue-400 font-medium">{item.symbol}</td>
+                          <td className="py-1.5 px-1.5 text-white max-w-[120px] truncate">{item.name}</td>
+                          <td className="py-1.5 px-1.5 text-right text-slate-300">{item.quantity?.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+                          <td className="py-1.5 px-1.5 text-right text-slate-300">${item.currentPrice?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                          <td className="py-1.5 px-1.5 text-right text-white font-medium">${val.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</td>
+                          <td className={`py-1.5 px-1.5 text-right font-medium ${gain > 0 ? 'text-emerald-400' : gain < 0 ? 'text-red-400' : 'text-slate-500'}`}>
+                            {cost > 0 ? `${gain >= 0 ? '+' : ''}${gain.toFixed(1)}%` : '—'}
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
+
+              {/* Merge vs Replace */}
+              <div className="mt-4 p-3 bg-[#000000] border border-[#38383A] rounded-lg">
+                <p className="text-xs text-slate-400 mb-2">{t('Modo de importación:', 'Import mode:')}</p>
+                <div className="flex gap-2">
+                  <button onClick={() => setIbkrImportMode('merge')}
+                    className={`flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-colors ${
+                      ibkrImportMode === 'merge'
+                        ? 'bg-blue-600/20 border border-blue-500/40 text-blue-400'
+                        : 'border border-[#38383A] text-slate-400 hover:text-slate-300'
+                    }`}>
+                    {t('Agregar junto a existentes', 'Add alongside existing')}
+                  </button>
+                  <button onClick={() => setIbkrImportMode('replace')}
+                    className={`flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-colors ${
+                      ibkrImportMode === 'replace'
+                        ? 'bg-orange-600/20 border border-orange-500/40 text-orange-400'
+                        : 'border border-[#38383A] text-slate-400 hover:text-slate-300'
+                    }`}>
+                    {t('Reemplazar posiciones IBKR', 'Replace IBKR positions')}
+                  </button>
+                </div>
+                {ibkrImportMode === 'replace' && existingItems && (
+                  <p className="text-[11px] text-orange-400/70 mt-2">
+                    {(() => {
+                      const ibkrCount = existingItems.filter(it => it.institution === 'Interactive Brokers' || it._source === 'ibkr').length
+                      return ibkrCount > 0
+                        ? t(`Se eliminarán ${ibkrCount} posiciones IBKR existentes antes de importar`, `${ibkrCount} existing IBKR positions will be deleted before import`)
+                        : t('No hay posiciones IBKR existentes', 'No existing IBKR positions')
+                    })()}
+                  </p>
+                )}
+              </div>
+
               <div className="flex gap-3 mt-4">
                 <button onClick={() => { setIbkrData(null); setStep('upload') }}
                   className="flex-1 py-2.5 border border-[#38383A] text-slate-300 rounded-lg hover:bg-[#2C2C2E] transition-colors text-sm">
                   {t('Atrás', 'Back')}
                 </button>
                 <button onClick={doIBKRImport} disabled={importing}
-                  className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium">
-                  {importing ? t('Importando...', 'Importing...') : t(`Importar ${ibkrData.items.length} posiciones`, `Import ${ibkrData.items.length} positions`)}
+                  className={`flex-1 py-2.5 text-white rounded-lg disabled:opacity-50 transition-colors text-sm font-medium ${
+                    ibkrImportMode === 'replace' ? 'bg-orange-600 hover:bg-orange-500' : 'bg-blue-600 hover:bg-blue-500'
+                  }`}>
+                  {importing
+                    ? t('Importando...', 'Importing...')
+                    : ibkrImportMode === 'replace'
+                      ? t(`Reemplazar con ${ibkrData.items.length} posiciones`, `Replace with ${ibkrData.items.length} positions`)
+                      : t(`Importar ${ibkrData.items.length} posiciones`, `Import ${ibkrData.items.length} positions`)}
                 </button>
               </div>
             </div>
@@ -1071,6 +1120,9 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                 {result.success} {result.isBI ? t('transacciones importadas', 'transactions imported') : t('activos importados', 'assets imported')}
                 {result.failed > 0 && <>, {result.failed} {t('fallidos', 'failed')}</>}
               </p>
+              {result.replaced > 0 && (
+                <p className="text-orange-400 text-xs mt-1">{t(`${result.replaced} posiciones anteriores reemplazadas`, `${result.replaced} previous positions replaced`)}</p>
+              )}
               {result.snapCount > 0 && (
                 <p className="text-cyan-400 text-xs mt-1">📊 {result.snapCount} {t('periodos de historial', 'history periods')}</p>
               )}
