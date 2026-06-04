@@ -76,18 +76,7 @@ export function getTypeCategory(itemOrType) {
   return 'other'
 }
 
-export const TYPE_COLORS = {
-  stocks: { bg: '#3b82f6', badge: 'bg-blue-500/20 text-blue-400' },
-  crypto: { bg: '#f59e0b', badge: 'bg-amber-500/20 text-amber-400' },
-  bonds: { bg: '#10b981', badge: 'bg-emerald-500/20 text-emerald-400' },
-  funds: { bg: '#a855f7', badge: 'bg-purple-500/20 text-purple-400' },
-  banks: { bg: '#6b7280', badge: 'bg-gray-500/20 text-gray-400' },
-  realestate: { bg: '#f97316', badge: 'bg-orange-500/20 text-orange-400' },
-  alternatives: { bg: '#ec4899', badge: 'bg-pink-500/20 text-pink-400' },
-  receivables: { bg: '#06b6d4', badge: 'bg-cyan-500/20 text-cyan-400' },
-  debts: { bg: '#ef4444', badge: 'bg-red-500/20 text-red-400' },
-  other: { bg: '#64748b', badge: 'bg-slate-500/20 text-slate-400' },
-}
+export { CATEGORY as TYPE_COLORS, CHART_PALETTE } from '@/lib/colors'
 
 export function getItemPrice(item) {
   if (item.isIlliquid && item.lastManualValuation > 0) return item.lastManualValuation
@@ -135,11 +124,13 @@ export function getInvestmentClass(item) {
   return 'renta_variable'
 }
 
+import { INVESTMENT_CLASS_COLORS } from '@/lib/colors'
+
 export const INVESTMENT_CLASS_META = {
-  renta_variable: { label: { es: 'Renta Variable', en: 'Variable Income' }, returnType: { es: 'Retorno variable', en: 'Variable return' }, color: '#3b82f6', icon: 'TrendingUp' },
-  renta_fija: { label: { es: 'Renta Fija', en: 'Fixed Income' }, returnType: { es: 'Retorno predefinido', en: 'Predefined return' }, color: '#10b981', icon: 'Landmark' },
-  patrimonio_vc: { label: { es: 'Patrimonio / VC', en: 'Equity / VC' }, returnType: { es: 'Largo plazo', en: 'Long-term' }, color: '#f59e0b', icon: 'Gem' },
-  debts: { label: { es: 'Deuda', en: 'Debt' }, returnType: { es: 'Pasivo', en: 'Liability' }, color: '#ef4444', icon: 'CreditCard' },
+  renta_variable: { label: { es: 'Renta Variable', en: 'Variable Income' }, returnType: { es: 'Retorno variable', en: 'Variable return' }, color: INVESTMENT_CLASS_COLORS.renta_variable, icon: 'TrendingUp' },
+  renta_fija: { label: { es: 'Renta Fija', en: 'Fixed Income' }, returnType: { es: 'Retorno predefinido', en: 'Predefined return' }, color: INVESTMENT_CLASS_COLORS.renta_fija, icon: 'Landmark' },
+  patrimonio_vc: { label: { es: 'Patrimonio / VC', en: 'Equity / VC' }, returnType: { es: 'Largo plazo', en: 'Long-term' }, color: INVESTMENT_CLASS_COLORS.patrimonio_vc, icon: 'Gem' },
+  debts: { label: { es: 'Deuda', en: 'Debt' }, returnType: { es: 'Pasivo', en: 'Liability' }, color: INVESTMENT_CLASS_COLORS.debts, icon: 'CreditCard' },
 }
 
 export function formatPercent(value) {
@@ -193,7 +184,29 @@ const GEO_SUFFIXES = {
   '.KS': 'South Korea', '.AX': 'Australia', '.NS': 'India', '.BO': 'India',
 }
 
-const CRYPTO_SYMBOLS = new Set(['BTC', 'ETH', 'SOL', 'ADA', 'DOT', 'AVAX', 'MATIC', 'LINK', 'UNI', 'XRP', 'DOGE', 'BNB', 'ATOM', 'NEAR', 'LTC', 'USDT', 'USDC', 'AAVE', 'SHIB'])
+const CRYPTO_SYMBOLS = new Set(['BTC', 'ETH', 'SOL', 'ADA', 'DOT', 'AVAX', 'MATIC', 'LINK', 'UNI', 'XRP', 'DOGE', 'BNB', 'ATOM', 'NEAR', 'LTC', 'USDT', 'USDC', 'AAVE', 'SHIB', 'FIL', 'ICP', 'CRO', 'VET', 'EOS', 'XTZ', 'THETA', 'FTM', 'ALGO', 'DAI', 'OSMO'])
+
+const KNOWN_GEO = {
+  NVO: 'Denmark', NOVO: 'Denmark', ASML: 'Netherlands', TSM: 'Taiwan', SAP: 'Germany',
+  TM: 'Japan', SONY: 'Japan', HMC: 'Japan', MUFG: 'Japan', SMFG: 'Japan',
+  BABA: 'China', JD: 'China', PDD: 'China', BIDU: 'China', NIO: 'China', LI: 'China', XPEV: 'China',
+  SE: 'Singapore', GRAB: 'Singapore', SHOP: 'Canada', RY: 'Canada', TD: 'Canada', BNS: 'Canada',
+  SAN: 'Spain', BBVA: 'Spain', TEF: 'Spain', IBE: 'Spain',
+  AZN: 'UK', GSK: 'UK', BP: 'UK', SHEL: 'UK', HSBC: 'UK', RIO: 'UK', BHP: 'Australia',
+  UL: 'UK', DEO: 'UK', BTI: 'UK', LIN: 'Ireland',
+  TCEHY: 'China', NTES: 'China', WBD: 'US',
+  VALE: 'Brazil', PBR: 'Brazil', ITUB: 'Brazil', BBD: 'Brazil', SID: 'Brazil',
+  MELI: 'Argentina', GLOB: 'Argentina', YPF: 'Argentina', GGAL: 'Argentina',
+  AMX: 'Mexico', FEMSA: 'Mexico', TV: 'Mexico', BSMX: 'Mexico',
+  SQM: 'Chile', BSAC: 'Chile',
+  XOCHI: 'Guatemala', BI: 'Guatemala',
+  INFY: 'India', WIT: 'India', HDB: 'India', IBN: 'India',
+  KB: 'South Korea', SHG: 'South Korea', PKX: 'South Korea',
+  UMC: 'Taiwan', ASX: 'Taiwan', IMOS: 'Taiwan',
+  ERIC: 'Sweden', SPOT: 'Sweden', VOLV: 'Sweden',
+  RACE: 'Italy', STLA: 'Netherlands', ING: 'Netherlands',
+  CS: 'Switzerland', UBS: 'Switzerland', NOVN: 'Switzerland',
+}
 
 export function getGeographyFromSymbol(symbol) {
   if (!symbol) return 'Unknown'
@@ -202,7 +215,28 @@ export function getGeographyFromSymbol(symbol) {
   for (const [suffix, geo] of Object.entries(GEO_SUFFIXES)) {
     if (symbol.endsWith(suffix)) return geo
   }
+  if (KNOWN_GEO[upper]) return KNOWN_GEO[upper]
   return 'US'
+}
+
+export function getGeographyFromItem(item) {
+  if (item.assetCountry) return item.assetCountry
+  const cat = getTypeCategory(item)
+  if (cat === 'crypto') return 'Global'
+  return getGeographyFromSymbol(item.symbol)
+}
+
+export function getSectorFromItem(item) {
+  if (item.sector) return item.sector
+  const cat = getTypeCategory(item)
+  if (cat === 'crypto') return 'Crypto'
+  if (cat === 'realestate') return 'Real Estate'
+  if (cat === 'banks') return 'Financials'
+  if (cat === 'bonds') return 'Fixed Income'
+  if (cat === 'alternatives') return 'Alternatives'
+  if (cat === 'receivables') return 'Receivables'
+  if (cat === 'debts') return 'Liabilities'
+  return getSectorFromType(item.type) !== 'Unknown' ? getSectorFromType(item.type) : getSectorFromType(item.name || '')
 }
 
 export function computeModifiedDietz({ startValue, endValue, startTs, endTs, transactions, convert, baseCurrency }) {

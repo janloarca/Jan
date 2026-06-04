@@ -1,12 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { formatCurrency, getTypeCategory, TYPE_COLORS, getItemValue, getSectorFromType, getGeographyFromSymbol, getInvestmentClass, INVESTMENT_CLASS_META } from './utils'
-
-const DONUT_COLORS = [
-  '#3b82f6', '#f59e0b', '#10b981', '#a855f7', '#ec4899',
-  '#06b6d4', '#ef4444', '#84cc16', '#f97316', '#6366f1',
-]
+import { formatCurrency, getTypeCategory, TYPE_COLORS, CHART_PALETTE, getItemValue, getSectorFromItem, getGeographyFromItem, getInvestmentClass, INVESTMENT_CLASS_META } from './utils'
 
 export default function AssetAllocation({ items, lang }) {
   const [view, setView] = useState('type')
@@ -15,8 +10,8 @@ export default function AssetAllocation({ items, lang }) {
     const groupFns = {
       type: (it) => getTypeCategory(it.type),
       returnType: (it) => getInvestmentClass(it),
-      sector: (it) => getSectorFromType(it.type),
-      geography: (it) => getGeographyFromSymbol(it.symbol),
+      sector: (it) => getSectorFromItem(it),
+      geography: (it) => getGeographyFromItem(it),
       currency: (it) => it._originalCurrency || it.currency || 'USD',
       institution: (it) => it.institution || (lang === 'es' ? 'Sin institución' : 'No institution'),
     }
@@ -43,9 +38,9 @@ export default function AssetAllocation({ items, lang }) {
         value,
         pct: total > 0 ? (value / total) * 100 : 0,
         contribution: total > 0 ? ((gainByGroup[name] || 0) / total) * 100 : 0,
-        color: view === 'type' ? (TYPE_COLORS[name]?.bg || DONUT_COLORS[i % DONUT_COLORS.length])
-             : view === 'returnType' ? (INVESTMENT_CLASS_META[name]?.color || DONUT_COLORS[i % DONUT_COLORS.length])
-             : DONUT_COLORS[i % DONUT_COLORS.length],
+        color: view === 'type' ? (TYPE_COLORS[name]?.bg || CHART_PALETTE[i % CHART_PALETTE.length])
+             : view === 'returnType' ? (INVESTMENT_CLASS_META[name]?.color || CHART_PALETTE[i % CHART_PALETTE.length])
+             : CHART_PALETTE[i % CHART_PALETTE.length],
       }))
       .sort((a, b) => b.value - a.value)
   }, [items, view, lang])
@@ -93,7 +88,7 @@ export default function AssetAllocation({ items, lang }) {
         ))}
       </div>
 
-      <div className="flex items-center gap-6">
+      <div className="flex flex-col sm:flex-row items-center gap-6">
         <div className="relative shrink-0">
           <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
             <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#38383A" strokeWidth={strokeWidth} />
@@ -125,13 +120,13 @@ export default function AssetAllocation({ items, lang }) {
           </div>
         </div>
 
-        <div className="flex-1 space-y-1.5 max-h-40 overflow-y-auto">
+        <div className="flex-1 w-full space-y-1.5 max-h-48 overflow-y-auto">
           {allocation.map((seg) => (
             <div key={seg.name} className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: seg.color }} />
                 <div className="flex flex-col">
-                  <span className="text-xs text-slate-300 capitalize truncate max-w-[120px]">
+                  <span className="text-xs text-slate-300 capitalize truncate max-w-[140px]">
                     {view === 'returnType' && INVESTMENT_CLASS_META[seg.name]
                       ? INVESTMENT_CLASS_META[seg.name].label[lang] || seg.name
                       : seg.name}
@@ -145,10 +140,10 @@ export default function AssetAllocation({ items, lang }) {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-slate-400">{seg.pct.toFixed(1)}%</span>
-                <span className={`text-xs w-10 text-right ${seg.contribution >= 0 ? 'text-emerald-500/70' : 'text-red-500/70'}`}>
-                  {seg.contribution >= 0 ? '+' : ''}{seg.contribution.toFixed(2)}%
+                <span className={`text-xs w-14 text-right ${seg.contribution >= 0 ? 'text-emerald-500/70' : 'text-red-500/70'}`}>
+                  {seg.contribution >= 0 ? '+' : ''}{seg.contribution.toFixed(1)}%
                 </span>
-                <span className="text-xs text-white font-medium w-16 text-right">{formatCurrency(seg.value)}</span>
+                <span className="text-xs text-white font-medium w-20 text-right">{formatCurrency(seg.value)}</span>
               </div>
             </div>
           ))}

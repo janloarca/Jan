@@ -51,10 +51,10 @@ export default function FinancialHealth({ items, netWorth, totalAssets, snapshot
   const gradeColor = scores.total >= 70 ? 'text-emerald-400' : scores.total >= 50 ? 'text-amber-400' : 'text-red-400'
 
   const bars = [
-    { label: lang === 'es' ? 'Deuda' : 'Debt', score: scores.debtScore, max: 25, pct: 100 - scores.debtRatio, color: scores.debtScore >= 20 ? 'bg-emerald-500' : scores.debtScore >= 12 ? 'bg-amber-500' : 'bg-red-500' },
-    { label: lang === 'es' ? 'Liquidez' : 'Liquidity', score: scores.liquidScore, max: 25, pct: scores.liquidPct, color: scores.liquidScore >= 20 ? 'bg-emerald-500' : scores.liquidScore >= 15 ? 'bg-amber-500' : 'bg-red-500' },
-    { label: lang === 'es' ? 'Diversificación' : 'Diversification', score: scores.diverseScore, max: 25, pct: scores.diversePct, color: scores.diverseScore >= 18 ? 'bg-emerald-500' : scores.diverseScore >= 14 ? 'bg-amber-500' : 'bg-red-500' },
-    { label: lang === 'es' ? 'Crecimiento' : 'Growth', score: scores.growthScore, max: 25, pct: Math.min(100, Math.abs(scores.growthPct)), color: scores.growthScore >= 18 ? 'bg-emerald-500' : scores.growthScore >= 14 ? 'bg-amber-500' : 'bg-red-500' },
+    { label: lang === 'es' ? 'Deuda' : 'Debt', score: scores.debtScore, max: 25, pct: 100 - scores.debtRatio, color: 'bg-orange-500' },
+    { label: lang === 'es' ? 'Liquidez' : 'Liquidity', score: scores.liquidScore, max: 25, pct: scores.liquidPct, color: 'bg-sky-500' },
+    { label: lang === 'es' ? 'Diversificación' : 'Diversification', score: scores.diverseScore, max: 25, pct: scores.diversePct, color: 'bg-violet-500' },
+    { label: lang === 'es' ? 'Crecimiento' : 'Growth', score: scores.growthScore, max: 25, pct: Math.min(100, Math.abs(scores.growthPct)), color: 'bg-teal-500' },
   ]
 
   const t = (es, en) => lang === 'es' ? es : en

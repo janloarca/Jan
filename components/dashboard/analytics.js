@@ -432,6 +432,59 @@ export function computeBeta(portfolioReturns, benchmarkReturns) {
   return beta
 }
 
+function clamp(v) {
+  return Math.max(-10, Math.min(10, v))
+}
+
+export function computeSortino(returns, riskFreeRate = 0.04) {
+  if (!returns || returns.length < 3) return 0
+  const monthlyRf = riskFreeRate / 12
+  const avgReturn = mean(returns)
+  const downsideDiffs = returns.map((r) => Math.min(r - monthlyRf, 0))
+  const downsideVariance = downsideDiffs.reduce((s, d) => s + d * d, 0) / (returns.length - 1)
+  const downsideDev = Math.sqrt(downsideVariance)
+  if (downsideDev === 0) return 0
+  const sortino = ((avgReturn - monthlyRf) / downsideDev) * Math.sqrt(12)
+  if (!isFinite(sortino)) return 0
+  return Math.round(clamp(sortino) * 100) / 100
+}
+
+export function computeTreynor(returns, benchmarkReturns, riskFreeRate = 0.04) {
+  if (!returns || returns.length < 3) return 0
+  const beta = computeBeta(returns, benchmarkReturns)
+  if (beta == null || beta === 0) return 0
+  const monthlyRf = riskFreeRate / 12
+  const avgReturn = mean(returns)
+  const treynor = ((avgReturn - monthlyRf) * 12) / beta
+  if (!isFinite(treynor)) return 0
+  return Math.round(clamp(treynor) * 100) / 100
+}
+
+export function computeJensensAlpha(returns, benchmarkReturns, riskFreeRate = 0.04) {
+  if (!returns || !benchmarkReturns || returns.length < 3 || benchmarkReturns.length < 3) return 0
+  const beta = computeBeta(returns, benchmarkReturns)
+  if (beta == null) return 0
+  const avgReturn = mean(returns) * 12
+  const avgBenchmark = mean(benchmarkReturns) * 12
+  const alpha = avgReturn - (riskFreeRate + beta * (avgBenchmark - riskFreeRate))
+  if (!isFinite(alpha)) return 0
+  return Math.round(clamp(alpha) * 10000) / 10000
+}
+
+export function computeInformationRatio(returns, benchmarkReturns) {
+  if (!returns || !benchmarkReturns || returns.length < 3 || benchmarkReturns.length < 3) return 0
+  const len = Math.min(returns.length, benchmarkReturns.length)
+  const pSlice = returns.slice(-len)
+  const bSlice = benchmarkReturns.slice(-len)
+  const activeReturns = pSlice.map((r, i) => r - bSlice[i])
+  const avgActive = mean(activeReturns)
+  const trackingError = stddev(activeReturns)
+  if (trackingError === 0) return 0
+  const ir = (avgActive / trackingError) * Math.sqrt(12)
+  if (!isFinite(ir)) return 0
+  return Math.round(clamp(ir) * 100) / 100
+}
+
 export function computeTWRSeries(chartData, transactions, convert, baseCurrency) {
   if (!chartData || chartData.length < 2) return []
 

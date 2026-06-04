@@ -161,24 +161,31 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
           </div>
 
           {/* Goal probability */}
-          {goalProbability != null && (
-            <div className="flex items-center gap-3 px-3 py-2 bg-[#000000] rounded-lg border border-[#38383A]/50">
-              <div className="relative w-10 h-10 shrink-0">
-                <svg viewBox="0 0 36 36" className="w-full h-full">
-                  <circle cx="18" cy="18" r="15" fill="none" stroke="#38383A" strokeWidth="3" />
-                  <circle cx="18" cy="18" r="15" fill="none"
-                    stroke={goalProbability >= 70 ? '#10b981' : goalProbability >= 40 ? '#f59e0b' : '#ef4444'}
-                    strokeWidth="3" strokeDasharray={`${goalProbability * 0.942} 94.2`}
-                    strokeLinecap="round" transform="rotate(-90 18 18)" />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">{goalProbability}%</span>
+          {goalProbability != null && (() => {
+            const probColor = goalProbability >= 70 ? '#30D158' : goalProbability >= 40 ? '#FF9F0A' : '#FF453A'
+            const probLabel = goalProbability >= 70 ? t('Alta', 'High') : goalProbability >= 40 ? t('Moderada', 'Moderate') : t('Baja', 'Low')
+            return (
+              <div className="flex items-center gap-4 px-4 py-3 bg-[#000000] rounded-xl border border-[#38383A]/50">
+                <div className="relative w-20 h-20 shrink-0">
+                  <svg viewBox="0 0 36 36" className="w-full h-full">
+                    <circle cx="18" cy="18" r="15" fill="none" stroke="#38383A" strokeWidth="2.5" />
+                    <circle cx="18" cy="18" r="15" fill="none"
+                      stroke={probColor}
+                      strokeWidth="2.5" strokeDasharray={`${goalProbability * 0.942} 94.2`}
+                      strokeLinecap="round" transform="rotate(-90 18 18)" />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-xl font-bold text-white leading-none">{goalProbability}%</span>
+                  </div>
+                </div>
+                <div>
+                  <span className="text-sm font-semibold text-white block">{t('Probabilidad de éxito', 'Probability of success')}</span>
+                  <span className="text-xs font-medium mt-0.5 block" style={{ color: probColor }}>{probLabel}</span>
+                  <span className="text-[11px] text-slate-600 mt-1 block">{t('Monte Carlo · 500 simulaciones', 'Monte Carlo · 500 simulations')}</span>
+                </div>
               </div>
-              <div>
-                <span className="text-xs text-slate-400 block">{t('Probabilidad de alcanzar meta', 'Probability of reaching goal')}</span>
-                <span className="text-xs text-slate-600">{t('Basado en Monte Carlo (500 simulaciones)', 'Based on Monte Carlo (500 simulations)')}</span>
-              </div>
-            </div>
-          )}
+            )
+          })()}
 
           {/* Scenario-based monthly needed */}
           {yearsLeft > 0 && portfolioGoal > netWorth && (

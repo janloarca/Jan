@@ -94,7 +94,6 @@ export function useFirestoreItems() {
     let unsubPortfolios = () => {}
     let unsubFinanceTx = () => {}
     let cancelled = false
-    let deferTimer = null
 
     async function init() {
       const { db, auth, fs } = await getFirebase()
@@ -136,29 +135,26 @@ export function useFirestoreItems() {
 
       if (!cancelled) setLoading(false)
 
-      deferTimer = setTimeout(() => {
-        if (cancelled) return
-        unsubAlerts = fs.onSnapshot(
-          fs.collection(db, `users/${currentUid}/alerts`),
-          (snap) => { if (!cancelled) setAlerts(snap.docs.map((d) => sanitizeDoc({ id: d.id, ...d.data() }))) }
-        )
-        unsubLots = fs.onSnapshot(
-          fs.collection(db, `users/${currentUid}/lots`),
-          (snap) => { if (!cancelled) setLots(snap.docs.map((d) => sanitizeDoc({ id: d.id, ...d.data() }))) }
-        )
-        unsubPortfolios = fs.onSnapshot(
-          fs.collection(db, `users/${currentUid}/portfolios`),
-          (snap) => { if (!cancelled) setPortfolios(snap.docs.map((d) => sanitizeDoc({ id: d.id, ...d.data() }))) }
-        )
-        unsubFinanceTx = fs.onSnapshot(
-          fs.query(fs.collection(db, `users/${currentUid}/financeTransactions`), fs.orderBy('date', 'desc')),
-          (snap) => { if (!cancelled) setFinanceTransactions(snap.docs.map((d) => sanitizeDoc({ id: d.id, ...d.data() }))) }
-        )
-      }, 2000)
+      unsubAlerts = fs.onSnapshot(
+        fs.collection(db, `users/${currentUid}/alerts`),
+        (snap) => { if (!cancelled) setAlerts(snap.docs.map((d) => sanitizeDoc({ id: d.id, ...d.data() }))) }
+      )
+      unsubLots = fs.onSnapshot(
+        fs.collection(db, `users/${currentUid}/lots`),
+        (snap) => { if (!cancelled) setLots(snap.docs.map((d) => sanitizeDoc({ id: d.id, ...d.data() }))) }
+      )
+      unsubPortfolios = fs.onSnapshot(
+        fs.collection(db, `users/${currentUid}/portfolios`),
+        (snap) => { if (!cancelled) setPortfolios(snap.docs.map((d) => sanitizeDoc({ id: d.id, ...d.data() }))) }
+      )
+      unsubFinanceTx = fs.onSnapshot(
+        fs.query(fs.collection(db, `users/${currentUid}/financeTransactions`), fs.orderBy('date', 'desc')),
+        (snap) => { if (!cancelled) setFinanceTransactions(snap.docs.map((d) => sanitizeDoc({ id: d.id, ...d.data() }))) }
+      )
     }
 
     init()
-    return () => { cancelled = true; if (deferTimer) clearTimeout(deferTimer); unsubItems(); unsubSnapshots(); unsubTransactions(); unsubAlerts(); unsubLots(); unsubPortfolios(); unsubFinanceTx() }
+    return () => { cancelled = true; unsubItems(); unsubSnapshots(); unsubTransactions(); unsubAlerts(); unsubLots(); unsubPortfolios(); unsubFinanceTx() }
   }, [])
 
   const addItem = useCallback(async (item) => {

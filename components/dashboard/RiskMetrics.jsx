@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { computeSharpeRatio, computeVolatility, computeMaxDrawdown, computePeriodicReturns, computeBeta } from './analytics'
+import { computeSharpeRatio, computeVolatility, computeMaxDrawdown, computePeriodicReturns, computeBeta, computeSortino, computeTreynor, computeJensensAlpha, computeInformationRatio } from './analytics'
 
 export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, transactions, convert, baseCurrency, benchmarkName }) {
   const metrics = useMemo(() => {
@@ -17,9 +17,9 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
     const drawdown = computeMaxDrawdown(valueSeries)
 
     let beta = null
+    let bReturns = []
     if (benchmarkData?.dataPoints?.length > 2 && valueSeries.length > 2) {
       const bPts = benchmarkData.dataPoints
-      const bReturns = []
       for (let i = 1; i < valueSeries.length; i++) {
         const targetTs = valueSeries[i].ts
         const prevTargetTs = valueSeries[i - 1].ts
@@ -38,7 +38,12 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
       beta = computeBeta(returns, bReturns)
     }
 
-    return { sharpe: sharpeResult.sharpe, vol, drawdown, beta }
+    const sortino = computeSortino(returns)
+    const treynor = computeTreynor(returns, bReturns)
+    const alpha = computeJensensAlpha(returns, bReturns)
+    const ir = computeInformationRatio(returns, bReturns)
+
+    return { sharpe: sharpeResult.sharpe, vol, drawdown, beta, sortino, treynor, alpha, ir }
   }, [snapshots, benchmarkData, transactions, convert, baseCurrency])
 
   const hasData = snapshots && snapshots.length >= 15
@@ -57,6 +62,26 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
   const ddColor = metrics.drawdown.maxDrawdownPct === 0 ? 'text-slate-500'
     : metrics.drawdown.maxDrawdownPct < 10 ? 'text-emerald-400'
     : metrics.drawdown.maxDrawdownPct < 20 ? 'text-amber-400'
+    : 'text-red-400'
+
+  const sortinoColor = metrics.sortino === 0 ? 'text-slate-500'
+    : metrics.sortino > 1 ? 'text-emerald-400'
+    : metrics.sortino > 0.5 ? 'text-amber-400'
+    : 'text-red-400'
+
+  const treynorColor = metrics.treynor === 0 ? 'text-slate-500'
+    : metrics.treynor > 0.1 ? 'text-emerald-400'
+    : metrics.treynor > 0 ? 'text-amber-400'
+    : 'text-red-400'
+
+  const alphaColor = metrics.alpha === 0 ? 'text-slate-500'
+    : metrics.alpha > 0 ? 'text-emerald-400'
+    : metrics.alpha >= -0.02 ? 'text-amber-400'
+    : 'text-red-400'
+
+  const irColor = metrics.ir === 0 ? 'text-slate-500'
+    : metrics.ir > 0.5 ? 'text-emerald-400'
+    : metrics.ir > 0 ? 'text-amber-400'
     : 'text-red-400'
 
   const insight = useMemo(() => {
@@ -124,6 +149,42 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
                 {metrics.beta != null ? metrics.beta.toFixed(2) : 'N/A'}
               </span>
               <span className="text-xs text-slate-600">vs {benchmarkName || 'S&P 500'}</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mt-2 sm:mt-3">
+            <div className="bg-[#000000] rounded-lg p-3 border border-[#38383A]/50 text-center">
+              <span className="text-xs text-slate-500 block">Sortino</span>
+              <span className={`text-base sm:text-lg font-bold block ${sortinoColor}`}>
+                {metrics.sortino !== 0 ? metrics.sortino.toFixed(2) : '---'}
+              </span>
+              <span className="text-xs text-slate-600">
+                {metrics.sortino === 0 ? '' : metrics.sortino > 1 ? t('Excelente', 'Excellent') : metrics.sortino > 0.5 ? t('Aceptable', 'Acceptable') : t('Bajo', 'Low')}
+              </span>
+            </div>
+
+            <div className="bg-[#000000] rounded-lg p-3 border border-[#38383A]/50 text-center">
+              <span className="text-xs text-slate-500 block">Treynor</span>
+              <span className={`text-base sm:text-lg font-bold block ${treynorColor}`}>
+                {metrics.treynor !== 0 ? metrics.treynor.toFixed(2) : '---'}
+              </span>
+              <span className="text-xs text-slate-600">{t('Exceso/Beta', 'Excess/Beta')}</span>
+            </div>
+
+            <div className="bg-[#000000] rounded-lg p-3 border border-[#38383A]/50 text-center">
+              <span className="text-xs text-slate-500 block">{t('Alfa de Jensen', "Jensen's Alpha")}</span>
+              <span className={`text-base sm:text-lg font-bold block ${alphaColor}`}>
+                {metrics.alpha !== 0 ? `${(metrics.alpha * 100).toFixed(2)}%` : '---'}
+              </span>
+              <span className="text-xs text-slate-600">vs {benchmarkName || 'S&P 500'}</span>
+            </div>
+
+            <div className="bg-[#000000] rounded-lg p-3 border border-[#38383A]/50 text-center">
+              <span className="text-xs text-slate-500 block">{t('Ratio Información', 'Information Ratio')}</span>
+              <span className={`text-base sm:text-lg font-bold block ${irColor}`}>
+                {metrics.ir !== 0 ? metrics.ir.toFixed(2) : '---'}
+              </span>
+              <span className="text-xs text-slate-600">{t('Activo/TE', 'Active/TE')}</span>
             </div>
           </div>
 

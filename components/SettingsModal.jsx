@@ -24,7 +24,7 @@ const CURRENCIES = [
   { code: 'CNY', name: 'Chinese Yuan', symbol: '¥' },
 ]
 
-export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onExportBackup, onSyncBroker, onOpenIBKR, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, lang = 'es', profile, onSaveProfile, lastSyncTime, portfolioItems = [] }) {
+export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onExportBackup, onSyncBroker, onOpenIBKR, onImport, onAddAccount, onOpenBlockchain, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, lang = 'es', profile, onSaveProfile, lastSyncTime, portfolioItems = [] }) {
   const [baseCurrency, setBaseCurrency] = useState(settings?.baseCurrency || 'USD')
   const [benchmarkSymbol, setBenchmarkSymbol] = useState(settings?.benchmarkSymbol || '%5EGSPC')
   const [saving, setSaving] = useState(false)
@@ -437,115 +437,224 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
 
             const nonIbkrInstitutions = institutionSummaries.filter(inst => !inst.isIbkr)
 
-            return (
-            <div className="space-y-4">
-              <p className="text-[11px] text-slate-500 uppercase tracking-wider">{t('Instituciones', 'Institutions')}</p>
+            const csvBrokers = [
+              { name: 'DEGIRO', icon: '🇪🇺' },
+              { name: 'Trading 212', icon: '📊' },
+              { name: 'Trade Republic', icon: '🇩🇪' },
+              { name: 'Lightyear', icon: '💡' },
+              { name: 'Saxo Bank', icon: '🏦' },
+              { name: 'Charles Schwab', icon: '🇺🇸' },
+              { name: 'Fidelity', icon: '🇺🇸' },
+              { name: 'Vanguard', icon: '🇺🇸' },
+              { name: 'eToro', icon: '📈' },
+              { name: 'Webull', icon: '📱' },
+              { name: 'TradeStation', icon: '🖥️' },
+              { name: 'Tastytrade', icon: '🇺🇸' },
+              { name: 'IG', icon: '🇬🇧' },
+              { name: 'Dukascopy', icon: '🇨🇭' },
+              { name: 'Alpaca Markets', icon: '🦙' },
+              { name: 'PPI Global', icon: '🇦🇷' },
+              { name: 'TD Ameritrade', icon: '🇺🇸' },
+              { name: 'M1 Finance', icon: '🇺🇸' },
+              { name: 'Revolut Investments', icon: '💳' },
+              { name: 'MyInvestor', icon: '🇪🇸' },
+            ]
 
-              {/* IBKR — syncable */}
-              <div className="p-3 bg-[#000000] border border-[#38383A] rounded-xl">
-                <div className="flex items-center gap-3">
-                  <div className="relative shrink-0">
-                    <span className="text-xl">🏦</span>
-                    <span className={`absolute -bottom-1 -right-1 w-2.5 h-2.5 ${statusColor.dot} rounded-full border-2 border-[#1C1C1E]`} />
+            const cryptoExchanges = [
+              { name: 'Coinbase', icon: '🟠' },
+              { name: 'Binance', icon: '🟡' },
+              { name: 'Kraken', icon: '🦑' },
+              { name: 'Bitso', icon: '🟢' },
+            ]
+
+            return (
+            <div className="space-y-5">
+              {/* ── IBKR (API + CSV) ── */}
+              <div>
+                <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">{t('Conexión API', 'API Connection')}</p>
+                <div className="p-3 bg-[#000000] border border-[#38383A] rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="relative shrink-0">
+                      <span className="text-xl">🏦</span>
+                      <span className={`absolute -bottom-1 -right-1 w-2.5 h-2.5 ${statusColor.dot} rounded-full border-2 border-[#1C1C1E]`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-white">Interactive Brokers</p>
+                      <p className={`text-[11px] ${statusColor.text}`}>
+                        {ibkrConfigured ? statusLabel : t('No vinculado', 'Not linked')}
+                        {ibkrConfigured && <span className="text-slate-600 ml-1">· ID: {ibkrQueryId}</span>}
+                      </p>
+                    </div>
+                    {ibkrConfigured ? (
+                      <button onClick={() => { onClose(); setTimeout(() => { if (onOpenIBKR) onOpenIBKR() }, 50) }}
+                        className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-500 transition-colors shrink-0">
+                        Sync
+                      </button>
+                    ) : (
+                      <button onClick={() => setShowConfig(true)}
+                        className="px-3 py-1.5 border border-blue-500/40 text-blue-400 text-xs font-medium rounded-lg hover:bg-blue-500/10 transition-colors shrink-0">
+                        {t('Vincular', 'Link')}
+                      </button>
+                    )}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white">Interactive Brokers</p>
-                    <p className={`text-[11px] ${statusColor.text}`}>
-                      {ibkrConfigured ? statusLabel : t('No vinculado', 'Not linked')}
-                      {ibkrConfigured && <span className="text-slate-600 ml-1">· ID: {ibkrQueryId}</span>}
+                  {ibkrConfigured && syncStatus === 'stale' && (
+                    <p className="text-[10px] text-amber-400 mt-2 pl-9">
+                      {t('Tus datos podrían estar desactualizados', 'Your data may be outdated')}
                     </p>
-                  </div>
-                  {ibkrConfigured ? (
-                    <button onClick={() => { onClose(); setTimeout(() => { if (onOpenIBKR) onOpenIBKR() }, 50) }}
-                      className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-500 transition-colors shrink-0">
-                      Sync
-                    </button>
-                  ) : (
-                    <button onClick={() => setShowConfig(true)}
-                      className="px-3 py-1.5 border border-blue-500/40 text-blue-400 text-xs font-medium rounded-lg hover:bg-blue-500/10 transition-colors shrink-0">
-                      {t('Vincular', 'Link')}
-                    </button>
                   )}
                 </div>
-                {ibkrConfigured && syncStatus === 'stale' && (
-                  <p className="text-[10px] text-amber-400 mt-2 pl-9">
-                    {t('Tus datos podrían estar desactualizados', 'Your data may be outdated')}
-                  </p>
+
+                {!ibkrConfigured && showConfig && (
+                  <div className="space-y-3 p-3 bg-[#000000] border border-[#38383A] rounded-xl mt-2">
+                    {ibkrError && <p className="text-xs text-red-400">{ibkrError}</p>}
+                    <div>
+                      <label className="text-[11px] text-slate-500 mb-1 block">Token</label>
+                      <input type="password" value={ibkrToken} onChange={(e) => setIbkrToken(e.target.value)}
+                        placeholder="••••••••••••••••"
+                        className="w-full px-3 py-2 bg-[#1C1C1E] border border-[#38383A]/60 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-slate-500 mb-1 block">Query ID</label>
+                      <input type="text" value={ibkrQueryId} onChange={(e) => setIbkrQueryId(e.target.value)}
+                        placeholder="123456"
+                        className="w-full px-3 py-2 bg-[#1C1C1E] border border-[#38383A]/60 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                    </div>
+                    <button onClick={handleIbkrSave} disabled={ibkrSaving || !ibkrToken || !ibkrQueryId}
+                      className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 text-sm font-medium">
+                      {ibkrSaving ? '...' : t('Conectar', 'Connect')}
+                    </button>
+                  </div>
+                )}
+
+                {ibkrConfigured && !confirmUnlink && (
+                  <button onClick={() => setConfirmUnlink(true)}
+                    className="text-[11px] text-red-400/60 hover:text-red-400 transition-colors mt-2">
+                    {t('Desvincular IBKR', 'Unlink IBKR')}
+                  </button>
+                )}
+                {ibkrConfigured && confirmUnlink && (
+                  <div className="p-3 bg-[#1C1C1E] border border-[#38383A] border-l-4 border-l-red-500 rounded-lg space-y-2 mt-2">
+                    <p className="text-xs text-red-400 font-medium">{t('¿Desvincular Interactive Brokers?', 'Unlink Interactive Brokers?')}</p>
+                    <p className="text-[11px] text-slate-400">
+                      {t('Se eliminará la conexión API. Tus posiciones importadas se mantienen.',
+                         'The API connection will be removed. Your imported positions will be kept.')}
+                    </p>
+                    <div className="flex gap-2">
+                      <button onClick={async () => { await handleIbkrDisconnect(); setConfirmUnlink(false) }} disabled={ibkrSaving}
+                        className="px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-500 transition-colors">
+                        {ibkrSaving ? '...' : t('Sí, desvincular', 'Yes, unlink')}
+                      </button>
+                      <button onClick={() => setConfirmUnlink(false)}
+                        className="px-3 py-1.5 border border-[#38383A] text-slate-400 text-xs rounded-lg hover:bg-[#2C2C2E] transition-colors">
+                        {t('Cancelar', 'Cancel')}
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
 
-              {/* IBKR setup form */}
-              {!ibkrConfigured && showConfig && (
-                <div className="space-y-3 p-3 bg-[#000000] border border-[#38383A] rounded-xl">
-                  {ibkrError && <p className="text-xs text-red-400">{ibkrError}</p>}
-                  <div>
-                    <label className="text-[11px] text-slate-500 mb-1 block">Token</label>
-                    <input type="password" value={ibkrToken} onChange={(e) => setIbkrToken(e.target.value)}
-                      placeholder="••••••••••••••••"
-                      className="w-full px-3 py-2 bg-[#1C1C1E] border border-[#38383A]/60 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-slate-500 mb-1 block">Query ID</label>
-                    <input type="text" value={ibkrQueryId} onChange={(e) => setIbkrQueryId(e.target.value)}
-                      placeholder="123456"
-                      className="w-full px-3 py-2 bg-[#1C1C1E] border border-[#38383A]/60 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-                  </div>
-                  <button onClick={handleIbkrSave} disabled={ibkrSaving || !ibkrToken || !ibkrQueryId}
-                    className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 text-sm font-medium">
-                    {ibkrSaving ? '...' : t('Conectar', 'Connect')}
-                  </button>
-                </div>
-              )}
-
-              {/* IBKR disconnect */}
-              {ibkrConfigured && !confirmUnlink && (
-                <button onClick={() => setConfirmUnlink(true)}
-                  className="text-[11px] text-red-400/60 hover:text-red-400 transition-colors">
-                  {t('Desvincular IBKR', 'Unlink IBKR')}
-                </button>
-              )}
-              {ibkrConfigured && confirmUnlink && (
-                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg space-y-2">
-                  <p className="text-xs text-red-400 font-medium">{t('¿Desvincular Interactive Brokers?', 'Unlink Interactive Brokers?')}</p>
-                  <p className="text-[11px] text-slate-400">
-                    {t('Se eliminará la conexión API. Tus posiciones importadas se mantienen, pero ya no se actualizarán automáticamente.',
-                       'The API connection will be removed. Your imported positions will be kept, but will no longer update automatically.')}
+              {/* ── BROKERS TRADICIONALES (CSV) ── */}
+              <details className="group">
+                <summary className="flex items-center justify-between cursor-pointer">
+                  <p className="text-[11px] text-slate-500 uppercase tracking-wider">{t('Brokers Tradicionales', 'Traditional Brokers')}</p>
+                  <span className="text-[10px] text-slate-600 group-open:rotate-180 transition-transform">▼</span>
+                </summary>
+                <div className="mt-2 space-y-1">
+                  <p className="text-[11px] text-slate-600 mb-2">
+                    {t('Exporta un CSV desde tu broker e impórtalo. El formato se detecta automáticamente.',
+                       'Export a CSV from your broker and import it. The format is auto-detected.')}
                   </p>
-                  <div className="flex gap-2">
-                    <button onClick={async () => { await handleIbkrDisconnect(); setConfirmUnlink(false) }} disabled={ibkrSaving}
-                      className="px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-500 transition-colors">
-                      {ibkrSaving ? '...' : t('Sí, desvincular', 'Yes, unlink')}
-                    </button>
-                    <button onClick={() => setConfirmUnlink(false)}
-                      className="px-3 py-1.5 border border-[#38383A] text-slate-400 text-xs rounded-lg hover:bg-[#2C2C2E] transition-colors">
-                      {t('Cancelar', 'Cancel')}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* All other institutions */}
-              {nonIbkrInstitutions.length > 0 && (
-                <div className="space-y-1.5">
-                  {nonIbkrInstitutions.map(inst => (
-                    <div key={inst.name} className="flex items-center gap-3 px-3 py-2.5 bg-[#000000] border border-[#38383A]/60 rounded-lg">
-                      <span className="text-slate-500 text-sm">🏢</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-white font-medium truncate">{inst.name}</p>
-                        <p className="text-[11px] text-slate-500">
-                          {inst.count} {t('posiciones', 'positions')} · ${Math.abs(inst.value).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                        </p>
-                      </div>
-                      <span className="text-[10px] text-slate-600">{t('Manual', 'Manual')}</span>
+                  {csvBrokers.map(b => (
+                    <div key={b.name} className="flex items-center gap-3 px-3 py-2 bg-[#000000] border border-[#38383A]/60 rounded-lg">
+                      <span className="text-sm">{b.icon}</span>
+                      <p className="text-sm text-white flex-1">{b.name}</p>
+                      <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport() }, 50) }}
+                        className="px-2.5 py-1 border border-blue-500/40 text-blue-400 text-[11px] font-medium rounded-md hover:bg-blue-500/10 transition-colors">
+                        {t('Importar CSV', 'Import CSV')}
+                      </button>
                     </div>
                   ))}
                 </div>
-              )}
+              </details>
 
-              <p className="text-[11px] text-slate-500 italic border-t border-[#38383A]/40 pt-3">{t(
-                'Próximamente: GBM+, Binance, Bitso y más.',
-                'Coming soon: GBM+, Binance, Bitso and more.'
-              )}</p>
+              {/* ── CRYPTO ── */}
+              <details className="group">
+                <summary className="flex items-center justify-between cursor-pointer">
+                  <p className="text-[11px] text-slate-500 uppercase tracking-wider">Crypto</p>
+                  <span className="text-[10px] text-slate-600 group-open:rotate-180 transition-transform">▼</span>
+                </summary>
+                <div className="mt-2 space-y-1">
+                  <p className="text-[11px] text-slate-600 mb-2">
+                    {t('Importa CSV de exchanges, o usa Blockchain/Ledger sync para wallets.',
+                       'Import CSV from exchanges, or use Blockchain/Ledger sync for wallets.')}
+                  </p>
+                  {cryptoExchanges.map(b => (
+                    <div key={b.name} className="flex items-center gap-3 px-3 py-2 bg-[#000000] border border-[#38383A]/60 rounded-lg">
+                      <span className="text-sm">{b.icon}</span>
+                      <p className="text-sm text-white flex-1">{b.name}</p>
+                      <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport() }, 50) }}
+                        className="px-2.5 py-1 border border-blue-500/40 text-blue-400 text-[11px] font-medium rounded-md hover:bg-blue-500/10 transition-colors">
+                        {t('Importar CSV', 'Import CSV')}
+                      </button>
+                    </div>
+                  ))}
+                  <div className="flex items-center gap-3 px-3 py-2 bg-[#000000] border border-[#38383A]/60 rounded-lg mt-1">
+                    <span className="text-sm">🔗</span>
+                    <div className="flex-1">
+                      <p className="text-sm text-white">{t('Wallet on-chain', 'On-chain Wallet')}</p>
+                      <p className="text-[10px] text-slate-600">{t('Blockchain.com, Ledger, dirección de wallet', 'Blockchain.com, Ledger, wallet address')}</p>
+                    </div>
+                    <button onClick={() => { onClose(); setTimeout(() => { if (onOpenBlockchain) onOpenBlockchain() }, 50) }}
+                      className="px-2.5 py-1 border border-blue-500/40 text-blue-400 text-[11px] font-medium rounded-md hover:bg-blue-500/10 transition-colors">
+                      {t('Conectar', 'Connect')}
+                    </button>
+                  </div>
+                </div>
+              </details>
+
+              {/* ── PRIVADO / VC ── */}
+              <details className="group">
+                <summary className="flex items-center justify-between cursor-pointer">
+                  <p className="text-[11px] text-slate-500 uppercase tracking-wider">{t('Privado / VC', 'Private / VC')}</p>
+                  <span className="text-[10px] text-slate-600 group-open:rotate-180 transition-transform">▼</span>
+                </summary>
+                <div className="mt-2 space-y-2">
+                  <p className="text-[11px] text-slate-600 mb-1">
+                    {t('Para inversiones privadas (SAFE notes, VC funds, PE, club deals), agrega manualmente o importa CSV.',
+                       'For private investments (SAFE notes, VC funds, PE, club deals), add manually or import CSV.')}
+                  </p>
+                  <div className="flex gap-2">
+                    <button onClick={() => { onClose(); setTimeout(() => { if (onAddAccount) onAddAccount() }, 50) }}
+                      className="flex-1 px-3 py-2 border border-blue-500/40 text-blue-400 text-xs font-medium rounded-lg hover:bg-blue-500/10 transition-colors">
+                      {t('Agregar manualmente', 'Add manually')}
+                    </button>
+                    <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport() }, 50) }}
+                      className="flex-1 px-3 py-2 border border-[#38383A] text-slate-400 text-xs font-medium rounded-lg hover:bg-[#2C2C2E] transition-colors">
+                      {t('Importar CSV', 'Import CSV')}
+                    </button>
+                  </div>
+                </div>
+              </details>
+
+              {/* ── YOUR INSTITUTIONS ── */}
+              {nonIbkrInstitutions.length > 0 && (
+                <div>
+                  <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">{t('Tus instituciones', 'Your institutions')}</p>
+                  <div className="space-y-1">
+                    {nonIbkrInstitutions.map(inst => (
+                      <div key={inst.name} className="flex items-center gap-3 px-3 py-2 bg-[#000000] border border-[#38383A]/60 rounded-lg">
+                        <span className="text-slate-500 text-sm">🏢</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-white font-medium truncate">{inst.name}</p>
+                          <p className="text-[11px] text-slate-500">
+                            {inst.count} {t('posiciones', 'positions')} · ${Math.abs(inst.value).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             )
           })()}

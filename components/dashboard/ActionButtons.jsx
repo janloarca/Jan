@@ -2,37 +2,27 @@
 
 import { Upload, Plus, ArrowLeftRight, Share2, Download, RefreshCw, ClipboardCheck, DollarSign } from 'lucide-react'
 
-export default function ActionButtons({ onImport, onAddAccount, onTransfer, onCashFlow, onExport, onShare, onIBKR, onBlockchain, onLedger, onReview, itemCount, lang, ibkrSyncStatus, ibkrLastSync }) {
+export default function ActionButtons({ onImport, onAddAccount, onTransfer, onCashFlow, onExport, onShare, onIBKR, onBlockchain, onLedger, onIntegrations, onReview, itemCount, lang, ibkrSyncStatus, ibkrLastSync }) {
   const btnBase = 'px-2.5 sm:px-4 py-2 text-body font-medium rounded-lg transition-colors flex items-center gap-1.5'
   const btnSecondary = `${btnBase} bg-[var(--card-bg,#1C1C1E)] border border-[var(--card-border,#38383A)] text-slate-300 hover:bg-[var(--input-bg,#2C2C2E)] hover:text-white`
   const btnMuted = `${btnBase} bg-[var(--card-bg,#1C1C1E)] border border-[var(--card-border,#38383A)] text-[var(--text-secondary,#94a3b8)] hover:bg-[var(--input-bg,#2C2C2E)]`
+
+  const hasSyncIndicator = ibkrSyncStatus === 'error' || (ibkrSyncStatus === 'ok' && ibkrLastSync)
+  const syncDotColor = ibkrSyncStatus === 'error' ? 'bg-red-400'
+    : ibkrSyncStatus === 'ok' && ibkrLastSync && !isNaN(new Date(ibkrLastSync).getTime()) && Date.now() - new Date(ibkrLastSync).getTime() < 2 * 60 * 60 * 1000 ? 'bg-emerald-400'
+    : ibkrSyncStatus === 'ok' ? 'bg-amber-400' : ''
 
   return (
     <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
       <button onClick={onImport} className={`${btnBase} bg-blue-600 text-white hover:bg-blue-500`}>
         <Upload size={14} /> <span className="hidden sm:inline">{lang === 'es' ? 'Importar' : 'Import'}</span>
       </button>
-      {onIBKR && (
-        <button onClick={onIBKR} className={`${btnSecondary} relative`}>
-          <RefreshCw size={14} /> <span className="hidden sm:inline">IBKR</span>
-          {ibkrSyncStatus === 'error' && (
-            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-400" />
+      {onIntegrations && (
+        <button onClick={onIntegrations} className={`${btnSecondary} relative`}>
+          <RefreshCw size={14} /> <span className="hidden sm:inline">Sync</span>
+          {hasSyncIndicator && syncDotColor && (
+            <span className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ${syncDotColor}`} />
           )}
-          {ibkrSyncStatus === 'ok' && ibkrLastSync && !isNaN(new Date(ibkrLastSync).getTime()) && (
-            <span className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ${
-              Date.now() - new Date(ibkrLastSync).getTime() < 2 * 60 * 60 * 1000 ? 'bg-emerald-400' : 'bg-amber-400'
-            }`} />
-          )}
-        </button>
-      )}
-      {onBlockchain && (
-        <button onClick={onBlockchain} className={btnSecondary}>
-          <RefreshCw size={14} /> <span className="hidden sm:inline">Blockchain</span>
-        </button>
-      )}
-      {onLedger && (
-        <button onClick={onLedger} className={btnSecondary}>
-          <RefreshCw size={14} /> <span className="hidden sm:inline">Ledger</span>
         </button>
       )}
       <button onClick={onAddAccount} className={btnSecondary}>
@@ -42,7 +32,7 @@ export default function ActionButtons({ onImport, onAddAccount, onTransfer, onCa
         <ArrowLeftRight size={14} /> <span className="hidden sm:inline">{lang === 'es' ? 'Transferir' : 'Transfer'}</span>
       </button>
       {onCashFlow && (
-        <button onClick={onCashFlow} className={`${btnBase} bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-600/30 hover:text-emerald-300`}>
+        <button onClick={onCashFlow} className={btnSecondary}>
           <DollarSign size={14} /> <span className="hidden sm:inline">{lang === 'es' ? 'Movimiento' : 'Cash Flow'}</span>
         </button>
       )}
