@@ -110,7 +110,12 @@ export function useFirestoreItems() {
 
       unsubItems = fs.onSnapshot(
         fs.collection(db, `users/${currentUid}/items`),
-        (snap) => { if (!cancelled) setItems(snap.docs.map((d) => sanitizeItem({ id: d.id, ...d.data() }))) },
+        (snap) => {
+          if (!cancelled) {
+            console.log(`[Firestore] items: ${snap.docs.length} docs, fromCache: ${snap.metadata.fromCache}`)
+            setItems(snap.docs.map((d) => sanitizeItem({ id: d.id, ...d.data() })))
+          }
+        },
         onErr('items')
       )
       unsubSnapshots = fs.onSnapshot(
@@ -167,13 +172,17 @@ export function useFirestoreItems() {
   }, [])
 
   const addItem = useCallback(async (item) => {
-    if (!uid) return
-    const { db, fs } = await getFirebase()
-    const id = item.id || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-    const { id: _removed, ...raw } = item
-    const data = sanitizeImportItem(raw)
-    const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined))
-    await fs.setDoc(fs.doc(db, `users/${uid}/items`, id), { ...clean, createdAt: new Date().toISOString() }, { merge: true })
+    if (!uid) { console.error('[addItem] No uid — write skipped'); return }
+    try {
+      const { db, fs } = await getFirebase()
+      const id = item.id || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+      const { id: _removed, ...raw } = item
+      const data = sanitizeImportItem(raw)
+      const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined))
+      await fs.setDoc(fs.doc(db, `users/${uid}/items`, id), { ...clean, createdAt: new Date().toISOString() }, { merge: true })
+    } catch (e) {
+      console.error('[addItem] Write failed:', e)
+    }
   }, [uid])
 
   const updateItem = useCallback(async (itemId, fields) => {

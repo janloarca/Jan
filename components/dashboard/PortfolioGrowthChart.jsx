@@ -616,7 +616,8 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         <div className="ml-auto flex items-center gap-2">
           {viewMode === 'value' && contributionLine && (
             <button onClick={() => setShowContributions(!showContributions)}
-              className={`px-2 py-1 text-xs font-medium rounded-md transition-all ${showContributions ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}
+              className="px-2 py-1 text-xs font-medium rounded-md transition-all"
+              style={showContributions ? { backgroundColor: '#2563eb', color: '#fff' } : { color: '#64748b' }}
               title={t('Mostrar/ocultar capital invertido', 'Show/hide invested capital')}>
               {t('Invertido', 'Invested')}
             </button>

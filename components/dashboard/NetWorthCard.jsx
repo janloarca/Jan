@@ -13,12 +13,12 @@ function getGreeting(lang) {
 }
 
 function getMilestone(netWorth, returnYTD, lang) {
-  if (returnYTD == null) return { text: lang === 'es' ? 'Acumulando datos' : 'Gathering data', color: 'text-slate-400' }
-  if (returnYTD > 20) return { text: lang === 'es' ? 'Año increíble' : 'Incredible year', color: 'text-blue-400' }
-  if (returnYTD > 10) return { text: lang === 'es' ? 'Gran rendimiento' : 'Strong returns', color: 'text-blue-400' }
-  if (returnYTD > 0) return { text: lang === 'es' ? 'En positivo' : 'In the green', color: 'text-blue-400' }
-  if (returnYTD > -5) return { text: lang === 'es' ? 'Mantente firme' : 'Stay steady', color: 'text-amber-400' }
-  return { text: lang === 'es' ? 'Los mercados se recuperan' : 'Markets recover', color: 'text-amber-400' }
+  if (returnYTD == null) return { text: lang === 'es' ? 'Acumulando datos' : 'Gathering data', style: { color: '#94a3b8' } }
+  if (returnYTD > 20) return { text: lang === 'es' ? 'Año increíble' : 'Incredible year', style: { color: '#60a5fa' } }
+  if (returnYTD > 10) return { text: lang === 'es' ? 'Gran rendimiento' : 'Strong returns', style: { color: '#60a5fa' } }
+  if (returnYTD > 0) return { text: lang === 'es' ? 'En positivo' : 'In the green', style: { color: '#60a5fa' } }
+  if (returnYTD > -5) return { text: lang === 'es' ? 'Mantente firme' : 'Stay steady', style: { color: '#fbbf24' } }
+  return { text: lang === 'es' ? 'Los mercados se recuperan' : 'Markets recover', style: { color: '#fbbf24' } }
 }
 
 function Sparkline({ snapshots, width = 60, height = 24 }) {
@@ -89,7 +89,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm text-slate-400">{greeting}</span>
         <div className="flex items-center gap-2">
-          <span className={`text-xs font-medium ${milestone.color}`}>{milestone.text}</span>
+          <span className="text-xs font-medium" style={milestone.style}>{milestone.text}</span>
           <div className="relative">
             <button onClick={() => setShowPicker(!showPicker)}
               className="text-xs px-2 py-0.5 rounded bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-300 transition-colors cursor-pointer">

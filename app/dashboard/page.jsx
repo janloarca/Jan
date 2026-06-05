@@ -594,7 +594,7 @@ export default function DashboardPage() {
             </span>
           )}
           {baseCurrency !== 'USD' && <span className="text-xs text-cyan-500/70">{baseCurrency}</span>}
-          <span className="text-[8px] text-slate-700 font-mono select-all" title="Build ID">b5jun</span>
+          <span className="text-[8px] text-slate-700 font-mono select-all" title="Build ID">b5jun-v2</span>
           {(pricesLoading || ratesLoading) && <span className="text-xs text-blue-400 animate-pulse">{lang === 'es' ? 'Actualizando...' : 'Updating...'}</span>}
           {entities && entities.length > 1 && (
             <EntitySwitcher
@@ -625,7 +625,8 @@ export default function DashboardPage() {
                 : 'Your returns may not be accurate. Log your deposits and withdrawals for correct calculations.'}
             </p>
             <button onClick={() => setModal('cashflow')}
-              className="px-3 py-1.5 text-xs font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg hover:bg-amber-500/30 transition-colors whitespace-nowrap">
+              className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap"
+              style={{ backgroundColor: '#2563eb', color: '#fff' }}>
               {lang === 'es' ? 'Registrar ahora' : 'Log now'}
             </button>
           </div>
