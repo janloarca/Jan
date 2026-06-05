@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { CheckCircle, Lock, ChevronDown, ChevronUp, Upload } from 'lucide-react'
+import { CheckCircle, Lock, ChevronDown, ChevronUp, Upload, RefreshCw } from 'lucide-react'
 import { parseIBKRFile, formatIBKRFileResult } from '@/lib/parsers/ibkrFileParser'
 
 function DoneStep({ result, onClose, t }) {
@@ -40,10 +40,11 @@ function DoneStep({ result, onClose, t }) {
   )
 }
 
-export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, savedQueryId, onSaveCredentials, lang = 'es', uid, lastSyncTime, existingItems = [], existingTransactions = [], existingSnapshots = [] }) {
+export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, savedQueryId, onSaveCredentials, onDisconnect, lang = 'es', uid, lastSyncTime, existingItems = [], existingTransactions = [], existingSnapshots = [] }) {
+  const isConnected = !!(savedToken && savedQueryId)
   const [token, setToken] = useState('')
   const [queryId, setQueryId] = useState(savedQueryId || '')
-  const [step, setStep] = useState('config')
+  const [step, setStep] = useState(isConnected ? 'connected' : 'config')
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState('')
   const [errorCode, setErrorCode] = useState('')
@@ -51,7 +52,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   const [preview, setPreview] = useState(null)
   const [syncMode, setSyncMode] = useState('merge')
   const [decrypting, setDecrypting] = useState(false)
-  const [showConfig, setShowConfig] = useState(!(savedToken && savedQueryId))
+  const [showConfig, setShowConfig] = useState(!isConnected)
   const [showHistory, setShowHistory] = useState(false)
   const [syncStatus, setSyncStatus] = useState('')
   const [pollProgress, setPollProgress] = useState(null)
@@ -109,10 +110,10 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
     }
   }, [savedToken, uid])
 
-  // Auto-start sync when credentials already exist
+  // Auto-start sync when credentials already exist (only from config step, not connected)
   useEffect(() => {
     if (autoStartedRef.current) return
-    if (token && savedQueryId && !decrypting && step === 'config') {
+    if (token && savedQueryId && !decrypting && step === 'config' && !isConnected) {
       autoStartedRef.current = true
       handleSync()
     }
@@ -194,11 +195,11 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
     } catch (err) {
       if (err.name === 'AbortError' || err.errorCode === 'CANCELLED') {
         setError('')
-        setShowConfig(true)
+        if (isConnected) { setStep('connected') } else { setShowConfig(true) }
       } else {
         setError(err.message || t('Error conectando con IBKR.', 'Error connecting to IBKR.'))
         setErrorCode(err.errorCode || '')
-        setShowConfig(true)
+        if (isConnected) { setStep('connected') } else { setShowConfig(true) }
         if (ibkrHistory.items.length > 0) setShowHistory(true)
       }
     } finally {
@@ -207,7 +208,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       setPollProgress(null)
       abortRef.current = null
     }
-  }, [token, queryId, onSaveCredentials, onSyncComplete, uid, syncMode, t, ibkrHistory.items.length])
+  }, [token, queryId, onSaveCredentials, onSyncComplete, uid, syncMode, t, ibkrHistory.items.length, isConnected])
 
   const handleCancel = useCallback(() => {
     if (abortRef.current) {
@@ -424,6 +425,70 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   {t('Reintentar', 'Retry')} →
                 </button>
               )}
+            </div>
+          )}
+
+          {step === 'connected' && !syncing && (
+            <div className="space-y-5">
+              <div className="flex flex-col items-center py-6 gap-3">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: 'rgba(16,185,129,0.15)' }}>
+                  <CheckCircle size={20} style={{ color: '#10b981' }} />
+                </div>
+                <p className="text-sm text-white font-medium">{t('IBKR Conectado', 'IBKR Connected')}</p>
+                {lastSyncLabel && (
+                  <p className="text-xs text-slate-500">
+                    {t('Última sync:', 'Last sync:')} {lastSyncLabel}
+                  </p>
+                )}
+                {hasData && (
+                  <p className="text-xs text-slate-400">
+                    {ibkrHistory.items.length} {t('posiciones', 'positions')}
+                    {ibkrHistory.txs.length > 0 && <> · {ibkrHistory.txs.length} {t('transacciones', 'trades')}</>}
+                  </p>
+                )}
+              </div>
+
+              <button onClick={handleSync}
+                className="w-full py-3 text-white rounded-xl transition-all text-sm font-medium flex items-center justify-center gap-2"
+                style={{ backgroundColor: '#2563eb' }}
+                disabled={decrypting}>
+                <RefreshCw size={14} />
+                {decrypting ? t('Desencriptando...', 'Decrypting...') : t('Sincronizar ahora', 'Sync now')}
+              </button>
+
+              <button onClick={() => { setStep('config'); setShowConfig(true) }}
+                className="w-full py-2.5 text-xs text-slate-400 hover:text-slate-300 transition-colors">
+                {t('Cambiar credenciales', 'Change credentials')}
+              </button>
+
+              {onDisconnect && (
+                <button onClick={() => { onDisconnect(); onClose() }}
+                  className="w-full py-2.5 text-xs transition-colors" style={{ color: '#ef4444' }}>
+                  {t('Desconectar IBKR', 'Disconnect IBKR')}
+                </button>
+              )}
+            </div>
+          )}
+
+          {step === 'connected' && syncing && (
+            <div className="flex flex-col items-center justify-center py-16 gap-4">
+              <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-sm text-slate-400">
+                {statusMessages[syncStatus] || t('Sincronizando con IBKR...', 'Syncing with IBKR...')}
+              </p>
+              {pollProgress && (
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-48 h-1 bg-slate-700 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min((pollProgress.current / pollProgress.total) * 100, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+              <button onClick={handleCancel} className="text-xs text-red-500/60 hover:text-red-400 transition-colors">
+                {t('Cancelar', 'Cancel')}
+              </button>
             </div>
           )}
 

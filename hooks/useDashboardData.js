@@ -280,6 +280,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // IBKR auto-sync
   const { acquireLock, releaseLock } = useTabCoordination()
   const ibkrAutoSyncRef = useRef(false)
+  const [ibkrAutoSyncing, setIbkrAutoSyncing] = useState(false)
 
   const handleIBKRSync = useCallback(async (data, mode = 'merge', onProgress) => {
     const newItems = []
@@ -392,12 +393,13 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
     if (ibkrAutoSyncRef.current) return
     ibkrAutoSyncRef.current = true
-    const SYNC_INTERVAL = 60 * 60 * 1000
+    const SYNC_INTERVAL = 30 * 60 * 1000
     const lastSync = settings._ibkrLastAutoSync ? new Date(settings._ibkrLastAutoSync).getTime() : 0
     const shouldSync = Date.now() - lastSync > SYNC_INTERVAL
 
     const doAutoSync = async () => {
       if (!acquireLock('ibkr-sync')) return
+      setIbkrAutoSyncing(true)
       try {
         const { syncIBKR } = await import('@/lib/ibkrSync')
         const { decryptToken } = await import('@/lib/crypto')
@@ -420,6 +422,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         })
         console.log(`[ibkr] Auto-sync failed (${code}): ${err.message}`)
       } finally {
+        setIbkrAutoSyncing(false)
         releaseLock('ibkr-sync')
       }
     }
@@ -704,8 +707,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
     // IBKR
     handleIBKRSync,
+    ibkrConnected: !!(settings?.ibkrToken && settings?.ibkrQueryId),
+    ibkrAutoSyncing,
     ibkrSyncStatus: settings?._ibkrAutoSyncStatus || null,
     ibkrSyncError: settings?._ibkrAutoSyncError || null,
     ibkrSyncErrorCode: settings?._ibkrAutoSyncErrorCode || null,
+    ibkrLastSync: settings?._ibkrLastAutoSync || settings?._ibkrLastSync || null,
   }
 }

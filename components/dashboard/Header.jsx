@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Search, RefreshCw, Settings, LogOut, Plus, Upload, Zap } from 'lucide-react'
 
-export default function Header({ user, lang, setLang, onImport, onSignOut, onRefresh, onSettings, pricesLoading, onAddAccount, onCommandPalette }) {
+export default function Header({ user, lang, setLang, onImport, onSignOut, onRefresh, onSettings, pricesLoading, onAddAccount, onCommandPalette, ibkrConnected, ibkrAutoSyncing, ibkrSyncStatus, onIBKR }) {
   const today = new Date().toLocaleDateString(lang === 'es' ? 'es-ES' : 'en-US', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
   })
@@ -57,6 +57,25 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
               className="px-2 py-1.5 text-blue-400 border border-blue-400/30 rounded-lg hover:bg-blue-400/10 transition-colors disabled:opacity-50">
               <RefreshCw size={14} className={pricesLoading ? 'animate-spin' : ''} />
             </button>
+            {ibkrConnected && (
+              <button onClick={onIBKR}
+                aria-label="IBKR status"
+                className="px-2 py-1.5 text-xs font-medium rounded-lg border transition-colors flex items-center gap-1.5"
+                style={ibkrAutoSyncing
+                  ? { color: '#60a5fa', borderColor: 'rgba(96,165,250,0.3)', backgroundColor: 'rgba(96,165,250,0.1)' }
+                  : ibkrSyncStatus === 'error'
+                    ? { color: '#fbbf24', borderColor: 'rgba(251,191,36,0.3)' }
+                    : { color: '#10b981', borderColor: 'rgba(16,185,129,0.3)' }
+                }>
+                <span className="font-mono">IBKR</span>
+                {ibkrAutoSyncing
+                  ? <RefreshCw size={10} className="animate-spin" />
+                  : ibkrSyncStatus === 'error'
+                    ? <span>⚠</span>
+                    : <span style={{ color: '#10b981' }}>●</span>
+                }
+              </button>
+            )}
             <button onClick={setLang} aria-label={lang === 'es' ? 'Cambiar a inglés' : 'Switch to Spanish'}
               className="px-2 py-1.5 text-caption text-slate-400 border border-slate-600/50 rounded-lg hover:bg-[#2C2C2E] transition-colors font-medium">
               {lang === 'en' ? 'ES' : 'EN'}

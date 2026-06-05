@@ -242,7 +242,8 @@ export default function DashboardPage() {
     netContributions, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
     benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName,
     handleIBKRSync,
-    ibkrSyncStatus, ibkrSyncErrorCode,
+    ibkrConnected, ibkrAutoSyncing,
+    ibkrSyncStatus, ibkrSyncErrorCode, ibkrLastSync,
   } = useDashboardData({ user, lang, activePortfolio, activeEntity })
 
   const showToast = useCallback((msg, type = 'success', duration = 3000) => {
@@ -536,6 +537,10 @@ export default function DashboardPage() {
         pricesLoading={pricesLoading || ratesLoading}
         onAddAccount={() => setModal('account')}
         onCommandPalette={() => setCmdPaletteOpen(true)}
+        ibkrConnected={ibkrConnected}
+        ibkrAutoSyncing={ibkrAutoSyncing}
+        ibkrSyncStatus={ibkrSyncStatus}
+        onIBKR={() => setModal('ibkr')}
       />
 
       {ibkrSyncErrorCode === 'TOKEN_EXPIRED' && (
@@ -594,7 +599,7 @@ export default function DashboardPage() {
             </span>
           )}
           {baseCurrency !== 'USD' && <span className="text-xs text-cyan-500/70">{baseCurrency}</span>}
-          <span className="text-[8px] text-slate-700 font-mono select-all" title="Build ID">b5jun-v3</span>
+
           {(pricesLoading || ratesLoading) && <span className="text-xs text-blue-400 animate-pulse">{lang === 'es' ? 'Actualizando...' : 'Updating...'}</span>}
           {entities && entities.length > 1 && (
             <EntitySwitcher
@@ -676,7 +681,7 @@ export default function DashboardPage() {
           onTransfer={() => setModal('transfer')} onCashFlow={() => setModal('cashflow')} onExport={handleExport}
           onShare={handleShare} onIntegrations={() => setModal('settings')}
           onReview={() => setShowReview(true)} itemCount={enrichedItems.length} lang={lang}
-          ibkrSyncStatus={ibkrSyncStatus} ibkrLastSync={settings?._ibkrLastAutoSync || settings?._ibkrLastSync}
+          ibkrSyncStatus={ibkrSyncStatus} ibkrLastSync={ibkrLastSync}
         />
 
         {/* ═══ INGRESOS ═══ */}
@@ -787,8 +792,12 @@ export default function DashboardPage() {
           }}
           savedToken={settings?.ibkrToken || ''} savedQueryId={settings?.ibkrQueryId || ''}
           onSaveCredentials={(creds) => { saveSettings({ ...creds, _ibkrLastSync: new Date().toISOString(), _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
+          onDisconnect={() => {
+            saveSettings({ ibkrToken: null, ibkrQueryId: null, _ibkrLastSync: null, _ibkrLastAutoSync: null, _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null })
+            showToast(lang === 'es' ? 'IBKR desconectado' : 'IBKR disconnected')
+          }}
           uid={user?.uid} lang={lang}
-          lastSyncTime={settings?._ibkrLastSync || settings?._ibkrLastAutoSync || null}
+          lastSyncTime={ibkrLastSync}
           existingItems={enrichedItems} existingTransactions={transactions} existingSnapshots={snapshots}
         />
       )}

@@ -127,9 +127,11 @@ function EditableCell({ displayValue, editValue, onSave, hint, isNegative, curre
   )
 }
 
-export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateItem, onEditItem, returnYTD, netWorth, convert, onSaveItemSnapshots, onLoadItemSnapshots }) {
+export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateItem, onEditItem, returnYTD, netWorth, convert, baseCurrency, onSaveItemSnapshots, onLoadItemSnapshots }) {
   const t = (es, en) => lang === 'es' ? es : en
   const [showOriginal, setShowOriginal] = useState(false)
+  const [loadingHistory, setLoadingHistory] = useState(false)
+  const historyFetchedRef = useRef(false)
 
   const ZOOM_LEVELS = [0.75, 0.875, 1, 1.125, 1.25]
   const [zoom, setZoom] = useState(() => {
@@ -227,6 +229,42 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     })
     onSaveItemSnapshots(currentMonthKey, data)
   }, [onSaveItemSnapshots, items, currentMonthKey])
+
+  useEffect(() => {
+    if (historyFetchedRef.current || !items || items.length === 0) return
+    if (!onSaveItemSnapshots) return
+    const pastMonths = months.filter(mk => mk !== currentMonthKey)
+    if (pastMonths.length === 0) return
+    const missingMonths = pastMonths.filter(mk => {
+      const monthData = historicalItems[mk]
+      if (!monthData || Object.keys(monthData).length === 0) return true
+      const hasAnyItemData = items.some(it => it.id && monthData[it.id])
+      return !hasAnyItemData
+    })
+    if (missingMonths.length === 0) return
+    historyFetchedRef.current = true
+    setLoadingHistory(true)
+
+    const itemsWithCategory = items.map(it => ({ ...it, _category: getTypeCategory(it) }))
+
+    import('@/lib/historicalValues').then(({ getHistoricalItemValues }) => {
+      getHistoricalItemValues(itemsWithCategory, missingMonths, convert, baseCurrency).then(async (data) => {
+        setHistoricalItems(prev => {
+          const merged = { ...prev }
+          Object.entries(data).forEach(([mk, itemData]) => {
+            merged[mk] = { ...(merged[mk] || {}), ...itemData }
+          })
+          return merged
+        })
+        for (const mk of Object.keys(data)) {
+          if (Object.keys(data[mk]).length > 0) {
+            try { await onSaveItemSnapshots(mk, data[mk]) } catch {}
+          }
+        }
+        setLoadingHistory(false)
+      }).catch(() => setLoadingHistory(false))
+    }).catch(() => setLoadingHistory(false))
+  }, [items, months, currentMonthKey, historicalItems, convert, baseCurrency, onSaveItemSnapshots])
 
   const itemValue = useCallback((item) => {
     return showOriginal ? getOriginalValue(item) : getItemValue(item)
@@ -377,6 +415,9 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                 </button>
               ))}
             </div>
+          )}
+          {loadingHistory && (
+            <span className="text-xs text-blue-500 animate-pulse">{t('Calculando historial...', 'Calculating history...')}</span>
           )}
           <span className="text-xs text-slate-400 hidden sm:inline">{t('Click para editar', 'Click to edit')}</span>
         </div>
