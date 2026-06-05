@@ -478,6 +478,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     let cancelled = false
     async function fetchJan1() {
       try {
+        const allLots = (lots || []).filter(l => l.quantity > 0)
         const res = await authFetch('/api/prices/portfolio-history', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -487,6 +488,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
               currentPrice: it.currentPrice, purchasePrice: it.purchasePrice,
               acquisitionDate: it.acquisitionDate,
             })),
+            lots: allLots.length > 0 ? allLots.map(l => ({
+              symbol: l.symbol, quantity: l.quantity,
+              acquisitionDate: l.acquisitionDate,
+              closedDate: l.closedDate || null,
+            })) : undefined,
             period: 'YTD',
           }),
         })
@@ -501,7 +507,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
     fetchJan1()
     return () => { cancelled = true }
-  }, [enrichedItems])
+  }, [enrichedItems, lots])
 
   const { returnYTD, ytdChange, returnSinceStart, sinceStartDate } = useMemo(() => {
     const year = new Date().getFullYear()

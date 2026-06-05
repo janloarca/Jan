@@ -92,6 +92,7 @@ export async function POST(request) {
         lotsBySymbol[sym].push({
           qty: lot.quantity,
           acquiredTs: lot.acquisitionDate ? new Date(lot.acquisitionDate).getTime() : 0,
+          closedTs: lot.closedDate ? new Date(lot.closedDate).getTime() : null,
         })
       }
     }
@@ -229,7 +230,9 @@ export async function POST(request) {
         if (data.lots) {
           let qtyAtTime = 0
           for (const lot of data.lots) {
-            if (ts >= lot.acquiredTs) qtyAtTime += lot.qty
+            if (ts >= lot.acquiredTs && (!lot.closedTs || ts < lot.closedTs)) {
+              qtyAtTime += lot.qty
+            }
           }
           total += qtyAtTime * (price || 0)
         } else {

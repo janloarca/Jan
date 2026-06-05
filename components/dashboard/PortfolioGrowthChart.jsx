@@ -113,7 +113,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         else if (diffDays <= 365) apiPeriod = '1Y'
         else apiPeriod = 'ALL'
       }
-      const openLots = (lots || []).filter(l => l.status === 'open' && l.quantity > 0)
+      const allLots = (lots || []).filter(l => l.quantity > 0)
       const res = await authFetch('/api/prices/portfolio-history', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -125,9 +125,10 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
             currency: it._originalCurrency || 'USD',
             acquisitionDate: it.acquisitionDate,
           })),
-          lots: openLots.length > 0 ? openLots.map(l => ({
+          lots: allLots.length > 0 ? allLots.map(l => ({
             symbol: l.symbol, quantity: l.quantity,
             acquisitionDate: l.acquisitionDate,
+            closedDate: l.closedDate || null,
             costBasis: l.costBasis,
           })) : undefined,
           period: apiPeriod,
