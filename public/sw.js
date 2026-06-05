@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chispudo-v3'
+const CACHE_NAME = 'chispudo-v4'
 const STATIC_ASSETS = ['/', '/dashboard', '/login']
 
 const API_CACHE_TTL = {
