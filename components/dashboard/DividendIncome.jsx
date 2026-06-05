@@ -188,7 +188,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
   return (
     <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 p-4">
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
-        <span className="w-2 h-2 rounded-full bg-emerald-400" />
+        <span className="w-2 h-2 rounded-full bg-blue-400" />
         {t('INGRESOS PASIVOS', 'PASSIVE INCOME')}
       </h3>
 
@@ -199,7 +199,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
         </div>
         <div className="text-center">
           <span className="text-xs text-slate-500 block">{t('Rendimiento', 'Yield')}</span>
-          <span className="text-lg font-bold text-cyan-400 font-mono tabular-nums">{portfolioYield.toFixed(2)}%</span>
+          <span className="text-lg font-bold text-slate-200 font-mono tabular-nums">{portfolioYield.toFixed(2)}%</span>
         </div>
         <div className="text-right">
           <span className="text-xs text-slate-500 block">YTD {t('recibido', 'received')}</span>

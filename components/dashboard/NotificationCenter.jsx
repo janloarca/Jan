@@ -119,10 +119,10 @@ export default function NotificationCenter({ items, transactions, lang }) {
   return (
     <div className="space-y-1.5">
       {isNotificationSupported() && pushPermission === 'default' && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border text-xs bg-cyan-500/8 border-cyan-500/20 text-cyan-400">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border text-xs bg-blue-500/8 border-blue-500/20 text-blue-400">
           <span>🔔</span>
           <span className="flex-1">{t('Activa notificaciones para alertas de pagos y vencimientos', 'Enable notifications for payment and maturity alerts')}</span>
-          <button onClick={handleEnablePush} className="px-2 py-1 bg-cyan-500/20 rounded text-xs font-medium hover:bg-cyan-500/30 transition-colors">
+          <button onClick={handleEnablePush} className="px-2 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-500 transition-colors">
             {t('Activar', 'Enable')}
           </button>
         </div>

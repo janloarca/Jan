@@ -616,7 +616,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         <div className="ml-auto flex items-center gap-2">
           {viewMode === 'value' && contributionLine && (
             <button onClick={() => setShowContributions(!showContributions)}
-              className={`px-2 py-1 text-xs font-medium rounded-md transition-all ${showContributions ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}
+              className={`px-2 py-1 text-xs font-medium rounded-md transition-all ${showContributions ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}
               title={t('Mostrar/ocultar capital invertido', 'Show/hide invested capital')}>
               {t('Invertido', 'Invested')}
             </button>
@@ -624,12 +624,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           {viewMode === 'performance' && (
             <div className="flex gap-0.5 bg-[#000000] rounded-lg p-0.5">
               <button onClick={() => setReturnMode('twr')}
-                className={`px-2 py-1 text-xs font-medium rounded-md transition-all ${returnMode === 'twr' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}
+                className={`px-2 py-1 text-xs font-medium rounded-md transition-all ${returnMode === 'twr' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}
                 title={t('Retorno ponderado por tiempo — mide el rendimiento del portafolio sin importar depósitos/retiros', 'Time-Weighted Return — measures portfolio performance regardless of deposits/withdrawals')}>
                 TWR
               </button>
               <button onClick={() => setReturnMode('mwr')}
-                className={`px-2 py-1 text-xs font-medium rounded-md transition-all ${returnMode === 'mwr' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}
+                className={`px-2 py-1 text-xs font-medium rounded-md transition-all ${returnMode === 'mwr' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}
                 title={t('Retorno ponderado por dinero — refleja tu experiencia real como inversionista', 'Money-Weighted Return — reflects your actual experience as an investor')}>
                 MWR
               </button>

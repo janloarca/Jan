@@ -14,9 +14,9 @@ function getGreeting(lang) {
 
 function getMilestone(netWorth, returnYTD, lang) {
   if (returnYTD == null) return { text: lang === 'es' ? 'Acumulando datos' : 'Gathering data', color: 'text-slate-400' }
-  if (returnYTD > 20) return { text: lang === 'es' ? 'Año increíble' : 'Incredible year', color: 'text-emerald-400' }
-  if (returnYTD > 10) return { text: lang === 'es' ? 'Gran rendimiento' : 'Strong returns', color: 'text-emerald-400' }
-  if (returnYTD > 0) return { text: lang === 'es' ? 'En positivo' : 'In the green', color: 'text-emerald-400' }
+  if (returnYTD > 20) return { text: lang === 'es' ? 'Año increíble' : 'Incredible year', color: 'text-blue-400' }
+  if (returnYTD > 10) return { text: lang === 'es' ? 'Gran rendimiento' : 'Strong returns', color: 'text-blue-400' }
+  if (returnYTD > 0) return { text: lang === 'es' ? 'En positivo' : 'In the green', color: 'text-blue-400' }
   if (returnYTD > -5) return { text: lang === 'es' ? 'Mantente firme' : 'Stay steady', color: 'text-amber-400' }
   return { text: lang === 'es' ? 'Los mercados se recuperan' : 'Markets recover', color: 'text-amber-400' }
 }

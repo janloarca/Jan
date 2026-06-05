@@ -63,7 +63,7 @@ export default function IncomeCalendar({ items, lang }) {
     <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-400" />
+          <span className="w-2 h-2 rounded-full bg-blue-400" />
           {t('CALENDARIO DE INGRESOS', 'INCOME CALENDAR')}
         </h3>
         <span className="text-xs text-emerald-400 font-medium">{formatCurrency(annualTotal)}/yr</span>

@@ -568,7 +568,7 @@ export default function DashboardPage() {
       <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
         <div className="flex items-center gap-3 flex-wrap">
           {dataAge === 0 ? (
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
           ) : dataAge != null && dataAge >= 7 ? (
             <span className="w-2 h-2 rounded-full bg-red-400" />
           ) : dataAge != null && dataAge >= 1 ? (
@@ -584,7 +584,7 @@ export default function DashboardPage() {
                 : (lang === 'es' ? 'Sin datos aún' : 'No data yet')}
           </span>
           {dataAge != null && dataAge >= 7 && (
-            <button onClick={handleRefresh} className="text-micro text-red-400 hover:text-red-300 underline transition-colors">
+            <button onClick={handleRefresh} className="text-micro text-blue-400 hover:text-blue-300 underline transition-colors">
               {lang === 'es' ? 'Actualizar' : 'Refresh'}
             </button>
           )}
