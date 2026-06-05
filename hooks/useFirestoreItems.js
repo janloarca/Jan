@@ -336,7 +336,7 @@ export function useFirestoreItems() {
 
       if (closable >= lot.quantity - QTY_EPSILON) {
         await fs.updateDoc(fs.doc(db, `users/${uid}/lots`, lot.id), {
-          status: 'closed', quantity: 0, closedDate: closeDate, closedPrice: closePrice, realizedGain,
+          status: 'closed', quantity: closable, closedDate: closeDate, closedPrice: closePrice, realizedGain,
         })
       } else {
         await fs.updateDoc(fs.doc(db, `users/${uid}/lots`, lot.id), {
