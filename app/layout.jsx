@@ -47,7 +47,20 @@ export default function RootLayout({ children }) {
         }
       } catch(e) {}
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js').catch(function(){});
+        navigator.serviceWorker.register('/sw.js').then(function(reg) {
+          reg.addEventListener('updatefound', function() {
+            var nw = reg.installing;
+            if (nw) {
+              nw.addEventListener('statechange', function() {
+                if (nw.state === 'activated') {
+                  window.location.reload();
+                }
+              });
+            }
+          });
+          // Check for updates every 60s
+          setInterval(function() { reg.update(); }, 60000);
+        }).catch(function(){});
       }
     })();
   `
