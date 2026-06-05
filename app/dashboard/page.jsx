@@ -594,7 +594,7 @@ export default function DashboardPage() {
             </span>
           )}
           {baseCurrency !== 'USD' && <span className="text-xs text-cyan-500/70">{baseCurrency}</span>}
-          <span className="text-[8px] text-slate-700 font-mono select-all" title="Build ID">b5jun-v2</span>
+          <span className="text-[8px] text-slate-700 font-mono select-all" title="Build ID">b5jun-v3</span>
           {(pricesLoading || ratesLoading) && <span className="text-xs text-blue-400 animate-pulse">{lang === 'es' ? 'Actualizando...' : 'Updating...'}</span>}
           {entities && entities.length > 1 && (
             <EntitySwitcher
