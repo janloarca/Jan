@@ -340,10 +340,22 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       }
     }
 
-    const partialMsg = progress.done > 0
-      ? ` (${progress.done}/${progress.total} ${t('operaciones completadas', 'operations completed')})`
-      : ''
-    setError((lastError?.message || t('Error importando datos', 'Error importing data')) + partialMsg)
+    if (progress.done > 0) {
+      const accounts = preview.accounts || []
+      const activeAccounts = selectedAccounts || accounts
+      const dataToImport = preview
+      setResult({
+        items: dataToImport.items.length,
+        transactions: dataToImport.transactions.length,
+        equityHistory: (dataToImport.equityHistory || []).length,
+        accounts: activeAccounts,
+        syncedAt: dataToImport.syncedAt || new Date().toISOString(),
+        mode: syncMode,
+      })
+      setStep('done')
+    } else {
+      setError(lastError?.message || t('Error importando datos', 'Error importing data'))
+    }
     setSyncing(false)
     setImportProgress(null)
   }, [preview, onSyncComplete, syncMode, selectedAccounts, t])

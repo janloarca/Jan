@@ -476,7 +476,7 @@ export function useFirestoreItems() {
       try {
         await Promise.race([
           batch.commit(),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('commit-timeout')), 30000)),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('commit-timeout')), 60000)),
         ])
         consecutiveTimeouts = 0
       } catch (err) {
@@ -484,7 +484,7 @@ export function useFirestoreItems() {
         failures += chunk.length
         if (err?.message === 'commit-timeout') {
           consecutiveTimeouts++
-          if (consecutiveTimeouts >= 3) {
+          if (consecutiveTimeouts >= 5) {
             if (onProgress) onProgress(done, total)
             throw new Error('No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.')
           }

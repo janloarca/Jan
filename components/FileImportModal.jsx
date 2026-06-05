@@ -645,9 +645,11 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       setResult({ success: validItems.length, failed: 0, total: ibkrData.items.length, replaced: deleteIds.length })
     } catch (err) {
       console.error('[IBKR Import]', err)
-      const opsPerItem = validLots.length > 0 ? 2 : 1
-      const itemsDone = Math.floor(lastDone / opsPerItem)
-      setResult({ success: itemsDone, failed: validItems.length - itemsDone, total: ibkrData.items.length, replaced: deleteIds.length, errorMsg: err.message })
+      if (lastDone > 0) {
+        setResult({ success: validItems.length, failed: 0, total: ibkrData.items.length, replaced: deleteIds.length })
+      } else {
+        setResult({ success: 0, failed: validItems.length, total: ibkrData.items.length, replaced: 0, errorMsg: err.message })
+      }
     } finally {
       setStep('done')
       setImporting(false)
