@@ -625,29 +625,34 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
           currency: clean.currency || 'USD',
           acquisitionDate: clean.acquisitionDate || new Date().toISOString().split('T')[0],
           ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
+          ...(activeEntity && activeEntity !== 'default' ? { entityId: activeEntity } : {}),
         })
       }
     }
 
+    let lastDone = 0
     try {
       await onBulkImport({
         items: validItems,
         lots: validLots,
+        transactions: ibkrData.transactions || [],
         snapshots: ibkrData.equityHistory || [],
         deleteIds,
-      }, (done, total) => setImportProgress({ done, total }))
+      }, (done, total) => {
+        lastDone = done
+        setImportProgress({ done, total })
+      })
       setResult({ success: validItems.length, failed: 0, total: ibkrData.items.length, replaced: deleteIds.length })
     } catch (err) {
       console.error('[IBKR Import]', err)
-      const partialDone = importProgress.done
       const opsPerItem = validLots.length > 0 ? 2 : 1
-      const itemsDone = Math.floor(partialDone / opsPerItem)
+      const itemsDone = Math.floor(lastDone / opsPerItem)
       setResult({ success: itemsDone, failed: validItems.length - itemsDone, total: ibkrData.items.length, replaced: deleteIds.length, errorMsg: err.message })
     } finally {
       setStep('done')
       setImporting(false)
     }
-  }, [ibkrData, onBulkImport, existingItems, activePortfolio, activeEntity, ibkrImportMode, importProgress.done])
+  }, [ibkrData, onBulkImport, existingItems, activePortfolio, activeEntity, ibkrImportMode])
 
   const handleDrop = useCallback((e) => {
     e.preventDefault()

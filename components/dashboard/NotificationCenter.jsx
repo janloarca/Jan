@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { formatCurrency, getItemPrice, getMaturityInfo } from './utils'
 import { isNotificationSupported, getNotificationPermission, requestNotificationPermission, checkAndNotify } from '@/lib/notifications'
 
@@ -11,13 +11,17 @@ export default function NotificationCenter({ items, transactions, lang }) {
     } catch { return new Set() }
   })
   const [pushPermission, setPushPermission] = useState('default')
+  const notifiedRef = useRef(false)
 
+  const itemCount = (items || []).length
   useEffect(() => {
-    if (isNotificationSupported()) {
+    if (notifiedRef.current) return
+    if (isNotificationSupported() && itemCount > 0) {
       setPushPermission(getNotificationPermission())
       checkAndNotify(items, lang)
+      notifiedRef.current = true
     }
-  }, [items, lang])
+  }, [itemCount, lang])
 
   const t = (es, en) => lang === 'es' ? es : en
 
@@ -89,7 +93,7 @@ export default function NotificationCenter({ items, transactions, lang }) {
       const order = { urgent: 0, warning: 1, positive: 2, info: 3 }
       return (order[a.type] ?? 4) - (order[b.type] ?? 4)
     })
-  }, [items, transactions, dismissed])
+  }, [items, transactions, dismissed, lang])
 
   const dismiss = (id) => {
     const next = new Set([...dismissed, id])
