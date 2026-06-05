@@ -1,5 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  generateBuildId: () => {
+    return `b${Date.now().toString(36)}`
+  },
+  env: {
+    NEXT_BUILD_ID: `b${Date.now().toString(36)}`,
+  },
   transpilePackages: ['undici'],
   webpack: (config) => {
     config.externals = [...(config.externals || []), { 'undici': 'commonjs undici' }]

@@ -132,6 +132,7 @@ export default function DashboardPage() {
   const [showReview, setShowReview] = useState(false)
   const [toast, setToast] = useState(null)
   const toastTimer = useRef(null)
+  const [staleCode, setStaleCode] = useState(false)
   const { entities, addEntity, updateEntity: updateEntityData, deleteEntity } = useEntities()
 
   // Theme + lang init
@@ -217,6 +218,16 @@ export default function DashboardPage() {
     initAuth()
     return () => { unsubscribe(); if (refreshInterval) clearInterval(refreshInterval) }
   }, [router])
+
+  useEffect(() => {
+    const clientBuild = process.env.NEXT_BUILD_ID || '__dev__'
+    if (clientBuild === '__dev__') return
+    fetch('/api/version').then(r => r.json()).then(data => {
+      if (data.buildId && data.buildId !== '__dev__' && data.buildId !== clientBuild) {
+        setStaleCode(true)
+      }
+    }).catch(() => {})
+  }, [])
 
   // Data layer
   const {
@@ -542,6 +553,21 @@ export default function DashboardPage() {
         ibkrSyncStatus={ibkrSyncStatus}
         onIBKR={() => setModal('ibkr')}
       />
+
+      {staleCode && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3">
+          <div className="p-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)' }}>
+            <p className="text-sm font-medium" style={{ color: '#60a5fa' }}>
+              {lang === 'es' ? 'Hay una nueva versión disponible' : 'A new version is available'}
+            </p>
+            <button onClick={() => { if (typeof caches !== 'undefined') caches.keys().then(ks => Promise.all(ks.map(k => caches.delete(k)))); window.location.reload() }}
+              className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+              style={{ backgroundColor: '#2563eb', color: '#fff' }}>
+              {lang === 'es' ? 'Actualizar' : 'Update'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {ibkrSyncErrorCode === 'TOKEN_EXPIRED' && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3">
