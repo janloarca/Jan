@@ -167,26 +167,8 @@ export function useFirestoreItems() {
       )
     }
 
-    // iOS Safari kills websocket connections when tabs are backgrounded.
-    // Force Firestore to reconnect when the user returns.
-    let lastReconnect = 0
-    function handleVisibilityChange() {
-      if (document.visibilityState !== 'visible') return
-      const now = Date.now()
-      if (now - lastReconnect < 10000) return
-      lastReconnect = now
-      getFirebase().then(({ db: d, fs: f }) => {
-        f.disableNetwork(d).then(() => f.enableNetwork(d)).catch(() => {})
-      }).catch(() => {})
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-
     init()
-    return () => {
-      cancelled = true
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      unsubItems(); unsubSnapshots(); unsubTransactions(); unsubAlerts(); unsubLots(); unsubPortfolios(); unsubFinanceTx()
-    }
+    return () => { cancelled = true; unsubItems(); unsubSnapshots(); unsubTransactions(); unsubAlerts(); unsubLots(); unsubPortfolios(); unsubFinanceTx() }
   }, [])
 
   const addItem = useCallback(async (item) => {
@@ -438,19 +420,6 @@ export function useFirestoreItems() {
     const { db, fs } = await getFirebase()
     const now = new Date().toISOString()
     const strip = (obj) => Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined))
-
-    // iOS Safari suspends background tabs and drops the Firestore websocket,
-    // leaving the SDK offline: writes hit the local cache (visible in the UI)
-    // but never reach the server, so they vanish on refresh. Force the network
-    // back online by cycling it, then confirm connectivity with a test read.
-    try {
-      await fs.disableNetwork(db)
-      await fs.enableNetwork(db)
-      await Promise.race([
-        fs.getDoc(fs.doc(db, `users/${uid}/settings`, 'preferences')),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('network-check-timeout')), 5000)),
-      ])
-    } catch {}
 
     const ops = []
 

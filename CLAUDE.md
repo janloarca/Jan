@@ -28,6 +28,7 @@
 - Firestore rechaza valores `undefined` — usar `strip()` helper para limpiar objetos antes de write
 - Usar `writeBatch` con chunks de 30 para operaciones masivas
 - Los items importados deben persistir después de refresh — verificar que el write realmente se ejecuta
+- **No usar `persistentLocalCache`** — causa datos stale en iOS Safari porque IndexedDB no se sincroniza cuando el tab va a background. Usar `getFirestore()` default (in-memory cache) para siempre fetch fresco del servidor
 
 ### Portfolio History API (NAV chart)
 - Para calcular valores históricos correctos, enviar `lots` individuales con `acquisitionDate` y `quantity`
