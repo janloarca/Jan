@@ -127,7 +127,7 @@ function EditableCell({ displayValue, editValue, onSave, hint, isNegative, curre
   )
 }
 
-export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateItem, onEditItem, returnYTD, netWorth, convert, baseCurrency, onSaveItemSnapshots, onLoadItemSnapshots }) {
+export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateItem, onEditItem, returnYTD, netWorth, convert, baseCurrency, onSaveItemSnapshots, onLoadItemSnapshots, lots }) {
   const t = (es, en) => lang === 'es' ? es : en
   const [showOriginal, setShowOriginal] = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(false)
@@ -248,7 +248,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     const itemsWithCategory = items.map(it => ({ ...it, _category: getTypeCategory(it) }))
 
     import('@/lib/historicalValues').then(({ getHistoricalItemValues }) => {
-      getHistoricalItemValues(itemsWithCategory, missingMonths, convert, baseCurrency).then(async (data) => {
+      getHistoricalItemValues(itemsWithCategory, missingMonths, convert, baseCurrency, lots).then(async (data) => {
         setHistoricalItems(prev => {
           const merged = { ...prev }
           Object.entries(data).forEach(([mk, itemData]) => {
@@ -264,7 +264,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         setLoadingHistory(false)
       }).catch(() => setLoadingHistory(false))
     }).catch(() => setLoadingHistory(false))
-  }, [items, months, currentMonthKey, historicalItems, convert, baseCurrency, onSaveItemSnapshots])
+  }, [items, months, currentMonthKey, historicalItems, convert, baseCurrency, onSaveItemSnapshots, lots])
 
   const itemValue = useCallback((item) => {
     return showOriginal ? getOriginalValue(item) : getItemValue(item)
