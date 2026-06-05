@@ -119,7 +119,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
 
       {/* Daily change */}
       {dailyChange && isFinite(dailyChange.pct) && (
-        <p className={`text-body font-medium ${isDayPositive ? 'text-emerald-400' : 'text-red-400'}`}>
+        <p className="text-body font-medium" style={{ color: isDayPositive ? '#4ade80' : '#f87171' }}>
           <span className="font-mono tabular-nums">{isDayPositive ? '+' : ''}{formatCurrency(cv(dailyChange.abs), displayCur)} ({isDayPositive ? '+' : ''}{dailyChange.pct.toFixed(2)}%)</span>
           <span className="text-slate-500 font-normal ml-1">{lang === 'es' ? 'hoy' : 'today'}</span>
         </p>
@@ -127,14 +127,18 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
 
       {/* YTD + yearly in a compact row */}
       <div className="flex items-center gap-3 mt-1.5">
-        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-          !hasReturn ? 'bg-slate-500/15 text-slate-400' : isYTDPositive ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'
-        }`}>
+        <span className="text-xs font-medium px-2 py-0.5 rounded-full"
+          style={!hasReturn
+            ? { backgroundColor: 'rgba(100,116,139,0.15)', color: '#94a3b8' }
+            : isYTDPositive
+              ? { backgroundColor: 'rgba(16,185,129,0.15)', color: '#4ade80' }
+              : { backgroundColor: 'rgba(239,68,68,0.15)', color: '#f87171' }
+          }>
           {hasYTD ? 'YTD' : sinceStartDate ? (lang === 'es' ? 'Desde ' : 'Since ') + new Date(sinceStartDate).toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short', year: '2-digit' }) : 'YTD'}{' '}
           <span className="font-mono">{hasReturn ? `${isYTDPositive ? '+' : ''}${displayReturn.toFixed(2)}%` : 'N/A'}</span>
         </span>
         {yearlyChange != null && isFinite(yearlyChange) && (
-          <span className={`text-xs ${isYearlyPositive ? 'text-emerald-400/70' : 'text-red-400/70'}`}>
+          <span className="text-xs" style={{ color: isYearlyPositive ? 'rgba(74,222,128,0.7)' : 'rgba(248,113,113,0.7)' }}>
             {isYearlyPositive ? '▲' : '▼'} <span className="font-mono">{Math.abs(yearlyChange).toFixed(1)}%</span> {lang === 'es' ? 'vs año anterior' : 'vs prior year'}
           </span>
         )}
@@ -145,7 +149,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
         <div className="mt-3 pt-3 border-t border-[#38383A]/50">
           <div className="flex items-center justify-between text-xs mb-1.5">
             <span className="text-slate-500">{lang === 'es' ? 'Invertido' : 'Invested'}: <span className="text-slate-300 font-medium font-mono tabular-nums">{formatCurrency(cv(netContributions), displayCur)}</span></span>
-            <span className="text-slate-500">{lang === 'es' ? 'Ganancia' : 'Gains'}: <span className={`font-medium font-mono tabular-nums ${displayValue - cv(netContributions) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatCurrency(displayValue - cv(netContributions), displayCur)}</span></span>
+            <span className="text-slate-500">{lang === 'es' ? 'Ganancia' : 'Gains'}: <span className="font-medium font-mono tabular-nums" style={{ color: displayValue - cv(netContributions) >= 0 ? '#4ade80' : '#f87171' }}>{formatCurrency(displayValue - cv(netContributions), displayCur)}</span></span>
           </div>
           <div className="w-full h-1.5 bg-slate-700/30 rounded-full overflow-hidden flex">
             {(() => {
@@ -155,15 +159,15 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
                 : 100
               return (
                 <>
-                  <div className="h-full bg-blue-500/60 rounded-l-full" style={{ width: `${contribPct}%` }} />
-                  <div className="h-full bg-emerald-500/60 rounded-r-full" style={{ width: `${Math.max(0, 100 - contribPct)}%` }} />
+                  <div className="h-full rounded-l-full" style={{ width: `${contribPct}%`, backgroundColor: 'rgba(59,130,246,0.6)' }} />
+                  <div className="h-full rounded-r-full" style={{ width: `${Math.max(0, 100 - contribPct)}%`, backgroundColor: 'rgba(16,185,129,0.6)' }} />
                 </>
               )
             })()}
           </div>
           <div className="flex items-center gap-3 mt-1 text-xs text-slate-600">
-            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-500/60" />{lang === 'es' ? 'Invertido' : 'Invested'}</span>
-            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500/60" />{lang === 'es' ? 'Ganancias' : 'Gains'}</span>
+            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'rgba(59,130,246,0.6)' }} />{lang === 'es' ? 'Invertido' : 'Invested'}</span>
+            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'rgba(16,185,129,0.6)' }} />{lang === 'es' ? 'Ganancias' : 'Gains'}</span>
           </div>
         </div>
       )}
@@ -172,10 +176,10 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
       {cashTotal != null && cashTotal > 0 && (
         <div className={`${netContributions > 0 ? 'mt-2' : 'mt-3 pt-3 border-t border-[#38383A]/50'} flex items-center justify-between`}>
           <span className="text-xs text-slate-500 flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-cyan-500/60" />
+            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'rgba(6,182,212,0.6)' }} />
             {lang === 'es' ? 'Disponible' : 'Cash available'}
           </span>
-          <span className="text-xs font-medium text-cyan-400">{formatCurrency(cv(cashTotal), displayCur)}</span>
+          <span className="text-xs font-medium" style={{ color: '#22d3ee' }}>{formatCurrency(cv(cashTotal), displayCur)}</span>
         </div>
       )}
     </div>

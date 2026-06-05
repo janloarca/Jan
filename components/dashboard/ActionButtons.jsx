@@ -8,20 +8,20 @@ export default function ActionButtons({ onImport, onAddAccount, onTransfer, onCa
   const btnMuted = `${btnBase} bg-[var(--card-bg,#1C1C1E)] border border-[var(--card-border,#38383A)] text-[var(--text-secondary,#94a3b8)] hover:bg-[var(--input-bg,#2C2C2E)]`
 
   const hasSyncIndicator = ibkrSyncStatus === 'error' || (ibkrSyncStatus === 'ok' && ibkrLastSync)
-  const syncDotColor = ibkrSyncStatus === 'error' ? 'bg-red-400'
-    : ibkrSyncStatus === 'ok' && ibkrLastSync && !isNaN(new Date(ibkrLastSync).getTime()) && Date.now() - new Date(ibkrLastSync).getTime() < 2 * 60 * 60 * 1000 ? 'bg-emerald-400'
-    : ibkrSyncStatus === 'ok' ? 'bg-amber-400' : ''
+  const syncDotColor = ibkrSyncStatus === 'error' ? '#f87171'
+    : ibkrSyncStatus === 'ok' && ibkrLastSync && !isNaN(new Date(ibkrLastSync).getTime()) && Date.now() - new Date(ibkrLastSync).getTime() < 2 * 60 * 60 * 1000 ? '#4ade80'
+    : ibkrSyncStatus === 'ok' ? '#fbbf24' : null
 
   return (
     <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-      <button onClick={onImport} className={`${btnBase} bg-blue-600 text-white hover:bg-blue-500`}>
+      <button onClick={onImport} className={btnBase} style={{ backgroundColor: '#2563eb', color: '#fff' }}>
         <Upload size={14} /> <span className="hidden sm:inline">{lang === 'es' ? 'Importar' : 'Import'}</span>
       </button>
       {onIntegrations && (
         <button onClick={onIntegrations} className={`${btnSecondary} relative`}>
           <RefreshCw size={14} /> <span className="hidden sm:inline">Sync</span>
           {hasSyncIndicator && syncDotColor && (
-            <span className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ${syncDotColor}`} />
+            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full" style={{ backgroundColor: syncDotColor }} />
           )}
         </button>
       )}

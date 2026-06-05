@@ -14,20 +14,20 @@ export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettin
     <>
       <div className="fixed bottom-0 left-0 right-0 z-40 sm:hidden bg-[#000000]/95 backdrop-blur-sm border-t border-[#38383A]">
         <div className="flex items-center justify-around h-14 px-2">
-          <Link href="/dashboard" aria-label={t('Patrimonio', 'Portfolio')} className={`flex flex-col items-center gap-0.5 transition-colors p-2.5 min-w-[44px] min-h-[44px] justify-center ${pathname === '/dashboard' ? 'text-blue-400' : 'text-slate-400 hover:text-white'}`}>
+          <Link href="/dashboard" aria-label={t('Patrimonio', 'Portfolio')} className={`flex flex-col items-center gap-0.5 transition-colors p-2.5 min-w-[44px] min-h-[44px] justify-center ${pathname !== '/dashboard' ? 'text-slate-400 hover:text-white' : ''}`} style={pathname === '/dashboard' ? { color: '#60a5fa' } : undefined}>
             <Home size={20} />
             <span className="text-micro">{t('Patrimonio', 'Portfolio')}</span>
           </Link>
-          <Link href="/finances" aria-label={t('Finanzas', 'Finances')} className={`flex flex-col items-center gap-0.5 transition-colors p-2.5 min-w-[44px] min-h-[44px] justify-center ${pathname === '/finances' ? 'text-blue-400' : 'text-slate-400 hover:text-white'}`}>
+          <Link href="/finances" aria-label={t('Finanzas', 'Finances')} className={`flex flex-col items-center gap-0.5 transition-colors p-2.5 min-w-[44px] min-h-[44px] justify-center ${pathname !== '/finances' ? 'text-slate-400 hover:text-white' : ''}`} style={pathname === '/finances' ? { color: '#60a5fa' } : undefined}>
             <Calculator size={20} />
             <span className="text-micro">{t('Finanzas', 'Finances')}</span>
           </Link>
-          <Link href="/spreadsheet" aria-label="Spreadsheet" className={`flex flex-col items-center gap-0.5 transition-colors p-2.5 min-w-[44px] min-h-[44px] justify-center ${pathname === '/spreadsheet' ? 'text-blue-400' : 'text-slate-400 hover:text-white'}`}>
+          <Link href="/spreadsheet" aria-label="Spreadsheet" className={`flex flex-col items-center gap-0.5 transition-colors p-2.5 min-w-[44px] min-h-[44px] justify-center ${pathname !== '/spreadsheet' ? 'text-slate-400 hover:text-white' : ''}`} style={pathname === '/spreadsheet' ? { color: '#60a5fa' } : undefined}>
             <Table size={20} />
             <span className="text-micro">Sheet</span>
           </Link>
           <button onClick={onAdd} aria-label={t('Agregar', 'Add')} className="flex flex-col items-center gap-0.5 text-slate-400 hover:text-white transition-colors p-2.5 min-w-[44px] min-h-[44px] justify-center">
-            <div className="w-10 h-10 -mt-5 rounded-full bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-600/30">
+            <div className="w-10 h-10 -mt-5 rounded-full flex items-center justify-center text-white shadow-lg" style={{ backgroundColor: '#2563eb', boxShadow: '0 10px 15px -3px rgba(37,99,235,0.3)' }}>
               <Plus size={22} />
             </div>
             <span className="text-micro">{t('Agregar', 'Add')}</span>

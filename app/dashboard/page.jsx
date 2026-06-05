@@ -573,15 +573,15 @@ export default function DashboardPage() {
       <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
         <div className="flex items-center gap-3 flex-wrap">
           {dataAge === 0 ? (
-            <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+            <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: '#60a5fa' }} />
           ) : dataAge != null && dataAge >= 7 ? (
-            <span className="w-2 h-2 rounded-full bg-red-400" />
+            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#f87171' }} />
           ) : dataAge != null && dataAge >= 1 ? (
-            <span className="w-2 h-2 rounded-full bg-amber-400" />
+            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#fbbf24' }} />
           ) : (
             <span className="w-2 h-2 rounded-full bg-slate-500" />
           )}
-          <span className={`text-xs ${dataAge >= 7 ? 'text-red-400' : dataAge >= 1 ? 'text-amber-400' : 'text-slate-500'}`}>
+          <span className="text-xs" style={{ color: dataAge >= 7 ? '#f87171' : dataAge >= 1 ? '#fbbf24' : '#64748b' }}>
             {dataAge === 0
               ? (lang === 'es' ? 'Datos al día' : 'Data up to date')
               : dataAge != null
@@ -589,7 +589,7 @@ export default function DashboardPage() {
                 : (lang === 'es' ? 'Sin datos aún' : 'No data yet')}
           </span>
           {dataAge != null && dataAge >= 7 && (
-            <button onClick={handleRefresh} className="text-micro text-blue-400 hover:text-blue-300 underline transition-colors">
+            <button onClick={handleRefresh} className="text-micro underline transition-colors" style={{ color: '#60a5fa' }}>
               {lang === 'es' ? 'Actualizar' : 'Refresh'}
             </button>
           )}
@@ -598,9 +598,9 @@ export default function DashboardPage() {
               {new Date(pricesUpdate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
-          {baseCurrency !== 'USD' && <span className="text-xs text-cyan-500/70">{baseCurrency}</span>}
+          {baseCurrency !== 'USD' && <span className="text-xs" style={{ color: 'rgba(6,182,212,0.7)' }}>{baseCurrency}</span>}
 
-          {(pricesLoading || ratesLoading) && <span className="text-xs text-blue-400 animate-pulse">{lang === 'es' ? 'Actualizando...' : 'Updating...'}</span>}
+          {(pricesLoading || ratesLoading) && <span className="text-xs animate-pulse" style={{ color: '#60a5fa' }}>{lang === 'es' ? 'Actualizando...' : 'Updating...'}</span>}
           {entities && entities.length > 1 && (
             <EntitySwitcher
               entities={entities} activeEntity={activeEntity}

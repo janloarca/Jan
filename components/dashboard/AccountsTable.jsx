@@ -277,9 +277,11 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                           <div className="text-white font-medium text-sm truncate flex items-center gap-2">
                             {item.name || item.symbol}
                             {item.change7d != null && (
-                              <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
-                                item.change7d >= 0 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'
-                              }`}>
+                              <span className="text-xs font-medium px-1.5 py-0.5 rounded"
+                                style={item.change7d >= 0
+                                  ? { backgroundColor: 'rgba(16,185,129,0.15)', color: '#4ade80' }
+                                  : { backgroundColor: 'rgba(239,68,68,0.15)', color: '#f87171' }
+                                }>
                                 {item.change7d >= 0 ? '▲' : '▼'}{Math.abs(item.change7d).toFixed(1)}% 7d
                               </span>
                             )}
@@ -292,7 +294,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                           </div>
                           <div className="flex flex-wrap gap-1 mt-0.5">
                             {item.isIlliquid && (
-                              <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400">
+                              <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(245,158,11,0.1)', color: '#fbbf24' }}>
                                 {lang === 'es' ? 'Ilíquido' : 'Illiquid'}
                               </span>
                             )}
@@ -304,16 +306,20 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                             {(() => {
                               const mat = getMaturityInfo(item)
                               if (!mat) return null
-                              const colorCls = mat.color === 'red' ? 'bg-red-500/10 text-red-400' : mat.color === 'amber' ? 'bg-amber-500/10 text-amber-400' : 'bg-emerald-500/10 text-emerald-400'
-                              return <span className={`text-xs px-1.5 py-0.5 rounded ${colorCls}`}>{mat.expired ? '⚠' : '⏱'} {mat.label}</span>
+                              const matStyle = mat.color === 'red'
+                                ? { backgroundColor: 'rgba(239,68,68,0.1)', color: '#f87171' }
+                                : mat.color === 'amber'
+                                  ? { backgroundColor: 'rgba(245,158,11,0.1)', color: '#fbbf24' }
+                                  : { backgroundColor: 'rgba(16,185,129,0.1)', color: '#4ade80' }
+                              return <span className="text-xs px-1.5 py-0.5 rounded" style={matStyle}>{mat.expired ? '⚠' : '⏱'} {mat.label}</span>
                             })()}
                             {item.rateType === 'variable' && item.rateMin > 0 && (
-                              <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400">
+                              <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa' }}>
                                 {item.rateMin}-{item.rateMax}%
                               </span>
                             )}
                             {item.incomeDestination && (
-                              <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400/70" title={t('Destino de ingresos', 'Income destination')}>
+                              <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(16,185,129,0.1)', color: 'rgba(74,222,128,0.7)' }} title={t('Destino de ingresos', 'Income destination')}>
                                 → {(() => { const dest = items.find(it => it.id === item.incomeDestination); return dest ? (dest.name || dest.symbol || '').slice(0, 15) : '?' })()}
                               </span>
                             )}
@@ -339,7 +345,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                         <div>
                           <span className="text-white text-sm font-medium font-mono tabular-nums">{formatCurrency(getItemPrice(item), item.currency)}</span>
                           {item.change7d != null && (
-                            <div className={`text-[10px] font-mono tabular-nums ${item.change7d >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            <div className="text-[10px] font-mono tabular-nums" style={{ color: item.change7d >= 0 ? '#4ade80' : '#f87171' }}>
                               {item.change7d >= 0 ? '+' : ''}{item.change7d.toFixed(1)}%
                             </div>
                           )}
@@ -358,10 +364,10 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                     <td className="text-center py-3 hidden sm:table-cell">
                       {retPct != null ? (
                         <div>
-                          <span className={`text-xs font-medium font-mono tabular-nums ${retPct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          <span className="text-xs font-medium font-mono tabular-nums" style={{ color: retPct >= 0 ? '#4ade80' : '#f87171' }}>
                             {retPct >= 0 ? '+' : ''}{formatCurrency(retAbs)}
                           </span>
-                          <div className={`text-xs font-mono tabular-nums ${retPct >= 0 ? 'text-emerald-500/70' : 'text-red-500/70'}`}>
+                          <div className="text-xs font-mono tabular-nums" style={{ color: retPct >= 0 ? 'rgba(16,185,129,0.7)' : 'rgba(239,68,68,0.7)' }}>
                             {retPct >= 0 ? '+' : ''}{retPct.toFixed(1)}%
                           </div>
                         </div>
@@ -370,9 +376,10 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                       )}
                     </td>
                     <td className="text-right py-3">
-                      <span className={`${value < 0 ? 'text-red-400' : 'text-emerald-400'} font-medium font-mono tabular-nums cursor-pointer hover:underline`}
+                      <span className="font-medium font-mono tabular-nums cursor-pointer hover:underline"
+                        style={{ color: value < 0 ? '#f87171' : '#4ade80' }}
                         onClick={() => onViewItem && onViewItem(item)}>
-                        {formatCurrency(Math.abs(value))}{value < 0 && <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-red-500/10 text-red-400">{t('Deuda','Debt')}</span>}
+                        {formatCurrency(Math.abs(value))}{value < 0 && <span className="ml-1 text-[10px] px-1 py-0.5 rounded" style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: '#f87171' }}>{t('Deuda','Debt')}</span>}
                       </span>
                     </td>
                     <td className="text-center py-3 hidden sm:table-cell">

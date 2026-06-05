@@ -22,9 +22,9 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
         <div className="flex items-center justify-between h-14">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <Zap size={20} className="text-blue-400" />
+              <Zap size={20} style={{ color: '#60a5fa' }} />
               <div>
-                <h1 className="text-base font-bold text-blue-400 leading-tight">Chispudo</h1>
+                <h1 className="text-base font-bold leading-tight" style={{ color: '#60a5fa' }}>Chispudo</h1>
                 <p className="text-caption text-slate-500 hidden sm:block leading-none">
                   {lang === 'es' ? 'Tu dinero, tu control' : 'Your money, your control'}
                 </p>
@@ -35,9 +35,10 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
                 <Link key={item.href} href={item.href}
                   className={`px-3 py-1.5 text-body font-medium rounded-lg transition-colors ${
                     pathname === item.href
-                      ? 'text-blue-400 bg-blue-400/10'
+                      ? ''
                       : 'text-slate-400 hover:text-white hover:bg-[#2C2C2E]'
-                  }`}>
+                  }`}
+                  style={pathname === item.href ? { color: '#60a5fa', backgroundColor: 'rgba(96,165,250,0.1)' } : undefined}>
                   {item.label}
                 </Link>
               ))}
@@ -54,7 +55,8 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
               </button>
             )}
             <button onClick={onRefresh} disabled={pricesLoading} aria-label={lang === 'es' ? 'Actualizar precios' : 'Refresh prices'}
-              className="px-2 py-1.5 text-blue-400 border border-blue-400/30 rounded-lg hover:bg-blue-400/10 transition-colors disabled:opacity-50">
+              className="px-2 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+              style={{ color: '#60a5fa', borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(96,165,250,0.3)' }}>
               <RefreshCw size={14} className={pricesLoading ? 'animate-spin' : ''} />
             </button>
             {ibkrConnected && (
@@ -82,7 +84,8 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
             </button>
             {onAddAccount && (
               <button onClick={onAddAccount} aria-label={lang === 'es' ? 'Agregar activo' : 'Add asset'}
-                className="px-3 py-1.5 text-body font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-500 transition-colors flex items-center gap-1">
+                className="px-3 py-1.5 text-body font-medium rounded-lg transition-colors flex items-center gap-1"
+                style={{ backgroundColor: '#2563eb', color: '#fff' }}>
                 <Plus size={14} /> {lang === 'es' ? 'Nuevo' : 'New'}
               </button>
             )}

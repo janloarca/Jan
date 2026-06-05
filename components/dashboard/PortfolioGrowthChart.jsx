@@ -563,8 +563,8 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     return (
       <div className="bg-[#1C1C1E] rounded-2xl border border-[#38383A] p-5 card-primary">
         <div className="flex flex-col items-center justify-center min-h-[200px] gap-2">
-          <p className="text-red-400 text-sm">{fetchError}</p>
-          <button onClick={fetchHistory} className="text-xs text-blue-400 hover:text-blue-300">{t('Reintentar', 'Retry')}</button>
+          <p className="text-sm" style={{ color: '#f87171' }}>{fetchError}</p>
+          <button onClick={fetchHistory} className="text-xs" style={{ color: '#60a5fa' }}>{t('Reintentar', 'Retry')}</button>
         </div>
       </div>
     )
@@ -577,7 +577,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           {period === 'DAY' ? (
             <>
               <p>{t('Sin datos intradía — el mercado puede estar cerrado.', 'No intraday data — market may be closed.')}</p>
-              <button onClick={() => setPeriod('1W')} className="text-xs text-blue-400 hover:text-blue-300">
+              <button onClick={() => setPeriod('1W')} className="text-xs" style={{ color: '#60a5fa' }}>
                 {t('Ver última semana', 'View last week')}
               </button>
             </>
@@ -625,12 +625,14 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           {viewMode === 'performance' && (
             <div className="flex gap-0.5 bg-[#000000] rounded-lg p-0.5">
               <button onClick={() => setReturnMode('twr')}
-                className={`px-2 py-1 text-xs font-medium rounded-md transition-all ${returnMode === 'twr' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}
+                className="px-2 py-1 text-xs font-medium rounded-md transition-all"
+                style={returnMode === 'twr' ? { backgroundColor: '#2563eb', color: '#fff' } : { color: '#64748b' }}
                 title={t('Retorno ponderado por tiempo — mide el rendimiento del portafolio sin importar depósitos/retiros', 'Time-Weighted Return — measures portfolio performance regardless of deposits/withdrawals')}>
                 TWR
               </button>
               <button onClick={() => setReturnMode('mwr')}
-                className={`px-2 py-1 text-xs font-medium rounded-md transition-all ${returnMode === 'mwr' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}
+                className="px-2 py-1 text-xs font-medium rounded-md transition-all"
+                style={returnMode === 'mwr' ? { backgroundColor: '#2563eb', color: '#fff' } : { color: '#64748b' }}
                 title={t('Retorno ponderado por dinero — refleja tu experiencia real como inversionista', 'Money-Weighted Return — reflects your actual experience as an investor')}>
                 MWR
               </button>
@@ -643,14 +645,14 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       {viewMode === 'value' ? (
         <div className="mb-3">
           <p className="text-3xl font-bold text-white font-mono tabular-nums">{formatCurrency(hd ? hd.value : currentTotal)}</p>
-          <p className={`text-sm mt-0.5 ${growthAbs >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+          <p className="text-sm mt-0.5" style={{ color: growthAbs >= 0 ? '#4ade80' : '#f87171' }}>
             <span className="font-mono tabular-nums">{growthAbs >= 0 ? '+' : ''}{formatCurrency(growthAbs)} ({growthAbs >= 0 ? '+' : ''}{growthPct.toFixed(2)}%)</span>
             <span className="text-slate-500 ml-1">{period === 'YTD' ? t('este año', 'this year') : period === 'DAY' ? t('hoy', 'today') : period === 'CUSTOM' ? t('rango', 'range') : period}</span>
           </p>
         </div>
       ) : (
         <div className="mb-3">
-          <p className={`text-3xl font-bold font-mono tabular-nums ${lastReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+          <p className="text-3xl font-bold font-mono tabular-nums" style={{ color: lastReturn >= 0 ? '#4ade80' : '#f87171' }}>
             {lastReturn >= 0 ? '+' : ''}{(hoverIdx != null && returnData[hoverIdx] != null ? returnData[hoverIdx] : lastReturn).toFixed(2)}%
           </p>
           <div className="flex items-center gap-3 mt-0.5">
@@ -668,9 +670,11 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
       {/* Benchmark insight (performance mode only) */}
       {viewMode === 'performance' && microInsight && (
-        <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs mb-3 ${
-          microInsight.isOut ? 'bg-emerald-500/5 border border-emerald-500/20 text-emerald-400' : 'bg-red-500/5 border border-red-500/20 text-red-400'
-        }`}>
+        <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs mb-3"
+          style={microInsight.isOut
+            ? { backgroundColor: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.2)', color: '#4ade80' }
+            : { backgroundColor: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171' }
+          }>
           <span>{microInsight.isOut ? '▲' : '▼'}</span>
           <span>
             {t('Portafolio', 'Portfolio')} {microInsight.portfolioRet >= 0 ? '+' : ''}{microInsight.portfolioRet.toFixed(2)}%
@@ -684,7 +688,8 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
       {/* Drawdown indicator */}
       {viewMode === 'value' && drawdown && (
-        <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs mb-3 bg-red-500/5 border border-red-500/20 text-red-400">
+        <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs mb-3"
+          style={{ backgroundColor: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171' }}>
           <span>↓</span>
           <span>
             Max drawdown: -{drawdown.pct.toFixed(1)}%
@@ -861,7 +866,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                     const chg = hd.value - prev.value
                     const chgPct = prev.value > 0 ? (chg / prev.value) * 100 : 0
                     return (
-                      <div className={chg >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                      <div style={{ color: chg >= 0 ? '#4ade80' : '#f87171' }}>
                         {chg >= 0 ? '+' : ''}{formatCurrency(chg)} ({chgPct >= 0 ? '+' : ''}{chgPct.toFixed(2)}%)
                       </div>
                     )
@@ -878,11 +883,11 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                 </>
               ) : (
                 <>
-                  <div className={`font-bold ${(returnData[hoverIdx] ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  <div className="font-bold" style={{ color: (returnData[hoverIdx] ?? 0) >= 0 ? '#4ade80' : '#f87171' }}>
                     {t('Portafolio', 'Portfolio')}: {(returnData[hoverIdx] ?? 0) >= 0 ? '+' : ''}{(returnData[hoverIdx] ?? 0).toFixed(2)}%
                   </div>
                   {benchmarkReturnSeries && benchmarkReturnSeries[hoverIdx] != null && (
-                    <div className="text-amber-400">
+                    <div style={{ color: '#fbbf24' }}>
                       {benchmarkName || 'S&P 500'}: {benchmarkReturnSeries[hoverIdx] >= 0 ? '+' : ''}{benchmarkReturnSeries[hoverIdx].toFixed(2)}%
                     </div>
                   )}
@@ -976,7 +981,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           </div>
           <div className="flex items-center gap-2 mt-2">
             <button onClick={() => setSnapshotRows(prev => [...prev, { date: '', value: '' }])}
-              className="text-[11px] text-blue-400 hover:text-blue-300">
+              className="text-[11px]" style={{ color: '#60a5fa' }}>
               + {t('Agregar fila', 'Add row')}
             </button>
             <div className="ml-auto flex gap-2">
@@ -985,7 +990,8 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                 {t('Cancelar', 'Cancel')}
               </button>
               <button onClick={handleSaveSnapshots} disabled={snapshotSaving || !snapshotRows.some(r => r.date && r.value)}
-                className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-500 disabled:opacity-40 transition-colors">
+                className="px-3 py-1 text-xs rounded disabled:opacity-40 transition-colors"
+                style={{ backgroundColor: '#2563eb', color: '#fff' }}>
                 {snapshotSaving ? '...' : t('Guardar', 'Save')}
               </button>
             </div>
