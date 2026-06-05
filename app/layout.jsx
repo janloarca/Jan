@@ -33,6 +33,7 @@ export const viewport = {
 }
 
 export default function RootLayout({ children }) {
+  const buildId = process.env.NEXT_BUILD_ID || '__dev__'
   const themeScript = `
     (function() {
       try {
@@ -54,6 +55,18 @@ export default function RootLayout({ children }) {
           keys.forEach(function(k) { caches.delete(k); });
         });
       }
+      setTimeout(function() {
+        var PAGE_BUILD = '${buildId}';
+        fetch('/api/version').then(function(r) { return r.json(); }).then(function(d) {
+          if (d.buildId && d.buildId !== '__dev__' && PAGE_BUILD !== '__dev__' && d.buildId !== PAGE_BUILD) {
+            var key = 'chispudo-reloaded-' + d.buildId;
+            if (!sessionStorage.getItem(key)) {
+              sessionStorage.setItem(key, '1');
+              location.reload();
+            }
+          }
+        }).catch(function() {});
+      }, 3000);
     })();
   `
 
