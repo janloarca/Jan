@@ -1,3 +1,12 @@
 {
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "git": {
+    "deploymentEnabled": {
+      "master": true,
+      "claude/portfolio-excel-import-8yuby": false,
+      "claude/broker-integrations-clean": false,
+      "copilot/add-new-feature": false,
+      "dashboard-simplify": false
+    }
+  }
 }
