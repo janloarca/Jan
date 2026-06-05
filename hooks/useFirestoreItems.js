@@ -167,8 +167,26 @@ export function useFirestoreItems() {
       )
     }
 
+    // iOS Safari kills websocket connections when tabs are backgrounded.
+    // Force Firestore to reconnect when the user returns.
+    let lastReconnect = 0
+    function handleVisibilityChange() {
+      if (document.visibilityState !== 'visible') return
+      const now = Date.now()
+      if (now - lastReconnect < 10000) return
+      lastReconnect = now
+      getFirebase().then(({ db: d, fs: f }) => {
+        f.disableNetwork(d).then(() => f.enableNetwork(d)).catch(() => {})
+      }).catch(() => {})
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
     init()
-    return () => { cancelled = true; unsubItems(); unsubSnapshots(); unsubTransactions(); unsubAlerts(); unsubLots(); unsubPortfolios(); unsubFinanceTx() }
+    return () => {
+      cancelled = true
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      unsubItems(); unsubSnapshots(); unsubTransactions(); unsubAlerts(); unsubLots(); unsubPortfolios(); unsubFinanceTx()
+    }
   }, [])
 
   const addItem = useCallback(async (item) => {
