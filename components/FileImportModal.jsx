@@ -1028,7 +1028,11 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
               </div>
               <p className="text-slate-400 text-sm mb-3">
                 {t(`${ibkrData.items.length} posiciones`, `${ibkrData.items.length} positions`)}
-                {ibkrData.transactions?.length > 0 && ` · ${ibkrData.transactions.length} trades`}
+                {ibkrData.transactions?.length > 0 && (() => {
+                  const deps = ibkrData.transactions.filter(t => t.type === 'DEPOSIT' || t.type === 'WITHDRAWAL').length
+                  const trades = ibkrData.transactions.length - deps
+                  return (trades > 0 ? ` · ${trades} trades` : '') + (deps > 0 ? ` · ${deps} ${t('depósitos/retiros', 'deposits/withdrawals')}` : '')
+                })()}
                 {ibkrData.equityHistory?.length > 0 && ` · ${ibkrData.equityHistory.length} NAV`}
               </p>
 

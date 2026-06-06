@@ -392,6 +392,8 @@ export function useFirestoreItems() {
     await fs.deleteDoc(fs.doc(db, `users/${uid}/portfolios`, portfolioId))
   }, [uid])
 
+  const SNAPSHOT_VERSION = 2
+
   const saveItemSnapshots = useCallback(async (monthKey, itemsData) => {
     if (!uid || !monthKey || !itemsData) return
     const { db, fs } = await getFirebase()
@@ -399,6 +401,7 @@ export function useFirestoreItems() {
       monthKey,
       items: itemsData,
       savedAt: new Date().toISOString(),
+      _version: SNAPSHOT_VERSION,
     })
   }, [uid])
 
@@ -409,7 +412,12 @@ export function useFirestoreItems() {
     await Promise.all(monthKeys.map(async (key) => {
       try {
         const docSnap = await fs.getDoc(fs.doc(db, `users/${uid}/itemSnapshots`, key))
-        if (docSnap.exists()) result[key] = docSnap.data().items || {}
+        if (docSnap.exists()) {
+          const data = docSnap.data()
+          if ((data._version || 0) >= SNAPSHOT_VERSION) {
+            result[key] = data.items || {}
+          }
+        }
       } catch {}
     }))
     return result
