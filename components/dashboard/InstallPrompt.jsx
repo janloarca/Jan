@@ -46,7 +46,8 @@ export default function InstallPrompt({ lang }) {
   if (!show) return null
 
   return (
-    <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 flex items-center justify-between gap-3">
+    <div className="rounded-xl p-4 flex items-center justify-between gap-3 border"
+      style={{ backgroundColor: 'rgba(59,130,246,0.1)', borderColor: 'rgba(59,130,246,0.2)' }}>
       <div className="min-w-0">
         <p className="text-sm font-medium text-white">
           {t('Instala Chispudo', 'Install Chispudo')}
@@ -60,7 +61,8 @@ export default function InstallPrompt({ lang }) {
       <div className="flex items-center gap-2 shrink-0">
         {!isIOS && (
           <button onClick={handleInstall}
-            className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-500 active:bg-blue-700 transition-colors">
+            className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors hover:opacity-90"
+            style={{ backgroundColor: '#2563eb', color: '#fff' }}>
             {t('Instalar', 'Install')}
           </button>
         )}

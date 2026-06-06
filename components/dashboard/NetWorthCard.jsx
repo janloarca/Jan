@@ -84,7 +84,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
   const milestone = getMilestone(netWorth, displayReturn, lang)
 
   return (
-    <div className="bg-gradient-to-br from-[#1C1C1E] to-[#1C1C1E] rounded-2xl border border-[#38383A]/60 p-6 card-hero">
+    <div className="bg-gradient-to-br from-[#141416] to-[#141416] rounded-2xl border border-[#38383A]/60 p-6 card-hero">
       {/* Greeting + milestone */}
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm text-slate-400">{greeting}</span>

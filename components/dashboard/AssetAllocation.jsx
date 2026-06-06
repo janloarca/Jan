@@ -49,12 +49,6 @@ export default function AssetAllocation({ items, lang }) {
 
   if (items.length === 0) return null
 
-  const size = 160
-  const strokeWidth = 28
-  const radius = (size - strokeWidth) / 2
-  const circumference = 2 * Math.PI * radius
-  let offset = 0
-
   const t = (es, en) => lang === 'es' ? es : en
 
   const views = [
@@ -67,15 +61,20 @@ export default function AssetAllocation({ items, lang }) {
   ]
 
   return (
-    <div className="bg-[#1C1C1E] rounded-2xl border border-[#38383A] p-5 card-primary">
+    <div className="bg-[#141416] rounded-2xl border border-[#27272a] p-5 card-primary">
+      {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#60a5fa' }} />
           {t('ASIGNACIÓN DE ACTIVOS', 'ASSET ALLOCATION')}
         </h3>
+        <span className="text-sm font-bold text-white font-mono tabular-nums">
+          {formatCurrency(totalValue)}
+        </span>
       </div>
 
-      <div className="flex items-center gap-1.5 mb-4">
+      {/* View toggle tabs */}
+      <div className="flex items-center gap-1.5 mb-5">
         {views.map((v) => (
           <button key={v.key} onClick={() => setView(v.key)}
             className={`px-2 py-1 text-xs font-medium rounded-md transition-colors ${
@@ -88,66 +87,68 @@ export default function AssetAllocation({ items, lang }) {
         ))}
       </div>
 
-      <div className="flex flex-col sm:flex-row items-center gap-6">
-        <div className="relative shrink-0">
-          <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-            <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#38383A" strokeWidth={strokeWidth} />
-            {allocation.map((seg) => {
-              const dash = (seg.pct / 100) * circumference
-              const gap = circumference - dash
-              const currentOffset = offset
-              offset += dash
-              return (
-                <circle
-                  key={seg.name}
-                  cx={size / 2}
-                  cy={size / 2}
-                  r={radius}
-                  fill="none"
-                  stroke={seg.color}
-                  strokeWidth={strokeWidth}
-                  strokeDasharray={`${dash} ${gap}`}
-                  strokeDashoffset={-currentOffset}
-                  strokeLinecap="butt"
-                  transform={`rotate(-90 ${size / 2} ${size / 2})`}
-                />
-              )
-            })}
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-xs text-slate-500">{t('Total', 'Total')}</span>
-            <span className="text-sm font-bold text-white">{formatCurrency(totalValue)}</span>
-          </div>
-        </div>
+      {/* Horizontal bar breakdown */}
+      <div className="space-y-0">
+        {allocation.map((seg) => {
+          const displayName = view === 'returnType' && INVESTMENT_CLASS_META[seg.name]
+            ? INVESTMENT_CLASS_META[seg.name].label[lang] || seg.name
+            : seg.name
+          const returnTypeDesc = view === 'returnType' && INVESTMENT_CLASS_META[seg.name]
+            ? INVESTMENT_CLASS_META[seg.name].returnType[lang]
+            : null
 
-        <div className="flex-1 w-full space-y-1.5 max-h-48 overflow-y-auto">
-          {allocation.map((seg) => (
-            <div key={seg.name} className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: seg.color }} />
-                <div className="flex flex-col">
-                  <span className="text-xs text-slate-300 capitalize truncate max-w-[140px]">
-                    {view === 'returnType' && INVESTMENT_CLASS_META[seg.name]
-                      ? INVESTMENT_CLASS_META[seg.name].label[lang] || seg.name
-                      : seg.name}
-                  </span>
-                  {view === 'returnType' && INVESTMENT_CLASS_META[seg.name] && (
-                    <span className="text-[10px] text-slate-500 leading-tight">
-                      {INVESTMENT_CLASS_META[seg.name].returnType[lang]}
+          return (
+            <div key={seg.name} style={{ paddingTop: 6, paddingBottom: 6 }}>
+              {/* Top row: label left, contribution + value + pct right */}
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{ backgroundColor: seg.color }}
+                  />
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-sm text-slate-300 capitalize truncate">
+                      {displayName}
                     </span>
-                  )}
+                    {returnTypeDesc && (
+                      <span className="text-[10px] text-slate-500 leading-tight">
+                        {returnTypeDesc}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span
+                    className="text-xs w-14 text-right"
+                    style={{ color: seg.contribution >= 0 ? 'rgba(16,185,129,0.7)' : 'rgba(239,68,68,0.7)' }}
+                  >
+                    {seg.contribution >= 0 ? '+' : ''}{seg.contribution.toFixed(1)}%
+                  </span>
+                  <span className="text-sm text-white font-mono tabular-nums text-right min-w-[80px]">
+                    {formatCurrency(seg.value)}
+                  </span>
+                  <span className="text-xs text-slate-500 w-12 text-right">
+                    {seg.pct.toFixed(1)}%
+                  </span>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-400">{seg.pct.toFixed(1)}%</span>
-                <span className={`text-xs w-14 text-right ${seg.contribution >= 0 ? 'text-emerald-500/70' : 'text-red-500/70'}`}>
-                  {seg.contribution >= 0 ? '+' : ''}{seg.contribution.toFixed(1)}%
-                </span>
-                <span className="text-xs text-white font-medium w-20 text-right">{formatCurrency(seg.value)}</span>
+
+              {/* Bar track + fill */}
+              <div
+                className="rounded-full overflow-hidden"
+                style={{ height: 8, backgroundColor: '#27272a' }}
+              >
+                <div
+                  className="h-full rounded-full transition-all duration-500 ease-out"
+                  style={{
+                    width: `${Math.max(seg.pct, 0.5)}%`,
+                    backgroundColor: seg.color,
+                  }}
+                />
               </div>
             </div>
-          ))}
-        </div>
+          )
+        })}
       </div>
     </div>
   )

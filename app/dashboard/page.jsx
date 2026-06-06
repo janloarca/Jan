@@ -10,7 +10,6 @@ import NetWorthCard from '@/components/dashboard/NetWorthCard'
 import ActionButtons from '@/components/dashboard/ActionButtons'
 import SectionCollapse from '@/components/dashboard/SectionCollapse'
 import MobileNav from '@/components/dashboard/MobileNav'
-import ErrorBanner from '@/components/dashboard/ErrorBanner'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import CardBoundary from '@/components/dashboard/CardBoundary'
 import { SkeletonCard, SkeletonChart } from '@/components/dashboard/Skeleton'
@@ -516,10 +515,19 @@ export default function DashboardPage() {
     }
   }, [dataLoading, enrichedItems.length])
 
+  const topBanner = useMemo(() => {
+    if (staleCode) return 'stale'
+    if (ibkrSyncErrorCode === 'TOKEN_EXPIRED') return 'ibkr-expired'
+    if (ibkrSyncErrorCode === 'INVALID_QUERY') return 'ibkr-query'
+    if (pricesError || ratesError) return 'prices'
+    if (contributionWarning) return 'contribution'
+    return null
+  }, [staleCode, ibkrSyncErrorCode, pricesError, ratesError, contributionWarning])
+
   // Loading state
   if (authLoading || (user && dataLoading)) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#000000]">
+      <div className="flex items-center justify-center min-h-screen bg-[#09090b]">
         <div className="text-center">
           <div className="inline-flex items-center gap-2 mb-4">
             <span className="text-2xl" style={{ color: '#60a5fa' }}>⚡</span>
@@ -537,7 +545,7 @@ export default function DashboardPage() {
   if (!user) return null
 
   return (
-    <div className="min-h-screen bg-[#000000]">
+    <div className="min-h-screen bg-[#09090b]">
       <a href="#main-content" className="skip-link">{lang === 'es' ? 'Ir al contenido' : 'Skip to content'}</a>
       <Header
         user={user} lang={lang}
@@ -555,45 +563,99 @@ export default function DashboardPage() {
         onIBKR={() => setModal('ibkr')}
       />
 
-      {staleCode && (
+      {topBanner && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3">
-          <div className="p-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)' }}>
-            <p className="text-sm font-medium" style={{ color: '#60a5fa' }}>
-              {lang === 'es' ? 'Hay una nueva versión disponible' : 'A new version is available'}
-            </p>
-            <button onClick={() => { if (typeof caches !== 'undefined') caches.keys().then(ks => Promise.all(ks.map(k => caches.delete(k)))); window.location.reload() }}
-              className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-              style={{ backgroundColor: '#2563eb', color: '#fff' }}>
-              {lang === 'es' ? 'Actualizar' : 'Update'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {ibkrSyncErrorCode === 'TOKEN_EXPIRED' && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3">
-          <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center justify-between">
-            <div>
-              <p className="text-sm text-amber-300 font-medium">{lang === 'es' ? 'Tu token de IBKR expiró' : 'Your IBKR token has expired'}</p>
-              <p className="text-xs text-amber-400/60 mt-0.5">{lang === 'es' ? 'Genera uno nuevo para mantener tu portafolio actualizado.' : 'Generate a new one to keep your portfolio updated.'}</p>
+          {topBanner === 'stale' && (
+            <div className="px-4 py-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)' }}>
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 shrink-0" style={{ color: '#60a5fa' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <p className="text-sm font-medium" style={{ color: '#60a5fa' }}>
+                  {lang === 'es' ? 'Hay una nueva versión disponible' : 'A new version is available'}
+                </p>
+              </div>
+              <button onClick={() => { if (typeof caches !== 'undefined') caches.keys().then(ks => Promise.all(ks.map(k => caches.delete(k)))); window.location.reload() }}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
+                style={{ backgroundColor: '#2563eb', color: '#fff' }}>
+                {lang === 'es' ? 'Actualizar' : 'Update'}
+              </button>
             </div>
-            <button onClick={() => setModal('ibkr')} className="text-xs text-amber-400 hover:text-amber-300 font-medium px-3 py-1.5 rounded-lg hover:bg-amber-500/10 transition-colors shrink-0">
-              {lang === 'es' ? 'Actualizar' : 'Update'} →
-            </button>
-          </div>
-        </div>
-      )}
-      {ibkrSyncErrorCode === 'INVALID_QUERY' && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3">
-          <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center justify-between">
-            <div>
-              <p className="text-sm text-amber-300 font-medium">{lang === 'es' ? 'Query ID de IBKR inválido' : 'Invalid IBKR Query ID'}</p>
-              <p className="text-xs text-amber-400/60 mt-0.5">{lang === 'es' ? 'Verifica tu Flex Query en IBKR.' : 'Verify your Flex Query in IBKR.'}</p>
+          )}
+          {topBanner === 'ibkr-expired' && (
+            <div className="px-4 py-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}>
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 shrink-0" style={{ color: '#fbbf24' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+                <p className="text-sm font-medium" style={{ color: '#fcd34d' }}>
+                  {lang === 'es' ? 'Tu token de IBKR expiró — genera uno nuevo para mantener tu portafolio actualizado' : 'Your IBKR token has expired — generate a new one to keep your portfolio updated'}
+                </p>
+              </div>
+              <button onClick={() => setModal('ibkr')}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
+                style={{ backgroundColor: '#d97706', color: '#fff' }}>
+                {lang === 'es' ? 'Actualizar' : 'Update'}
+              </button>
             </div>
-            <button onClick={() => setModal('ibkr')} className="text-xs text-amber-400 hover:text-amber-300 font-medium px-3 py-1.5 rounded-lg hover:bg-amber-500/10 transition-colors shrink-0">
-              {lang === 'es' ? 'Configurar' : 'Configure'} →
-            </button>
-          </div>
+          )}
+          {topBanner === 'ibkr-query' && (
+            <div className="px-4 py-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}>
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 shrink-0" style={{ color: '#fbbf24' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+                <p className="text-sm font-medium" style={{ color: '#fcd34d' }}>
+                  {lang === 'es' ? 'Query ID de IBKR inválido — verifica tu Flex Query en IBKR' : 'Invalid IBKR Query ID — verify your Flex Query in IBKR'}
+                </p>
+              </div>
+              <button onClick={() => setModal('ibkr')}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
+                style={{ backgroundColor: '#d97706', color: '#fff' }}>
+                {lang === 'es' ? 'Configurar' : 'Configure'}
+              </button>
+            </div>
+          )}
+          {topBanner === 'prices' && (
+            <div className="px-4 py-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}>
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 shrink-0" style={{ color: '#fbbf24' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+                <p className="text-sm font-medium" style={{ color: '#fcd34d' }}>
+                  {pricesError && ratesError
+                    ? (lang === 'es' ? 'Precios y tasas desactualizados — error de conexión' : 'Prices and rates outdated — connection error')
+                    : pricesError
+                      ? (lang === 'es' ? 'Precios desactualizados — no se pudo conectar' : 'Prices outdated — could not connect')
+                      : (lang === 'es' ? 'Tasas de cambio desactualizadas' : 'Exchange rates outdated')}
+                </p>
+              </div>
+              <button onClick={handleRefresh}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
+                style={{ backgroundColor: '#d97706', color: '#fff' }}>
+                {lang === 'es' ? 'Reintentar' : 'Retry'}
+              </button>
+            </div>
+          )}
+          {topBanner === 'contribution' && (
+            <div className="px-4 py-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}>
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 shrink-0" style={{ color: '#fbbf24' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-sm font-medium" style={{ color: '#fcd34d' }}>
+                  {lang === 'es'
+                    ? 'Tus retornos pueden no ser precisos — registra tus depósitos y retiros'
+                    : 'Your returns may not be accurate — log your deposits and withdrawals'}
+                </p>
+              </div>
+              <button onClick={() => setModal('cashflow')}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
+                style={{ backgroundColor: '#2563eb', color: '#fff' }}>
+                {lang === 'es' ? 'Registrar' : 'Log now'}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -620,14 +682,6 @@ export default function DashboardPage() {
               {lang === 'es' ? 'Actualizar' : 'Refresh'}
             </button>
           )}
-          {pricesUpdate && (
-            <span className="text-xs text-slate-600">
-              {new Date(pricesUpdate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </span>
-          )}
-          {baseCurrency !== 'USD' && <span className="text-xs" style={{ color: 'rgba(6,182,212,0.7)' }}>{baseCurrency}</span>}
-
-          {(pricesLoading || ratesLoading) && <span className="text-xs animate-pulse" style={{ color: '#60a5fa' }}>{lang === 'es' ? 'Actualizando...' : 'Updating...'}</span>}
           {entities && entities.length > 1 && (
             <EntitySwitcher
               entities={entities} activeEntity={activeEntity}
@@ -644,25 +698,6 @@ export default function DashboardPage() {
 
         <h1 className="sr-only">{lang === 'es' ? 'Patrimonio — Dashboard' : 'Net Worth — Dashboard'}</h1>
 
-        <CardBoundary id="ErrorBanner"><ErrorBanner pricesError={pricesError} ratesError={ratesError} lang={lang} /></CardBoundary>
-        <CardBoundary id="NotificationCenter"><NotificationCenter items={portfolioItems} transactions={transactions} lang={lang} /></CardBoundary>
-        <CardBoundary id="InstallPrompt"><InstallPrompt lang={lang} /></CardBoundary>
-
-        {contributionWarning && (
-          <div className="flex items-center gap-3 px-4 py-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-sm">
-            <span className="text-amber-400 text-lg">!</span>
-            <p className="text-amber-300 flex-1">
-              {lang === 'es'
-                ? 'Tus retornos pueden no ser precisos. Registra tus depósitos y retiros para cálculos correctos.'
-                : 'Your returns may not be accurate. Log your deposits and withdrawals for correct calculations.'}
-            </p>
-            <button onClick={() => setModal('cashflow')}
-              className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap"
-              style={{ backgroundColor: '#2563eb', color: '#fff' }}>
-              {lang === 'es' ? 'Registrar ahora' : 'Log now'}
-            </button>
-          </div>
-        )}
 
         {portfolioItems.length === 0 && !dataLoading && (
           <EmptyState
@@ -742,13 +777,16 @@ export default function DashboardPage() {
           </ErrorBoundary>
         </SectionCollapse>
 
+        <NotificationCenter items={portfolioItems} transactions={transactions} lang={lang} />
+        <InstallPrompt lang={lang} />
+
         <div className="flex items-center justify-center gap-3 pt-4 pb-8">
           <button onClick={handleReport}
-            className="px-5 py-2.5 text-sm font-medium text-slate-400 bg-[#1C1C1E] border border-[#38383A]/60 rounded-xl hover:bg-[#2C2C2E] hover:text-white hover:border-[#475569] transition-all inline-flex items-center gap-2">
+            className="px-5 py-2.5 text-sm font-medium text-slate-400 bg-[#141416] border border-[#27272a]/60 rounded-xl hover:bg-[#2C2C2E] hover:text-white hover:border-[#475569] transition-all inline-flex items-center gap-2">
             {lang === 'es' ? 'Descargar PDF' : 'Download PDF'}
           </button>
           <button onClick={() => setModal('print')}
-            className="px-5 py-2.5 text-sm font-medium text-slate-400 bg-[#1C1C1E] border border-[#38383A]/60 rounded-xl hover:bg-[#2C2C2E] hover:text-white hover:border-[#475569] transition-all inline-flex items-center gap-2">
+            className="px-5 py-2.5 text-sm font-medium text-slate-400 bg-[#141416] border border-[#27272a]/60 rounded-xl hover:bg-[#2C2C2E] hover:text-white hover:border-[#475569] transition-all inline-flex items-center gap-2">
             {lang === 'es' ? 'Imprimir Resumen' : 'Print Summary'}
           </button>
         </div>

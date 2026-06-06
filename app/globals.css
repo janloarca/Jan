@@ -3,9 +3,9 @@
 @tailwind utilities;
 
 :root {
-  --bg-primary: #000000;
-  --bg-secondary: #1C1C1E;
-  --bg-card: #1C1C1E;
+  --bg-primary: #09090b;
+  --bg-secondary: #141416;
+  --bg-card: #141416;
   --bg-card-hover: #2C2C2E;
   --bg-input: #2C2C2E;
   --bg-tertiary: #3A3A3C;
@@ -22,9 +22,9 @@
   --focus-ring: #0A84FF;
   --fill-primary: rgba(120, 120, 128, 0.36);
   --fill-secondary: rgba(120, 120, 128, 0.32);
-  --card-bg: #1C1C1E;
-  --card-border: rgba(84, 84, 88, 0.65);
-  --input-bg: #000000;
+  --card-bg: #141416;
+  --card-border: #27272a;
+  --input-bg: #09090b;
 }
 
 [data-theme="light"] {
@@ -101,7 +101,9 @@ textarea:focus-visible {
 
 /* Theme-aware overrides for dark hardcoded hex values */
 [data-theme="light"] .bg-\[\#000000\] { background-color: var(--bg-primary) !important; }
+[data-theme="light"] .bg-\[\#09090b\] { background-color: var(--bg-primary) !important; }
 [data-theme="light"] .bg-\[\#1C1C1E\] { background-color: var(--bg-card) !important; }
+[data-theme="light"] .bg-\[\#141416\] { background-color: var(--bg-card) !important; }
 [data-theme="light"] .bg-\[\#2C2C2E\] { background-color: var(--bg-card-hover) !important; }
 [data-theme="light"] .border-\[\#38383A\] { border-color: var(--border-color) !important; }
 [data-theme="light"] .border-\[\#38383A\]\/30 { border-color: rgba(60, 60, 67, 0.12) !important; }
@@ -121,14 +123,20 @@ textarea:focus-visible {
 [data-theme="light"] .bg-slate-600 { background-color: #D1D1D6 !important; }
 [data-theme="light"] .hover\:bg-\[\#2C2C2E\]:hover { background-color: var(--bg-card-hover) !important; }
 [data-theme="light"] .bg-\[\#000000\]\/95 { background-color: rgba(242, 242, 247, 0.95) !important; }
+[data-theme="light"] .bg-\[\#09090b\]\/95 { background-color: rgba(242, 242, 247, 0.95) !important; }
 [data-theme="light"] .bg-\[\#000000\]\/50 { background-color: rgba(60, 60, 67, 0.06) !important; }
 [data-theme="light"] .bg-black\/60 { background-color: rgba(0, 0, 0, 0.3) !important; }
 [data-theme="light"] .border-slate-600\/50 { border-color: rgba(60, 60, 67, 0.2) !important; }
+[data-theme="light"] .bg-\[\#141416\]\/80 { background-color: rgba(255, 255, 255, 0.9) !important; }
 [data-theme="light"] .bg-\[\#1C1C1E\]\/80 { background-color: rgba(255, 255, 255, 0.9) !important; }
 [data-theme="light"] .bg-\[\#1C1C1E\]\/40 { background-color: rgba(255, 255, 255, 0.6) !important; }
 [data-theme="light"] .bg-\[\#1C1C1E\]\/95 { background-color: rgba(255, 255, 255, 0.95) !important; }
 [data-theme="light"] .from-\[\#1C1C1E\] { --tw-gradient-from: #ffffff !important; }
+[data-theme="light"] .from-\[\#141416\] { --tw-gradient-from: #ffffff !important; }
 [data-theme="light"] .to-\[\#1C1C1E\] { --tw-gradient-to: #F2F2F7 !important; }
+[data-theme="light"] .to-\[\#141416\] { --tw-gradient-to: #F2F2F7 !important; }
+[data-theme="light"] .border-\[\#27272a\] { border-color: var(--border-color) !important; }
+[data-theme="light"] .border-\[\#27272a\]\/50 { border-color: rgba(60, 60, 67, 0.2) !important; }
 
 /* Light mode - badge colors */
 [data-theme="light"] .bg-emerald-500\/10 { background-color: rgba(52, 199, 89, 0.1) !important; }
@@ -329,27 +337,27 @@ textarea:focus-visible {
 .spreadsheet-container .dsg-container {
   --dsg-selection-border-color: #0A84FF;
   --dsg-border-color: rgba(84, 84, 88, 0.65);
-  --dsg-cell-background-color: #000000;
-  --dsg-cell-disabled-background-color: #1C1C1E;
-  --dsg-header-background-color: #1C1C1E;
+  --dsg-cell-background-color: #09090b;
+  --dsg-cell-disabled-background-color: #141416;
+  --dsg-header-background-color: #141416;
   --dsg-header-text-color: rgba(235, 235, 245, 0.6);
   --dsg-cell-text-color: #FFFFFF;
   --dsg-selection-background-color: rgba(10, 132, 255, 0.08);
-  background: #000000;
+  background: #09090b;
   font-size: 13px;
 }
 .spreadsheet-container .dsg-cell-header {
-  background: #1C1C1E;
+  background: #141416;
   color: rgba(235, 235, 245, 0.6);
   border-color: rgba(84, 84, 88, 0.65);
 }
 .spreadsheet-container .dsg-row-header {
-  background: #1C1C1E;
+  background: #141416;
   color: rgba(235, 235, 245, 0.3);
   border-color: rgba(84, 84, 88, 0.65);
 }
 .spreadsheet-container input {
   color: #FFFFFF;
-  background: #000000;
+  background: #09090b;
   caret-color: #0A84FF;
 }

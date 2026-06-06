@@ -109,32 +109,38 @@ export default function NotificationCenter({ items, transactions, lang }) {
 
   if (notifications.length === 0 && pushPermission !== 'default') return null
 
-  const styles = {
-    urgent: 'bg-red-500/8 border-red-500/20 text-red-400',
-    warning: 'bg-amber-500/8 border-amber-500/20 text-amber-400',
-    positive: 'bg-emerald-500/8 border-emerald-500/20 text-emerald-400',
-    info: 'bg-blue-500/8 border-blue-500/20 text-blue-400',
+  const typeStyles = {
+    urgent: { bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.2)', color: '#f87171' },
+    warning: { bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.2)', color: '#fbbf24' },
+    positive: { bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.2)', color: '#34d399' },
+    info: { bg: 'rgba(59,130,246,0.08)', border: 'rgba(59,130,246,0.2)', color: '#60a5fa' },
   }
 
   return (
     <div className="space-y-1.5">
       {isNotificationSupported() && pushPermission === 'default' && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border text-xs bg-blue-500/8 border-blue-500/20 text-blue-400">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border text-xs"
+          style={{ backgroundColor: 'rgba(59,130,246,0.08)', borderColor: 'rgba(59,130,246,0.2)', color: '#60a5fa' }}>
           <span>🔔</span>
           <span className="flex-1">{t('Activa notificaciones para alertas de pagos y vencimientos', 'Enable notifications for payment and maturity alerts')}</span>
-          <button onClick={handleEnablePush} className="px-2 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-500 transition-colors">
+          <button onClick={handleEnablePush} className="px-2 py-1 rounded text-xs font-medium transition-colors hover:opacity-90"
+            style={{ backgroundColor: '#2563eb', color: '#fff' }}>
             {t('Activar', 'Enable')}
           </button>
         </div>
       )}
-      {notifications.slice(0, 5).map((n) => (
-        <div key={n.id} className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs ${styles[n.type] || styles.info}`}>
-          <span>{n.icon}</span>
-          <span className="flex-1">{lang === 'es' ? n.textEs : n.textEn}</span>
-          {n.value && <span className="font-medium shrink-0">{formatCurrency(n.value)}</span>}
-          <button onClick={() => dismiss(n.id)} className="opacity-40 hover:opacity-100 ml-1">×</button>
-        </div>
-      ))}
+      {notifications.slice(0, 5).map((n) => {
+        const s = typeStyles[n.type] || typeStyles.info
+        return (
+          <div key={n.id} className="flex items-center gap-2 px-3 py-2 rounded-lg border text-xs"
+            style={{ backgroundColor: s.bg, borderColor: s.border, color: s.color }}>
+            <span>{n.icon}</span>
+            <span className="flex-1">{lang === 'es' ? n.textEs : n.textEn}</span>
+            {n.value && <span className="font-medium shrink-0">{formatCurrency(n.value)}</span>}
+            <button onClick={() => dismiss(n.id)} className="opacity-40 hover:opacity-100 ml-1">×</button>
+          </div>
+        )
+      })}
     </div>
   )
 }

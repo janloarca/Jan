@@ -17,7 +17,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
   ]
 
   return (
-    <header className="border-b border-[#38383A] sticky top-0 z-20 bg-[#000000]/95 backdrop-blur-sm">
+    <header className="border-b border-[#38383A] sticky top-0 z-20 bg-[#09090b]/95 backdrop-blur-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14">
           <div className="flex items-center gap-4">
