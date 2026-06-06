@@ -485,8 +485,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
           </div>
           <div className="flex items-center gap-3">
             <div className="flex gap-1">
-              <div className={`w-2 h-2 rounded-full ${step >= 1 ? 'bg-blue-400' : 'bg-[var(--card-border,#38383A)]'}`} />
-              <div className={`w-2 h-2 rounded-full ${step >= 2 ? 'bg-blue-400' : 'bg-[var(--card-border,#38383A)]'}`} />
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: step >= 1 ? '#60a5fa' : 'var(--card-border, #38383A)' }} />
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: step >= 2 ? '#60a5fa' : 'var(--card-border, #38383A)' }} />
             </div>
             <button onClick={onClose} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-xl leading-none">&times;</button>
           </div>
@@ -502,9 +502,10 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               <div className="grid grid-cols-4 gap-2">
                 {TYPES.map(tp => (
                   <button key={tp.key} type="button" onClick={() => { setType(tp.key); setSubtype(''); setForm(prev => ({ ...prev, symbol: '', name: '', purchasePrice: '', currentPrice: '', sector: '', industry: '', isIlliquid: false, custodyType: '', maturityDate: '' })); setDivInfo(null) }}
-                    className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg transition-all text-center ${
-                      type === tp.key ? 'bg-blue-500/20 border border-blue-500/40 text-blue-400' : 'bg-[var(--input-bg,#000000)] border border-[var(--card-border,#38383A)] text-[var(--text-secondary,#94a3b8)] hover:border-[var(--text-secondary,#94a3b8)]'
-                    }`}>
+                    className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg transition-all text-center border ${
+                      type !== tp.key ? 'bg-[var(--input-bg,#000000)] border-[var(--card-border,#38383A)] text-[var(--text-secondary,#94a3b8)] hover:border-[var(--text-secondary,#94a3b8)]' : ''
+                    }`}
+                    style={type === tp.key ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>
                     <span className="text-lg">{tp.icon}</span>
                     <span className="text-xs font-medium">{lang === 'es' ? tp.es : tp.en}</span>
                   </button>
@@ -514,9 +515,10 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 <div className="flex flex-wrap gap-1.5 mt-2">
                   {currentTypeInfo.subtypes.map(st => (
                     <button key={st.key} type="button" onClick={() => setSubtype(st.key)}
-                      className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
-                        subtype === st.key ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border border-[var(--card-border,#38383A)] hover:border-[var(--text-secondary,#94a3b8)]'
-                      }`}>
+                      className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all border ${
+                        subtype !== st.key ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)] hover:border-[var(--text-secondary,#94a3b8)]' : ''
+                      }`}
+                      style={subtype === st.key ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>
                       {lang === 'es' ? st.es : st.en}
                     </button>
                   ))}
@@ -552,9 +554,10 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                         <button key={`${r.symbol}-${i}`} type="button" onClick={() => handleSelectSymbol(r)}
                           className="w-full px-3 py-2.5 flex items-center justify-between hover:bg-[var(--input-bg,#2C2C2E)] transition-colors text-left border-b border-[var(--card-border,#38383A)]/50 last:border-0">
                           <div className="flex items-center gap-2.5 min-w-0">
-                            <span className={`text-xs font-bold shrink-0 px-1.5 py-0.5 rounded ${
-                              r.type === 'Crypto' ? 'bg-amber-500/20 text-amber-400' : r.type === 'Fund' ? 'bg-purple-500/20 text-purple-400' : 'bg-blue-500/20 text-blue-400'
-                            }`}>{r.symbol}</span>
+                            <span className="text-xs font-bold shrink-0 px-1.5 py-0.5 rounded" style={{
+                              color: r.type === 'Crypto' ? '#fbbf24' : r.type === 'Fund' ? '#c084fc' : '#60a5fa',
+                              backgroundColor: r.type === 'Crypto' ? 'rgba(245,158,11,0.2)' : r.type === 'Fund' ? 'rgba(168,85,247,0.2)' : 'rgba(59,130,246,0.2)',
+                            }}>{r.symbol}</span>
                             <span className="text-xs text-[var(--text-secondary,#cbd5e1)] truncate">{r.name}</span>
                           </div>
                           <span className="text-xs text-[var(--text-muted,#475569)] shrink-0 ml-2">{r.exchange}</span>
@@ -735,7 +738,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             {(isProperty || isAlternative || (isBond && subtype === 'private_debt')) && (
               <div className="flex items-center gap-3 px-3 py-2 border border-[var(--card-border,#38383A)] rounded-lg">
                 <button type="button" onClick={() => set('isIlliquid', !form.isIlliquid)}
-                  className={`w-8 h-4 rounded-full transition-colors relative ${form.isIlliquid ? 'bg-amber-500' : 'bg-[var(--card-border,#38383A)]'}`}>
+                  className="w-8 h-4 rounded-full transition-colors relative"
+                  style={{ backgroundColor: form.isIlliquid ? '#f59e0b' : 'var(--card-border, #38383A)' }}>
                   <span className={`absolute w-3 h-3 bg-white rounded-full top-0.5 transition-transform ${form.isIlliquid ? 'left-4' : 'left-0.5'}`} />
                 </button>
                 <div>
@@ -966,11 +970,13 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   <p className="text-xs text-[var(--text-muted,#475569)] mb-1">{t('¿Qué hacer con dividendos?', 'What to do with dividends?')}</p>
                   <div className="flex gap-2">
                     <button type="button" onClick={() => set('dividendAction', 'cash')}
-                      className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all ${form.dividendAction === 'cash' ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40' : 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border border-[var(--card-border,#38383A)]'}`}>
+                      className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.dividendAction !== 'cash' ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
+                      style={form.dividendAction === 'cash' ? { color: '#22d3ee', backgroundColor: 'rgba(6,182,212,0.2)', borderColor: 'rgba(6,182,212,0.4)' } : undefined}>
                       💵 {t('Efectivo', 'Cash')}
                     </button>
                     <button type="button" onClick={() => set('dividendAction', 'reinvest')}
-                      className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all ${form.dividendAction === 'reinvest' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border border-[var(--card-border,#38383A)]'}`}>
+                      className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.dividendAction !== 'reinvest' ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
+                      style={form.dividendAction === 'reinvest' ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>
                       🔄 {t('Reinvertir', 'Reinvest')}
                     </button>
                   </div>
@@ -999,7 +1005,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                       { key: 'continuous', es: 'Continua', en: 'Continuous' },
                     ].map(rt => (
                       <button key={rt.key} type="button" onClick={() => set('rateType', rt.key)}
-                        className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all ${form.rateType === rt.key ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border border-[var(--card-border,#38383A)]'}`}>
+                        className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.rateType !== rt.key ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
+                        style={form.rateType === rt.key ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>
                         {lang === 'es' ? rt.es : rt.en}
                       </button>
                     ))}
@@ -1009,11 +1016,13 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 {/* Income mode: fixed amount vs percent */}
                 <div className="flex gap-1">
                   <button type="button" onClick={() => set('incomeMode', 'fixed')}
-                    className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all ${form.incomeMode === 'fixed' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border border-[var(--card-border,#38383A)]'}`}>
+                    className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.incomeMode !== 'fixed' ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
+                    style={form.incomeMode === 'fixed' ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>
                     {t('Monto fijo', 'Fixed amount')}
                   </button>
                   <button type="button" onClick={() => set('incomeMode', 'percent')}
-                    className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all ${form.incomeMode === 'percent' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border border-[var(--card-border,#38383A)]'}`}>
+                    className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.incomeMode !== 'percent' ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
+                    style={form.incomeMode === 'percent' ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>
                     {t('% del saldo', '% of balance')}
                   </button>
                 </div>
