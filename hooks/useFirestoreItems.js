@@ -397,9 +397,12 @@ export function useFirestoreItems() {
   const saveItemSnapshots = useCallback(async (monthKey, itemsData) => {
     if (!uid || !monthKey || !itemsData) return
     const { db, fs } = await getFirebase()
-    await fs.setDoc(fs.doc(db, `users/${uid}/itemSnapshots`, monthKey), {
+    const ref = fs.doc(db, `users/${uid}/itemSnapshots`, monthKey)
+    const existing = await fs.getDoc(ref)
+    const existingItems = existing.exists() ? (existing.data().items || {}) : {}
+    await fs.setDoc(ref, {
       monthKey,
-      items: itemsData,
+      items: { ...existingItems, ...itemsData },
       savedAt: new Date().toISOString(),
       _version: SNAPSHOT_VERSION,
     })

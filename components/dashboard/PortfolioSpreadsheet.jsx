@@ -207,6 +207,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
 
   const [historicalItems, setHistoricalItems] = useState({})
   const itemSnapshotSavedRef = useRef(false)
+  const lastFetchedYearRef = useRef(null)
 
   useEffect(() => {
     if (!onLoadItemSnapshots || months.length === 0) return
@@ -231,18 +232,25 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   }, [onSaveItemSnapshots, items, currentMonthKey])
 
   useEffect(() => {
-    if (historyFetchedRef.current || !items || items.length === 0) return
+    if (!items || items.length === 0) return
     if (!onSaveItemSnapshots) return
+    if (lastFetchedYearRef.current === selectedYear) return
     const pastMonths = months.filter(mk => mk !== currentMonthKey)
     if (pastMonths.length === 0) return
+
+    const itemsWithIds = items.filter(it => it.id)
+
     const missingMonths = pastMonths.filter(mk => {
       const monthData = historicalItems[mk]
       if (!monthData || Object.keys(monthData).length === 0) return true
-      const hasAnyItemData = items.some(it => it.id && monthData[it.id])
-      return !hasAnyItemData
+      const covered = itemsWithIds.filter(it => monthData[it.id])
+      return covered.length < itemsWithIds.length * 0.7
     })
-    if (missingMonths.length === 0) return
-    historyFetchedRef.current = true
+    if (missingMonths.length === 0) {
+      lastFetchedYearRef.current = selectedYear
+      return
+    }
+    lastFetchedYearRef.current = selectedYear
     setLoadingHistory(true)
 
     const itemsWithCategory = items.map(it => ({ ...it, _category: getTypeCategory(it) }))
@@ -264,7 +272,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         setLoadingHistory(false)
       }).catch(() => setLoadingHistory(false))
     }).catch(() => setLoadingHistory(false))
-  }, [items, months, currentMonthKey, historicalItems, convert, baseCurrency, onSaveItemSnapshots, lots])
+  }, [items, months, currentMonthKey, historicalItems, convert, baseCurrency, onSaveItemSnapshots, lots, selectedYear])
 
   const itemValue = useCallback((item) => {
     return showOriginal ? getOriginalValue(item) : getItemValue(item)
