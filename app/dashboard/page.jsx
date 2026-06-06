@@ -87,7 +87,8 @@ function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, 
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
         {tabs.map(tb => (
           <button key={tb.key} onClick={() => setTab(tb.key)}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${tab === tb.key ? 'bg-blue-600 text-white' : 'text-slate-400 border border-[#38383A] hover:text-white hover:bg-[#2C2C2E]'}`}>
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${tab !== tb.key ? 'text-slate-400 border border-[#38383A] hover:text-white hover:bg-[#2C2C2E]' : ''}`}
+            style={tab === tb.key ? { backgroundColor: '#2563eb', color: '#fff' } : undefined}>
             {tb.label}
           </button>
         ))}
@@ -521,11 +522,11 @@ export default function DashboardPage() {
       <div className="flex items-center justify-center min-h-screen bg-[#000000]">
         <div className="text-center">
           <div className="inline-flex items-center gap-2 mb-4">
-            <span className="text-blue-400 text-2xl">⚡</span>
-            <span className="text-lg font-bold text-blue-400">Chispudo</span>
+            <span className="text-2xl" style={{ color: '#60a5fa' }}>⚡</span>
+            <span className="text-lg font-bold" style={{ color: '#60a5fa' }}>Chispudo</span>
           </div>
           <div className="block">
-            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent" />
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-t-transparent" style={{ borderColor: '#3b82f6', borderTopColor: 'transparent' }} />
           </div>
           <p className="mt-4 text-slate-500 text-sm">{lang === 'es' ? 'Cargando tu portfolio...' : 'Loading your portfolio...'}</p>
         </div>
@@ -1011,11 +1012,13 @@ export default function DashboardPage() {
       )}
 
       {toast && (
-        <div className={`fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 px-4 py-2.5 rounded-lg shadow-xl text-sm font-medium animate-fade-in ${
-          toast.type === 'error' ? 'bg-red-900/90 border border-red-700/50 text-red-100' :
-          toast.type === 'info' ? 'bg-blue-900/90 border border-blue-700/50 text-blue-100' :
-          'bg-emerald-900/90 border border-emerald-700/50 text-emerald-100'
-        }`}>
+        <div className="fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 px-4 py-2.5 rounded-lg shadow-xl text-sm font-medium animate-fade-in border"
+          style={toast.type === 'error'
+            ? { backgroundColor: 'rgba(127,29,29,0.9)', borderColor: 'rgba(185,28,28,0.5)', color: '#fecaca' }
+            : toast.type === 'info'
+            ? { backgroundColor: 'rgba(30,58,138,0.9)', borderColor: 'rgba(29,78,216,0.5)', color: '#dbeafe' }
+            : { backgroundColor: 'rgba(6,78,59,0.9)', borderColor: 'rgba(5,150,105,0.5)', color: '#d1fae5' }
+          }>
           <span>{toast.type === 'error' ? '✕' : toast.type === 'info' ? 'ℹ' : '✓'}</span>
           {toast.msg}
         </div>

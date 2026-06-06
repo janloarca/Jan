@@ -15,7 +15,7 @@ function DoneStep({ result, onClose, t }) {
 
   return (
     <div className="text-center py-10">
-      <CheckCircle size={36} strokeWidth={1.5} className="text-emerald-400 mx-auto mb-5" />
+      <CheckCircle size={36} strokeWidth={1.5} className="text-[#34d399] mx-auto mb-5" />
       <p className="text-white font-medium text-base mb-3">
         {t('Sincronización exitosa', 'Sync successful')}
       </p>
@@ -25,7 +25,7 @@ function DoneStep({ result, onClose, t }) {
         {result.accounts.length > 0 && <> · {result.accounts.join(', ')}</>}
       </p>
       {result.equityHistory > 0 && (
-        <p className="text-emerald-400/80 text-xs mt-2">
+        <p className="text-[#34d399]/80 text-xs mt-2">
           {result.equityHistory} {t('días de historial guardados', 'days of history saved')}
         </p>
       )}
@@ -33,7 +33,7 @@ function DoneStep({ result, onClose, t }) {
         {new Date(result.syncedAt).toLocaleString()}
       </p>
       <button onClick={onClose}
-        className="mt-8 px-10 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-all text-sm font-medium">
+        className="mt-8 px-10 py-3 rounded-xl hover:opacity-90 transition-all text-sm font-medium" style={{ backgroundColor: '#2563eb', color: '#fff' }}>
         {t('Cerrar', 'Close')} ({countdown}s)
       </button>
     </div>
@@ -411,8 +411,9 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
 
         <div className="flex-1 overflow-y-auto px-6 py-5">
           {error && (
-            <div className={`mb-5 p-3 rounded-lg border ${hasData ? 'bg-amber-500/10 border-amber-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
-              <p className={`text-sm ${hasData ? 'text-amber-300' : 'text-red-400'}`}>
+            <div className="mb-5 p-3 rounded-lg border"
+              style={hasData ? { backgroundColor: 'rgba(245,158,11,0.1)', borderColor: 'rgba(245,158,11,0.2)' } : { backgroundColor: 'rgba(248,113,113,0.1)', borderColor: 'rgba(248,113,113,0.2)' }}>
+              <p className="text-sm" style={{ color: hasData ? '#fcd34d' : '#f87171' }}>
                 {hasData
                   ? t('No se pudo conectar con IBKR, pero tus datos están actualizados.',
                       'Couldn\'t connect to IBKR, but your data is up to date.')
@@ -424,16 +425,16 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 </p>
               )}
               {!hasData && errorHint && (
-                <p className="text-red-400/60 text-xs mt-1.5">{errorHint}</p>
+                <p className="text-[#f87171]/60 text-xs mt-1.5">{errorHint}</p>
               )}
               {!hasData && !errorHint && (errorCode === 'RATE_LIMITED' || error.toLowerCase().includes('try again')) && (
-                <p className="text-red-400/60 text-xs mt-1.5">
+                <p className="text-[#f87171]/60 text-xs mt-1.5">
                   {t('IBKR a veces tarda en generar reportes. Intenta de nuevo en unos minutos.',
                      'IBKR sometimes takes time to generate reports. Try again in a few minutes.')}
                 </p>
               )}
               {!syncing && (
-                <button onClick={handleSync} className="mt-2 text-xs text-blue-400 hover:text-blue-300 transition-colors">
+                <button onClick={handleSync} className="mt-2 text-xs text-[#60a5fa] hover:text-blue-300 transition-colors">
                   {t('Reintentar', 'Retry')} →
                 </button>
               )}
@@ -484,7 +485,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
 
           {step === 'connected' && syncing && (
             <div className="flex flex-col items-center justify-center py-16 gap-4">
-              <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+              <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: '#3b82f6', borderTopColor: 'transparent' }} />
               <p className="text-sm text-slate-400">
                 {statusMessages[syncStatus] || t('Sincronizando con IBKR...', 'Syncing with IBKR...')}
               </p>
@@ -492,13 +493,13 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 <div className="flex flex-col items-center gap-2">
                   <div className="w-48 h-1 bg-slate-700 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                      className="h-full rounded-full transition-all duration-500" style={{ backgroundColor: '#3b82f6' }}
                       style={{ width: `${Math.min((pollProgress.current / pollProgress.total) * 100, 100)}%` }}
                     />
                   </div>
                 </div>
               )}
-              <button onClick={handleCancel} className="text-xs text-red-500/60 hover:text-red-400 transition-colors">
+              <button onClick={handleCancel} className="text-xs text-red-500/60 hover:text-[#f87171] transition-colors">
                 {t('Cancelar', 'Cancel')}
               </button>
             </div>
@@ -506,7 +507,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
 
           {step === 'config' && !showConfig && syncing && (
             <div className="flex flex-col items-center justify-center py-16 gap-4">
-              <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+              <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: '#3b82f6', borderTopColor: 'transparent' }} />
               <p className="text-sm text-slate-400">
                 {statusMessages[syncStatus] || t('Sincronizando con IBKR...', 'Syncing with IBKR...')}
               </p>
@@ -514,7 +515,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 <div className="flex flex-col items-center gap-2">
                   <div className="w-48 h-1 bg-slate-700 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                      className="h-full rounded-full transition-all duration-500" style={{ backgroundColor: '#3b82f6' }}
                       style={{ width: `${Math.min((pollProgress.current / pollProgress.total) * 100, 100)}%` }}
                     />
                   </div>
@@ -527,7 +528,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 <button onClick={() => setShowConfig(true)} className="text-xs text-slate-600 hover:text-slate-400 transition-colors">
                   {t('Cambiar credenciales', 'Change credentials')}
                 </button>
-                <button onClick={handleCancel} className="text-xs text-red-500/60 hover:text-red-400 transition-colors">
+                <button onClick={handleCancel} className="text-xs text-red-500/60 hover:text-[#f87171] transition-colors">
                   {t('Cancelar', 'Cancel')}
                 </button>
               </div>
@@ -536,7 +537,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
 
           {step === 'config' && !showConfig && decrypting && !syncing && (
             <div className="flex flex-col items-center justify-center py-16 gap-4">
-              <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+              <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: '#3b82f6', borderTopColor: 'transparent' }} />
               <p className="text-sm text-slate-400">
                 {t('Desencriptando credenciales...', 'Decrypting credentials...')}
               </p>
@@ -579,7 +580,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   <div>
                     <p className="text-xs text-white font-medium">{t('Crear el Flex Query', 'Create the Flex Query')}</p>
                     <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                      <span className="text-blue-400 font-mono">interactivebrokers.com</span> → Performance & Reports → Flex Queries → {t('crear Activity Flex Query con', 'create Activity Flex Query with')} <span className="text-white">Open Positions</span> {t('y', 'and')} <span className="text-white">Trades</span>
+                      <span className="text-[#60a5fa] font-mono">interactivebrokers.com</span> → Performance & Reports → Flex Queries → {t('crear Activity Flex Query con', 'create Activity Flex Query with')} <span className="text-white">Open Positions</span> {t('y', 'and')} <span className="text-white">Trades</span>
                     </p>
                   </div>
                 </div>
@@ -606,9 +607,10 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   <input type="password" value={token} onChange={e => setToken(e.target.value)}
                     placeholder={decrypting ? t('Desencriptando...', 'Decrypting...') : t('Flex Web Service Token', 'Flex Web Service Token')}
                     disabled={decrypting}
-                    className={`w-full px-4 py-2.5 bg-[#000000] border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono ${errorCode === 'TOKEN_EXPIRED' ? 'border-red-500/60' : 'border-[#38383A]/60'}`} />
+                    className="w-full px-4 py-2.5 bg-[#000000] border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#3b82f6]/50 font-mono"
+                    style={{ borderColor: errorCode === 'TOKEN_EXPIRED' ? 'rgba(239,68,68,0.6)' : 'rgba(56,56,58,0.6)' }} />
                   {errorCode === 'TOKEN_EXPIRED' && (
-                    <p className="text-[10px] text-red-400 mt-1">{t('Este token expiró o es inválido.', 'This token has expired or is invalid.')}</p>
+                    <p className="text-[10px] text-[#f87171] mt-1">{t('Este token expiró o es inválido.', 'This token has expired or is invalid.')}</p>
                   )}
                 </div>
 
@@ -616,9 +618,10 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   <label className="text-[11px] text-slate-500 uppercase tracking-wider mb-1.5 block">Query ID</label>
                   <input type="text" value={queryId} onChange={e => setQueryId(e.target.value)}
                     placeholder={t('Ej: 123456', 'E.g.: 123456')}
-                    className={`w-full px-4 py-2.5 bg-[#000000] border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 font-mono ${errorCode === 'INVALID_QUERY' ? 'border-red-500/60' : 'border-[#38383A]/60'}`} />
+                    className="w-full px-4 py-2.5 bg-[#000000] border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#3b82f6]/50 font-mono"
+                    style={{ borderColor: errorCode === 'INVALID_QUERY' ? 'rgba(239,68,68,0.6)' : 'rgba(56,56,58,0.6)' }} />
                   {errorCode === 'INVALID_QUERY' && (
-                    <p className="text-[10px] text-red-400 mt-1">{t('Este Query ID no existe o no está activo.', 'This Query ID does not exist or is not active.')}</p>
+                    <p className="text-[10px] text-[#f87171] mt-1">{t('Este Query ID no existe o no está activo.', 'This Query ID does not exist or is not active.')}</p>
                   )}
                 </div>
               </div>
@@ -663,7 +666,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                                     <td className="py-1.5 px-2.5 text-white font-medium">{it.symbol || it.name}</td>
                                     <td className="py-1.5 px-2.5 text-slate-500">{it.type}</td>
                                     <td className="py-1.5 px-2.5 text-right text-slate-400">{(it.quantity || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
-                                    <td className={`py-1.5 px-2.5 text-right font-medium ${val < 0 ? 'text-red-400' : 'text-white'}`}>
+                                    <td className={`py-1.5 px-2.5 text-right font-medium ${val < 0 ? 'text-[#f87171]' : 'text-white'}`}>
                                       ${Math.abs(val).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                                     </td>
                                   </tr>
@@ -689,7 +692,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
               )}
 
               <button onClick={handleSync} disabled={syncing || !token || !queryId || decrypting}
-                className="w-full py-3 text-white rounded-xl disabled:opacity-50 transition-all text-sm font-medium flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500">
+                className="w-full py-3 rounded-xl disabled:opacity-50 hover:opacity-90 transition-all text-sm font-medium flex items-center justify-center gap-2" style={{ backgroundColor: '#2563eb', color: '#fff' }}>
                 {syncing ? (
                   <>
                     <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
@@ -721,7 +724,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                       <div>
                         <p className="text-xs text-white font-medium">{t('Abrir Portfolio Analyst', 'Open Portfolio Analyst')}</p>
                         <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                          <span className="text-blue-400 font-mono">interactivebrokers.com</span> → <span className="text-white">Performance & Reports</span> → <span className="text-white">PortfolioAnalyst</span>
+                          <span className="text-[#60a5fa] font-mono">interactivebrokers.com</span> → <span className="text-white">Performance & Reports</span> → <span className="text-white">PortfolioAnalyst</span>
                         </p>
                       </div>
                     </div>
@@ -754,7 +757,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                     }`}>
                     {syncing ? (
                       <div className="flex flex-col items-center gap-3">
-                        <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                        <div className="w-6 h-6 border-2 rounded-full animate-spin" style={{ borderColor: '#3b82f6', borderTopColor: 'transparent' }} />
                         <p className="text-sm text-slate-400">{t('Procesando archivo...', 'Processing file...')}</p>
                       </div>
                     ) : (
@@ -771,8 +774,8 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                     )}
                   </div>
 
-                  <div className="bg-blue-500/5 border border-blue-500/15 rounded-lg p-3">
-                    <p className="text-[11px] text-blue-400/80">
+                  <div className="bg-[#3b82f6]/5 border border-[#3b82f6]/15 rounded-lg p-3">
+                    <p className="text-[11px] text-[#60a5fa]/80">
                       {t('Configura el sync automático (pestaña izquierda) para mantener tus datos actualizados sin subir archivos.',
                          'Set up auto sync (left tab) to keep your data updated without uploading files.')}
                     </p>
@@ -796,7 +799,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
             return (
             <div className="space-y-5">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                <span className="w-1.5 h-1.5 rounded-full bg-[#34d399]" />
                 <span className="text-xs text-slate-400">
                   {t('Datos recibidos de IBKR', 'Data received from IBKR')}
                 </span>
@@ -823,7 +826,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                         }}
                           className={`px-3 py-2 rounded-lg text-xs font-mono transition-all border ${
                             isSelected
-                              ? 'border-blue-500 bg-blue-500/10 text-blue-400'
+                              ? 'border-blue-500 bg-blue-500/10 text-[#60a5fa]'
                               : 'border-[#38383A] text-slate-500 hover:border-slate-500'
                           }`}>
                           {acc} <span className="text-slate-600 ml-1">({count})</span>
@@ -851,7 +854,8 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   <button onClick={() => setSyncMode('merge')}
-                    className={`px-4 py-3 rounded-lg text-left transition-all border-2 ${syncMode === 'merge' ? 'border-blue-500 bg-blue-500/10' : 'border-[#38383A] hover:border-slate-500'}`}>
+                    className={`px-4 py-3 rounded-lg text-left transition-all border-2 ${syncMode !== 'merge' ? 'border-[#38383A] hover:border-slate-500' : ''}`}
+                    style={syncMode === 'merge' ? { borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)' } : undefined}>
                     <p className="text-sm text-white font-medium">🔄 {t('Actualizar', 'Update')}</p>
                     <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
                       {t('Actualiza precios y cantidades de posiciones existentes. Agrega nuevas posiciones. No borra nada.',
@@ -859,7 +863,8 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                     </p>
                   </button>
                   <button onClick={() => setSyncMode('replace')}
-                    className={`px-4 py-3 rounded-lg text-left transition-all border-2 ${syncMode === 'replace' ? 'border-red-500 bg-red-500/10' : 'border-[#38383A] hover:border-slate-500'}`}>
+                    className={`px-4 py-3 rounded-lg text-left transition-all border-2 ${syncMode !== 'replace' ? 'border-[#38383A] hover:border-slate-500' : ''}`}
+                    style={syncMode === 'replace' ? { borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)' } : undefined}>
                     <p className="text-sm text-white font-medium">♻️ {t('Sustituir todo', 'Replace all')}</p>
                     <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
                       {t('Borra TODAS las posiciones de IBKR anteriores y reimporta desde cero. Útil si hay errores.',
@@ -965,7 +970,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                           <tr key={i} className="border-b border-[#38383A]/30 hover:bg-slate-700/20 transition-colors">
                             <td className="py-2.5 px-3 text-slate-500">{tx.date}</td>
                             <td className="py-2.5 px-3 text-white">{tx.symbol}</td>
-                            <td className={`py-2.5 px-3 font-medium ${tx.type === 'BUY' ? 'text-emerald-400' : 'text-red-400'}`}>{tx.type}</td>
+                            <td className={`py-2.5 px-3 font-medium ${tx.type === 'BUY' ? 'text-[#34d399]' : 'text-[#f87171]'}`}>{tx.type}</td>
                             <td className="py-2.5 px-3 text-right text-slate-400">{tx.quantity}</td>
                             <td className="py-2.5 px-3 text-right text-slate-400">${(tx.pricePerUnit ?? 0).toFixed(2)}</td>
                           </tr>
@@ -980,14 +985,15 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 <div className="space-y-3 pt-2">
                   <div className="w-full h-2.5 bg-slate-700 rounded-full overflow-hidden">
                     <div
-                      className={`h-full rounded-full transition-all duration-300 ${importProgress && importProgress.total > 0 && importProgress.done >= importProgress.total ? 'bg-emerald-500' : 'bg-blue-500'}`}
+                      className="h-full rounded-full transition-all duration-300"
+                      style={{ backgroundColor: importProgress && importProgress.total > 0 && importProgress.done >= importProgress.total ? '#10b981' : '#3b82f6' }}
                       style={{ width: `${importProgress && importProgress.total > 0 ? Math.round((importProgress.done / importProgress.total) * 100) : 0}%` }} />
                   </div>
                   <div className="flex items-center justify-center gap-2">
                     {importProgress && importProgress.total > 0 && importProgress.done >= importProgress.total ? (
-                      <CheckCircle size={16} className="text-emerald-400" />
+                      <CheckCircle size={16} className="text-[#34d399]" />
                     ) : (
-                      <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                      <div className="w-4 h-4 border-2 rounded-full animate-spin" style={{ borderColor: '#3b82f6', borderTopColor: 'transparent' }} />
                     )}
                     <p className="text-sm text-slate-400">
                       {importProgress && importProgress.total > 0
@@ -1005,7 +1011,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                     {t('Atrás', 'Back')}
                   </button>
                   <button onClick={handleConfirm}
-                    className="flex-1 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-all text-sm font-medium">
+                    className="flex-1 py-3 rounded-xl hover:opacity-90 transition-all text-sm font-medium" style={{ backgroundColor: '#2563eb', color: '#fff' }}>
                     {t('Confirmar', 'Confirm')}
                   </button>
                 </div>

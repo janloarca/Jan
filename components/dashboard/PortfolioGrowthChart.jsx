@@ -541,8 +541,9 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           else setShowCustomRange(false)
         }}
           className={`px-2.5 py-1.5 text-xs font-medium rounded-md transition-all ${
-            period === p ? 'bg-blue-500 text-white' : 'text-slate-500 hover:text-slate-300'
-          }`}>{p === 'CUSTOM' ? (lang === 'es' ? 'Rango' : 'Range') : p}</button>
+            period !== p ? 'text-slate-500 hover:text-slate-300' : ''
+          }`}
+          style={period === p ? { backgroundColor: '#3b82f6', color: '#fff' } : undefined}>{p === 'CUSTOM' ? (lang === 'es' ? 'Rango' : 'Range') : p}</button>
       ))}
     </div>
   )
@@ -905,7 +906,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       {viewMode === 'value' && (showContributions && contributionLine) && (
         <div className="flex items-center justify-center gap-4 mt-2 text-xs text-slate-500">
           <span className="flex items-center gap-1.5">
-            <span className="w-3 h-0.5 bg-blue-500 rounded-full inline-block" />
+            <span className="w-3 h-0.5 rounded-full inline-block" style={{ backgroundColor: '#3b82f6' }} />
             {t('Valor actual', 'Current value')}
           </span>
           <span className="flex items-center gap-1.5">
@@ -917,7 +918,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       {viewMode === 'performance' && (
         <div className="flex items-center justify-center gap-4 mt-2 text-xs text-slate-500">
           <span className="flex items-center gap-1.5">
-            <span className="w-3 h-0.5 bg-emerald-500 rounded-full inline-block" />
+            <span className="w-3 h-0.5 rounded-full inline-block" style={{ backgroundColor: '#10b981' }} />
             {t('Tu portafolio', 'Your portfolio')} ({returnMode.toUpperCase()})
           </span>
           {benchmarkReturnSeries && (
@@ -938,12 +939,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           <label className="text-xs text-slate-400">{t('Desde', 'From')}:</label>
           <input type="date" value={customRange.from}
             onChange={e => setCustomRange(prev => ({ ...prev, from: e.target.value }))}
-            className="px-2 py-1 bg-[#000000] border border-[#38383A] rounded text-xs text-white focus:outline-none focus:border-blue-500" />
+            className="px-2 py-1 bg-[#000000] border border-[#38383A] rounded text-xs text-white focus:outline-none focus:border-[#3b82f6]" />
           <label className="text-xs text-slate-400">{t('Hasta', 'To')}:</label>
           <input type="date" value={customRange.to}
             onChange={e => setCustomRange(prev => ({ ...prev, to: e.target.value }))}
             max={new Date().toISOString().split('T')[0]}
-            className="px-2 py-1 bg-[#000000] border border-[#38383A] rounded text-xs text-white focus:outline-none focus:border-blue-500" />
+            className="px-2 py-1 bg-[#000000] border border-[#38383A] rounded text-xs text-white focus:outline-none focus:border-[#3b82f6]" />
         </div>
       )}
 
@@ -966,12 +967,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
               <div key={i} className="flex gap-2 items-center">
                 <input type="date" value={row.date}
                   onChange={e => setSnapshotRows(prev => prev.map((r, idx) => idx === i ? { ...r, date: e.target.value } : r))}
-                  className="px-2 py-1 bg-[#1C1C1E] border border-[#38383A] rounded text-xs text-white focus:outline-none focus:border-blue-500 w-36" />
+                  className="px-2 py-1 bg-[#1C1C1E] border border-[#38383A] rounded text-xs text-white focus:outline-none focus:border-[#3b82f6] w-36" />
                 <div className="flex items-center gap-1 flex-1">
                   <span className="text-xs text-slate-500">$</span>
                   <input type="number" value={row.value} placeholder={t('Valor total', 'Total value')}
                     onChange={e => setSnapshotRows(prev => prev.map((r, idx) => idx === i ? { ...r, value: e.target.value } : r))}
-                    className="w-full px-2 py-1 bg-[#1C1C1E] border border-[#38383A] rounded text-xs text-white focus:outline-none focus:border-blue-500" />
+                    className="w-full px-2 py-1 bg-[#1C1C1E] border border-[#38383A] rounded text-xs text-white focus:outline-none focus:border-[#3b82f6]" />
                 </div>
                 {snapshotRows.length > 1 && (
                   <button onClick={() => setSnapshotRows(prev => prev.filter((_, idx) => idx !== i))}
