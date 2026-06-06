@@ -186,7 +186,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
   const calendarMax = Math.max(...incomeCalendar, 1)
 
   return (
-    <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 p-4">
+    <div className="bg-[#141416]/80 rounded-xl border border-[#27272a]/50 p-4">
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#60a5fa' }} />
         {t('INGRESOS PASIVOS', 'PASSIVE INCOME')}
@@ -208,14 +208,14 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       </div>
 
       {yoyComparison && yoyComparison.lastYear > 0 && (
-        <div className="flex items-center gap-3 mb-4 p-2.5 bg-[#000000] rounded-lg border border-[#38383A]/50">
+        <div className="flex items-center gap-3 mb-4 p-2.5 bg-[#000000] rounded-lg border border-[#27272a]/50">
           <div className="flex-1">
             <span className="text-xs text-slate-500 block">{new Date().getFullYear() - 1}</span>
             <span className="text-sm font-medium text-slate-400">{formatCurrency(yoyComparison.lastYear)}</span>
           </div>
           <div className="text-center">
             {yoyComparison.growth != null && (
-              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${yoyComparison.growth >= 0 ? 'text-emerald-400 bg-emerald-500/10' : 'text-red-400 bg-red-500/10'}`}>
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ color: yoyComparison.growth >= 0 ? '#34d399' : '#f87171', backgroundColor: yoyComparison.growth >= 0 ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)' }}>
                 {yoyComparison.growth >= 0 ? '+' : ''}{yoyComparison.growth.toFixed(0)}% YoY
               </span>
             )}
@@ -230,7 +230,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       {incomeByType.length > 1 && (
         <div className="flex items-center gap-2 mb-3">
           {incomeByType.map((bt) => (
-            <div key={bt.type} className="flex-1 bg-[#000000] rounded-lg p-2 border border-[#38383A]/50 text-center">
+            <div key={bt.type} className="flex-1 bg-[#000000] rounded-lg p-2 border border-[#27272a]/50 text-center">
               <span className="text-xs text-slate-500 block">{bt.label}</span>
               <span className="text-xs font-semibold text-white">{formatCurrency(bt.annual)}/yr</span>
             </div>
@@ -239,7 +239,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       )}
 
       {incomeByCurrency.length > 1 && (
-        <div className="mb-3 p-2.5 bg-[#000000] rounded-lg border border-[#38383A]/50">
+        <div className="mb-3 p-2.5 bg-[#000000] rounded-lg border border-[#27272a]/50">
           <span className="text-xs text-slate-500 mb-1.5 block">{t('Ingreso por moneda', 'Income by currency')}</span>
           <div className="space-y-1">
             {incomeByCurrency.map((c) => (
@@ -258,15 +258,15 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       )}
 
       <div className="grid grid-cols-3 gap-3 mb-4">
-        <div className="bg-[#000000] rounded-lg p-3 border border-[#38383A]/50">
+        <div className="bg-[#000000] rounded-lg p-3 border border-[#27272a]/50">
           <span className="text-xs text-slate-500">{t('Mensual est.', 'Monthly est.')}</span>
           <span className="text-sm font-semibold text-white block">{formatCurrency(estAnnual / 12)}</span>
         </div>
-        <div className="bg-[#000000] rounded-lg p-3 border border-[#38383A]/50">
+        <div className="bg-[#000000] rounded-lg p-3 border border-[#27272a]/50">
           <span className="text-xs text-slate-500">{t('Este mes', 'This month')}</span>
           <span className="text-sm font-semibold text-white block">{formatCurrency(stats.totalThisMonth)}</span>
         </div>
-        <div className="bg-[#000000] rounded-lg p-3 border border-[#38383A]/50">
+        <div className="bg-[#000000] rounded-lg p-3 border border-[#27272a]/50">
           <span className="text-xs text-slate-500">{t('Pagos', 'Payments')}</span>
           <span className="text-sm font-semibold text-white block">{stats.divCount}</span>
         </div>

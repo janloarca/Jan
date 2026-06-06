@@ -120,7 +120,7 @@ function EditableCell({ displayValue, editValue, onSave, hint, isNegative, curre
   return (
     <div className="cursor-pointer rounded px-3 py-1.5 -mx-1 transition-all hover:bg-blue-100 hover:ring-1 hover:ring-blue-300 text-right"
       onClick={startEdit}>
-      <span className={`font-mono tabular-nums text-sm ${isNegative ? 'text-red-600' : 'text-slate-800'}`}>{formatNum(displayValue)}</span>
+      <span className="font-mono tabular-nums text-sm" style={isNegative ? { color: '#dc2626' } : { color: '#1e293b' }}>{formatNum(displayValue)}</span>
       {currency && <span className="text-[10px] text-slate-400 ml-1">{currency}</span>}
       {hint && <p className="text-[10px] text-slate-400 mt-0.5">{hint}</p>}
     </div>
@@ -620,7 +620,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                                       onEditEnd={() => setEditingItemId(null)}
                                     />
                                   ) : (
-                                    <span className={`font-mono tabular-nums text-sm font-medium ${val < 0 ? 'text-red-600' : 'text-slate-800'}`}>
+                                    <span className="font-mono tabular-nums text-sm font-medium" style={val < 0 ? { color: '#dc2626' } : { color: '#1e293b' }}>
                                       {formatNum(val)}
                                     </span>
                                   )}
@@ -750,7 +750,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                   return (
                     <td key={mk} className={`text-right py-2 px-2 text-sm tabular-nums font-mono ${isCurrent ? 'bg-blue-50' : ''}`}>
                       {isCurrent ? (
-                        <span className={`font-semibold ${monthlyReturn >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        <span className="font-semibold" style={{ color: monthlyReturn >= 0 ? '#059669' : '#dc2626' }}>
                           {monthlyReturn >= 0 ? '+' : ''}{monthlyReturn.toFixed(1)}%
                         </span>
                       ) : ''}
@@ -771,7 +771,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                   return (
                     <td key={mk} className={`text-right py-2 px-2 text-sm tabular-nums font-mono ${isCurrent ? 'bg-blue-50' : ''}`}>
                       {isCurrent ? (
-                        <span className={`font-semibold ${returnYTD >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        <span className="font-semibold" style={{ color: returnYTD >= 0 ? '#059669' : '#dc2626' }}>
                           {returnYTD >= 0 ? '+' : ''}{returnYTD.toFixed(2)}%
                         </span>
                       ) : ''}
@@ -794,7 +794,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                   return (
                     <td key={mk} className={`text-right py-2 px-3 text-sm tabular-nums font-mono ${isCurrent ? 'bg-blue-50' : ''}`}>
                       {growth != null ? (
-                        <span className={`font-semibold ${growth >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        <span className="font-semibold" style={{ color: growth >= 0 ? '#059669' : '#dc2626' }}>
                           {growth >= 0 ? '+' : ''}{growth.toFixed(0)}%
                         </span>
                       ) : ''}

@@ -533,15 +533,15 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   }, [snapshotRows, onSaveSnapshot])
 
   const periodSelector = (
-    <div className="flex flex-wrap gap-0.5 bg-[#000000] rounded-lg p-0.5">
+    <div className="flex flex-wrap gap-0.5 bg-[#09090b] rounded-lg p-0.5 border border-[#27272a]/50">
       {periods.map((p) => (
         <button key={p} onClick={() => {
           setPeriod(p)
           if (p === 'CUSTOM') setShowCustomRange(true)
           else setShowCustomRange(false)
         }}
-          className={`px-2.5 py-1.5 text-xs font-medium rounded-md transition-all ${
-            period !== p ? 'text-slate-500 hover:text-slate-300' : ''
+          className={`px-3 py-2 text-xs font-semibold rounded-md transition-all ${
+            period !== p ? 'text-slate-500 hover:text-slate-300 hover:bg-[#1C1C1E]' : ''
           }`}
           style={period === p ? { backgroundColor: '#3b82f6', color: '#fff' } : undefined}>{p === 'CUSTOM' ? (lang === 'es' ? 'Rango' : 'Range') : p}</button>
       ))}
@@ -736,7 +736,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
             {/* Y-axis grid lines and labels */}
             {geo.yTicks.map((tk, i) => (
               <g key={i}>
-                <line x1={pad.left} y1={tk.y} x2={width - pad.right} y2={tk.y} stroke="#38383A" strokeDasharray="4 4" strokeOpacity="0.5" />
+                <line x1={pad.left} y1={tk.y} x2={width - pad.right} y2={tk.y} stroke="#27272a" strokeDasharray="4 4" strokeOpacity="0.5" />
                 <text x={pad.left - 8} y={tk.y + 4} textAnchor="end" fill="#64748b" fontSize="10" fontFamily="system-ui">
                   {viewMode === 'performance' ? `${tk.val >= 0 ? '+' : ''}${tk.val.toFixed(tk.val === 0 ? 0 : 2)}%` : formatCompact(tk.val)}
                 </text>

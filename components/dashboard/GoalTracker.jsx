@@ -36,9 +36,9 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
 
   const scenarios = useMemo(() => {
     const rates = [
-      { key: 'conservative', rate: 5, label: t('Conservador', 'Conservative'), color: 'text-amber-400' },
-      { key: 'base', rate: 7, label: t('Base', 'Base'), color: 'text-emerald-400' },
-      { key: 'optimistic', rate: 10, label: t('Optimista', 'Optimistic'), color: 'text-cyan-400' },
+      { key: 'conservative', rate: 5, label: t('Conservador', 'Conservative'), color: '#fbbf24' },
+      { key: 'base', rate: 7, label: t('Base', 'Base'), color: '#34d399' },
+      { key: 'optimistic', rate: 10, label: t('Optimista', 'Optimistic'), color: '#22d3ee' },
     ]
     return rates.map((s) => ({
       ...s,
@@ -74,7 +74,7 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
   }
 
   return (
-    <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 p-4">
+    <div className="bg-[#141416]/80 rounded-xl border border-[#27272a]/50 p-4">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#60a5fa' }} />
@@ -100,20 +100,20 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
               <label className="text-xs text-slate-500 mb-1 block">{t('Meta de ingreso pasivo anual', 'Annual passive income goal')}</label>
               <input value={form.incomeGoal} onChange={(e) => setForm({ ...form, incomeGoal: e.target.value })}
                 type="number" step="1000" placeholder="12000"
-                className="w-full px-3 py-2 bg-[#000000] border border-[#38383A] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
+                className="w-full px-3 py-2 bg-[#000000] border border-[#27272a] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
             </div>
             <div>
               <label className="text-xs text-slate-500 mb-1 block">{t('Meta de portfolio', 'Portfolio goal')}</label>
               <input value={form.portfolioGoal} onChange={(e) => setForm({ ...form, portfolioGoal: e.target.value })}
                 type="number" step="10000" placeholder="100000"
-                className="w-full px-3 py-2 bg-[#000000] border border-[#38383A] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
+                className="w-full px-3 py-2 bg-[#000000] border border-[#27272a] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
             </div>
           </div>
           <div>
             <label className="text-xs text-slate-500 mb-1 block">{t('Año objetivo', 'Target year')}</label>
             <input value={form.targetYear} onChange={(e) => setForm({ ...form, targetYear: e.target.value })}
               type="number" min={new Date().getFullYear()} max="2060" placeholder="2030"
-              className="w-full px-3 py-2 bg-[#000000] border border-[#38383A] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
+              className="w-full px-3 py-2 bg-[#000000] border border-[#27272a] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
           </div>
           <button onClick={handleSave}
             className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors text-sm font-medium">
@@ -129,7 +129,7 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
                 <span className="text-xs text-white font-medium">{t('Ingreso pasivo', 'Passive income')}</span>
                 <span className="text-xs text-slate-500 bg-[#000000] px-1.5 py-0.5 rounded">{formatCompact(incomeGoal)}/{t('año', 'yr')}</span>
               </div>
-              <span className={`text-xs font-bold ${incomePct >= 50 ? 'text-emerald-400' : 'text-amber-400'}`}>{incomePct.toFixed(0)}%</span>
+              <span className="text-xs font-bold" style={{ color: incomePct >= 50 ? '#34d399' : '#fbbf24' }}>{incomePct.toFixed(0)}%</span>
             </div>
             <div className="w-full h-3 bg-slate-700/30 rounded-full overflow-hidden">
               <div className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all"
@@ -148,7 +148,7 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
                 <span className="text-xs text-white font-medium">{t('Tamaño de portfolio', 'Portfolio size')}</span>
                 <span className="text-xs text-slate-500 bg-[#000000] px-1.5 py-0.5 rounded">{formatCompact(portfolioGoal)}</span>
               </div>
-              <span className={`text-xs font-bold ${portfolioPct >= 50 ? 'text-emerald-400' : 'text-amber-400'}`}>{portfolioPct.toFixed(0)}%</span>
+              <span className="text-xs font-bold" style={{ color: portfolioPct >= 50 ? '#34d399' : '#fbbf24' }}>{portfolioPct.toFixed(0)}%</span>
             </div>
             <div className="w-full h-3 bg-slate-700/30 rounded-full overflow-hidden">
               <div className="h-full rounded-full bg-gradient-to-r from-purple-500 to-pink-400 transition-all"
@@ -165,7 +165,7 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
             const probColor = goalProbability >= 70 ? '#30D158' : goalProbability >= 40 ? '#FF9F0A' : '#FF453A'
             const probLabel = goalProbability >= 70 ? t('Alta', 'High') : goalProbability >= 40 ? t('Moderada', 'Moderate') : t('Baja', 'Low')
             return (
-              <div className="flex items-center gap-4 px-4 py-3 bg-[#000000] rounded-xl border border-[#38383A]/50">
+              <div className="flex items-center gap-4 px-4 py-3 bg-[#000000] rounded-xl border border-[#27272a]/50">
                 <div className="relative w-20 h-20 shrink-0">
                   <svg viewBox="0 0 36 36" className="w-full h-full">
                     <circle cx="18" cy="18" r="15" fill="none" stroke="#38383A" strokeWidth="2.5" />
@@ -189,13 +189,13 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
 
           {/* Scenario-based monthly needed */}
           {yearsLeft > 0 && portfolioGoal > netWorth && (
-            <div className="bg-[#000000] rounded-lg p-3 border border-[#38383A]/50">
+            <div className="bg-[#000000] rounded-lg p-3 border border-[#27272a]/50">
               <span className="text-xs text-slate-400 mb-2 block">{t('Inversión mensual necesaria', 'Monthly investment needed')}</span>
               <div className="space-y-1.5">
                 {scenarios.map((s) => (
                   <div key={s.key} className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className={`text-xs font-medium ${s.color}`}>{s.label}</span>
+                      <span className="text-xs font-medium" style={{ color: s.color }}>{s.label}</span>
                       <span className="text-xs text-slate-600">{s.rate}%/yr</span>
                     </div>
                     <span className="text-sm font-bold text-white">{formatCurrency(s.monthly)}<span className="text-xs text-slate-500 font-normal">/{t('mes', 'mo')}</span></span>

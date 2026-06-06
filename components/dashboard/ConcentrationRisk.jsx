@@ -37,9 +37,9 @@ export default function ConcentrationRisk({ items, lang }) {
 
   const displayHHI = dimension === 'asset' ? individualHHI : data
   const levelLabel = {
-    high: { es: 'Alta Concentración', en: 'High Concentration', color: 'text-red-400 bg-[#1C1C1E] border-red-500/40' },
-    medium: { es: 'Media Concentración', en: 'Medium Concentration', color: 'text-amber-400 bg-[#1C1C1E] border-amber-500/40' },
-    low: { es: 'Baja Concentración', en: 'Low Concentration', color: 'text-emerald-400 bg-[#1C1C1E] border-emerald-500/40' },
+    high: { es: 'Alta Concentración', en: 'High Concentration', textColor: '#f87171', borderColor: 'rgba(239,68,68,0.4)' },
+    medium: { es: 'Media Concentración', en: 'Medium Concentration', textColor: '#fbbf24', borderColor: 'rgba(245,158,11,0.4)' },
+    low: { es: 'Baja Concentración', en: 'Low Concentration', textColor: '#34d399', borderColor: 'rgba(16,185,129,0.4)' },
   }
 
   const topPosition = data.groups[0]
@@ -72,13 +72,13 @@ export default function ConcentrationRisk({ items, lang }) {
   const PALETTE = CHART_PALETTE
 
   return (
-    <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 p-4">
+    <div className="bg-[#141416]/80 rounded-xl border border-[#27272a]/50 p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#60a5fa' }} />
           {t('RIESGO DE CONCENTRACIÓN', 'CONCENTRATION RISK')}
         </h3>
-        <span className={`text-xs font-medium px-2 py-1 rounded-full border ${levelLabel[displayHHI.level].color}`}>
+        <span className="text-xs font-medium px-2 py-1 rounded-full border" style={{ color: levelLabel[displayHHI.level].textColor, borderColor: levelLabel[displayHHI.level].borderColor, backgroundColor: '#141416' }}>
           {lang === 'es' ? levelLabel[displayHHI.level].es : levelLabel[displayHHI.level].en}
         </span>
       </div>
@@ -96,7 +96,7 @@ export default function ConcentrationRisk({ items, lang }) {
         ))}
       </div>
 
-      <div className="flex items-center gap-3 mb-3 px-2 py-1.5 bg-[#000000] rounded-lg border border-[#38383A]/50">
+      <div className="flex items-center gap-3 mb-3 px-2 py-1.5 bg-[#000000] rounded-lg border border-[#27272a]/50">
         <span className="text-xs text-slate-500">HHI</span>
         <div className="flex-1 h-1.5 bg-slate-700/30 rounded-full overflow-hidden">
           <div className="h-full rounded-full transition-all" style={{

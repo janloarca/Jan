@@ -390,7 +390,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
             <div className="space-y-2">
               <div className="flex items-center gap-3 px-3 py-2 border border-[var(--card-border,#38383A)] rounded-lg">
                 <button type="button" onClick={() => set('isIlliquid', !form.isIlliquid)}
-                  className={`w-8 h-4 rounded-full transition-colors relative ${form.isIlliquid ? 'bg-amber-500' : 'bg-[var(--card-border,#38383A)]'}`}>
+                  className="w-8 h-4 rounded-full transition-colors relative"
+                  style={{ backgroundColor: form.isIlliquid ? '#f59e0b' : 'var(--card-border, #38383A)' }}>
                   <span className={`absolute w-3 h-3 bg-white rounded-full top-0.5 transition-transform ${form.isIlliquid ? 'left-4' : 'left-0.5'}`} />
                 </button>
                 <span className="text-xs text-[var(--text-primary,white)]">{t('Activo ilíquido', 'Illiquid asset')}</span>
@@ -707,7 +708,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                     💵 {t('Efectivo', 'Cash')}
                   </button>
                   <button type="button" onClick={() => set('dividendAction', 'reinvest')}
-                    className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all ${form.dividendAction === 'reinvest' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border border-[var(--card-border,#38383A)]'}`}>
+                    className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.dividendAction !== 'reinvest' ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
+                    style={form.dividendAction === 'reinvest' ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>
                     🔄 {t('Reinvertir', 'Reinvest')}
                   </button>
                 </div>
@@ -742,7 +744,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 <div className="flex gap-1">
                   {[{ key: 'fixed', es: 'Fija', en: 'Fixed' }, { key: 'variable', es: 'Variable', en: 'Variable' }, { key: 'continuous', es: 'Continua', en: 'Continuous' }].map(rt => (
                     <button key={rt.key} type="button" onClick={() => set('rateType', rt.key)}
-                      className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all ${form.rateType === rt.key ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border border-[var(--card-border,#38383A)]'}`}>
+                      className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.rateType !== rt.key ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
+                      style={form.rateType === rt.key ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>
                       {lang === 'es' ? rt.es : rt.en}
                     </button>
                   ))}
@@ -752,11 +755,13 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               {/* Income mode */}
               <div className="flex gap-1">
                 <button type="button" onClick={() => set('incomeMode', 'fixed')}
-                  className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all ${form.incomeMode === 'fixed' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border border-[var(--card-border,#38383A)]'}`}>
+                  className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.incomeMode !== 'fixed' ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
+                  style={form.incomeMode === 'fixed' ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>
                   {t('Monto fijo', 'Fixed amount')}
                 </button>
                 <button type="button" onClick={() => set('incomeMode', 'percent')}
-                  className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all ${form.incomeMode === 'percent' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border border-[var(--card-border,#38383A)]'}`}>
+                  className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.incomeMode !== 'percent' ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
+                  style={form.incomeMode === 'percent' ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>
                   {t('% del saldo', '% of balance')}
                 </button>
               </div>
@@ -825,7 +830,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                       return (
                         <button key={i} type="button"
                           onClick={() => set('incomeMonths', active ? form.incomeMonths.filter(x => x !== i) : [...form.incomeMonths, i].sort((a, b) => a - b))}
-                          className={`px-2 py-1 text-xs font-medium rounded transition-all ${active ? 'bg-blue-500/25 text-blue-400 border border-blue-500/40' : 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border border-[var(--card-border,#38383A)]'}`}>
+                          className={`px-2 py-1 text-xs font-medium rounded transition-all border ${!active ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
+                          style={active ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.25)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>
                           {label}
                         </button>
                       )
@@ -860,8 +866,9 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={handleDelete}
               className={`px-4 py-2.5 text-xs font-medium rounded-lg transition-colors ${
-                confirmDelete ? 'bg-red-600 text-white' : 'border border-red-500/30 text-red-400 hover:bg-red-500/10'
-              }`}>
+                confirmDelete ? 'bg-red-600 text-white' : 'border hover:bg-red-500/10'
+              }`}
+              style={!confirmDelete ? { color: '#f87171', borderColor: 'rgba(239,68,68,0.3)' } : undefined}>
               {confirmDelete ? t('Confirmar', 'Confirm') : t('Eliminar', 'Delete')}
             </button>
             <div className="flex-1" />

@@ -40,12 +40,12 @@ export default function CashFlowModal({ onClose, onAddTransaction, lang = 'es', 
     setSaving(false)
   }
 
-  const inputCls = 'w-full px-3 py-2.5 bg-[#000000] border border-[#38383A] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50'
+  const inputCls = 'w-full px-3 py-2.5 bg-[#000000] border border-[#27272a] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="bg-[#1C1C1E] border border-[#38383A] rounded-xl shadow-2xl max-w-sm w-full" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#38383A]">
+      <div className="bg-[#141416] border border-[#27272a] rounded-xl shadow-2xl max-w-sm w-full" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">
           <h2 className="text-lg font-bold text-white">{t('Registrar Movimiento', 'Log Cash Flow')}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
         </div>
@@ -60,17 +60,19 @@ export default function CashFlowModal({ onClose, onAddTransaction, lang = 'es', 
             <button type="button" onClick={() => setFlowType('DEPOSIT')}
               className={`flex-1 px-3 py-3 text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-2 ${
                 flowType === 'DEPOSIT'
-                  ? 'bg-emerald-500/20 text-emerald-400 border-2 border-emerald-500/50'
-                  : 'bg-[#000000] text-slate-400 border-2 border-[#38383A] hover:border-slate-500'
-              }`}>
+                  ? 'border-2'
+                  : 'bg-[#000000] text-slate-400 border-2 border-[#27272a] hover:border-slate-500'
+              }`}
+              style={flowType === 'DEPOSIT' ? { color: '#34d399', backgroundColor: 'rgba(16,185,129,0.2)', borderColor: 'rgba(16,185,129,0.5)' } : undefined}>
               <span className="text-lg">+</span> {t('Depósito', 'Deposit')}
             </button>
             <button type="button" onClick={() => setFlowType('WITHDRAWAL')}
               className={`flex-1 px-3 py-3 text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-2 ${
                 flowType === 'WITHDRAWAL'
-                  ? 'bg-red-500/20 text-red-400 border-2 border-red-500/50'
-                  : 'bg-[#000000] text-slate-400 border-2 border-[#38383A] hover:border-slate-500'
-              }`}>
+                  ? 'border-2'
+                  : 'bg-[#000000] text-slate-400 border-2 border-[#27272a] hover:border-slate-500'
+              }`}
+              style={flowType === 'WITHDRAWAL' ? { color: '#f87171', backgroundColor: 'rgba(239,68,68,0.2)', borderColor: 'rgba(239,68,68,0.5)' } : undefined}>
               <span className="text-lg">-</span> {t('Retiro', 'Withdrawal')}
             </button>
           </div>
@@ -82,7 +84,7 @@ export default function CashFlowModal({ onClose, onAddTransaction, lang = 'es', 
                 placeholder="10000" step="any" min="0" autoFocus
                 className={`${inputCls} flex-1 text-lg font-bold`} />
               <select value={currency} onChange={e => setCurrency(e.target.value)}
-                className="px-3 py-2.5 bg-[#000000] border border-[#38383A] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50 w-20">
+                className="px-3 py-2.5 bg-[#000000] border border-[#27272a] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50 w-20">
                 {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
@@ -111,13 +113,12 @@ export default function CashFlowModal({ onClose, onAddTransaction, lang = 'es', 
 
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose}
-              className="flex-1 px-4 py-2.5 border border-[#38383A] text-slate-300 rounded-lg hover:bg-[#2C2C2E] transition-colors text-sm">
+              className="flex-1 px-4 py-2.5 border border-[#27272a] text-slate-300 rounded-lg hover:bg-[#2C2C2E] transition-colors text-sm">
               {t('Cancelar', 'Cancel')}
             </button>
             <button type="submit" disabled={saving || !amount || parseFloat(amount) <= 0}
-              className={`flex-1 px-4 py-2.5 rounded-lg text-white text-sm font-medium transition-colors disabled:opacity-40 ${
-                flowType === 'DEPOSIT' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-red-600 hover:bg-red-500'
-              }`}>
+              className="flex-1 px-4 py-2.5 rounded-lg text-white text-sm font-medium transition-colors disabled:opacity-40"
+              style={{ backgroundColor: flowType === 'DEPOSIT' ? '#059669' : '#dc2626' }}>
               {saving ? '...' : t('Registrar', 'Log')}
             </button>
           </div>

@@ -170,17 +170,19 @@ export default function SellModal({ item, onClose, onSell, onUpdate, onAddTransa
             </label>
             <div className="flex gap-2">
               <button type="button" onClick={() => setDestination('__exit__')}
-                className={`flex-1 px-2 py-2 text-xs font-medium rounded-lg transition-all ${
-                  destination === '__exit__'
-                    ? 'bg-red-500/20 text-red-400 border border-red-500/40'
-                    : 'bg-[var(--input-bg,#000000)] text-[var(--text-secondary,#94a3b8)] border border-[var(--card-border,#38383A)]'
-                }`}>{t('Sale del portafolio', 'Exits portfolio')}</button>
+                className={`flex-1 px-2 py-2 text-xs font-medium rounded-lg transition-all border ${
+                  destination !== '__exit__'
+                    ? 'bg-[var(--input-bg,#000000)] text-[var(--text-secondary,#94a3b8)] border-[var(--card-border,#38383A)]'
+                    : ''
+                }`}
+                style={destination === '__exit__' ? { color: '#f87171', backgroundColor: 'rgba(239,68,68,0.2)', borderColor: 'rgba(239,68,68,0.4)' } : undefined}>{t('Sale del portafolio', 'Exits portfolio')}</button>
               <button type="button" onClick={() => setDestination('__stay__')}
-                className={`flex-1 px-2 py-2 text-xs font-medium rounded-lg transition-all ${
-                  destination === '__stay__'
-                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
-                    : 'bg-[var(--input-bg,#000000)] text-[var(--text-secondary,#94a3b8)] border border-[var(--card-border,#38383A)]'
-                }`}>{t('Queda en el portafolio', 'Stays in portfolio')}</button>
+                className={`flex-1 px-2 py-2 text-xs font-medium rounded-lg transition-all border ${
+                  destination !== '__stay__'
+                    ? 'bg-[var(--input-bg,#000000)] text-[var(--text-secondary,#94a3b8)] border-[var(--card-border,#38383A)]'
+                    : ''
+                }`}
+                style={destination === '__stay__' ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>{t('Queda en el portafolio', 'Stays in portfolio')}</button>
             </div>
             {destination === '__exit__' && (
               <p className="text-xs text-red-400/70">

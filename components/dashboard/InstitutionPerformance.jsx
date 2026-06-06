@@ -234,7 +234,7 @@ export default function InstitutionPerformance({ items, lang, convert, baseCurre
   return (
     <div
       ref={containerRef}
-      className="bg-[#1C1C1E] rounded-2xl border border-[#38383A] p-5 card-primary"
+      className="bg-[#141416] rounded-2xl border border-[#27272a] p-5 card-primary"
     >
       {/* Header */}
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
@@ -250,7 +250,7 @@ export default function InstitutionPerformance({ items, lang, convert, baseCurre
           className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
             selected === 'ALL'
               ? 'bg-[#0A84FF] text-white border-[#0A84FF]'
-              : 'bg-[#2C2C2E] text-slate-400 border-[#38383A] hover:text-white hover:border-slate-500'
+              : 'bg-[#2C2C2E] text-slate-400 border-[#27272a] hover:text-white hover:border-slate-500'
           }`}
         >
           {t('Todas', 'All')}
@@ -266,7 +266,7 @@ export default function InstitutionPerformance({ items, lang, convert, baseCurre
             className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
               selected === inst.name
                 ? 'bg-[#0A84FF] text-white border-[#0A84FF]'
-                : 'bg-[#2C2C2E] text-slate-400 border-[#38383A] hover:text-white hover:border-slate-500'
+                : 'bg-[#2C2C2E] text-slate-400 border-[#27272a] hover:text-white hover:border-slate-500'
             }`}
           >
             {inst.name}
@@ -488,7 +488,7 @@ export default function InstitutionPerformance({ items, lang, convert, baseCurre
           {/* Hover tooltip */}
           {hd && hp && (
             <div
-              className="absolute pointer-events-none bg-[#000000] border border-[#38383A] text-white text-xs rounded-lg px-3 py-2 shadow-xl z-10"
+              className="absolute pointer-events-none bg-[#000000] border border-[#27272a] text-white text-xs rounded-lg px-3 py-2 shadow-xl z-10"
               style={{
                 left: `${Math.min(
                   85,
