@@ -187,10 +187,16 @@ export function useFirestoreItems() {
 
   const updateItem = useCallback(async (itemId, fields) => {
     if (!uid || !itemId) return
-    setItems(cur => cur.map(it => it.id === itemId ? { ...it, ...fields } : it))
-    const { db, fs } = await getFirebase()
-    const clean = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined))
-    await fs.updateDoc(fs.doc(db, `users/${uid}/items`, itemId), clean)
+    let prev
+    setItems(cur => { prev = cur; return cur.map(it => it.id === itemId ? { ...it, ...fields } : it) })
+    try {
+      const { db, fs } = await getFirebase()
+      const clean = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined))
+      await fs.updateDoc(fs.doc(db, `users/${uid}/items`, itemId), clean)
+    } catch (err) {
+      if (prev) setItems(prev)
+      throw err
+    }
   }, [uid])
 
   const deleteItem = useCallback(async (itemId, { skipRefCleanup = false } = {}) => {
@@ -343,8 +349,9 @@ export function useFirestoreItems() {
           quantity: roundQty(lot.quantity - closable),
         })
         const closedId = `${lot.id}-closed-${Date.now()}`
+        const { id: _lotId, ...lotData } = lot
         await fs.setDoc(fs.doc(db, `users/${uid}/lots`, closedId), {
-          ...lot, id: undefined, quantity: closable, status: 'closed',
+          ...lotData, quantity: closable, status: 'closed',
           closedDate: closeDate, closedPrice: closePrice, realizedGain,
           createdAt: lot.createdAt,
         })

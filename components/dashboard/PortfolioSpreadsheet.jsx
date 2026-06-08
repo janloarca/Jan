@@ -67,6 +67,7 @@ function getOriginalValue(item) {
 }
 
 function formatNum(val) {
+  if (val == null || !isFinite(val)) return '—'
   return Math.abs(val).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
@@ -191,19 +192,22 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
 
   const monthlyTotals = useMemo(() => {
     if (!snapshots || snapshots.length === 0) return {}
+    const base = baseCurrency || 'USD'
+    const dates = {}
     const byMonth = {}
     snapshots.forEach(s => {
       if (!s.date) return
       const key = getMonthKey(new Date(s.date))
       const val = s.netWorthUSD ?? s.totalActivosUSD ?? 0
-      if (val <= 0) return
-      const existing = byMonth[key]
-      if (!existing || new Date(s.date) > new Date(existing.date)) {
-        byMonth[key] = val
+      if (val === 0) return
+      const sDate = new Date(s.date)
+      if (!dates[key] || sDate > dates[key]) {
+        dates[key] = sDate
+        byMonth[key] = convert ? convert(val, 'USD', base) : val
       }
     })
     return byMonth
-  }, [snapshots])
+  }, [snapshots, convert, baseCurrency])
 
   const [historicalItems, setHistoricalItems] = useState({})
   const itemSnapshotSavedRef = useRef(false)
@@ -221,8 +225,11 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   }, [onLoadItemSnapshots, months, currentMonthKey])
 
   useEffect(() => {
-    if (!onSaveItemSnapshots || !items || items.length === 0 || itemSnapshotSavedRef.current) return
-    itemSnapshotSavedRef.current = true
+    if (!onSaveItemSnapshots || !items || items.length === 0) return
+    const itemHash = items.reduce((s, it) => s + (it.currentPrice || 0), 0).toFixed(2)
+    const saveKey = `${currentMonthKey}-${itemHash}`
+    if (itemSnapshotSavedRef.current === saveKey) return
+    itemSnapshotSavedRef.current = saveKey
     const data = {}
     items.forEach(it => {
       const val = getItemValue(it)
@@ -280,8 +287,8 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
 
   const itemCurrency = useCallback((item) => {
     if (showOriginal) return item._originalCurrency || item.currency || 'USD'
-    return 'USD'
-  }, [showOriginal])
+    return baseCurrency || 'USD'
+  }, [showOriginal, baseCurrency])
 
   const { categories, totalAssets, totalDebt, currencyBreakdown } = useMemo(() => {
     const catMap = {}
@@ -351,11 +358,12 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         onUpdateItem(item.id, { currentPrice: newVal / qty })
       } else {
         const cur = item._originalCurrency || item.currency || 'USD'
-        const originalVal = convert ? convert(newVal, 'USD', cur) : newVal
+        const base = baseCurrency || 'USD'
+        const originalVal = convert ? convert(newVal, base, cur) : newVal
         onUpdateItem(item.id, { currentPrice: originalVal / qty })
       }
     }
-  }, [onUpdateItem, showOriginal, convert])
+  }, [onUpdateItem, showOriginal, convert, baseCurrency])
 
   const isCurrentYear = selectedYear === now.getFullYear()
   const prevMonthKey = months.length >= 2 ? months[months.length - 2] : null
@@ -396,7 +404,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
           <div className="flex bg-slate-100 rounded-md border border-slate-200 p-0.5">
             <button onClick={() => setShowOriginal(false)}
               className={`px-2.5 py-1 text-xs rounded transition-colors ${!showOriginal ? 'bg-white text-slate-900 font-semibold shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
-              USD
+              {baseCurrency || 'USD'}
             </button>
             <button onClick={() => setShowOriginal(true)}
               className={`px-2.5 py-1 text-xs rounded transition-colors ${showOriginal ? 'bg-white text-slate-900 font-semibold shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
@@ -469,7 +477,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                     </div>
                   </td>
                   <td className="text-right py-3 px-1 text-slate-500 font-semibold text-sm">{Math.abs(pct).toFixed(0)}%</td>
-                  {showOriginal && <td className="text-center py-3 px-1 text-slate-400 text-xs">USD</td>}
+                  {showOriginal && <td className="text-center py-3 px-1 text-slate-400 text-xs">{baseCurrency || 'USD'}</td>}
                   {months.map(mk => {
                     const isCurrent = mk === currentMonthKey
                     if (isCurrent) {
@@ -529,7 +537,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                           </td>
                           <td />
                           {showOriginal && <td className="text-center py-2 px-1 text-slate-400 text-xs">
-                            {singleCurrency || 'USD'}
+                            {singleCurrency || baseCurrency || 'USD'}
                           </td>}
                           {months.map(mk => {
                             const isCurrent = mk === currentMonthKey
@@ -722,11 +730,11 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
               <td className="py-3.5 pl-4 pr-2 sticky left-0 bg-slate-100 z-10">
                 <span className="text-slate-900 font-black text-base">TOTAL</span>
                 {showOriginal && (
-                  <span className="text-slate-400 text-xs ml-2 font-normal">(USD)</span>
+                  <span className="text-slate-400 text-xs ml-2 font-normal">({baseCurrency || 'USD'})</span>
                 )}
               </td>
               <td className="text-right py-3.5 px-1 text-slate-700 font-bold text-sm">100%</td>
-              {showOriginal && <td className="text-center py-3.5 px-1 text-slate-500 font-bold text-xs">USD</td>}
+              {showOriginal && <td className="text-center py-3.5 px-1 text-slate-500 font-bold text-xs">{baseCurrency || 'USD'}</td>}
               {months.map(mk => {
                 const isCurrent = mk === currentMonthKey
                 const val = isCurrent ? grandTotal : (monthlyTotals[mk] || null)

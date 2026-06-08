@@ -117,8 +117,9 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     setSaving(true)
     setError('')
     try {
+      const { _originalPrice, _originalPurchasePrice, _originalCurrency, _displayCurrency, totalValue, percentOfPortfolio, change1d, change7d, change30d, pnlPercent, ...rawItem } = item
       const updated = {
-        ...item,
+        ...rawItem,
         symbol: form.symbol.trim(),
         name: form.name.trim(),
         type: form.type,
