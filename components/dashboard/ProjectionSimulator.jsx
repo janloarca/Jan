@@ -129,11 +129,13 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
         <div className="flex items-center gap-2">
           <div className="flex bg-[#000000] rounded-lg border border-[#38383A]/50 overflow-hidden">
             <button onClick={() => setMode('deterministic')}
-              className={`px-2 py-1 text-xs font-medium transition-colors ${mode === 'deterministic' ? 'bg-blue-500/20 text-blue-400' : 'text-slate-500'}`}>
+              className="px-2 py-1 text-xs font-medium transition-colors"
+              style={mode === 'deterministic' ? { backgroundColor: 'rgba(59,130,246,0.2)', color: '#60a5fa' } : { color: '#64748b' }}>
               {t('Lineal', 'Linear')}
             </button>
             <button onClick={() => setMode('montecarlo')}
-              className={`px-2 py-1 text-xs font-medium transition-colors ${mode === 'montecarlo' ? 'bg-blue-500/20 text-blue-400' : 'text-slate-500'}`}>
+              className="px-2 py-1 text-xs font-medium transition-colors"
+              style={mode === 'montecarlo' ? { backgroundColor: 'rgba(59,130,246,0.2)', color: '#60a5fa' } : { color: '#64748b' }}>
               Monte Carlo
             </button>
           </div>
@@ -287,7 +289,7 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
       {/* Goal probability in MC mode */}
       {mode === 'montecarlo' && mcResult?.goalProbability != null && goalValue > 0 && (
         <div className="mt-3 px-3 py-2 bg-[#000000] rounded-lg border border-[#38383A]/50 flex items-center gap-2">
-          <span className={`text-sm font-bold ${mcResult.goalProbability >= 70 ? 'text-emerald-400' : mcResult.goalProbability >= 40 ? 'text-amber-400' : 'text-red-400'}`}>
+          <span className="text-sm font-bold" style={{ color: mcResult.goalProbability >= 70 ? '#34d399' : mcResult.goalProbability >= 40 ? '#fbbf24' : '#f87171' }}>
             {mcResult.goalProbability}%
           </span>
           <span className="text-xs text-slate-400">

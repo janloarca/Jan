@@ -105,10 +105,8 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
               <div className="absolute right-0 top-full mt-1 bg-[#1C1C1E] border border-[#27272a] rounded-lg shadow-xl z-10 p-1 min-w-[80px]">
                 {QUICK_CURRENCIES.map((c) => (
                   <button key={c} onClick={() => { setTempCurrency(c === baseCur ? null : c); setShowPicker(false) }}
-                    className={`block w-full text-left px-3 py-1.5 text-xs rounded transition-colors ${
-                      displayCur !== c ? 'text-slate-400 hover:text-white hover:bg-[#2C2C2E]' : ''
-                    }`}
-                    style={displayCur === c ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.1)' } : undefined}>
+                    className="block w-full text-left px-3 py-1.5 text-xs rounded transition-colors"
+                    style={displayCur === c ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.1)' } : { color: '#94a3b8' }}>
                     {c}
                   </button>
                 ))}

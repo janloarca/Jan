@@ -151,20 +151,20 @@ export default function SpreadsheetPage() {
   if (!user) return null
 
   return (
-    <div className={`min-h-screen flex flex-col ${view === 'custom' ? 'bg-[#09090b]' : 'bg-slate-100'}`}>
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: view === 'custom' ? '#09090b' : '#f1f5f9' }}>
       {/* Header */}
-      <div className={`flex items-center justify-between px-4 py-3 border-b ${view === 'custom' ? 'bg-[#141416] border-[#27272a]' : 'bg-white border-slate-200'}`}>
+      <div className="flex items-center justify-between px-4 py-3 border-b" style={view === 'custom' ? { backgroundColor: '#141416', borderColor: '#27272a' } : { backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
         <div className="flex items-center gap-3">
-          <button onClick={() => router.push('/dashboard')} className={`transition-colors ${view === 'custom' ? 'text-slate-400 hover:text-white' : 'text-slate-400 hover:text-slate-900'}`}>
+          <button onClick={() => router.push('/dashboard')} className="transition-colors" style={{ color: '#94a3b8' }}>
             ← {t('Dashboard', 'Dashboard')}
           </button>
-          <div className={`w-px h-5 ${view === 'custom' ? 'bg-[#27272a]' : 'bg-slate-200'}`} />
-          <h1 className={`text-sm font-semibold flex items-center gap-2 ${view === 'custom' ? 'text-white' : 'text-slate-900'}`}>
+          <div className="w-px h-5" style={{ backgroundColor: view === 'custom' ? '#27272a' : '#e2e8f0' }} />
+          <h1 className="text-sm font-semibold flex items-center gap-2" style={{ color: view === 'custom' ? '#ffffff' : '#0f172a' }}>
             Spreadsheet
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          <div className={`flex rounded-lg border p-0.5 ${view === 'custom' ? 'bg-[#09090b] border-[#27272a]' : 'bg-slate-100 border-slate-200'}`}>
+          <div className="flex rounded-lg border p-0.5" style={view === 'custom' ? { backgroundColor: '#09090b', borderColor: '#27272a' } : { backgroundColor: '#f1f5f9', borderColor: '#e2e8f0' }}>
             {[
               { key: 'portfolio', label: 'Portfolio' },
               { key: 'debts', label: t('Deudas', 'Debts') },
@@ -172,7 +172,8 @@ export default function SpreadsheetPage() {
               { key: 'custom', label: t('Hojas', 'Sheets') },
             ].map(tab => (
               <button key={tab.key} onClick={() => setView(tab.key)}
-                className={`px-3 py-1 text-xs rounded-md transition-colors ${view === tab.key ? 'bg-blue-600 text-white' : view === 'custom' ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-800'}`}>
+                className="px-3 py-1 text-xs rounded-md transition-colors"
+                style={view === tab.key ? { backgroundColor: '#2563eb', color: '#ffffff' } : { color: view === 'custom' ? '#94a3b8' : '#64748b' }}>
                 {tab.label}
               </button>
             ))}

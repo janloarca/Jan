@@ -750,11 +750,11 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                     onDragLeave={() => setDragOver(false)}
                     onDrop={handleFileDrop}
                     onClick={() => fileInputRef.current?.click()}
-                    className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
-                      dragOver
-                        ? 'border-blue-500 bg-blue-500/10'
-                        : 'border-[#38383A] hover:border-slate-500 hover:bg-[#2C2C2E]/30'
-                    }`}>
+                    className="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all"
+                    style={dragOver
+                      ? { borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)' }
+                      : { borderColor: '#38383A' }
+                    }>
                     {syncing ? (
                       <div className="flex flex-col items-center gap-3">
                         <div className="w-6 h-6 border-2 rounded-full animate-spin" style={{ borderColor: '#3b82f6', borderTopColor: 'transparent' }} />
@@ -824,11 +824,11 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                             setSelectedAccounts([...activeAccounts, acc])
                           }
                         }}
-                          className={`px-3 py-2 rounded-lg text-xs font-mono transition-all border ${
-                            isSelected
-                              ? 'border-blue-500 bg-blue-500/10 text-[#60a5fa]'
-                              : 'border-[#38383A] text-slate-500 hover:border-slate-500'
-                          }`}>
+                          className="px-3 py-2 rounded-lg text-xs font-mono transition-all border"
+                          style={isSelected
+                            ? { borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa' }
+                            : { borderColor: '#38383A', color: '#64748b' }
+                          }>
                           {acc} <span className="text-slate-600 ml-1">({count})</span>
                         </button>
                       )

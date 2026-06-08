@@ -1094,7 +1094,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                         return (
                           <button key={i} type="button"
                             onClick={() => set('incomeMonths', active ? form.incomeMonths.filter(x => x !== i) : [...form.incomeMonths, i].sort((a, b) => a - b))}
-                            className={`px-2 py-1 text-xs font-medium rounded transition-all ${active ? 'bg-blue-500/25 text-blue-400 border border-blue-500/40' : 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border border-[var(--card-border,#38383A)]'}`}>
+                            className="px-2 py-1 text-xs font-medium rounded transition-all border"
+                            style={active ? { backgroundColor: 'rgba(59,130,246,0.25)', color: '#60a5fa', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                             {label}
                           </button>
                         )
@@ -1142,7 +1143,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             {/* New money toggle */}
             <div className="flex items-center gap-3 px-3 py-2 border border-[var(--card-border,#38383A)] rounded-lg">
               <button type="button" onClick={() => setIsNewMoney(!isNewMoney)}
-                className={`w-8 h-4 rounded-full transition-colors relative ${isNewMoney ? 'bg-blue-500' : 'bg-[var(--card-border,#38383A)]'}`}>
+                className="w-8 h-4 rounded-full transition-colors relative"
+                style={{ backgroundColor: isNewMoney ? '#3b82f6' : 'var(--card-border,#38383A)' }}>
                 <span className={`absolute w-3 h-3 bg-white rounded-full top-0.5 transition-transform ${isNewMoney ? 'left-4' : 'left-0.5'}`} />
               </button>
               <div>
@@ -1174,14 +1176,15 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 if (total > 10000000) warnings.push(t('⚠ Valor muy alto — verifica los datos', '⚠ Very high value — check your data'))
                 if (isMarketAsset && qty > 0 && price > 0 && qty === price) warnings.push(t('⚠ Cantidad y precio son iguales — ¿es correcto?', '⚠ Quantity and price are the same — is this correct?'))
                 return (
-                  <div className={`p-3 rounded-lg border text-xs ${warnings.length > 0 ? 'bg-amber-500/10 border-amber-500/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
-                    <div className={`font-medium ${warnings.length > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                  <div className="p-3 rounded-lg border text-xs"
+                    style={warnings.length > 0 ? { backgroundColor: 'rgba(245,158,11,0.1)', borderColor: 'rgba(245,158,11,0.2)' } : { backgroundColor: 'rgba(16,185,129,0.1)', borderColor: 'rgba(16,185,129,0.2)' }}>
+                    <div className="font-medium" style={{ color: warnings.length > 0 ? '#fbbf24' : '#34d399' }}>
                       {isDebt ? t('Deuda', 'Debt') : t('Valor total', 'Total value')}: {form.currency} {fmt(total)}
                     </div>
                     {isMarketAsset && qty > 0 && price > 0 && (
                       <div className="text-[var(--text-muted,#64748b)] mt-0.5">{qty} × {form.currency} {fmt(price)} {t('por unidad', 'per unit')}</div>
                     )}
-                    {warnings.map((w, i) => <div key={i} className="text-amber-400 mt-1">{w}</div>)}
+                    {warnings.map((w, i) => <div key={i} className="mt-1" style={{ color: '#fbbf24' }}>{w}</div>)}
                   </div>
                 )
               }

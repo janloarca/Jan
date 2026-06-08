@@ -103,9 +103,8 @@ export default function SpreadsheetGrid({ initialRows, context, onSave, lang }) 
         </div>
         <button
           onClick={() => setShowFormulas(!showFormulas)}
-          className={`px-3 py-1 text-xs rounded border transition-colors ${
-            showFormulas ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' : 'text-slate-400 border-slate-600 hover:text-white'
-          }`}
+          className="px-3 py-1 text-xs rounded border transition-colors"
+          style={showFormulas ? { backgroundColor: 'rgba(59,130,246,0.2)', color: '#60a5fa', borderColor: 'rgba(59,130,246,0.3)' } : { color: '#94a3b8', borderColor: '#475569' }}
         >
           {t('Fórmulas', 'Formulas')}
         </button>
@@ -133,11 +132,11 @@ export default function SpreadsheetGrid({ initialRows, context, onSave, lang }) 
             <h3 className="text-sm font-semibold text-white mb-3">{t('Fórmulas Disponibles', 'Available Formulas')}</h3>
             {FORMULA_CATALOG.map(cat => (
               <div key={cat.category} className="mb-4">
-                <h4 className="text-xs font-medium text-blue-400 uppercase tracking-wider mb-2">{cat.category}</h4>
+                <h4 className="text-xs font-medium uppercase tracking-wider mb-2" style={{ color: '#60a5fa' }}>{cat.category}</h4>
                 <div className="space-y-1.5">
                   {cat.formulas.map(f => (
                     <div key={f.name} className="group">
-                      <code className="text-xs text-emerald-400 font-mono block">{f.syntax}</code>
+                      <code className="text-xs font-mono block" style={{ color: '#34d399' }}>{f.syntax}</code>
                       <span className="text-[10px] text-slate-500">{f.description}</span>
                     </div>
                   ))}

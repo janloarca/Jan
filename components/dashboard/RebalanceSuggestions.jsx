@@ -122,7 +122,7 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
                     <span className="text-slate-600">/</span>
                     <span className="text-slate-400">{c.targetPct}%</span>
                     {(isOver || isUnder) && (
-                      <span className={`font-medium ${isOver ? 'text-amber-400' : 'text-cyan-400'}`}>
+                      <span className="font-medium" style={{ color: isOver ? '#fbbf24' : '#22d3ee' }}>
                         {c.diff > 0 ? '+' : ''}{c.diff.toFixed(1)}%
                       </span>
                     )}
@@ -151,7 +151,7 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
                         ? `${t('Reducir', 'Reduce')} ${c.cat}`
                         : `${t('Aumentar', 'Increase')} ${c.cat}`}
                     </span>
-                    <span className={`font-medium ${c.diff > 0 ? 'text-amber-400' : 'text-cyan-400'}`}>
+                    <span className="font-medium" style={{ color: c.diff > 0 ? '#fbbf24' : '#22d3ee' }}>
                       {c.diff > 0 ? '-' : '+'}{formatCurrency(Math.abs(c.diffValue))}
                     </span>
                   </div>

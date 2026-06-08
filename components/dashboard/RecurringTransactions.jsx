@@ -12,11 +12,11 @@ const FREQUENCIES = [
 ]
 
 const CATEGORIES = [
-  { value: 'savings', labelEs: 'Ahorro', labelEn: 'Savings', icon: '💰', color: 'text-emerald-400' },
-  { value: 'investment', labelEs: 'Inversión', labelEn: 'Investment', icon: '📈', color: 'text-blue-400' },
-  { value: 'income', labelEs: 'Ingreso', labelEn: 'Income', icon: '💵', color: 'text-green-400' },
-  { value: 'expense', labelEs: 'Gasto', labelEn: 'Expense', icon: '💸', color: 'text-red-400' },
-  { value: 'debt', labelEs: 'Pago deuda', labelEn: 'Debt payment', icon: '🏦', color: 'text-amber-400' },
+  { value: 'savings', labelEs: 'Ahorro', labelEn: 'Savings', icon: '💰', color: '#34d399' },
+  { value: 'investment', labelEs: 'Inversión', labelEn: 'Investment', icon: '📈', color: '#60a5fa' },
+  { value: 'income', labelEs: 'Ingreso', labelEn: 'Income', icon: '💵', color: '#4ade80' },
+  { value: 'expense', labelEs: 'Gasto', labelEn: 'Expense', icon: '💸', color: '#f87171' },
+  { value: 'debt', labelEs: 'Pago deuda', labelEn: 'Debt payment', icon: '🏦', color: '#fbbf24' },
 ]
 
 export default function RecurringTransactions({ goals, onSaveGoals, lang }) {
@@ -98,17 +98,15 @@ export default function RecurringTransactions({ goals, onSaveGoals, lang }) {
           <div className="flex gap-2">
             <button
               onClick={() => setForm({ ...form, isInflow: true })}
-              className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${
-                form.isInflow ? 'bg-emerald-600/20 border-emerald-500/30 text-emerald-400' : 'border-[#38383A] text-slate-400'
-              }`}
+              className="flex-1 py-1.5 text-xs rounded-lg border transition-colors"
+              style={form.isInflow ? { backgroundColor: 'rgba(5,150,105,0.2)', borderColor: 'rgba(16,185,129,0.3)', color: '#34d399' } : { borderColor: '#38383A', color: '#94a3b8' }}
             >
               ↓ {t('Ingreso', 'Inflow')}
             </button>
             <button
               onClick={() => setForm({ ...form, isInflow: false })}
-              className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${
-                !form.isInflow ? 'bg-red-600/20 border-red-500/30 text-red-400' : 'border-[#38383A] text-slate-400'
-              }`}
+              className="flex-1 py-1.5 text-xs rounded-lg border transition-colors"
+              style={!form.isInflow ? { backgroundColor: 'rgba(220,38,38,0.2)', borderColor: 'rgba(239,68,68,0.3)', color: '#f87171' } : { borderColor: '#38383A', color: '#94a3b8' }}
             >
               ↑ {t('Gasto', 'Outflow')}
             </button>
@@ -152,7 +150,7 @@ export default function RecurringTransactions({ goals, onSaveGoals, lang }) {
                     <span className="text-xs text-white truncate block">{r.name}</span>
                     <span className="text-[10px] text-slate-500">{freqLabel}</span>
                   </div>
-                  <span className={`text-xs font-medium ${r.isInflow ? 'text-emerald-400' : 'text-red-400'}`}>
+                  <span className="text-xs font-medium" style={{ color: r.isInflow ? '#34d399' : '#f87171' }}>
                     {r.isInflow ? '+' : '-'}{formatCurrency(r.amount)}
                   </span>
                   <div className="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity">
@@ -167,21 +165,21 @@ export default function RecurringTransactions({ goals, onSaveGoals, lang }) {
           <div className="pt-3 border-t border-[#38383A]/30 space-y-1.5">
             <div className="flex justify-between text-xs">
               <span className="text-slate-500">{t('Ingresos mensuales', 'Monthly inflows')}</span>
-              <span className="text-emerald-400 font-medium">+{formatCurrency(summary.monthlyIn)}</span>
+              <span className="font-medium" style={{ color: '#34d399' }}>+{formatCurrency(summary.monthlyIn)}</span>
             </div>
             <div className="flex justify-between text-xs">
               <span className="text-slate-500">{t('Gastos mensuales', 'Monthly outflows')}</span>
-              <span className="text-red-400 font-medium">-{formatCurrency(summary.monthlyOut)}</span>
+              <span className="font-medium" style={{ color: '#f87171' }}>-{formatCurrency(summary.monthlyOut)}</span>
             </div>
             <div className="flex justify-between text-xs font-medium pt-1 border-t border-[#38383A]/20">
               <span className="text-slate-400">{t('Flujo neto mensual', 'Net monthly flow')}</span>
-              <span className={summary.net >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+              <span style={{ color: summary.net >= 0 ? '#34d399' : '#f87171' }}>
                 {summary.net >= 0 ? '+' : ''}{formatCurrency(summary.net)}
               </span>
             </div>
             <div className="flex justify-between text-[10px]">
               <span className="text-slate-600">{t('Proyección anual', 'Annual projection')}</span>
-              <span className={`${summary.annualNet >= 0 ? 'text-emerald-400/60' : 'text-red-400/60'}`}>
+              <span style={{ color: summary.annualNet >= 0 ? 'rgba(52,211,153,0.6)' : 'rgba(248,113,113,0.6)' }}>
                 {summary.annualNet >= 0 ? '+' : ''}{formatCurrency(summary.annualNet)}/yr
               </span>
             </div>

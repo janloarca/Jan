@@ -111,10 +111,10 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
             </div>
             <div className="bg-[#000000] rounded-lg p-3 border border-[#38383A]/50">
               <span className="text-xs text-slate-500 block">P&L</span>
-              <span className={`text-lg font-bold ${pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              <span className="text-lg font-bold" style={{ color: pnl >= 0 ? '#34d399' : '#f87171' }}>
                 {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}
               </span>
-              <span className={`text-xs block ${pnlPct >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+              <span className="text-xs block" style={{ color: pnlPct >= 0 ? '#10b981' : '#ef4444' }}>
                 {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%
               </span>
             </div>
@@ -125,7 +125,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
             <span>{t('Cantidad', 'Qty')}: <span className="text-white font-medium">{item.quantity?.toLocaleString(undefined, { maximumFractionDigits: 4 })}</span></span>
             <span>{t('Costo', 'Cost')}: <span className="text-white font-medium">{formatCurrency(item.purchasePrice)}</span></span>
             {item.change7d != null && (
-              <span className={item.change7d >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+              <span style={{ color: item.change7d >= 0 ? '#34d399' : '#f87171' }}>
                 7d: {item.change7d >= 0 ? '+' : ''}{item.change7d.toFixed(1)}%
               </span>
             )}
@@ -135,16 +135,16 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
           {(item.maturityDate || item.incomeRate || item.rateType === 'variable' || item.custodyType || item.taxJurisdiction || item.notes) && (
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400">
               {item.maturityDate && (
-                <span>{t('Vence', 'Matures')}: <span className="text-amber-400 font-medium">{typeof item.maturityDate === 'string' ? item.maturityDate : new Date(item.maturityDate?.seconds ? item.maturityDate.seconds * 1000 : item.maturityDate).toLocaleDateString()}</span></span>
+                <span>{t('Vence', 'Matures')}: <span className="font-medium" style={{ color: '#fbbf24' }}>{typeof item.maturityDate === 'string' ? item.maturityDate : new Date(item.maturityDate?.seconds ? item.maturityDate.seconds * 1000 : item.maturityDate).toLocaleDateString()}</span></span>
               )}
               {item.rateType === 'variable' && item.rateMin > 0 && (
-                <span>{t('Tasa', 'Rate')}: <span className="text-blue-400 font-medium">{item.rateMin}% - {item.rateMax}%</span></span>
+                <span>{t('Tasa', 'Rate')}: <span className="font-medium" style={{ color: '#60a5fa' }}>{item.rateMin}% - {item.rateMax}%</span></span>
               )}
               {item.rateType === 'continuous' && item.incomeRate > 0 && (
-                <span>{t('Tasa continua', 'Continuous rate')}: <span className="text-cyan-400 font-medium">{item.incomeRate}%</span></span>
+                <span>{t('Tasa continua', 'Continuous rate')}: <span className="font-medium" style={{ color: '#22d3ee' }}>{item.incomeRate}%</span></span>
               )}
               {item.rateType !== 'variable' && item.rateType !== 'continuous' && item.incomeRate > 0 && (
-                <span>{t('Tasa', 'Rate')}: <span className="text-emerald-400 font-medium">{item.incomeRate}%</span></span>
+                <span>{t('Tasa', 'Rate')}: <span className="font-medium" style={{ color: '#34d399' }}>{item.incomeRate}%</span></span>
               )}
               {item.custodyType && (
                 <span>{item.custodyType === 'self_custody' ? '🔐' : item.custodyType === 'defi_protocol' ? '🌐' : '🏦'} {item.custodyDetails || item.custodyType}</span>
@@ -153,7 +153,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
                 <span>🏛 {item.taxJurisdiction}</span>
               )}
               {item.isIlliquid && (
-                <span className="text-amber-400">{t('Ilíquido', 'Illiquid')}</span>
+                <span style={{ color: '#fbbf24' }}>{t('Ilíquido', 'Illiquid')}</span>
               )}
               {item.notes && (
                 <span className="text-slate-500 italic w-full mt-1">{item.notes}</span>
@@ -179,9 +179,11 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
               <div className="flex gap-0.5 bg-[#000000] rounded-lg p-0.5">
                 {ranges.map((r) => (
                   <button key={r} onClick={() => setRange(r)}
-                    className={`px-2 py-1 text-xs font-medium rounded-md transition-all ${
-                      range === r ? 'bg-blue-500 text-white' : 'text-slate-500 hover:text-slate-300'
-                    }`}>
+                    className="px-2 py-1 text-xs font-medium rounded-md transition-all"
+                    style={range === r
+                      ? { backgroundColor: '#3b82f6', color: '#ffffff' }
+                      : { color: '#64748b' }
+                    }>
                     {r}
                   </button>
                 ))}
@@ -229,7 +231,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
               </div>
             ) : (
               <div className="h-[200px] bg-[#000000] rounded-lg flex items-center justify-center">
-                <span className={`text-sm ${chartError ? 'text-red-400/70' : 'text-slate-600'}`}>
+                <span className="text-sm" style={{ color: chartError ? 'rgba(248,113,113,0.7)' : '#475569' }}>
                   {chartError ? t('Error cargando datos', 'Failed to load data') : t('Sin datos de precio disponibles', 'No price data available')}
                 </span>
               </div>

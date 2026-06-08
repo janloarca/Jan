@@ -139,8 +139,12 @@ export default function CommandPalette({ open, onClose, items, lang, onAction })
               key={r.id}
               onClick={() => execute(r)}
               className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
-                i === selectedIdx ? 'bg-blue-600/20 text-white' : 'text-slate-300 hover:bg-[#2C2C2E]'
+                i === selectedIdx ? '' : 'hover:bg-[#2C2C2E]'
               }`}
+              style={i === selectedIdx
+                ? { backgroundColor: 'rgba(37,99,235,0.2)', color: '#ffffff' }
+                : { color: '#cbd5e1' }
+              }
             >
               <span className="w-6 text-center shrink-0 flex items-center justify-center"><Icon name={r.icon} size={16} className="text-slate-400" /></span>
               <div className="flex-1 min-w-0">

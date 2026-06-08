@@ -86,8 +86,8 @@ function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, 
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
         {tabs.map(tb => (
           <button key={tb.key} onClick={() => setTab(tb.key)}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${tab !== tb.key ? 'text-slate-400 border border-[#38383A] hover:text-white hover:bg-[#2C2C2E]' : ''}`}
-            style={tab === tb.key ? { backgroundColor: '#2563eb', color: '#fff' } : undefined}>
+            className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap border"
+            style={tab === tb.key ? { backgroundColor: '#2563eb', color: '#fff', borderColor: '#2563eb' } : { color: '#94a3b8', borderColor: '#38383A' }}>
             {tb.label}
           </button>
         ))}

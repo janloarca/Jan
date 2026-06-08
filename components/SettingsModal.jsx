@@ -576,10 +576,10 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
             const syncDays = syncAge ? Math.floor(syncAge / 86400000) : null
             const syncStatus = !ibkrConfigured ? 'disconnected' : !lastSyncTime ? 'never' : syncDays > 7 ? 'stale' : 'ok'
             const statusColor = {
-              disconnected: { dot: 'bg-red-500', text: 'text-red-400' },
-              never: { dot: 'bg-amber-500', text: 'text-amber-400' },
-              stale: { dot: 'bg-amber-500', text: 'text-amber-400' },
-              ok: { dot: 'bg-emerald-400', text: 'text-emerald-400' },
+              disconnected: { dot: '#ef4444', text: '#f87171' },
+              never: { dot: '#f59e0b', text: '#fbbf24' },
+              stale: { dot: '#f59e0b', text: '#fbbf24' },
+              ok: { dot: '#34d399', text: '#34d399' },
             }[syncStatus]
             const statusLabel = {
               disconnected: t('No vinculado', 'Not linked'),
@@ -682,11 +682,11 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                   <div className="flex items-center gap-3">
                     <div className="relative shrink-0">
                       <span className="text-xl">🏦</span>
-                      <span className={`absolute -bottom-1 -right-1 w-2.5 h-2.5 ${statusColor.dot} rounded-full border-2 border-[#1C1C1E]`} />
+                      <span className="absolute -bottom-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-[#1C1C1E]" style={{ backgroundColor: statusColor.dot }} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-white">Interactive Brokers</p>
-                      <p className={`text-[11px] ${statusColor.text}`}>
+                      <p className="text-[11px]" style={{ color: statusColor.text }}>
                         {ibkrConfigured ? statusLabel : t('No vinculado', 'Not linked')}
                         {ibkrConfigured && <span className="text-slate-600 ml-1">· ID: {ibkrQueryId}</span>}
                       </p>
@@ -945,12 +945,10 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                     <div className="text-xs text-slate-500">{action.desc}</div>
                   </div>
                   <button onClick={() => handleDelete(action.key)}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors shrink-0 ml-3 ${
-                      confirmDelete === action.key
-                        ? 'bg-red-600 text-white'
-                        : 'border hover:bg-red-500/10'
-                    }`}
-                    style={confirmDelete !== action.key ? { color: '#f87171', borderColor: 'rgba(239,68,68,0.3)' } : undefined}>
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors shrink-0 ml-3 border"
+                    style={confirmDelete === action.key
+                      ? { backgroundColor: '#dc2626', color: '#ffffff', borderColor: '#dc2626' }
+                      : { color: '#f87171', borderColor: 'rgba(239,68,68,0.3)' }}>
                     {confirmDelete === action.key ? t('Confirmar', 'Confirm') : t('Eliminar', 'Delete')}
                   </button>
                 </div>

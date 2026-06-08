@@ -195,7 +195,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       <div className="grid grid-cols-3 gap-3 mb-4">
         <div>
           <span className="text-xs text-slate-500 block">{t('Ingreso anual est.', 'Est. Annual Income')}</span>
-          <span className="text-lg font-bold text-emerald-400 font-mono tabular-nums">{formatCurrency(estAnnual)}</span>
+          <span className="text-lg font-bold font-mono tabular-nums" style={{ color: '#34d399' }}>{formatCurrency(estAnnual)}</span>
         </div>
         <div className="text-center">
           <span className="text-xs text-slate-500 block">{t('Rendimiento', 'Yield')}</span>
@@ -281,7 +281,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
               <div key={i} className="flex items-center justify-between text-xs py-1 px-2 rounded bg-[#000000]/60">
                 <span className="text-slate-400 font-medium w-16 truncate">{u.symbol}</span>
                 <span className="text-slate-500">{monthName(u.month)} {u.day}</span>
-                <span className="text-emerald-400 font-medium">{formatCurrency(u.amount)}</span>
+                <span className="font-medium" style={{ color: '#34d399' }}>{formatCurrency(u.amount)}</span>
               </div>
             ))}
           </div>
@@ -300,9 +300,9 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
               const monthLabel = new Date(parseInt(y), parseInt(m)).toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short' })
               return (
                 <div key={key} className="flex-1 flex flex-col items-center gap-1">
-                  <span className="text-xs text-emerald-400">{formatCurrency(val)}</span>
-                  <div className="w-full bg-emerald-500/30 rounded-t" style={{ height: `${Math.max(h, 8)}%` }}>
-                    <div className="w-full h-full bg-emerald-500/60 rounded-t" />
+                  <span className="text-xs" style={{ color: '#34d399' }}>{formatCurrency(val)}</span>
+                  <div className="w-full rounded-t" style={{ height: `${Math.max(h, 8)}%`, backgroundColor: 'rgba(16,185,129,0.3)' }}>
+                    <div className="w-full h-full rounded-t" style={{ backgroundColor: 'rgba(16,185,129,0.6)' }} />
                   </div>
                   <span className="text-xs text-slate-500">{monthLabel}</span>
                 </div>
@@ -323,7 +323,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
                 <div key={s.symbol} className="flex items-center gap-2">
                   <span className="text-xs text-white font-medium w-16 truncate">{s.symbol}</span>
                   <div className="flex-1 h-1.5 bg-slate-700/30 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full bg-emerald-500/60" style={{ width: `${pct}%` }} />
+                    <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: 'rgba(16,185,129,0.6)' }} />
                   </div>
                   <span className="text-xs text-slate-400 w-20 text-right">{formatCurrency(s.annual)}/yr</span>
                 </div>
@@ -345,7 +345,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
                   backgroundColor: amt > 0 ? `rgba(16, 185, 129, ${0.1 + intensity * 0.3})` : 'rgba(51, 65, 85, 0.3)',
                 }}>
                   <span className="text-xs text-slate-500 block">{monthName(m)}</span>
-                  <span className={`text-xs font-medium ${amt > 0 ? 'text-emerald-400' : 'text-slate-600'}`}>
+                  <span className="text-xs font-medium" style={{ color: amt > 0 ? '#34d399' : '#475569' }}>
                     {amt > 0 ? formatCurrency(amt) : '—'}
                   </span>
                 </div>
@@ -366,7 +366,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
                 <div key={p.symbol} className="flex items-center gap-2">
                   <span className="text-xs text-white font-medium w-16 truncate">{p.symbol}</span>
                   <div className="flex-1 h-1.5 bg-slate-700/30 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full bg-emerald-500/60" style={{ width: `${pct}%` }} />
+                    <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: 'rgba(16,185,129,0.6)' }} />
                   </div>
                   <span className="text-xs text-slate-400 w-16 text-right">{formatCurrency(p.total)}</span>
                 </div>

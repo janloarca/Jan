@@ -54,14 +54,14 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
     { key: 'WITHDRAWAL', icon: '−', label: lang === 'es' ? 'Retiros' : 'Withdrawals', color: 'slate' },
   ]
 
-  const typeBadge = (type) => {
+  const typeBadgeStyle = (type) => {
     const t = (type || '').toUpperCase()
-    if (t === 'BUY') return 'bg-blue-500/20 text-blue-400'
-    if (t === 'SELL') return 'bg-slate-500/20 text-slate-400'
-    if (t === 'DIVIDEND') return 'bg-emerald-500/15 text-emerald-300'
-    if (t === 'DEPOSIT') return 'bg-slate-500/20 text-slate-300'
-    if (t === 'WITHDRAWAL') return 'bg-slate-500/20 text-slate-400'
-    return 'bg-slate-500/20 text-slate-400'
+    if (t === 'BUY') return { backgroundColor: 'rgba(59,130,246,0.2)', color: '#60a5fa' }
+    if (t === 'SELL') return { backgroundColor: 'rgba(100,116,139,0.2)', color: '#94a3b8' }
+    if (t === 'DIVIDEND') return { backgroundColor: 'rgba(16,185,129,0.15)', color: '#6ee7b7' }
+    if (t === 'DEPOSIT') return { backgroundColor: 'rgba(100,116,139,0.2)', color: '#cbd5e1' }
+    if (t === 'WITHDRAWAL') return { backgroundColor: 'rgba(100,116,139,0.2)', color: '#94a3b8' }
+    return { backgroundColor: 'rgba(100,116,139,0.2)', color: '#94a3b8' }
   }
 
   const typeIcon = (type) => {
@@ -100,20 +100,20 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
         {filterOptions.map((opt) => {
           const count = txCount(opt.key)
           const isActive = typeFilter === opt.key
-          const activeColors = {
-            blue: 'bg-blue-500/15 border-blue-500/30 text-blue-400',
-            emerald: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400',
-            red: 'bg-red-500/15 border-red-500/30 text-red-400',
-            amber: 'bg-amber-500/15 border-amber-500/30 text-amber-400',
-            slate: 'bg-slate-500/15 border-slate-500/30 text-slate-300',
+          const activeStyles = {
+            blue: { backgroundColor: 'rgba(59,130,246,0.15)', borderColor: 'rgba(59,130,246,0.3)', color: '#60a5fa' },
+            emerald: { backgroundColor: 'rgba(16,185,129,0.15)', borderColor: 'rgba(16,185,129,0.3)', color: '#34d399' },
+            red: { backgroundColor: 'rgba(239,68,68,0.15)', borderColor: 'rgba(239,68,68,0.3)', color: '#f87171' },
+            amber: { backgroundColor: 'rgba(245,158,11,0.15)', borderColor: 'rgba(245,158,11,0.3)', color: '#fbbf24' },
+            slate: { backgroundColor: 'rgba(100,116,139,0.15)', borderColor: 'rgba(100,116,139,0.3)', color: '#cbd5e1' },
           }
           return (
             <button key={opt.key} onClick={() => { setTypeFilter(opt.key); setShowAll(false) }}
-              className={`flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg transition-all text-center border ${
-                isActive
-                  ? activeColors[opt.color]
-                  : 'bg-[#000000]/50 border-transparent text-slate-500 hover:text-slate-300 hover:bg-[#2C2C2E]'
-              }`}>
+              className="flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg transition-all text-center border hover:bg-[#2C2C2E]"
+              style={isActive
+                ? activeStyles[opt.color]
+                : { backgroundColor: 'rgba(0,0,0,0.5)', borderColor: 'transparent', color: '#64748b' }
+              }>
               <span className="text-sm font-bold">{opt.icon}</span>
               <span className="text-xs font-medium">{opt.label}</span>
               {count > 0 && <span className="text-xs opacity-60">{count}</span>}
@@ -133,9 +133,8 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
           { key: 'ytd', label: 'YTD' },
         ].map((opt) => (
           <button key={opt.key} onClick={() => { setDateRange(opt.key); setShowAll(false) }}
-            className={`px-2 py-1 text-xs rounded transition-colors ${
-              dateRange === opt.key ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-300'
-            }`}>
+            className="px-2 py-1 text-xs rounded transition-colors"
+            style={dateRange === opt.key ? { backgroundColor: '#475569', color: '#ffffff' } : { color: '#64748b' }}>
             {opt.label}
           </button>
         ))}
@@ -147,7 +146,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
           {monthlySummary.map((m) => (
             <div key={m.month} className="bg-[#000000] rounded-lg p-2.5 border border-[#38383A]/50 text-center">
               <div className="text-xs text-slate-500 mb-1">{m.month}</div>
-              <div className={`text-xs font-semibold font-mono tabular-nums ${m.net >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              <div className="text-xs font-semibold font-mono tabular-nums" style={{ color: m.net >= 0 ? '#34d399' : '#f87171' }}>
                 {m.net >= 0 ? '+' : ''}{formatCurrency(m.net)}
               </div>
               <div className="text-[10px] text-slate-600">{m.count} txs</div>
@@ -170,13 +169,13 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
             {display.map((tx, i) => (
               <div key={tx.id || i} className="flex items-center justify-between py-3 border-b border-[#38383A]/30 last:border-0 hover:bg-[#2C2C2E]/30 transition-colors -mx-2 px-2 rounded">
                 <div className="flex items-center gap-3">
-                  <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold ${typeBadge(tx.type)}`}>
+                  <span className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold" style={typeBadgeStyle(tx.type)}>
                     {typeIcon(tx.type)}
                   </span>
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-white font-medium">{tx.symbol || tx.description || '-'}</span>
-                      <span className={`px-1.5 py-0.5 rounded text-xs font-bold uppercase ${typeBadge(tx.type)}`}>
+                      <span className="px-1.5 py-0.5 rounded text-xs font-bold uppercase" style={typeBadgeStyle(tx.type)}>
                         {tx.type || 'TX'}
                       </span>
                     </div>
@@ -184,10 +183,10 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
                   </div>
                 </div>
                 <div className="text-right">
-                  <span className={`text-sm font-medium font-mono tabular-nums ${
+                  <span className="text-sm font-medium font-mono tabular-nums" style={{ color:
                     (tx.type || '').toUpperCase() === 'SELL' || (tx.type || '').toUpperCase() === 'WITHDRAWAL'
-                      ? 'text-red-400' : 'text-emerald-400'
-                  }`}>
+                      ? '#f87171' : '#34d399'
+                  }}>
                     {formatCurrency(tx.totalAmount ?? 0)}
                   </span>
                   {tx.quantity > 0 && (

@@ -442,7 +442,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
               {months.map(mk => {
                 const isCurrent = mk === currentMonthKey
                 return (
-                  <th key={mk} className={`text-right py-2.5 px-2 font-semibold text-xs w-32 ${isCurrent ? 'bg-blue-50 text-blue-600' : 'text-slate-400'}`}>
+                  <th key={mk} className="text-right py-2.5 px-2 font-semibold text-xs w-32" style={isCurrent ? { backgroundColor: '#eff6ff', color: '#2563eb' } : { color: '#94a3b8' }}>
                     {getMonthLabel(mk, lang)}
                     {isCurrent && <div className="text-[10px] font-normal text-blue-400">{t('actual', 'current')}</div>}
                   </th>
@@ -473,7 +473,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                   {months.map(mk => {
                     const isCurrent = mk === currentMonthKey
                     if (isCurrent) {
-                      return <td key={mk} className="text-right py-3 px-2 font-bold tabular-nums font-mono text-sm bg-blue-50 text-slate-900">{formatCurrency(cat.total)}</td>
+                      return <td key={mk} className="text-right py-3 px-2 font-bold tabular-nums font-mono text-sm" style={{ backgroundColor: '#eff6ff', color: '#0f172a' }}>{formatCurrency(cat.total)}</td>
                     }
                     const histMonth = historicalItems[mk]
                     let catHistTotal = null
@@ -535,7 +535,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                             const isCurrent = mk === currentMonthKey
                             const displayVal = showOriginal && instOrigTotal != null ? instOrigTotal : inst.total
                             if (isCurrent) {
-                              return <td key={mk} className="text-right py-2 px-2 font-medium tabular-nums font-mono text-sm bg-blue-50 text-slate-700">{formatNum(displayVal)}</td>
+                              return <td key={mk} className="text-right py-2 px-2 font-medium tabular-nums font-mono text-sm" style={{ backgroundColor: '#eff6ff', color: '#334155' }}>{formatNum(displayVal)}</td>
                             }
                             const histMonth = historicalItems[mk]
                             let instHistTotal = null
@@ -565,24 +565,24 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                           ? (item.symbol || item.name || '')
                           : null
                         const isEditing = editingItemId === item.id
-                        const rowBg = isEditing ? 'bg-blue-50 ring-2 ring-inset ring-blue-300' : 'bg-white'
-                        const stickyBg = isEditing ? 'bg-blue-50' : 'bg-white'
+                        const rowStyle = isEditing ? { backgroundColor: '#eff6ff', boxShadow: 'inset 0 0 0 2px #93c5fd' } : { backgroundColor: '#ffffff' }
+                        const stickyStyle = isEditing ? { backgroundColor: '#eff6ff' } : { backgroundColor: '#ffffff' }
                         return (
                           <Fragment key={item.id || idx}>
-                          <tr className={`hover:bg-slate-50 transition-colors border-t border-slate-100/60 ${rowBg}`}>
-                            <td className={`py-2.5 ${showInst ? 'pl-12' : 'pl-8'} pr-2 sticky left-0 ${stickyBg} z-10`}>
+                          <tr className="hover:bg-slate-50 transition-colors border-t border-slate-100/60" style={rowStyle}>
+                            <td className={`py-2.5 ${showInst ? 'pl-12' : 'pl-8'} pr-2 sticky left-0 z-10`} style={stickyStyle}>
                               <div className="flex items-center gap-2 min-w-0">
                                 {onEditItem ? (
-                                  <button className={`text-sm truncate text-left hover:text-blue-600 hover:underline transition-colors ${isEditing ? 'text-blue-700 font-semibold' : 'text-slate-800'}`} onClick={(e) => { e.stopPropagation(); onEditItem(item) }}>
+                                  <button className="text-sm truncate text-left hover:underline transition-colors" style={{ color: isEditing ? '#1d4ed8' : '#1e293b', fontWeight: isEditing ? 600 : undefined }} onClick={(e) => { e.stopPropagation(); onEditItem(item) }}>
                                     {item.name || item.symbol}
                                   </button>
                                 ) : (
-                                  <span className={`text-sm truncate ${isEditing ? 'text-blue-700 font-semibold' : 'text-slate-800'}`}>{item.name || item.symbol}</span>
+                                  <span className="text-sm truncate" style={{ color: isEditing ? '#1d4ed8' : '#1e293b', fontWeight: isEditing ? 600 : undefined }}>{item.name || item.symbol}</span>
                                 )}
                                 {qtyLabel && (
                                   <span className="text-slate-400 text-xs shrink-0">{qtyLabel}</span>
                                 )}
-                                <span className={`text-[10px] font-semibold shrink-0 ${isEditing ? 'text-blue-500' : 'text-slate-400'}`}>{cur}</span>
+                                <span className="text-[10px] font-semibold shrink-0" style={{ color: isEditing ? '#3b82f6' : '#94a3b8' }}>{cur}</span>
                                 {item.rewardType && REWARD_ICONS[item.rewardType] && (
                                   <span className="text-[10px] bg-cyan-50 text-cyan-600 px-1 rounded shrink-0" title={item.rewardType}>
                                     {REWARD_ICONS[item.rewardType]}
@@ -594,20 +594,20 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                               </div>
                             </td>
                             <td />
-                            {showOriginal && <td className={`text-center py-2.5 px-1 text-xs ${isEditing ? 'text-blue-500 font-semibold' : 'text-slate-400'}`}>{cur}</td>}
+                            {showOriginal && <td className="text-center py-2.5 px-1 text-xs" style={{ color: isEditing ? '#3b82f6' : '#94a3b8', fontWeight: isEditing ? 600 : undefined }}>{cur}</td>}
                             {months.map(mk => {
                               const isCurrent = mk === currentMonthKey
                               if (!isCurrent) {
                                 const histMonth = historicalItems[mk]
                                 const histVal = histMonth && item.id ? histMonth[item.id]?.value : null
                                 return (
-                                  <td key={mk} className={`text-right py-2.5 px-2 tabular-nums font-mono text-sm ${histVal != null ? 'text-slate-500' : 'text-slate-300'}`}>
+                                  <td key={mk} className="text-right py-2.5 px-2 tabular-nums font-mono text-sm" style={{ color: histVal != null ? '#64748b' : '#cbd5e1' }}>
                                     {histVal != null ? formatNum(histVal) : '—'}
                                   </td>
                                 )
                               }
                               return (
-                                <td key={mk} className={`text-right py-1 px-1 ${isEditing ? 'bg-blue-100' : 'bg-blue-50'}`}>
+                                <td key={mk} className="text-right py-1 px-1" style={{ backgroundColor: isEditing ? '#dbeafe' : '#eff6ff' }}>
                                   {onUpdateItem ? (
                                     <EditableCell
                                       displayValue={val}
@@ -665,7 +665,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                   </div>
                 </td>
                 {months.map(mk => (
-                  <td key={mk} className={`py-2.5 px-2 ${mk === currentMonthKey ? 'bg-blue-50' : ''}`} />
+                  <td key={mk} className="py-2.5 px-2" style={mk === currentMonthKey ? { backgroundColor: '#eff6ff' } : undefined} />
                 ))}
               </tr>
               {showRemoved && removedItems.map(ri => (
@@ -679,7 +679,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                     const isCurrent = mk === currentMonthKey
                     const val = ri.months[mk]
                     return (
-                      <td key={mk} className={`text-right py-2 px-2 tabular-nums font-mono text-sm ${isCurrent ? 'bg-blue-50 text-slate-300' : val != null ? 'text-slate-500' : 'text-slate-300'}`}>
+                      <td key={mk} className="text-right py-2 px-2 tabular-nums font-mono text-sm" style={isCurrent ? { backgroundColor: '#eff6ff', color: '#cbd5e1' } : { color: val != null ? '#64748b' : '#cbd5e1' }}>
                         {isCurrent ? '—' : val != null ? formatNum(val) : '—'}
                       </td>
                     )
@@ -709,7 +709,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                     {months.map(mk => {
                       const isCurrent = mk === currentMonthKey
                       return (
-                        <td key={mk} className={`text-right py-1.5 px-2 text-xs tabular-nums font-mono ${isCurrent ? 'bg-blue-50' : ''}`}>
+                        <td key={mk} className="text-right py-1.5 px-2 text-xs tabular-nums font-mono" style={isCurrent ? { backgroundColor: '#eff6ff' } : undefined}>
                           {isCurrent ? formatNum(displayVal) : ''}
                         </td>
                       )
@@ -731,7 +731,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                 const isCurrent = mk === currentMonthKey
                 const val = isCurrent ? grandTotal : (monthlyTotals[mk] || null)
                 return (
-                  <td key={mk} className={`text-right py-3.5 px-2 font-black tabular-nums font-mono text-base ${isCurrent ? 'bg-blue-50 text-slate-900' : val ? 'text-slate-600' : 'text-slate-300'}`}>
+                  <td key={mk} className="text-right py-3.5 px-2 font-black tabular-nums font-mono text-base" style={isCurrent ? { backgroundColor: '#eff6ff', color: '#0f172a' } : { color: val ? '#475569' : '#cbd5e1' }}>
                     {val ? formatCurrency(val) : '—'}
                   </td>
                 )
@@ -748,7 +748,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                 {months.map(mk => {
                   const isCurrent = mk === currentMonthKey
                   return (
-                    <td key={mk} className={`text-right py-2 px-2 text-sm tabular-nums font-mono ${isCurrent ? 'bg-blue-50' : ''}`}>
+                    <td key={mk} className="text-right py-2 px-2 text-sm tabular-nums font-mono" style={isCurrent ? { backgroundColor: '#eff6ff' } : undefined}>
                       {isCurrent ? (
                         <span className="font-semibold" style={{ color: monthlyReturn >= 0 ? '#059669' : '#dc2626' }}>
                           {monthlyReturn >= 0 ? '+' : ''}{monthlyReturn.toFixed(1)}%
@@ -769,7 +769,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                 {months.map(mk => {
                   const isCurrent = mk === currentMonthKey
                   return (
-                    <td key={mk} className={`text-right py-2 px-2 text-sm tabular-nums font-mono ${isCurrent ? 'bg-blue-50' : ''}`}>
+                    <td key={mk} className="text-right py-2 px-2 text-sm tabular-nums font-mono" style={isCurrent ? { backgroundColor: '#eff6ff' } : undefined}>
                       {isCurrent ? (
                         <span className="font-semibold" style={{ color: returnYTD >= 0 ? '#059669' : '#dc2626' }}>
                           {returnYTD >= 0 ? '+' : ''}{returnYTD.toFixed(2)}%
@@ -792,7 +792,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                   const val = isCurrent ? grandTotal : (monthlyTotals[mk] || null)
                   const growth = val && janTotal > 0 ? ((val - janTotal) / janTotal) * 100 : null
                   return (
-                    <td key={mk} className={`text-right py-2 px-3 text-sm tabular-nums font-mono ${isCurrent ? 'bg-blue-50' : ''}`}>
+                    <td key={mk} className="text-right py-2 px-3 text-sm tabular-nums font-mono" style={isCurrent ? { backgroundColor: '#eff6ff' } : undefined}>
                       {growth != null ? (
                         <span className="font-semibold" style={{ color: growth >= 0 ? '#059669' : '#dc2626' }}>
                           {growth >= 0 ? '+' : ''}{growth.toFixed(0)}%

@@ -78,10 +78,12 @@ export default function AssetAllocation({ items, lang }) {
         {views.map((v) => (
           <button key={v.key} onClick={() => setView(v.key)}
             className={`px-2 py-1 text-xs font-medium rounded-md transition-colors ${
-              view === v.key
-                ? 'bg-slate-600 text-white'
-                : 'text-slate-400 border border-slate-600/50 hover:bg-[#2C2C2E]'
-            }`}>
+              view !== v.key ? 'border border-slate-600/50 hover:bg-[#2C2C2E]' : ''
+            }`}
+            style={view === v.key
+              ? { backgroundColor: '#475569', color: '#ffffff' }
+              : { color: '#94a3b8' }
+            }>
             {v.label}
           </button>
         ))}

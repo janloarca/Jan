@@ -115,7 +115,7 @@ export default function PrintSummary({ items, netWorth, totalAssets, snapshots, 
             </div>
             <div className="border rounded-lg p-3 text-center">
               <div className="text-xs text-gray-500">{t('Rendimiento', 'Return')}</div>
-              <div className={`text-xl font-bold ${(growthPct || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <div className="text-xl font-bold" style={{ color: (growthPct || 0) >= 0 ? '#059669' : '#dc2626' }}>
                 {growthPct != null ? `${growthPct >= 0 ? '+' : ''}${growthPct.toFixed(1)}%` : '—'}
               </div>
             </div>

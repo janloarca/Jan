@@ -72,13 +72,13 @@ export default function TopMovers({ items, transactions, lang }) {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-white font-medium truncate">{it.name || it.symbol}</span>
-                  <span className="text-sm text-emerald-400 font-medium font-mono tabular-nums ml-2">{formatCurrency(it.value)}</span>
+                  <span className="text-sm font-medium font-mono tabular-nums ml-2" style={{ color: '#34d399' }}>{formatCurrency(it.value)}</span>
                 </div>
                 <div className="flex items-center gap-2 mt-1">
                   <div className="flex-1 h-1.5 bg-slate-700/50 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full bg-emerald-500/60" style={{ width: `${Math.min(pct, 100)}%` }} />
+                    <div className="h-full rounded-full" style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: 'rgba(16,185,129,0.6)' }} />
                   </div>
-                  <span className={`text-xs font-medium ${isPos ? 'text-emerald-400' : 'text-red-400'}`}>
+                  <span className="text-xs font-medium" style={{ color: isPos ? '#34d399' : '#f87171' }}>
                     <span className="font-mono tabular-nums">{isFinite(it.retPct) ? `${isPos ? '+' : ''}${it.retPct.toFixed(1)}%` : '—'}</span>
                   </span>
                 </div>

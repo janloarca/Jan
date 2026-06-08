@@ -142,7 +142,7 @@ export default function Watchlist({ lang }) {
                   <>
                     <span className="text-xs text-white font-medium">{formatCurrency(pd.price)}</span>
                     {pd.change7d != null && isFinite(pd.change7d) && (
-                      <span className={`text-xs font-medium ${pd.change7d >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      <span className="text-xs font-medium" style={{ color: pd.change7d >= 0 ? '#34d399' : '#f87171' }}>
                         {pd.change7d >= 0 ? '+' : ''}{pd.change7d.toFixed(1)}%
                       </span>
                     )}

@@ -73,7 +73,7 @@ export default function InvestmentClassBreakdown({ items, lang }) {
 
             <div className="flex items-center gap-2 mb-2">
               <span className="text-xs text-slate-400">{pct.toFixed(1)}%</span>
-              <span className={`text-xs font-medium ${gainAbs >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              <span className="text-xs font-medium" style={{ color: gainAbs >= 0 ? '#34d399' : '#f87171' }}>
                 {gainAbs >= 0 ? '+' : ''}{gainPct.toFixed(1)}%
               </span>
               <span className="text-[10px] text-slate-500">{count} {count === 1 ? t('activo', 'asset') : t('activos', 'assets')}</span>
@@ -91,7 +91,7 @@ export default function InvestmentClassBreakdown({ items, lang }) {
                 <div className="flex items-center gap-1.5">
                   <span className="text-slate-300">{formatCurrency(item.value)}</span>
                   {item.yield != null && (
-                    <span className="text-emerald-400/70">{item.yield.toFixed(1)}%</span>
+                    <span style={{ color: 'rgba(52,211,153,0.7)' }}>{item.yield.toFixed(1)}%</span>
                   )}
                 </div>
               </div>

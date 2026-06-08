@@ -41,9 +41,10 @@ export default function EntityManager({ entities, onAdd, onUpdate, onDelete, lan
                 <input
                   type="text" value={editName} onChange={(e) => setEditName(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') handleRename(entity.id); if (e.key === 'Escape') setEditId(null) }}
-                  autoFocus className="flex-1 px-2 py-0.5 text-xs bg-[#1C1C1E] border border-blue-500/50 rounded text-white focus:outline-none"
+                  autoFocus className="flex-1 px-2 py-0.5 text-xs bg-[#1C1C1E] border rounded text-white focus:outline-none"
+                  style={{ borderColor: 'rgba(59,130,246,0.5)' }}
                 />
-                <button onClick={() => handleRename(entity.id)} className="text-emerald-400 hover:text-emerald-300"><Check size={14} /></button>
+                <button onClick={() => handleRename(entity.id)} className="hover:opacity-80" style={{ color: '#34d399' }}><Check size={14} /></button>
                 <button onClick={() => setEditId(null)} className="text-slate-400 hover:text-slate-300"><X size={14} /></button>
               </div>
             ) : (
@@ -72,14 +73,18 @@ export default function EntityManager({ entities, onAdd, onUpdate, onDelete, lan
             {ENTITY_TYPES.map(et => (
               <button key={et.key} onClick={() => setNewType(et.key)}
                 className={`px-2 py-1 text-micro rounded border transition-colors ${
-                  newType === et.key ? 'border-blue-500/50 bg-blue-500/10 text-blue-400' : 'border-[#38383A] text-slate-400 hover:text-white'
-                }`}>
+                  newType !== et.key ? 'hover:text-white' : ''
+                }`}
+                style={newType === et.key
+                  ? { borderColor: 'rgba(59,130,246,0.5)', backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa' }
+                  : { borderColor: '#38383A', color: '#94a3b8' }
+                }>
                 {et.icon} {lang === 'es' ? et.es : et.en}
               </button>
             ))}
           </div>
           <div className="flex gap-2">
-            <button onClick={handleAdd} className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-500">{t('Crear', 'Create')}</button>
+            <button onClick={handleAdd} className="px-3 py-1 text-xs rounded hover:opacity-90" style={{ backgroundColor: '#2563eb', color: '#ffffff' }}>{t('Crear', 'Create')}</button>
             <button onClick={() => setAdding(false)} className="px-3 py-1 text-xs text-slate-400 hover:text-white">{t('Cancelar', 'Cancel')}</button>
           </div>
         </div>

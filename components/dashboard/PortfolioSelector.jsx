@@ -63,10 +63,15 @@ export default function PortfolioSelector({ portfolios, activePortfolio, onSelec
               role="option"
               aria-selected={activePortfolio === '__all__'}
               className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left transition-colors ${
-                focusIdx === 0 ? 'ring-1 ring-inset ring-blue-500/50' : ''
-              } ${
-                activePortfolio === '__all__' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-300 hover:bg-[#2C2C2E]'
-              }`}>
+                activePortfolio !== '__all__' ? 'hover:bg-[#2C2C2E]' : ''
+              }`}
+              style={{
+                ...(focusIdx === 0 ? { boxShadow: 'inset 0 0 0 1px rgba(59,130,246,0.5)' } : {}),
+                ...(activePortfolio === '__all__'
+                  ? { backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa' }
+                  : { color: '#cbd5e1' }
+                ),
+              }}>
               <span>📊</span> {allLabel}
             </button>
 
@@ -76,10 +81,15 @@ export default function PortfolioSelector({ portfolios, activePortfolio, onSelec
                   role="option"
                   aria-selected={activePortfolio === p.id}
                   className={`flex-1 flex items-center gap-2 px-4 py-2.5 text-sm text-left transition-colors ${
-                    focusIdx === i + 1 ? 'ring-1 ring-inset ring-blue-500/50' : ''
-                  } ${
-                    activePortfolio === p.id ? 'bg-blue-500/10 text-blue-400' : 'text-slate-300 hover:bg-[#2C2C2E]'
-                  }`}>
+                    activePortfolio !== p.id ? 'hover:bg-[#2C2C2E]' : ''
+                  }`}
+                  style={{
+                    ...(focusIdx === i + 1 ? { boxShadow: 'inset 0 0 0 1px rgba(59,130,246,0.5)' } : {}),
+                    ...(activePortfolio === p.id
+                      ? { backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa' }
+                      : { color: '#cbd5e1' }
+                    ),
+                  }}>
                   <span>{p.icon || '💼'}</span> {p.name}
                 </button>
                 {!p.isDefault && onDelete && (
@@ -100,7 +110,7 @@ export default function PortfolioSelector({ portfolios, activePortfolio, onSelec
                     placeholder={t('Nombre...', 'Name...')} autoFocus
                     onKeyDown={(e) => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') { setShowAdd(false); setShowMenu(false) } }}
                     className="flex-1 px-2 py-1.5 text-xs bg-[#000000] border border-[#38383A] rounded text-white placeholder-slate-600" />
-                  <button onClick={handleAdd} className="px-2 py-1.5 text-xs bg-emerald-600 text-white rounded hover:bg-emerald-500">
+                  <button onClick={handleAdd} className="px-2 py-1.5 text-xs rounded hover:opacity-90" style={{ backgroundColor: '#059669', color: '#ffffff' }}>
                     {t('Ok', 'Ok')}
                   </button>
                 </div>

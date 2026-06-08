@@ -164,7 +164,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
           <div className="text-4xl mb-3">✅</div>
           <h3 id="optimize-done-title" className="text-lg font-bold text-white mb-2">{t('Todo en orden', 'All good')}</h3>
           <p className="text-sm text-slate-400 mb-4">{t('Tu portafolio tiene toda la información completa.', 'Your portfolio data is complete.')}</p>
-          <button onClick={onClose} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 text-sm font-medium">{t('Cerrar', 'Close')}</button>
+          <button onClick={onClose} className="px-6 py-2 rounded-lg hover:opacity-90 text-sm font-medium" style={{ backgroundColor: '#2563eb', color: '#ffffff' }}>{t('Cerrar', 'Close')}</button>
         </div>
       </div>
     )
@@ -222,7 +222,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
           <div className="text-4xl mb-3">🎉</div>
           <h3 id="optimize-complete-title" className="text-lg font-bold text-white mb-2">{t('¡Listo!', 'Done!')}</h3>
           <p className="text-sm text-slate-400 mb-4">{t('Tu portafolio está más actualizado.', 'Your portfolio is more up to date.')}</p>
-          <button onClick={onClose} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 text-sm font-medium">{t('Cerrar', 'Close')}</button>
+          <button onClick={onClose} className="px-6 py-2 rounded-lg hover:opacity-90 text-sm font-medium" style={{ backgroundColor: '#2563eb', color: '#ffffff' }}>{t('Cerrar', 'Close')}</button>
         </div>
       </div>
     )
@@ -248,14 +248,14 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
 
         <div className="p-6 space-y-4">
           <div className="w-full h-1 bg-[#38383A] rounded-full overflow-hidden">
-            <div className="h-full bg-blue-500 transition-all duration-300 rounded-full"
-              style={{ width: `${((step + 1) / questions.length) * 100}%` }} />
+            <div className="h-full transition-all duration-300 rounded-full"
+              style={{ backgroundColor: '#3b82f6', width: `${((step + 1) / questions.length) * 100}%` }} />
           </div>
 
           {/* Asset card */}
           <div className="bg-[#000000] rounded-lg p-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center text-lg">
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center text-lg" style={{ backgroundColor: 'rgba(59,130,246,0.1)' }}>
                 {TYPE_ICONS[q.item.type] || '💼'}
               </div>
               <div className="flex-1 min-w-0">
@@ -296,22 +296,22 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
             <div className="space-y-3">
               <div className="flex gap-2">
                 <button type="button" onClick={() => set('currency', q.suggestedCurrency)}
-                  className={`flex-1 px-3 py-3 rounded-lg border text-sm font-medium transition-all ${
-                    currentForm.currency === q.suggestedCurrency
-                      ? 'bg-blue-500/20 text-blue-400 border-blue-500/40'
-                      : 'bg-[#000000] text-slate-400 border-[#38383A] hover:border-slate-500'
-                  }`}>
+                  className="flex-1 px-3 py-3 rounded-lg border text-sm font-medium transition-all"
+                  style={currentForm.currency === q.suggestedCurrency
+                    ? { backgroundColor: 'rgba(59,130,246,0.2)', color: '#60a5fa', borderColor: 'rgba(59,130,246,0.4)' }
+                    : { backgroundColor: '#000000', color: '#94a3b8', borderColor: '#38383A' }
+                  }>
                   {q.suggestedCurrency}
-                  <span className="block text-xs text-slate-500 mt-0.5">{t('Sugerido', 'Suggested')}</span>
+                  <span className="block text-xs mt-0.5" style={{ color: '#64748b' }}>{t('Sugerido', 'Suggested')}</span>
                 </button>
                 <button type="button" onClick={() => set('currency', q.item.currency || 'USD')}
-                  className={`flex-1 px-3 py-3 rounded-lg border text-sm font-medium transition-all ${
-                    currentForm.currency === (q.item.currency || 'USD')
-                      ? 'bg-blue-500/20 text-blue-400 border-blue-500/40'
-                      : 'bg-[#000000] text-slate-400 border-[#38383A] hover:border-slate-500'
-                  }`}>
+                  className="flex-1 px-3 py-3 rounded-lg border text-sm font-medium transition-all"
+                  style={currentForm.currency === (q.item.currency || 'USD')
+                    ? { backgroundColor: 'rgba(59,130,246,0.2)', color: '#60a5fa', borderColor: 'rgba(59,130,246,0.4)' }
+                    : { backgroundColor: '#000000', color: '#94a3b8', borderColor: '#38383A' }
+                  }>
                   {q.item.currency || 'USD'}
-                  <span className="block text-xs text-slate-500 mt-0.5">{t('Actual', 'Current')}</span>
+                  <span className="block text-xs mt-0.5" style={{ color: '#64748b' }}>{t('Actual', 'Current')}</span>
                 </button>
               </div>
               <div>
@@ -408,13 +408,13 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
               </div>
               <div className="flex gap-1 mb-1">
                 <button type="button" onClick={() => set('incomeMode', 'fixed')}
-                  className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all ${
-                    currentForm.incomeMode === 'fixed' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#000000] text-slate-500 border border-[#38383A]'
-                  }`}>{t('Monto fijo', 'Fixed amount')}</button>
+                  className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
+                  style={currentForm.incomeMode === 'fixed' ? { backgroundColor: 'rgba(59,130,246,0.2)', color: '#60a5fa', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: '#000000', color: '#64748b', borderColor: '#38383A' }}
+                  >{t('Monto fijo', 'Fixed amount')}</button>
                 <button type="button" onClick={() => set('incomeMode', 'percent')}
-                  className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all ${
-                    currentForm.incomeMode === 'percent' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#000000] text-slate-500 border border-[#38383A]'
-                  }`}>{t('% anual', '% annual')}</button>
+                  className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
+                  style={currentForm.incomeMode === 'percent' ? { backgroundColor: 'rgba(59,130,246,0.2)', color: '#60a5fa', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: '#000000', color: '#64748b', borderColor: '#38383A' }}
+                  >{t('% anual', '% annual')}</button>
               </div>
               {currentForm.incomeMode === 'fixed' ? (
                 <div>
@@ -468,7 +468,8 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
           <div className="flex gap-2 pt-2">
             {q.category === 'cero' && (
               <button type="button" onClick={handleDelete} disabled={saving}
-                className="px-3 py-2.5 text-xs font-medium border border-red-500/30 text-red-400 rounded-lg hover:bg-red-500/10 transition-colors disabled:opacity-50">
+                className="px-3 py-2.5 text-xs font-medium border rounded-lg transition-colors disabled:opacity-50"
+                style={{ color: '#f87171', borderColor: 'rgba(239,68,68,0.3)' }}>
                 {t('Eliminar', 'Delete')}
               </button>
             )}
@@ -478,7 +479,8 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
               {t('Sin cambios →', 'No changes →')}
             </button>
             <button type="button" onClick={handleSave} disabled={saving}
-              className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-xs font-medium">
+              className="px-5 py-2.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors text-xs font-medium"
+              style={{ backgroundColor: '#2563eb', color: '#ffffff' }}>
               {saving ? '...' : t('Guardar →', 'Save →')}
             </button>
           </div>
