@@ -173,7 +173,8 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
       {/* Floating button */}
       <button
         onClick={() => setOpen(!open)}
-        className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-40 w-12 h-12 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105"
+        className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105 hover:opacity-90"
+        style={{ backgroundColor: '#2563eb', color: '#ffffff' }}
         title={t('Asistente AI', 'AI Assistant')}
       >
         {open ? (
@@ -193,7 +194,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
           {/* Header */}
           <div className="px-4 py-3 border-b border-[#38383A] flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-emerald-400 rounded-full" />
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#34d399' }} />
               <span className="text-sm font-semibold text-white">{t('Asistente AI', 'AI Assistant')}</span>
             </div>
             <div className="flex items-center gap-1">
@@ -226,7 +227,8 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
                 />
                 <button
                   onClick={(e) => saveKey(e.target.previousSibling.value)}
-                  className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-500 transition-colors"
+                  className="px-3 py-1.5 text-xs rounded hover:opacity-90 transition-colors"
+                  style={{ backgroundColor: '#2563eb', color: '#ffffff' }}
                 >
                   OK
                 </button>
@@ -250,7 +252,8 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
                     t('Dame un resumen financiero', 'Give me a financial summary'),
                   ].map((suggestion, i) => (
                     <button key={i} onClick={() => { setInput(suggestion) }}
-                      className="block w-full text-left px-3 py-2 text-xs text-blue-400 bg-blue-500/10 border border-blue-500/20 rounded-lg hover:bg-blue-500/20 transition-colors">
+                      className="block w-full text-left px-3 py-2 text-xs rounded-lg transition-colors"
+                      style={{ color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.1)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(59,130,246,0.2)' }}>
                       {suggestion}
                     </button>
                   ))}
@@ -261,10 +264,12 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
             {messages.map((msg, i) => (
               <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[85%] px-3 py-2 rounded-xl text-sm leading-relaxed ${
-                  msg.role === 'user'
-                    ? 'bg-blue-600 text-white rounded-br-sm'
-                    : 'bg-[#000000] text-slate-200 border border-[#38383A] rounded-bl-sm'
-                }`}>
+                  msg.role === 'user' ? 'rounded-br-sm' : 'rounded-bl-sm'
+                }`}
+                  style={msg.role === 'user'
+                    ? { backgroundColor: '#2563eb', color: '#ffffff' }
+                    : { backgroundColor: '#000000', color: '#e2e8f0', borderWidth: '1px', borderStyle: 'solid', borderColor: '#38383A' }
+                  }>
                   <MessageContent content={msg.content} />
                 </div>
               </div>
@@ -283,7 +288,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
             )}
 
             {error && (
-              <div className="px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400">
+              <div className="px-3 py-2 border rounded-lg text-xs" style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.2)', color: '#f87171' }}>
                 {error}
               </div>
             )}
@@ -304,7 +309,8 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
               <button
                 onClick={sendMessage}
                 disabled={loading || !input.trim()}
-                className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="px-3 py-2 rounded-lg hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                style={{ backgroundColor: '#2563eb', color: '#ffffff' }}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />

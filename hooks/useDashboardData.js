@@ -53,7 +53,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       return {
         ...it,
         currentPrice: convertedPrice,
-        purchasePrice: purchaseConverted || it.purchasePrice,
+        purchasePrice: purchaseConverted != null ? purchaseConverted : it.purchasePrice,
         _originalPrice: price,
         _originalPurchasePrice: it.purchasePrice || 0,
         _originalCurrency: itemCurrency,
@@ -137,11 +137,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
 
     async function addToDestination(dest, amount, sourceCurrency) {
-      const destCur = dest._originalCurrency || dest.currency || 'USD'
+      const destCur = dest.currency || dest._originalCurrency || 'USD'
       const converted = convert ? convert(amount, sourceCurrency, destCur) : amount
-      const newQty = (dest.quantity || 0) + 1
-      const oldPrice = dest._originalPrice || dest.currentPrice || dest.purchasePrice || 0
-      const newPrice = oldPrice + converted / Math.max(newQty, 1)
+      const oldBalance = (dest.quantity || 1) * (dest._originalPrice ?? dest.purchasePrice ?? 0)
+      const newBalance = oldBalance + converted
+      const qty = dest.quantity || 1
+      const newPrice = newBalance / qty
       await updateItem(dest.id, { currentPrice: newPrice, purchasePrice: newPrice })
     }
 
@@ -251,7 +252,8 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           }
 
           if (it.capitalReturn > 0) {
-            const newPrice = Math.max(0, (it._originalPrice || it.currentPrice || it.purchasePrice || 0) - it.capitalReturn)
+            const origPrice = it._originalPrice ?? it._originalPurchasePrice ?? it.purchasePrice ?? 0
+            const newPrice = Math.max(0, origPrice - it.capitalReturn)
             await updateItem(it.id, { currentPrice: newPrice, purchasePrice: newPrice })
             if (it.capitalDestination) {
               const dest = enrichedItems.find((d) => (d.id || d.symbol) === it.capitalDestination)
@@ -485,7 +487,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           body: JSON.stringify({
             items: enrichedItems.map((it) => ({
               symbol: it.symbol, type: it.type, quantity: it.quantity,
-              currentPrice: it.currentPrice, purchasePrice: it.purchasePrice,
+              currentPrice: it._originalPrice || it.currentPrice,
+              purchasePrice: it._originalPurchasePrice || it.purchasePrice,
+              currency: it._originalCurrency || it.currency || 'USD',
               acquisitionDate: it.acquisitionDate,
             })),
             lots: allLots.length > 0 ? allLots.map(l => ({
@@ -581,7 +585,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     let total = 0
     portfolioItems.forEach((it) => {
       const qty = it.quantity || 1
-      const price = it._originalPrice || it.currentPrice || it.purchasePrice || 0
+      const origPrice = it._originalPrice ?? it._originalPurchasePrice ?? 0
+      const itemCur = it._originalCurrency || it.currency || 'USD'
+      const hasOriginal = origPrice > 0
+      const price = hasOriginal ? origPrice : (it.currentPrice || it.purchasePrice || 0)
+      const priceCur = hasOriginal ? itemCur : baseCurrency
       const balance = qty * price
       let annual = 0
       if (it.incomeAmount > 0 && it.incomeMonths) {
@@ -593,7 +601,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         annual = balance * (it.dividendYield / 100)
       }
       if (annual > 0) {
-        const cur = it.currency || it._originalCurrency || 'USD'
+        const cur = hasOriginal ? itemCur : priceCur
         total += convert(annual, cur, baseCurrency)
       }
     })
@@ -610,7 +618,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   const cashTotal = useMemo(() => {
     return portfolioItems
       .filter((it) => /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i.test(it.type || ''))
-      .reduce((s, it) => s + (it.currentPrice || it.purchasePrice || 0), 0)
+      .reduce((s, it) => s + getItemValue(it), 0)
   }, [portfolioItems])
 
   const riskMetrics = useMemo(() => {

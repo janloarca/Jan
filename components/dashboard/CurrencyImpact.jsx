@@ -74,7 +74,7 @@ export default function CurrencyImpact({ items, convert, baseCurrency, rates, la
       {/* Foreign exposure headline */}
       <div className="flex items-center justify-between mb-3">
         <span className="text-xs text-slate-400">{t('Exposición extranjera', 'Foreign exposure')}</span>
-        <span className="text-sm font-bold text-blue-400">{exposure.foreignPct.toFixed(1)}%</span>
+        <span className="text-sm font-bold" style={{ color: '#60a5fa' }}>{exposure.foreignPct.toFixed(1)}%</span>
       </div>
 
       {/* Stacked bar */}
@@ -119,10 +119,10 @@ export default function CurrencyImpact({ items, convert, baseCurrency, rates, la
                     ? t(`${baseCurrency} se debilita ${s.pct}%`, `${baseCurrency} weakens ${s.pct}%`)
                     : t(`${baseCurrency} se fortalece ${Math.abs(s.pct)}%`, `${baseCurrency} strengthens ${Math.abs(s.pct)}%`)}
                 </span>
-                <span className={`text-sm font-bold ${isNeg ? 'text-red-400' : 'text-emerald-400'}`}>
+                <span className="text-sm font-bold" style={{ color: isNeg ? '#f87171' : '#34d399' }}>
                   {isNeg ? '' : '+'}{formatCurrency(s.impact)}
                 </span>
-                <span className={`text-xs ml-1 ${isNeg ? 'text-red-500/70' : 'text-emerald-500/70'}`}>
+                <span className="text-xs ml-1" style={{ color: isNeg ? 'rgba(239,68,68,0.7)' : 'rgba(16,185,129,0.7)' }}>
                   ({isNeg ? '' : '+'}{s.impactPct.toFixed(2)}%)
                 </span>
               </div>

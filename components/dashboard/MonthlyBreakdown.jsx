@@ -21,7 +21,7 @@ function formatMonthLabel(key, lang) {
   return d.toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short', year: '2-digit' })
 }
 
-function EditableCell({ value, onSave, className }) {
+function EditableCell({ value, onSave, className, style }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const inputRef = useRef(null)
@@ -56,6 +56,7 @@ function EditableCell({ value, onSave, className }) {
   return (
     <span
       className={`cursor-pointer hover:bg-blue-500/10 rounded px-1 py-0.5 -mx-1 transition-colors ${className}`}
+      style={style}
       onClick={() => { setDraft(Math.abs(value).toFixed(2)); setEditing(true) }}
       title="Click to edit"
     >
@@ -179,7 +180,7 @@ export default function MonthlyBreakdown({ items, snapshots, lang, onUpdateItem,
                       <span className="text-slate-600 text-[10px]">{group.items.length}</span>
                     </div>
                   </td>
-                  <td className={`text-right py-2 px-2 font-bold ${group.total < 0 ? 'text-red-400' : 'text-white'}`}>
+                  <td className="text-right py-2 px-2 font-bold" style={{ color: group.total < 0 ? '#f87171' : '#ffffff' }}>
                     {formatCurrency(group.total)}
                   </td>
                   <td className="text-right py-2 px-2 text-slate-400 font-medium">{group.pct.toFixed(1)}%</td>
@@ -201,16 +202,16 @@ export default function MonthlyBreakdown({ items, snapshots, lang, onUpdateItem,
                     <tr key={item.id || i} className="border-b border-[#1C1C1E] hover:bg-[#2C2C2E]/30 transition-colors">
                       <td className="py-1.5 pr-2 pl-7 sticky left-0 bg-[#1C1C1E] z-10">
                         <div className="flex items-center gap-2 min-w-0">
-                          <span className={`w-1 h-5 rounded-full shrink-0 ${
-                            cat === 'banks' ? 'bg-cyan-500' :
-                            cat === 'bonds' ? 'bg-amber-500' :
-                            cat === 'stocks' ? 'bg-blue-500' :
-                            cat === 'funds' ? 'bg-indigo-500' :
-                            cat === 'crypto' ? 'bg-orange-500' :
-                            cat === 'realestate' ? 'bg-emerald-500' :
-                            cat === 'debts' ? 'bg-red-500' :
-                            'bg-slate-500'
-                          }`} />
+                          <span className="w-1 h-5 rounded-full shrink-0" style={{ backgroundColor:
+                            cat === 'banks' ? '#06b6d4' :
+                            cat === 'bonds' ? '#f59e0b' :
+                            cat === 'stocks' ? '#3b82f6' :
+                            cat === 'funds' ? '#6366f1' :
+                            cat === 'crypto' ? '#f97316' :
+                            cat === 'realestate' ? '#10b981' :
+                            cat === 'debts' ? '#ef4444' :
+                            '#64748b'
+                          }} />
                           <div className="min-w-0">
                             {onEditItem ? (
                               <button className="text-slate-200 truncate block text-xs text-left hover:text-blue-400 hover:underline transition-colors" onClick={(e) => { e.stopPropagation(); onEditItem(item) }}>
@@ -231,10 +232,11 @@ export default function MonthlyBreakdown({ items, snapshots, lang, onUpdateItem,
                           <EditableCell
                             value={val}
                             onSave={(newVal) => handleValueUpdate(item, newVal)}
-                            className={`font-medium tabular-nums ${isDebt ? 'text-red-400' : 'text-slate-200'}`}
+                            className="font-medium tabular-nums"
+                            style={{ color: isDebt ? '#f87171' : '#e2e8f0' }}
                           />
                         ) : (
-                          <span className={`font-medium font-mono tabular-nums ${isDebt ? 'text-red-400' : 'text-slate-200'}`}>
+                          <span className="font-medium font-mono tabular-nums" style={{ color: isDebt ? '#f87171' : '#e2e8f0' }}>
                             {isDebt ? '-' : ''}{formatCurrency(Math.abs(val))}
                           </span>
                         )}
@@ -242,11 +244,11 @@ export default function MonthlyBreakdown({ items, snapshots, lang, onUpdateItem,
                       <td className="text-right py-1.5 px-2 text-slate-600 font-mono tabular-nums">{Math.abs(pct).toFixed(1)}</td>
                       <td className="text-right py-1.5 px-2 font-mono tabular-nums">
                         {retPct != null ? (
-                          <span className={retPct >= 0 ? 'text-emerald-400/80' : 'text-red-400/80'}>
+                          <span style={{ color: retPct >= 0 ? 'rgba(52,211,153,0.8)' : 'rgba(248,113,113,0.8)' }}>
                             {retPct >= 0 ? '+' : ''}{retPct.toFixed(1)}%
                           </span>
                         ) : (
-                          <span className="text-slate-800">—</span>
+                          <span style={{ color: '#1e293b' }}>—</span>
                         )}
                       </td>
                       {monthlyTotals.map(m => (
@@ -272,7 +274,7 @@ export default function MonthlyBreakdown({ items, snapshots, lang, onUpdateItem,
                   <td key={m.key} className="text-right py-2.5 px-2">
                     <span className="text-slate-300 font-medium tabular-nums block">{formatCurrency(m.value)}</span>
                     {change != null && (
-                      <span className={`text-[10px] ${change >= 0 ? 'text-emerald-500/60' : 'text-red-500/60'}`}>
+                      <span className="text-[10px]" style={{ color: change >= 0 ? 'rgba(16,185,129,0.6)' : 'rgba(239,68,68,0.6)' }}>
                         {change >= 0 ? '+' : ''}{change.toFixed(1)}%
                       </span>
                     )}

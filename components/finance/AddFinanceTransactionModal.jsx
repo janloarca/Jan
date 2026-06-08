@@ -58,11 +58,11 @@ export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es'
           <div className="flex bg-[#000000] rounded-lg border border-[#38383A]">
             {['EXPENSE', 'INCOME'].map(type => (
               <button key={type} onClick={() => setForm({ ...form, type })}
-                className={`flex-1 py-2.5 text-sm font-medium transition-colors rounded-lg ${
-                  form.type === type
-                    ? type === 'INCOME' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'
-                    : 'text-slate-400 hover:text-white'
-                }`}>
+                className="flex-1 py-2.5 text-sm font-medium transition-colors rounded-lg"
+                style={form.type === type
+                  ? { backgroundColor: type === 'INCOME' ? '#059669' : '#dc2626', color: '#ffffff' }
+                  : { color: '#94a3b8' }
+                }>
                 {type === 'INCOME' ? t('Ingreso', 'Income') : t('Gasto', 'Expense')}
               </button>
             ))}

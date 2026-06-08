@@ -95,11 +95,11 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
 
       {/* Warning banner */}
       {missingDate > 0 && !dismissWarning && (
-        <div className="flex items-center justify-between mb-3 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-          <span className="text-xs text-amber-400">
+        <div className="flex items-center justify-between mb-3 px-3 py-2 rounded-lg" style={{ backgroundColor: 'rgba(245,158,11,0.1)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(245,158,11,0.2)' }}>
+          <span className="text-xs" style={{ color: '#fbbf24' }}>
             ⚠ {missingDate} {t('activo(s) sin fecha de adquisición', 'asset(s) missing acquisition date')}
           </span>
-          <button onClick={() => setDismissWarning(true)} className="text-amber-500/60 hover:text-amber-400 text-sm ml-2">×</button>
+          <button onClick={() => setDismissWarning(true)} className="text-sm ml-2 hover:opacity-80" style={{ color: 'rgba(245,158,11,0.6)' }}>×</button>
         </div>
       )}
 
@@ -107,11 +107,15 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
       <div className="flex flex-wrap gap-2 mb-3">
         {tabs.map((tab) => (
           <button key={tab.key} onClick={() => setFilter(tab.key)}
-            className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
+            className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors border ${
               filter === tab.key
-                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                : 'text-slate-400 border border-slate-600/50 hover:bg-[#2C2C2E]'
-            }`}>
+                ? ''
+                : 'hover:bg-[#2C2C2E]'
+            }`}
+            style={filter === tab.key
+              ? { backgroundColor: 'rgba(59,130,246,0.2)', color: '#60a5fa', borderColor: 'rgba(59,130,246,0.3)' }
+              : { color: '#94a3b8', borderColor: 'rgba(71,85,105,0.5)' }
+            }>
             {tab.icon} {tab.label}
           </button>
         ))}
@@ -132,8 +136,8 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
 
       {/* Bulk actions */}
       {selected.size > 0 && (
-        <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-          <span className="text-xs text-blue-400 font-medium">{selected.size} {t('seleccionado(s)', 'selected')}</span>
+        <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-lg" style={{ backgroundColor: 'rgba(59,130,246,0.1)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(59,130,246,0.2)' }}>
+          <span className="text-xs font-medium" style={{ color: '#60a5fa' }}>{selected.size} {t('seleccionado(s)', 'selected')}</span>
           <div className="flex-1" />
           <button onClick={() => {
             const selectedItems = items.filter((it) => selected.has(it.id))
@@ -148,7 +152,8 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
             a.download = `selected-${new Date().toISOString().split('T')[0]}.csv`
             a.click()
           }}
-            className="text-xs text-blue-400 hover:text-blue-300 px-2 py-1 rounded border border-blue-500/30 hover:bg-blue-500/10">
+            className="text-xs px-2 py-1 rounded border hover:opacity-80"
+            style={{ color: '#60a5fa', borderColor: 'rgba(59,130,246,0.3)' }}>
             {t('Exportar CSV', 'Export CSV')}
           </button>
           <button onClick={async () => {
@@ -157,9 +162,11 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
             setSelected(new Set())
             setConfirmBulkDelete(false)
           }}
-            className={`text-xs px-2 py-1 rounded border transition-colors ${
-              confirmBulkDelete ? 'bg-red-600 text-white border-red-600' : 'text-red-400 border-red-500/30 hover:bg-red-500/10'
-            }`}>
+            className="text-xs px-2 py-1 rounded border transition-colors"
+            style={confirmBulkDelete
+              ? { backgroundColor: '#dc2626', color: '#ffffff', borderColor: '#dc2626' }
+              : { color: '#f87171', borderColor: 'rgba(239,68,68,0.3)' }
+            }>
             {confirmBulkDelete ? t('Confirmar', 'Confirm') : t('Eliminar', 'Delete')}
           </button>
           <button onClick={() => { setSelected(new Set()); setConfirmBulkDelete(false) }}
@@ -177,9 +184,13 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
           <button key={opt.key} onClick={() => setBreakdown(breakdown === opt.key ? null : opt.key)}
             className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
               breakdown === opt.key
-                ? 'bg-slate-600 text-white'
-                : 'text-slate-400 border border-slate-600/50 hover:bg-[#2C2C2E]'
-            }`}>
+                ? ''
+                : 'border hover:bg-[#2C2C2E]'
+            }`}
+            style={breakdown === opt.key
+              ? { backgroundColor: '#475569', color: '#ffffff' }
+              : { color: '#94a3b8', borderColor: 'rgba(71,85,105,0.5)' }
+            }>
             {opt.label}
           </button>
         ))}
@@ -193,7 +204,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
               <div key={row.name} className="flex items-center gap-3">
                 <span className="text-xs text-white font-medium w-32 truncate">{row.name}</span>
                 <div className="flex-1 h-1.5 bg-slate-700/30 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full bg-emerald-500/60" style={{ width: `${row.pct}%` }} />
+                  <div className="h-full rounded-full" style={{ width: `${row.pct}%`, backgroundColor: 'rgba(16,185,129,0.6)' }} />
                 </div>
                 <span className="text-xs text-slate-400 w-8">{row.pct.toFixed(0)}%</span>
                 <span className="text-xs text-slate-300 w-14 text-right">{formatCurrency(row.value)}</span>
@@ -253,7 +264,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                 const retAbs = hasReturn ? (item.currentPrice - item.purchasePrice) * (item.quantity || 0) : null
 
                 return (
-                  <tr key={item.id || item.symbol} style={{ contentVisibility: 'auto', containIntrinsicSize: '0 60px' }} className={`border-b border-[#38383A]/30 hover:bg-[#2C2C2E]/50 transition-colors group ${selected.has(item.id) ? 'bg-blue-500/5' : ''}`}>
+                  <tr key={item.id || item.symbol} style={{ contentVisibility: 'auto', containIntrinsicSize: '0 60px', ...(selected.has(item.id) ? { backgroundColor: 'rgba(59,130,246,0.05)' } : {}) }} className="border-b border-[#38383A]/30 hover:bg-[#2C2C2E]/50 transition-colors group">
                     <td className="py-4 w-8">
                       <input type="checkbox"
                         checked={selected.has(item.id)}
@@ -396,7 +407,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                       {(() => {
                         const y = getEffectiveYield(item)
                         return y != null ? (
-                          <span className="text-blue-400 text-xs">{y.toFixed(1)}%</span>
+                          <span className="text-xs" style={{ color: '#60a5fa' }}>{y.toFixed(1)}%</span>
                         ) : (
                           <span className="text-slate-700">—</span>
                         )
@@ -406,7 +417,8 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                       <div className="flex items-center justify-end gap-1">
                         {onQuickBuy && (
                           <button onClick={() => onQuickBuy(item)}
-                            className="text-blue-500/60 hover:text-blue-400 text-sm font-bold transition-colors"
+                            className="text-sm font-bold transition-colors hover:opacity-80"
+                            style={{ color: 'rgba(59,130,246,0.6)' }}
                             title={t('Comprar más', 'Buy more')}>
                             +
                           </button>

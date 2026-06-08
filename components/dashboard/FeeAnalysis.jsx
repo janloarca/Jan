@@ -69,7 +69,7 @@ export default function FeeAnalysis({ items, netWorth, lang }) {
 
   if (analysis.totalFees <= 0 && analysis.categories.length === 0) return null
 
-  const feeColor = analysis.avgPct < 0.3 ? 'text-emerald-400' : analysis.avgPct < 1.0 ? 'text-amber-400' : 'text-red-400'
+  const feeColorHex = analysis.avgPct < 0.3 ? '#34d399' : analysis.avgPct < 1.0 ? '#fbbf24' : '#f87171'
 
   return (
     <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 p-4 sm:p-5">
@@ -79,15 +79,15 @@ export default function FeeAnalysis({ items, netWorth, lang }) {
 
       <div className="grid grid-cols-3 gap-3 mb-4">
         <div className="text-center">
-          <div className={`text-lg font-bold ${feeColor}`}>{formatCurrency(analysis.totalFees)}</div>
+          <div className="text-lg font-bold" style={{ color: feeColorHex }}>{formatCurrency(analysis.totalFees)}</div>
           <div className="text-[10px] text-slate-500">{t('Comisiones/año', 'Fees/year')}</div>
         </div>
         <div className="text-center">
-          <div className={`text-lg font-bold ${feeColor}`}>{analysis.avgPct.toFixed(2)}%</div>
+          <div className="text-lg font-bold" style={{ color: feeColorHex }}>{analysis.avgPct.toFixed(2)}%</div>
           <div className="text-[10px] text-slate-500">{t('Tasa promedio', 'Avg rate')}</div>
         </div>
         <div className="text-center">
-          <div className="text-lg font-bold text-red-400">{formatCurrency(analysis.tenYearImpact)}</div>
+          <div className="text-lg font-bold" style={{ color: '#f87171' }}>{formatCurrency(analysis.tenYearImpact)}</div>
           <div className="text-[10px] text-slate-500">{t('Impacto 10 años', '10yr impact')}</div>
         </div>
       </div>

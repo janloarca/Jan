@@ -35,8 +35,12 @@ export default function EntitySwitcher({ entities, activeEntity, onSelect, onAdd
           <button
             onClick={() => { onSelect('__all__'); setOpen(false) }}
             className={`w-full text-left px-3 py-2 text-xs transition-colors ${
-              activeEntity === '__all__' ? 'text-blue-400 bg-blue-400/10' : 'text-slate-300 hover:bg-[#2C2C2E]'
+              activeEntity !== '__all__' ? 'hover:bg-[#2C2C2E]' : ''
             }`}
+            style={activeEntity === '__all__'
+              ? { color: '#60a5fa', backgroundColor: 'rgba(96,165,250,0.1)' }
+              : { color: '#cbd5e1' }
+            }
           >
             📊 {allLabel}
           </button>
@@ -46,8 +50,12 @@ export default function EntitySwitcher({ entities, activeEntity, onSelect, onAdd
               key={entity.id}
               onClick={() => { onSelect(entity.id); setOpen(false) }}
               className={`w-full text-left px-3 py-2 text-xs transition-colors ${
-                activeEntity === entity.id ? 'text-blue-400 bg-blue-400/10' : 'text-slate-300 hover:bg-[#2C2C2E]'
+                activeEntity !== entity.id ? 'hover:bg-[#2C2C2E]' : ''
               }`}
+              style={activeEntity === entity.id
+                ? { color: '#60a5fa', backgroundColor: 'rgba(96,165,250,0.1)' }
+                : { color: '#cbd5e1' }
+              }
             >
               {entity.icon || '📁'} {entity.name}
             </button>

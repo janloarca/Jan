@@ -86,11 +86,10 @@ export default function ConcentrationRisk({ items, lang }) {
       <div className="flex items-center gap-1.5 mb-3">
         {dims.map((d) => (
           <button key={d.key} onClick={() => setDimension(d.key)}
-            className={`px-2 py-1 text-xs font-medium rounded-md transition-colors ${
-              dimension === d.key
-                ? 'bg-slate-600 text-white'
-                : 'text-slate-400 border border-slate-600/50 hover:bg-[#2C2C2E]'
-            }`}>
+            className="px-2 py-1 text-xs font-medium rounded-md transition-colors border"
+            style={dimension === d.key
+              ? { backgroundColor: '#475569', color: '#ffffff', borderColor: '#475569' }
+              : { color: '#94a3b8', borderColor: 'rgba(71,85,105,0.5)' }}>
             {d.label}
           </button>
         ))}

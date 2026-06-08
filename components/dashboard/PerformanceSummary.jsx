@@ -106,7 +106,7 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
 
   if (periods.length === 0 && !loading) return (
     <div className="bg-[#1C1C1E]/40 rounded-xl border border-[#38383A]/30 p-4 text-center">
-      <p className={`text-sm ${fetchError ? 'text-red-400/70' : 'text-slate-500'}`}>
+      <p className="text-sm" style={{ color: fetchError ? 'rgba(248,113,113,0.7)' : '#64748b' }}>
         {fetchError || (lang === 'es' ? 'Sin datos de rendimiento aún' : 'No performance data yet')}
       </p>
     </div>
@@ -123,9 +123,11 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
         </h3>
         <div className="flex gap-0.5 bg-[#000000] rounded p-0.5">
           <button onClick={() => setReturnMode('twr')}
-            className={`px-1.5 py-0.5 text-xs font-medium rounded transition-all ${returnMode === 'twr' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}>TWR</button>
+            className="px-1.5 py-0.5 text-xs font-medium rounded transition-all"
+            style={returnMode === 'twr' ? { backgroundColor: '#475569', color: '#ffffff' } : { color: '#64748b' }}>TWR</button>
           <button onClick={() => setReturnMode('mwr')}
-            className={`px-1.5 py-0.5 text-xs font-medium rounded transition-all ${returnMode === 'mwr' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-400'}`}>MWR</button>
+            className="px-1.5 py-0.5 text-xs font-medium rounded transition-all"
+            style={returnMode === 'mwr' ? { backgroundColor: '#475569', color: '#ffffff' } : { color: '#64748b' }}>MWR</button>
         </div>
       </div>
       {loading ? (
@@ -142,10 +144,10 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
                 <span className="text-xs text-slate-500 font-medium">{p.label}</span>
                 {p.pct != null && isFinite(p.pct) ? (
                   <>
-                    <div className={`text-sm sm:text-base font-bold font-mono tabular-nums mt-1 ${isPos ? 'text-emerald-400' : 'text-red-400'}`}>
+                    <div className="text-sm sm:text-base font-bold font-mono tabular-nums mt-1" style={{ color: isPos ? '#34d399' : '#f87171' }}>
                       {isPos ? '+' : ''}{p.pct.toFixed(2)}%
                     </div>
-                    <div className={`text-xs sm:text-xs font-mono tabular-nums mt-0.5 ${isPos ? 'text-emerald-500/70' : 'text-red-500/70'}`}>
+                    <div className="text-xs sm:text-xs font-mono tabular-nums mt-0.5" style={{ color: isPos ? 'rgba(16,185,129,0.7)' : 'rgba(239,68,68,0.7)' }}>
                       {isPos ? '+' : ''}{formatCurrency(p.abs)}
                     </div>
                   </>

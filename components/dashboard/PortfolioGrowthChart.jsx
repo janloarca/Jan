@@ -540,10 +540,8 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           if (p === 'CUSTOM') setShowCustomRange(true)
           else setShowCustomRange(false)
         }}
-          className={`px-3 py-2 text-xs font-semibold rounded-md transition-all ${
-            period !== p ? 'text-slate-500 hover:text-slate-300 hover:bg-[#1C1C1E]' : ''
-          }`}
-          style={period === p ? { backgroundColor: '#3b82f6', color: '#fff' } : undefined}>{p === 'CUSTOM' ? (lang === 'es' ? 'Rango' : 'Range') : p}</button>
+          className="px-3 py-2 text-xs font-semibold rounded-md transition-all"
+          style={period === p ? { backgroundColor: '#3b82f6', color: '#fff' } : { color: '#64748b' }}>{p === 'CUSTOM' ? (lang === 'es' ? 'Rango' : 'Range') : p}</button>
       ))}
     </div>
   )
@@ -923,7 +921,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           </span>
           {benchmarkReturnSeries && (
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-0.5 bg-amber-500 rounded-full inline-block opacity-70" style={{ borderBottom: '1px dashed' }} />
+              <span className="w-3 h-0.5 rounded-full inline-block" style={{ backgroundColor: 'rgba(245,158,11,0.7)', borderBottom: '1px dashed' }} />
               {benchmarkName || 'S&P 500'}
             </span>
           )}

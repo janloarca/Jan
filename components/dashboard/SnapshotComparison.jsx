@@ -103,9 +103,11 @@ export default function SnapshotComparison({ snapshots, items, lang }) {
         <div className="flex gap-0.5 bg-[#000000] rounded p-0.5">
           {['1W', '1M', '3M', '6M', '1Y', 'YTD', 'ALL'].map((p) => (
             <button key={p} onClick={() => setSelectedPeriod(p)}
-              className={`px-1.5 py-0.5 text-[10px] font-medium rounded transition-all ${
-                selectedPeriod === p ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-400'
-              }`}>
+              className="px-1.5 py-0.5 text-[10px] font-medium rounded transition-all"
+              style={selectedPeriod === p
+                ? { backgroundColor: '#475569', color: '#ffffff' }
+                : { color: '#64748b' }
+              }>
               {p}
             </button>
           ))}
@@ -121,10 +123,10 @@ export default function SnapshotComparison({ snapshots, items, lang }) {
             </div>
             <div className="bg-[#000000] rounded-lg p-3 border border-[#38383A]/50 text-center">
               <div className="text-[10px] text-slate-500 mb-1">{t('Cambio', 'Change')}</div>
-              <div className={`text-sm font-bold ${comparison.change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              <div className="text-sm font-bold" style={{ color: comparison.change >= 0 ? '#34d399' : '#f87171' }}>
                 {comparison.change >= 0 ? '+' : ''}{comparison.changePct.toFixed(2)}%
               </div>
-              <div className={`text-[10px] ${comparison.change >= 0 ? 'text-emerald-500/70' : 'text-red-500/70'}`}>
+              <div className="text-[10px]" style={{ color: comparison.change >= 0 ? 'rgba(16,185,129,0.7)' : 'rgba(239,68,68,0.7)' }}>
                 {comparison.change >= 0 ? '+' : ''}{formatCurrency(comparison.change)}
               </div>
             </div>
@@ -137,7 +139,7 @@ export default function SnapshotComparison({ snapshots, items, lang }) {
           {comparison.annualized != null && (
             <div className="flex items-center justify-between text-xs mb-3 px-1">
               <span className="text-slate-500">{comparison.daysBetween}d · {t('Anualizado', 'Annualized')}</span>
-              <span className={`font-medium ${comparison.annualized >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              <span className="font-medium" style={{ color: comparison.annualized >= 0 ? '#34d399' : '#f87171' }}>
                 {comparison.annualized >= 0 ? '+' : ''}{comparison.annualized.toFixed(2)}%
               </span>
             </div>

@@ -62,14 +62,14 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <span className="text-xl">₿</span> Blockchain.com Sync
           </h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
+          <button onClick={onClose} className="hover:text-white text-xl leading-none" style={{ color: '#94a3b8' }}>&times;</button>
         </div>
 
         {step === 'config' && (
           <div className="p-6 space-y-4">
-            <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
-              <p className="text-xs text-blue-400 font-medium mb-1">{t('Cómo obtener tu API key:', 'How to get your API key:')}</p>
-              <ol className="text-[11px] text-blue-300/80 space-y-0.5 list-decimal list-inside">
+            <div className="border rounded-lg p-3" style={{ backgroundColor: 'rgba(59,130,246,0.1)', borderColor: 'rgba(59,130,246,0.2)' }}>
+              <p className="text-xs font-medium mb-1" style={{ color: '#60a5fa' }}>{t('Cómo obtener tu API key:', 'How to get your API key:')}</p>
+              <ol className="text-[11px] space-y-0.5 list-decimal list-inside" style={{ color: 'rgba(147,197,253,0.8)' }}>
                 <li>{t('Ve a Blockchain.com Exchange', 'Go to Blockchain.com Exchange')}</li>
                 <li>{t('Settings → API Management', 'Settings → API Management')}</li>
                 <li>{t('Crea una nueva API Key (solo lectura)', 'Create a new API Key (read-only)')}</li>
@@ -85,13 +85,14 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
             </div>
 
             {error && (
-              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400 whitespace-pre-wrap">
+              <div className="p-3 border rounded-lg text-xs whitespace-pre-wrap" style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.2)', color: '#f87171' }}>
                 {error}
               </div>
             )}
 
             <button onClick={handleSync} disabled={syncing || !apiKey.trim()}
-              className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium flex items-center justify-center gap-2">
+              className="w-full py-2.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors text-sm font-medium flex items-center justify-center gap-2"
+              style={{ backgroundColor: '#2563eb', color: '#ffffff' }}>
               {syncing ? (
                 <>
                   <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
@@ -104,9 +105,9 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
 
         {step === 'preview' && preview && (
           <div className="p-6 space-y-4">
-            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3">
-              <p className="text-sm text-emerald-400 font-medium">{t('Sincronización exitosa', 'Sync successful')}</p>
-              <p className="text-xs text-emerald-300/70 mt-1">
+            <div className="border rounded-lg p-3" style={{ backgroundColor: 'rgba(16,185,129,0.1)', borderColor: 'rgba(16,185,129,0.2)' }}>
+              <p className="text-sm font-medium" style={{ color: '#34d399' }}>{t('Sincronización exitosa', 'Sync successful')}</p>
+              <p className="text-xs mt-1" style={{ color: 'rgba(110,231,183,0.7)' }}>
                 {preview.items.length} {t('posiciones', 'positions')} · {preview.transactions.length} {t('transacciones', 'transactions')}
               </p>
             </div>
@@ -136,12 +137,14 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
               <p className="text-xs text-slate-400 font-medium mb-2">{t('Modo de importación:', 'Import mode:')}</p>
               <div className="flex gap-2">
                 <button onClick={() => setSyncMode('merge')}
-                  className={`flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors ${syncMode === 'merge' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-[#000000] text-slate-400 border border-[#38383A]'}`}>
+                  className="flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors border"
+                  style={syncMode === 'merge' ? { backgroundColor: 'rgba(59,130,246,0.2)', color: '#60a5fa', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: '#000000', color: '#94a3b8', borderColor: '#38383A' }}>
                   {t('Fusionar', 'Merge')}
                   <span className="block text-[10px] mt-0.5 opacity-60">{t('Actualiza existentes, agrega nuevos', 'Update existing, add new')}</span>
                 </button>
                 <button onClick={() => setSyncMode('replace')}
-                  className={`flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors ${syncMode === 'replace' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' : 'bg-[#000000] text-slate-400 border border-[#38383A]'}`}>
+                  className="flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors border"
+                  style={syncMode === 'replace' ? { backgroundColor: 'rgba(245,158,11,0.2)', color: '#fbbf24', borderColor: 'rgba(245,158,11,0.4)' } : { backgroundColor: '#000000', color: '#94a3b8', borderColor: '#38383A' }}>
                   {t('Reemplazar', 'Replace')}
                   <span className="block text-[10px] mt-0.5 opacity-60">{t('Borra todo de Blockchain.com', 'Delete all from Blockchain.com')}</span>
                 </button>
@@ -154,7 +157,8 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
                 {t('Atrás', 'Back')}
               </button>
               <button onClick={handleConfirm}
-                className="flex-1 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition-colors text-sm font-medium">
+                className="flex-1 py-2.5 rounded-lg hover:opacity-90 transition-colors text-sm font-medium"
+                style={{ backgroundColor: '#059669', color: '#ffffff' }}>
                 {t('Importar', 'Import')} ({preview.items.length})
               </button>
             </div>

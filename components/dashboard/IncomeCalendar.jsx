@@ -66,7 +66,7 @@ export default function IncomeCalendar({ items, lang }) {
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#60a5fa' }} />
           {t('CALENDARIO DE INGRESOS', 'INCOME CALENDAR')}
         </h3>
-        <span className="text-xs text-emerald-400 font-medium">{formatCurrency(annualTotal)}/yr</span>
+        <span className="text-xs font-medium" style={{ color: '#34d399' }}>{formatCurrency(annualTotal)}/yr</span>
       </div>
 
       {/* Monthly grid */}
@@ -78,26 +78,29 @@ export default function IncomeCalendar({ items, lang }) {
           const barH = maxMonthly > 0 ? Math.max(4, (m.total / maxMonthly) * 32) : 0
 
           const intensity = maxMonthly > 0 ? m.total / maxMonthly : 0
-          const barColor = m.total <= 0 ? 'bg-slate-700/30'
-            : intensity > 0.75 ? 'bg-emerald-400'
-            : intensity > 0.5  ? 'bg-emerald-500'
-            : intensity > 0.25 ? 'bg-emerald-600'
-            : 'bg-emerald-700'
+          const barHex = m.total <= 0 ? 'rgba(51,65,85,0.3)'
+            : intensity > 0.75 ? '#34d399'
+            : intensity > 0.5  ? '#10b981'
+            : intensity > 0.25 ? '#059669'
+            : '#047857'
 
           return (
-            <div key={i} className={`text-center p-1.5 rounded-lg transition-colors ${
-              isCurrent ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-[#000000] border border-[#38383A]/20'
-            }`}>
+            <div key={i} className="text-center p-1.5 rounded-lg transition-colors"
+              style={isCurrent
+                ? { backgroundColor: 'rgba(16,185,129,0.1)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(16,185,129,0.2)' }
+                : { backgroundColor: '#000000', borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(56,56,58,0.2)' }
+              }>
               <div className="text-xs text-slate-500 mb-1">{monthNames[i]}</div>
               <div className="flex justify-center items-end h-8 mb-1">
                 {m.total > 0 ? (
-                  <div className={`w-3 rounded-t transition-all ${isPast ? barColor + '/60' : barColor}`}
-                    style={{ height: `${barH}px` }} />
+                  <div className="w-3 rounded-t transition-all"
+                    style={{ height: `${barH}px`, backgroundColor: barHex, opacity: isPast ? 0.6 : 1 }} />
                 ) : (
-                  <div className="w-3 h-1 bg-slate-700/30 rounded" />
+                  <div className="w-3 h-1 rounded" style={{ backgroundColor: 'rgba(51,65,85,0.3)' }} />
                 )}
               </div>
-              <div className={`text-xs font-medium ${m.total > 0 ? (isPast ? 'text-slate-500' : 'text-emerald-400') : 'text-slate-700'}`}>
+              <div className="text-xs font-medium"
+                style={{ color: m.total > 0 ? (isPast ? '#64748b' : '#34d399') : '#334155' }}>
                 {m.total > 0 ? formatCurrency(m.total) : '-'}
               </div>
             </div>
@@ -122,7 +125,7 @@ export default function IncomeCalendar({ items, lang }) {
                 {m.items.map((item, j) => (
                   <div key={j} className="flex items-center justify-between text-xs py-0.5">
                     <span className="text-slate-500 truncate">{item.name}</span>
-                    <span className="text-emerald-400 font-medium shrink-0 ml-2">{formatCurrency(item.amount)}</span>
+                    <span className="font-medium shrink-0 ml-2" style={{ color: '#34d399' }}>{formatCurrency(item.amount)}</span>
                   </div>
                 ))}
               </div>

@@ -77,11 +77,17 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
             <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none">&times;</button>
           </div>
           <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-            <div className="h-full bg-blue-500 rounded-full transition-all duration-300"
+            <div className="h-full rounded-full transition-all duration-300" style={{ backgroundColor: '#3b82f6' }}
               style={{ width: `${((index + 1) / totalCount) * 100}%` }} />
           </div>
 
-          <div className={`mt-2 flex items-center justify-between px-2 py-1.5 rounded-lg text-xs ${dataQuality.pct === 100 ? 'bg-emerald-50 text-emerald-600' : dataQuality.pct >= 60 ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'}`}>
+          <div className="mt-2 flex items-center justify-between px-2 py-1.5 rounded-lg text-xs"
+            style={dataQuality.pct === 100
+              ? { backgroundColor: '#ecfdf5', color: '#059669' }
+              : dataQuality.pct >= 60
+                ? { backgroundColor: '#fffbeb', color: '#d97706' }
+                : { backgroundColor: '#fef2f2', color: '#dc2626' }
+            }>
             <span>{dataQuality.complete}/{dataQuality.total} {t('completos', 'complete')}</span>
             <span className="font-semibold">{dataQuality.pct}% {t('calidad', 'quality')}</span>
           </div>
@@ -95,11 +101,11 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{catLabel}</span>
                 {item.institution && <span className="text-xs text-slate-400">{item.institution}</span>}
-                {reviewed[item.id] && <span className="text-xs text-emerald-500">&#10003;</span>}
+                {reviewed[item.id] && <span className="text-xs" style={{ color: '#10b981' }}>&#10003;</span>}
               </div>
             </div>
             <div className="text-right">
-              <p className={`text-2xl font-black font-mono tabular-nums ${val < 0 ? 'text-red-600' : 'text-slate-900'}`}>
+              <p className="text-2xl font-black font-mono tabular-nums" style={{ color: val < 0 ? '#dc2626' : '#0f172a' }}>
                 {formatCurrency(val)}
               </p>
               <p className="text-xs text-slate-400">{item.currency || 'USD'}</p>
@@ -143,7 +149,7 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-xs text-slate-400">{t('Retorno total', 'Total return')}</p>
-                        <p className={`text-lg font-bold ${totalReturn >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        <p className="text-lg font-bold" style={{ color: totalReturn >= 0 ? '#059669' : '#dc2626' }}>
                           {totalReturn >= 0 ? '+' : ''}{formatCurrency(totalReturn)} ({totalReturnPct >= 0 ? '+' : ''}{totalReturnPct.toFixed(1)}%)
                         </p>
                       </div>
@@ -152,19 +158,19 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
                       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-slate-500">
                         <span>{t('Precio', 'Price')}: {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}</span>
                         {dividendsReceived > 0 && (
-                          <span className="text-emerald-500" title={
+                          <span style={{ color: '#10b981' }} title={
                             (transactions || [])
                               .filter(tx => (tx.type || '').toUpperCase() === 'DIVIDEND' && (tx.symbol || '').toUpperCase() === sym)
                               .map(tx => `${tx.date}: $${(tx.totalAmount || tx.amount || 0).toFixed(2)}`)
                               .join('\n')
                           }>
                             {t('Dividendos', 'Dividends')}: +{formatCurrency(dividendsReceived)}
-                            <span className="text-emerald-400 ml-1">
+                            <span className="ml-1" style={{ color: '#34d399' }}>
                               ({(transactions || []).filter(tx => (tx.type || '').toUpperCase() === 'DIVIDEND' && (tx.symbol || '').toUpperCase() === sym).length}x)
                             </span>
                           </span>
                         )}
-                        {totalFees > 0 && <span className="text-red-400">{t('Costos', 'Fees')}: -{formatCurrency(totalFees)}</span>}
+                        {totalFees > 0 && <span style={{ color: '#f87171' }}>{t('Costos', 'Fees')}: -{formatCurrency(totalFees)}</span>}
                       </div>
                     )}
                   </div>
@@ -175,9 +181,9 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
 
           {/* Missing fields warning */}
           {missingFields.length > 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
-              <p className="text-xs text-amber-700 font-medium">{t('Datos faltantes:', 'Missing data:')}</p>
-              <p className="text-xs text-amber-600 mt-0.5">{missingFields.join(', ')}</p>
+            <div className="rounded-lg p-3 mb-4" style={{ backgroundColor: '#fffbeb', borderWidth: '1px', borderStyle: 'solid', borderColor: '#fde68a' }}>
+              <p className="text-xs font-medium" style={{ color: '#b45309' }}>{t('Datos faltantes:', 'Missing data:')}</p>
+              <p className="text-xs mt-0.5" style={{ color: '#d97706' }}>{missingFields.join(', ')}</p>
             </div>
           )}
 
@@ -197,11 +203,13 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
             &#8592;
           </button>
           <button onClick={handleEdit}
-            className="flex-1 px-4 py-2.5 text-sm font-medium text-blue-600 border border-blue-200 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
+            className="flex-1 px-4 py-2.5 text-sm font-medium rounded-lg hover:opacity-90 transition-colors"
+            style={{ color: '#2563eb', borderWidth: '1px', borderStyle: 'solid', borderColor: '#bfdbfe', backgroundColor: '#eff6ff' }}>
             {t('Editar', 'Edit')}
           </button>
           <button onClick={markReviewed}
-            className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-500 transition-colors">
+            className="flex-1 px-4 py-2.5 text-sm font-medium rounded-lg hover:opacity-90 transition-colors"
+            style={{ color: '#ffffff', backgroundColor: '#059669' }}>
             {index < sorted.length - 1 ? t('OK, siguiente', 'OK, next') : t('Listo', 'Done')} &#8594;
           </button>
           {index === sorted.length - 1 && reviewedCount >= totalCount - 1 && (

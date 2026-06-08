@@ -704,10 +704,8 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
               { key: 'manual', label: t('Manual', 'Manual'), icon: '✏️' },
             ].map((tab) => (
               <button key={tab.key} onClick={() => { setMode(tab.key); setError('') }}
-                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                  mode !== tab.key ? 'text-slate-400 hover:text-slate-300' : ''
-                }`}
-                style={mode === tab.key ? { color: '#34d399', borderBottom: '2px solid #34d399', backgroundColor: 'rgba(52,211,153,0.05)' } : undefined}>
+                className="flex-1 px-4 py-3 text-sm font-medium transition-colors"
+                style={mode === tab.key ? { color: '#34d399', borderBottom: '2px solid #34d399', backgroundColor: 'rgba(52,211,153,0.05)' } : { color: '#94a3b8' }}>
                 {tab.icon} {tab.label}
               </button>
             ))}
@@ -745,7 +743,8 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                   const { generateTemplate } = await import('@/lib/generateTemplate')
                   await generateTemplate()
                 }}
-                className="mt-4 w-full py-3 bg-cyan-600/20 border border-cyan-500/30 text-cyan-400 rounded-lg hover:bg-cyan-600/30 transition-colors text-sm font-medium flex items-center justify-center gap-2">
+                className="mt-4 w-full py-3 border rounded-lg transition-colors text-sm font-medium flex items-center justify-center gap-2"
+                style={{ backgroundColor: 'rgba(8,145,178,0.2)', borderColor: 'rgba(6,182,212,0.3)', color: '#22d3ee' }}>
                 <span>📥</span> {t('Descargar plantilla de ejemplo', 'Download example template')}
               </button>
               <p className="mt-2 text-xs text-slate-500 text-center">
@@ -817,7 +816,8 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                 </div>
               </div>
               <button onClick={doManualImport} disabled={importing}
-                className="mt-2 w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium">
+                className="mt-2 w-full py-2.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors text-sm font-medium"
+                style={{ backgroundColor: '#2563eb', color: '#ffffff' }}>
                 {importing ? t('Importando...', 'Importing...') : t('Agregar', 'Add')}
               </button>
             </div>
@@ -931,7 +931,8 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                   {t('Atrás', 'Back')}
                 </button>
                 <button onClick={doImport} disabled={importing}
-                  className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium">
+                  className="flex-1 py-2.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors text-sm font-medium"
+                  style={{ backgroundColor: '#2563eb', color: '#ffffff' }}>
                   {importing ? t('Importando...', 'Importing...') : t(`Importar ${preview.length}`, `Import ${preview.length}`)}
                 </button>
               </div>
@@ -1074,22 +1075,18 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                 <p className="text-xs text-slate-400 mb-2">{t('Modo de importación:', 'Import mode:')}</p>
                 <div className="flex gap-2">
                   <button onClick={() => setIbkrImportMode('merge')}
-                    className={`flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-colors ${
-                      ibkrImportMode !== 'merge' ? 'border border-[#38383A] text-slate-400 hover:text-slate-300' : 'border'
-                    }`}
-                    style={ibkrImportMode === 'merge' ? { backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(59,130,246,0.4)', color: '#60a5fa' } : undefined}>
+                    className="flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-colors border"
+                    style={ibkrImportMode === 'merge' ? { backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(59,130,246,0.4)', color: '#60a5fa' } : { borderColor: '#38383A', color: '#94a3b8' }}>
                     {t('Agregar junto a existentes', 'Add alongside existing')}
                   </button>
                   <button onClick={() => setIbkrImportMode('replace')}
-                    className={`flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-colors ${
-                      ibkrImportMode !== 'replace' ? 'border border-[#38383A] text-slate-400 hover:text-slate-300' : 'border'
-                    }`}
-                    style={ibkrImportMode === 'replace' ? { backgroundColor: 'rgba(234,88,12,0.2)', borderColor: 'rgba(249,115,22,0.4)', color: '#fb923c' } : undefined}>
+                    className="flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-colors border"
+                    style={ibkrImportMode === 'replace' ? { backgroundColor: 'rgba(234,88,12,0.2)', borderColor: 'rgba(249,115,22,0.4)', color: '#fb923c' } : { borderColor: '#38383A', color: '#94a3b8' }}>
                     {t('Reemplazar posiciones IBKR', 'Replace IBKR positions')}
                   </button>
                 </div>
                 {ibkrImportMode === 'replace' && existingItems && (
-                  <p className="text-[11px] text-orange-400/70 mt-2">
+                  <p className="text-[11px] mt-2" style={{ color: 'rgba(251,146,60,0.7)' }}>
                     {(() => {
                       const ibkrCount = existingItems.filter(it => it.institution === 'Interactive Brokers' || it._source === 'ibkr').length
                       return ibkrCount > 0
@@ -1139,10 +1136,10 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                 {result.failed > 0 && <>, {result.failed} {t('fallidos', 'failed')}</>}
               </p>
               {result.replaced > 0 && (
-                <p className="text-orange-400 text-xs mt-1">{t(`${result.replaced} posiciones anteriores reemplazadas`, `${result.replaced} previous positions replaced`)}</p>
+                <p className="text-xs mt-1" style={{ color: '#fb923c' }}>{t(`${result.replaced} posiciones anteriores reemplazadas`, `${result.replaced} previous positions replaced`)}</p>
               )}
               {result.snapCount > 0 && (
-                <p className="text-cyan-400 text-xs mt-1">📊 {result.snapCount} {t('periodos de historial', 'history periods')}</p>
+                <p className="text-xs mt-1" style={{ color: '#22d3ee' }}>📊 {result.snapCount} {t('periodos de historial', 'history periods')}</p>
               )}
               {result.txCount > 0 && (
                 <p className="text-[#34d399] text-xs mt-1">💰 {result.txCount} {t('transacciones', 'transactions')}</p>

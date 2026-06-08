@@ -151,10 +151,12 @@ export default function PortfolioMap({ items, lang }) {
         {views.map(v => (
           <button key={v.key} onClick={() => { setGroupBy(v.key); setSelected(null) }}
             className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
-              groupBy === v.key
-                ? 'bg-slate-600 text-white'
-                : 'text-slate-400 border border-slate-600/50 hover:bg-[#2C2C2E]'
-            }`}>
+              groupBy !== v.key ? 'border hover:bg-[#2C2C2E]' : ''
+            }`}
+            style={groupBy === v.key
+              ? { backgroundColor: '#475569', color: '#ffffff' }
+              : { color: '#94a3b8', borderColor: 'rgba(71,85,105,0.5)' }
+            }>
             {v.label}
           </button>
         ))}
@@ -211,12 +213,11 @@ export default function PortfolioMap({ items, lang }) {
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-3">
         {groups.map(g => (
           <button key={g.name} onClick={() => setSelected(selected === g.name ? null : g.name)}
-            className={`flex items-center gap-1.5 text-xs transition-colors ${
-              selected === g.name ? 'text-white' : 'text-slate-500 hover:text-slate-300'
-            }`}>
+            className="flex items-center gap-1.5 text-xs transition-colors"
+            style={{ color: selected === g.name ? '#ffffff' : '#64748b' }}>
             <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: g.color }} />
             <span className="truncate max-w-[100px]">{g.name}</span>
-            <span className="text-slate-600">{g.pct.toFixed(0)}%</span>
+            <span style={{ color: '#475569' }}>{g.pct.toFixed(0)}%</span>
           </button>
         ))}
       </div>
@@ -260,7 +261,7 @@ export default function PortfolioMap({ items, lang }) {
                   <div className="text-right shrink-0">
                     <p className="text-xs font-medium text-white">{formatCurrency(val)}</p>
                     {retPct != null && (
-                      <p className={`text-[10px] ${retPct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      <p className="text-[10px]" style={{ color: retPct >= 0 ? '#34d399' : '#f87171' }}>
                         {retPct >= 0 ? '+' : ''}{retPct.toFixed(1)}%
                       </p>
                     )}

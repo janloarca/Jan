@@ -75,14 +75,14 @@ export default function DocumentVault({ uid, itemId, lang }) {
           <span>📁</span> {t('Documentos', 'Documents')}
           {docs.length > 0 && <span className="text-slate-600">({docs.length})</span>}
         </h4>
-        <label className="px-3 py-1.5 text-xs font-medium bg-blue-600/20 text-blue-400 rounded-lg hover:bg-blue-600/30 transition-colors cursor-pointer">
+        <label className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer" style={{ backgroundColor: 'rgba(37,99,235,0.2)', color: '#60a5fa' }}>
           {uploading ? '...' : `+ ${t('Subir', 'Upload')}`}
           <input ref={fileRef} type="file" className="hidden" onChange={handleUpload} disabled={uploading}
             accept=".pdf,.jpg,.jpeg,.png,.webp,.xlsx,.xls,.csv" />
         </label>
       </div>
 
-      {error && <p className="text-xs text-red-400 mb-2">{error}</p>}
+      {error && <p className="text-xs mb-2" style={{ color: '#f87171' }}>{error}</p>}
 
       {loading ? (
         <div className="text-xs text-slate-600 animate-pulse">{t('Cargando...', 'Loading...')}</div>
@@ -102,10 +102,12 @@ export default function DocumentVault({ uid, itemId, lang }) {
               <span className="text-xs text-slate-600 shrink-0">{formatSize(doc.size)}</span>
               <button onClick={() => handleDelete(doc)}
                 className={`text-xs shrink-0 px-2 py-0.5 rounded transition-colors ${
-                  confirmDelete === doc.id
-                    ? 'bg-red-600 text-white'
-                    : 'text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100'
-                }`}>
+                  confirmDelete !== doc.id ? 'opacity-0 group-hover:opacity-100' : ''
+                }`}
+                style={confirmDelete === doc.id
+                  ? { backgroundColor: '#dc2626', color: '#ffffff' }
+                  : { color: '#475569' }
+                }>
                 {confirmDelete === doc.id ? t('Confirmar', 'Confirm') : '×'}
               </button>
             </div>

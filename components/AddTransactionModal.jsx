@@ -50,11 +50,11 @@ export default function AddTransactionModal({ onClose, onAdd, lang = 'es' }) {
   const set = (k, v) => setForm({ ...form, [k]: v })
 
   const typeOptions = [
-    { value: 'BUY', label: t('Compra', 'Buy'), color: 'text-emerald-400' },
-    { value: 'SELL', label: t('Venta', 'Sell'), color: 'text-red-400' },
-    { value: 'DIVIDEND', label: t('Dividendo', 'Dividend'), color: 'text-emerald-300' },
-    { value: 'DEPOSIT', label: t('Depósito', 'Deposit'), color: 'text-blue-400' },
-    { value: 'WITHDRAWAL', label: t('Retiro', 'Withdrawal'), color: 'text-amber-400' },
+    { value: 'BUY', label: t('Compra', 'Buy'), color: '#34d399' },
+    { value: 'SELL', label: t('Venta', 'Sell'), color: '#f87171' },
+    { value: 'DIVIDEND', label: t('Dividendo', 'Dividend'), color: '#6ee7b7' },
+    { value: 'DEPOSIT', label: t('Depósito', 'Deposit'), color: '#60a5fa' },
+    { value: 'WITHDRAWAL', label: t('Retiro', 'Withdrawal'), color: '#fbbf24' },
   ]
 
   return (
@@ -73,11 +73,11 @@ export default function AddTransactionModal({ onClose, onAdd, lang = 'es' }) {
             <div className="flex flex-wrap gap-2">
               {typeOptions.map((opt) => (
                 <button key={opt.value} type="button" onClick={() => set('type', opt.value)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                    form.type === opt.value
-                      ? `bg-blue-500/20 ${opt.color} border border-blue-500/30`
-                      : 'text-slate-400 border border-[#38383A] hover:bg-[#2C2C2E]'
-                  }`}>
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors border"
+                  style={form.type === opt.value
+                    ? { backgroundColor: 'rgba(59,130,246,0.2)', color: opt.color, borderColor: 'rgba(59,130,246,0.3)' }
+                    : { color: '#94a3b8', borderColor: '#38383A' }
+                  }>
                   {opt.label}
                 </button>
               ))}

@@ -25,7 +25,7 @@ export default function BenchmarkComparison({ benchmarkReturn, portfolioReturn, 
           <span className="text-xs text-slate-600">{name}</span>
         </div>
         <div className="text-center py-2">
-          <span className={`text-base font-bold ${benchmarkReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+          <span className="text-base font-bold" style={{ color: benchmarkReturn >= 0 ? '#34d399' : '#f87171' }}>
             {benchmarkReturn >= 0 ? '+' : ''}{benchmarkReturn.toFixed(2)}%
           </span>
           <p className="text-xs text-slate-500 mt-2">
@@ -48,21 +48,23 @@ export default function BenchmarkComparison({ benchmarkReturn, portfolioReturn, 
       <div className="grid grid-cols-2 gap-3 mb-2">
         <div>
           <span className="text-xs text-slate-500 block">{t('Tu portafolio', 'Your portfolio')}</span>
-          <span className={`text-base font-bold ${displayPR >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+          <span className="text-base font-bold" style={{ color: displayPR >= 0 ? '#34d399' : '#f87171' }}>
             {displayPR >= 0 ? '+' : ''}{displayPR.toFixed(2)}%
           </span>
         </div>
         <div className="text-right">
           <span className="text-xs text-slate-500 block">{name}</span>
-          <span className={`text-base font-bold ${benchmarkReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+          <span className="text-base font-bold" style={{ color: benchmarkReturn >= 0 ? '#34d399' : '#f87171' }}>
             {benchmarkReturn >= 0 ? '+' : ''}{benchmarkReturn.toFixed(2)}%
           </span>
         </div>
       </div>
 
-      <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium ${
-        isOut ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
-      }`}>
+      <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium"
+        style={isOut
+          ? { backgroundColor: 'rgba(16,185,129,0.1)', color: '#34d399' }
+          : { backgroundColor: 'rgba(239,68,68,0.1)', color: '#f87171' }
+        }>
         <span>{isOut ? '▲' : '▼'}</span>
         <span>
           {isOut

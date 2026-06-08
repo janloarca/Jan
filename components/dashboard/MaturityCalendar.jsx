@@ -72,10 +72,10 @@ export default function MaturityCalendar({ items, lang }) {
   const totalMaturingValue = maturities.reduce((s, e) => s + e.value, 0)
   const totalUpcomingPayments = payments.reduce((s, e) => s + e.value, 0)
 
-  function getDayColor(days) {
-    if (days <= 90) return 'text-red-400 bg-red-500/10 border-red-500/20'
-    if (days <= 365) return 'text-amber-400 bg-amber-500/10 border-amber-500/20'
-    return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+  function getDayStyle(days) {
+    if (days <= 90) return { color: '#f87171', backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.2)' }
+    if (days <= 365) return { color: '#fbbf24', backgroundColor: 'rgba(245,158,11,0.1)', borderColor: 'rgba(245,158,11,0.2)' }
+    return { color: '#34d399', backgroundColor: 'rgba(16,185,129,0.1)', borderColor: 'rgba(16,185,129,0.2)' }
   }
 
   function formatDays(days) {
@@ -87,7 +87,7 @@ export default function MaturityCalendar({ items, lang }) {
   return (
     <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 p-4">
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-3">
-        <span className="w-2 h-2 rounded-full bg-amber-400" />
+        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#fbbf24' }} />
         {t('CALENDARIO', 'CALENDAR')}
       </h3>
 
@@ -95,14 +95,14 @@ export default function MaturityCalendar({ items, lang }) {
         {maturities.length > 0 && (
           <div>
             <span className="text-xs text-slate-500 block">{t('Vencimientos', 'Maturities')}</span>
-            <span className="text-sm font-bold text-amber-400">{formatCurrency(totalMaturingValue)}</span>
+            <span className="text-sm font-bold" style={{ color: '#fbbf24' }}>{formatCurrency(totalMaturingValue)}</span>
             <span className="text-xs text-slate-600 block">{maturities.length} {t('instrumento(s)', 'instrument(s)')}</span>
           </div>
         )}
         {payments.length > 0 && (
           <div className={maturities.length > 0 ? 'text-right' : ''}>
             <span className="text-xs text-slate-500 block">{t('Pagos próximos', 'Upcoming payments')}</span>
-            <span className="text-sm font-bold text-emerald-400">{formatCurrency(totalUpcomingPayments)}</span>
+            <span className="text-sm font-bold" style={{ color: '#34d399' }}>{formatCurrency(totalUpcomingPayments)}</span>
             <span className="text-xs text-slate-600 block">{payments.length} {t('pago(s)', 'payment(s)')}</span>
           </div>
         )}
@@ -111,7 +111,8 @@ export default function MaturityCalendar({ items, lang }) {
       <div className="space-y-1.5">
         {events.slice(0, 8).map((ev, i) => (
           <div key={i} className="flex items-center gap-2 p-2 bg-[#000000] rounded-lg border border-[#38383A]/30">
-            <span className={`text-xs font-bold px-1.5 py-0.5 rounded border shrink-0 ${getDayColor(ev.days)}`}>
+            <span className="text-xs font-bold px-1.5 py-0.5 rounded border shrink-0"
+              style={getDayStyle(ev.days)}>
               {formatDays(ev.days)}
             </span>
             <div className="flex-1 min-w-0">
@@ -119,7 +120,7 @@ export default function MaturityCalendar({ items, lang }) {
               <span className="text-xs text-slate-500">{ev.date}</span>
             </div>
             <div className="text-right shrink-0">
-              <span className={`text-xs font-medium ${ev.type === 'maturity' ? 'text-amber-400' : 'text-emerald-400'}`}>
+              <span className="text-xs font-medium" style={{ color: ev.type === 'maturity' ? '#fbbf24' : '#34d399' }}>
                 {formatCurrency(ev.value)}
               </span>
               <span className="text-xs text-slate-600 block">

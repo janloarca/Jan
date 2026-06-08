@@ -130,13 +130,13 @@ export default function OnboardingTour({ lang, onAction, onComplete }) {
       <div className="bg-[#1C1C1E] border border-[#38383A] rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
         <div className="p-8 text-center">
           <div className="flex justify-center mb-4">
-            {(() => { const IconComp = ICON_MAP[current.icon]; return IconComp ? <IconComp size={40} className="text-blue-400" /> : null })()}
+            {(() => { const IconComp = ICON_MAP[current.icon]; return IconComp ? <IconComp size={40} style={{ color: '#60a5fa' }} /> : null })()}
           </div>
           <h2 className="text-xl font-bold text-white mb-3">{current.title}</h2>
           <p className="text-slate-400 text-sm leading-relaxed mb-4">{current.body}</p>
           {current.tip && (
-            <div className="inline-block px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-              <p className="text-xs text-blue-400">{current.tip}</p>
+            <div className="inline-block px-3 py-1.5 rounded-lg" style={{ backgroundColor: 'rgba(59,130,246,0.1)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(59,130,246,0.2)' }}>
+              <p className="text-xs" style={{ color: '#60a5fa' }}>{current.tip}</p>
             </div>
           )}
         </div>
@@ -145,7 +145,11 @@ export default function OnboardingTour({ lang, onAction, onComplete }) {
         <div className="flex justify-center gap-1.5 pb-4">
           {steps.map((_, i) => (
             <button key={i} onClick={() => setStep(i)}
-              className={`w-2 h-2 rounded-full transition-all ${i === step ? 'bg-blue-400 w-6' : i < step ? 'bg-blue-400/40' : 'bg-slate-600'}`} />
+              className="h-2 rounded-full transition-all"
+              style={{
+                width: i === step ? '1.5rem' : '0.5rem',
+                backgroundColor: i === step ? '#60a5fa' : i < step ? 'rgba(96,165,250,0.4)' : '#475569'
+              }} />
           ))}
         </div>
 
@@ -157,12 +161,14 @@ export default function OnboardingTour({ lang, onAction, onComplete }) {
           </button>
           {current.action && (
             <button onClick={handleAction}
-              className="flex-1 px-4 py-3.5 text-sm text-cyan-400 hover:text-cyan-300 font-medium transition-colors border-l border-[#38383A]">
+              className="flex-1 px-4 py-3.5 text-sm font-medium transition-colors border-l border-[#38383A] hover:opacity-80"
+              style={{ color: '#22d3ee' }}>
               {current.action === 'add' ? t('Agregar ahora', 'Add now') : t('Ir a ajustes', 'Go to settings')}
             </button>
           )}
           <button onClick={handleNext}
-            className="flex-1 px-4 py-3.5 text-sm text-blue-400 hover:text-blue-300 font-medium transition-colors border-l border-[#38383A]">
+            className="flex-1 px-4 py-3.5 text-sm font-medium transition-colors border-l border-[#38383A] hover:opacity-80"
+            style={{ color: '#60a5fa' }}>
             {step < steps.length - 1 ? t('Siguiente', 'Next') : t('Empezar', 'Start')}
           </button>
         </div>

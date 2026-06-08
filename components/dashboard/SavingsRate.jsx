@@ -105,11 +105,11 @@ export default function SavingsRate({ goals, transactions, netWorth, snapshots, 
             </div>
             <div className="flex justify-between text-xs">
               <span className="text-slate-500">{t('Ahorro/inversión', 'Savings/investment')}</span>
-              <span className="text-emerald-400 font-medium">{formatCurrency(rates.monthlySavings)}</span>
+              <span className="font-medium" style={{ color: '#34d399' }}>{formatCurrency(rates.monthlySavings)}</span>
             </div>
             <div className="flex justify-between text-xs">
               <span className="text-slate-500">{t('Gastos', 'Expenses')}</span>
-              <span className="text-red-400 font-medium">{formatCurrency(rates.monthlyExpenses)}</span>
+              <span className="font-medium" style={{ color: '#f87171' }}>{formatCurrency(rates.monthlyExpenses)}</span>
             </div>
           </div>
         </div>
@@ -120,13 +120,13 @@ export default function SavingsRate({ goals, transactions, netWorth, snapshots, 
           <div className="text-xs text-slate-500 mb-2">{t('Crecimiento del portafolio', 'Portfolio growth breakdown')}</div>
           <div className="grid grid-cols-2 gap-3">
             <div className="text-center">
-              <div className={`text-sm font-bold ${growthFromSavings.fromFlows >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
+              <div className="text-sm font-bold" style={{ color: growthFromSavings.fromFlows >= 0 ? '#60a5fa' : '#f87171' }}>
                 {formatCurrency(growthFromSavings.fromFlows)}
               </div>
               <div className="text-[10px] text-slate-500">{t('De aportes netos', 'From net deposits')}</div>
             </div>
             <div className="text-center">
-              <div className={`text-sm font-bold ${growthFromSavings.fromInvestment >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              <div className="text-sm font-bold" style={{ color: growthFromSavings.fromInvestment >= 0 ? '#34d399' : '#f87171' }}>
                 {formatCurrency(growthFromSavings.fromInvestment)}
               </div>
               <div className="text-[10px] text-slate-500">{t('De inversiones', 'From investments')}</div>

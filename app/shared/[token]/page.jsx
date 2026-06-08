@@ -106,7 +106,7 @@ function SharedDashboard({ items, snapshots, baseCurrency }) {
       <header className="border-b border-[#38383A] bg-[#1C1C1E]/80 backdrop-blur-sm">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-emerald-400 font-bold text-lg">Chispudo</span>
+            <span className="font-bold text-lg" style={{ color: '#34d399' }}>Chispudo</span>
             <span className="text-xs text-slate-500 bg-slate-800 px-2 py-0.5 rounded">Read-only</span>
           </div>
           <div className="flex items-center gap-2">
@@ -143,18 +143,18 @@ function SharedDashboard({ items, snapshots, baseCurrency }) {
           <div className="flex gap-6 mt-3 text-sm">
             <div>
               <span className="text-slate-500">Assets: </span>
-              <span className="text-emerald-400 font-medium">{formatCurrency(totalAssets)}</span>
+              <span className="font-medium" style={{ color: '#34d399' }}>{formatCurrency(totalAssets)}</span>
             </div>
             {totalDebts > 0 && (
               <div>
                 <span className="text-slate-500">Debts: </span>
-                <span className="text-red-400 font-medium">-{formatCurrency(totalDebts)}</span>
+                <span className="font-medium" style={{ color: '#f87171' }}>-{formatCurrency(totalDebts)}</span>
               </div>
             )}
             {growthPct != null && (
               <div>
                 <span className="text-slate-500">All-time: </span>
-                <span className={`font-medium ${growthPct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                <span className="font-medium" style={{ color: growthPct >= 0 ? '#34d399' : '#f87171' }}>
                   {growthPct >= 0 ? '+' : ''}{growthPct.toFixed(1)}%
                 </span>
               </div>
@@ -230,7 +230,7 @@ function SharedDashboard({ items, snapshots, baseCurrency }) {
         <IncomeMaturitySummary items={items} />
 
         <div className="text-center text-xs text-slate-600 pt-4">
-          Shared via <span className="text-emerald-400/60">Chispudo</span> · chispu.xyz
+          Shared via <span style={{ color: 'rgba(52,211,153,0.6)' }}>Chispudo</span> · chispu.xyz
         </div>
       </main>
     </div>
@@ -311,14 +311,14 @@ function IncomeMaturitySummary({ items }) {
       {incomeItems.length > 0 && (
         <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 p-5">
           <h3 className="text-sm font-medium text-slate-400 mb-3">Estimated Annual Income</h3>
-          <div className="text-2xl font-bold text-emerald-400 mb-3">{formatCurrency(totalEstIncome)}</div>
+          <div className="text-2xl font-bold mb-3" style={{ color: '#34d399' }}>{formatCurrency(totalEstIncome)}</div>
           <div className="space-y-1.5">
             {incomeItems.slice(0, 6).map((it) => {
               const rate = it.rateType === 'variable' ? `${it.rateMin}-${it.rateMax}%` : `${it.incomeRate || it.dividendYield}%`
               return (
                 <div key={it.id} className="flex items-center justify-between text-xs">
                   <span className="text-slate-300">{it.name || it.symbol}</span>
-                  <span className="text-emerald-400">{rate}</span>
+                  <span style={{ color: '#34d399' }}>{rate}</span>
                 </div>
               )
             })}
@@ -333,12 +333,12 @@ function IncomeMaturitySummary({ items }) {
             {maturingItems.slice(0, 6).map((it) => {
               const days = Math.ceil((new Date(it.maturityDate) - new Date()) / 86400000)
               const val = (it.quantity || 1) * getItemPrice(it)
-              const color = days <= 90 ? 'text-red-400' : days <= 365 ? 'text-amber-400' : 'text-emerald-400'
+              const color = days <= 90 ? '#f87171' : days <= 365 ? '#fbbf24' : '#34d399'
               return (
                 <div key={it.id} className="flex items-center justify-between text-xs">
                   <div>
                     <span className="text-slate-300">{it.name || it.symbol}</span>
-                    <span className={`ml-2 ${color}`}>
+                    <span className="ml-2" style={{ color }}>
                       {days <= 30 ? `${days}d` : days <= 365 ? `${Math.round(days / 30)}mo` : `${(days / 365).toFixed(1)}yr`}
                     </span>
                   </div>
@@ -384,7 +384,7 @@ function RiskOverview({ items, totalAssets, byCategory }) {
 
   if (!metrics) return null
 
-  const scoreColor = metrics.diversificationScore >= 70 ? 'text-emerald-400' : metrics.diversificationScore >= 40 ? 'text-amber-400' : 'text-red-400'
+  const scoreColor = metrics.diversificationScore >= 70 ? '#34d399' : metrics.diversificationScore >= 40 ? '#fbbf24' : '#f87171'
   const scoreLabel = metrics.diversificationScore >= 70 ? 'Good' : metrics.diversificationScore >= 40 ? 'Moderate' : 'Concentrated'
 
   return (
@@ -392,9 +392,9 @@ function RiskOverview({ items, totalAssets, byCategory }) {
       <h3 className="text-sm font-medium text-slate-400 mb-4">Risk Overview</h3>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="text-center">
-          <div className={`text-2xl font-bold ${scoreColor}`}>{metrics.diversificationScore}</div>
+          <div className="text-2xl font-bold" style={{ color: scoreColor }}>{metrics.diversificationScore}</div>
           <div className="text-xs text-slate-500">Diversification</div>
-          <div className={`text-xs ${scoreColor}`}>{scoreLabel}</div>
+          <div className="text-xs" style={{ color: scoreColor }}>{scoreLabel}</div>
         </div>
         <div className="text-center">
           <div className="text-2xl font-bold text-white">{metrics.positionCount}</div>

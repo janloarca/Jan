@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { formatCurrency, getBaseCurrency } from './utils'
 
 const QUICK_CURRENCIES = ['USD', 'EUR', 'GBP', 'MXN', 'GTQ', 'COP', 'BRL', 'CAD']
@@ -75,6 +75,16 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
   const baseCur = getBaseCurrency()
   const [tempCurrency, setTempCurrency] = useState(null)
   const [showPicker, setShowPicker] = useState(false)
+  const pickerRef = useRef(null)
+
+  useEffect(() => {
+    if (!showPicker) return
+    const handler = (e) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target)) setShowPicker(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showPicker])
 
   const displayCur = tempCurrency || baseCur
   const cv = (val) => tempCurrency && convert ? convert(val, baseCur, tempCurrency) : val
@@ -96,7 +106,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
                 : { backgroundColor: 'rgba(245,158,11,0.1)', color: '#fbbf24' }
               }>{milestone.text}</span>
           )}
-          <div className="relative">
+          <div className="relative" ref={pickerRef}>
             <button onClick={() => setShowPicker(!showPicker)}
               className="text-xs px-2 py-0.5 rounded text-slate-500 hover:bg-slate-700 hover:text-slate-300 transition-colors cursor-pointer border border-transparent hover:border-[#27272a]">
               {displayCur}
@@ -105,10 +115,8 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
               <div className="absolute right-0 top-full mt-1 bg-[#1C1C1E] border border-[#27272a] rounded-lg shadow-xl z-10 p-1 min-w-[80px]">
                 {QUICK_CURRENCIES.map((c) => (
                   <button key={c} onClick={() => { setTempCurrency(c === baseCur ? null : c); setShowPicker(false) }}
-                    className={`block w-full text-left px-3 py-1.5 text-xs rounded transition-colors ${
-                      displayCur !== c ? 'text-slate-400 hover:text-white hover:bg-[#2C2C2E]' : ''
-                    }`}
-                    style={displayCur === c ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.1)' } : undefined}>
+                    className="block w-full text-left px-3 py-1.5 text-xs rounded transition-colors"
+                    style={displayCur === c ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.1)' } : { color: '#94a3b8' }}>
                     {c}
                   </button>
                 ))}
