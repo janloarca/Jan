@@ -40,7 +40,9 @@ export function useExchangeRates(baseCurrency) {
 
   useEffect(() => {
     fetchRates()
-  }, [])
+    const interval = setInterval(fetchRates, 15 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [baseCurrency])
 
   const convert = useCallback((amount, fromCurrency, toCurrency) => {
     if (!amount || !ratesRef.current) return amount || 0

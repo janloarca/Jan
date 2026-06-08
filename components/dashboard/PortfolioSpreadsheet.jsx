@@ -746,20 +746,24 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
               })}
             </tr>
 
-            {monthlyReturn != null && (
+            {months.length >= 2 && (
               <tr className="bg-white border-t border-slate-100">
                 <td className="py-2 pl-8 pr-2 sticky left-0 bg-white z-10 text-slate-500 text-xs">
                   {t('Retorno Mensual', 'Monthly Return')}
                 </td>
                 <td />
                 {showOriginal && <td />}
-                {months.map(mk => {
+                {months.map((mk, i) => {
                   const isCurrent = mk === currentMonthKey
+                  const val = isCurrent ? grandTotal : (monthlyTotals[mk] || null)
+                  const prevMk = i > 0 ? months[i - 1] : null
+                  const prevVal = prevMk ? (prevMk === currentMonthKey ? grandTotal : (monthlyTotals[prevMk] || null)) : null
+                  const ret = val && prevVal && prevVal > 0 ? ((val - prevVal) / prevVal) * 100 : null
                   return (
                     <td key={mk} className="text-right py-2 px-2 text-sm tabular-nums font-mono" style={isCurrent ? { backgroundColor: '#eff6ff' } : undefined}>
-                      {isCurrent ? (
-                        <span className="font-semibold" style={{ color: monthlyReturn >= 0 ? '#059669' : '#dc2626' }}>
-                          {monthlyReturn >= 0 ? '+' : ''}{monthlyReturn.toFixed(1)}%
+                      {ret != null ? (
+                        <span className="font-semibold" style={{ color: ret >= 0 ? '#059669' : '#dc2626' }}>
+                          {ret >= 0 ? '+' : ''}{ret.toFixed(1)}%
                         </span>
                       ) : ''}
                     </td>

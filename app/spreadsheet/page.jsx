@@ -271,7 +271,10 @@ export default function SpreadsheetPage() {
       )}
 
       {editItem && (
-        <EditAccountModal key={editItem.id} item={editItem} onClose={() => setEditItem(null)}
+        <EditAccountModal key={editItem.id} item={(() => {
+            const { _originalPrice, _originalPurchasePrice, _originalCurrency, _displayCurrency, totalValue, percentOfPortfolio, change1d, change7d, change30d, pnlPercent, ...rawItem } = editItem
+            return rawItem
+          })()} onClose={() => setEditItem(null)}
           onSave={async (updated) => {
             const { id, ...fields } = updated
             await updateItem(editItem.id, fields)
@@ -300,7 +303,7 @@ export default function SpreadsheetPage() {
       )}
 
       <ChatWidget user={user} items={portfolioItems || enrichedItems} netWorth={netWorth}
-        returnYTD={returnYTD} baseCurrency="USD" lang={lang} onUpdateItem={updateItem} />
+        returnYTD={returnYTD} baseCurrency={baseCurrency} lang={lang} onUpdateItem={updateItem} />
     </div>
   )
 }

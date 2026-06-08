@@ -242,7 +242,7 @@ export default function DashboardPage() {
     addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     bulkImport,
     saveGoals, saveSettings, saveProfile,
-    enrichedItems, portfolioItems, entityTransactions, entityFinanceTransactions,
+    enrichedItems, portfolioItems: rawPortfolioItems, entityTransactions, entityFinanceTransactions,
     pricesLoading, pricesError, pricesUpdate,
     rates, convert,
     ratesLoading, ratesError,
@@ -291,9 +291,10 @@ export default function DashboardPage() {
   }, [])
 
   const enrichCacheRef = useRef({})
+  const [enrichData, setEnrichData] = useState({})
   useEffect(() => {
-    if (!portfolioItems || portfolioItems.length === 0) return
-    const needEnrich = portfolioItems
+    if (!rawPortfolioItems || rawPortfolioItems.length === 0) return
+    const needEnrich = rawPortfolioItems
       .filter(it => it.symbol && !it.sector && !it.assetCountry && !enrichCacheRef.current[it.symbol])
       .map(it => it.symbol)
     const unique = [...new Set(needEnrich)].slice(0, 30)
@@ -306,19 +307,29 @@ export default function DashboardPage() {
       body: JSON.stringify({ symbols: unique }),
     }).then(r => r.ok ? r.json() : null).then(data => {
       if (!data?.results) return
+      const newData = {}
       for (const [sym, info] of Object.entries(data.results)) {
         enrichCacheRef.current[sym] = info
+        if (info && typeof info === 'object') newData[sym] = info
       }
-      for (const item of portfolioItems) {
-        const info = enrichCacheRef.current[item.symbol]
-        if (info && typeof info === 'object') {
-          if (info.sector && !item.sector) item.sector = info.sector
-          if (info.country && !item.assetCountry) item.assetCountry = info.country
-          if (info.industry && !item.industry) item.industry = info.industry
-        }
+      if (Object.keys(newData).length > 0) {
+        setEnrichData(prev => ({ ...prev, ...newData }))
       }
     }).catch(() => {})
-  }, [portfolioItems])
+  }, [rawPortfolioItems])
+
+  const portfolioItems = useMemo(() => {
+    if (Object.keys(enrichData).length === 0) return rawPortfolioItems
+    return rawPortfolioItems.map(item => {
+      const info = enrichData[item.symbol]
+      if (!info) return item
+      const patches = {}
+      if (info.sector && !item.sector) patches.sector = info.sector
+      if (info.country && !item.assetCountry) patches.assetCountry = info.country
+      if (info.industry && !item.industry) patches.industry = info.industry
+      return Object.keys(patches).length > 0 ? { ...item, ...patches } : item
+    })
+  }, [rawPortfolioItems, enrichData])
 
   // Export XLSX
   const handleExport = useCallback(async () => {
@@ -1051,14 +1062,17 @@ export default function DashboardPage() {
 
       {toast && (
         <div className="fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 px-4 py-2.5 rounded-lg shadow-xl text-sm font-medium animate-fade-in border"
+          role="status"
+          aria-live="polite"
           style={toast.type === 'error'
-            ? { backgroundColor: 'rgba(127,29,29,0.9)', borderColor: 'rgba(185,28,28,0.5)', color: '#fecaca' }
+            ? { backgroundColor: 'rgba(127,29,29,0.95)', borderColor: 'rgba(185,28,28,0.5)', color: '#fecaca' }
             : toast.type === 'info'
-            ? { backgroundColor: 'rgba(30,58,138,0.9)', borderColor: 'rgba(29,78,216,0.5)', color: '#dbeafe' }
-            : { backgroundColor: 'rgba(6,78,59,0.9)', borderColor: 'rgba(5,150,105,0.5)', color: '#d1fae5' }
+            ? { backgroundColor: 'rgba(30,58,138,0.95)', borderColor: 'rgba(29,78,216,0.5)', color: '#dbeafe' }
+            : { backgroundColor: 'rgba(6,78,59,0.95)', borderColor: 'rgba(5,150,105,0.5)', color: '#d1fae5' }
           }>
           <span>{toast.type === 'error' ? '✕' : toast.type === 'info' ? 'ℹ' : '✓'}</span>
           {toast.msg}
+          <button onClick={() => setToast(null)} className="ml-1 opacity-60 hover:opacity-100 transition-opacity text-xs" aria-label="Dismiss">✕</button>
         </div>
       )}
 

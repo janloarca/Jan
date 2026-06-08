@@ -35,10 +35,10 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     type: item.type || 'Stock',
     subtype: item.subtype || '',
     quantity: item.quantity?.toString() || '',
-    purchasePrice: item.purchasePrice?.toString() || '',
-    currentPrice: item.currentPrice?.toString() || '',
+    purchasePrice: (item._originalPurchasePrice ?? item.purchasePrice)?.toString() || '',
+    currentPrice: (item._originalPrice ?? item.currentPrice)?.toString() || '',
     institution: item.institution || '',
-    currency: item.currency || 'USD',
+    currency: item._originalCurrency || item.currency || 'USD',
     acquisitionDate: item.acquisitionDate || '',
     accountType: item.accountType || 'taxable',
     dividendAction: item.dividendAction || 'cash',
@@ -117,7 +117,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     setSaving(true)
     setError('')
     try {
-      const { _originalPrice, _originalPurchasePrice, _originalCurrency, _displayCurrency, totalValue, percentOfPortfolio, change1d, change7d, change30d, pnlPercent, ...rawItem } = item
+      const { _originalPrice, _originalPurchasePrice, _originalCurrency, _displayCurrency, totalValue, percentOfPortfolio, change1d, change7d, change30d, pnlPercent, marketCurrency, _category, ...rawItem } = item
       const updated = {
         ...rawItem,
         symbol: form.symbol.trim(),
