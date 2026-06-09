@@ -8,7 +8,7 @@ export default function EmptyState({ onAdd, onImport, onTemplate, lang }) {
   return (
     <div className="max-w-2xl mx-auto py-12 text-center">
       <div className="mb-6 flex justify-center">
-        <BarChart3 size={48} className="text-blue-400" />
+        <BarChart3 size={48} style={{ color: '#60a5fa' }} />
       </div>
       <h2 className="text-2xl font-bold text-white mb-3">
         {t('Bienvenido a Chispudo', 'Welcome to Chispudo')}
@@ -22,10 +22,10 @@ export default function EmptyState({ onAdd, onImport, onTemplate, lang }) {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         <button onClick={onAdd}
-          className="bg-blue-600 hover:bg-blue-500 text-white rounded-xl p-5 transition-colors text-left">
+          className="text-white rounded-xl p-5 transition-colors text-left" style={{ backgroundColor: '#2563eb' }}>
           <Plus size={24} className="mb-2" />
           <div className="font-semibold text-sm mb-1">{t('Agregar manualmente', 'Add manually')}</div>
-          <div className="text-xs text-blue-200/70">{t('Una posición a la vez', 'One position at a time')}</div>
+          <div className="text-xs" style={{ color: 'rgba(191,219,254,0.7)' }}>{t('Una posición a la vez', 'One position at a time')}</div>
         </button>
 
         <button onClick={onImport}
@@ -49,17 +49,17 @@ export default function EmptyState({ onAdd, onImport, onTemplate, lang }) {
         </h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {[
-            { Icon: TrendingUp, label: 'Stocks & ETFs', color: 'text-blue-400' },
-            { Icon: Bitcoin, label: 'Crypto & DeFi', color: 'text-amber-400' },
-            { Icon: Landmark, label: t('Bonos & CDTs', 'Bonds & CDs'), color: 'text-emerald-400' },
-            { Icon: Briefcase, label: t('Fondos', 'Funds'), color: 'text-purple-400' },
-            { Icon: Home, label: t('Inmuebles', 'Real Estate'), color: 'text-orange-400' },
-            { Icon: Gem, label: t('SAFEs & VC', 'SAFEs & VC'), color: 'text-pink-400' },
-            { Icon: Building2, label: t('Bancos & Cash', 'Banks & Cash'), color: 'text-slate-400' },
-            { Icon: CreditCard, label: t('Deudas', 'Debts'), color: 'text-red-400' },
+            { Icon: TrendingUp, label: 'Stocks & ETFs', color: '#60a5fa' },
+            { Icon: Bitcoin, label: 'Crypto & DeFi', color: '#fbbf24' },
+            { Icon: Landmark, label: t('Bonos & CDTs', 'Bonds & CDs'), color: '#34d399' },
+            { Icon: Briefcase, label: t('Fondos', 'Funds'), color: '#c084fc' },
+            { Icon: Home, label: t('Inmuebles', 'Real Estate'), color: '#fb923c' },
+            { Icon: Gem, label: t('SAFEs & VC', 'SAFEs & VC'), color: '#f472b6' },
+            { Icon: Building2, label: t('Bancos & Cash', 'Banks & Cash'), color: '#94a3b8' },
+            { Icon: CreditCard, label: t('Deudas', 'Debts'), color: '#f87171' },
           ].map((type) => (
-            <div key={type.label} className="flex items-center gap-2 text-xs text-slate-400 py-1">
-              <type.Icon size={14} className={type.color} />
+            <div key={type.label} className="flex items-center gap-2 text-xs py-1" style={{ color: '#94a3b8' }}>
+              <type.Icon size={14} style={{ color: type.color }} />
               <span>{type.label}</span>
             </div>
           ))}

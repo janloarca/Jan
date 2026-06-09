@@ -139,6 +139,8 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     async function addToDestination(dest, amount, sourceCurrency) {
       const destCur = dest.currency || dest._originalCurrency || 'USD'
       const converted = convert ? convert(amount, sourceCurrency, destCur) : amount
+      const cat = getTypeCategory(dest)
+      if (cat === 'stocks' || cat === 'crypto' || cat === 'funds') return
       const oldBalance = (dest.quantity || 1) * (dest._originalPrice ?? dest.purchasePrice ?? 0)
       const newBalance = oldBalance + converted
       const qty = dest.quantity || 1

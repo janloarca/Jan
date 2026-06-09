@@ -988,7 +988,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             {!isMarketAsset && (
               <button type="button" onClick={() => setShowIncome(!showIncome)}
                 className="w-full text-left px-3 py-2 border border-[var(--card-border,#38383A)] rounded-lg text-xs text-[var(--text-secondary,#94a3b8)] hover:border-blue-500/30 transition-colors flex items-center justify-between">
-                <span>💰 {isProperty ? t('Configurar renta', 'Configure rental') : isBank ? t('Configurar intereses', 'Configure interest') : t('Configurar rendimiento', 'Configure yield')}</span>
+                <span>💰 {isProperty ? t('¿Genera renta?', 'Does it generate rent?') : isBank ? t('¿Genera intereses?', 'Does it earn interest?') : t('¿Genera rendimiento o pagos?', 'Does it generate yield or payments?')}</span>
                 <span className="text-lg">{showIncome ? '−' : '+'}</span>
               </button>
             )}
@@ -1000,9 +1000,9 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   <label className="text-xs text-[var(--text-muted,#475569)] mb-1.5 block">{t('Tipo de tasa', 'Rate type')}</label>
                   <div className="flex gap-1">
                     {[
-                      { key: 'fixed', es: 'Fija', en: 'Fixed' },
-                      { key: 'variable', es: 'Variable', en: 'Variable' },
-                      { key: 'continuous', es: 'Continua', en: 'Continuous' },
+                      { key: 'fixed', es: 'Fija (siempre igual)', en: 'Fixed (same rate)' },
+                      { key: 'variable', es: 'Variable (cambia)', en: 'Variable (changes)' },
+                      { key: 'continuous', es: 'Capitalización', en: 'Compounding' },
                     ].map(rt => (
                       <button key={rt.key} type="button" onClick={() => set('rateType', rt.key)}
                         className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.rateType !== rt.key ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
@@ -1018,12 +1018,12 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   <button type="button" onClick={() => set('incomeMode', 'fixed')}
                     className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.incomeMode !== 'fixed' ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
                     style={form.incomeMode === 'fixed' ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>
-                    {t('Monto fijo', 'Fixed amount')}
+                    {t('Monto fijo mensual', 'Fixed monthly amount')}
                   </button>
                   <button type="button" onClick={() => set('incomeMode', 'percent')}
                     className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.incomeMode !== 'percent' ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
                     style={form.incomeMode === 'percent' ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>
-                    {t('% del saldo', '% of balance')}
+                    {t('% anual del saldo', 'Annual % of balance')}
                   </button>
                 </div>
 
@@ -1087,7 +1087,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 {/* Payment months */}
                 {form.rateType !== 'continuous' && (
                   <div>
-                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1.5 block">{t('Meses de pago', 'Payment months')}</label>
+                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1.5 block">{t('¿En qué meses te pagan?', 'Which months do you get paid?')}</label>
                     <div className="flex flex-wrap gap-1">
                       {['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'].map((label, i) => {
                         const active = form.incomeMonths.includes(i)
@@ -1113,7 +1113,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 {/* Income destination */}
                 {existingItems.length > 0 && (
                   <div>
-                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Pagos se depositan en:', 'Payments deposit to:')}</label>
+                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('¿Dónde llega el rendimiento?', 'Where does the yield go?')}</label>
                     <select value={form.incomeDestination} onChange={e => set('incomeDestination', e.target.value)} className={inputCls}>
                       <option value="">{t('-- Seleccionar --', '-- Select --')}</option>
                       {existingItems.map(it => <option key={it.id} value={it.id}>{it.name || it.symbol} {it.institution ? `(${it.institution})` : ''}</option>)}
@@ -1123,7 +1123,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
                 {/* Capital return */}
                 <div>
-                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Capital devuelto por pago', 'Capital returned per payment')}</label>
+                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('¿Te devuelven capital cada pago?', 'Capital returned per payment?')}</label>
                   <input value={form.capitalReturn} onChange={e => set('capitalReturn', e.target.value)}
                     placeholder="0" type="number" step="any" className={inputCls} />
                 </div>
@@ -1148,9 +1148,9 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 <span className={`absolute w-3 h-3 bg-white rounded-full top-0.5 transition-transform ${isNewMoney ? 'left-4' : 'left-0.5'}`} />
               </button>
               <div>
-                <span className="text-xs text-[var(--text-primary,white)] font-medium">{t('Dinero nuevo', 'New money')}</span>
+                <span className="text-xs text-[var(--text-primary,white)] font-medium">{t('Es dinero nuevo para mi portafolio', 'This is new money for my portfolio')}</span>
                 <p className="text-xs text-[var(--text-muted,#475569)]">
-                  {isNewMoney ? t('Entra de afuera, no cuenta como rendimiento', 'From outside, not counted as return') : t('Ya estaba en el portafolio', 'Already in portfolio')}
+                  {isNewMoney ? t('Viene de fuera (salario, venta, etc.) — no es ganancia', 'Comes from outside (salary, sale, etc.) — not a gain') : t('Ya estaba en otra cuenta de mi portafolio', 'Was already in another account in my portfolio')}
                 </p>
               </div>
             </div>

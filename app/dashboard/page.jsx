@@ -1014,6 +1014,10 @@ export default function DashboardPage() {
             await deleteItem(id)
             showToast(lang === 'es' ? 'Activo eliminado' : 'Asset deleted')
           }}
+          onAddTransaction={addTransaction}
+          onAddLot={addLot}
+          transactions={transactions}
+          baseCurrency={baseCurrency}
           existingItems={items} lang={lang}
           allItems={portfolioItems}
           onNavigate={showReview ? null : (dir) => {

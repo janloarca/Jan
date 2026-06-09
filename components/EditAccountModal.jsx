@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 
 const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
 const ACCOUNT_TYPES = [
@@ -28,7 +28,7 @@ function InfoTip({ text }) {
   )
 }
 
-export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es', allItems, onNavigate }) {
+export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es', allItems, onNavigate, onAddTransaction, transactions, onAddLot, baseCurrency }) {
   const [form, setForm] = useState({
     symbol: item.symbol || '',
     name: item.name || '',
@@ -92,12 +92,93 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
   const [showIncome, setShowIncome] = useState(
     !!(item.incomeAmount || item.incomeRate || item.dividendYield || item.incomeMonths?.length)
   )
+  const [showContribution, setShowContribution] = useState(false)
+  const [contribType, setContribType] = useState('add')
+  const [contribAmount, setContribAmount] = useState('')
+  const [contribDate, setContribDate] = useState(new Date().toISOString().split('T')[0])
+  const [contribDesc, setContribDesc] = useState('')
+  const [contribSaving, setContribSaving] = useState(false)
+  const [contribSuccess, setContribSuccess] = useState('')
 
   const t = (es, en) => lang === 'es' ? es : en
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
 
   const isMarket = /stock|crypto|fund|etf/i.test(form.type) && !/realestate/i.test(form.type)
   const isBank = /bank|banco/i.test(form.type)
+  const isBankLike = isBank || (!isMarket && (parseFloat(form.quantity) || 1) === 1)
+
+  const linkedTransactions = useMemo(() =>
+    (transactions || [])
+      .filter(tx => tx._linkedItemId === item.id && (tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL'))
+      .sort((a, b) => (b.date || '').localeCompare(a.date || '')),
+    [transactions, item.id]
+  )
+
+  const handleContribution = async () => {
+    const amt = parseFloat(contribAmount)
+    if (!amt || amt <= 0) return
+    setContribSaving(true)
+    setError('')
+    try {
+      const itemCurrency = form.currency || item._originalCurrency || item.currency || 'USD'
+      const isAdd = contribType === 'add'
+
+      if (isBankLike) {
+        const oldPrice = parseFloat(form.purchasePrice) || 0
+        const newPrice = isAdd ? oldPrice + amt : Math.max(0, oldPrice - amt)
+        set('purchasePrice', newPrice.toString())
+        set('currentPrice', newPrice.toString())
+        await onSave({ ...item, purchasePrice: newPrice, currentPrice: newPrice })
+      } else {
+        const pricePerUnit = parseFloat(form.currentPrice) || parseFloat(form.purchasePrice) || 1
+        if (isAdd) {
+          const newShares = amt / pricePerUnit
+          const oldQty = parseFloat(form.quantity) || 0
+          const newQty = oldQty + newShares
+          set('quantity', newQty.toString())
+          await onSave({ ...item, quantity: newQty })
+          if (onAddLot) {
+            await onAddLot({
+              symbol: (item.symbol || '').toUpperCase(),
+              quantity: newShares,
+              costBasis: pricePerUnit,
+              currency: itemCurrency,
+              acquisitionDate: contribDate,
+              status: 'open',
+            })
+          }
+        } else {
+          const sharesToSell = amt / pricePerUnit
+          const oldQty = parseFloat(form.quantity) || 0
+          const newQty = Math.max(0, oldQty - sharesToSell)
+          set('quantity', newQty.toString())
+          await onSave({ ...item, quantity: newQty })
+        }
+      }
+
+      if (onAddTransaction) {
+        await onAddTransaction({
+          date: contribDate,
+          type: isAdd ? 'DEPOSIT' : 'WITHDRAWAL',
+          symbol: item.symbol || item.name || '',
+          description: contribDesc || (isAdd ? `${t('Aporte a', 'Contribution to')} ${item.name || item.symbol}` : `${t('Retiro de', 'Withdrawal from')} ${item.name || item.symbol}`),
+          totalAmount: amt,
+          currency: itemCurrency,
+          _linkedItemId: item.id,
+          _source: 'manual_contribution',
+        })
+      }
+
+      setContribAmount('')
+      setContribDesc('')
+      setShowContribution(false)
+      setContribSuccess(isAdd ? t('Aporte registrado', 'Contribution recorded') : t('Retiro registrado', 'Withdrawal recorded'))
+      setTimeout(() => setContribSuccess(''), 3000)
+    } catch (err) {
+      setError(err.message)
+    }
+    setContribSaving(false)
+  }
   const isBondOrAlt = /bond|bono|inversion|alternative|alternativ/i.test(form.type)
   const isCrypto = /crypto|cripto/i.test(form.type)
   const isDebt = /debt|deuda|pasivo|liability/i.test(form.type)
@@ -366,6 +447,88 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
             <input value={form.acquisitionDate} onChange={e => set('acquisitionDate', e.target.value)}
               type="date" className={inputCls} />
           </div>
+
+          {/* Contribution / Withdrawal */}
+          {!isDebt && onAddTransaction && (
+            <div className="space-y-3">
+              {contribSuccess && (
+                <div className="px-3 py-2 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(16,185,129,0.1)', color: '#34d399', border: '1px solid rgba(16,185,129,0.2)' }}>
+                  {contribSuccess}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button type="button" onClick={() => { setShowContribution(true); setContribType('add') }}
+                  className="flex-1 px-3 py-2.5 text-xs font-semibold rounded-lg transition-all border flex items-center justify-center gap-1"
+                  style={{ color: '#34d399', borderColor: 'rgba(16,185,129,0.3)', backgroundColor: 'rgba(16,185,129,0.1)' }}>
+                  <span className="text-sm">+</span> {t('Agregar Dinero', 'Add Money')}
+                </button>
+                <button type="button" onClick={() => { setShowContribution(true); setContribType('withdraw') }}
+                  className="flex-1 px-3 py-2.5 text-xs font-semibold rounded-lg transition-all border flex items-center justify-center gap-1"
+                  style={{ color: '#f87171', borderColor: 'rgba(239,68,68,0.3)', backgroundColor: 'rgba(239,68,68,0.1)' }}>
+                  <span className="text-sm">-</span> {t('Retirar', 'Withdraw')}
+                </button>
+              </div>
+
+              {showContribution && (
+                <div className="border rounded-lg p-3 space-y-3"
+                  style={{ borderColor: contribType === 'add' ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)', backgroundColor: contribType === 'add' ? 'rgba(16,185,129,0.05)' : 'rgba(239,68,68,0.05)' }}>
+                  <p className="text-xs font-medium" style={{ color: contribType === 'add' ? '#34d399' : '#f87171' }}>
+                    {contribType === 'add' ? t('Nuevo aporte', 'New contribution') : t('Retiro de fondos', 'Withdraw funds')}
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className={labelCls}>{t('Monto', 'Amount')} ({form.currency})</label>
+                      <input value={contribAmount} onChange={e => setContribAmount(e.target.value)}
+                        type="number" step="any" min="0" placeholder="7000" autoFocus className={inputCls} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>{t('Fecha', 'Date')}</label>
+                      <input value={contribDate} onChange={e => setContribDate(e.target.value)}
+                        type="date" max={new Date().toISOString().split('T')[0]} className={inputCls} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className={labelCls}>{t('Descripción (opcional)', 'Description (optional)')}</label>
+                    <input value={contribDesc} onChange={e => setContribDesc(e.target.value)}
+                      placeholder={contribType === 'add' ? t('Ej: Aporte junio', 'E.g. June contribution') : t('Ej: Retiro parcial', 'E.g. Partial withdrawal')}
+                      className={inputCls} />
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setShowContribution(false)}
+                      className="flex-1 px-3 py-2 text-xs border border-[var(--card-border,#38383A)] rounded-lg text-[var(--text-secondary,#94a3b8)]">
+                      {t('Cancelar', 'Cancel')}
+                    </button>
+                    <button type="button" onClick={handleContribution} disabled={contribSaving || !contribAmount || parseFloat(contribAmount) <= 0}
+                      className="flex-1 px-3 py-2 text-xs font-medium rounded-lg disabled:opacity-40"
+                      style={{ backgroundColor: contribType === 'add' ? '#059669' : '#dc2626', color: '#ffffff' }}>
+                      {contribSaving ? '...' : t('Registrar', 'Record')}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {linkedTransactions.length > 0 && (
+                <div className="border border-[var(--card-border,#38383A)] rounded-lg p-3">
+                  <p className="text-xs font-medium text-[var(--text-secondary,#94a3b8)] mb-2">
+                    {t('Historial de movimientos', 'Transaction history')}
+                  </p>
+                  <div className="space-y-1 max-h-28 overflow-y-auto">
+                    {linkedTransactions.map(tx => (
+                      <div key={tx.id} className="flex items-center justify-between text-xs py-1 border-b border-[var(--card-border,#38383A)]/30 last:border-0">
+                        <span style={{ color: '#64748b' }}>{tx.date}</span>
+                        <div className="text-right">
+                          <span style={{ color: tx.type === 'DEPOSIT' ? '#34d399' : '#f87171' }}>
+                            {tx.type === 'DEPOSIT' ? '+' : '-'}{tx.currency || form.currency} {(tx.totalAmount || 0).toLocaleString()}
+                          </span>
+                          {tx.description && <p className="text-[10px]" style={{ color: '#475569' }}>{tx.description}</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Maturity date */}
           {isBondOrAlt && (

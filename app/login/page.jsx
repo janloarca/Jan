@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 
 function setSessionCookie(token) {
   const secure = window.location.protocol === 'https:' ? '; Secure' : ''
@@ -24,14 +24,12 @@ function LoginForm() {
   const [showReset, setShowReset] = useState(false)
   const [inAppBrowser, setInAppBrowser] = useState(false)
   const [checkingAuth, setCheckingAuth] = useState(true)
-  const router = useRouter()
   const searchParams = useSearchParams()
 
   const redirectTo = searchParams.get('redirect') || '/dashboard'
 
   useEffect(() => {
     if (isInAppBrowser()) setInAppBrowser(true)
-    router.prefetch('/dashboard')
 
     let unsub = () => {}
     async function check() {
@@ -43,7 +41,7 @@ function LoginForm() {
           try {
             const token = await u.getIdToken(true)
             setSessionCookie(token)
-            router.push(redirectTo)
+            window.location.href = redirectTo
           } catch {
             setCheckingAuth(false)
           }
@@ -54,7 +52,7 @@ function LoginForm() {
     }
     check()
     return () => unsub()
-  }, [router, redirectTo])
+  }, [redirectTo]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -73,7 +71,7 @@ function LoginForm() {
       }
       const token = await cred.user.getIdToken()
       setSessionCookie(token)
-      router.push(redirectTo)
+      window.location.href = redirectTo
     } catch (err) {
       const msg = err.code === 'auth/wrong-password' ? 'Contraseña incorrecta'
         : err.code === 'auth/user-not-found' ? 'No existe una cuenta con ese email'
@@ -106,7 +104,7 @@ function LoginForm() {
       const cred = await signInWithPopup(auth, provider)
       const token = await cred.user.getIdToken()
       setSessionCookie(token)
-      router.push(redirectTo)
+      window.location.href = redirectTo
     } catch (err) {
       if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') return
       if (err.code === 'auth/popup-blocked') {
@@ -162,8 +160,8 @@ function LoginForm() {
       <div className="w-full max-w-md px-6">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-2">
-            <span className="text-blue-400 text-3xl">⚡</span>
-            <h1 className="text-3xl font-bold text-blue-400">Chispudo</h1>
+            <span className="text-3xl" style={{ color: '#60a5fa' }}>⚡</span>
+            <h1 className="text-3xl font-bold" style={{ color: '#60a5fa' }}>Chispudo</h1>
           </div>
           <p className="text-slate-500 text-sm">Tu control financiero personal</p>
         </div>
@@ -174,18 +172,18 @@ function LoginForm() {
           </h2>
 
           {inAppBrowser && (
-            <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-lg text-sm">
+            <div className="mb-4 p-3 rounded-lg text-sm" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', color: '#fbbf24' }}>
               Para mejor experiencia, abre en tu navegador:
               <a href={typeof window !== 'undefined' ? window.location.href : '#'}
                 target="_blank" rel="noopener noreferrer"
-                className="block mt-1 text-blue-400 underline font-medium">
+                className="block mt-1 underline font-medium" style={{ color: '#60a5fa' }}>
                 Abrir en Safari / Chrome
               </a>
             </div>
           )}
 
           {error && (
-            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-sm">
+            <div className="mb-4 p-3 rounded-lg text-sm" style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171' }}>
               {error}
             </div>
           )}
@@ -219,7 +217,8 @@ function LoginForm() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 transition-colors font-medium text-base"
+              className="w-full py-3 rounded-lg disabled:opacity-50 transition-colors font-medium text-base"
+              style={{ backgroundColor: '#2563eb', color: '#ffffff' }}
             >
               {loading ? 'Cargando...' : (isSignUp ? 'Crear cuenta' : 'Iniciar sesión')}
             </button>
@@ -227,7 +226,7 @@ function LoginForm() {
 
           {!isSignUp && !showReset && (
             <button onClick={() => setShowReset(true)}
-              className="w-full mt-2 text-xs text-slate-500 hover:text-blue-400 transition-colors text-center">
+              className="w-full mt-2 text-xs transition-colors text-center" style={{ color: '#64748b' }}>
               ¿Olvidaste tu contraseña?
             </button>
           )}
@@ -235,7 +234,7 @@ function LoginForm() {
           {showReset && (
             <div className="mt-3 p-3 bg-[#000000] rounded-lg border border-[#38383A]/50">
               {resetSent ? (
-                <p className="text-sm text-emerald-400 text-center">
+                <p className="text-sm text-center" style={{ color: '#34d399' }}>
                   Revisa tu email para restablecer tu contraseña.
                 </p>
               ) : (
@@ -272,7 +271,7 @@ function LoginForm() {
             {isSignUp ? '¿Ya tienes cuenta?' : '¿No tienes cuenta?'}{' '}
             <button
               onClick={() => { setIsSignUp(!isSignUp); setError(''); setShowReset(false); setResetSent(false) }}
-              className="text-blue-400 hover:text-blue-300 font-medium"
+              className="font-medium" style={{ color: '#60a5fa' }}
             >
               {isSignUp ? 'Inicia sesión' : 'Regístrate'}
             </button>
