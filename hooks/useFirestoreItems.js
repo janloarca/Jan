@@ -265,7 +265,8 @@ export function useFirestoreItems() {
     const isManual = (transaction._source || '').startsWith('manual')
     const nonce = isManual ? `-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}` : ''
     const id = `${transaction.date || 'nodate'}-${(transaction.symbol || 'nosym').toUpperCase()}-${transaction.type || 'tx'}-${amt}${nonce}`
-    await fs.setDoc(fs.doc(db, `users/${uid}/transactions`, id), { ...transaction, createdAt: new Date().toISOString() })
+    const txData = Object.fromEntries(Object.entries({ ...transaction, createdAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
+    await fs.setDoc(fs.doc(db, `users/${uid}/transactions`, id), txData)
   }, [uid])
 
   const deleteTransaction = useCallback(async (txId) => {
@@ -327,7 +328,8 @@ export function useFirestoreItems() {
     const qty = Math.round((lot.quantity || 0) * 10000)
     const cost = Math.round((lot.costBasis || 0) * 100)
     const id = `${(lot.symbol || 'lot').toUpperCase()}-${lot.acquisitionDate || 'nodate'}-${qty}-${cost}`
-    await fs.setDoc(fs.doc(db, `users/${uid}/lots`, id), { ...lot, status: 'open', createdAt: new Date().toISOString() })
+    const lotData = Object.fromEntries(Object.entries({ ...lot, status: 'open', createdAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
+    await fs.setDoc(fs.doc(db, `users/${uid}/lots`, id), lotData)
   }, [uid])
 
   const updateLot = useCallback(async (lotId, data) => {
