@@ -359,6 +359,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   const [collapsed, setCollapsed] = useState({})
   const [collapsedInst, setCollapsedInst] = useState({})
   const [editingItemId, setEditingItemId] = useState(null)
+  const [blockMsg, setBlockMsg] = useState(null)
 
   const toggleCat = (key) => setCollapsed(p => ({ ...p, [key]: !p[key] }))
   const toggleInst = (key) => setCollapsedInst(p => ({ ...p, [key]: !p[key] }))
@@ -369,7 +370,13 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       const hasOpenLots = lots && lots.some(l =>
         (l.symbol || '').toUpperCase() === (item.symbol || '').toUpperCase() && l.status !== 'closed'
       )
-      if (hasOpenLots) return
+      if (hasOpenLots) {
+        setBlockMsg(lang === 'es'
+          ? `${item.symbol}: cantidad controlada por lots — edita desde el detalle del activo`
+          : `${item.symbol}: quantity managed by lots — edit from asset detail`)
+        setTimeout(() => setBlockMsg(null), 4000)
+        return
+      }
       onUpdateItem(item.id, { quantity: newVal })
     } else {
       const qty = item.quantity || 1
@@ -382,7 +389,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         onUpdateItem(item.id, { currentPrice: originalVal / qty })
       }
     }
-  }, [onUpdateItem, showOriginal, convert, baseCurrency, lots])
+  }, [onUpdateItem, showOriginal, convert, baseCurrency, lots, lang])
 
   const isCurrentYear = selectedYear === now.getFullYear()
   const prevMonthKey = months.length >= 2 ? months[months.length - 2] : null
@@ -458,6 +465,12 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         </div>
       </div>
 
+      {blockMsg && (
+        <div className="mx-4 mb-2 px-3 py-2 rounded-lg text-xs font-medium animate-pulse"
+          style={{ backgroundColor: 'rgba(234,179,8,0.1)', color: '#eab308', border: '1px solid rgba(234,179,8,0.25)' }}>
+          {blockMsg}
+        </div>
+      )}
       <div className="overflow-x-auto">
         <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', width: `${100 / zoom}%` }}>
         <table className="w-full text-sm border-collapse min-w-[600px]">

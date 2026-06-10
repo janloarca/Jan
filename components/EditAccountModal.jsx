@@ -111,7 +111,9 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
   const [contribSaving, setContribSaving] = useState(false)
   const [contribSuccess, setContribSuccess] = useState('')
   const [contribIsIncome, setContribIsIncome] = useState(
-    /bond|bono|inversion|inversión|alternative|alternativ|cdt|deposit|plazo|cash.?in/i.test(item.type || '')
+    item._contribIsIncome != null
+      ? item._contribIsIncome
+      : /bond|bono|inversion|inversión|alternative|alternativ|cdt|deposit|plazo|cash.?in/i.test(item.type || '')
   )
 
   const t = (es, en) => lang === 'es' ? es : en
@@ -193,6 +195,10 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           _linkedItemId: item.id,
           _source: 'manual_contribution',
         })
+      }
+
+      if (!isBank && isAdd && item._contribIsIncome !== contribIsIncome) {
+        await onSave({ ...stripEnriched(item), _contribIsIncome: contribIsIncome })
       }
 
       setContribAmount('')

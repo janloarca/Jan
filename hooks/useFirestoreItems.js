@@ -203,6 +203,7 @@ export function useFirestoreItems() {
   const deleteItem = useCallback(async (itemId, { skipRefCleanup = false } = {}) => {
     if (!uid) return
     const prev = items
+    const deletedItem = items.find(it => it.id === itemId)
     setItems((cur) => cur.filter((it) => it.id !== itemId))
     try {
       const { db, fs } = await getFirebase()
@@ -221,6 +222,27 @@ export function useFirestoreItems() {
         })
         batch.delete(fs.doc(db, `users/${uid}/items`, itemId))
         await batch.commit()
+      }
+      const txSnap = await fs.getDocs(fs.collection(db, `users/${uid}/transactions`))
+      const txBatch = fs.writeBatch(db)
+      let txCount = 0
+      txSnap.docs.forEach(d => {
+        if (d.data()._linkedItemId === itemId) { txBatch.delete(d.ref); txCount++ }
+      })
+      if (txCount > 0) await txBatch.commit()
+
+      if (deletedItem?.symbol) {
+        const sym = (deletedItem.symbol || '').toUpperCase()
+        const hasOtherItemWithSymbol = items.some(it => it.id !== itemId && (it.symbol || '').toUpperCase() === sym)
+        if (!hasOtherItemWithSymbol) {
+          const lotSnap = await fs.getDocs(fs.collection(db, `users/${uid}/lots`))
+          const lotBatch = fs.writeBatch(db)
+          let lotCount = 0
+          lotSnap.docs.forEach(d => {
+            if ((d.data().symbol || '').toUpperCase() === sym) { lotBatch.delete(d.ref); lotCount++ }
+          })
+          if (lotCount > 0) await lotBatch.commit()
+        }
       }
     } catch (err) {
       setItems(prev)
