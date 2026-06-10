@@ -522,7 +522,11 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   <div>
                     <label className={labelCls}>{t('Descripción (opcional)', 'Description (optional)')}</label>
                     <input value={contribDesc} onChange={e => setContribDesc(e.target.value)}
-                      placeholder={contribType === 'add' ? t('Ej: Aporte junio', 'E.g. June contribution') : t('Ej: Retiro parcial', 'E.g. Partial withdrawal')}
+                      placeholder={contribType === 'add'
+                        ? (contribIsIncome && !isBank
+                          ? t('Ej: Intereses junio', 'E.g. June interest')
+                          : t('Ej: Aporte junio', 'E.g. June contribution'))
+                        : t('Ej: Retiro parcial', 'E.g. Partial withdrawal')}
                       className={inputCls} />
                   </div>
                   {contribType === 'add' && !isBank && (

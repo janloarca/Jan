@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { formatCurrency, formatCompact, formatDate, computeModifiedDietz } from './utils'
+import { formatCurrency, formatCompact, formatDate, computeModifiedDietz, getItemValue } from './utils'
 import { computeTWRSeries } from './analytics'
 import { authFetch } from '@/lib/authFetch'
 
@@ -195,20 +195,24 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
   const currentTotal = useMemo(() => {
     if (!items) return 0
-    return items.reduce((s, it) => s + (it.quantity || 0) * (it.currentPrice || it.purchasePrice || 0), 0)
+    return items.reduce((s, it) => s + getItemValue(it), 0)
   }, [items])
 
   const snapshotData = useMemo(() => {
     if (!snapshots || snapshots.length === 0) return []
     const now = Date.now()
-    const convertVal = (v) => convert ? convert(v, 'USD', baseCurrency || 'USD') : v
+    const bc = baseCurrency || 'USD'
+    const convertVal = (s) => {
+      if (s._source === 'manual' && s._rawValue != null && s._rawCurrency === bc) return s._rawValue
+      return convert ? convert(s.netWorthUSD ?? s.totalActivosUSD ?? 0, 'USD', bc) : (s.netWorthUSD ?? s.totalActivosUSD ?? 0)
+    }
 
     if (period === 'DAY') {
       const threeDaysAgo = now - 3 * 86400000
       const recentSnaps = [...snapshots]
         .filter(s => s.date && new Date(s.date).getTime() >= threeDaysAgo)
         .sort((a, b) => new Date(a.date) - new Date(b.date))
-        .map(s => ({ ts: new Date(s.date).getTime(), date: new Date(s.date), value: convertVal(s.netWorthUSD ?? s.totalActivosUSD ?? 0) }))
+        .map(s => ({ ts: new Date(s.date).getTime(), date: new Date(s.date), value: convertVal(s) }))
         .filter(p => p.value > 0)
       if (currentTotal > 0) {
         recentSnaps.push({ ts: Date.now(), date: new Date(), value: currentTotal })
@@ -239,7 +243,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       .map((s) => ({
         ts: new Date(s.date).getTime(),
         date: new Date(s.date),
-        value: convertVal(s.netWorthUSD ?? s.totalActivosUSD ?? 0),
+        value: convertVal(s),
       }))
       .filter((p) => p.value > 0)
 
@@ -249,7 +253,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         .sort((a, b) => new Date(b.date) - new Date(a.date))
       if (sorted.length > 0) {
         const prevSnap = sorted[0]
-        const val = convertVal(prevSnap.netWorthUSD ?? prevSnap.totalActivosUSD ?? 0)
+        const val = convertVal(prevSnap)
         if (val > 0) {
           pts.unshift({ ts: cutoff, date: new Date(cutoff), value: val })
         }
@@ -531,6 +535,8 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         totalDebtUSD: 0,
         netWorthUSD: inUSD,
         baseCurrency: baseCurrency || 'USD',
+        _rawValue: raw,
+        _rawCurrency: baseCurrency || 'USD',
         _source: 'manual',
       })
     }

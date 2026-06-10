@@ -360,6 +360,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   const [collapsedInst, setCollapsedInst] = useState({})
   const [editingItemId, setEditingItemId] = useState(null)
   const [blockMsg, setBlockMsg] = useState(null)
+  const [saveMsg, setSaveMsg] = useState(null)
 
   const toggleCat = (key) => setCollapsed(p => ({ ...p, [key]: !p[key] }))
   const toggleInst = (key) => setCollapsedInst(p => ({ ...p, [key]: !p[key] }))
@@ -389,6 +390,8 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         onUpdateItem(item.id, { currentPrice: originalVal / qty })
       }
     }
+    setSaveMsg(lang === 'es' ? `${item.symbol || item.name}: guardado` : `${item.symbol || item.name}: saved`)
+    setTimeout(() => setSaveMsg(null), 2000)
   }, [onUpdateItem, showOriginal, convert, baseCurrency, lots, lang])
 
   const isCurrentYear = selectedYear === now.getFullYear()
@@ -469,6 +472,12 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         <div className="mx-4 mb-2 px-3 py-2 rounded-lg text-xs font-medium animate-pulse"
           style={{ backgroundColor: 'rgba(234,179,8,0.1)', color: '#eab308', border: '1px solid rgba(234,179,8,0.25)' }}>
           {blockMsg}
+        </div>
+      )}
+      {saveMsg && !blockMsg && (
+        <div className="mx-4 mb-2 px-3 py-2 rounded-lg text-xs font-medium"
+          style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.25)' }}>
+          &#10003; {saveMsg}
         </div>
       )}
       <div className="overflow-x-auto">

@@ -16,7 +16,6 @@ export default function InstitutionPerformance({ items, lang, convert, baseCurre
   const [selected, setSelected] = useState('ALL')
   const [period, setPeriod] = useState('YTD')
   const [dataPoints, setDataPoints] = useState([])
-  const [staticTotal, setStaticTotal] = useState(0)
   const [loading, setLoading] = useState(false)
   const [hoverIdx, setHoverIdx] = useState(null)
   const containerRef = useRef(null)
@@ -132,7 +131,6 @@ export default function InstitutionPerformance({ items, lang, convert, baseCurre
         }
 
         setDataPoints(pts)
-        setStaticTotal(json.staticTotal ?? 0)
       } else {
         setDataPoints([])
       }

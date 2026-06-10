@@ -244,6 +244,19 @@ export function useFirestoreItems() {
           if (lotCount > 0) await lotBatch.commit()
         }
       }
+
+      const isSnap = await fs.getDocs(fs.collection(db, `users/${uid}/itemSnapshots`))
+      const isBatch = fs.writeBatch(db)
+      let isCount = 0
+      isSnap.docs.forEach(d => {
+        const data = d.data()
+        if (data.items && data.items[itemId]) {
+          const { [itemId]: _, ...rest } = data.items
+          isBatch.update(d.ref, { items: rest })
+          isCount++
+        }
+      })
+      if (isCount > 0) await isBatch.commit()
     } catch (err) {
       setItems(prev)
       throw err
@@ -307,21 +320,24 @@ export function useFirestoreItems() {
   const saveGoals = useCallback(async (goalsData) => {
     if (!uid) return
     const { db, fs } = await getFirebase()
-    await fs.setDoc(fs.doc(db, `users/${uid}/settings`, 'goals'), { ...goalsData, updatedAt: new Date().toISOString() }, { merge: true })
+    const clean = Object.fromEntries(Object.entries({ ...goalsData, updatedAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
+    await fs.setDoc(fs.doc(db, `users/${uid}/settings`, 'goals'), clean, { merge: true })
     setGoals((prev) => ({ ...prev, ...goalsData }))
   }, [uid])
 
   const saveSettings = useCallback(async (prefsData) => {
     if (!uid) return
     const { db, fs } = await getFirebase()
-    await fs.setDoc(fs.doc(db, `users/${uid}/settings`, 'preferences'), { ...prefsData, updatedAt: new Date().toISOString() }, { merge: true })
+    const clean = Object.fromEntries(Object.entries({ ...prefsData, updatedAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
+    await fs.setDoc(fs.doc(db, `users/${uid}/settings`, 'preferences'), clean, { merge: true })
     setSettings((prev) => ({ ...prev, ...prefsData }))
   }, [uid])
 
   const saveProfile = useCallback(async (profileData) => {
     if (!uid) return
     const { db, fs } = await getFirebase()
-    await fs.setDoc(fs.doc(db, `users/${uid}/settings`, 'profile'), { ...profileData, updatedAt: new Date().toISOString() }, { merge: true })
+    const clean = Object.fromEntries(Object.entries({ ...profileData, updatedAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
+    await fs.setDoc(fs.doc(db, `users/${uid}/settings`, 'profile'), clean, { merge: true })
     setProfile((prev) => ({ ...prev, ...profileData }))
   }, [uid])
 
@@ -329,7 +345,8 @@ export function useFirestoreItems() {
     if (!uid) return
     const { db, fs } = await getFirebase()
     const id = `${alert.symbol}-${Date.now()}`
-    await fs.setDoc(fs.doc(db, `users/${uid}/alerts`, id), { ...alert, createdAt: new Date().toISOString(), triggered: false, triggeredAt: null })
+    const alertData = Object.fromEntries(Object.entries({ ...alert, createdAt: new Date().toISOString(), triggered: false, triggeredAt: null }).filter(([, v]) => v !== undefined))
+    await fs.setDoc(fs.doc(db, `users/${uid}/alerts`, id), alertData)
   }, [uid])
 
   const deleteAlert = useCallback(async (alertId) => {
@@ -357,7 +374,8 @@ export function useFirestoreItems() {
   const updateLot = useCallback(async (lotId, data) => {
     if (!uid) return
     const { db, fs } = await getFirebase()
-    await fs.updateDoc(fs.doc(db, `users/${uid}/lots`, lotId), data)
+    const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined))
+    await fs.updateDoc(fs.doc(db, `users/${uid}/lots`, lotId), clean)
   }, [uid])
 
   const closeLotsFIFO = useCallback(async (symbol, qtyToClose, closePrice, closeDate) => {
@@ -404,7 +422,8 @@ export function useFirestoreItems() {
     const amt = Math.round((tx.amount || 0) * 100)
     const desc = (tx.description || '').slice(0, 30).replace(/[/\\]/g, '-')
     const id = `ftx-${tx.date || 'nodate'}-${desc}-${amt}`
-    await fs.setDoc(fs.doc(db, `users/${uid}/financeTransactions`, id), { ...tx, createdAt: new Date().toISOString() })
+    const txData = Object.fromEntries(Object.entries({ ...tx, createdAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
+    await fs.setDoc(fs.doc(db, `users/${uid}/financeTransactions`, id), txData)
   }, [uid])
 
   const deleteFinanceTransaction = useCallback(async (txId) => {
@@ -424,7 +443,8 @@ export function useFirestoreItems() {
     if (!uid) return
     const { db, fs } = await getFirebase()
     const id = `portfolio-${Date.now()}`
-    await fs.setDoc(fs.doc(db, `users/${uid}/portfolios`, id), { ...portfolio, createdAt: new Date().toISOString() })
+    const portfolioData = Object.fromEntries(Object.entries({ ...portfolio, createdAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
+    await fs.setDoc(fs.doc(db, `users/${uid}/portfolios`, id), portfolioData)
     return id
   }, [uid])
 
@@ -442,13 +462,14 @@ export function useFirestoreItems() {
     const ref = fs.doc(db, `users/${uid}/itemSnapshots`, monthKey)
     const existing = await fs.getDoc(ref)
     const existingItems = existing.exists() ? (existing.data().items || {}) : {}
-    await fs.setDoc(ref, {
+    const snapData = Object.fromEntries(Object.entries({
       monthKey,
       items: { ...existingItems, ...itemsData },
       savedAt: new Date().toISOString(),
       _version: SNAPSHOT_VERSION,
       ...(currency ? { _currency: currency } : {}),
-    })
+    }).filter(([, v]) => v !== undefined))
+    await fs.setDoc(ref, snapData)
   }, [uid])
 
   const loadItemSnapshots = useCallback(async (monthKeys) => {
