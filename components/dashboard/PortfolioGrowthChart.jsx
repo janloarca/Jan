@@ -151,11 +151,11 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           pts = pts.filter(dp => dp.ts >= fromTs && dp.ts <= toTs)
         }
         if (period === 'YTD') {
-          const yearStart = new Date(new Date().getFullYear(), 0, 1).getTime()
+          const yearStart = Date.UTC(new Date().getUTCFullYear(), 0, 1)
           pts = pts.filter((dp) => dp.ts >= yearStart)
         }
         if (period === 'MTD') {
-          const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime()
+          const monthStart = Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)
           pts = pts.filter((dp) => dp.ts >= monthStart)
         }
         if (period === 'DAY' && pts.length > 0) {
@@ -226,8 +226,8 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     if (period === 'CUSTOM' && customRange.from) {
       cutoff = new Date(customRange.from).getTime()
       ceiling = customRange.to ? new Date(customRange.to + 'T23:59:59').getTime() : now
-    } else if (period === 'YTD') cutoff = new Date(new Date().getFullYear(), 0, 1).getTime()
-    else if (period === 'MTD') cutoff = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime()
+    } else if (period === 'YTD') cutoff = Date.UTC(new Date().getUTCFullYear(), 0, 1)
+    else if (period === 'MTD') cutoff = Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)
     else if (period === 'ALL') cutoff = 0
     else cutoff = now - (periodDays[period] || 365) * 86400000
 
@@ -311,13 +311,13 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     }
 
     if (period === 'YTD' && pts.length > 0) {
-      const yearStart = new Date(new Date().getFullYear(), 0, 1).getTime()
+      const yearStart = Date.UTC(new Date().getUTCFullYear(), 0, 1)
       if (pts[0].ts > yearStart + 86400000) {
         pts.unshift({ ts: yearStart, date: new Date(yearStart), value: pts[0].value })
       }
     }
     if (period === 'MTD' && pts.length > 0) {
-      const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime()
+      const monthStart = Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)
       if (pts[0].ts > monthStart + 86400000) {
         pts.unshift({ ts: monthStart, date: new Date(monthStart), value: pts[0].value })
       }

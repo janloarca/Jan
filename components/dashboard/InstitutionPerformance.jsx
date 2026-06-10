@@ -118,15 +118,12 @@ export default function InstitutionPerformance({ items, lang, convert, baseCurre
         }
 
         if (period === 'YTD') {
-          const yearStart = new Date(new Date().getFullYear(), 0, 1).getTime()
+          const yearStart = Date.UTC(new Date().getUTCFullYear(), 0, 1)
           pts = pts.filter((dp) => dp.ts >= yearStart)
         }
         if (period === 'MTD') {
-          const monthStart = new Date(
-            new Date().getFullYear(),
-            new Date().getMonth(),
-            1
-          ).getTime()
+          const now = new Date()
+          const monthStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
           pts = pts.filter((dp) => dp.ts >= monthStart)
         }
 

@@ -92,7 +92,7 @@ function EditableCell({ displayValue, editValue, onSave, hint, isNegative, curre
 
   const commit = () => {
     const num = parseFloat(draft.replace(/[^0-9.\-]/g, ''))
-    if (!isNaN(num) && num >= 0) onSave(num)
+    if (isFinite(num) && num >= 0) onSave(num)
     setEditing(false)
     onEditEnd?.()
   }

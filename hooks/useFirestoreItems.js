@@ -367,7 +367,8 @@ export function useFirestoreItems() {
     const { db, fs } = await getFirebase()
     const qty = Math.round((lot.quantity || 0) * 10000)
     const cost = Math.round((lot.costBasis || 0) * 100)
-    const id = `${(lot.symbol || 'lot').toUpperCase()}-${lot.acquisitionDate || 'nodate'}-${qty}-${cost}`
+    const inst = (lot.institution || '').replace(/[/\\]/g, '-').slice(0, 20)
+    const id = `${(lot.symbol || 'lot').toUpperCase()}-${lot.acquisitionDate || 'nodate'}-${qty}-${cost}${inst ? `-${inst}` : ''}`
     const lotData = Object.fromEntries(Object.entries({ ...lot, status: 'open', createdAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
     await fs.setDoc(fs.doc(db, `users/${uid}/lots`, id), lotData)
   }, [uid])
@@ -379,11 +380,15 @@ export function useFirestoreItems() {
     await fs.updateDoc(fs.doc(db, `users/${uid}/lots`, lotId), clean)
   }, [uid])
 
-  const closeLotsFIFO = useCallback(async (symbol, qtyToClose, closePrice, closeDate) => {
+  const closeLotsFIFO = useCallback(async (symbol, qtyToClose, closePrice, closeDate, institution) => {
     if (!uid) return []
-    const openLots = lots
+    let openLots = lots
       .filter((l) => l.symbol === symbol && l.status === 'open' && l.quantity > 0)
       .sort((a, b) => (a.acquisitionDate || '').localeCompare(b.acquisitionDate || ''))
+    if (institution) {
+      const instLots = openLots.filter(l => l.institution === institution)
+      if (instLots.length > 0) openLots = instLots
+    }
 
     let remaining = qtyToClose
     const closedResults = []

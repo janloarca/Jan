@@ -95,7 +95,7 @@ export default function DocumentVault({ uid, itemId, lang }) {
           {docs.map((doc) => (
             <div key={doc.id} className="flex items-center gap-2 p-2 bg-[#000000] rounded-lg border border-[#38383A]/30 group">
               <span className="text-sm">{FILE_ICONS[doc.type] || FILE_ICONS.default}</span>
-              <a href={doc.url} target="_blank" rel="noopener noreferrer"
+              <a href={doc.url?.startsWith('https://') ? doc.url : '#'} target="_blank" rel="noopener noreferrer"
                 className="flex-1 min-w-0 text-xs text-slate-300 hover:text-blue-400 truncate transition-colors">
                 {doc.name}
               </a>

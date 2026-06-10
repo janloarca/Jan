@@ -85,7 +85,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // Daily snapshot
   const snapshotSavedRef = useRef(null)
   useEffect(() => {
-    const todayStr = new Date().toISOString().split('T')[0]
+    const todayStr = new Date().toLocaleDateString('en-CA')
     if (snapshotSavedRef.current === todayStr) return
     if (!user || dataLoading || pricesLoading || ratesLoading) return
     if (enrichedItems.length === 0) return
@@ -127,8 +127,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     if (gaps.length === 0) { backfillRef.current = true; return }
     backfillRef.current = true
 
+    let cancelled = false
     async function doBackfill() {
       try {
+        if (cancelled) return
         const allLots = (lots || []).filter(l => l.quantity > 0)
         const res = await authFetch('/api/prices/portfolio-history', {
           method: 'POST',
@@ -173,6 +175,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       }
     }
     doBackfill()
+    return () => { cancelled = true }
   }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, snapshots, lots, saveSnapshot, convert])
 
   // Dividend processing
@@ -474,14 +477,16 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const lastSync = settings._ibkrLastAutoSync ? new Date(settings._ibkrLastAutoSync).getTime() : 0
     const shouldSync = Date.now() - lastSync > SYNC_INTERVAL
 
+    let cancelled = false
     const doAutoSync = async () => {
-      if (!acquireLock('ibkr-sync')) return
+      if (cancelled || !acquireLock('ibkr-sync')) return
       setIbkrAutoSyncing(true)
       try {
         const { syncIBKR } = await import('@/lib/ibkrSync')
         const { decryptToken } = await import('@/lib/crypto')
         const plain = await decryptToken(settings.ibkrToken, user?.uid)
         const data = await syncIBKR(plain, settings.ibkrQueryId)
+        if (cancelled) return
         await handleIBKRSync(data, 'merge')
         saveSettings({
           _ibkrLastAutoSync: new Date().toISOString(),
@@ -491,6 +496,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         })
         console.log(`[ibkr] Auto-sync OK: ${data.items.length} positions`)
       } catch (err) {
+        if (cancelled) return
         const code = err.errorCode || 'UNKNOWN'
         saveSettings({
           _ibkrAutoSyncStatus: 'error',
@@ -499,14 +505,14 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         })
         console.log(`[ibkr] Auto-sync failed (${code}): ${err.message}`)
       } finally {
-        setIbkrAutoSyncing(false)
+        if (!cancelled) setIbkrAutoSyncing(false)
         releaseLock('ibkr-sync')
       }
     }
 
     if (shouldSync) doAutoSync()
     const interval = setInterval(doAutoSync, SYNC_INTERVAL)
-    return () => clearInterval(interval)
+    return () => { cancelled = true; clearInterval(interval) }
   }, [dataLoading, settings, user, handleIBKRSync, saveSettings])
 
   // Derived values
@@ -603,8 +609,8 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   }, [enrichedItems, lots, convert, baseCurrency])
 
   const { returnYTD, ytdChange, returnSinceStart, sinceStartDate } = useMemo(() => {
-    const year = new Date().getFullYear()
-    const yearStartTs = new Date(year, 0, 1).getTime()
+    const year = new Date().getUTCFullYear()
+    const yearStartTs = Date.UTC(year, 0, 1)
     let startVal = null
     if (snapshots.length >= 2) {
       const sorted = [...snapshots].filter(s => s.date).sort((a, b) => new Date(a.date) - new Date(b.date))

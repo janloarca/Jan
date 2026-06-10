@@ -162,6 +162,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               costBasis: pricePerUnit,
               currency: itemCurrency,
               acquisitionDate: contribDate,
+              institution: item.institution || '',
               status: 'open',
             })
           }
@@ -172,7 +173,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           set('quantity', newQty.toString())
           await onSave({ ...rawItem, quantity: newQty })
           if (onCloseLotsFIFO && sharesToSell > 0) {
-            await onCloseLotsFIFO((item.symbol || '').toUpperCase(), sharesToSell, pricePerUnit, contribDate)
+            await onCloseLotsFIFO((item.symbol || '').toUpperCase(), sharesToSell, pricePerUnit, contribDate, item.institution || '')
           }
         }
       }
