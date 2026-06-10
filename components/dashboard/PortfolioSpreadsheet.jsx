@@ -366,6 +366,10 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   const handleValueUpdate = useCallback((item, newVal) => {
     if (!onUpdateItem || !item.id) return
     if (isMarketAsset(item.type)) {
+      const hasOpenLots = lots && lots.some(l =>
+        (l.symbol || '').toUpperCase() === (item.symbol || '').toUpperCase() && l.status !== 'closed'
+      )
+      if (hasOpenLots) return
       onUpdateItem(item.id, { quantity: newVal })
     } else {
       const qty = item.quantity || 1
@@ -378,7 +382,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         onUpdateItem(item.id, { currentPrice: originalVal / qty })
       }
     }
-  }, [onUpdateItem, showOriginal, convert, baseCurrency])
+  }, [onUpdateItem, showOriginal, convert, baseCurrency, lots])
 
   const isCurrentYear = selectedYear === now.getFullYear()
   const prevMonthKey = months.length >= 2 ? months[months.length - 2] : null

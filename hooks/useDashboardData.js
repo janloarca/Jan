@@ -148,7 +148,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
               symbol: l.symbol, quantity: l.quantity,
               acquisitionDate: l.acquisitionDate, closedDate: l.closedDate || null,
             })) : undefined,
-            period: '3M',
+            period: '1M',
           }),
         })
         if (!res.ok) return
@@ -345,7 +345,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
 
     dividendsProcessedRef.current = todayKey
-    processDividends().catch(() => { dividendsProcessedRef.current = null })
+    processDividends().catch((err) => console.error('[dividends]', err))
     return () => { cancelled = true }
   }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, transactions, addTransaction, deleteTransaction, updateItem, convert])
 

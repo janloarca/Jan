@@ -54,7 +54,7 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
     }
     fetchHistory()
     return () => { cancelled = true }
-  }, [items])
+  }, [items, baseCurrency])
 
   const periods = useMemo(() => {
     if (historyPoints.length === 0 || !netWorth) return []

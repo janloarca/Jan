@@ -4,6 +4,7 @@ export function useExchangeRates(baseCurrency) {
   const [rates, setRates] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [stale, setStale] = useState(false)
   const [lastUpdate, setLastUpdate] = useState(null)
 
   const ratesRef = useRef(null)
@@ -25,9 +26,14 @@ export function useExchangeRates(baseCurrency) {
         if (Object.keys(valid).length > 0) {
           setRates(valid)
           setLastUpdate(data.timestamp)
+          setStale(!!data.stale)
+          if (data.stale) setError('rates-stale')
+          else setError(null)
         } else {
           setError('Invalid rate data')
         }
+      } else if (res.status === 503) {
+        setError('Exchange rates temporarily unavailable')
       } else {
         setError('Failed to fetch rates')
       }
@@ -76,5 +82,5 @@ export function useExchangeRates(baseCurrency) {
 
   const ready = !!rates
 
-  return { rates, loading, error, lastUpdate, convert, getRate, convertItemValue, ready, refresh: fetchRates }
+  return { rates, loading, error, stale, lastUpdate, convert, getRate, convertItemValue, ready, refresh: fetchRates }
 }

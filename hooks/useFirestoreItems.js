@@ -227,11 +227,17 @@ export function useFirestoreItems() {
     }
   }, [uid, items])
 
-  const deleteAllItems = useCallback(async () => {
+  const deleteAllItems = useCallback(async ({ cascade } = {}) => {
     if (!uid) return
     const { db, fs } = await getFirebase()
-    const snap = await fs.getDocs(fs.collection(db, `users/${uid}/items`))
-    await Promise.all(snap.docs.map((d) => fs.deleteDoc(d.ref)))
+    const collections = [`users/${uid}/items`]
+    if (cascade) {
+      collections.push(`users/${uid}/lots`, `users/${uid}/transactions`)
+    }
+    await Promise.all(collections.map(async (path) => {
+      const snap = await fs.getDocs(fs.collection(db, path))
+      await Promise.all(snap.docs.map((d) => fs.deleteDoc(d.ref)))
+    }))
   }, [uid])
 
   const saveSnapshot = useCallback(async (snapshot) => {
