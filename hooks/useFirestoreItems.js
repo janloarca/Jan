@@ -281,7 +281,8 @@ export function useFirestoreItems() {
     const { db, fs } = await getFirebase()
     const dateStr = snapshot.date || new Date().toISOString().split('T')[0]
     const id = dateStr
-    await fs.setDoc(fs.doc(db, `users/${uid}/snapshots`, id), { ...snapshot, createdAt: new Date().toISOString() }, { merge: true })
+    const clean = Object.fromEntries(Object.entries({ ...snapshot, createdAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
+    await fs.setDoc(fs.doc(db, `users/${uid}/snapshots`, id), clean, { merge: true })
   }, [uid])
 
   const deleteAllSnapshots = useCallback(async () => {

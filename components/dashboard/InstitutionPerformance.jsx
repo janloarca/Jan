@@ -162,7 +162,8 @@ export default function InstitutionPerformance({ items, lang, convert, baseCurre
 
   const geo = useMemo(() => {
     if (chartData.length < 2) return null
-    const values = chartData.map((d) => d.value)
+    const values = chartData.map((d) => d.value).filter(v => isFinite(v))
+    if (values.length < 2) return null
     const ch = chartHeight - pad.top - pad.bottom
     const cw = chartWidth - pad.left - pad.right
 

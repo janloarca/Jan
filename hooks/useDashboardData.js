@@ -513,10 +513,15 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   const latestSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null
   const prevSnapshot = snapshots.length > 1 ? snapshots[snapshots.length - 2] : null
 
-  const totalFromItems = useMemo(() =>
-    portfolioItems.reduce((s, it) => s + (it.quantity || 0) * (it.currentPrice || it.purchasePrice || 0), 0),
-    [portfolioItems]
-  )
+  const { totalFromItems, totalDebt: liveDebt } = useMemo(() => {
+    let assets = 0, debt = 0
+    portfolioItems.forEach(it => {
+      const val = Math.abs((it.quantity || 0) * (it.currentPrice || it.purchasePrice || 0))
+      if (it.isDebt) debt += val
+      else assets += val
+    })
+    return { totalFromItems: assets, totalDebt: debt }
+  }, [portfolioItems])
 
   const convertSnapshot = useCallback((val) => convert(val, 'USD', baseCurrency), [convert, baseCurrency])
 
@@ -524,7 +529,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     totalFromItems > 0 ? totalFromItems : (latestSnapshot ? convertSnapshot(latestSnapshot.totalActivosUSD ?? 0) : 0),
     [totalFromItems, latestSnapshot, convertSnapshot]
   )
-  const netWorth = totalAssets
+  const netWorth = totalAssets - liveDebt
 
   const dailyChange = useMemo(() => {
     if (!prevSnapshot || netWorth <= 0) return null

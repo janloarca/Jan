@@ -125,7 +125,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
   const linkedTransactions = useMemo(() =>
     (transactions || [])
-      .filter(tx => tx._linkedItemId === item.id && (tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL'))
+      .filter(tx => tx._linkedItemId === item.id && (tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL' || tx.type === 'DIVIDEND'))
       .sort((a, b) => (b.date || '').localeCompare(a.date || '')),
     [transactions, item.id]
   )
@@ -198,7 +198,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
       }
 
       if (!isBank && isAdd && item._contribIsIncome !== contribIsIncome) {
-        await onSave({ ...stripEnriched(item), _contribIsIncome: contribIsIncome })
+        await onSave({ _contribIsIncome: contribIsIncome })
       }
 
       setContribAmount('')
