@@ -233,7 +233,7 @@ export function useFirestoreItems() {
     const { db, fs } = await getFirebase()
     const collections = [`users/${uid}/items`]
     if (cascade) {
-      collections.push(`users/${uid}/lots`, `users/${uid}/transactions`)
+      collections.push(`users/${uid}/lots`, `users/${uid}/transactions`, `users/${uid}/snapshots`, `users/${uid}/itemSnapshots`)
     }
     await Promise.all(collections.map(async (path) => {
       const snap = await fs.getDocs(fs.collection(db, path))

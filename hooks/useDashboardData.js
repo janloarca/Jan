@@ -560,13 +560,17 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            items: enrichedItems.map((it) => ({
-              symbol: it.symbol, type: it.type, quantity: it.quantity,
-              currentPrice: it._originalPrice || it.currentPrice,
-              purchasePrice: it._originalPurchasePrice || it.purchasePrice,
-              currency: it._originalCurrency || it.currency || 'USD',
-              acquisitionDate: it.acquisitionDate,
-            })),
+            items: enrichedItems.map((it) => {
+              const cur = it._originalCurrency || it.currency || 'USD'
+              const toUSD = (p) => convert ? convert(p || 0, cur, 'USD') : (p || 0)
+              return {
+                symbol: it.symbol, type: it.type, quantity: it.quantity,
+                currentPrice: toUSD(it._originalPrice ?? it.currentPrice),
+                purchasePrice: toUSD(it._originalPurchasePrice ?? it.purchasePrice),
+                currency: 'USD',
+                acquisitionDate: it.acquisitionDate,
+              }
+            }),
             lots: allLots.length > 0 ? allLots.map(l => ({
               symbol: l.symbol, quantity: l.quantity,
               acquisitionDate: l.acquisitionDate,

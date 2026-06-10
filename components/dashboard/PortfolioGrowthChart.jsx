@@ -523,19 +523,21 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     if (valid.length === 0) return
     setSnapshotSaving(true)
     for (const row of valid) {
+      const raw = parseFloat(row.value)
+      const inUSD = (baseCurrency !== 'USD' && convert) ? convert(raw, baseCurrency, 'USD') : raw
       await onSaveSnapshot({
         date: row.date,
-        totalActivosUSD: parseFloat(row.value),
+        totalActivosUSD: inUSD,
         totalDebtUSD: 0,
-        netWorthUSD: parseFloat(row.value),
-        baseCurrency: 'USD',
+        netWorthUSD: inUSD,
+        baseCurrency: baseCurrency || 'USD',
         _source: 'manual',
       })
     }
     setSnapshotSaving(false)
     setShowSnapshotImport(false)
     setSnapshotRows([{ date: '', value: '' }])
-  }, [snapshotRows, onSaveSnapshot])
+  }, [snapshotRows, onSaveSnapshot, baseCurrency, convert])
 
   const periodSelector = (
     <div className="flex flex-wrap gap-0.5 bg-[#09090b] rounded-lg p-0.5 border border-[#27272a]/50">
