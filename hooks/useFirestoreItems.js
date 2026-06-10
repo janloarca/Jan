@@ -239,7 +239,7 @@ export function useFirestoreItems() {
     const { db, fs } = await getFirebase()
     const dateStr = snapshot.date || new Date().toISOString().split('T')[0]
     const id = dateStr
-    await fs.setDoc(fs.doc(db, `users/${uid}/snapshots`, id), { ...snapshot, createdAt: new Date().toISOString() })
+    await fs.setDoc(fs.doc(db, `users/${uid}/snapshots`, id), { ...snapshot, createdAt: new Date().toISOString() }, { merge: true })
   }, [uid])
 
   const deleteAllSnapshots = useCallback(async () => {
@@ -253,7 +253,11 @@ export function useFirestoreItems() {
     if (!uid) return
     const { db, fs } = await getFirebase()
     const amt = Math.round((transaction.totalAmount || transaction.amount || 0) * 100)
-    const id = `${transaction.date || 'nodate'}-${(transaction.symbol || 'nosym').toUpperCase()}-${transaction.type || 'tx'}-${amt}`
+    // Deterministic IDs dedupe auto-generated transactions (daily dividend processing).
+    // Manual entries need a nonce so two identical same-day entries don't overwrite each other.
+    const isManual = (transaction._source || '').startsWith('manual')
+    const nonce = isManual ? `-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}` : ''
+    const id = `${transaction.date || 'nodate'}-${(transaction.symbol || 'nosym').toUpperCase()}-${transaction.type || 'tx'}-${amt}${nonce}`
     await fs.setDoc(fs.doc(db, `users/${uid}/transactions`, id), { ...transaction, createdAt: new Date().toISOString() })
   }, [uid])
 
@@ -273,8 +277,8 @@ export function useFirestoreItems() {
   const saveGoals = useCallback(async (goalsData) => {
     if (!uid) return
     const { db, fs } = await getFirebase()
-    await fs.setDoc(fs.doc(db, `users/${uid}/settings`, 'goals'), { ...goalsData, updatedAt: new Date().toISOString() })
-    setGoals(goalsData)
+    await fs.setDoc(fs.doc(db, `users/${uid}/settings`, 'goals'), { ...goalsData, updatedAt: new Date().toISOString() }, { merge: true })
+    setGoals((prev) => ({ ...prev, ...goalsData }))
   }, [uid])
 
   const saveSettings = useCallback(async (prefsData) => {
@@ -401,7 +405,7 @@ export function useFirestoreItems() {
 
   const SNAPSHOT_VERSION = 2
 
-  const saveItemSnapshots = useCallback(async (monthKey, itemsData) => {
+  const saveItemSnapshots = useCallback(async (monthKey, itemsData, currency) => {
     if (!uid || !monthKey || !itemsData) return
     const { db, fs } = await getFirebase()
     const ref = fs.doc(db, `users/${uid}/itemSnapshots`, monthKey)
@@ -412,13 +416,15 @@ export function useFirestoreItems() {
       items: { ...existingItems, ...itemsData },
       savedAt: new Date().toISOString(),
       _version: SNAPSHOT_VERSION,
+      ...(currency ? { _currency: currency } : {}),
     })
   }, [uid])
 
   const loadItemSnapshots = useCallback(async (monthKeys) => {
     if (!uid || !monthKeys || monthKeys.length === 0) return {}
-    const { db, fs } = await getFirebase()
     const result = {}
+    const currencies = {}
+    const { db, fs } = await getFirebase()
     await Promise.all(monthKeys.map(async (key) => {
       try {
         const docSnap = await fs.getDoc(fs.doc(db, `users/${uid}/itemSnapshots`, key))
@@ -426,11 +432,12 @@ export function useFirestoreItems() {
           const data = docSnap.data()
           if ((data._version || 0) >= SNAPSHOT_VERSION) {
             result[key] = data.items || {}
+            if (data._currency) currencies[key] = data._currency
           }
         }
       } catch {}
     }))
-    return result
+    return { ...result, __currencies: currencies }
   }, [uid])
 
   const bulkImport = useCallback(async ({ items: newItems, lots: newLots, transactions: newTxs, snapshots: newSnaps, updateItems, deleteIds }, onProgress) => {

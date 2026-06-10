@@ -9,6 +9,17 @@ const ACCOUNT_TYPES = [
   { key: 'tax-free', es: 'Libre', en: 'Tax-free' },
 ]
 
+// Items opened from the dashboard are enriched: display-only fields plus
+// currentPrice/purchasePrice already converted to baseCurrency. Strip the
+// display fields and restore original-currency values before any Firestore write.
+function stripEnriched(item) {
+  const { _originalPrice, _originalPurchasePrice, _originalCurrency, _displayCurrency, totalValue, percentOfPortfolio, change1d, change7d, change30d, pnlPercent, marketCurrency, _category, ...rawItem } = item
+  if (_originalPrice != null) rawItem.currentPrice = _originalPrice
+  if (_originalPurchasePrice != null) rawItem.purchasePrice = _originalPurchasePrice
+  if (_originalCurrency != null) rawItem.currency = _originalCurrency
+  return rawItem
+}
+
 function InfoTip({ text }) {
   const [show, setShow] = useState(false)
   return (
@@ -28,7 +39,7 @@ function InfoTip({ text }) {
   )
 }
 
-export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es', allItems, onNavigate, onAddTransaction, transactions, onAddLot, baseCurrency }) {
+export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es', allItems, onNavigate, onAddTransaction, transactions, onAddLot, onCloseLotsFIFO, baseCurrency }) {
   const [form, setForm] = useState({
     symbol: item.symbol || '',
     name: item.name || '',
@@ -122,21 +133,23 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     try {
       const itemCurrency = form.currency || item._originalCurrency || item.currency || 'USD'
       const isAdd = contribType === 'add'
+      const rawItem = stripEnriched(item)
 
       if (isBankLike) {
         const oldPrice = parseFloat(form.purchasePrice) || 0
         const newPrice = isAdd ? oldPrice + amt : Math.max(0, oldPrice - amt)
         set('purchasePrice', newPrice.toString())
         set('currentPrice', newPrice.toString())
-        await onSave({ ...item, purchasePrice: newPrice, currentPrice: newPrice })
+        await onSave({ ...rawItem, purchasePrice: newPrice, currentPrice: newPrice })
       } else {
+        // Use original-currency price so the share math matches the lot cost basis
         const pricePerUnit = parseFloat(form.currentPrice) || parseFloat(form.purchasePrice) || 1
         if (isAdd) {
           const newShares = amt / pricePerUnit
           const oldQty = parseFloat(form.quantity) || 0
           const newQty = oldQty + newShares
           set('quantity', newQty.toString())
-          await onSave({ ...item, quantity: newQty })
+          await onSave({ ...rawItem, quantity: newQty })
           if (onAddLot) {
             await onAddLot({
               symbol: (item.symbol || '').toUpperCase(),
@@ -152,7 +165,10 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           const oldQty = parseFloat(form.quantity) || 0
           const newQty = Math.max(0, oldQty - sharesToSell)
           set('quantity', newQty.toString())
-          await onSave({ ...item, quantity: newQty })
+          await onSave({ ...rawItem, quantity: newQty })
+          if (onCloseLotsFIFO && sharesToSell > 0) {
+            await onCloseLotsFIFO((item.symbol || '').toUpperCase(), sharesToSell, pricePerUnit, contribDate)
+          }
         }
       }
 
@@ -198,7 +214,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     setSaving(true)
     setError('')
     try {
-      const { _originalPrice, _originalPurchasePrice, _originalCurrency, _displayCurrency, totalValue, percentOfPortfolio, change1d, change7d, change30d, pnlPercent, marketCurrency, _category, ...rawItem } = item
+      const rawItem = stripEnriched(item)
       const updated = {
         ...rawItem,
         symbol: form.symbol.trim(),

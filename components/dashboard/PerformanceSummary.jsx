@@ -24,17 +24,27 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            items: items.map((it) => ({
-              symbol: it.symbol, type: it.type, quantity: it.quantity,
-              currentPrice: it.currentPrice, purchasePrice: it.purchasePrice,
-              acquisitionDate: it.acquisitionDate,
-            })),
+            items: items.map((it) => {
+              const cur = it._originalCurrency || it.currency || 'USD'
+              const toUSD = (p) => convert ? convert(p || 0, cur, 'USD') : (p || 0)
+              return {
+                symbol: it.symbol, type: it.type, quantity: it.quantity,
+                currentPrice: toUSD(it._originalPrice ?? it.currentPrice),
+                purchasePrice: toUSD(it._originalPurchasePrice ?? it.purchasePrice),
+                currency: 'USD',
+                acquisitionDate: it.acquisitionDate,
+              }
+            }),
             period: 'ALL',
           }),
         })
         if (res.ok && !cancelled) {
           const data = await res.json()
-          setHistoryPoints(data.dataPoints || [])
+          let pts = data.dataPoints || []
+          if (baseCurrency !== 'USD' && convert) {
+            pts = pts.map(dp => ({ ...dp, total: convert(dp.total, 'USD', baseCurrency) }))
+          }
+          setHistoryPoints(pts)
         }
       } catch (err) {
         console.error('Failed to fetch performance history:', err)

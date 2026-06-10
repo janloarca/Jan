@@ -391,10 +391,12 @@ export function computePeriodicReturns(snapshots, transactions, convert, baseCur
       if (transactions && convert) {
         const prevTs = new Date(sorted[i - 1].date).getTime()
         const currTs = new Date(sorted[i].date).getTime()
+        // Snapshot values (prev/curr) are stored in USD, so flows must be
+        // converted to USD too — not to the user's baseCurrency
         const { pct } = computeModifiedDietz({
           startValue: prev, endValue: curr,
           startTs: prevTs, endTs: currTs,
-          transactions, convert, baseCurrency,
+          transactions, convert, baseCurrency: 'USD',
         })
         r = pct / 100
       } else {

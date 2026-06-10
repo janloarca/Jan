@@ -7,7 +7,6 @@ export const revalidate = 600
 let cachedRates = null
 let cacheTime = 0
 const CACHE_TTL = 10 * 60 * 1000
-const STALE_TTL = 60 * 60 * 1000
 
 async function fetchRates() {
   const now = Date.now()
@@ -41,11 +40,13 @@ async function fetchRates() {
     }
   }
 
-  if (cachedRates && now - cacheTime < STALE_TTL) {
+  // A stale cache is still real market data — better than nothing
+  if (cachedRates) {
     return { rates: cachedRates, stale: true }
   }
 
-  return { rates: cachedRates || { USD: 1 }, stale: !cachedRates }
+  // No data at all: signal failure instead of pretending 1:1 rates exist
+  return null
 }
 
 export async function GET(request) {
@@ -53,11 +54,15 @@ export async function GET(request) {
   if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 
   try {
-    const { rates, stale } = await fetchRates()
+    const result = await fetchRates()
+    if (!result) {
+      return NextResponse.json({ error: 'Exchange rates unavailable' }, { status: 503 })
+    }
+    const { rates, stale } = result
     const headers = stale ? { 'X-Cache-Stale': 'true' } : {}
     return NextResponse.json({ rates, timestamp: new Date().toISOString(), stale }, { headers })
   } catch (err) {
     console.error('[api/exchange-rates] error:', err.message)
-    return NextResponse.json({ error: 'Internal server error', rates: { USD: 1 } }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

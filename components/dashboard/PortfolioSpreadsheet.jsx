@@ -218,11 +218,26 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     const toLoad = months.filter(mk => mk !== currentMonthKey)
     if (toLoad.length === 0) return
     onLoadItemSnapshots(toLoad).then(data => {
-      if (data && Object.keys(data).length > 0) {
-        setHistoricalItems(prev => ({ ...prev, ...data }))
-      }
+      if (!data) return
+      const { __currencies = {}, ...monthData } = data
+      if (Object.keys(monthData).length === 0) return
+      // Cached snapshots were saved in the baseCurrency active at the time;
+      // convert if the user has changed baseCurrency since
+      const base = baseCurrency || 'USD'
+      const adjusted = {}
+      Object.entries(monthData).forEach(([mk, itemsForMonth]) => {
+        const savedCur = __currencies[mk]
+        if (savedCur && savedCur !== base && convert) {
+          adjusted[mk] = Object.fromEntries(Object.entries(itemsForMonth).map(([id, v]) =>
+            [id, { ...v, value: convert(v.value, savedCur, base) }]
+          ))
+        } else {
+          adjusted[mk] = itemsForMonth
+        }
+      })
+      setHistoricalItems(prev => ({ ...prev, ...adjusted }))
     })
-  }, [onLoadItemSnapshots, months, currentMonthKey])
+  }, [onLoadItemSnapshots, months, currentMonthKey, baseCurrency, convert])
 
   useEffect(() => {
     if (!onSaveItemSnapshots || !items || items.length === 0) return
@@ -235,8 +250,8 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       const val = getItemValue(it)
       if (it.id) data[it.id] = { value: val, symbol: it.symbol || it.name || '', category: getTypeCategory(it), institution: it.institution || '' }
     })
-    onSaveItemSnapshots(currentMonthKey, data)
-  }, [onSaveItemSnapshots, items, currentMonthKey])
+    onSaveItemSnapshots(currentMonthKey, data, baseCurrency || 'USD')
+  }, [onSaveItemSnapshots, items, currentMonthKey, baseCurrency])
 
   useEffect(() => {
     if (!items || items.length === 0) return
@@ -273,7 +288,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         })
         for (const mk of Object.keys(data)) {
           if (Object.keys(data[mk]).length > 0) {
-            try { await onSaveItemSnapshots(mk, data[mk]) } catch {}
+            try { await onSaveItemSnapshots(mk, data[mk], baseCurrency || 'USD') } catch {}
           }
         }
         setLoadingHistory(false)

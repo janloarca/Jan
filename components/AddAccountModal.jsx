@@ -113,6 +113,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     cardBrand: '', rewardType: '', rewardRate: '', rewardBalance: '',
   })
   const [isNewMoney, setIsNewMoney] = useState(true)
+  const [detectedCurrency, setDetectedCurrency] = useState(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [divInfo, setDivInfo] = useState(null)
@@ -210,6 +211,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
       if (res.ok) {
         const data = await res.json()
         if (data.quote?.price) {
+          if (data.quote.currency) setDetectedCurrency(data.quote.currency)
           setForm(prev => ({
             ...prev,
             purchasePrice: data.quote.price.toString(),
@@ -247,10 +249,18 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     if (!isMarketAsset && !form.name && !isBank) { setError(t('Ingresa el nombre', 'Enter the name')); return }
     if (isBank && !form.institution) { setError(t('Ingresa el banco', 'Enter the bank')); return }
 
-    // Duplicate detection
+    // Duplicate detection — match by symbol/name; if both have institution, also match that
     const existing = existingItems.find(ei => {
-      if (isMarketAsset) return (ei.symbol || '').toUpperCase() === (form.symbol || '').toUpperCase() && (ei.institution || '').toLowerCase() === (form.institution || '').toLowerCase()
-      return (ei.name || '').toLowerCase() === (form.name || '').toLowerCase() && (ei.institution || '').toLowerCase() === (form.institution || '').toLowerCase()
+      if (isMarketAsset) {
+        const sameSymbol = (ei.symbol || '').toUpperCase() === (form.symbol || '').toUpperCase()
+        if (!sameSymbol) return false
+        if (form.institution && ei.institution) return (ei.institution || '').toLowerCase() === (form.institution || '').toLowerCase()
+        return true
+      }
+      const sameName = (ei.name || '').toLowerCase() === (form.name || '').toLowerCase()
+      if (!sameName) return false
+      if (form.institution && ei.institution) return (ei.institution || '').toLowerCase() === (form.institution || '').toLowerCase()
+      return true
     })
     if (existing && !duplicateWarning) {
       setDuplicateWarning(existing)
@@ -637,11 +647,13 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 <div className="flex gap-2">
                   <button type="button" onClick={() => { setStep(2) }}
                     className="flex-1 px-2 py-1.5 text-xs font-medium rounded bg-amber-500/20 text-amber-400 border border-amber-500/40 hover:bg-amber-500/30">
-                    {t('Agregar a posición', 'Add to position')}
+                    <span className="block">{t('Agregar a posición', 'Add to position')}</span>
+                    <span className="block text-[10px] opacity-70 mt-0.5">{t('Combina cantidades y recalcula costo', 'Combines quantities and recalculates cost')}</span>
                   </button>
                   <button type="button" onClick={() => { setDuplicateWarning(null); setStep(2) }}
                     className="flex-1 px-2 py-1.5 text-xs font-medium rounded bg-[var(--input-bg,#000000)] text-[var(--text-secondary,#94a3b8)] border border-[var(--card-border,#38383A)]">
-                    {t('Crear separado', 'Create separate')}
+                    <span className="block">{t('Crear separado', 'Create separate')}</span>
+                    <span className="block text-[10px] opacity-70 mt-0.5">{t('Ej. mismo activo en otro broker', 'E.g. same asset at another broker')}</span>
                   </button>
                 </div>
               </div>
@@ -916,7 +928,14 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             {/* Currency + Account Type */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={labelCls}>{t('Moneda', 'Currency')}</label>
+                <label className={labelCls}>
+                  {t('Moneda', 'Currency')}
+                  {detectedCurrency && form.currency === detectedCurrency && (
+                    <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium" style={{ color: '#34d399', backgroundColor: 'rgba(16,185,129,0.15)' }}>
+                      {t('Detectada', 'Detected')}
+                    </span>
+                  )}
+                </label>
                 <select value={form.currency} onChange={e => set('currency', e.target.value)} className={inputCls}>
                   {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
@@ -926,6 +945,11 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 <select value={form.accountType} onChange={e => set('accountType', e.target.value)} className={inputCls}>
                   {ACCOUNT_TYPES.map(at => <option key={at.key} value={at.key}>{lang === 'es' ? at.es : at.en}</option>)}
                 </select>
+                <p className="text-[10px] mt-0.5" style={{ color: '#64748b' }}>
+                  {form.accountType === 'taxable' ? t('Paga impuestos (ej. cuenta de bolsa normal)', 'Pays taxes (e.g. regular brokerage)') :
+                   form.accountType === 'retirement' ? t('Ahorro para retiro (ej. 401k, IRA, AFP)', 'Retirement savings (e.g. 401k, IRA)') :
+                   t('Exenta de impuestos (ej. Roth IRA)', 'Tax-exempt (e.g. Roth IRA)')}
+                </p>
               </div>
             </div>
 

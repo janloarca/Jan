@@ -810,7 +810,7 @@ export default function DashboardPage() {
           onImportTransaction={addTransaction} onImportSnapshot={saveSnapshot}
           onAddLot={addLot} onAddFinanceTransaction={addFinanceTransaction}
           onUpdateItem={updateItem} onDeleteItem={deleteItem} onBulkImport={bulkImport}
-          existingItems={items}
+          existingItems={items} existingLots={lots}
           activePortfolio={activePortfolio} activeEntity={activeEntity !== '__all__' ? activeEntity : 'default'}
           lang={lang} brokerHint={importBrokerHint}
         />
@@ -1016,6 +1016,7 @@ export default function DashboardPage() {
           }}
           onAddTransaction={addTransaction}
           onAddLot={addLot}
+          onCloseLotsFIFO={closeLotsFIFO}
           transactions={transactions}
           baseCurrency={baseCurrency}
           existingItems={items} lang={lang}

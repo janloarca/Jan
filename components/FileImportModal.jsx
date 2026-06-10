@@ -228,7 +228,7 @@ function parseNumber(val) {
   return isFinite(num) ? num : 0
 }
 
-export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateItem, onDeleteItem, onBulkImport, existingItems, activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null }) {
+export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateItem, onDeleteItem, onBulkImport, existingItems, existingLots = [], activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null }) {
   const [mode, setMode] = useState('file')
   const [step, setStep] = useState('upload')
   const [rawData, setRawData] = useState([])
@@ -492,14 +492,25 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         }
         await onImportItems(item)
         if (onAddLot && item.symbol && item.quantity > 0 && item.purchasePrice > 0 && !/debt|deuda/i.test(item.type || '')) {
-          await onAddLot({
-            symbol: (item.symbol || '').toUpperCase(),
-            quantity: item.quantity,
-            costBasis: item.purchasePrice,
-            currency: item.currency || 'USD',
-            acquisitionDate: item.acquisitionDate || new Date().toISOString().split('T')[0],
-            ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
-          })
+          const lotSym = (item.symbol || '').toUpperCase()
+          const lotDate = item.acquisitionDate || new Date().toISOString().split('T')[0]
+          // Re-importing the same file must not duplicate lots — qtyAtMonth sums them
+          const duplicate = existingLots.some(l =>
+            (l.symbol || '').toUpperCase() === lotSym &&
+            Math.abs((l.quantity || 0) - item.quantity) < 1e-9 &&
+            Math.abs((l.costBasis || 0) - item.purchasePrice) < 1e-9 &&
+            (l.acquisitionDate || '') === lotDate
+          )
+          if (!duplicate) {
+            await onAddLot({
+              symbol: lotSym,
+              quantity: item.quantity,
+              costBasis: item.purchasePrice,
+              currency: item.currency || 'USD',
+              acquisitionDate: lotDate,
+              ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
+            })
+          }
         }
         success++
       } catch {

@@ -95,15 +95,17 @@ export default function InstitutionPerformance({ items, lang, convert, baseCurre
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          items: chartableItems.map((it) => ({
-            symbol: it.symbol,
-            type: it.type,
-            quantity: it.quantity,
-            currentPrice: it._originalPrice || it.currentPrice,
-            purchasePrice: it._originalPurchasePrice || it.purchasePrice,
-            currency: it._originalCurrency || 'USD',
-            acquisitionDate: it.acquisitionDate,
-          })),
+          items: chartableItems.map((it) => {
+            const cur = it._originalCurrency || it.currency || 'USD'
+            const toUSD = (p) => convert ? convert(p || 0, cur, 'USD') : (p || 0)
+            return {
+              symbol: it.symbol, type: it.type, quantity: it.quantity,
+              currentPrice: toUSD(it._originalPrice ?? it.currentPrice),
+              purchasePrice: toUSD(it._originalPurchasePrice ?? it.purchasePrice),
+              currency: 'USD',
+              acquisitionDate: it.acquisitionDate,
+            }
+          }),
           period: apiPeriod,
         }),
       })

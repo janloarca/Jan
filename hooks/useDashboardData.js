@@ -109,6 +109,72 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
   }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, snapshots, saveSnapshot, convert, baseCurrency, transactions])
 
+  // Backfill missing snapshots for the last 30 days
+  const backfillRef = useRef(false)
+  useEffect(() => {
+    if (backfillRef.current) return
+    if (!user || dataLoading || pricesLoading || ratesLoading) return
+    if (enrichedItems.length === 0 || !snapshots) return
+    const existingDates = new Set(snapshots.map(s => s.date || s.id))
+    const today = new Date()
+    const gaps = []
+    for (let d = 1; d <= 30; d++) {
+      const dt = new Date(today)
+      dt.setDate(dt.getDate() - d)
+      const dateStr = dt.toISOString().split('T')[0]
+      if (!existingDates.has(dateStr)) gaps.push(dateStr)
+    }
+    if (gaps.length === 0) { backfillRef.current = true; return }
+    backfillRef.current = true
+
+    async function doBackfill() {
+      try {
+        const allLots = (lots || []).filter(l => l.quantity > 0)
+        const res = await authFetch('/api/prices/portfolio-history', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items: enrichedItems.map((it) => {
+              const cur = it._originalCurrency || it.currency || 'USD'
+              const toUSD = (p) => convert ? convert(p || 0, cur, 'USD') : (p || 0)
+              return {
+                symbol: it.symbol, type: it.type, quantity: it.quantity,
+                currentPrice: toUSD(it._originalPrice ?? it.currentPrice),
+                purchasePrice: toUSD(it._originalPurchasePrice ?? it.purchasePrice),
+                currency: 'USD', acquisitionDate: it.acquisitionDate,
+              }
+            }),
+            lots: allLots.length > 0 ? allLots.map(l => ({
+              symbol: l.symbol, quantity: l.quantity,
+              acquisitionDate: l.acquisitionDate, closedDate: l.closedDate || null,
+            })) : undefined,
+            period: '3M',
+          }),
+        })
+        if (!res.ok) return
+        const data = await res.json()
+        const pts = data.dataPoints || []
+        if (pts.length === 0) return
+        const gapSet = new Set(gaps)
+        for (const pt of pts) {
+          const dateStr = new Date(pt.ts).toISOString().split('T')[0]
+          if (!gapSet.has(dateStr) || pt.total <= 0) continue
+          gapSet.delete(dateStr)
+          await saveSnapshot({
+            date: dateStr,
+            netWorthUSD: pt.total,
+            totalActivosUSD: pt.total,
+            totalDebtUSD: 0,
+            _source: 'backfill',
+          })
+        }
+      } catch (err) {
+        console.error('[backfill] Failed:', err.message)
+      }
+    }
+    doBackfill()
+  }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, snapshots, lots, saveSnapshot, convert])
+
   // Dividend processing
   const dividendsProcessedRef = useRef(null)
   useEffect(() => {
@@ -145,7 +211,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       const newBalance = oldBalance + converted
       const qty = dest.quantity || 1
       const newPrice = newBalance / qty
-      await updateItem(dest.id, { currentPrice: newPrice, purchasePrice: newPrice })
+      // Banks track their balance in purchasePrice; for bonds/alternatives purchasePrice
+      // is the cost basis and must survive income payments
+      const isBankDest = /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i.test(dest.type || '')
+      await updateItem(dest.id, isBankDest
+        ? { currentPrice: newPrice, purchasePrice: newPrice }
+        : { currentPrice: newPrice })
     }
 
     async function processDividends() {
@@ -157,7 +228,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         const autoDivs = transactions.filter(tx =>
           tx._source === 'auto' &&
           (tx.type || '').toUpperCase() === 'DIVIDEND' &&
-          tx.symbol === sym
+          (tx._linkedItemId === it.id || (!tx._linkedItemId && tx.symbol === sym))
         )
         if (autoDivs.length > 1) {
           // Keep only the most recent auto-dividend, delete the rest
@@ -206,7 +277,8 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         for (const { dateStr } of monthsToCheck) {
           if (cancelled) return
           const alreadyProcessed = transactions.some((tx) =>
-            (tx.symbol === (it.symbol || it.name) && tx.date === dateStr && (tx.type || '').toUpperCase() === 'DIVIDEND')
+            (tx.type || '').toUpperCase() === 'DIVIDEND' && tx.date === dateStr &&
+            (tx._linkedItemId === it.id || (!tx._linkedItemId && tx.symbol === (it.symbol || it.name)))
           )
           if (alreadyProcessed) continue
 
@@ -240,6 +312,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             totalAmount: amount,
             currency: incomeCurrency,
             _source: 'auto',
+            _linkedItemId: it.id,
           })
 
           if (it.dividendAction === 'reinvest') {
@@ -269,10 +342,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         }
         }
       }
-      dividendsProcessedRef.current = todayKey
     }
 
-    processDividends()
+    dividendsProcessedRef.current = todayKey
+    processDividends().catch(() => { dividendsProcessedRef.current = null })
     return () => { cancelled = true }
   }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, transactions, addTransaction, deleteTransaction, updateItem, convert])
 
@@ -507,13 +580,18 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         const pts = data.dataPoints || []
         if (pts.length > 0) {
           const firstReal = pts.find(p => p.total > 0)
-          if (!cancelled && firstReal) setJan1Value(firstReal.total)
+          if (!cancelled && firstReal) {
+            const val = (baseCurrency !== 'USD' && convert)
+              ? convert(firstReal.total, 'USD', baseCurrency)
+              : firstReal.total
+            setJan1Value(val)
+          }
         }
       } catch {}
     }
     fetchJan1()
     return () => { cancelled = true }
-  }, [enrichedItems, lots])
+  }, [enrichedItems, lots, convert, baseCurrency])
 
   const { returnYTD, ytdChange, returnSinceStart, sinceStartDate } = useMemo(() => {
     const year = new Date().getFullYear()
