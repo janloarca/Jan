@@ -444,7 +444,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
         item.entityId = activeEntity
       }
 
-      await onAdd(item)
+      const itemId = await onAdd(item)
 
       if (onAddLot && item.symbol && item.quantity > 0 && item.purchasePrice > 0 && !item.isDebt) {
         await onAddLot({
@@ -464,7 +464,9 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
           description: `${item.name || item.symbol} - ${t('Dinero nuevo', 'New money')}`,
           date: form.acquisitionDate || new Date().toISOString().split('T')[0],
           totalAmount: Math.round(totalValue * 100) / 100, currency: item.currency || 'USD',
+          ...(itemId ? { _linkedItemId: itemId } : {}),
           ...(activeEntity && activeEntity !== 'default' ? { entityId: activeEntity } : {}),
+          _source: 'manual_new_account',
         })
       }
 

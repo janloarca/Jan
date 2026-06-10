@@ -180,6 +180,7 @@ export function useFirestoreItems() {
       const data = sanitizeImportItem(raw)
       const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined))
       await fs.setDoc(fs.doc(db, `users/${uid}/items`, id), { ...clean, createdAt: new Date().toISOString() }, { merge: true })
+      return id
     } catch (e) {
       console.error('[addItem] Write failed:', e)
     }
