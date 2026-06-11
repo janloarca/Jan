@@ -156,15 +156,17 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           set('quantity', newQty.toString())
           await onSave({ ...rawItem, quantity: newQty })
           if (onAddLot) {
-            await onAddLot({
-              symbol: (item.symbol || '').toUpperCase(),
-              quantity: newShares,
-              costBasis: pricePerUnit,
-              currency: itemCurrency,
-              acquisitionDate: contribDate,
-              institution: item.institution || '',
-              status: 'open',
-            })
+            try {
+              await onAddLot({
+                symbol: (item.symbol || '').toUpperCase(),
+                quantity: newShares,
+                costBasis: pricePerUnit,
+                currency: itemCurrency,
+                acquisitionDate: contribDate,
+                institution: item.institution || '',
+                status: 'open',
+              })
+            } catch (e) { console.error('[contribution] lot creation failed:', e.message) }
           }
         } else {
           const sharesToSell = amt / pricePerUnit
@@ -173,7 +175,9 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           set('quantity', newQty.toString())
           await onSave({ ...rawItem, quantity: newQty })
           if (onCloseLotsFIFO && sharesToSell > 0) {
-            await onCloseLotsFIFO((item.symbol || '').toUpperCase(), sharesToSell, pricePerUnit, contribDate, item.institution || '')
+            try {
+              await onCloseLotsFIFO((item.symbol || '').toUpperCase(), sharesToSell, pricePerUnit, contribDate, item.institution || '')
+            } catch (e) { console.error('[contribution] lot closing failed:', e.message) }
           }
         }
       }
@@ -182,24 +186,26 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         const txType = isAdd
           ? (contribIsIncome && !isBank ? 'DIVIDEND' : 'DEPOSIT')
           : 'WITHDRAWAL'
-        await onAddTransaction({
-          date: contribDate,
-          type: txType,
-          symbol: item.symbol || item.name || '',
-          description: contribDesc || (isAdd
-            ? (txType === 'DIVIDEND'
-              ? `${t('Ingreso de', 'Income from')} ${item.name || item.symbol}`
-              : `${t('Aporte a', 'Contribution to')} ${item.name || item.symbol}`)
-            : `${t('Retiro de', 'Withdrawal from')} ${item.name || item.symbol}`),
-          totalAmount: amt,
-          currency: itemCurrency,
-          _linkedItemId: item.id,
-          _source: 'manual_contribution',
-        })
+        try {
+          await onAddTransaction({
+            date: contribDate,
+            type: txType,
+            symbol: item.symbol || item.name || '',
+            description: contribDesc || (isAdd
+              ? (txType === 'DIVIDEND'
+                ? `${t('Ingreso de', 'Income from')} ${item.name || item.symbol}`
+                : `${t('Aporte a', 'Contribution to')} ${item.name || item.symbol}`)
+              : `${t('Retiro de', 'Withdrawal from')} ${item.name || item.symbol}`),
+            totalAmount: amt,
+            currency: itemCurrency,
+            _linkedItemId: item.id,
+            _source: 'manual_contribution',
+          })
+        } catch (e) { console.error('[contribution] transaction creation failed:', e.message) }
       }
 
       if (!isBank && isAdd && item._contribIsIncome !== contribIsIncome) {
-        await onSave({ _contribIsIncome: contribIsIncome })
+        try { await onSave({ _contribIsIncome: contribIsIncome }) } catch {}
       }
 
       setContribAmount('')

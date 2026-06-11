@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
 import { getAdminDb } from '@/lib/firebase-admin'
+import { encryptToken, decryptToken } from '@/lib/crypto'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -246,7 +247,7 @@ async function resolveCredentials(body, uid) {
     if (!doc.exists || !doc.data().flexToken) {
       return { error: NextResponse.json({ error: 'No stored token found. Enter your Flex Token.' }, { status: 400 }) }
     }
-    token = doc.data().flexToken
+    token = await decryptToken(doc.data().flexToken, uid)
     if (!queryId) queryId = doc.data().flexQueryId
   }
 
@@ -392,8 +393,9 @@ export async function POST(request) {
 
     try {
       if (token && queryId) {
+        const encryptedToken = await encryptToken(token, uid)
         await db.collection('users').doc(uid).collection('settings').doc('ibkr').set({
-          flexToken: token,
+          flexToken: encryptedToken,
           flexQueryId: queryId,
           updatedAt: new Date().toISOString(),
         })

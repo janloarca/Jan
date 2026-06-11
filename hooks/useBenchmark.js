@@ -52,8 +52,37 @@ export function useBenchmark(period = 'YTD', symbol = '%5EGSPC') {
   }, [period, symbol])
 
   useEffect(() => {
-    fetchBenchmark()
-  }, [fetchBenchmark])
+    let cancelled = false
+    ;(async () => {
+      const cacheKey = `chispudo-benchmark-${symbol}-${period}`
+      try {
+        const cached = sessionStorage.getItem(cacheKey)
+        if (cached) {
+          const { data, ts } = JSON.parse(cached)
+          if (Date.now() - ts < 5 * 60 * 1000) {
+            if (!cancelled) { setBenchmarkData(data); setLoading(false) }
+            return
+          }
+        }
+      } catch {}
+      if (!cancelled) { setLoading(true); setError(null) }
+      try {
+        const res = await fetch(`/api/prices/benchmark?period=${encodeURIComponent(period)}&symbol=${encodeURIComponent(symbol)}`)
+        if (cancelled) return
+        if (res.ok) {
+          const data = await res.json()
+          setBenchmarkData(data)
+          try { sessionStorage.setItem(cacheKey, JSON.stringify({ data, ts: Date.now() })) } catch {}
+        } else {
+          setError('Failed to fetch benchmark data')
+        }
+      } catch (err) {
+        if (!cancelled && err.name !== 'AbortError') setError(err.message || 'Network error')
+      }
+      if (!cancelled) setLoading(false)
+    })()
+    return () => { cancelled = true }
+  }, [period, symbol])
 
   const benchmarkReturn = benchmarkData?.periodReturn ?? benchmarkData?.ytdReturn ?? null
   const benchmarkName = BENCHMARKS[symbol]?.short || 'SPX'
