@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { safeJson } from '@/lib/authFetch'
 
 const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
 
@@ -172,7 +173,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
       try {
         const res = await fetch(`/api/prices/search?q=${encodeURIComponent(q)}`, { signal: searchAbortRef.current.signal })
         if (res.ok) {
-          const data = await res.json()
+          const data = await safeJson(res) || {}
           setSearchResults(data.results || [])
           setShowDropdown(data.results?.length > 0)
         }
@@ -209,7 +210,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     try {
       const res = await fetch(`/api/prices/search?symbol=${encodeURIComponent(result.symbol)}&type=${encodeURIComponent(newType)}`, { signal: searchAbortRef.current.signal })
       if (res.ok) {
-        const data = await res.json()
+        const data = await safeJson(res) || {}
         if (data.quote?.price) {
           if (data.quote.currency) setDetectedCurrency(data.quote.currency)
           setForm(prev => ({
@@ -236,7 +237,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
       setDivLoading(true)
       try {
         const res = await fetch(`/api/prices/dividends?symbol=${encodeURIComponent(sym)}`)
-        if (res.ok) setDivInfo(await res.json())
+        if (res.ok) setDivInfo(await safeJson(res))
       } catch {}
       setDivLoading(false)
     }, 800)

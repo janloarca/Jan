@@ -123,7 +123,7 @@ export default function IncomeCalendar({ items, lang }) {
               <div key={m.idx}>
                 <div className="text-xs text-slate-400 font-medium mb-1">{monthNames[m.idx]}</div>
                 {m.items.map((item, j) => (
-                  <div key={j} className="flex items-center justify-between text-xs py-0.5">
+                  <div key={`${item.name}-${j}`} className="flex items-center justify-between text-xs py-0.5">
                     <span className="text-slate-500 truncate">{item.name}</span>
                     <span className="font-medium shrink-0 ml-2" style={{ color: '#34d399' }}>{formatCurrency(item.amount)}</span>
                   </div>

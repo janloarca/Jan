@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { safeJson } from '@/lib/authFetch'
 
 const CHAINS = [
   { key: 'BTC', label: 'Bitcoin', placeholder: 'bc1q... or 1... or 3...' },
@@ -62,7 +63,7 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
         body: JSON.stringify({ addresses: valid }),
       })
 
-      const data = await res.json()
+      const data = await safeJson(res) || {}
       if (!res.ok) throw new Error(data.error || 'Sync failed')
 
       if (data.errors?.length > 0 && data.results?.length === 0) {

@@ -103,12 +103,12 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
       return
     }
     try {
-      if (type === 'items') await onDeleteAllItems()
+      if (type === 'items') await onDeleteAllItems({ cascade: true })
       if (type === 'snapshots') await onDeleteAllSnapshots()
       if (type === 'transactions') await onDeleteAllTransactions()
       if (type === 'financeTransactions' && onDeleteAllFinanceTransactions) await onDeleteAllFinanceTransactions()
       if (type === 'all') {
-        await onDeleteAllItems()
+        await onDeleteAllItems({ cascade: true })
         await onDeleteAllSnapshots()
         await onDeleteAllTransactions()
         if (onDeleteAllFinanceTransactions) await onDeleteAllFinanceTransactions()
@@ -169,7 +169,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
         setIbkrConfigured(true)
         setIbkrToken('')
       } else {
-        const d = await res.json()
+        const d = await safeJson(res) || {}
         setIbkrError(d.error || 'Error')
       }
     } catch (e) { setIbkrError(e.message) }
@@ -272,7 +272,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
             flash('ok', t('Ventana de autorización abierta. Completa el proceso allí.', 'Authorization window opened. Complete the process there.'))
           }
         } else {
-          const d = await res.json()
+          const d = await safeJson(res) || {}
           setBrokerError(d.error || 'OAuth not configured')
         }
       } catch (e) { setBrokerError(e.message) }
@@ -292,7 +292,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
         setBrokerForm({})
         flash('ok', `${broker.name} ${t('vinculado', 'linked')}`)
       } else {
-        const d = await res.json()
+        const d = await safeJson(res) || {}
         setBrokerError(d.error || 'Error')
       }
     } catch (e) { setBrokerError(e.message) }
@@ -315,7 +315,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
         }
         flash('ok', `${broker.name}: ${data.count || 0} ${t('posiciones sincronizadas', 'positions synced')}`)
       } else {
-        const d = await res.json()
+        const d = await safeJson(res) || {}
         setBrokerError(d.error || 'Sync failed')
       }
     } catch (e) { setBrokerError(e.message) }

@@ -507,7 +507,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           _ibkrAutoSyncError: null,
           _ibkrAutoSyncErrorCode: null,
         })
-        console.log(`[ibkr] Auto-sync OK: ${data.items.length} positions`)
+        console.debug(`[ibkr] Auto-sync OK: ${data.items.length} positions`)
       } catch (err) {
         if (cancelled) return
         const code = err.errorCode || 'UNKNOWN'
@@ -516,7 +516,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           _ibkrAutoSyncError: err.message,
           _ibkrAutoSyncErrorCode: code,
         })
-        console.log(`[ibkr] Auto-sync failed (${code}): ${err.message}`)
+        console.debug(`[ibkr] Auto-sync failed (${code}): ${err.message}`)
       } finally {
         if (!cancelled) setIbkrAutoSyncing(false)
         releaseLock('ibkr-sync')

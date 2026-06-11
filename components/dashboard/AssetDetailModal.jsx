@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { formatCurrency, formatDate, getItemPrice } from './utils'
+import { safeJson } from '@/lib/authFetch'
 import DocumentVault from './DocumentVault'
 
 const STATIC_TYPES = /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo|bond|bono|instrumento|inversion|inversión|cdt|plazo|treasury|letra|pagare|deposito|certificado|inmueble|real.?estate|property/i
@@ -31,7 +32,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
         const r = rangeMap[range]
         const res = await fetch(`/api/prices/chart?symbol=${sym}&range=${r}&interval=${interval}`)
         if (!res.ok) throw new Error('fetch failed')
-        const data = await res.json()
+        const data = await safeJson(res)
         if (!cancelled) setChartData(data)
       } catch {
         if (!cancelled) { setChartData(null); setChartError(true) }

@@ -191,7 +191,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     let cancelled = false
     const sym = benchmarkSymbol || '%5EGSPC'
     fetch(`/api/prices/benchmark?period=${encodeURIComponent(bp)}&symbol=${encodeURIComponent(sym)}`)
-      .then((res) => res.ok ? res.json() : null)
+      .then((res) => res.ok ? safeJson(res) : null)
       .then((data) => { if (!cancelled && data) setBenchmarkPts(data.dataPoints || null) })
       .catch(() => {})
     return () => { cancelled = true }

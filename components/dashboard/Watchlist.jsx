@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { formatCurrency } from './utils'
+import { safeJson } from '@/lib/authFetch'
 
 export default function Watchlist({ lang }) {
   const t = (es, en) => lang === 'es' ? es : en
@@ -36,7 +37,7 @@ export default function Watchlist({ lang }) {
       try {
         const res = await fetch(`/api/prices/search?q=${encodeURIComponent(q)}`)
         if (res.ok) {
-          const data = await res.json()
+          const data = await safeJson(res) || {}
           setResults((data.results || []).slice(0, 6))
         } else {
           setSearchError(t('Error buscando', 'Search failed'))
@@ -69,7 +70,7 @@ export default function Watchlist({ lang }) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: symbols }),
-    }).then((r) => r.ok ? r.json() : null)
+    }).then((r) => r.ok ? safeJson(r) : null)
       .then((data) => { if (data?.prices) setPrices(data.prices); else setPriceError(true) })
       .catch(() => { setPriceError(true) })
   }, [items])

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { safeJson } from '@/lib/authFetch'
 
 const STORAGE_KEY = 'chispudo-anthropic-key'
 
@@ -103,7 +104,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
       })
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
+        const data = await safeJson(res) || {}
         if (res.status === 401 && data.error === 'Invalid API key') {
           setError(t('API key inválida. Revisa tu key.', 'Invalid API key. Check your key.'))
           setShowKeyInput(true)
@@ -149,7 +150,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
           }
         }
       } else {
-        const data = await res.json()
+        const data = await safeJson(res) || {}
         setMessages(prev => [...prev, { role: 'assistant', content: data.message }])
         if (data.actions?.length > 0) handleActions(data.actions)
       }
