@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
 import { getAdminDb } from '@/lib/firebase-admin'
+import { encryptToken, decryptToken } from '@/lib/crypto'
 
 export const dynamic = 'force-dynamic'
 
@@ -151,8 +152,8 @@ export async function POST(request) {
       const tokens = await exchangeCodeForTokens(code, app)
       const docRef = getCredentialsPath(uid)
       await docRef.set({
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token,
+        accessToken: await encryptToken(tokens.access_token, uid),
+        refreshToken: await encryptToken(tokens.refresh_token, uid),
         expiresAt: new Date(Date.now() + (tokens.expires_in || 1800) * 1000).toISOString(),
         tokenType: 'oauth',
         updatedAt: new Date().toISOString(),
@@ -198,7 +199,9 @@ export async function POST(request) {
       if (!doc.exists || !doc.data().accessToken) {
         return NextResponse.json({ error: 'Not connected. Use OAuth to link Schwab first.' }, { status: 400 })
       }
-      let { accessToken, refreshToken, expiresAt } = doc.data()
+      let { accessToken: encAccess, refreshToken: encRefresh, expiresAt } = doc.data()
+      let accessToken = await decryptToken(encAccess, uid)
+      let refreshToken = await decryptToken(encRefresh, uid)
       const app = getAppCredentials()
 
       if (expiresAt && new Date(expiresAt) < new Date() && refreshToken && app) {
@@ -207,8 +210,8 @@ export async function POST(request) {
           accessToken = tokens.access_token
           if (tokens.refresh_token) refreshToken = tokens.refresh_token
           await docRef.set({
-            accessToken,
-            refreshToken,
+            accessToken: await encryptToken(accessToken, uid),
+            refreshToken: await encryptToken(refreshToken, uid),
             expiresAt: new Date(Date.now() + (tokens.expires_in || 1800) * 1000).toISOString(),
             tokenType: 'oauth',
             updatedAt: new Date().toISOString(),
