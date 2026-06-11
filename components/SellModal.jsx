@@ -59,7 +59,7 @@ export default function SellModal({ item, onClose, onSell, onUpdate, onAddTransa
 
       // 2b. Close lots FIFO
       if (onCloseLots && item.symbol) {
-        await onCloseLots(item.symbol.toUpperCase(), qtySell, price, saleDate)
+        await onCloseLots(item.symbol.toUpperCase(), qtySell, price, saleDate, item.institution || '')
       }
 
       // 3. If exits portfolio, create WITHDRAWAL transaction

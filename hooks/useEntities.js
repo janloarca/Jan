@@ -65,12 +65,13 @@ export function useEntities() {
     const { db } = await import('@/lib/firebase')
     const fs = await import('firebase/firestore')
     const id = `entity_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
-    await fs.setDoc(fs.doc(db, `users/${uid}/entities`, id), {
+    const data = Object.fromEntries(Object.entries({
       name: entity.name,
       type: entity.type || 'custom',
       icon: entity.icon || '📁',
       createdAt: new Date().toISOString(),
-    })
+    }).filter(([, v]) => v !== undefined))
+    await fs.setDoc(fs.doc(db, `users/${uid}/entities`, id), data)
 
     if (entities.length === 1 && entities[0].id === 'default' && entities[0].isDefault) {
       await fs.setDoc(fs.doc(db, `users/${uid}/entities`, 'default'), {

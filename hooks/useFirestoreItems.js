@@ -394,31 +394,37 @@ export function useFirestoreItems() {
     const closedResults = []
     const { db, fs } = await getFirebase()
 
+    // Collect all lot mutations and commit atomically so a mid-loop network
+    // drop can't leave some lots closed and others untouched.
+    const batch = fs.writeBatch(db)
+    let hasOps = false
     for (const lot of openLots) {
       if (remaining <= 0) break
       const closable = Math.min(remaining, lot.quantity)
       const realizedGain = (closePrice - lot.costBasis) * closable
 
       if (closable >= lot.quantity - QTY_EPSILON) {
-        await fs.updateDoc(fs.doc(db, `users/${uid}/lots`, lot.id), {
+        batch.update(fs.doc(db, `users/${uid}/lots`, lot.id), {
           status: 'closed', quantity: closable, closedDate: closeDate, closedPrice: closePrice, realizedGain,
         })
       } else {
-        await fs.updateDoc(fs.doc(db, `users/${uid}/lots`, lot.id), {
+        batch.update(fs.doc(db, `users/${uid}/lots`, lot.id), {
           quantity: roundQty(lot.quantity - closable),
         })
         const closedId = `${lot.id}-closed-${Date.now()}`
         const { id: _lotId, ...lotData } = lot
-        await fs.setDoc(fs.doc(db, `users/${uid}/lots`, closedId), {
+        batch.set(fs.doc(db, `users/${uid}/lots`, closedId), {
           ...lotData, quantity: closable, status: 'closed',
           closedDate: closeDate, closedPrice: closePrice, realizedGain,
           createdAt: lot.createdAt,
         })
       }
 
+      hasOps = true
       closedResults.push({ lotId: lot.id, quantity: closable, costBasis: lot.costBasis, realizedGain })
       remaining -= closable
     }
+    if (hasOps) await batch.commit()
     return closedResults
   }, [uid, lots])
 

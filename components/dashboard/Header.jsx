@@ -13,7 +13,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
   const navItems = [
     { href: '/dashboard', label: lang === 'es' ? 'Patrimonio' : 'Portfolio' },
     { href: '/finances', label: lang === 'es' ? 'Finanzas' : 'Finances' },
-    { href: '/spreadsheet', label: 'Spreadsheet' },
+    { href: '/spreadsheet', label: lang === 'es' ? 'Hoja de Cálculo' : 'Spreadsheet' },
   ]
 
   return (

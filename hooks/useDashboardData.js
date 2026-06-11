@@ -324,6 +324,16 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             const priceForReinvest = originalPrice > 0 ? originalPrice : 1
             const newShares = amount / priceForReinvest
             await updateItem(it.id, { quantity: qty + newShares })
+            try {
+              await addLot({
+                symbol: it.symbol,
+                quantity: newShares,
+                costBasis: priceForReinvest,
+                currency: incomeCurrency,
+                acquisitionDate: dateStr,
+                institution: it.institution || '',
+              })
+            } catch (e) { console.error('[dividend-reinvest-lot]', e.message) }
           } else if (it.incomeDestination) {
             const dest = enrichedItems.find((d) => (d.id || d.symbol) === it.incomeDestination)
             if (dest) {
@@ -417,6 +427,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             costBasis: item.purchasePrice,
             currency: item.currency || 'USD',
             acquisitionDate: item.acquisitionDate || new Date().toISOString().split('T')[0],
+            institution: item.institution || 'Interactive Brokers',
             ...(tag.portfolioId ? { portfolioId: tag.portfolioId } : {}),
           })
         }

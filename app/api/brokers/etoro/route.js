@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
 import { getAdminDb } from '@/lib/firebase-admin'
+import { encryptToken, decryptToken } from '@/lib/crypto'
 
 export const dynamic = 'force-dynamic'
 
@@ -191,8 +192,8 @@ export async function POST(request) {
 
         const docRef = getCredentialsPath(uid)
         await docRef.set({
-          apiKey,
-          userKey,
+          apiKey: await encryptToken(apiKey, uid),
+          userKey: await encryptToken(userKey, uid),
           updatedAt: new Date().toISOString(),
         })
       } else {
@@ -248,8 +249,8 @@ export async function POST(request) {
           return NextResponse.json({ error: 'No stored credentials found. Save your eToro API key and user key first.' }, { status: 400 })
         }
         const data = doc.data()
-        apiKey = data.apiKey
-        userKey = data.userKey
+        apiKey = await decryptToken(data.apiKey, uid)
+        userKey = await decryptToken(data.userKey, uid)
       } catch (err) {
         console.error('[api/etoro] credential-load error:', err.message)
         return NextResponse.json({ error: 'Failed to load credentials' }, { status: 500 })

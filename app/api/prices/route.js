@@ -23,8 +23,8 @@ async function fetchStockPrices(symbols) {
   const results = {}
   const warnings = []
   const batches = []
-  for (let i = 0; i < symbols.length; i += 5) {
-    batches.push(symbols.slice(i, i + 5))
+  for (let i = 0; i < symbols.length; i += 15) {
+    batches.push(symbols.slice(i, i + 15))
   }
 
   for (const batch of batches) {

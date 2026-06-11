@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
 import { getAdminDb } from '@/lib/firebase-admin'
+import { encryptToken, decryptToken } from '@/lib/crypto'
 
 export const dynamic = 'force-dynamic'
 
@@ -145,8 +146,8 @@ export async function POST(request) {
 
         const docRef = getCredentialsPath(uid)
         await docRef.set({
-          apiKey,
-          apiSecret,
+          apiKey: await encryptToken(apiKey, uid),
+          apiSecret: await encryptToken(apiSecret, uid),
           updatedAt: new Date().toISOString(),
         })
       } else {
@@ -202,8 +203,8 @@ export async function POST(request) {
           return NextResponse.json({ error: 'No stored credentials found. Save your Alpaca API key and secret first.' }, { status: 400 })
         }
         const data = doc.data()
-        apiKey = data.apiKey
-        apiSecret = data.apiSecret
+        apiKey = await decryptToken(data.apiKey, uid)
+        apiSecret = await decryptToken(data.apiSecret, uid)
       } catch (err) {
         console.error('[api/alpaca] credential-load error:', err.message)
         return NextResponse.json({ error: 'Failed to load credentials' }, { status: 500 })

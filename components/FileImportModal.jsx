@@ -495,11 +495,13 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
           const lotSym = (item.symbol || '').toUpperCase()
           const lotDate = item.acquisitionDate || new Date().toISOString().split('T')[0]
           // Re-importing the same file must not duplicate lots — qtyAtMonth sums them
+          const itemInst = item.institution || ''
           const duplicate = existingLots.some(l =>
             (l.symbol || '').toUpperCase() === lotSym &&
             Math.abs((l.quantity || 0) - item.quantity) < 1e-9 &&
             Math.abs((l.costBasis || 0) - item.purchasePrice) < 1e-9 &&
-            (l.acquisitionDate || '') === lotDate
+            (l.acquisitionDate || '') === lotDate &&
+            (l.institution || '') === itemInst
           )
           if (!duplicate) {
             await onAddLot({
@@ -508,6 +510,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
               costBasis: item.purchasePrice,
               currency: item.currency || 'USD',
               acquisitionDate: lotDate,
+              institution: itemInst,
               ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
             })
           }

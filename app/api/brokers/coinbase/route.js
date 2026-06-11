@@ -3,6 +3,7 @@ import { createHmac } from 'crypto'
 import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
 import { getAdminDb } from '@/lib/firebase-admin'
+import { encryptToken, decryptToken } from '@/lib/crypto'
 
 export const dynamic = 'force-dynamic'
 
@@ -154,8 +155,8 @@ export async function POST(request) {
         return NextResponse.json({ error: 'No stored credentials. Enter your Coinbase API key and secret.' }, { status: 400 })
       }
       const data = doc.data()
-      apiKey = data.apiKey
-      apiSecret = data.apiSecret
+      apiKey = await decryptToken(data.apiKey, uid)
+      apiSecret = await decryptToken(data.apiSecret, uid)
     }
 
     if (!apiKey || !apiSecret) {
@@ -195,8 +196,8 @@ export async function POST(request) {
         }
 
         await db.collection('users').doc(uid).collection('brokerConnections').doc('coinbase').set({
-          apiKey,
-          apiSecret,
+          apiKey: await encryptToken(apiKey, uid),
+          apiSecret: await encryptToken(apiSecret, uid),
           updatedAt: new Date().toISOString(),
         })
       } else {

@@ -68,7 +68,7 @@ import EmptyState from '@/components/dashboard/EmptyState'
 import PortfolioSelector from '@/components/dashboard/PortfolioSelector'
 import EntitySwitcher from '@/components/dashboard/EntitySwitcher'
 import { useEntities } from '@/hooks/useEntities'
-import { authFetch } from '@/lib/authFetch'
+import { authFetch, safeJson } from '@/lib/authFetch'
 
 function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, lots, transactions, convert, baseCurrency, benchmarkData, benchmarkName }) {
   const [tab, setTab] = useState('health')
@@ -284,7 +284,7 @@ export default function DashboardPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'exchange-code', code: oauthCode }),
-      }).then(r => r.ok ? r.json() : r.json().then(d => { throw new Error(d.error || 'OAuth failed') }))
+      }).then(r => r.ok ? safeJson(r) : r.json().catch(() => ({})).then(d => { throw new Error(d.error || 'OAuth failed') }))
         .then(() => showToast(lang === 'es' ? 'Broker vinculado via OAuth' : 'Broker linked via OAuth'))
         .catch(e => showToast(e.message, 'error', 5000))
     }
@@ -305,7 +305,7 @@ export default function DashboardPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ symbols: unique }),
-    }).then(r => r.ok ? r.json() : null).then(data => {
+    }).then(r => r.ok ? safeJson(r) : null).then(data => {
       if (!data?.results) return
       const newData = {}
       for (const [sym, info] of Object.entries(data.results)) {

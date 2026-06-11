@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Settings, Building2, Users } from 'lucide-react'
 import EntityManager from '@/components/dashboard/EntityManager'
-import { authFetch } from '@/lib/authFetch'
+import { authFetch, safeJson } from '@/lib/authFetch'
 import { isNotificationSupported, getNotificationPermission, requestNotificationPermission } from '@/lib/notifications'
 import { BENCHMARKS } from '@/hooks/useBenchmark'
 
@@ -127,7 +127,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
         body: JSON.stringify({ action }),
       })
       if (res.ok) {
-        const data = await res.json()
+        const data = await safeJson(res)
         setShareToken(data.token || null)
         setShareEnabled(data.enabled ?? false)
       }
@@ -148,7 +148,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'get-credentials' }),
-    }).then((r) => r.ok ? r.json() : null).then((d) => {
+    }).then((r) => r.ok ? safeJson(r) : null).then((d) => {
       if (d?.configured) {
         setIbkrConfigured(true)
         setIbkrQueryId(d.flexQueryId || '')
@@ -246,7 +246,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'get-credentials' }),
-      }).then(r => r.ok ? r.json() : null).then(d => {
+      }).then(r => r.ok ? safeJson(r) : null).then(d => {
         if (d?.configured) {
           setBrokerConnections(prev => ({ ...prev, [broker.id]: { configured: true, lastSync: d.lastSync } }))
         }
@@ -266,7 +266,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
           body: JSON.stringify({ action: 'get-auth-url' }),
         })
         if (res.ok) {
-          const data = await res.json()
+          const data = await safeJson(res)
           if (data.url) {
             window.open(data.url, '_blank', 'width=600,height=700')
             flash('ok', t('Ventana de autorización abierta. Completa el proceso allí.', 'Authorization window opened. Complete the process there.'))
@@ -309,7 +309,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
         body: JSON.stringify({ action: 'sync' }),
       })
       if (res.ok) {
-        const data = await res.json()
+        const data = await safeJson(res)
         if (data.positions && onSyncBroker) {
           onSyncBroker(broker.id, data)
         }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
 import { getAdminDb } from '@/lib/firebase-admin'
+import { encryptToken, decryptToken } from '@/lib/crypto'
 import { createHmac } from 'crypto'
 
 export const dynamic = 'force-dynamic'
@@ -218,8 +219,8 @@ export async function POST(request) {
       if (!doc.exists || !doc.data().apiKey || !doc.data().apiSecret) {
         return NextResponse.json({ error: 'No stored API credentials. Enter your Bitso API key and secret.' }, { status: 400 })
       }
-      apiKey = doc.data().apiKey
-      apiSecret = doc.data().apiSecret
+      apiKey = await decryptToken(doc.data().apiKey, uid)
+      apiSecret = await decryptToken(doc.data().apiSecret, uid)
     }
 
     if (!apiKey || !apiSecret) {
@@ -249,8 +250,8 @@ export async function POST(request) {
     try {
       if (apiKey && apiSecret) {
         await db.collection('users').doc(uid).collection('brokerConnections').doc('bitso').set({
-          apiKey,
-          apiSecret,
+          apiKey: await encryptToken(apiKey, uid),
+          apiSecret: await encryptToken(apiSecret, uid),
           updatedAt: new Date().toISOString(),
         })
       } else {

@@ -112,7 +112,7 @@ export async function POST(request) {
 
     const dividends = {}
     const batches = []
-    for (let i = 0; i < symbols.length; i += 5) batches.push(symbols.slice(i, i + 5))
+    for (let i = 0; i < symbols.length; i += 15) batches.push(symbols.slice(i, i + 15))
 
     for (const batch of batches) {
       const results = await Promise.all(

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
 import { getAdminDb } from '@/lib/firebase-admin'
+import { encryptToken, decryptToken } from '@/lib/crypto'
 
 export const dynamic = 'force-dynamic'
 
@@ -152,7 +153,7 @@ export async function POST(request) {
       if (!doc.exists || !doc.data().apiKey) {
         return NextResponse.json({ error: 'No stored API key. Enter your Blockchain.com API key.' }, { status: 400 })
       }
-      apiKey = doc.data().apiKey
+      apiKey = await decryptToken(doc.data().apiKey, uid)
     }
 
     try {
@@ -192,7 +193,7 @@ export async function POST(request) {
     try {
       if (apiKey) {
         await db.collection('users').doc(uid).collection('settings').doc('blockchain').set({
-          apiKey,
+          apiKey: await encryptToken(apiKey, uid),
           updatedAt: new Date().toISOString(),
         })
       } else {

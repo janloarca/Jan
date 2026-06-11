@@ -26,7 +26,7 @@ export default function AssetAllocation({ items, lang }) {
       if (val <= 0) return
       const key = fn(it)
       const qty = it.quantity || 0
-      const cost = qty * (it.purchasePrice || it.currentPrice || 0)
+      const cost = qty * (it.purchasePrice || 0)
       byGroup[key] = (byGroup[key] || 0) + val
       gainByGroup[key] = (gainByGroup[key] || 0) + (val - cost)
       total += val
