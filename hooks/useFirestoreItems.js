@@ -523,9 +523,10 @@ export function useFirestoreItems() {
     }
 
     for (const lot of (newLots || [])) {
-      const qty = Math.round((lot.quantity || 0) * 10000)
+      const qty = Math.round((lot.quantity || 0) * 1e8)
       const cost = Math.round((lot.costBasis || 0) * 100)
-      const id = `${(lot.symbol || 'lot').toUpperCase()}-${lot.acquisitionDate || 'nodate'}-${qty}-${cost}`
+      const inst = (lot.institution || '').replace(/[/\\]/g, '-').slice(0, 20)
+      const id = `${(lot.symbol || 'lot').toUpperCase()}-${lot.acquisitionDate || 'nodate'}-${qty}-${cost}${inst ? `-${inst}` : ''}`
       ops.push({ type: 'set', ref: fs.doc(db, `users/${uid}/lots`, id), data: strip({ ...lot, status: 'open', createdAt: now }) })
     }
 
@@ -577,7 +578,7 @@ export function useFirestoreItems() {
       done += chunk.length
       if (onProgress) onProgress(done, total)
     }
-    if (failures > 0 && failures === total) throw new Error(`${failures} of ${total} operations failed`)
+    if (failures > 0) throw new Error(`${failures} of ${total} operations failed`)
   }, [uid])
 
   return {

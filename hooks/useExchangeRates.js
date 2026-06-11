@@ -60,8 +60,12 @@ export function useExchangeRates(baseCurrency) {
     const from = (fromCurrency || 'USD').toUpperCase()
     const to = (toCurrency || baseRef.current || 'USD').toUpperCase()
     if (from === to) return amount
-    const fromRate = ratesRef.current[from] || 1
-    const toRate = ratesRef.current[to] || 1
+    const fromRate = ratesRef.current[from]
+    const toRate = ratesRef.current[to]
+    if (!fromRate || !toRate) {
+      console.warn(`[exchange] Missing rate for ${!fromRate ? from : to}`)
+      return amount
+    }
     const result = (amount / fromRate) * toRate
     return isFinite(result) ? result : amount
   }, [])
@@ -71,8 +75,12 @@ export function useExchangeRates(baseCurrency) {
     const from = (fromCurrency || 'USD').toUpperCase()
     const to = (toCurrency || baseRef.current || 'USD').toUpperCase()
     if (from === to) return 1
-    const fromRate = ratesRef.current[from] || 1
-    const toRate = ratesRef.current[to] || 1
+    const fromRate = ratesRef.current[from]
+    const toRate = ratesRef.current[to]
+    if (!fromRate || !toRate) {
+      console.warn(`[exchange] Missing rate for ${!fromRate ? from : to}`)
+      return 1
+    }
     return toRate / fromRate
   }, [])
 

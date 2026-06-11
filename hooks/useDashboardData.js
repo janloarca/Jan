@@ -307,6 +307,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
           if (amount <= 0) continue
 
+          const isReinvest = it.dividendAction === 'reinvest'
           await addTransaction({
             date: dateStr,
             type: 'DIVIDEND',
@@ -316,9 +317,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             currency: incomeCurrency,
             _source: 'auto',
             _linkedItemId: it.id,
+            ...(isReinvest ? { _reinvested: true } : {}),
           })
 
-          if (it.dividendAction === 'reinvest') {
+          if (isReinvest) {
             const priceForReinvest = originalPrice > 0 ? originalPrice : 1
             const newShares = amount / priceForReinvest
             await updateItem(it.id, { quantity: qty + newShares })
@@ -669,7 +671,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   }, [jan1Value, netWorth, transactions, convert, baseCurrency, snapshots, convertSnapshot])
 
   const annualDividends = useMemo(() => {
-    const divs = (transactions || []).filter((tx) => (tx.type || '').toUpperCase() === 'DIVIDEND')
+    const divs = (transactions || []).filter((tx) => (tx.type || '').toUpperCase() === 'DIVIDEND' && !tx._reinvested)
     return divs.reduce((s, tx) => {
       const amt = tx.totalAmount ?? 0
       return s + convert(amt, tx.currency || 'USD', baseCurrency)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useRef, useEffect, useCallback, Fragment } from 'react'
+import { useState, useMemo, useRef, useEffect, useCallback, Fragment, memo } from 'react'
 import { formatCurrency, getItemValue, getTypeCategory, isExcludedFromNetWorth, TYPE_COLORS } from './utils'
 
 const CATEGORY_ORDER = ['banks', 'funds', 'stocks', 'crypto', 'alternatives', 'bonds', 'realestate', 'other', 'receivables', 'debts']
@@ -75,7 +75,7 @@ function isMarketAsset(type) {
   return /stock|crypto|fund|etf/i.test(type) && !/realestate|inmueble/i.test(type)
 }
 
-function EditableCell({ displayValue, editValue, onSave, hint, isNegative, currency, onEditStart, onEditEnd }) {
+const EditableCell = memo(function EditableCell({ displayValue, editValue, onSave, hint, isNegative, currency, onEditStart, onEditEnd }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const ref = useRef(null)
@@ -126,7 +126,7 @@ function EditableCell({ displayValue, editValue, onSave, hint, isNegative, curre
       {hint && <p className="text-[10px] text-slate-400 mt-0.5">{hint}</p>}
     </div>
   )
-}
+})
 
 export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateItem, onEditItem, returnYTD, netWorth, convert, baseCurrency, onSaveItemSnapshots, onLoadItemSnapshots, lots }) {
   const t = (es, en) => lang === 'es' ? es : en
@@ -375,7 +375,9 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     if (!onUpdateItem || !item.id) return
     if (isMarketAsset(item.type)) {
       const hasOpenLots = lots && lots.some(l =>
-        (l.symbol || '').toUpperCase() === (item.symbol || '').toUpperCase() && l.status !== 'closed'
+        (l.symbol || '').toUpperCase() === (item.symbol || '').toUpperCase() &&
+        (l.institution || '') === (item.institution || '') &&
+        l.status !== 'closed'
       )
       if (hasOpenLots) {
         setBlockMsg(lang === 'es'
