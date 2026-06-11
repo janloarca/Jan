@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { formatCurrency, formatCompact, formatDate, computeModifiedDietz, getItemValue } from './utils'
 import { computeTWRSeries } from './analytics'
-import { authFetch } from '@/lib/authFetch'
+import { authFetch, safeJson } from '@/lib/authFetch'
 
 function polyline(pts) {
   return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
@@ -72,6 +72,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const [snapshotRows, setSnapshotRows] = useState([{ date: '', value: '' }])
   const [snapshotSaving, setSnapshotSaving] = useState(false)
   const containerRef = useRef(null)
+  const mountedRef = useRef(true)
   const [chartWidth, setChartWidth] = useState(650)
 
   const periods = ['DAY', '1W', 'MTD', '1M', '3M', 'YTD', '1Y', 'ALL', 'CUSTOM']
@@ -140,7 +141,8 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         }),
       })
       if (res.ok) {
-        const data = await res.json()
+        const data = await safeJson(res)
+        if (!mountedRef.current) return
         let pts = data.dataPoints || []
         if (baseCurrency !== 'USD' && convert) {
           pts = pts.map(dp => ({ ...dp, total: convert(dp.total, 'USD', baseCurrency) }))
@@ -170,16 +172,18 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           : 0)
       }
     } catch (err) {
+      if (!mountedRef.current) return
       console.error('Failed to fetch portfolio history:', err)
       setFetchError(t('Error cargando historial', 'Failed to load history'))
     }
-    setLoading(false)
+    if (mountedRef.current) setLoading(false)
   }, [items, lots, period, baseCurrency, convert, customRange])
 
   useEffect(() => {
+    mountedRef.current = true
     fetchHistory()
     const interval = setInterval(fetchHistory, 60000)
-    return () => clearInterval(interval)
+    return () => { mountedRef.current = false; clearInterval(interval) }
   }, [fetchHistory])
 
   useEffect(() => {

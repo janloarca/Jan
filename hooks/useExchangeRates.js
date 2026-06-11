@@ -9,6 +9,7 @@ export function useExchangeRates(baseCurrency) {
 
   const ratesRef = useRef(null)
   const baseRef = useRef(baseCurrency)
+  const mountedRef = useRef(true)
   ratesRef.current = rates
   baseRef.current = baseCurrency
 
@@ -17,8 +18,10 @@ export function useExchangeRates(baseCurrency) {
     setError(null)
     try {
       const res = await fetch('/api/exchange-rates')
+      if (!mountedRef.current) return
       if (res.ok) {
         const data = await res.json()
+        if (!mountedRef.current) return
         const raw = data.rates || {}
         const valid = Object.fromEntries(
           Object.entries(raw).filter(([, v]) => typeof v === 'number' && v > 0 && isFinite(v))
@@ -38,16 +41,18 @@ export function useExchangeRates(baseCurrency) {
         setError('Failed to fetch rates')
       }
     } catch (err) {
+      if (!mountedRef.current) return
       console.error('Failed to fetch exchange rates:', err)
       setError(err.message)
     }
-    setLoading(false)
+    if (mountedRef.current) setLoading(false)
   }, [])
 
   useEffect(() => {
+    mountedRef.current = true
     fetchRates()
     const interval = setInterval(fetchRates, 15 * 60 * 1000)
-    return () => clearInterval(interval)
+    return () => { mountedRef.current = false; clearInterval(interval) }
   }, [baseCurrency])
 
   const convert = useCallback((amount, fromCurrency, toCurrency) => {

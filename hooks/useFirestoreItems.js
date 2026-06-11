@@ -365,7 +365,7 @@ export function useFirestoreItems() {
   const addLot = useCallback(async (lot) => {
     if (!uid) return
     const { db, fs } = await getFirebase()
-    const qty = Math.round((lot.quantity || 0) * 10000)
+    const qty = Math.round((lot.quantity || 0) * 1e8)
     const cost = Math.round((lot.costBasis || 0) * 100)
     const inst = (lot.institution || '').replace(/[/\\]/g, '-').slice(0, 20)
     const id = `${(lot.symbol || 'lot').toUpperCase()}-${lot.acquisitionDate || 'nodate'}-${qty}-${cost}${inst ? `-${inst}` : ''}`

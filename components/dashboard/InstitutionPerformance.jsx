@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { formatCurrency, formatCompact, getItemValue, getItemPrice, getTypeCategory } from './utils'
-import { authFetch } from '@/lib/authFetch'
+import { authFetch, safeJson } from '@/lib/authFetch'
 
 const PERIODS = ['DAY', '1W', 'MTD', '1M', '3M', 'YTD', '1Y', 'ALL']
 
@@ -19,6 +19,7 @@ export default function InstitutionPerformance({ items, lang, convert, baseCurre
   const [loading, setLoading] = useState(false)
   const [hoverIdx, setHoverIdx] = useState(null)
   const containerRef = useRef(null)
+  const mountedRef = useRef(true)
   const [chartWidth, setChartWidth] = useState(600)
 
   const t = (es, en) => (lang === 'es' ? es : en)
@@ -110,7 +111,8 @@ export default function InstitutionPerformance({ items, lang, convert, baseCurre
       })
 
       if (data && data.ok) {
-        const json = await data.json()
+        const json = await safeJson(data)
+        if (!mountedRef.current) return
         let pts = json.dataPoints || []
 
         if (baseCurrency !== 'USD' && convert) {
@@ -132,16 +134,19 @@ export default function InstitutionPerformance({ items, lang, convert, baseCurre
         setDataPoints([])
       }
     } catch (err) {
+      if (!mountedRef.current) return
       console.error('InstitutionPerformance fetch error:', err)
       setDataPoints([])
     }
-    setLoading(false)
+    if (mountedRef.current) setLoading(false)
   }, [filteredItems, period, baseCurrency, hasChartableItems])
 
   useEffect(() => {
+    mountedRef.current = true
     setDataPoints([])
     setHoverIdx(null)
     fetchHistory()
+    return () => { mountedRef.current = false }
   }, [fetchHistory])
 
   // ---------- chart geometry ----------

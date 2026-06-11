@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { formatCurrency, computeModifiedDietz } from './utils'
 import { computeTWRSeries } from './analytics'
-import { authFetch } from '@/lib/authFetch'
+import { authFetch, safeJson } from '@/lib/authFetch'
 
 const DAY_MS = 86400000
 
@@ -39,7 +39,7 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
           }),
         })
         if (res.ok && !cancelled) {
-          const data = await res.json()
+          const data = await safeJson(res)
           let pts = data.dataPoints || []
           if (baseCurrency !== 'USD' && convert) {
             pts = pts.map(dp => ({ ...dp, total: convert(dp.total, 'USD', baseCurrency) }))

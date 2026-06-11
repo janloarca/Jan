@@ -217,8 +217,9 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     if (!onLoadItemSnapshots || months.length === 0) return
     const toLoad = months.filter(mk => mk !== currentMonthKey)
     if (toLoad.length === 0) return
+    let cancelled = false
     onLoadItemSnapshots(toLoad).then(data => {
-      if (!data) return
+      if (cancelled || !data) return
       const { __currencies = {}, ...monthData } = data
       if (Object.keys(monthData).length === 0) return
       // Cached snapshots were saved in the baseCurrency active at the time;
@@ -237,6 +238,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       })
       setHistoricalItems(prev => ({ ...prev, ...adjusted }))
     })
+    return () => { cancelled = true }
   }, [onLoadItemSnapshots, months, currentMonthKey, baseCurrency, convert])
 
   useEffect(() => {
@@ -277,8 +279,10 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
 
     const itemsWithCategory = items.map(it => ({ ...it, _category: getTypeCategory(it) }))
 
+    let cancelled = false
     import('@/lib/historicalValues').then(({ getHistoricalItemValues }) => {
       getHistoricalItemValues(itemsWithCategory, missingMonths, convert, baseCurrency, lots).then(async (data) => {
+        if (cancelled) return
         setHistoricalItems(prev => {
           const merged = { ...prev }
           Object.entries(data).forEach(([mk, itemData]) => {
@@ -287,13 +291,15 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
           return merged
         })
         for (const mk of Object.keys(data)) {
+          if (cancelled) break
           if (Object.keys(data[mk]).length > 0) {
             try { await onSaveItemSnapshots(mk, data[mk], baseCurrency || 'USD') } catch {}
           }
         }
-        setLoadingHistory(false)
-      }).catch(() => setLoadingHistory(false))
-    }).catch(() => setLoadingHistory(false))
+        if (!cancelled) setLoadingHistory(false)
+      }).catch(() => { if (!cancelled) setLoadingHistory(false) })
+    }).catch(() => { if (!cancelled) setLoadingHistory(false) })
+    return () => { cancelled = true }
   }, [items, months, currentMonthKey, historicalItems, convert, baseCurrency, onSaveItemSnapshots, lots, selectedYear])
 
   const itemValue = useCallback((item) => {

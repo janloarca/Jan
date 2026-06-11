@@ -4,7 +4,7 @@ import { useMarketPrices } from './useMarketPrices'
 import { useExchangeRates } from './useExchangeRates'
 import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
-import { authFetch } from '@/lib/authFetch'
+import { authFetch, safeJson } from '@/lib/authFetch'
 import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass } from '@/components/dashboard/utils'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
@@ -154,7 +154,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           }),
         })
         if (!res.ok) return
-        const data = await res.json()
+        const data = await safeJson(res)
         const pts = data.dataPoints || []
         if (pts.length === 0) return
         const gapSet = new Set(gaps)
@@ -591,7 +591,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           }),
         })
         if (!res.ok || cancelled) return
-        const data = await res.json()
+        const data = await safeJson(res)
         const pts = data.dataPoints || []
         if (pts.length > 0) {
           const firstReal = pts.find(p => p.total > 0)
