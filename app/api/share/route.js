@@ -95,9 +95,18 @@ export async function GET(request) {
       db.collection('users').doc(uid).collection('snapshots').orderBy('date').get(),
     ])
 
+    const SHARE_FIELDS = new Set([
+      'name', 'symbol', 'type', 'isDebt', 'quantity', 'currentPrice', 'purchasePrice',
+      'price', 'cost', 'currency', 'incomeRate', 'dividendYield', 'rateType', 'rateMin',
+      'rateMax', 'maturityDate', 'incomeMonths', 'incomeAmount', 'subtype',
+    ])
     const items = itemsSnap.docs.map((d) => {
       const data = d.data()
-      return { id: d.id, ...data, institution: undefined }
+      const safe = { id: d.id }
+      for (const key of SHARE_FIELDS) {
+        if (data[key] !== undefined) safe[key] = data[key]
+      }
+      return safe
     })
 
     const snapshots = snapshotsSnap.docs.map((d) => ({ id: d.id, ...d.data() }))

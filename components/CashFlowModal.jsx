@@ -1,10 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
 
 export default function CashFlowModal({ onClose, onAddTransaction, lang = 'es', baseCurrency = 'USD' }) {
+  const trapRef = useFocusTrap()
   const [flowType, setFlowType] = useState('DEPOSIT')
   const [amount, setAmount] = useState('')
   const [currency, setCurrency] = useState(baseCurrency)
@@ -44,7 +46,7 @@ export default function CashFlowModal({ onClose, onAddTransaction, lang = 'es', 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="bg-[#141416] border border-[#27272a] rounded-xl shadow-2xl max-w-sm w-full" onClick={e => e.stopPropagation()}>
+      <div ref={trapRef} className="bg-[#141416] border border-[#27272a] rounded-xl shadow-2xl max-w-sm w-full" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">
           <h2 className="text-lg font-bold text-white">{t('Registrar Movimiento', 'Log Cash Flow')}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label="Close">&times;</button>

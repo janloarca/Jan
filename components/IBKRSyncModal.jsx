@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { CheckCircle, Lock, ChevronDown, ChevronUp, Upload, RefreshCw } from 'lucide-react'
 import { parseIBKRFile, formatIBKRFileResult } from '@/lib/parsers/ibkrFileParser'
 
@@ -41,6 +42,7 @@ function DoneStep({ result, onClose, t }) {
 }
 
 export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, savedQueryId, onSaveCredentials, onDisconnect, lang = 'es', uid, lastSyncTime, existingItems = [], existingTransactions = [], existingSnapshots = [] }) {
+  const trapRef = useFocusTrap()
   const isConnected = !!(savedToken && savedQueryId)
   const [token, setToken] = useState('')
   const [queryId, setQueryId] = useState(savedQueryId || '')
@@ -395,7 +397,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="ibkr-modal-title">
-      <div className="bg-[#1C1C1E] border border-[#38383A]/60 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+      <div ref={trapRef} className="bg-[#1C1C1E] border border-[#38383A]/60 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-5 border-b border-[#38383A]/60">
           <div>
             <h2 id="ibkr-modal-title" className="text-base font-semibold text-white">Interactive Brokers</h2>

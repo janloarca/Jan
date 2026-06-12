@@ -1,8 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 export default function AddTransactionModal({ onClose, onAdd, lang = 'es' }) {
+  const trapRef = useFocusTrap()
   const [form, setForm] = useState({
     type: 'BUY', symbol: '', description: '', date: new Date().toISOString().split('T')[0],
     quantity: '', pricePerUnit: '', totalAmount: '', currency: 'USD',
@@ -59,7 +61,7 @@ export default function AddTransactionModal({ onClose, onAdd, lang = 'es' }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="add-tx-modal-title">
-      <div className="bg-[#1C1C1E] border border-[#38383A] rounded-xl shadow-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+      <div ref={trapRef} className="bg-[#1C1C1E] border border-[#38383A] rounded-xl shadow-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#38383A]">
           <h2 id="add-tx-modal-title" className="text-lg font-bold text-white">{t('Registrar Transacción', 'Record Transaction')}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label="Close">&times;</button>

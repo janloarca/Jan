@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 const TYPE_ICONS = { Stock: '📈', Crypto: '₿', Fund: '💼', Inmueble: '🏠', Bank: '🏦', Inversion: '🏛' }
 const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
@@ -129,6 +130,7 @@ function generateQuestions(items, t) {
 }
 
 export default function OptimizeModal({ items, onClose, onSave, onDelete, lang = 'es' }) {
+  const trapRef = useFocusTrap()
   const t = (es, en) => lang === 'es' ? es : en
 
   useEffect(() => {
@@ -234,7 +236,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="optimize-modal-title">
-      <div className="bg-[#1C1C1E] border border-[#38383A] rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      <div ref={trapRef} className="bg-[#1C1C1E] border border-[#38383A] rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#38383A]">
           <div className="flex items-center gap-2">
             <span className="text-lg">✨</span>

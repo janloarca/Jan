@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { safeJson } from '@/lib/authFetch'
 
 const CHAINS = [
@@ -15,6 +16,7 @@ const CHAINS = [
 ]
 
 export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }) {
+  const trapRef = useFocusTrap()
   const [addresses, setAddresses] = useState([{ chain: 'BTC', address: '', label: '' }])
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState('')
@@ -104,7 +106,7 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="bg-[#1C1C1E] border border-[#38383A] rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <div ref={trapRef} className="bg-[#1C1C1E] border border-[#38383A] rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#38383A]">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <span className="text-xl">🔒</span> Ledger Sync

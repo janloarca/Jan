@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { safeJson } from '@/lib/authFetch'
 
 const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
@@ -88,6 +89,7 @@ const ACCOUNT_TYPES = [
 ]
 
 export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAddLot, existingItems = [], activePortfolio, activeEntity = 'default', lang = 'es' }) {
+  const trapRef = useFocusTrap()
   const [step, setStep] = useState(1)
   const [type, setType] = useState('Stock')
   const [subtype, setSubtype] = useState('')
@@ -488,7 +490,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="add-account-title">
-      <div className="bg-[var(--card-bg,#1C1C1E)] border border-[var(--card-border,#38383A)] rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <div ref={trapRef} className="bg-[var(--card-bg,#1C1C1E)] border border-[var(--card-border,#38383A)] rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border,#38383A)]">
           <div className="flex items-center gap-3">
             {step === 2 && <button onClick={() => setStep(1)} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-sm">←</button>}
