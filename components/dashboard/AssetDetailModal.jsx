@@ -96,7 +96,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
             <h2 id="asset-detail-title" className="text-lg font-bold text-white">{item.name || item.symbol}</h2>
             <span className="text-xs text-slate-500">{item.symbol} · {item.type}{item.subtype ? `/${item.subtype}` : ''} {item.institution ? `· ${item.institution}` : ''}</span>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
+          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label="Close">&times;</button>
         </div>
 
         <div className="p-6 space-y-5">

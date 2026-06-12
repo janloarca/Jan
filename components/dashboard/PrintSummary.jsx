@@ -82,7 +82,7 @@ export default function PrintSummary({ items, netWorth, totalAssets, snapshots, 
               className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-500">
               🖨 {t('Imprimir', 'Print')}
             </button>
-            <button onClick={onClose} className="text-gray-400 hover:text-black text-xl">&times;</button>
+            <button onClick={onClose} className="text-gray-400 hover:text-black text-xl" aria-label="Close">&times;</button>
           </div>
         </div>
 

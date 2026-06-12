@@ -67,7 +67,7 @@ export default function InstallPrompt({ lang }) {
           </button>
         )}
         <button onClick={handleDismiss}
-          className="text-slate-500 hover:text-slate-300 text-lg leading-none">&times;</button>
+          className="text-slate-500 hover:text-slate-300 text-lg leading-none" aria-label="Close">&times;</button>
       </div>
     </div>
   )

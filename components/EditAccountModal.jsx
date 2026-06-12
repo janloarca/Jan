@@ -394,7 +394,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
       <div className="bg-[var(--card-bg,#1C1C1E)] border border-[var(--card-border,#38383A)] rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border,#38383A)]">
           <h2 id="edit-account-title" className="text-lg font-bold text-[var(--text-primary,white)]">{t('Editar', 'Edit')} {item.name || item.symbol}</h2>
-          <button onClick={onClose} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-xl leading-none">&times;</button>
+          <button onClick={onClose} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-xl leading-none" aria-label="Close">&times;</button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && <div className="p-3 border rounded-lg text-sm" style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.2)', color: '#f87171' }}>{error}</div>}

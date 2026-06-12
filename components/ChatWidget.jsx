@@ -177,6 +177,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
         className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105 hover:opacity-90"
         style={{ backgroundColor: '#2563eb', color: '#ffffff' }}
         title={t('Asistente AI', 'AI Assistant')}
+        aria-label={open ? t('Cerrar asistente', 'Close assistant') : t('Abrir asistente', 'Open assistant')}
       >
         {open ? (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -200,13 +201,13 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
             </div>
             <div className="flex items-center gap-1">
               <button onClick={() => setShowKeyInput(!showKeyInput)}
-                className="p-1 text-slate-400 hover:text-white transition-colors" title="API Key">
+                className="p-1 text-slate-400 hover:text-white transition-colors" title="API Key" aria-label="API Key">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                 </svg>
               </button>
               <button onClick={() => { setMessages([]); setError('') }}
-                className="p-1 text-slate-400 hover:text-white transition-colors" title={t('Limpiar', 'Clear')}>
+                className="p-1 text-slate-400 hover:text-white transition-colors" title={t('Limpiar', 'Clear')} aria-label={t('Limpiar chat', 'Clear chat')}>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
@@ -312,6 +313,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
                 disabled={loading || !input.trim()}
                 className="px-3 py-2 rounded-lg hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 style={{ backgroundColor: '#2563eb', color: '#ffffff' }}
+                aria-label={t('Enviar', 'Send')}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />

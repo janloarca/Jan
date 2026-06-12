@@ -109,7 +109,7 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <span className="text-xl">🔒</span> Ledger Sync
           </h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
+          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label="Close">&times;</button>
         </div>
 
         {step === 'input' && (

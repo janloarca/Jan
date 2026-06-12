@@ -368,7 +368,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
             <Settings size={20} className="text-slate-400" />
             {t('Configuracion', 'Settings')}
           </h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
+          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label="Close">&times;</button>
         </div>
 
         {saveStatus && (

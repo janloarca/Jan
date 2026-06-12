@@ -62,7 +62,7 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <span className="text-xl">₿</span> Blockchain.com Sync
           </h2>
-          <button onClick={onClose} className="hover:text-white text-xl leading-none" style={{ color: '#94a3b8' }}>&times;</button>
+          <button onClick={onClose} className="hover:text-white text-xl leading-none" style={{ color: '#94a3b8' }} aria-label="Close">&times;</button>
         </div>
 
         {step === 'config' && (

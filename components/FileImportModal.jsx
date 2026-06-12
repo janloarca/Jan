@@ -706,7 +706,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#38383A]">
           <h2 id="import-modal-title" className="text-lg font-bold text-white">{brokerInfo ? `${brokerInfo.icon} ` : ''}{modalTitle}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
+          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label="Close">&times;</button>
         </div>
 
         {/* Mode tabs */}

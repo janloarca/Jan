@@ -51,7 +51,7 @@ export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es'
       <div className="bg-[#1C1C1E] border border-[#38383A] rounded-xl shadow-2xl max-w-md w-full" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#38383A]">
           <h2 id="add-finance-tx-title" className="text-lg font-bold text-white">{t('Agregar Transacción', 'Add Transaction')}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl">&times;</button>
+          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl" aria-label="Close">&times;</button>
         </div>
 
         <div className="p-6 space-y-4">

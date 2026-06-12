@@ -84,7 +84,7 @@ export default function TransferModal({ onClose, onSave, onAddTransaction, exist
       <div className="bg-[var(--card-bg,#1C1C1E)] border border-[var(--card-border,#38383A)] rounded-xl shadow-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border,#38383A)]">
           <h2 id="transfer-modal-title" className="text-lg font-bold text-[var(--text-primary,white)]">{t('Transferencia', 'Transfer')}</h2>
-          <button onClick={onClose} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-xl leading-none">&times;</button>
+          <button onClick={onClose} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-xl leading-none" aria-label="Close">&times;</button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-3">
           {error && <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-sm">{error}</div>}

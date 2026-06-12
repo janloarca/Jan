@@ -501,7 +501,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               <div className="w-2 h-2 rounded-full" style={{ backgroundColor: step >= 1 ? '#60a5fa' : 'var(--card-border, #38383A)' }} />
               <div className="w-2 h-2 rounded-full" style={{ backgroundColor: step >= 2 ? '#60a5fa' : 'var(--card-border, #38383A)' }} />
             </div>
-            <button onClick={onClose} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-xl leading-none">&times;</button>
+            <button onClick={onClose} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-xl leading-none" aria-label="Close">&times;</button>
           </div>
         </div>
 

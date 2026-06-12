@@ -105,7 +105,7 @@ export default function SellModal({ item, onClose, onSell, onUpdate, onAddTransa
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border,#38383A)]">
           <h2 id="sell-modal-title" className="text-lg font-bold text-[var(--text-primary,white)]">{t('Vender', 'Sell')} {item.symbol}</h2>
-          <button onClick={onClose} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-xl leading-none">&times;</button>
+          <button onClick={onClose} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-xl leading-none" aria-label="Close">&times;</button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">

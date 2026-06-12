@@ -62,7 +62,7 @@ export default function AddTransactionModal({ onClose, onAdd, lang = 'es' }) {
       <div className="bg-[#1C1C1E] border border-[#38383A] rounded-xl shadow-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#38383A]">
           <h2 id="add-tx-modal-title" className="text-lg font-bold text-white">{t('Registrar Transacción', 'Record Transaction')}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
+          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label="Close">&times;</button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-3">
           {error && <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-sm">{error}</div>}

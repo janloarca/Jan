@@ -74,7 +74,7 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
             <span className="text-xs text-slate-400 font-medium">
               {index + 1} / {totalCount} — {reviewedCount} {t('revisados', 'reviewed')}
             </span>
-            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none">&times;</button>
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none" aria-label="Close">&times;</button>
           </div>
           <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
             <div className="h-full rounded-full transition-all duration-300" style={{ backgroundColor: '#3b82f6' }}

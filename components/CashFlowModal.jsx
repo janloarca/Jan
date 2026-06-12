@@ -47,7 +47,7 @@ export default function CashFlowModal({ onClose, onAddTransaction, lang = 'es', 
       <div className="bg-[#141416] border border-[#27272a] rounded-xl shadow-2xl max-w-sm w-full" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">
           <h2 className="text-lg font-bold text-white">{t('Registrar Movimiento', 'Log Cash Flow')}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
+          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label="Close">&times;</button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
