@@ -6,7 +6,7 @@ import { detectCoinbase, parseCoinbase } from '@/lib/parsers/coinbaseParser'
 import { detectKraken, parseKraken } from '@/lib/parsers/krakenParser'
 import { isIBKRSectionedFormat, parseIBKRFile, formatIBKRFileResult } from '@/lib/parsers/ibkrFileParser'
 import { FINANCE_CATEGORIES, CATEGORY_COLORS } from '@/lib/financeCategories'
-import { validateItem, sanitizeImportItem } from '@/lib/validation'
+import { validateItem, sanitizeImportItem, sanitizeCell } from '@/lib/validation'
 
 const FIELD_MAP = {
   symbol: ['symbol', 'ticker', 'simbolo', 'código', 'codigo', 'sym', 'coin'],
@@ -350,10 +350,10 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
           if (date && type) {
             parsed.transactions.push({
               date, type,
-              symbol: (r[2] || '').toString().trim().toUpperCase(),
-              description: (r[3] || '').toString().trim(),
+              symbol: sanitizeCell((r[2] || '').toString()).toUpperCase(),
+              description: sanitizeCell((r[3] || '').toString()).slice(0, 500),
               totalAmount: parseNumber(r[4]),
-              currency: (r[5] || 'USD').toString().trim(),
+              currency: sanitizeCell((r[5] || 'USD').toString()).toUpperCase(),
             })
           }
         }

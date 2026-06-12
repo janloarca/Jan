@@ -149,8 +149,9 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
               ? { backgroundColor: 'rgba(16,185,129,0.12)', color: '#4ade80' }
               : { backgroundColor: 'rgba(239,68,68,0.12)', color: '#f87171' }
           }>
-          {hasYTD ? 'YTD' : sinceStartDate ? (lang === 'es' ? 'Desde ' : 'Since ') + new Date(sinceStartDate).toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short', year: '2-digit' }) : 'YTD'}{' '}
-          <span className="font-mono">{hasReturn ? `${isYTDPositive ? '+' : ''}${displayReturn.toFixed(2)}%` : 'N/A'}</span>
+          {hasYTD ? 'YTD' : sinceStartDate ? (lang === 'es' ? 'Desde ' : 'Since ') + new Date(sinceStartDate).toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short', year: '2-digit' }) : 'YTD'}
+          {' '}<span className="font-mono">{hasReturn ? `${isYTDPositive ? '+' : ''}${displayReturn.toFixed(2)}%` : 'N/A'}</span>
+          {hasReturn && <span className="opacity-50 ml-0.5" style={{ fontSize: '9px' }}>TWR</span>}
         </span>
         {yearlyChange != null && isFinite(yearlyChange) && (
           <span className="text-xs" style={{ color: isYearlyPositive ? 'rgba(74,222,128,0.6)' : 'rgba(248,113,113,0.6)' }}>
