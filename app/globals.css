@@ -333,6 +333,15 @@ textarea:focus-visible {
   box-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.04);
 }
 
+/* WCAG 2.5.5: minimum 44x44px touch targets for close buttons */
+button[aria-label="Close"] {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

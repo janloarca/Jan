@@ -96,9 +96,10 @@ export async function GET(request) {
     ])
 
     const SHARE_FIELDS = new Set([
-      'name', 'symbol', 'type', 'isDebt', 'quantity', 'currentPrice', 'purchasePrice',
-      'price', 'cost', 'currency', 'incomeRate', 'dividendYield', 'rateType', 'rateMin',
-      'rateMax', 'maturityDate', 'incomeMonths', 'incomeAmount', 'subtype',
+      'name', 'symbol', 'type', 'isDebt', 'isReceivable', 'quantity', 'currentPrice',
+      'purchasePrice', 'averagePrice', 'price', 'cost', 'currency', 'incomeRate',
+      'dividendYield', 'rateType', 'rateMin', 'rateMax', 'maturityDate', 'incomeMonths',
+      'incomeAmount', 'subtype', 'isIlliquid', 'lastManualValuation',
     ])
     const items = itemsSnap.docs.map((d) => {
       const data = d.data()
