@@ -212,6 +212,14 @@ export async function POST(request) {
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json({ error: 'Messages required' }, { status: 400 })
     }
+    if (messages.length > 50) {
+      return NextResponse.json({ error: 'Too many messages (max 50)' }, { status: 400 })
+    }
+    for (const m of messages) {
+      if (typeof m.content === 'string' && m.content.length > 10000) {
+        return NextResponse.json({ error: 'Message too long (max 10000 chars)' }, { status: 400 })
+      }
+    }
 
     const systemPrompt = buildSystemPrompt(portfolioContext)
 
@@ -369,6 +377,11 @@ async function handleStreaming(apiKey, systemPrompt, messages, ctx) {
   })
 }
 
+function sanitizeCtxString(val) {
+  if (typeof val !== 'string') return val
+  return val.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '').slice(0, 200)
+}
+
 function buildSystemPrompt(ctx) {
   const lines = [
     'You are a financial advisor AI embedded in Chispudo, a personal portfolio tracking app.',
@@ -393,12 +406,14 @@ function buildSystemPrompt(ctx) {
 
   if (ctx.items?.length > 0) {
     lines.push('', '## Portfolio Holdings')
-    ctx.items.forEach(it => {
+    const safeItems = ctx.items.slice(0, 200)
+    safeItems.forEach(it => {
       const val = (it.quantity || 0) * (it.currentPrice || it.purchasePrice || 0)
-      const parts = [`${it.name || it.symbol}: $${Math.abs(val).toLocaleString(undefined, { maximumFractionDigits: 0 })}`]
-      if (it.type) parts.push(`type=${it.type}`)
-      if (it.currency && it.currency !== 'USD') parts.push(`cur=${it.currency}`)
-      if (it.institution) parts.push(`at ${it.institution}`)
+      const name = sanitizeCtxString(it.name || it.symbol || 'Unknown')
+      const parts = [`${name}: $${Math.abs(val).toLocaleString(undefined, { maximumFractionDigits: 0 })}`]
+      if (it.type) parts.push(`type=${sanitizeCtxString(it.type)}`)
+      if (it.currency && it.currency !== 'USD') parts.push(`cur=${sanitizeCtxString(it.currency)}`)
+      if (it.institution) parts.push(`at ${sanitizeCtxString(it.institution)}`)
       if (it.isDebt) parts.push('(DEBT)')
       if (it.isReceivable) parts.push('(RECEIVABLE)')
       if (it.interestRate) parts.push(`rate=${it.interestRate}%`)
