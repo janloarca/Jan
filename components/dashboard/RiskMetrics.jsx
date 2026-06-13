@@ -19,18 +19,22 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
     let beta = null
     let bReturns = []
     if (benchmarkData?.dataPoints?.length > 2 && valueSeries.length > 2) {
-      const bPts = benchmarkData.dataPoints
-      for (let i = 1; i < valueSeries.length; i++) {
-        const targetTs = valueSeries[i].ts
-        const prevTargetTs = valueSeries[i - 1].ts
-        let closestCurr = null, closestPrev = null
-        let minDiffCurr = Infinity, minDiffPrev = Infinity
-        for (const bp of bPts) {
-          const diffCurr = Math.abs(bp.ts - targetTs)
-          const diffPrev = Math.abs(bp.ts - prevTargetTs)
-          if (diffCurr < minDiffCurr) { minDiffCurr = diffCurr; closestCurr = bp }
-          if (diffPrev < minDiffPrev) { minDiffPrev = diffPrev; closestPrev = bp }
+      const bPts = benchmarkData.dataPoints.slice().sort((a, b) => a.ts - b.ts)
+      const findClosest = (ts) => {
+        let lo = 0, hi = bPts.length - 1
+        while (lo < hi) {
+          const mid = (lo + hi) >> 1
+          if (bPts[mid].ts < ts) lo = mid + 1
+          else hi = mid
         }
+        if (lo === 0) return bPts[0]
+        const prev = bPts[lo - 1]
+        const curr = bPts[lo]
+        return Math.abs(prev.ts - ts) <= Math.abs(curr.ts - ts) ? prev : curr
+      }
+      for (let i = 1; i < valueSeries.length; i++) {
+        const closestCurr = findClosest(valueSeries[i].ts)
+        const closestPrev = findClosest(valueSeries[i - 1].ts)
         if (closestCurr && closestPrev && closestPrev.close > 0) {
           bReturns.push((closestCurr.close - closestPrev.close) / closestPrev.close)
         }

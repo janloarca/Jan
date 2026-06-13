@@ -382,51 +382,53 @@ export function useFirestoreItems() {
 
   const closeLotsFIFO = useCallback(async (symbol, qtyToClose, closePrice, closeDate, institution) => {
     if (!uid) return []
-    let openLots = lots
-      .filter((l) => l.symbol === symbol && l.status === 'open' && l.quantity > 0)
-      .sort((a, b) => (a.acquisitionDate || '').localeCompare(b.acquisitionDate || ''))
-    if (institution) {
-      const instLots = openLots.filter(l => l.institution === institution)
-      if (instLots.length > 0) openLots = instLots
-    }
-
-    let remaining = qtyToClose
-    const closedResults = []
     const { db, fs } = await getFirebase()
 
-    // Collect all lot mutations and commit atomically so a mid-loop network
-    // drop can't leave some lots closed and others untouched.
-    const batch = fs.writeBatch(db)
-    let hasOps = false
-    for (const lot of openLots) {
-      if (remaining <= 0) break
-      const closable = Math.min(remaining, lot.quantity)
-      const realizedGain = (closePrice - lot.costBasis) * closable
-
-      if (closable >= lot.quantity - QTY_EPSILON) {
-        batch.update(fs.doc(db, `users/${uid}/lots`, lot.id), {
-          status: 'closed', quantity: closable, closedDate: closeDate, closedPrice: closePrice, realizedGain,
-        })
-      } else {
-        batch.update(fs.doc(db, `users/${uid}/lots`, lot.id), {
-          quantity: roundQty(lot.quantity - closable),
-        })
-        const closedId = `${lot.id}-closed-${Date.now()}`
-        const { id: _lotId, ...lotData } = lot
-        batch.set(fs.doc(db, `users/${uid}/lots`, closedId), {
-          ...lotData, quantity: closable, status: 'closed',
-          closedDate: closeDate, closedPrice: closePrice, realizedGain,
-          createdAt: lot.createdAt,
-        })
+    return fs.runTransaction(db, async (tx) => {
+      const lotsSnap = await tx.get(fs.query(
+        fs.collection(db, `users/${uid}/lots`),
+        fs.where('symbol', '==', symbol),
+        fs.where('status', '==', 'open')
+      ))
+      let openLots = lotsSnap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(l => l.quantity > 0)
+        .sort((a, b) => (a.acquisitionDate || '').localeCompare(b.acquisitionDate || ''))
+      if (institution) {
+        const instLots = openLots.filter(l => l.institution === institution)
+        if (instLots.length > 0) openLots = instLots
       }
 
-      hasOps = true
-      closedResults.push({ lotId: lot.id, quantity: closable, costBasis: lot.costBasis, realizedGain })
-      remaining -= closable
-    }
-    if (hasOps) await batch.commit()
-    return closedResults
-  }, [uid, lots])
+      let remaining = qtyToClose
+      const closedResults = []
+      for (const lot of openLots) {
+        if (remaining <= 0) break
+        const closable = Math.min(remaining, lot.quantity)
+        const realizedGain = (closePrice - lot.costBasis) * closable
+
+        if (closable >= lot.quantity - QTY_EPSILON) {
+          tx.update(fs.doc(db, `users/${uid}/lots`, lot.id), {
+            status: 'closed', quantity: closable, closedDate: closeDate, closedPrice: closePrice, realizedGain,
+          })
+        } else {
+          tx.update(fs.doc(db, `users/${uid}/lots`, lot.id), {
+            quantity: roundQty(lot.quantity - closable),
+          })
+          const closedId = `${lot.id}-closed-${Date.now()}`
+          const { id: _lotId, ...lotData } = lot
+          tx.set(fs.doc(db, `users/${uid}/lots`, closedId), {
+            ...lotData, quantity: closable, status: 'closed',
+            closedDate: closeDate, closedPrice: closePrice, realizedGain,
+            createdAt: lot.createdAt,
+          })
+        }
+
+        closedResults.push({ lotId: lot.id, quantity: closable, costBasis: lot.costBasis, realizedGain })
+        remaining -= closable
+      }
+      return closedResults
+    })
+  }, [uid])
 
   const addFinanceTransaction = useCallback(async (tx) => {
     if (!uid) return
