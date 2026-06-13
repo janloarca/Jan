@@ -144,7 +144,8 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
             const rows = [[t('Símbolo','Symbol'), t('Nombre','Name'), t('Tipo','Type'), t('Cant.','Qty'), t('Precio','Price'), t('Valor','Value')].join(',')]
             selectedItems.forEach((it) => {
               const val = getItemValue(it)
-              rows.push([it.symbol || '', it.name || '', it.type || '', it.quantity || 0, getItemPrice(it).toFixed(2), val.toFixed(2)].join(','))
+              const price = getItemPrice(it)
+              rows.push([it.symbol || '', it.name || '', it.type || '', it.quantity || 0, isFinite(price) ? price.toFixed(2) : '0.00', isFinite(val) ? val.toFixed(2) : '0.00'].join(','))
             })
             const blob = new Blob([rows.join('\n')], { type: 'text/csv' })
             const a = document.createElement('a')
@@ -298,7 +299,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                             )}
                           </div>
                           <div className="text-slate-500 text-xs">
-                            {item.institution ? `${item.institution} · ` : ''}{item.quantity?.toLocaleString(undefined, { maximumFractionDigits: 4 })} @ {formatCurrency(getItemPrice(item), item.currency)}
+                            {item.institution ? `${item.institution} · ` : ''}{item.quantity?.toLocaleString(undefined, { maximumFractionDigits: item.type === 'Crypto' ? 8 : 4 })} @ {formatCurrency(getItemPrice(item), item.currency)}
                             {item.currency && item.currency !== getBaseCurrency() && (
                               <span className="ml-1 text-xs px-1 py-0.5 rounded bg-slate-700 text-slate-400">{item.currency}</span>
                             )}

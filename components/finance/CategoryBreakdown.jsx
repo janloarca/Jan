@@ -5,11 +5,11 @@ import { CATEGORY_COLORS } from '@/lib/financeCategories'
 export default function CategoryBreakdown({ transactions, type = 'EXPENSE', lang = 'es' }) {
   const t = (es, en) => lang === 'es' ? es : en
   const filtered = transactions.filter(tx => tx.type === type)
-  const total = filtered.reduce((s, tx) => s + tx.amount, 0)
+  const total = filtered.reduce((s, tx) => s + (tx.amount || 0), 0)
 
   const byCategory = {}
   filtered.forEach(tx => {
-    byCategory[tx.category] = (byCategory[tx.category] || 0) + tx.amount
+    byCategory[tx.category] = (byCategory[tx.category] || 0) + (tx.amount || 0)
   })
 
   const sorted = Object.entries(byCategory)

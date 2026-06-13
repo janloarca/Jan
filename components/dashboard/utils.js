@@ -26,6 +26,7 @@ export function formatCurrency(value, currency) {
 export function formatCompact(value, currency) {
   if (value == null || !isFinite(value)) return '$0'
   const sym = CURRENCY_SYMBOLS[currency || _baseCurrency] || '$'
+  if (Math.abs(value) >= 1000000000) return sym + (value / 1000000000).toFixed(1) + 'B'
   if (Math.abs(value) >= 1000000) return sym + (value / 1000000).toFixed(1) + 'M'
   if (Math.abs(value) >= 1000) return sym + (value / 1000).toFixed(1) + 'K'
   return sym + value.toFixed(0)

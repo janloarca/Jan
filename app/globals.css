@@ -342,7 +342,7 @@ button[aria-label="Close"] {
   justify-content: center;
 }
 
-.overflow-y-auto {
+.overflow-y-auto, .overflow-x-auto {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 }

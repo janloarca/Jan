@@ -435,7 +435,8 @@ export function useFirestoreItems() {
     const { db, fs } = await getFirebase()
     const amt = Math.round((tx.amount || 0) * 100)
     const desc = (tx.description || '').slice(0, 30).replace(/[/\\]/g, '-')
-    const id = `ftx-${tx.date || 'nodate'}-${desc}-${amt}`
+    const nonce = `-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+    const id = `ftx-${tx.date || 'nodate'}-${desc}-${amt}${nonce}`
     const txData = Object.fromEntries(Object.entries({ ...tx, createdAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
     await fs.setDoc(fs.doc(db, `users/${uid}/financeTransactions`, id), txData)
   }, [uid])
@@ -483,7 +484,7 @@ export function useFirestoreItems() {
       _version: SNAPSHOT_VERSION,
       ...(currency ? { _currency: currency } : {}),
     }).filter(([, v]) => v !== undefined))
-    await fs.setDoc(ref, snapData)
+    await fs.setDoc(ref, snapData, { merge: true })
   }, [uid])
 
   const loadItemSnapshots = useCallback(async (monthKeys) => {

@@ -79,7 +79,7 @@ export default function FinanceTransactionList({ transactions, onDelete, lang = 
                   </td>
                   <td className="py-2 px-2 text-center">
                     {onDelete && (
-                      <button onClick={() => onDelete(tx.id)} className="text-slate-600 hover:text-red-400 transition-colors">
+                      <button onClick={() => { if (confirm(lang === 'es' ? '¿Eliminar esta transacción?' : 'Delete this transaction?')) onDelete(tx.id) }} className="text-slate-600 hover:text-red-400 transition-colors">
                         &times;
                       </button>
                     )}

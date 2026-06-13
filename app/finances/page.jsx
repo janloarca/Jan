@@ -209,7 +209,7 @@ export default function FinancesPage() {
           const header = 'Date,Type,Category,Description,Amount,Currency'
           const rows = monthTransactions.map(tx => {
             const esc = (v) => `"${String(v || '').replace(/"/g, '""')}"`
-            return [tx.date || '', tx.type || '', esc(tx.category || ''), esc(tx.description || ''), tx.amount || 0, tx.currency || 'GTQ'].join(',')
+            return [esc(tx.date || ''), esc(tx.type || ''), esc(tx.category || ''), esc(tx.description || ''), tx.amount || 0, esc(tx.currency || 'GTQ')].join(',')
           })
           const csv = [header, ...rows].join('\n')
           const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
