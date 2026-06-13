@@ -3,6 +3,7 @@ import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { encryptToken, decryptToken } from '@/lib/crypto'
+import { generateOAuthState, makeStateCookie } from '@/lib/oauthState'
 
 export const dynamic = 'force-dynamic'
 
@@ -127,9 +128,12 @@ export async function POST(request) {
   if (action === 'get-auth-url') {
     const app = getAppCredentials()
     if (!app) return NextResponse.json({ error: 'TradeStation OAuth not configured. Set TRADESTATION_CLIENT_ID, TRADESTATION_CLIENT_SECRET, TRADESTATION_REDIRECT_URI env vars.' }, { status: 503 })
+    const { state, nonce } = generateOAuthState(BROKER_ID)
     const scope = 'openid offline_access profile ReadAccount'
-    const url = `${AUTH_URL}?response_type=code&client_id=${encodeURIComponent(app.clientId)}&redirect_uri=${encodeURIComponent(app.redirectUri)}&audience=https://api.tradestation.com&scope=${encodeURIComponent(scope)}`
-    return NextResponse.json({ url })
+    const url = `${AUTH_URL}?response_type=code&client_id=${encodeURIComponent(app.clientId)}&redirect_uri=${encodeURIComponent(app.redirectUri)}&audience=https://api.tradestation.com&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}`
+    const res = NextResponse.json({ url })
+    res.headers.set('Set-Cookie', makeStateCookie(nonce))
+    return res
   }
 
   if (action === 'exchange-code') {

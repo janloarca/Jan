@@ -3,6 +3,7 @@ import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { encryptToken, decryptToken } from '@/lib/crypto'
+import { generateOAuthState, makeStateCookie } from '@/lib/oauthState'
 
 export const dynamic = 'force-dynamic'
 
@@ -138,8 +139,11 @@ export async function POST(request) {
   if (action === 'get-auth-url') {
     const app = getAppCredentials()
     if (!app) return NextResponse.json({ error: 'Schwab OAuth not configured. Set SCHWAB_CLIENT_ID, SCHWAB_CLIENT_SECRET, SCHWAB_REDIRECT_URI env vars.' }, { status: 503 })
-    const url = `${AUTH_URL}?client_id=${encodeURIComponent(app.clientId)}&redirect_uri=${encodeURIComponent(app.redirectUri)}&response_type=code`
-    return NextResponse.json({ url })
+    const { state, nonce } = generateOAuthState(BROKER_ID)
+    const url = `${AUTH_URL}?client_id=${encodeURIComponent(app.clientId)}&redirect_uri=${encodeURIComponent(app.redirectUri)}&response_type=code&state=${encodeURIComponent(state)}`
+    const res = NextResponse.json({ url })
+    res.headers.set('Set-Cookie', makeStateCookie(nonce))
+    return res
   }
 
   if (action === 'exchange-code') {

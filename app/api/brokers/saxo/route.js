@@ -3,6 +3,7 @@ import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { encryptToken, decryptToken } from '@/lib/crypto'
+import { generateOAuthState, makeStateCookie } from '@/lib/oauthState'
 
 export const dynamic = 'force-dynamic'
 
@@ -146,8 +147,11 @@ export async function POST(request) {
   if (action === 'get-auth-url') {
     const app = getAppCredentials()
     if (!app) return NextResponse.json({ error: 'Saxo OAuth not configured. Set SAXO_CLIENT_ID, SAXO_CLIENT_SECRET, SAXO_REDIRECT_URI env vars.' }, { status: 503 })
-    const url = `${app.authUrl}?response_type=code&client_id=${encodeURIComponent(app.clientId)}&redirect_uri=${encodeURIComponent(app.redirectUri)}&state=saxo`
-    return NextResponse.json({ url })
+    const { state, nonce } = generateOAuthState(BROKER_ID)
+    const url = `${app.authUrl}?response_type=code&client_id=${encodeURIComponent(app.clientId)}&redirect_uri=${encodeURIComponent(app.redirectUri)}&state=${encodeURIComponent(state)}`
+    const res = NextResponse.json({ url })
+    res.headers.set('Set-Cookie', makeStateCookie(nonce))
+    return res
   }
 
   if (action === 'exchange-code') {
