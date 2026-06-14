@@ -107,7 +107,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
       <div className="flex flex-wrap gap-2 mb-3">
         {tabs.map((tab) => (
           <button key={tab.key} onClick={() => setFilter(tab.key)}
-            className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors border ${
+            className={`px-3 py-2.5 sm:py-1.5 text-xs font-medium rounded-full transition-colors border ${
               filter === tab.key
                 ? ''
                 : 'hover:bg-[#2C2C2E]'
@@ -415,10 +415,10 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                       })()}
                     </td>
                     <td className="text-right py-3 w-24">
-                      <div className="flex items-center justify-end gap-1">
+                      <div className="flex items-center justify-end gap-0">
                         {onQuickBuy && (
                           <button onClick={() => onQuickBuy(item)}
-                            className="text-sm font-bold transition-colors hover:opacity-80"
+                            className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-sm font-bold transition-colors hover:opacity-80"
                             style={{ color: 'rgba(59,130,246,0.6)' }}
                             title={t('Comprar más', 'Buy more')}>
                             +
@@ -426,25 +426,25 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                         )}
                         {onViewItem && (
                           <button onClick={() => onViewItem(item)}
-                            className="text-slate-600 hover:text-cyan-400 text-xs transition-colors" title={t('Ver detalle', 'View detail')}>
+                            className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-slate-600 hover:text-cyan-400 text-xs transition-colors" title={t('Ver detalle', 'View detail')}>
                             📊
                           </button>
                         )}
                         {onSellItem && item.quantity > 0 && (
                           <button onClick={() => onSellItem(item)}
-                            className="text-slate-600 hover:text-amber-400 text-xs transition-colors" title={t('Vender', 'Sell')}>
+                            className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-slate-600 hover:text-amber-400 text-xs transition-colors" title={t('Vender', 'Sell')}>
                             💰
                           </button>
                         )}
                         {onEditItem && (
                           <button onClick={() => onEditItem(item)}
-                            className="text-slate-600 hover:text-emerald-400 text-xs transition-colors" title={t('Editar', 'Edit')}>
+                            className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-slate-600 hover:text-emerald-400 text-xs transition-colors" title={t('Editar', 'Edit')}>
                             ✏️
                           </button>
                         )}
                         {onDeleteItem && (
                           <button onClick={() => onDeleteItem(item.id)}
-                            className="text-slate-600 hover:text-red-400 text-sm transition-colors" title={t('Eliminar', 'Delete')}>
+                            className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-slate-600 hover:text-red-400 text-sm transition-colors" title={t('Eliminar', 'Delete')}>
                             ×
                           </button>
                         )}

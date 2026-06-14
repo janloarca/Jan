@@ -12,7 +12,7 @@ export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettin
 
   return (
     <>
-      <div className="fixed bottom-0 left-0 right-0 z-40 sm:hidden bg-[#09090b]/95 backdrop-blur-sm border-t border-[#38383A]">
+      <div className="fixed bottom-0 left-0 right-0 z-40 sm:hidden bg-[#09090b]/95 backdrop-blur-sm border-t border-[#38383A]" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
         <div className="flex items-center justify-around h-14 px-2">
           <Link href="/dashboard" aria-label={t('Patrimonio', 'Portfolio')} className="flex flex-col items-center gap-0.5 transition-colors p-2.5 min-w-[44px] min-h-[44px] justify-center" style={{ color: pathname === '/dashboard' ? '#60a5fa' : '#94a3b8' }}>
             <Home size={20} />
@@ -58,7 +58,7 @@ export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettin
         </div>
       )}
 
-      <div className="h-14 sm:hidden" />
+      <div className="sm:hidden" style={{ height: 'calc(3.5rem + env(safe-area-inset-bottom, 0px))' }} />
     </>
   )
 }

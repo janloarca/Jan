@@ -275,6 +275,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (saving) return
     setError('')
 
     if (!form.acquisitionDate) { setError(t('La fecha es obligatoria para calcular rendimientos', 'Date is required for return calculations')); return }

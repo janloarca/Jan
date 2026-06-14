@@ -347,6 +347,26 @@ button[aria-label="Close"] {
   overscroll-behavior: contain;
 }
 
+/* Safe area insets for iPhone notch / Dynamic Island */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .fixed.bottom-0 {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Minimum legible text — override 10px that's too small on mobile */
+@media (max-width: 640px) {
+  .text-\[10px\] {
+    font-size: 11px !important;
+  }
+  .text-\[9px\] {
+    font-size: 11px !important;
+  }
+  .text-micro {
+    font-size: 11px !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

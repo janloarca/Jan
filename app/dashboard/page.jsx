@@ -257,6 +257,27 @@ export default function DashboardPage() {
     ibkrSyncStatus, ibkrSyncErrorCode, ibkrLastSync,
   } = useDashboardData({ user, lang, activePortfolio, activeEntity })
 
+  const handleOpenImport = useCallback((bh) => {
+    setImportBrokerHint(bh || null)
+    setModal('import')
+  }, [])
+  const handleOpenAccount = useCallback(() => setModal('account'), [])
+  const handleOpenSettings = useCallback(() => setModal('settings'), [])
+  const handleOpenTransfer = useCallback(() => setModal('transfer'), [])
+  const handleOpenCashflow = useCallback(() => setModal('cashflow'), [])
+  const handleOpenIBKR = useCallback(() => setModal('ibkr'), [])
+  const handleOpenBlockchain = useCallback(() => setModal('blockchain'), [])
+  const handleOpenPrint = useCallback(() => setModal('print'), [])
+  const handleOpenReview = useCallback(() => setShowReview(true), [])
+  const handleOpenCmdPalette = useCallback(() => setCmdPaletteOpen(true), [])
+  const handleCloseCmdPalette = useCallback(() => setCmdPaletteOpen(false), [])
+  const handleCloseModal = useCallback(() => { setModal(null); setImportBrokerHint(null) }, [])
+  const handleCloseEdit = useCallback(() => setEditItem(null), [])
+  const handleCloseSell = useCallback(() => setSellItem(null), [])
+  const handleCloseDetail = useCallback(() => setDetailItem(null), [])
+  const handleCloseReview = useCallback(() => setShowReview(false), [])
+  const handleDismissToast = useCallback(() => setToast(null), [])
+
   const showToast = useCallback((msg, type = 'success', duration = 3000) => {
     if (toastTimer.current) clearTimeout(toastTimer.current)
     setToast({ msg, type })
@@ -499,26 +520,24 @@ export default function DashboardPage() {
 
   const handleCmdAction = useCallback((action, data) => {
     switch (action) {
-      case 'add': setModal('account'); break
-      case 'import': setModal('import'); break
+      case 'add': handleOpenAccount(); break
+      case 'import': handleOpenImport(); break
       case 'export': handleExport(); break
       case 'report': handleReport(); break
-      case 'print': setModal('print'); break
+      case 'print': handleOpenPrint(); break
       case 'share': handleShare(); break
-      case 'transfer': setModal('transfer'); break
-      case 'cashflow': setModal('cashflow'); break
-      case 'deposit': setModal('cashflow'); break
-      case 'withdrawal': setModal('cashflow'); break
-      case 'settings': setModal('settings'); break
+      case 'transfer': handleOpenTransfer(); break
+      case 'cashflow': case 'deposit': case 'withdrawal': handleOpenCashflow(); break
+      case 'settings': handleOpenSettings(); break
       case 'refresh': handleRefresh(); break
       case 'theme': handleSetTheme(theme === 'dark' ? 'light' : 'dark'); break
       case 'lang': handleSetLang('toggle'); break
-      case 'ibkr': setModal('ibkr'); break
-      case 'blockchain': setModal('blockchain'); break
+      case 'ibkr': handleOpenIBKR(); break
+      case 'blockchain': handleOpenBlockchain(); break
       case 'ledger': setModal('ledger'); break
       case 'viewItem': setDetailItem(data); break
     }
-  }, [handleExport, handleReport, handleRefresh, handleSetTheme, handleSetLang, theme])
+  }, [handleExport, handleReport, handleRefresh, handleSetTheme, handleSetLang, theme, handleOpenAccount, handleOpenImport, handleOpenPrint, handleOpenTransfer, handleOpenCashflow, handleOpenSettings, handleOpenIBKR, handleOpenBlockchain])
 
   useEffect(() => {
     if (!dataLoading && enrichedItems.length === 0 && !showOnboarding && typeof window !== 'undefined' && !localStorage.getItem('chispudo-onboarding-done')) {
@@ -561,17 +580,17 @@ export default function DashboardPage() {
       <Header
         user={user} lang={lang}
         setLang={() => handleSetLang('toggle')}
-        onImport={(bh) => { setImportBrokerHint(bh || null); setModal('import') }}
-        onSettings={() => setModal('settings')}
+        onImport={handleOpenImport}
+        onSettings={handleOpenSettings}
         onSignOut={handleSignOut}
         onRefresh={handleRefresh}
         pricesLoading={pricesLoading || ratesLoading}
-        onAddAccount={() => setModal('account')}
-        onCommandPalette={() => setCmdPaletteOpen(true)}
+        onAddAccount={handleOpenAccount}
+        onCommandPalette={handleOpenCmdPalette}
         ibkrConnected={ibkrConnected}
         ibkrAutoSyncing={ibkrAutoSyncing}
         ibkrSyncStatus={ibkrSyncStatus}
-        onIBKR={() => setModal('ibkr')}
+        onIBKR={handleOpenIBKR}
       />
 
       {topBanner && (
@@ -712,8 +731,8 @@ export default function DashboardPage() {
 
         {portfolioItems.length === 0 && !dataLoading && (
           <EmptyState
-            onAdd={() => setModal('account')}
-            onImport={(bh) => { setImportBrokerHint(bh || null); setModal('import') }}
+            onAdd={handleOpenAccount}
+            onImport={handleOpenImport}
             onTemplate={async () => {
               const { generateTemplate } = await import('@/lib/generateTemplate')
               await generateTemplate()
@@ -744,16 +763,16 @@ export default function DashboardPage() {
         </div>
         </ErrorBoundary>
 
-        <CardBoundary id="INS-01"><InsightCards items={portfolioItems} profile={profile} netWorth={netWorth} estimatedAnnualIncome={estimatedAnnualIncome} lang={lang} onOpenSettings={() => setModal('settings')} /></CardBoundary>
+        <CardBoundary id="INS-01"><InsightCards items={portfolioItems} profile={profile} netWorth={netWorth} estimatedAnnualIncome={estimatedAnnualIncome} lang={lang} onOpenSettings={handleOpenSettings} /></CardBoundary>
 
         {/* ═══ RENDIMIENTO POR INSTITUCIÓN ═══ */}
         <CardBoundary id="INST-01"><InstitutionPerformance items={portfolioItems} lang={lang} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
 
         <ActionButtons
-          onImport={(bh) => { setImportBrokerHint(bh || null); setModal('import') }} onAddAccount={() => setModal('account')}
-          onTransfer={() => setModal('transfer')} onCashFlow={() => setModal('cashflow')} onExport={handleExport}
-          onShare={handleShare} onIntegrations={() => setModal('settings')}
-          onReview={() => setShowReview(true)} itemCount={enrichedItems.length} lang={lang}
+          onImport={handleOpenImport} onAddAccount={handleOpenAccount}
+          onTransfer={handleOpenTransfer} onCashFlow={handleOpenCashflow} onExport={handleExport}
+          onShare={handleShare} onIntegrations={handleOpenSettings}
+          onReview={handleOpenReview} itemCount={enrichedItems.length} lang={lang}
           ibkrSyncStatus={ibkrSyncStatus} ibkrLastSync={ibkrLastSync}
         />
 
@@ -796,7 +815,7 @@ export default function DashboardPage() {
             className="px-5 py-2.5 text-sm font-medium text-slate-400 bg-[#141416] border border-[#27272a]/60 rounded-xl hover:bg-[#2C2C2E] hover:text-white hover:border-[#475569] transition-all inline-flex items-center gap-2">
             {lang === 'es' ? 'Descargar PDF' : 'Download PDF'}
           </button>
-          <button onClick={() => setModal('print')}
+          <button onClick={handleOpenPrint}
             className="px-5 py-2.5 text-sm font-medium text-slate-400 bg-[#141416] border border-[#27272a]/60 rounded-xl hover:bg-[#2C2C2E] hover:text-white hover:border-[#475569] transition-all inline-flex items-center gap-2">
             {lang === 'es' ? 'Imprimir Resumen' : 'Print Summary'}
           </button>
@@ -806,7 +825,7 @@ export default function DashboardPage() {
 
       {modal === 'import' && (
         <FileImportModal
-          onClose={() => { setModal(null); setImportBrokerHint(null) }} onImportItems={addItem}
+          onClose={handleCloseModal} onImportItems={addItem}
           onImportTransaction={addTransaction} onImportSnapshot={saveSnapshot}
           onAddLot={addLot} onAddFinanceTransaction={addFinanceTransaction}
           onUpdateItem={updateItem} onDeleteItem={deleteItem} onBulkImport={bulkImport}
@@ -818,7 +837,7 @@ export default function DashboardPage() {
 
       {modal === 'account' && (
         <AddAccountModal
-          onClose={() => setModal(null)}
+          onClose={handleCloseModal}
           onAdd={async (item) => {
             await addItem(item)
             showToast(lang === 'es' ? `${item.symbol || item.name} agregado` : `${item.symbol || item.name} added`)
@@ -832,7 +851,7 @@ export default function DashboardPage() {
 
       {modal === 'transfer' && (
         <TransferModal
-          onClose={() => setModal(null)}
+          onClose={handleCloseModal}
           onSave={async (item) => {
             await addItem(item)
           }}
@@ -846,9 +865,7 @@ export default function DashboardPage() {
 
       {sellItem && (
         <SellModal
-          item={sellItem} onClose={() => {
-            setSellItem(null)
-          }}
+          item={sellItem} onClose={handleCloseSell}
           onSell={async (item) => {
             await addItem(item)
             showToast(lang === 'es' ? `${sellItem.symbol} vendido` : `${sellItem.symbol} sold`)
@@ -861,7 +878,7 @@ export default function DashboardPage() {
 
       {modal === 'ibkr' && (
         <IBKRSyncModal
-          onClose={() => setModal(null)}
+          onClose={handleCloseModal}
           onSyncComplete={async (data, mode, onProgress) => {
             await handleIBKRSync(data, mode, onProgress)
             showToast(lang === 'es' ? `IBKR: ${data.items?.length || 0} posiciones sincronizadas` : `IBKR: ${data.items?.length || 0} positions synced`)
@@ -880,7 +897,7 @@ export default function DashboardPage() {
 
       {modal === 'blockchain' && (
         <BlockchainSyncModal
-          onClose={() => setModal(null)}
+          onClose={handleCloseModal}
           onSyncComplete={async ({ items: syncItems, transactions: syncTxs, mode }) => {
             if (mode === 'replace') {
               const bcItems = items.filter(it => it._source === 'blockchain' || (it.institution || '').toLowerCase().includes('blockchain'))
@@ -907,7 +924,7 @@ export default function DashboardPage() {
 
       {modal === 'ledger' && (
         <LedgerSyncModal
-          onClose={() => setModal(null)}
+          onClose={handleCloseModal}
           onSyncComplete={async ({ items: syncItems, mode }) => {
             for (const item of syncItems) {
               const existing = items.find(it =>
@@ -930,7 +947,7 @@ export default function DashboardPage() {
 
       {modal === 'cashflow' && (
         <CashFlowModal
-          onClose={() => setModal(null)}
+          onClose={handleCloseModal}
           onAddTransaction={async (tx) => {
             await addTransaction(tx)
             showToast(lang === 'es' ? 'Flujo de caja registrado' : 'Cash flow recorded')
@@ -941,13 +958,13 @@ export default function DashboardPage() {
       )}
 
       {modal === 'optimize' && (
-        <OptimizeModal items={items} onClose={() => setModal(null)}
+        <OptimizeModal items={items} onClose={handleCloseModal}
           onSave={addItem} onDelete={deleteItem} lang={lang} />
       )}
 
       {modal === 'settings' && (
         <SettingsModal
-          onClose={() => setModal(null)} settings={settings}
+          onClose={handleCloseModal} settings={settings}
           onSaveSettings={saveSettings}
           onDeleteAllItems={deleteAllItems} onDeleteAllSnapshots={deleteAllSnapshots}
           onDeleteAllTransactions={deleteAllTransactions}
@@ -989,10 +1006,10 @@ export default function DashboardPage() {
             a.click()
             URL.revokeObjectURL(url)
           }}
-          onOpenIBKR={() => setModal('ibkr')}
-          onImport={(bh) => { setImportBrokerHint(bh || null); setModal('import') }}
-          onAddAccount={() => setModal('account')}
-          onOpenBlockchain={() => setModal('blockchain')}
+          onOpenIBKR={handleOpenIBKR}
+          onImport={handleOpenImport}
+          onAddAccount={handleOpenAccount}
+          onOpenBlockchain={handleOpenBlockchain}
           theme={theme} onToggleTheme={handleSetTheme} lang={lang}
           profile={profile} onSaveProfile={saveProfile}
         />
@@ -1000,11 +1017,11 @@ export default function DashboardPage() {
 
       {modal === 'print' && (
         <PrintSummary items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets}
-          snapshots={snapshots} transactions={transactions} lang={lang} onClose={() => setModal(null)} />
+          snapshots={snapshots} transactions={transactions} lang={lang} onClose={handleCloseModal} />
       )}
 
       {editItem && (
-        <EditAccountModal key={editItem.id} item={editItem} onClose={() => setEditItem(null)}
+        <EditAccountModal key={editItem.id} item={editItem} onClose={handleCloseEdit}
           onSave={async (updated) => {
             const { id, ...fields } = updated
             await updateItem(editItem.id, fields)
@@ -1033,26 +1050,26 @@ export default function DashboardPage() {
       )}
 
       {detailItem && (
-        <AssetDetailModal item={detailItem} onClose={() => setDetailItem(null)} lang={lang} uid={user?.uid} />
+        <AssetDetailModal item={detailItem} onClose={handleCloseDetail} lang={lang} uid={user?.uid} />
       )}
 
       {showReview && !editItem && (
         <AccountReviewModal
           items={portfolioItems}
           transactions={transactions}
-          onClose={() => setShowReview(false)}
-          onEditItem={(item) => { setEditItem(item) }}
+          onClose={handleCloseReview}
+          onEditItem={setEditItem}
           lang={lang}
         />
       )}
 
-      <CommandPalette open={cmdPaletteOpen} onClose={() => setCmdPaletteOpen(false)}
+      <CommandPalette open={cmdPaletteOpen} onClose={handleCloseCmdPalette}
         items={portfolioItems} lang={lang} onAction={handleCmdAction} />
 
       <MobileNav
-        onAdd={() => setModal('account')} onImport={(bh) => { setImportBrokerHint(bh || null); setModal('import') }}
+        onAdd={handleOpenAccount} onImport={handleOpenImport}
         onExport={handleExport} onShare={handleShare}
-        onSettings={() => setModal('settings')} onSearch={() => setCmdPaletteOpen(true)} lang={lang}
+        onSettings={handleOpenSettings} onSearch={handleOpenCmdPalette} lang={lang}
       />
 
       {showOnboarding && (
@@ -1077,7 +1094,7 @@ export default function DashboardPage() {
           }>
           <span>{toast.type === 'error' ? '✕' : toast.type === 'info' ? 'ℹ' : '✓'}</span>
           {toast.msg}
-          <button onClick={() => setToast(null)} className="ml-1 opacity-60 hover:opacity-100 transition-opacity text-xs" aria-label="Dismiss">✕</button>
+          <button onClick={handleDismissToast} className="ml-1 opacity-60 hover:opacity-100 transition-opacity text-xs" aria-label="Dismiss">✕</button>
         </div>
       )}
 

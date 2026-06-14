@@ -242,18 +242,22 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
 
   useEffect(() => {
     if (tab !== 'brokers') return
+    const controller = new AbortController()
     const apiBrokers = BROKER_REGISTRY.filter(b => b.hasApi)
     apiBrokers.forEach(broker => {
       authFetch(`/api/brokers/${broker.id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'get-credentials' }),
+        signal: controller.signal,
       }).then(r => r.ok ? safeJson(r) : null).then(d => {
+        if (controller.signal.aborted) return
         if (d?.configured) {
           setBrokerConnections(prev => ({ ...prev, [broker.id]: { configured: true, lastSync: d.lastSync } }))
         }
       }).catch(() => {})
     })
+    return () => controller.abort()
   }, [tab])
 
   const handleBrokerConnect = async (broker) => {

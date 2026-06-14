@@ -16,6 +16,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
   const [error, setError] = useState('')
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
+  const abortRef = useRef(null)
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -27,7 +28,12 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
 
   useEffect(() => {
     if (open && inputRef.current) inputRef.current.focus()
+    if (!open) abortRef.current?.abort()
   }, [open])
+
+  useEffect(() => {
+    return () => abortRef.current?.abort()
+  }, [])
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -80,6 +86,10 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
     if (!input.trim() || loading) return
     if (!apiKey) { setShowKeyInput(true); return }
 
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
     const userMsg = { role: 'user', content: input.trim() }
     const newMessages = [...messages, userMsg]
     setMessages(newMessages)
@@ -101,6 +111,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
           apiKey,
           stream: true,
         }),
+        signal: controller.signal,
       })
 
       if (!res.ok) {
@@ -124,30 +135,34 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
 
         setMessages(prev => [...prev, { role: 'assistant', content: '' }])
 
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          buffer += decoder.decode(value, { stream: true })
+        try {
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            buffer += decoder.decode(value, { stream: true })
 
-          const lines = buffer.split('\n')
-          buffer = lines.pop() || ''
+            const lines = buffer.split('\n')
+            buffer = lines.pop() || ''
 
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue
-            const payload = line.slice(6)
-            if (payload === '[DONE]') continue
-            try {
-              const evt = JSON.parse(payload)
-              if (evt.text) {
-                accumulated += evt.text
-                setMessages(prev => {
-                  const updated = [...prev]
-                  updated[updated.length - 1] = { role: 'assistant', content: accumulated }
-                  return updated
-                })
-              }
-            } catch {}
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue
+              const payload = line.slice(6)
+              if (payload === '[DONE]') continue
+              try {
+                const evt = JSON.parse(payload)
+                if (evt.text) {
+                  accumulated += evt.text
+                  setMessages(prev => {
+                    const updated = [...prev]
+                    updated[updated.length - 1] = { role: 'assistant', content: accumulated }
+                    return updated
+                  })
+                }
+              } catch {}
+            }
           }
+        } catch (readErr) {
+          if (readErr.name !== 'AbortError') throw readErr
         }
       } else {
         const data = await safeJson(res) || {}
@@ -155,6 +170,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
         if (data.actions?.length > 0) handleActions(data.actions)
       }
     } catch (err) {
+      if (err.name === 'AbortError') return
       setError(t('Error de conexión', 'Connection error'))
     }
     setLoading(false)
