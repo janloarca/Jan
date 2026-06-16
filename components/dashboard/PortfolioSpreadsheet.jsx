@@ -24,7 +24,7 @@ const CATEGORY_ACCENT = {
   crypto: '#f97316',
   alternatives: '#a78bfa',
   bonds: '#f59e0b',
-  realestate: '#10b981',
+  realestate: '#34d399',
   receivables: '#06b6d4',
   debts: '#ef4444',
   other: '#64748b',
@@ -484,7 +484,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       )}
       {saveMsg && !blockMsg && (
         <div className="mx-4 mb-2 px-3 py-2 rounded-lg text-xs font-medium"
-          style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.25)' }}>
+          style={{ backgroundColor: 'rgba(52,211,153,0.1)', color: '#34d399', border: '1px solid rgba(52,211,153,0.25)' }}>
           &#10003; {saveMsg}
         </div>
       )}

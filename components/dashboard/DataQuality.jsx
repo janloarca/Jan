@@ -38,7 +38,7 @@ export default function DataQuality({ items, lang }) {
   if (!quality || quality.score >= 95 || quality.total < 3) return null
 
   const colorHex = quality.score >= 80 ? '#34d399' : quality.score >= 60 ? '#fbbf24' : '#f87171'
-  const barColorHex = quality.score >= 80 ? '#10b981' : quality.score >= 60 ? '#f59e0b' : '#ef4444'
+  const barColorHex = quality.score >= 80 ? '#34d399' : quality.score >= 60 ? '#f59e0b' : '#ef4444'
 
   return (
     <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 px-4 py-3">

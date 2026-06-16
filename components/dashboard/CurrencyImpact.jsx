@@ -122,7 +122,7 @@ export default function CurrencyImpact({ items, convert, baseCurrency, rates, la
                 <span className="text-sm font-bold" style={{ color: isNeg ? '#f87171' : '#34d399' }}>
                   {isNeg ? '' : '+'}{formatCurrency(s.impact)}
                 </span>
-                <span className="text-xs ml-1" style={{ color: isNeg ? 'rgba(239,68,68,0.7)' : 'rgba(16,185,129,0.7)' }}>
+                <span className="text-xs ml-1" style={{ color: isNeg ? 'rgba(239,68,68,0.7)' : 'rgba(52,211,153,0.7)' }}>
                   ({isNeg ? '' : '+'}{s.impactPct.toFixed(2)}%)
                 </span>
               </div>

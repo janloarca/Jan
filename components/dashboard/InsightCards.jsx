@@ -7,7 +7,7 @@ import { generateInsights } from '@/lib/insights'
 // Reduces the "everything is colored" noise — color carries one meaning:
 // green = good money, red = problem, amber = attention, blue = action/info.
 const TYPE_ACCENT = {
-  success: { border: '#10b981', icon: '#34d399' },
+  success: { border: '#34d399', icon: '#34d399' },
   warning: { border: '#f59e0b', icon: '#fbbf24' },
   danger: { border: '#ef4444', icon: '#f87171' },
   info: { border: '#64748b', icon: '#94a3b8' },

@@ -126,6 +126,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
   const [showDropdown, setShowDropdown] = useState(false)
   const [fetchingQuote, setFetchingQuote] = useState(false)
   const [showIncome, setShowIncome] = useState(false)
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const [duplicateWarning, setDuplicateWarning] = useState(null)
   const dropdownRef = useRef(null)
   const inputRef = useRef(null)
@@ -683,12 +684,12 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             {isMarketAsset && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelCls}>{t('Cantidad', 'Quantity')} *</label>
+                  <label className={labelCls}>{t('Cantidad', 'Quantity')} <span style={{ color: '#FF453A' }}>*</span></label>
                   <input value={form.quantity} onChange={e => set('quantity', e.target.value)}
                     placeholder={type === 'Crypto' ? '0.5' : '10'} type="number" step="any" className={inputCls} />
                 </div>
                 <div>
-                  <label className={labelCls}>{t('Precio de entrada', 'Entry price')} *</label>
+                  <label className={labelCls}>{t('Precio de entrada', 'Entry price')} <span style={{ color: '#FF453A' }}>*</span></label>
                   <input value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
                     placeholder="150.00" type="number" step="any" className={inputCls} title={t('Precio por unidad/acción', 'Price per unit/share')} />
                 </div>
@@ -698,7 +699,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             {isProperty && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelCls}>{t('Valor de compra', 'Purchase value')} *</label>
+                  <label className={labelCls}>{t('Valor de compra', 'Purchase value')} <span style={{ color: '#FF453A' }}>*</span></label>
                   <input value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
                     placeholder="85000" type="number" step="any" className={inputCls} />
                 </div>
@@ -712,7 +713,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
             {isBank && (
               <div>
-                <label className={labelCls}>{t('Saldo actual', 'Current balance')} *</label>
+                <label className={labelCls}>{t('Saldo actual', 'Current balance')} <span style={{ color: '#FF453A' }}>*</span></label>
                 <input value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
                   placeholder="5000" type="number" step="any" className={inputCls} />
               </div>
@@ -721,7 +722,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             {(isBond || isAlternative) && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelCls}>{t('Monto invertido', 'Amount invested')} *</label>
+                  <label className={labelCls}>{t('Monto invertido', 'Amount invested')} <span style={{ color: '#FF453A' }}>*</span></label>
                   <input value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
                     placeholder="10000" type="number" step="any" className={inputCls} />
                 </div>
@@ -729,63 +730,6 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   <label className={labelCls}>{t('Valor actual', 'Current value')}</label>
                   <input value={form.currentPrice} onChange={e => set('currentPrice', e.target.value)}
                     placeholder="10800" type="number" step="any" className={inputCls} />
-                </div>
-              </div>
-            )}
-
-            {/* Maturity date for bonds/alternatives */}
-            {(isBond || isAlternative) && (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelCls}>{t('Fecha de vencimiento', 'Maturity date')}</label>
-                  <input value={form.maturityDate} onChange={e => set('maturityDate', e.target.value)}
-                    type="date" className={inputCls} />
-                </div>
-                <div>
-                  <label className={labelCls}>{t('Al vencimiento', 'At maturity')}</label>
-                  <select value={form.maturityAction} onChange={e => set('maturityAction', e.target.value)} className={inputCls}>
-                    <option value="return_capital">{t('Devolver capital', 'Return capital')}</option>
-                    <option value="auto_renew">{t('Renovar', 'Auto-renew')}</option>
-                    <option value="convert_equity">{t('Convertir a acciones', 'Convert to equity')}</option>
-                  </select>
-                </div>
-              </div>
-            )}
-
-            {/* Illiquid asset toggle */}
-            {(isProperty || isAlternative || (isBond && subtype === 'private_debt')) && (
-              <div className="flex items-center gap-3 px-3 py-2 border border-[var(--card-border,#38383A)] rounded-lg">
-                <button type="button" onClick={() => set('isIlliquid', !form.isIlliquid)}
-                  className="w-8 h-4 rounded-full transition-colors relative"
-                  style={{ backgroundColor: form.isIlliquid ? '#f59e0b' : 'var(--card-border, #38383A)' }}>
-                  <span className={`absolute w-3 h-3 bg-white rounded-full top-0.5 transition-transform ${form.isIlliquid ? 'left-4' : 'left-0.5'}`} />
-                </button>
-                <div>
-                  <span className="text-xs text-[var(--text-primary,white)] font-medium">{t('Activo ilíquido', 'Illiquid asset')}</span>
-                  <p className="text-xs text-[var(--text-muted,#475569)]">
-                    {t('Sin precio de mercado disponible', 'No market price available')}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Custody type for crypto */}
-            {isCrypto && (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelCls}>{t('Custodia', 'Custody')}</label>
-                  <select value={form.custodyType} onChange={e => set('custodyType', e.target.value)} className={inputCls}>
-                    <option value="">{t('-- Seleccionar --', '-- Select --')}</option>
-                    <option value="custodial">{t('Exchange/Custodia', 'Exchange/Custodial')}</option>
-                    <option value="self_custody">{t('Self-Custody', 'Self-Custody')}</option>
-                    <option value="defi_protocol">{t('Protocolo DeFi', 'DeFi Protocol')}</option>
-                  </select>
-                </div>
-                <div>
-                  <label className={labelCls}>{t('Detalles', 'Details')}</label>
-                  <input value={form.custodyDetails} onChange={e => set('custodyDetails', e.target.value)}
-                    placeholder={form.custodyType === 'self_custody' ? 'Ledger Nano X' : form.custodyType === 'defi_protocol' ? 'Osmosis, Aave...' : 'Binance, Kraken...'}
-                    className={inputCls} />
                 </div>
               </div>
             )}
@@ -798,7 +742,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Saldo actual', 'Current balance')} *</label>
+                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Saldo actual', 'Current balance')} <span style={{ color: '#FF453A' }}>*</span></label>
                     <input value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
                       placeholder="50000" type="number" step="any" className={inputCls} />
                   </div>
@@ -887,57 +831,13 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               </div>
             )}
 
-            {/* SAFE Note fields */}
-            {isAlternative && subtype === 'safe_note' && (
-              <div className="border border-pink-500/20 bg-pink-500/5 rounded-lg p-3 space-y-3">
-                <p className="text-xs text-pink-400 font-medium">🔮 SAFE Note</p>
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tipo', 'Type')}</label>
-                    <select value={form.safeType} onChange={e => set('safeType', e.target.value)} className={inputCls}>
-                      <option value="post_money">Post-Money</option>
-                      <option value="pre_money">Pre-Money</option>
-                      <option value="mfn">MFN</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Cap', 'Cap')}</label>
-                    <input value={form.safeCap} onChange={e => set('safeCap', e.target.value)}
-                      placeholder="10000000" type="number" step="any" className={inputCls} />
-                  </div>
-                  <div>
-                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Descuento %', 'Discount %')}</label>
-                    <input value={form.safeDiscount} onChange={e => set('safeDiscount', e.target.value)}
-                      placeholder="20" type="number" step="any" className={inputCls} />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Tax jurisdiction */}
-            <div>
-              <label className={labelCls}>{t('Jurisdicción fiscal', 'Tax jurisdiction')}</label>
-              <select value={form.taxJurisdiction} onChange={e => set('taxJurisdiction', e.target.value)} className={inputCls}>
-                <option value="">{t('-- Opcional --', '-- Optional --')}</option>
-                <option value="GT">🇬🇹 Guatemala</option>
-                <option value="MX">🇲🇽 México</option>
-                <option value="US">🇺🇸 USA</option>
-                <option value="CO">🇨🇴 Colombia</option>
-                <option value="CL">🇨🇱 Chile</option>
-                <option value="BR">🇧🇷 Brasil</option>
-                <option value="PE">🇵🇪 Perú</option>
-                <option value="AR">🇦🇷 Argentina</option>
-                <option value="OTHER">{t('Otro', 'Other')}</option>
-              </select>
-            </div>
-
             {/* Currency + Account Type */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelCls}>
-                  {t('Moneda', 'Currency')}
+                  {t('Moneda', 'Currency')} <span style={{ color: '#FF453A' }}>*</span>
                   {detectedCurrency && form.currency === detectedCurrency && (
-                    <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium" style={{ color: '#34d399', backgroundColor: 'rgba(16,185,129,0.15)' }}>
+                    <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium" style={{ color: '#34d399', backgroundColor: 'rgba(52,211,153,0.15)' }}>
                       {t('Detectada', 'Detected')}
                     </span>
                   )}
@@ -962,7 +862,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             {/* Acquisition date */}
             <div>
               <label className={labelCls}>
-                {isBank ? t('Fecha de apertura', 'Opening date') : t('Fecha de compra', 'Purchase date')} *
+                {isBank ? t('Fecha de apertura', 'Opening date') : t('Fecha de compra', 'Purchase date')} <span style={{ color: '#FF453A' }}>*</span>
               </label>
               <input value={form.acquisitionDate} onChange={e => set('acquisitionDate', e.target.value)}
                 type="date" className={inputCls} />
@@ -1160,13 +1060,128 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               </div>
             )}
 
-            {/* Notes */}
-            {(isBond || isAlternative || isProperty) && (
-              <div>
-                <label className={labelCls}>{t('Notas', 'Notes')}</label>
-                <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
-                  placeholder={t('Detalles adicionales...', 'Additional details...')}
-                  rows={2} className={inputCls + ' resize-none'} />
+            {/* Advanced Options toggle */}
+            <button type="button" onClick={() => setShowAdvanced(!showAdvanced)}
+              className="flex items-center gap-2 text-sm w-full py-2 mt-1 transition-colors"
+              style={{ color: '#60a5fa' }}>
+              <svg className="w-4 h-4 transition-transform" style={{ transform: showAdvanced ? 'rotate(90deg)' : 'rotate(0deg)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+              {t('Opciones avanzadas', 'Advanced options')}
+            </button>
+
+            {showAdvanced && (
+              <div className="space-y-3 pl-1 border-l-2 border-blue-500/20 ml-1">
+                {/* Maturity date for bonds/alternatives */}
+                {(isBond || isAlternative) && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={labelCls}>{t('Fecha de vencimiento', 'Maturity date')}</label>
+                      <input value={form.maturityDate} onChange={e => set('maturityDate', e.target.value)}
+                        type="date" className={inputCls} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>{t('Al vencimiento', 'At maturity')}</label>
+                      <select value={form.maturityAction} onChange={e => set('maturityAction', e.target.value)} className={inputCls}>
+                        <option value="return_capital">{t('Devolver capital', 'Return capital')}</option>
+                        <option value="auto_renew">{t('Renovar', 'Auto-renew')}</option>
+                        <option value="convert_equity">{t('Convertir a acciones', 'Convert to equity')}</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                {/* Illiquid asset toggle */}
+                {(isProperty || isAlternative || (isBond && subtype === 'private_debt')) && (
+                  <div className="flex items-center gap-3 px-3 py-2 border border-[var(--card-border,#38383A)] rounded-lg">
+                    <button type="button" onClick={() => set('isIlliquid', !form.isIlliquid)}
+                      className="w-8 h-4 rounded-full transition-colors relative"
+                      style={{ backgroundColor: form.isIlliquid ? '#f59e0b' : 'var(--card-border, #38383A)' }}>
+                      <span className={`absolute w-3 h-3 bg-white rounded-full top-0.5 transition-transform ${form.isIlliquid ? 'left-4' : 'left-0.5'}`} />
+                    </button>
+                    <div>
+                      <span className="text-xs text-[var(--text-primary,white)] font-medium">{t('Activo ilíquido', 'Illiquid asset')}</span>
+                      <p className="text-xs text-[var(--text-muted,#475569)]">
+                        {t('Sin precio de mercado disponible', 'No market price available')}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Custody type for crypto */}
+                {isCrypto && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={labelCls}>{t('Custodia', 'Custody')}</label>
+                      <select value={form.custodyType} onChange={e => set('custodyType', e.target.value)} className={inputCls}>
+                        <option value="">{t('-- Seleccionar --', '-- Select --')}</option>
+                        <option value="custodial">{t('Exchange/Custodia', 'Exchange/Custodial')}</option>
+                        <option value="self_custody">{t('Self-Custody', 'Self-Custody')}</option>
+                        <option value="defi_protocol">{t('Protocolo DeFi', 'DeFi Protocol')}</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className={labelCls}>{t('Detalles', 'Details')}</label>
+                      <input value={form.custodyDetails} onChange={e => set('custodyDetails', e.target.value)}
+                        placeholder={form.custodyType === 'self_custody' ? 'Ledger Nano X' : form.custodyType === 'defi_protocol' ? 'Osmosis, Aave...' : 'Binance, Kraken...'}
+                        className={inputCls} />
+                    </div>
+                  </div>
+                )}
+
+                {/* SAFE Note fields */}
+                {isAlternative && subtype === 'safe_note' && (
+                  <div className="border border-pink-500/20 bg-pink-500/5 rounded-lg p-3 space-y-3">
+                    <p className="text-xs text-pink-400 font-medium">SAFE Note</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tipo', 'Type')}</label>
+                        <select value={form.safeType} onChange={e => set('safeType', e.target.value)} className={inputCls}>
+                          <option value="post_money">Post-Money</option>
+                          <option value="pre_money">Pre-Money</option>
+                          <option value="mfn">MFN</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Cap', 'Cap')}</label>
+                        <input value={form.safeCap} onChange={e => set('safeCap', e.target.value)}
+                          placeholder="10000000" type="number" step="any" className={inputCls} />
+                      </div>
+                      <div>
+                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Descuento %', 'Discount %')}</label>
+                        <input value={form.safeDiscount} onChange={e => set('safeDiscount', e.target.value)}
+                          placeholder="20" type="number" step="any" className={inputCls} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tax jurisdiction */}
+                <div>
+                  <label className={labelCls}>{t('Jurisdicción fiscal', 'Tax jurisdiction')}</label>
+                  <select value={form.taxJurisdiction} onChange={e => set('taxJurisdiction', e.target.value)} className={inputCls}>
+                    <option value="">{t('-- Opcional --', '-- Optional --')}</option>
+                    <option value="GT">Guatemala</option>
+                    <option value="MX">México</option>
+                    <option value="US">USA</option>
+                    <option value="CO">Colombia</option>
+                    <option value="CL">Chile</option>
+                    <option value="BR">Brasil</option>
+                    <option value="PE">Perú</option>
+                    <option value="AR">Argentina</option>
+                    <option value="OTHER">{t('Otro', 'Other')}</option>
+                  </select>
+                </div>
+
+                {/* Notes */}
+                {(isBond || isAlternative || isProperty) && (
+                  <div>
+                    <label className={labelCls}>{t('Notas', 'Notes')}</label>
+                    <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
+                      placeholder={t('Detalles adicionales...', 'Additional details...')}
+                      rows={2} className={inputCls + ' resize-none'} />
+                  </div>
+                )}
               </div>
             )}
 
@@ -1207,7 +1222,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 if (isMarketAsset && qty > 0 && price > 0 && qty === price) warnings.push(t('⚠ Cantidad y precio son iguales — ¿es correcto?', '⚠ Quantity and price are the same — is this correct?'))
                 return (
                   <div className="p-3 rounded-lg border text-xs"
-                    style={warnings.length > 0 ? { backgroundColor: 'rgba(245,158,11,0.1)', borderColor: 'rgba(245,158,11,0.2)' } : { backgroundColor: 'rgba(16,185,129,0.1)', borderColor: 'rgba(16,185,129,0.2)' }}>
+                    style={warnings.length > 0 ? { backgroundColor: 'rgba(245,158,11,0.1)', borderColor: 'rgba(245,158,11,0.2)' } : { backgroundColor: 'rgba(52,211,153,0.1)', borderColor: 'rgba(52,211,153,0.2)' }}>
                     <div className="font-medium" style={{ color: warnings.length > 0 ? '#fbbf24' : '#34d399' }}>
                       {isDebt ? t('Deuda', 'Debt') : t('Valor total', 'Total value')}: {form.currency} {fmt(total)}
                     </div>

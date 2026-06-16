@@ -4,18 +4,18 @@ import { useState, useMemo } from 'react'
 import { formatCurrency, getItemValue, getTypeCategory } from './utils'
 
 const SECTOR_COLORS = [
-  '#10b981', '#f59e0b', '#3b82f6', '#a855f7', '#ec4899',
+  '#34d399', '#f59e0b', '#3b82f6', '#a855f7', '#ec4899',
   '#06b6d4', '#ef4444', '#84cc16', '#f97316', '#6366f1',
   '#14b8a6', '#eab308',
 ]
 
 const INSTITUTION_COLORS = [
-  '#3b82f6', '#10b981', '#f59e0b', '#a855f7', '#06b6d4',
+  '#3b82f6', '#34d399', '#f59e0b', '#a855f7', '#06b6d4',
   '#ef4444', '#ec4899', '#84cc16',
 ]
 
 const CURRENCY_COLORS = [
-  '#10b981', '#3b82f6', '#f59e0b', '#a855f7', '#ef4444',
+  '#34d399', '#3b82f6', '#f59e0b', '#a855f7', '#ef4444',
   '#06b6d4', '#ec4899', '#84cc16',
 ]
 

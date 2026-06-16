@@ -206,8 +206,8 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full" preserveAspectRatio="xMidYMid meet">
         <defs>
           <linearGradient id="projGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#10b981" stopOpacity="0.15" />
-            <stop offset="100%" stopColor="#10b981" stopOpacity="0.02" />
+            <stop offset="0%" stopColor="#34d399" stopOpacity="0.15" />
+            <stop offset="100%" stopColor="#34d399" stopOpacity="0.02" />
           </linearGradient>
           <linearGradient id="contribGrad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.1" />
@@ -233,7 +233,7 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
               fill="url(#projGrad)" />
             <path d={`${linePath(contribPts)} L ${contribPts[contribPts.length-1].x} ${pad.top + ch} L ${contribPts[0].x} ${pad.top + ch} Z`}
               fill="url(#contribGrad)" />
-            <path d={linePath(balancePts)} fill="none" stroke="#10b981" strokeWidth="2" />
+            <path d={linePath(balancePts)} fill="none" stroke="#34d399" strokeWidth="2" />
           </>
         )}
 
@@ -242,7 +242,7 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
 
         {/* Deterministic dashed line in MC mode for reference */}
         {mode === 'montecarlo' && (
-          <path d={linePath(balancePts)} fill="none" stroke="#10b981" strokeWidth="1" strokeDasharray="3 3" strokeOpacity="0.5" />
+          <path d={linePath(balancePts)} fill="none" stroke="#34d399" strokeWidth="1" strokeDasharray="3 3" strokeOpacity="0.5" />
         )}
 
         {/* X labels */}
@@ -263,7 +263,7 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
           </text>
         ) : (
           <text x={balancePts[balancePts.length-1].x - 4} y={balancePts[balancePts.length-1].y - 8}
-            textAnchor="end" fill="#10b981" fontSize="10" fontWeight="bold">
+            textAnchor="end" fill="#34d399" fontSize="10" fontWeight="bold">
             {formatCompact(finalBalance)}
           </text>
         )}

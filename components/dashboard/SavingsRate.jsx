@@ -78,7 +78,7 @@ export default function SavingsRate({ goals, transactions, netWorth, snapshots, 
   if (recurring.length === 0 && !growthFromSavings) return null
 
   const ringPct = Math.min(rates.savingsRate, 100)
-  const ringColor = rates.savingsRate >= 30 ? '#10b981' : rates.savingsRate >= 15 ? '#f59e0b' : '#ef4444'
+  const ringColor = rates.savingsRate >= 30 ? '#34d399' : rates.savingsRate >= 15 ? '#f59e0b' : '#ef4444'
 
   return (
     <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 p-4 sm:p-5">

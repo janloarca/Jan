@@ -80,14 +80,14 @@ export default function IncomeCalendar({ items, lang }) {
           const intensity = maxMonthly > 0 ? m.total / maxMonthly : 0
           const barHex = m.total <= 0 ? 'rgba(51,65,85,0.3)'
             : intensity > 0.75 ? '#34d399'
-            : intensity > 0.5  ? '#10b981'
+            : intensity > 0.5  ? '#34d399'
             : intensity > 0.25 ? '#059669'
             : '#047857'
 
           return (
             <div key={i} className="text-center p-1.5 rounded-lg transition-colors"
               style={isCurrent
-                ? { backgroundColor: 'rgba(16,185,129,0.1)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(16,185,129,0.2)' }
+                ? { backgroundColor: 'rgba(52,211,153,0.1)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(52,211,153,0.2)' }
                 : { backgroundColor: '#000000', borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(56,56,58,0.2)' }
               }>
               <div className="text-xs text-slate-500 mb-1">{monthNames[i]}</div>

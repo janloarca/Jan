@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react'
 import { getTypeCategory, TYPE_COLORS, CHART_PALETTE, getItemValue, getSectorFromItem, getGeographyFromItem } from './utils'
 import { computeHHI, computeHHIByDimension } from './analytics'
+import { InfoTip } from '../ui/Tooltip'
 
 export default function ConcentrationRisk({ items, lang }) {
   const [dimension, setDimension] = useState('type')
@@ -39,7 +40,7 @@ export default function ConcentrationRisk({ items, lang }) {
   const levelLabel = {
     high: { es: 'Alta Concentración', en: 'High Concentration', textColor: '#f87171', borderColor: 'rgba(239,68,68,0.4)' },
     medium: { es: 'Media Concentración', en: 'Medium Concentration', textColor: '#fbbf24', borderColor: 'rgba(245,158,11,0.4)' },
-    low: { es: 'Baja Concentración', en: 'Low Concentration', textColor: '#34d399', borderColor: 'rgba(16,185,129,0.4)' },
+    low: { es: 'Baja Concentración', en: 'Low Concentration', textColor: '#34d399', borderColor: 'rgba(52,211,153,0.4)' },
   }
 
   const topPosition = data.groups[0]
@@ -96,11 +97,11 @@ export default function ConcentrationRisk({ items, lang }) {
       </div>
 
       <div className="flex items-center gap-3 mb-3 px-2 py-1.5 bg-[#000000] rounded-lg border border-[#27272a]/50">
-        <span className="text-xs text-slate-500">HHI</span>
+        <span className="text-xs text-slate-500">HHI<InfoTip text={t('Índice Herfindahl-Hirschman. Mide la concentración del portafolio. Bajo 1500 = diversificado, 1500-2500 = moderado, arriba de 2500 = concentrado.', 'Herfindahl-Hirschman Index. Measures portfolio concentration. Below 1500 = diversified, 1500-2500 = moderate, above 2500 = concentrated.')} /></span>
         <div className="flex-1 h-1.5 bg-slate-700/30 rounded-full overflow-hidden">
           <div className="h-full rounded-full transition-all" style={{
             width: `${Math.min((displayHHI.hhi / 5000) * 100, 100)}%`,
-            backgroundColor: displayHHI.level === 'low' ? '#10b981' : displayHHI.level === 'medium' ? '#f59e0b' : '#ef4444',
+            backgroundColor: displayHHI.level === 'low' ? '#34d399' : displayHHI.level === 'medium' ? '#f59e0b' : '#ef4444',
           }} />
         </div>
         <span className="text-xs font-bold text-slate-300">{displayHHI.hhi}</span>

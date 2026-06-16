@@ -71,7 +71,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
   }, [chartData])
 
   const isPositive = points ? points[points.length - 1].close >= points[0].close : pnl >= 0
-  const lineColor = isPositive ? '#10b981' : '#ef4444'
+  const lineColor = isPositive ? '#34d399' : '#ef4444'
 
   function smoothPath(pts) {
     if (!pts || pts.length < 2) return ''
@@ -117,7 +117,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
               <span className="text-lg font-bold" style={{ color: pnl >= 0 ? '#34d399' : '#f87171' }}>
                 {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}
               </span>
-              <span className="text-xs block" style={{ color: pnlPct >= 0 ? '#10b981' : '#ef4444' }}>
+              <span className="text-xs block" style={{ color: pnlPct >= 0 ? '#34d399' : '#ef4444' }}>
                 {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%
               </span>
             </div>

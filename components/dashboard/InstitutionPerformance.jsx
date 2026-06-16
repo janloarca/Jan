@@ -303,9 +303,8 @@ export default function InstitutionPerformance({ items, lang, convert, baseCurre
             {t('Ganancia', 'Gain/Loss')}
           </p>
           <p
-            className={`text-lg font-bold font-mono tabular-nums ${
-              isGain ? 'text-[#30D158]' : 'text-[#FF453A]'
-            }`}
+            className="text-lg font-bold font-mono tabular-nums"
+            style={{ color: isGain ? '#34d399' : '#FF453A' }}
           >
             {isGain ? '+' : ''}
             {summary.gainPct.toFixed(2)}%
@@ -343,9 +342,8 @@ export default function InstitutionPerformance({ items, lang, convert, baseCurre
               {formatCurrency(hd ? hd.value : lastVal, baseCurrency)}
             </p>
             <p
-              className={`text-xs mt-0.5 ${
-                growthAbs >= 0 ? 'text-[#30D158]' : 'text-[#FF453A]'
-              }`}
+              className="text-xs mt-0.5"
+              style={{ color: growthAbs >= 0 ? '#34d399' : '#FF453A' }}
             >
               <span className="font-mono tabular-nums">
                 {growthAbs >= 0 ? '+' : ''}

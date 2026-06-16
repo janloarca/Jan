@@ -493,14 +493,14 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           {!isDebt && onAddTransaction && (
             <div className="space-y-3">
               {contribSuccess && (
-                <div className="px-3 py-2 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(16,185,129,0.1)', color: '#34d399', border: '1px solid rgba(16,185,129,0.2)' }}>
+                <div className="px-3 py-2 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(52,211,153,0.1)', color: '#34d399', border: '1px solid rgba(52,211,153,0.2)' }}>
                   {contribSuccess}
                 </div>
               )}
               <div className="flex gap-2">
                 <button type="button" onClick={() => { setShowContribution(true); setContribType('add') }}
                   className="flex-1 px-3 py-2.5 text-xs font-semibold rounded-lg transition-all border flex items-center justify-center gap-1"
-                  style={{ color: '#34d399', borderColor: 'rgba(16,185,129,0.3)', backgroundColor: 'rgba(16,185,129,0.1)' }}>
+                  style={{ color: '#34d399', borderColor: 'rgba(52,211,153,0.3)', backgroundColor: 'rgba(52,211,153,0.1)' }}>
                   <span className="text-sm">+</span> {t('Agregar Dinero', 'Add Money')}
                 </button>
                 <button type="button" onClick={() => { setShowContribution(true); setContribType('withdraw') }}
@@ -512,7 +512,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
               {showContribution && (
                 <div className="border rounded-lg p-3 space-y-3"
-                  style={{ borderColor: contribType === 'add' ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)', backgroundColor: contribType === 'add' ? 'rgba(16,185,129,0.05)' : 'rgba(239,68,68,0.05)' }}>
+                  style={{ borderColor: contribType === 'add' ? 'rgba(52,211,153,0.3)' : 'rgba(239,68,68,0.3)', backgroundColor: contribType === 'add' ? 'rgba(52,211,153,0.05)' : 'rgba(239,68,68,0.05)' }}>
                   <p className="text-xs font-medium" style={{ color: contribType === 'add' ? '#34d399' : '#f87171' }}>
                     {contribType === 'add' ? t('Nuevo aporte', 'New contribution') : t('Retiro de fondos', 'Withdraw funds')}
                   </p>
@@ -1103,7 +1103,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               const isDebtType = /debt|deuda/i.test(form.type)
               const fmt = (v) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
               if (total > 0) return (
-                <span className="text-xs font-medium px-2 py-1 rounded" style={{ color: '#34d399', backgroundColor: 'rgba(16,185,129,0.1)' }}>
+                <span className="text-xs font-medium px-2 py-1 rounded" style={{ color: '#34d399', backgroundColor: 'rgba(52,211,153,0.1)' }}>
                   {isDebtType ? t('Deuda', 'Debt') : ''} {form.currency} {fmt(total)}
                 </span>
               )

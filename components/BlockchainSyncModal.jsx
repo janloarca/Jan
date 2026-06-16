@@ -107,7 +107,7 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
 
         {step === 'preview' && preview && (
           <div className="p-6 space-y-4">
-            <div className="border rounded-lg p-3" style={{ backgroundColor: 'rgba(16,185,129,0.1)', borderColor: 'rgba(16,185,129,0.2)' }}>
+            <div className="border rounded-lg p-3" style={{ backgroundColor: 'rgba(52,211,153,0.1)', borderColor: 'rgba(52,211,153,0.2)' }}>
               <p className="text-sm font-medium" style={{ color: '#34d399' }}>{t('Sincronización exitosa', 'Sync successful')}</p>
               <p className="text-xs mt-1" style={{ color: 'rgba(110,231,183,0.7)' }}>
                 {preview.items.length} {t('posiciones', 'positions')} · {preview.transactions.length} {t('transacciones', 'transactions')}

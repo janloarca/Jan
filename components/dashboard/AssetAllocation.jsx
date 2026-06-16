@@ -122,7 +122,7 @@ export default function AssetAllocation({ items, lang }) {
                 <div className="flex items-center gap-3 shrink-0">
                   <span
                     className="text-xs w-14 text-right"
-                    style={{ color: seg.contribution >= 0 ? 'rgba(16,185,129,0.7)' : 'rgba(239,68,68,0.7)' }}
+                    style={{ color: seg.contribution >= 0 ? 'rgba(52,211,153,0.7)' : 'rgba(239,68,68,0.7)' }}
                   >
                     {seg.contribution >= 0 ? '+' : ''}{seg.contribution.toFixed(1)}%
                   </span>

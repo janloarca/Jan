@@ -58,7 +58,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
     const t = (type || '').toUpperCase()
     if (t === 'BUY') return { backgroundColor: 'rgba(59,130,246,0.2)', color: '#60a5fa' }
     if (t === 'SELL') return { backgroundColor: 'rgba(100,116,139,0.2)', color: '#94a3b8' }
-    if (t === 'DIVIDEND') return { backgroundColor: 'rgba(16,185,129,0.15)', color: '#6ee7b7' }
+    if (t === 'DIVIDEND') return { backgroundColor: 'rgba(52,211,153,0.15)', color: '#6ee7b7' }
     if (t === 'DEPOSIT') return { backgroundColor: 'rgba(100,116,139,0.2)', color: '#cbd5e1' }
     if (t === 'WITHDRAWAL') return { backgroundColor: 'rgba(100,116,139,0.2)', color: '#94a3b8' }
     return { backgroundColor: 'rgba(100,116,139,0.2)', color: '#94a3b8' }
@@ -102,7 +102,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
           const isActive = typeFilter === opt.key
           const activeStyles = {
             blue: { backgroundColor: 'rgba(59,130,246,0.15)', borderColor: 'rgba(59,130,246,0.3)', color: '#60a5fa' },
-            emerald: { backgroundColor: 'rgba(16,185,129,0.15)', borderColor: 'rgba(16,185,129,0.3)', color: '#34d399' },
+            emerald: { backgroundColor: 'rgba(52,211,153,0.15)', borderColor: 'rgba(52,211,153,0.3)', color: '#34d399' },
             red: { backgroundColor: 'rgba(239,68,68,0.15)', borderColor: 'rgba(239,68,68,0.3)', color: '#f87171' },
             amber: { backgroundColor: 'rgba(245,158,11,0.15)', borderColor: 'rgba(245,158,11,0.3)', color: '#fbbf24' },
             slate: { backgroundColor: 'rgba(100,116,139,0.15)', borderColor: 'rgba(100,116,139,0.3)', color: '#cbd5e1' },

@@ -162,7 +162,7 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
 
           {/* Goal probability */}
           {goalProbability != null && (() => {
-            const probColor = goalProbability >= 70 ? '#30D158' : goalProbability >= 40 ? '#FF9F0A' : '#FF453A'
+            const probColor = goalProbability >= 70 ? '#34d399' : goalProbability >= 40 ? '#FF9F0A' : '#FF453A'
             const probLabel = goalProbability >= 70 ? t('Alta', 'High') : goalProbability >= 40 ? t('Moderada', 'Moderate') : t('Baja', 'Low')
             return (
               <div className="flex items-center gap-4 px-4 py-3 bg-[#000000] rounded-xl border border-[#27272a]/50">

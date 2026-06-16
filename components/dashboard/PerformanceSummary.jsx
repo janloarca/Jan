@@ -157,7 +157,7 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
                     <div className="text-sm sm:text-base font-bold font-mono tabular-nums mt-1" style={{ color: isPos ? '#34d399' : '#f87171' }}>
                       {isPos ? '+' : ''}{p.pct.toFixed(2)}%
                     </div>
-                    <div className="text-xs sm:text-xs font-mono tabular-nums mt-0.5" style={{ color: isPos ? 'rgba(16,185,129,0.7)' : 'rgba(239,68,68,0.7)' }}>
+                    <div className="text-xs sm:text-xs font-mono tabular-nums mt-0.5" style={{ color: isPos ? 'rgba(52,211,153,0.7)' : 'rgba(239,68,68,0.7)' }}>
                       {isPos ? '+' : ''}{formatCurrency(p.abs)}
                     </div>
                   </>

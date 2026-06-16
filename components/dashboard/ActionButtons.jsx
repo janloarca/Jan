@@ -9,7 +9,7 @@ export default function ActionButtons({ onImport, onAddAccount, onTransfer, onCa
 
   const hasSyncIndicator = ibkrSyncStatus === 'error' || (ibkrSyncStatus === 'ok' && ibkrLastSync)
   const syncDotColor = ibkrSyncStatus === 'error' ? '#f87171'
-    : ibkrSyncStatus === 'ok' && ibkrLastSync && !isNaN(new Date(ibkrLastSync).getTime()) && Date.now() - new Date(ibkrLastSync).getTime() < 2 * 60 * 60 * 1000 ? '#4ade80'
+    : ibkrSyncStatus === 'ok' && ibkrLastSync && !isNaN(new Date(ibkrLastSync).getTime()) && Date.now() - new Date(ibkrLastSync).getTime() < 2 * 60 * 60 * 1000 ? '#34d399'
     : ibkrSyncStatus === 'ok' ? '#fbbf24' : null
 
   return (

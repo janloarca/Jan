@@ -14,7 +14,7 @@ const FREQUENCIES = [
 const CATEGORIES = [
   { value: 'savings', labelEs: 'Ahorro', labelEn: 'Savings', icon: '💰', color: '#34d399' },
   { value: 'investment', labelEs: 'Inversión', labelEn: 'Investment', icon: '📈', color: '#60a5fa' },
-  { value: 'income', labelEs: 'Ingreso', labelEn: 'Income', icon: '💵', color: '#4ade80' },
+  { value: 'income', labelEs: 'Ingreso', labelEn: 'Income', icon: '💵', color: '#34d399' },
   { value: 'expense', labelEs: 'Gasto', labelEn: 'Expense', icon: '💸', color: '#f87171' },
   { value: 'debt', labelEs: 'Pago deuda', labelEn: 'Debt payment', icon: '🏦', color: '#fbbf24' },
 ]
@@ -99,7 +99,7 @@ export default function RecurringTransactions({ goals, onSaveGoals, lang }) {
             <button
               onClick={() => setForm({ ...form, isInflow: true })}
               className="flex-1 py-1.5 text-xs rounded-lg border transition-colors"
-              style={form.isInflow ? { backgroundColor: 'rgba(5,150,105,0.2)', borderColor: 'rgba(16,185,129,0.3)', color: '#34d399' } : { borderColor: '#38383A', color: '#94a3b8' }}
+              style={form.isInflow ? { backgroundColor: 'rgba(5,150,105,0.2)', borderColor: 'rgba(52,211,153,0.3)', color: '#34d399' } : { borderColor: '#38383A', color: '#94a3b8' }}
             >
               ↓ {t('Ingreso', 'Inflow')}
             </button>

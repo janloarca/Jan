@@ -446,8 +446,8 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
           {step === 'connected' && !syncing && (
             <div className="space-y-5">
               <div className="flex flex-col items-center py-6 gap-3">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: 'rgba(16,185,129,0.15)' }}>
-                  <CheckCircle size={20} style={{ color: '#10b981' }} />
+                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: 'rgba(52,211,153,0.15)' }}>
+                  <CheckCircle size={20} style={{ color: '#34d399' }} />
                 </div>
                 <p className="text-sm text-white font-medium">{t('IBKR Conectado', 'IBKR Connected')}</p>
                 {lastSyncLabel && (
@@ -988,7 +988,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   <div className="w-full h-2.5 bg-slate-700 rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full transition-all duration-300"
-                      style={{ backgroundColor: importProgress && importProgress.total > 0 && importProgress.done >= importProgress.total ? '#10b981' : '#3b82f6' }}
+                      style={{ backgroundColor: importProgress && importProgress.total > 0 && importProgress.done >= importProgress.total ? '#34d399' : '#3b82f6' }}
                       style={{ width: `${importProgress && importProgress.total > 0 ? Math.round((importProgress.done / importProgress.total) * 100) : 0}%` }} />
                   </div>
                   <div className="flex items-center justify-center gap-2">

@@ -97,7 +97,7 @@ function SharedDashboard({ items, snapshots, baseCurrency }) {
   )
 
   const catColors = {
-    stocks: '#3b82f6', crypto: '#f59e0b', funds: '#10b981', bonds: '#8b5cf6',
+    stocks: '#3b82f6', crypto: '#f59e0b', funds: '#34d399', bonds: '#8b5cf6',
     banks: '#06b6d4', realestate: '#ec4899', alternatives: '#f97316', debts: '#ef4444', other: '#64748b',
   }
 

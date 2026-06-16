@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { formatCurrency, getBaseCurrency } from './utils'
+import { InfoTip } from '../ui/Tooltip'
 
 const QUICK_CURRENCIES = ['USD', 'EUR', 'GBP', 'MXN', 'GTQ', 'COP', 'BRL', 'CAD']
 
@@ -31,7 +32,7 @@ function Sparkline({ snapshots, width = 60, height = 24 }) {
   const max = Math.max(...values)
   const range = max - min || 1
   const trending = values[values.length - 1] >= values[0]
-  const color = trending ? '#10b981' : '#ef4444'
+  const color = trending ? '#34d399' : '#ef4444'
 
   const points = values.map((v, i) => {
     const x = (i / (values.length - 1)) * width
@@ -102,7 +103,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
           {milestone.text && (
             <span className="text-[11px] font-medium px-2 py-0.5 rounded-full"
               style={milestone.positive
-                ? { backgroundColor: 'rgba(16,185,129,0.1)', color: '#4ade80' }
+                ? { backgroundColor: 'rgba(52,211,153,0.1)', color: '#34d399' }
                 : { backgroundColor: 'rgba(245,158,11,0.1)', color: '#fbbf24' }
               }>{milestone.text}</span>
           )}
@@ -134,7 +135,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
 
       {/* Sub-KPI: Daily change — Level 2 typography */}
       {dailyChange && isFinite(dailyChange.pct) && (
-        <p className="text-sm font-medium mt-1" style={{ color: isDayPositive ? '#4ade80' : '#f87171' }}>
+        <p className="text-sm font-medium mt-1" style={{ color: isDayPositive ? '#34d399' : '#f87171' }}>
           <span className="font-mono tabular-nums">{isDayPositive ? '+' : ''}{formatCurrency(cv(dailyChange.abs), displayCur)} ({isDayPositive ? '+' : ''}{dailyChange.pct.toFixed(2)}%)</span>
           <span className="text-slate-600 font-normal ml-1.5 text-xs">{lang === 'es' ? 'hoy' : 'today'}</span>
         </p>
@@ -146,12 +147,13 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
           style={!hasReturn
             ? { backgroundColor: 'rgba(100,116,139,0.12)', color: '#94a3b8' }
             : isYTDPositive
-              ? { backgroundColor: 'rgba(16,185,129,0.12)', color: '#4ade80' }
+              ? { backgroundColor: 'rgba(52,211,153,0.12)', color: '#34d399' }
               : { backgroundColor: 'rgba(239,68,68,0.12)', color: '#f87171' }
           }>
           {hasYTD ? 'YTD' : sinceStartDate ? (lang === 'es' ? 'Desde ' : 'Since ') + new Date(sinceStartDate).toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short', year: '2-digit' }) : 'YTD'}
           {' '}<span className="font-mono">{hasReturn ? `${isYTDPositive ? '+' : ''}${displayReturn.toFixed(2)}%` : 'N/A'}</span>
           {hasReturn && <span className="opacity-50 ml-0.5" style={{ fontSize: '9px' }}>TWR</span>}
+          {hasYTD && <InfoTip text={lang === 'es' ? 'Year-to-Date: retorno total desde el 1 de enero del año en curso.' : 'Year-to-Date: total return since January 1st of the current year.'} />}
         </span>
         {yearlyChange != null && isFinite(yearlyChange) && (
           <span className="text-xs" style={{ color: isYearlyPositive ? 'rgba(74,222,128,0.6)' : 'rgba(248,113,113,0.6)' }}>
@@ -165,7 +167,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
         <div className="mt-4 pt-3 border-t border-[#27272a]/50">
           <div className="flex items-center justify-between text-xs mb-1.5">
             <span className="text-slate-500">{lang === 'es' ? 'Invertido' : 'Invested'}: <span className="text-slate-300 font-medium font-mono tabular-nums">{formatCurrency(cv(netContributions), displayCur)}</span></span>
-            <span className="text-slate-500">{lang === 'es' ? 'Ganancia' : 'Gains'}: <span className="font-medium font-mono tabular-nums" style={{ color: displayValue - cv(netContributions) >= 0 ? '#4ade80' : '#f87171' }}>{formatCurrency(displayValue - cv(netContributions), displayCur)}</span></span>
+            <span className="text-slate-500">{lang === 'es' ? 'Ganancia' : 'Gains'}: <span className="font-medium font-mono tabular-nums" style={{ color: displayValue - cv(netContributions) >= 0 ? '#34d399' : '#f87171' }}>{formatCurrency(displayValue - cv(netContributions), displayCur)}</span></span>
           </div>
           <div className="w-full h-1.5 bg-[#27272a]/50 rounded-full overflow-hidden flex">
             {(() => {
@@ -176,14 +178,14 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
               return (
                 <>
                   <div className="h-full rounded-l-full" style={{ width: `${contribPct}%`, backgroundColor: 'rgba(59,130,246,0.5)' }} />
-                  <div className="h-full rounded-r-full" style={{ width: `${Math.max(0, 100 - contribPct)}%`, backgroundColor: 'rgba(16,185,129,0.5)' }} />
+                  <div className="h-full rounded-r-full" style={{ width: `${Math.max(0, 100 - contribPct)}%`, backgroundColor: 'rgba(52,211,153,0.5)' }} />
                 </>
               )
             })()}
           </div>
           <div className="flex items-center gap-3 mt-1 text-[11px] text-slate-600">
             <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'rgba(59,130,246,0.5)' }} />{lang === 'es' ? 'Invertido' : 'Invested'}</span>
-            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'rgba(16,185,129,0.5)' }} />{lang === 'es' ? 'Ganancias' : 'Gains'}</span>
+            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'rgba(52,211,153,0.5)' }} />{lang === 'es' ? 'Ganancias' : 'Gains'}</span>
           </div>
         </div>
       )}

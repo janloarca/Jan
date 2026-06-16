@@ -75,7 +75,7 @@ export default function MaturityCalendar({ items, lang }) {
   function getDayStyle(days) {
     if (days <= 90) return { color: '#f87171', backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.2)' }
     if (days <= 365) return { color: '#fbbf24', backgroundColor: 'rgba(245,158,11,0.1)', borderColor: 'rgba(245,158,11,0.2)' }
-    return { color: '#34d399', backgroundColor: 'rgba(16,185,129,0.1)', borderColor: 'rgba(16,185,129,0.2)' }
+    return { color: '#34d399', backgroundColor: 'rgba(52,211,153,0.1)', borderColor: 'rgba(52,211,153,0.2)' }
   }
 
   function formatDays(days) {

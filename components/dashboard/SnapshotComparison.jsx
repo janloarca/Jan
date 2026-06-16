@@ -126,7 +126,7 @@ export default function SnapshotComparison({ snapshots, items, lang }) {
               <div className="text-sm font-bold" style={{ color: comparison.change >= 0 ? '#34d399' : '#f87171' }}>
                 {comparison.change >= 0 ? '+' : ''}{comparison.changePct.toFixed(2)}%
               </div>
-              <div className="text-[10px]" style={{ color: comparison.change >= 0 ? 'rgba(16,185,129,0.7)' : 'rgba(239,68,68,0.7)' }}>
+              <div className="text-[10px]" style={{ color: comparison.change >= 0 ? 'rgba(52,211,153,0.7)' : 'rgba(239,68,68,0.7)' }}>
                 {comparison.change >= 0 ? '+' : ''}{formatCurrency(comparison.change)}
               </div>
             </div>
@@ -149,7 +149,7 @@ export default function SnapshotComparison({ snapshots, items, lang }) {
             <div className="mb-3">
               <svg viewBox={`0 0 ${sparkline.w} ${sparkline.h}`} className="w-full h-12" preserveAspectRatio="none">
                 <polyline points={sparkline.points} fill="none"
-                  stroke={comparison.change >= 0 ? '#10b981' : '#ef4444'} strokeWidth="1.5" />
+                  stroke={comparison.change >= 0 ? '#34d399' : '#ef4444'} strokeWidth="1.5" />
               </svg>
             </div>
           )}

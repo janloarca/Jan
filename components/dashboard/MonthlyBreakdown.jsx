@@ -208,7 +208,7 @@ export default function MonthlyBreakdown({ items, snapshots, lang, onUpdateItem,
                             cat === 'stocks' ? '#3b82f6' :
                             cat === 'funds' ? '#6366f1' :
                             cat === 'crypto' ? '#f97316' :
-                            cat === 'realestate' ? '#10b981' :
+                            cat === 'realestate' ? '#34d399' :
                             cat === 'debts' ? '#ef4444' :
                             '#64748b'
                           }} />
@@ -274,7 +274,7 @@ export default function MonthlyBreakdown({ items, snapshots, lang, onUpdateItem,
                   <td key={m.key} className="text-right py-2.5 px-2">
                     <span className="text-slate-300 font-medium tabular-nums block">{formatCurrency(m.value)}</span>
                     {change != null && (
-                      <span className="text-[10px]" style={{ color: change >= 0 ? 'rgba(16,185,129,0.6)' : 'rgba(239,68,68,0.6)' }}>
+                      <span className="text-[10px]" style={{ color: change >= 0 ? 'rgba(52,211,153,0.6)' : 'rgba(239,68,68,0.6)' }}>
                         {change >= 0 ? '+' : ''}{change.toFixed(1)}%
                       </span>
                     )}

@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react'
 import { formatCurrency, getItemValue, getTypeCategory, TYPE_COLORS } from './utils'
 
 const GROUP_COLORS = [
-  '#3b82f6', '#10b981', '#f59e0b', '#a855f7', '#ec4899',
+  '#3b82f6', '#34d399', '#f59e0b', '#a855f7', '#ec4899',
   '#06b6d4', '#ef4444', '#84cc16', '#f97316', '#6366f1',
 ]
 

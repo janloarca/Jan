@@ -12,8 +12,8 @@
   --border-color: rgba(84, 84, 88, 0.65);
   --text-primary: #FFFFFF;
   --text-secondary: rgba(235, 235, 245, 0.6);
-  --text-muted: rgba(235, 235, 245, 0.3);
-  --accent-green: #30D158;
+  --text-muted: rgba(235, 235, 245, 0.55);
+  --accent-green: #34d399;
   --accent-red: #FF453A;
   --accent-orange: #FF9F0A;
   --accent-blue: #0A84FF;
@@ -37,9 +37,9 @@
   --border-color: rgba(60, 60, 67, 0.29);
   --text-primary: #000000;
   --text-secondary: rgba(60, 60, 67, 0.7);
-  --text-muted: rgba(60, 60, 67, 0.5);
+  --text-muted: rgba(60, 60, 67, 0.7);
   --accent-blue: #007AFF;
-  --accent-green: #34C759;
+  --accent-green: #047857;
   --accent-red: #FF3B30;
   --accent-orange: #FF9500;
   --accent-purple: #AF52DE;
@@ -332,6 +332,9 @@ textarea:focus-visible {
 [data-theme="light"] .card-primary {
   box-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.04);
 }
+
+/* WCAG AA: Tailwind text-slate-500 (#64748b) = 3.8:1 on dark bg — boost to ~5.6:1 */
+.text-slate-500 { color: #7c8a9c; }
 
 /* WCAG 2.5.5: minimum 44x44px touch targets for close buttons */
 button[aria-label="Close"] {

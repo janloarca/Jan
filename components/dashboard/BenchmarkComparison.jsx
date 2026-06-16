@@ -62,7 +62,7 @@ export default function BenchmarkComparison({ benchmarkReturn, portfolioReturn, 
 
       <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium"
         style={isOut
-          ? { backgroundColor: 'rgba(16,185,129,0.1)', color: '#34d399' }
+          ? { backgroundColor: 'rgba(52,211,153,0.1)', color: '#34d399' }
           : { backgroundColor: 'rgba(239,68,68,0.1)', color: '#f87171' }
         }>
         <span>{isOut ? '▲' : '▼'}</span>
