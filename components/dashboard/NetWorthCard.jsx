@@ -103,7 +103,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
           {milestone.text && (
             <span className="text-[11px] font-medium px-2 py-0.5 rounded-full"
               style={milestone.positive
-                ? { backgroundColor: 'rgba(52,211,153,0.1)', color: '#34d399' }
+                ? { backgroundColor: 'rgba(52,211,153,0.1)', color: 'var(--accent-green)' }
                 : { backgroundColor: 'rgba(245,158,11,0.1)', color: '#fbbf24' }
               }>{milestone.text}</span>
           )}
@@ -147,8 +147,8 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
           style={!hasReturn
             ? { backgroundColor: 'rgba(100,116,139,0.12)', color: '#94a3b8' }
             : isYTDPositive
-              ? { backgroundColor: 'rgba(52,211,153,0.12)', color: '#34d399' }
-              : { backgroundColor: 'rgba(239,68,68,0.12)', color: '#f87171' }
+              ? { backgroundColor: 'rgba(52,211,153,0.12)', color: 'var(--accent-green)' }
+              : { backgroundColor: 'rgba(239,68,68,0.12)', color: 'var(--text-negative)' }
           }>
           {hasYTD ? 'YTD' : sinceStartDate ? (lang === 'es' ? 'Desde ' : 'Since ') + new Date(sinceStartDate).toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short', year: '2-digit' }) : 'YTD'}
           {' '}<span className="font-mono">{hasReturn ? `${isYTDPositive ? '+' : ''}${displayReturn.toFixed(2)}%` : 'N/A'}</span>

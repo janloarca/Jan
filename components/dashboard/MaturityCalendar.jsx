@@ -73,9 +73,9 @@ export default function MaturityCalendar({ items, lang }) {
   const totalUpcomingPayments = payments.reduce((s, e) => s + e.value, 0)
 
   function getDayStyle(days) {
-    if (days <= 90) return { color: '#f87171', backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.2)' }
+    if (days <= 90) return { color: 'var(--text-negative)', backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.2)' }
     if (days <= 365) return { color: '#fbbf24', backgroundColor: 'rgba(245,158,11,0.1)', borderColor: 'rgba(245,158,11,0.2)' }
-    return { color: '#34d399', backgroundColor: 'rgba(52,211,153,0.1)', borderColor: 'rgba(52,211,153,0.2)' }
+    return { color: 'var(--accent-green)', backgroundColor: 'rgba(52,211,153,0.1)', borderColor: 'rgba(52,211,153,0.2)' }
   }
 
   function formatDays(days) {
@@ -102,7 +102,7 @@ export default function MaturityCalendar({ items, lang }) {
         {payments.length > 0 && (
           <div className={maturities.length > 0 ? 'text-right' : ''}>
             <span className="text-xs text-slate-500 block">{t('Pagos próximos', 'Upcoming payments')}</span>
-            <span className="text-sm font-bold" style={{ color: '#34d399' }}>{formatCurrency(totalUpcomingPayments)}</span>
+            <span className="text-sm font-bold" style={{ color: 'var(--accent-green)' }}>{formatCurrency(totalUpcomingPayments)}</span>
             <span className="text-xs text-slate-600 block">{payments.length} {t('pago(s)', 'payment(s)')}</span>
           </div>
         )}

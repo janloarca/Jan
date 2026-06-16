@@ -166,7 +166,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
             className="text-xs px-2 py-1 rounded border transition-colors"
             style={confirmBulkDelete
               ? { backgroundColor: '#dc2626', color: '#ffffff', borderColor: '#dc2626' }
-              : { color: '#f87171', borderColor: 'rgba(239,68,68,0.3)' }
+              : { color: 'var(--text-negative)', borderColor: 'rgba(239,68,68,0.3)' }
             }>
             {confirmBulkDelete ? t('Confirmar', 'Confirm') : t('Eliminar', 'Delete')}
           </button>
@@ -291,8 +291,8 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                             {item.change7d != null && (
                               <span className="text-xs font-medium px-1.5 py-0.5 rounded"
                                 style={item.change7d >= 0
-                                  ? { backgroundColor: 'rgba(52,211,153,0.15)', color: '#34d399' }
-                                  : { backgroundColor: 'rgba(239,68,68,0.15)', color: '#f87171' }
+                                  ? { backgroundColor: 'rgba(52,211,153,0.15)', color: 'var(--accent-green)' }
+                                  : { backgroundColor: 'rgba(239,68,68,0.15)', color: 'var(--text-negative)' }
                                 }>
                                 {item.change7d >= 0 ? '▲' : '▼'}{Math.abs(item.change7d).toFixed(1)}% 7d
                               </span>
@@ -319,10 +319,10 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                               const mat = getMaturityInfo(item)
                               if (!mat) return null
                               const matStyle = mat.color === 'red'
-                                ? { backgroundColor: 'rgba(239,68,68,0.1)', color: '#f87171' }
+                                ? { backgroundColor: 'rgba(239,68,68,0.1)', color: 'var(--text-negative)' }
                                 : mat.color === 'amber'
                                   ? { backgroundColor: 'rgba(245,158,11,0.1)', color: '#fbbf24' }
-                                  : { backgroundColor: 'rgba(52,211,153,0.1)', color: '#34d399' }
+                                  : { backgroundColor: 'rgba(52,211,153,0.1)', color: 'var(--accent-green)' }
                               return <span className="text-xs px-1.5 py-0.5 rounded" style={matStyle}>{mat.expired ? '⚠' : '⏱'} {mat.label}</span>
                             })()}
                             {item.rateType === 'variable' && item.rateMin > 0 && (
@@ -391,7 +391,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                       <span className="font-medium font-mono tabular-nums cursor-pointer hover:underline"
                         style={{ color: value < 0 ? '#f87171' : '#34d399' }}
                         onClick={() => onViewItem && onViewItem(item)}>
-                        {formatCurrency(Math.abs(value))}{value < 0 && <span className="ml-1 text-[10px] px-1 py-0.5 rounded" style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: '#f87171' }}>{t('Deuda','Debt')}</span>}
+                        {formatCurrency(Math.abs(value))}{value < 0 && <span className="ml-1 text-[10px] px-1 py-0.5 rounded" style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: 'var(--text-negative)' }}>{t('Deuda','Debt')}</span>}
                       </span>
                     </td>
                     <td className="text-center py-3 hidden sm:table-cell">

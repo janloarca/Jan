@@ -471,7 +471,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
             {q.category === 'cero' && (
               <button type="button" onClick={handleDelete} disabled={saving}
                 className="px-3 py-2.5 text-xs font-medium border rounded-lg transition-colors disabled:opacity-50"
-                style={{ color: '#f87171', borderColor: 'rgba(239,68,68,0.3)' }}>
+                style={{ color: 'var(--text-negative)', borderColor: 'rgba(239,68,68,0.3)' }}>
                 {t('Eliminar', 'Delete')}
               </button>
             )}

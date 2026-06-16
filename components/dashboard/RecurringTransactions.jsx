@@ -12,10 +12,10 @@ const FREQUENCIES = [
 ]
 
 const CATEGORIES = [
-  { value: 'savings', labelEs: 'Ahorro', labelEn: 'Savings', icon: '💰', color: '#34d399' },
+  { value: 'savings', labelEs: 'Ahorro', labelEn: 'Savings', icon: '💰', color: 'var(--accent-green)' },
   { value: 'investment', labelEs: 'Inversión', labelEn: 'Investment', icon: '📈', color: '#60a5fa' },
-  { value: 'income', labelEs: 'Ingreso', labelEn: 'Income', icon: '💵', color: '#34d399' },
-  { value: 'expense', labelEs: 'Gasto', labelEn: 'Expense', icon: '💸', color: '#f87171' },
+  { value: 'income', labelEs: 'Ingreso', labelEn: 'Income', icon: '💵', color: 'var(--accent-green)' },
+  { value: 'expense', labelEs: 'Gasto', labelEn: 'Expense', icon: '💸', color: 'var(--text-negative)' },
   { value: 'debt', labelEs: 'Pago deuda', labelEn: 'Debt payment', icon: '🏦', color: '#fbbf24' },
 ]
 
@@ -99,14 +99,14 @@ export default function RecurringTransactions({ goals, onSaveGoals, lang }) {
             <button
               onClick={() => setForm({ ...form, isInflow: true })}
               className="flex-1 py-1.5 text-xs rounded-lg border transition-colors"
-              style={form.isInflow ? { backgroundColor: 'rgba(5,150,105,0.2)', borderColor: 'rgba(52,211,153,0.3)', color: '#34d399' } : { borderColor: '#38383A', color: '#94a3b8' }}
+              style={form.isInflow ? { backgroundColor: 'rgba(5,150,105,0.2)', borderColor: 'rgba(52,211,153,0.3)', color: 'var(--accent-green)' } : { borderColor: '#38383A', color: '#94a3b8' }}
             >
               ↓ {t('Ingreso', 'Inflow')}
             </button>
             <button
               onClick={() => setForm({ ...form, isInflow: false })}
               className="flex-1 py-1.5 text-xs rounded-lg border transition-colors"
-              style={!form.isInflow ? { backgroundColor: 'rgba(220,38,38,0.2)', borderColor: 'rgba(239,68,68,0.3)', color: '#f87171' } : { borderColor: '#38383A', color: '#94a3b8' }}
+              style={!form.isInflow ? { backgroundColor: 'rgba(220,38,38,0.2)', borderColor: 'rgba(239,68,68,0.3)', color: 'var(--text-negative)' } : { borderColor: '#38383A', color: '#94a3b8' }}
             >
               ↑ {t('Gasto', 'Outflow')}
             </button>
@@ -165,11 +165,11 @@ export default function RecurringTransactions({ goals, onSaveGoals, lang }) {
           <div className="pt-3 border-t border-[#38383A]/30 space-y-1.5">
             <div className="flex justify-between text-xs">
               <span className="text-slate-500">{t('Ingresos mensuales', 'Monthly inflows')}</span>
-              <span className="font-medium" style={{ color: '#34d399' }}>+{formatCurrency(summary.monthlyIn)}</span>
+              <span className="font-medium" style={{ color: 'var(--accent-green)' }}>+{formatCurrency(summary.monthlyIn)}</span>
             </div>
             <div className="flex justify-between text-xs">
               <span className="text-slate-500">{t('Gastos mensuales', 'Monthly outflows')}</span>
-              <span className="font-medium" style={{ color: '#f87171' }}>-{formatCurrency(summary.monthlyOut)}</span>
+              <span className="font-medium" style={{ color: 'var(--text-negative)' }}>-{formatCurrency(summary.monthlyOut)}</span>
             </div>
             <div className="flex justify-between text-xs font-medium pt-1 border-t border-[#38383A]/20">
               <span className="text-slate-400">{t('Flujo neto mensual', 'Net monthly flow')}</span>

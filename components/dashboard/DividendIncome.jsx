@@ -195,7 +195,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       <div className="grid grid-cols-3 gap-3 mb-4">
         <div>
           <span className="text-xs text-slate-500 block">{t('Ingreso anual est.', 'Est. Annual Income')}</span>
-          <span className="text-lg font-bold font-mono tabular-nums" style={{ color: '#34d399' }}>{formatCurrency(estAnnual)}</span>
+          <span className="text-lg font-bold font-mono tabular-nums" style={{ color: 'var(--accent-green)' }}>{formatCurrency(estAnnual)}</span>
         </div>
         <div className="text-center">
           <span className="text-xs text-slate-500 block">{t('Rendimiento', 'Yield')}</span>
@@ -281,7 +281,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
               <div key={i} className="flex items-center justify-between text-xs py-1 px-2 rounded bg-[#000000]/60">
                 <span className="text-slate-400 font-medium w-16 truncate">{u.symbol}</span>
                 <span className="text-slate-500">{monthName(u.month)} {u.day}</span>
-                <span className="font-medium" style={{ color: '#34d399' }}>{formatCurrency(u.amount)}</span>
+                <span className="font-medium" style={{ color: 'var(--accent-green)' }}>{formatCurrency(u.amount)}</span>
               </div>
             ))}
           </div>
@@ -300,7 +300,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
               const monthLabel = new Date(parseInt(y), parseInt(m)).toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short' })
               return (
                 <div key={key} className="flex-1 flex flex-col items-center gap-1">
-                  <span className="text-xs" style={{ color: '#34d399' }}>{formatCurrency(val)}</span>
+                  <span className="text-xs" style={{ color: 'var(--accent-green)' }}>{formatCurrency(val)}</span>
                   <div className="w-full rounded-t" style={{ height: `${Math.max(h, 8)}%`, backgroundColor: 'rgba(52,211,153,0.3)' }}>
                     <div className="w-full h-full rounded-t" style={{ backgroundColor: 'rgba(52,211,153,0.6)' }} />
                   </div>

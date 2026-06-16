@@ -484,7 +484,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       )}
       {saveMsg && !blockMsg && (
         <div className="mx-4 mb-2 px-3 py-2 rounded-lg text-xs font-medium"
-          style={{ backgroundColor: 'rgba(52,211,153,0.1)', color: '#34d399', border: '1px solid rgba(52,211,153,0.25)' }}>
+          style={{ backgroundColor: 'rgba(52,211,153,0.1)', color: 'var(--accent-green)', border: '1px solid rgba(52,211,153,0.25)' }}>
           &#10003; {saveMsg}
         </div>
       )}

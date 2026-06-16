@@ -87,7 +87,7 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
             </div>
 
             {error && (
-              <div className="p-3 border rounded-lg text-xs whitespace-pre-wrap" style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.2)', color: '#f87171' }}>
+              <div className="p-3 border rounded-lg text-xs whitespace-pre-wrap" style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.2)', color: 'var(--text-negative)' }}>
                 {error}
               </div>
             )}
@@ -108,7 +108,7 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
         {step === 'preview' && preview && (
           <div className="p-6 space-y-4">
             <div className="border rounded-lg p-3" style={{ backgroundColor: 'rgba(52,211,153,0.1)', borderColor: 'rgba(52,211,153,0.2)' }}>
-              <p className="text-sm font-medium" style={{ color: '#34d399' }}>{t('Sincronización exitosa', 'Sync successful')}</p>
+              <p className="text-sm font-medium" style={{ color: 'var(--accent-green)' }}>{t('Sincronización exitosa', 'Sync successful')}</p>
               <p className="text-xs mt-1" style={{ color: 'rgba(110,231,183,0.7)' }}>
                 {preview.items.length} {t('posiciones', 'positions')} · {preview.transactions.length} {t('transacciones', 'transactions')}
               </p>

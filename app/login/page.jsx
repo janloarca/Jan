@@ -183,7 +183,7 @@ function LoginForm() {
           )}
 
           {error && (
-            <div className="mb-4 p-3 rounded-lg text-sm" style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171' }}>
+            <div className="mb-4 p-3 rounded-lg text-sm" style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: 'var(--text-negative)' }}>
               {error}
             </div>
           )}
@@ -234,7 +234,7 @@ function LoginForm() {
           {showReset && (
             <div className="mt-3 p-3 bg-[#000000] rounded-lg border border-[#38383A]/50">
               {resetSent ? (
-                <p className="text-sm text-center" style={{ color: '#34d399' }}>
+                <p className="text-sm text-center" style={{ color: 'var(--accent-green)' }}>
                   Revisa tu email para restablecer tu contraseña.
                 </p>
               ) : (

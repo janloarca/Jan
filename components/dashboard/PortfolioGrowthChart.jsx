@@ -580,7 +580,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     return (
       <div className="bg-[#141416] rounded-2xl border border-[#27272a] p-5 card-primary">
         <div className="flex flex-col items-center justify-center min-h-[200px] gap-2">
-          <p className="text-sm" style={{ color: '#f87171' }}>{fetchError}</p>
+          <p className="text-sm" style={{ color: 'var(--text-negative)' }}>{fetchError}</p>
           <button onClick={fetchHistory} className="text-xs" style={{ color: '#60a5fa' }}>{t('Reintentar', 'Retry')}</button>
         </div>
       </div>
@@ -689,8 +689,8 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       {viewMode === 'performance' && microInsight && (
         <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs mb-3"
           style={microInsight.isOut
-            ? { backgroundColor: 'rgba(52,211,153,0.05)', border: '1px solid rgba(52,211,153,0.2)', color: '#34d399' }
-            : { backgroundColor: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171' }
+            ? { backgroundColor: 'rgba(52,211,153,0.05)', border: '1px solid rgba(52,211,153,0.2)', color: 'var(--accent-green)' }
+            : { backgroundColor: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.2)', color: 'var(--text-negative)' }
           }>
           <span>{microInsight.isOut ? '▲' : '▼'}</span>
           <span>
@@ -706,7 +706,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       {/* Drawdown indicator */}
       {viewMode === 'value' && drawdown && (
         <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs mb-3"
-          style={{ backgroundColor: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171' }}>
+          style={{ backgroundColor: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.2)', color: 'var(--text-negative)' }}>
           <span>↓</span>
           <span>
             Max drawdown: -{drawdown.pct.toFixed(1)}%

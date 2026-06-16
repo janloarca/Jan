@@ -177,7 +177,7 @@ export default function SellModal({ item, onClose, onSell, onUpdate, onAddTransa
                     ? 'bg-[var(--input-bg,#000000)] text-[var(--text-secondary,#94a3b8)] border-[var(--card-border,#38383A)]'
                     : ''
                 }`}
-                style={destination === '__exit__' ? { color: '#f87171', backgroundColor: 'rgba(239,68,68,0.2)', borderColor: 'rgba(239,68,68,0.4)' } : undefined}>{t('Sale del portafolio', 'Exits portfolio')}</button>
+                style={destination === '__exit__' ? { color: 'var(--text-negative)', backgroundColor: 'rgba(239,68,68,0.2)', borderColor: 'rgba(239,68,68,0.4)' } : undefined}>{t('Sale del portafolio', 'Exits portfolio')}</button>
               <button type="button" onClick={() => setDestination('__stay__')}
                 className={`flex-1 px-2 py-2 text-xs font-medium rounded-lg transition-all border ${
                   destination !== '__stay__'

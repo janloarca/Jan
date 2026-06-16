@@ -67,14 +67,14 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
                   ? { color: '#60a5fa', borderColor: 'rgba(96,165,250,0.3)', backgroundColor: 'rgba(96,165,250,0.1)' }
                   : ibkrSyncStatus === 'error'
                     ? { color: '#fbbf24', borderColor: 'rgba(251,191,36,0.3)' }
-                    : { color: '#34d399', borderColor: 'rgba(52,211,153,0.3)' }
+                    : { color: 'var(--accent-green)', borderColor: 'rgba(52,211,153,0.3)' }
                 }>
                 <span className="font-mono">IBKR</span>
                 {ibkrAutoSyncing
                   ? <RefreshCw size={10} className="animate-spin" />
                   : ibkrSyncStatus === 'error'
                     ? <span>⚠</span>
-                    : <span style={{ color: '#34d399' }}>●</span>
+                    : <span style={{ color: 'var(--accent-green)' }}>●</span>
                 }
               </button>
             )}

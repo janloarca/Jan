@@ -66,7 +66,7 @@ export default function IncomeCalendar({ items, lang }) {
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#60a5fa' }} />
           {t('CALENDARIO DE INGRESOS', 'INCOME CALENDAR')}
         </h3>
-        <span className="text-xs font-medium" style={{ color: '#34d399' }}>{formatCurrency(annualTotal)}/yr</span>
+        <span className="text-xs font-medium" style={{ color: 'var(--accent-green)' }}>{formatCurrency(annualTotal)}/yr</span>
       </div>
 
       {/* Monthly grid */}
@@ -125,7 +125,7 @@ export default function IncomeCalendar({ items, lang }) {
                 {m.items.map((item, j) => (
                   <div key={`${item.name}-${j}`} className="flex items-center justify-between text-xs py-0.5">
                     <span className="text-slate-500 truncate">{item.name}</span>
-                    <span className="font-medium shrink-0 ml-2" style={{ color: '#34d399' }}>{formatCurrency(item.amount)}</span>
+                    <span className="font-medium shrink-0 ml-2" style={{ color: 'var(--accent-green)' }}>{formatCurrency(item.amount)}</span>
                   </div>
                 ))}
               </div>

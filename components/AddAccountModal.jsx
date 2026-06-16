@@ -837,7 +837,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 <label className={labelCls}>
                   {t('Moneda', 'Currency')} <span style={{ color: '#FF453A' }}>*</span>
                   {detectedCurrency && form.currency === detectedCurrency && (
-                    <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium" style={{ color: '#34d399', backgroundColor: 'rgba(52,211,153,0.15)' }}>
+                    <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium" style={{ color: 'var(--accent-green)', backgroundColor: 'rgba(52,211,153,0.15)' }}>
                       {t('Detectada', 'Detected')}
                     </span>
                   )}

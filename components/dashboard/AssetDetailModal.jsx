@@ -147,7 +147,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
                 <span>{t('Tasa continua', 'Continuous rate')}: <span className="font-medium" style={{ color: '#22d3ee' }}>{item.incomeRate}%</span></span>
               )}
               {item.rateType !== 'variable' && item.rateType !== 'continuous' && item.incomeRate > 0 && (
-                <span>{t('Tasa', 'Rate')}: <span className="font-medium" style={{ color: '#34d399' }}>{item.incomeRate}%</span></span>
+                <span>{t('Tasa', 'Rate')}: <span className="font-medium" style={{ color: 'var(--accent-green)' }}>{item.incomeRate}%</span></span>
               )}
               {item.custodyType && (
                 <span>{item.custodyType === 'self_custody' ? '🔐' : item.custodyType === 'defi_protocol' ? '🌐' : '🏦'} {item.custodyDetails || item.custodyType}</span>

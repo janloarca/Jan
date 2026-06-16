@@ -105,11 +105,11 @@ export default function SavingsRate({ goals, transactions, netWorth, snapshots, 
             </div>
             <div className="flex justify-between text-xs">
               <span className="text-slate-500">{t('Ahorro/inversión', 'Savings/investment')}</span>
-              <span className="font-medium" style={{ color: '#34d399' }}>{formatCurrency(rates.monthlySavings)}</span>
+              <span className="font-medium" style={{ color: 'var(--accent-green)' }}>{formatCurrency(rates.monthlySavings)}</span>
             </div>
             <div className="flex justify-between text-xs">
               <span className="text-slate-500">{t('Gastos', 'Expenses')}</span>
-              <span className="font-medium" style={{ color: '#f87171' }}>{formatCurrency(rates.monthlyExpenses)}</span>
+              <span className="font-medium" style={{ color: 'var(--text-negative)' }}>{formatCurrency(rates.monthlyExpenses)}</span>
             </div>
           </div>
         </div>

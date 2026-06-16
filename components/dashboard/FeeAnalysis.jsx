@@ -87,7 +87,7 @@ export default function FeeAnalysis({ items, netWorth, lang }) {
           <div className="text-[10px] text-slate-500">{t('Tasa promedio', 'Avg rate')}</div>
         </div>
         <div className="text-center">
-          <div className="text-lg font-bold" style={{ color: '#f87171' }}>{formatCurrency(analysis.tenYearImpact)}</div>
+          <div className="text-lg font-bold" style={{ color: 'var(--text-negative)' }}>{formatCurrency(analysis.tenYearImpact)}</div>
           <div className="text-[10px] text-slate-500">{t('Impacto 10 años', '10yr impact')}</div>
         </div>
       </div>

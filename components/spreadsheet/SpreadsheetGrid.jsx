@@ -136,7 +136,7 @@ export default function SpreadsheetGrid({ initialRows, context, onSave, lang }) 
                 <div className="space-y-1.5">
                   {cat.formulas.map(f => (
                     <div key={f.name} className="group">
-                      <code className="text-xs font-mono block" style={{ color: '#34d399' }}>{f.syntax}</code>
+                      <code className="text-xs font-mono block" style={{ color: 'var(--accent-green)' }}>{f.syntax}</code>
                       <span className="text-[10px] text-slate-500">{f.description}</span>
                     </div>
                   ))}

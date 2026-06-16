@@ -101,7 +101,7 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{catLabel}</span>
                 {item.institution && <span className="text-xs text-slate-400">{item.institution}</span>}
-                {reviewed[item.id] && <span className="text-xs" style={{ color: '#34d399' }}>&#10003;</span>}
+                {reviewed[item.id] && <span className="text-xs" style={{ color: 'var(--accent-green)' }}>&#10003;</span>}
               </div>
             </div>
             <div className="text-right">
@@ -158,19 +158,19 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
                       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-slate-500">
                         <span>{t('Precio', 'Price')}: {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}</span>
                         {dividendsReceived > 0 && (
-                          <span style={{ color: '#34d399' }} title={
+                          <span style={{ color: 'var(--accent-green)' }} title={
                             (transactions || [])
                               .filter(tx => (tx.type || '').toUpperCase() === 'DIVIDEND' && (tx.symbol || '').toUpperCase() === sym)
                               .map(tx => `${tx.date}: $${(tx.totalAmount || tx.amount || 0).toFixed(2)}`)
                               .join('\n')
                           }>
                             {t('Dividendos', 'Dividends')}: +{formatCurrency(dividendsReceived)}
-                            <span className="ml-1" style={{ color: '#34d399' }}>
+                            <span className="ml-1" style={{ color: 'var(--accent-green)' }}>
                               ({(transactions || []).filter(tx => (tx.type || '').toUpperCase() === 'DIVIDEND' && (tx.symbol || '').toUpperCase() === sym).length}x)
                             </span>
                           </span>
                         )}
-                        {totalFees > 0 && <span style={{ color: '#f87171' }}>{t('Costos', 'Fees')}: -{formatCurrency(totalFees)}</span>}
+                        {totalFees > 0 && <span style={{ color: 'var(--text-negative)' }}>{t('Costos', 'Fees')}: -{formatCurrency(totalFees)}</span>}
                       </div>
                     )}
                   </div>

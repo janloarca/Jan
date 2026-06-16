@@ -306,7 +306,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
             )}
 
             {error && (
-              <div className="px-3 py-2 border rounded-lg text-xs" style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.2)', color: '#f87171' }}>
+              <div className="px-3 py-2 border rounded-lg text-xs" style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.2)', color: 'var(--text-negative)' }}>
                 {error}
               </div>
             )}

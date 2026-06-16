@@ -206,9 +206,19 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
       { key: 'userKey', label: 'User Key (x-user-key)', placeholder: 'Tu user key' },
     ], instructions: { es: 'Ve a eToro → Configuración → API → Generar keys', en: 'Go to eToro → Settings → API → Generate keys' } },
     { id: 'tradestation', name: 'TradeStation', icon: '🖥️', category: 'traditional', hasApi: true, authType: 'oauth', fields: [], instructions: { es: 'Conecta tu cuenta TradeStation via OAuth. Requiere cuenta con $10k mínimo.', en: 'Connect your TradeStation account via OAuth. Requires $10k minimum funded account.' } },
-    { id: 'tastytrade', name: 'Tastytrade', icon: '🇺🇸', category: 'traditional', hasApi: false, apiNote: 'OAuth', fields: [], instructions: { es: 'Tastytrade usa sesiones OAuth. Próximamente.', en: 'Tastytrade uses OAuth sessions. Coming soon.' } },
+    { id: 'tastytrade', name: 'Tastytrade', icon: '🇺🇸', category: 'traditional', hasApi: true, apiNote: 'Session', fields: [
+      { key: 'username', label: 'Username', type: 'text' },
+      { key: 'password', label: 'Password', type: 'password' },
+    ], instructions: { es: 'Ingresa tu usuario y contraseña de Tastytrade.', en: 'Enter your Tastytrade username and password.' } },
     { id: 'saxo', name: 'Saxo Bank', icon: '🏦', category: 'traditional', hasApi: true, authType: 'oauth', fields: [], instructions: { es: 'Conecta tu cuenta Saxo Bank via OAuth. Ambiente sim disponible.', en: 'Connect your Saxo Bank account via OAuth. Sim environment available.' } },
-    { id: 'ig', name: 'IG Markets', icon: '🇬🇧', category: 'traditional', hasApi: false, apiNote: t('Sesión', 'Session'), fields: [], instructions: { es: 'IG usa sesión con API key. Próximamente.', en: 'IG uses session-based API key. Coming soon.' } },
+    { id: 'ig', name: 'IG Markets', icon: '🇬🇧', category: 'traditional', hasApi: true, apiNote: 'API Key + Session',
+      fields: [
+        { key: 'apiKey', label: 'API Key', type: 'text' },
+        { key: 'username', label: 'Username', type: 'text' },
+        { key: 'password', label: 'Password', type: 'password' },
+      ],
+      instructions: { es: 'Genera tu API key en My IG → Settings → API. Ingresa tu usuario y contraseña.', en: 'Generate your API key at My IG → Settings → API. Enter your username and password.' }
+    },
     { id: 'degiro', name: 'DEGIRO', icon: '🇪🇺', category: 'traditional', hasApi: false, apiNote: t('No oficial', 'Unofficial'), fields: [] },
     { id: 'trading212', name: 'Trading 212', icon: '📊', category: 'traditional', hasApi: false, apiNote: t('Limitado', 'Limited'), fields: [] },
     { id: 'traderepublic', name: 'Trade Republic', icon: '🇩🇪', category: 'traditional', hasApi: false, apiNote: t('No oficial', 'Unofficial'), fields: [] },
@@ -957,7 +967,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                     className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors shrink-0 ml-3 border"
                     style={confirmDelete === action.key
                       ? { backgroundColor: '#dc2626', color: '#ffffff', borderColor: '#dc2626' }
-                      : { color: '#f87171', borderColor: 'rgba(239,68,68,0.3)' }}>
+                      : { color: 'var(--text-negative)', borderColor: 'rgba(239,68,68,0.3)' }}>
                     {confirmDelete === action.key ? t('Confirmar', 'Confirm') : t('Eliminar', 'Delete')}
                   </button>
                 </div>

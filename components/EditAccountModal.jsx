@@ -399,7 +399,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           <button onClick={onClose} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-xl leading-none" aria-label="Close">&times;</button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {error && <div className="p-3 border rounded-lg text-sm" style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.2)', color: '#f87171' }}>{error}</div>}
+          {error && <div className="p-3 border rounded-lg text-sm" style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.2)', color: 'var(--text-negative)' }}>{error}</div>}
 
           {/* Sector badge */}
           {item.sector && (
@@ -493,19 +493,19 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           {!isDebt && onAddTransaction && (
             <div className="space-y-3">
               {contribSuccess && (
-                <div className="px-3 py-2 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(52,211,153,0.1)', color: '#34d399', border: '1px solid rgba(52,211,153,0.2)' }}>
+                <div className="px-3 py-2 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(52,211,153,0.1)', color: 'var(--accent-green)', border: '1px solid rgba(52,211,153,0.2)' }}>
                   {contribSuccess}
                 </div>
               )}
               <div className="flex gap-2">
                 <button type="button" onClick={() => { setShowContribution(true); setContribType('add') }}
                   className="flex-1 px-3 py-2.5 text-xs font-semibold rounded-lg transition-all border flex items-center justify-center gap-1"
-                  style={{ color: '#34d399', borderColor: 'rgba(52,211,153,0.3)', backgroundColor: 'rgba(52,211,153,0.1)' }}>
+                  style={{ color: 'var(--accent-green)', borderColor: 'rgba(52,211,153,0.3)', backgroundColor: 'rgba(52,211,153,0.1)' }}>
                   <span className="text-sm">+</span> {t('Agregar Dinero', 'Add Money')}
                 </button>
                 <button type="button" onClick={() => { setShowContribution(true); setContribType('withdraw') }}
                   className="flex-1 px-3 py-2.5 text-xs font-semibold rounded-lg transition-all border flex items-center justify-center gap-1"
-                  style={{ color: '#f87171', borderColor: 'rgba(239,68,68,0.3)', backgroundColor: 'rgba(239,68,68,0.1)' }}>
+                  style={{ color: 'var(--text-negative)', borderColor: 'rgba(239,68,68,0.3)', backgroundColor: 'rgba(239,68,68,0.1)' }}>
                   <span className="text-sm">-</span> {t('Retirar', 'Withdraw')}
                 </button>
               </div>
@@ -652,7 +652,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           {isDebt && (
             <div className="border rounded-lg p-3 space-y-3" style={{ borderColor: 'rgba(239,68,68,0.2)', backgroundColor: 'rgba(239,68,68,0.05)' }}>
               <div className="flex items-center justify-between">
-                <p className="text-xs font-medium" style={{ color: '#f87171' }}>{t('Deuda / Pasivo', 'Debt / Liability')}</p>
+                <p className="text-xs font-medium" style={{ color: 'var(--text-negative)' }}>{t('Deuda / Pasivo', 'Debt / Liability')}</p>
                 <div className="flex items-center gap-2">
                   <button type="button" onClick={() => set('isReceivable', !form.isReceivable)}
                     className="w-8 h-4 rounded-full transition-colors relative"
@@ -924,7 +924,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           {/* Section 3: Income/Dividends */}
           {isMarket && item.dividendYield > 0 && (
             <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'rgba(59,130,246,0.2)', backgroundColor: 'rgba(59,130,246,0.05)' }}>
-              <p className="text-xs font-medium" style={{ color: '#34d399' }}>💰 {t('Dividendo', 'Dividend')} — {item.dividendYield}% {item.incomeFrequency || ''}</p>
+              <p className="text-xs font-medium" style={{ color: 'var(--accent-green)' }}>💰 {t('Dividendo', 'Dividend')} — {item.dividendYield}% {item.incomeFrequency || ''}</p>
               <div>
                 <p className="text-xs text-[var(--text-muted,#475569)] mb-1">{t('Acción con dividendos:', 'Dividend action:')}</p>
                 <div className="flex gap-2">
@@ -1092,7 +1092,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={handleDelete}
               className="px-4 py-2.5 text-xs font-medium rounded-lg transition-colors border"
-              style={confirmDelete ? { backgroundColor: '#dc2626', color: '#ffffff', borderColor: '#dc2626' } : { color: '#f87171', borderColor: 'rgba(239,68,68,0.3)' }}>
+              style={confirmDelete ? { backgroundColor: '#dc2626', color: '#ffffff', borderColor: '#dc2626' } : { color: 'var(--text-negative)', borderColor: 'rgba(239,68,68,0.3)' }}>
               {confirmDelete ? t('Confirmar', 'Confirm') : t('Eliminar', 'Delete')}
             </button>
             <div className="flex-1" />
@@ -1103,7 +1103,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               const isDebtType = /debt|deuda/i.test(form.type)
               const fmt = (v) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
               if (total > 0) return (
-                <span className="text-xs font-medium px-2 py-1 rounded" style={{ color: '#34d399', backgroundColor: 'rgba(52,211,153,0.1)' }}>
+                <span className="text-xs font-medium px-2 py-1 rounded" style={{ color: 'var(--accent-green)', backgroundColor: 'rgba(52,211,153,0.1)' }}>
                   {isDebtType ? t('Deuda', 'Debt') : ''} {form.currency} {fmt(total)}
                 </span>
               )

@@ -15,6 +15,7 @@
   --text-muted: rgba(235, 235, 245, 0.55);
   --accent-green: #34d399;
   --accent-red: #FF453A;
+  --text-negative: #f87171;
   --accent-orange: #FF9F0A;
   --accent-blue: #0A84FF;
   --accent-purple: #BF5AF2;
@@ -41,6 +42,7 @@
   --accent-blue: #007AFF;
   --accent-green: #047857;
   --accent-red: #FF3B30;
+  --text-negative: #dc2626;
   --accent-orange: #FF9500;
   --accent-purple: #AF52DE;
   --accent-cyan: #5AC8FA;

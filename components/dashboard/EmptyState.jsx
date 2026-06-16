@@ -51,12 +51,12 @@ export default function EmptyState({ onAdd, onImport, onTemplate, lang }) {
           {[
             { Icon: TrendingUp, label: 'Stocks & ETFs', color: '#60a5fa' },
             { Icon: Bitcoin, label: 'Crypto & DeFi', color: '#fbbf24' },
-            { Icon: Landmark, label: t('Bonos & CDTs', 'Bonds & CDs'), color: '#34d399' },
+            { Icon: Landmark, label: t('Bonos & CDTs', 'Bonds & CDs'), color: 'var(--accent-green)' },
             { Icon: Briefcase, label: t('Fondos', 'Funds'), color: '#c084fc' },
             { Icon: Home, label: t('Inmuebles', 'Real Estate'), color: '#fb923c' },
             { Icon: Gem, label: t('SAFEs & VC', 'SAFEs & VC'), color: '#f472b6' },
             { Icon: Building2, label: t('Bancos & Cash', 'Banks & Cash'), color: '#94a3b8' },
-            { Icon: CreditCard, label: t('Deudas', 'Debts'), color: '#f87171' },
+            { Icon: CreditCard, label: t('Deudas', 'Debts'), color: 'var(--text-negative)' },
           ].map((type) => (
             <div key={type.label} className="flex items-center gap-2 text-xs py-1" style={{ color: '#94a3b8' }}>
               <type.Icon size={14} style={{ color: type.color }} />

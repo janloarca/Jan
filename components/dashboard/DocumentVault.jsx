@@ -82,7 +82,7 @@ export default function DocumentVault({ uid, itemId, lang }) {
         </label>
       </div>
 
-      {error && <p className="text-xs mb-2" style={{ color: '#f87171' }}>{error}</p>}
+      {error && <p className="text-xs mb-2" style={{ color: 'var(--text-negative)' }}>{error}</p>}
 
       {loading ? (
         <div className="text-xs text-slate-600 animate-pulse">{t('Cargando...', 'Loading...')}</div>

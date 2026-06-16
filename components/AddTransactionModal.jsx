@@ -52,8 +52,8 @@ export default function AddTransactionModal({ onClose, onAdd, lang = 'es' }) {
   const set = (k, v) => setForm({ ...form, [k]: v })
 
   const typeOptions = [
-    { value: 'BUY', label: t('Compra', 'Buy'), color: '#34d399' },
-    { value: 'SELL', label: t('Venta', 'Sell'), color: '#f87171' },
+    { value: 'BUY', label: t('Compra', 'Buy'), color: 'var(--accent-green)' },
+    { value: 'SELL', label: t('Venta', 'Sell'), color: 'var(--text-negative)' },
     { value: 'DIVIDEND', label: t('Dividendo', 'Dividend'), color: '#6ee7b7' },
     { value: 'DEPOSIT', label: t('Depósito', 'Deposit'), color: '#60a5fa' },
     { value: 'WITHDRAWAL', label: t('Retiro', 'Withdrawal'), color: '#fbbf24' },

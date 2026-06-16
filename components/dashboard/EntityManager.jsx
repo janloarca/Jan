@@ -44,7 +44,7 @@ export default function EntityManager({ entities, onAdd, onUpdate, onDelete, lan
                   autoFocus className="flex-1 px-2 py-0.5 text-xs bg-[#1C1C1E] border rounded text-white focus:outline-none"
                   style={{ borderColor: 'rgba(59,130,246,0.5)' }}
                 />
-                <button onClick={() => handleRename(entity.id)} className="hover:opacity-80" style={{ color: '#34d399' }}><Check size={14} /></button>
+                <button onClick={() => handleRename(entity.id)} className="hover:opacity-80" style={{ color: 'var(--accent-green)' }}><Check size={14} /></button>
                 <button onClick={() => setEditId(null)} className="text-slate-400 hover:text-slate-300"><X size={14} /></button>
               </div>
             ) : (

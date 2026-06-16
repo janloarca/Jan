@@ -37,7 +37,7 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
   const scenarios = useMemo(() => {
     const rates = [
       { key: 'conservative', rate: 5, label: t('Conservador', 'Conservative'), color: '#fbbf24' },
-      { key: 'base', rate: 7, label: t('Base', 'Base'), color: '#34d399' },
+      { key: 'base', rate: 7, label: t('Base', 'Base'), color: 'var(--accent-green)' },
       { key: 'optimistic', rate: 10, label: t('Optimista', 'Optimistic'), color: '#22d3ee' },
     ]
     return rates.map((s) => ({

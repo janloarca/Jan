@@ -106,7 +106,7 @@ function SharedDashboard({ items, snapshots, baseCurrency }) {
       <header className="border-b border-[#38383A] bg-[#1C1C1E]/80 backdrop-blur-sm">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="font-bold text-lg" style={{ color: '#34d399' }}>Chispudo</span>
+            <span className="font-bold text-lg" style={{ color: 'var(--accent-green)' }}>Chispudo</span>
             <span className="text-xs text-slate-500 bg-slate-800 px-2 py-0.5 rounded">Read-only</span>
           </div>
           <div className="flex items-center gap-2">
@@ -143,12 +143,12 @@ function SharedDashboard({ items, snapshots, baseCurrency }) {
           <div className="flex gap-6 mt-3 text-sm">
             <div>
               <span className="text-slate-500">Assets: </span>
-              <span className="font-medium" style={{ color: '#34d399' }}>{formatCurrency(totalAssets)}</span>
+              <span className="font-medium" style={{ color: 'var(--accent-green)' }}>{formatCurrency(totalAssets)}</span>
             </div>
             {totalDebts > 0 && (
               <div>
                 <span className="text-slate-500">Debts: </span>
-                <span className="font-medium" style={{ color: '#f87171' }}>-{formatCurrency(totalDebts)}</span>
+                <span className="font-medium" style={{ color: 'var(--text-negative)' }}>-{formatCurrency(totalDebts)}</span>
               </div>
             )}
             {growthPct != null && (
@@ -311,14 +311,14 @@ function IncomeMaturitySummary({ items }) {
       {incomeItems.length > 0 && (
         <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 p-5">
           <h3 className="text-sm font-medium text-slate-400 mb-3">Estimated Annual Income</h3>
-          <div className="text-2xl font-bold mb-3" style={{ color: '#34d399' }}>{formatCurrency(totalEstIncome)}</div>
+          <div className="text-2xl font-bold mb-3" style={{ color: 'var(--accent-green)' }}>{formatCurrency(totalEstIncome)}</div>
           <div className="space-y-1.5">
             {incomeItems.slice(0, 6).map((it) => {
               const rate = it.rateType === 'variable' ? `${it.rateMin}-${it.rateMax}%` : `${it.incomeRate || it.dividendYield}%`
               return (
                 <div key={it.id} className="flex items-center justify-between text-xs">
                   <span className="text-slate-300">{it.name || it.symbol}</span>
-                  <span style={{ color: '#34d399' }}>{rate}</span>
+                  <span style={{ color: 'var(--accent-green)' }}>{rate}</span>
                 </div>
               )
             })}

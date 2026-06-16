@@ -721,7 +721,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
             ].map((tab) => (
               <button key={tab.key} onClick={() => { setMode(tab.key); setError('') }}
                 className="flex-1 px-4 py-3 text-sm font-medium transition-colors"
-                style={mode === tab.key ? { color: '#34d399', borderBottom: '2px solid #34d399', backgroundColor: 'rgba(52,211,153,0.05)' } : { color: '#94a3b8' }}>
+                style={mode === tab.key ? { color: 'var(--accent-green)', borderBottom: '2px solid #34d399', backgroundColor: 'rgba(52,211,153,0.05)' } : { color: '#94a3b8' }}>
                 {tab.icon} {tab.label}
               </button>
             ))}
