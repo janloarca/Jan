@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useState, useEffect, useRef, Suspense } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
+import { auth } from '@/lib/firebase'
 
 function setSessionCookie(token) {
   const secure = window.location.protocol === 'https:' ? '; Secure' : ''
@@ -25,23 +26,25 @@ function LoginForm() {
   const [inAppBrowser, setInAppBrowser] = useState(false)
   const [checkingAuth, setCheckingAuth] = useState(true)
   const searchParams = useSearchParams()
+  const router = useRouter()
+  const firebaseAuthRef = useRef(null)
 
   const redirectTo = searchParams.get('redirect') || '/dashboard'
 
   useEffect(() => {
     if (isInAppBrowser()) setInAppBrowser(true)
 
-    let unsub = () => {}
-    async function check() {
-      const { auth } = await import('@/lib/firebase')
-      const { onAuthStateChanged } = await import('firebase/auth')
-      if (!auth) { setCheckingAuth(false); return }
+    if (!auth) { setCheckingAuth(false); return }
+
+    let unsub
+    import('firebase/auth').then(({ onAuthStateChanged }) => {
+      firebaseAuthRef.current = true
       unsub = onAuthStateChanged(auth, async (u) => {
         if (u) {
           try {
             const token = await u.getIdToken(true)
             setSessionCookie(token)
-            window.location.href = redirectTo
+            router.replace(redirectTo)
           } catch {
             setCheckingAuth(false)
           }
@@ -49,10 +52,11 @@ function LoginForm() {
           setCheckingAuth(false)
         }
       })
-    }
-    check()
-    return () => unsub()
-  }, [redirectTo]) // eslint-disable-line react-hooks/exhaustive-deps
+    })
+
+    const timeout = setTimeout(() => setCheckingAuth(false), 3000)
+    return () => { clearTimeout(timeout); unsub?.() }
+  }, [redirectTo, router])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -60,7 +64,6 @@ function LoginForm() {
     setLoading(true)
 
     try {
-      const { auth } = await import('@/lib/firebase')
       const { signInWithEmailAndPassword, createUserWithEmailAndPassword } = await import('firebase/auth')
       if (!auth) throw new Error('Firebase not initialized')
       let cred
@@ -71,7 +74,7 @@ function LoginForm() {
       }
       const token = await cred.user.getIdToken()
       setSessionCookie(token)
-      window.location.href = redirectTo
+      router.replace(redirectTo)
     } catch (err) {
       const msg = err.code === 'auth/wrong-password' ? 'Contraseña incorrecta'
         : err.code === 'auth/user-not-found' ? 'No existe una cuenta con ese email'
@@ -93,7 +96,6 @@ function LoginForm() {
     setError('')
     setGoogleLoading(true)
     try {
-      const { auth } = await import('@/lib/firebase')
       const { GoogleAuthProvider, signInWithPopup, signInWithRedirect } = await import('firebase/auth')
       if (!auth) throw new Error('Firebase not initialized')
       const provider = new GoogleAuthProvider()
@@ -104,12 +106,11 @@ function LoginForm() {
       const cred = await signInWithPopup(auth, provider)
       const token = await cred.user.getIdToken()
       setSessionCookie(token)
-      window.location.href = redirectTo
+      router.replace(redirectTo)
     } catch (err) {
       if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') return
       if (err.code === 'auth/popup-blocked') {
         try {
-          const { auth } = await import('@/lib/firebase')
           const { GoogleAuthProvider, signInWithRedirect } = await import('firebase/auth')
           if (auth) await signInWithRedirect(auth, new GoogleAuthProvider())
           return
@@ -129,7 +130,6 @@ function LoginForm() {
     setError('')
     setLoading(true)
     try {
-      const { auth } = await import('@/lib/firebase')
       const { sendPasswordResetEmail } = await import('firebase/auth')
       if (!auth) throw new Error('Firebase not initialized')
       await sendPasswordResetEmail(auth, email)
