@@ -1,4 +1,5 @@
 import './globals.css'
+import RootErrorBoundary from '@/components/RootErrorBoundary'
 
 export const metadata = {
   title: 'Chispudo — Portfolio Tracker for Latin America',
@@ -79,7 +80,7 @@ export default function RootLayout({ children }) {
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className="font-sans">{children}</body>
+      <body className="font-sans"><RootErrorBoundary>{children}</RootErrorBoundary></body>
     </html>
   )
 }

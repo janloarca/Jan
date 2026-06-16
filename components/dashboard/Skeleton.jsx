@@ -23,18 +23,3 @@ export function SkeletonChart() {
   )
 }
 
-export function SkeletonTable() {
-  return (
-    <div className="bg-[#1C1C1E] rounded-2xl border border-[#38383A] p-5 card-primary">
-      <Pulse className="h-4 w-40 mb-4" />
-      {[...Array(5)].map((_, i) => (
-        <div key={i} className="flex items-center gap-3 py-3 border-b border-[#38383A]/30 last:border-0">
-          <Pulse className="h-8 w-8 rounded-full" />
-          <Pulse className="h-4 w-24" />
-          <div className="flex-1" />
-          <Pulse className="h-4 w-16" />
-        </div>
-      ))}
-    </div>
-  )
-}

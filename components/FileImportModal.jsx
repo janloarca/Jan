@@ -482,7 +482,6 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       try {
         const errors = validateItem(item)
         if (errors.length > 0) {
-          console.warn(`[Import] Skipping ${item.symbol || item.name}:`, errors)
           failed++
           continue
         }

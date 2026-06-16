@@ -112,7 +112,6 @@ export function useFirestoreItems() {
         fs.collection(db, `users/${currentUid}/items`),
         (snap) => {
           if (!cancelled) {
-            console.debug(`[Firestore] items: ${snap.docs.length} docs, fromCache: ${snap.metadata.fromCache}`)
             setItems(snap.docs.map((d) => sanitizeItem({ id: d.id, ...d.data() })))
           }
         },
