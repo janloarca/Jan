@@ -766,7 +766,7 @@ export default function DashboardPage() {
         <CardBoundary id="INS-01"><InsightCards items={portfolioItems} profile={profile} netWorth={netWorth} estimatedAnnualIncome={estimatedAnnualIncome} lang={lang} onOpenSettings={handleOpenSettings} /></CardBoundary>
 
         {/* ═══ RENDIMIENTO POR INSTITUCIÓN ═══ */}
-        <CardBoundary id="INST-01"><InstitutionPerformance items={portfolioItems} lang={lang} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
+        <CardBoundary id="INST-01"><InstitutionPerformance items={portfolioItems} lots={lots} lang={lang} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
 
         <ActionButtons
           onImport={handleOpenImport} onAddAccount={handleOpenAccount}

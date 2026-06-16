@@ -25,7 +25,7 @@ const RANGE_MAP = {
   '6M': { range: '6mo', interval: '1d' },
   '1Y': { range: '1y', interval: '1wk' },
   YTD: { range: 'ytd', interval: '1d' },
-  ALL: { range: 'max', interval: '1mo' },
+  ALL: { range: 'max', interval: '1wk' },
 }
 
 async function fetchYahooHistory(symbol, range, interval) {

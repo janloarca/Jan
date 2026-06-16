@@ -12,7 +12,7 @@ function polyline(pts) {
   return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
 }
 
-export default function InstitutionPerformance({ items, lang, convert, baseCurrency }) {
+export default function InstitutionPerformance({ items, lots, lang, convert, baseCurrency }) {
   const [selected, setSelected] = useState('ALL')
   const [period, setPeriod] = useState('YTD')
   const [dataPoints, setDataPoints] = useState([])
@@ -91,6 +91,9 @@ export default function InstitutionPerformance({ items, lang, convert, baseCurre
     setLoading(true)
     try {
       const apiPeriod = period === 'MTD' ? '1M' : period
+      const chartableSymbols = new Set(chartableItems.map(it => it.symbol).filter(Boolean))
+      const relevantLots = (lots || [])
+        .filter(l => l.quantity > 0 && chartableSymbols.has(l.symbol))
       const data = await authFetch('/api/prices/portfolio-history', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -106,6 +109,12 @@ export default function InstitutionPerformance({ items, lang, convert, baseCurre
               acquisitionDate: it.acquisitionDate,
             }
           }),
+          lots: relevantLots.length > 0 ? relevantLots.map(l => ({
+            symbol: l.symbol, quantity: l.quantity,
+            acquisitionDate: l.acquisitionDate,
+            closedDate: l.closedDate || null,
+            costBasis: l.costBasis,
+          })) : undefined,
           period: apiPeriod,
         }),
       })

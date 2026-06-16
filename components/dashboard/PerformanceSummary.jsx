@@ -7,7 +7,7 @@ import { authFetch, safeJson } from '@/lib/authFetch'
 
 const DAY_MS = 86400000
 
-export default function PerformanceSummary({ items, transactions, convert, baseCurrency, netWorth, lang }) {
+export default function PerformanceSummary({ items, lots, transactions, convert, baseCurrency, netWorth, lang }) {
   const [historyPoints, setHistoryPoints] = useState([])
   const [loading, setLoading] = useState(false)
   const [fetchError, setFetchError] = useState(null)
@@ -35,6 +35,15 @@ export default function PerformanceSummary({ items, transactions, convert, baseC
                 acquisitionDate: it.acquisitionDate,
               }
             }),
+            lots: (() => {
+              const allLots = (lots || []).filter(l => l.quantity > 0)
+              return allLots.length > 0 ? allLots.map(l => ({
+                symbol: l.symbol, quantity: l.quantity,
+                acquisitionDate: l.acquisitionDate,
+                closedDate: l.closedDate || null,
+                costBasis: l.costBasis,
+              })) : undefined
+            })(),
             period: 'ALL',
           }),
         })
