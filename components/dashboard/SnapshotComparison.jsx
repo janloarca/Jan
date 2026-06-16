@@ -106,7 +106,7 @@ export default function SnapshotComparison({ snapshots, items, lang }) {
               className="px-1.5 py-0.5 text-[10px] font-medium rounded transition-all"
               style={selectedPeriod === p
                 ? { backgroundColor: '#475569', color: '#ffffff' }
-                : { color: '#64748b' }
+                : { color: 'var(--text-muted)' }
               }>
               {p}
             </button>

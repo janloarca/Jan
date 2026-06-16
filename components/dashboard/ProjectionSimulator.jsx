@@ -130,12 +130,12 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
           <div className="flex bg-[#000000] rounded-lg border border-[#38383A]/50 overflow-hidden">
             <button onClick={() => setMode('deterministic')}
               className="px-2 py-1 text-xs font-medium transition-colors"
-              style={mode === 'deterministic' ? { backgroundColor: 'rgba(59,130,246,0.2)', color: '#60a5fa' } : { color: '#64748b' }}>
+              style={mode === 'deterministic' ? { backgroundColor: 'rgba(59,130,246,0.2)', color: '#60a5fa' } : { color: 'var(--text-muted)' }}>
               {t('Lineal', 'Linear')}
             </button>
             <button onClick={() => setMode('montecarlo')}
               className="px-2 py-1 text-xs font-medium transition-colors"
-              style={mode === 'montecarlo' ? { backgroundColor: 'rgba(59,130,246,0.2)', color: '#60a5fa' } : { color: '#64748b' }}>
+              style={mode === 'montecarlo' ? { backgroundColor: 'rgba(59,130,246,0.2)', color: '#60a5fa' } : { color: 'var(--text-muted)' }}>
               Monte Carlo
             </button>
           </div>

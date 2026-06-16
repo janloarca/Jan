@@ -75,7 +75,7 @@ export default function ValueBreakdown({ items, lang }) {
               className="px-3 py-1 text-xs font-medium rounded-md transition-all"
               style={view === opt.key
                 ? { backgroundColor: '#3b82f6', color: '#ffffff' }
-                : { color: '#64748b' }
+                : { color: 'var(--text-muted)' }
               }>
               {opt.label}
             </button>

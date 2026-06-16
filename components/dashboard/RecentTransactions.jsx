@@ -112,7 +112,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
               className="flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg transition-all text-center border hover:bg-[#2C2C2E]"
               style={isActive
                 ? activeStyles[opt.color]
-                : { backgroundColor: 'rgba(0,0,0,0.5)', borderColor: 'transparent', color: '#64748b' }
+                : { backgroundColor: 'rgba(0,0,0,0.5)', borderColor: 'transparent', color: 'var(--text-muted)' }
               }>
               <span className="text-sm font-bold">{opt.icon}</span>
               <span className="text-xs font-medium">{opt.label}</span>
@@ -134,7 +134,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
         ].map((opt) => (
           <button key={opt.key} onClick={() => { setDateRange(opt.key); setShowAll(false) }}
             className="px-2 py-1 text-xs rounded transition-colors"
-            style={dateRange === opt.key ? { backgroundColor: '#475569', color: '#ffffff' } : { color: '#64748b' }}>
+            style={dateRange === opt.key ? { backgroundColor: '#475569', color: '#ffffff' } : { color: 'var(--text-muted)' }}>
             {opt.label}
           </button>
         ))}

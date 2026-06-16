@@ -558,7 +558,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           else setShowCustomRange(false)
         }}
           className="px-3 py-2 text-xs font-semibold rounded-md transition-all"
-          style={period === p ? { backgroundColor: '#3b82f6', color: '#fff' } : { color: '#64748b' }}>{p === 'CUSTOM' ? (lang === 'es' ? 'Rango' : 'Range') : p}</button>
+          style={period === p ? { backgroundColor: '#3b82f6', color: '#fff' } : { color: 'var(--text-muted)' }}>{p === 'CUSTOM' ? (lang === 'es' ? 'Rango' : 'Range') : p}</button>
       ))}
     </div>
   )
@@ -634,7 +634,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           {viewMode === 'value' && contributionLine && (
             <button onClick={() => setShowContributions(!showContributions)}
               className="px-2 py-1 text-xs font-medium rounded-md transition-all"
-              style={showContributions ? { backgroundColor: '#2563eb', color: '#fff' } : { color: '#64748b' }}
+              style={showContributions ? { backgroundColor: '#2563eb', color: '#fff' } : { color: 'var(--text-muted)' }}
               title={t('Mostrar/ocultar capital invertido', 'Show/hide invested capital')}>
               {t('Invertido', 'Invested')}
             </button>
@@ -643,13 +643,13 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
             <div className="flex gap-0.5 bg-[#000000] rounded-lg p-0.5">
               <button onClick={() => setReturnMode('twr')}
                 className="px-2 py-1 text-xs font-medium rounded-md transition-all"
-                style={returnMode === 'twr' ? { backgroundColor: '#2563eb', color: '#fff' } : { color: '#64748b' }}
+                style={returnMode === 'twr' ? { backgroundColor: '#2563eb', color: '#fff' } : { color: 'var(--text-muted)' }}
                 title={t('Retorno ponderado por tiempo — mide el rendimiento del portafolio sin importar depósitos/retiros', 'Time-Weighted Return — measures portfolio performance regardless of deposits/withdrawals')}>
                 TWR
               </button>
               <button onClick={() => setReturnMode('mwr')}
                 className="px-2 py-1 text-xs font-medium rounded-md transition-all"
-                style={returnMode === 'mwr' ? { backgroundColor: '#2563eb', color: '#fff' } : { color: '#64748b' }}
+                style={returnMode === 'mwr' ? { backgroundColor: '#2563eb', color: '#fff' } : { color: 'var(--text-muted)' }}
                 title={t('Retorno ponderado por dinero — refleja tu experiencia real como inversionista', 'Money-Weighted Return — reflects your actual experience as an investor')}>
                 MWR
               </button>

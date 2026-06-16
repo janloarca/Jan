@@ -829,7 +829,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                           className="px-3 py-2 rounded-lg text-xs font-mono transition-all border"
                           style={isSelected
                             ? { borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa' }
-                            : { borderColor: '#38383A', color: '#64748b' }
+                            : { borderColor: '#38383A', color: 'var(--text-muted)' }
                           }>
                           {acc} <span className="text-slate-600 ml-1">({count})</span>
                         </button>

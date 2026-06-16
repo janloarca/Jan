@@ -851,7 +851,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 <select value={form.accountType} onChange={e => set('accountType', e.target.value)} className={inputCls}>
                   {ACCOUNT_TYPES.map(at => <option key={at.key} value={at.key}>{lang === 'es' ? at.es : at.en}</option>)}
                 </select>
-                <p className="text-[10px] mt-0.5" style={{ color: '#64748b' }}>
+                <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
                   {form.accountType === 'taxable' ? t('Paga impuestos (ej. cuenta de bolsa normal)', 'Pays taxes (e.g. regular brokerage)') :
                    form.accountType === 'retirement' ? t('Ahorro para retiro (ej. 401k, IRA, AFP)', 'Retirement savings (e.g. 401k, IRA)') :
                    t('Exenta de impuestos (ej. Roth IRA)', 'Tax-exempt (e.g. Roth IRA)')}

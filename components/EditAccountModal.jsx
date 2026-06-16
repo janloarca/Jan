@@ -573,7 +573,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   <div className="space-y-1 max-h-28 overflow-y-auto">
                     {linkedTransactions.map(tx => (
                       <div key={tx.id} className="flex items-center justify-between text-xs py-1 border-b border-[var(--card-border,#38383A)]/30 last:border-0">
-                        <span style={{ color: '#64748b' }}>{tx.date}</span>
+                        <span style={{ color: 'var(--text-muted)' }}>{tx.date}</span>
                         <div className="text-right">
                           <span style={{ color: tx.type === 'DEPOSIT' ? '#34d399' : '#f87171' }}>
                             {tx.type === 'DEPOSIT' ? '+' : '-'}{tx.currency || form.currency} {(tx.totalAmount || 0).toLocaleString()}

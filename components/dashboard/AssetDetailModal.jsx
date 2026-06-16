@@ -185,7 +185,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
                     className="px-2 py-1 text-xs font-medium rounded-md transition-all"
                     style={range === r
                       ? { backgroundColor: '#3b82f6', color: '#ffffff' }
-                      : { color: '#64748b' }
+                      : { color: 'var(--text-muted)' }
                     }>
                     {r}
                   </button>
