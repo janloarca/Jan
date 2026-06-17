@@ -40,7 +40,7 @@ function InfoTip({ text }) {
   )
 }
 
-export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es', allItems, onNavigate, onAddTransaction, transactions, onAddLot, onCloseLotsFIFO, baseCurrency }) {
+export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es', allItems, onNavigate, onAddTransaction, transactions, onExecuteContribution, baseCurrency }) {
   const trapRef = useFocusTrap()
   const [form, setForm] = useState({
     symbol: item.symbol || '',
@@ -142,72 +142,74 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
       const isAdd = contribType === 'add'
       const rawItem = stripEnriched(item)
 
+      const txType = isAdd
+        ? (contribIsIncome && !isBank ? 'DIVIDEND' : 'DEPOSIT')
+        : 'WITHDRAWAL'
+      const transaction = {
+        date: contribDate,
+        type: txType,
+        symbol: item.symbol || item.name || '',
+        description: contribDesc || (isAdd
+          ? (txType === 'DIVIDEND'
+            ? `${t('Ingreso de', 'Income from')} ${item.name || item.symbol}`
+            : `${t('Aporte a', 'Contribution to')} ${item.name || item.symbol}`)
+          : `${t('Retiro de', 'Withdrawal from')} ${item.name || item.symbol}`),
+        totalAmount: amt,
+        currency: itemCurrency,
+        _linkedItemId: item.id,
+        _source: 'manual_contribution',
+      }
+
+      let itemFields, newLot, lotClose
       if (isBankLike) {
         const oldPrice = parseFloat(form.purchasePrice) || 0
         const newPrice = isAdd ? oldPrice + amt : Math.max(0, oldPrice - amt)
+        itemFields = { purchasePrice: newPrice, currentPrice: newPrice }
         set('purchasePrice', newPrice.toString())
         set('currentPrice', newPrice.toString())
-        await onSave({ ...rawItem, purchasePrice: newPrice, currentPrice: newPrice })
       } else {
-        // Use original-currency price so the share math matches the lot cost basis
         const pricePerUnit = parseFloat(form.currentPrice) || parseFloat(form.purchasePrice) || 1
         if (isAdd) {
           const newShares = amt / pricePerUnit
           const oldQty = parseFloat(form.quantity) || 0
           const newQty = oldQty + newShares
-          set('quantity', newQty.toString())
-          await onSave({ ...rawItem, quantity: newQty })
-          if (onAddLot) {
-            try {
-              await onAddLot({
-                symbol: (item.symbol || '').toUpperCase(),
-                quantity: newShares,
-                costBasis: pricePerUnit,
-                currency: itemCurrency,
-                acquisitionDate: contribDate,
-                institution: item.institution || '',
-                status: 'open',
-              })
-            } catch (e) { console.error('[contribution] lot creation failed:', e.message) }
+          itemFields = { quantity: newQty }
+          newLot = {
+            symbol: (item.symbol || '').toUpperCase(),
+            quantity: newShares,
+            costBasis: pricePerUnit,
+            currency: itemCurrency,
+            acquisitionDate: contribDate,
+            institution: item.institution || '',
           }
+          set('quantity', newQty.toString())
         } else {
           const sharesToSell = amt / pricePerUnit
           const oldQty = parseFloat(form.quantity) || 0
           const newQty = Math.max(0, oldQty - sharesToSell)
-          set('quantity', newQty.toString())
-          await onSave({ ...rawItem, quantity: newQty })
-          if (onCloseLotsFIFO && sharesToSell > 0) {
-            try {
-              await onCloseLotsFIFO((item.symbol || '').toUpperCase(), sharesToSell, pricePerUnit, contribDate, item.institution || '')
-            } catch (e) { console.error('[contribution] lot closing failed:', e.message) }
+          itemFields = { quantity: newQty }
+          if (sharesToSell > 0) {
+            lotClose = {
+              symbol: (item.symbol || '').toUpperCase(),
+              qty: sharesToSell,
+              price: pricePerUnit,
+              date: contribDate,
+              institution: item.institution || '',
+            }
           }
+          set('quantity', newQty.toString())
         }
       }
 
-      if (onAddTransaction) {
-        const txType = isAdd
-          ? (contribIsIncome && !isBank ? 'DIVIDEND' : 'DEPOSIT')
-          : 'WITHDRAWAL'
-        try {
-          await onAddTransaction({
-            date: contribDate,
-            type: txType,
-            symbol: item.symbol || item.name || '',
-            description: contribDesc || (isAdd
-              ? (txType === 'DIVIDEND'
-                ? `${t('Ingreso de', 'Income from')} ${item.name || item.symbol}`
-                : `${t('Aporte a', 'Contribution to')} ${item.name || item.symbol}`)
-              : `${t('Retiro de', 'Withdrawal from')} ${item.name || item.symbol}`),
-            totalAmount: amt,
-            currency: itemCurrency,
-            _linkedItemId: item.id,
-            _source: 'manual_contribution',
-          })
-        } catch (e) { console.error('[contribution] transaction creation failed:', e.message) }
-      }
+      const prefFields = (!isBank && isAdd && item._contribIsIncome !== contribIsIncome)
+        ? { _contribIsIncome: contribIsIncome }
+        : undefined
 
-      if (!isBank && isAdd && item._contribIsIncome !== contribIsIncome) {
-        try { await onSave({ _contribIsIncome: contribIsIncome }) } catch {}
+      if (onExecuteContribution) {
+        await onExecuteContribution({ itemId: item.id, itemFields, transaction, newLot, lotClose, prefFields })
+      } else {
+        await onSave({ ...rawItem, ...itemFields })
+        if (onAddTransaction) await onAddTransaction(transaction)
       }
 
       setContribAmount('')
@@ -490,7 +492,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           </div>
 
           {/* Contribution / Withdrawal */}
-          {!isDebt && onAddTransaction && (
+          {!isDebt && (onExecuteContribution || onAddTransaction) && (
             <div className="space-y-3">
               {contribSuccess && (
                 <div className="px-3 py-2 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(52,211,153,0.1)', color: 'var(--accent-green)', border: '1px solid rgba(52,211,153,0.2)' }}>

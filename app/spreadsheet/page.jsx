@@ -53,7 +53,7 @@ export default function SpreadsheetPage() {
     items, enrichedItems, netWorth, transactions, financeTransactions, returnYTD,
     snapshots, addItem, updateItem, deleteItem, portfolioItems, convert, rates,
     baseCurrency, saveItemSnapshots, loadItemSnapshots, lots,
-    addTransaction, addLot, closeLotsFIFO,
+    addTransaction, addLot, closeLotsFIFO, executeContribution,
   } = useDashboardData({ user, lang, activePortfolio: '__all__' })
 
   const [editItem, setEditItem] = useState(null)
@@ -281,7 +281,7 @@ export default function SpreadsheetPage() {
             await updateItem(editItem.id, fields)
           }}
           onDelete={deleteItem} existingItems={items} lang={lang}
-          onAddTransaction={addTransaction} onAddLot={addLot} onCloseLotsFIFO={closeLotsFIFO}
+          onAddTransaction={addTransaction} onExecuteContribution={executeContribution}
           transactions={transactions} baseCurrency={baseCurrency} />
       )}
 

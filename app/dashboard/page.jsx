@@ -246,7 +246,7 @@ export default function DashboardPage() {
     saveSnapshot, deleteAllSnapshots,
     addTransaction, deleteAllTransactions,
     addAlert, deleteAlert,
-    addLot, closeLotsFIFO, transferFunds, executeSaleAtomic,
+    addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution,
     addPortfolio, deletePortfolio,
     addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     bulkImport,
@@ -1035,8 +1035,7 @@ export default function DashboardPage() {
             showToast(lang === 'es' ? 'Activo eliminado' : 'Asset deleted')
           }}
           onAddTransaction={addTransaction}
-          onAddLot={addLot}
-          onCloseLotsFIFO={closeLotsFIFO}
+          onExecuteContribution={executeContribution}
           transactions={transactions}
           baseCurrency={baseCurrency}
           existingItems={items} lang={lang}

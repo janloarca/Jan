@@ -525,6 +525,74 @@ export function useFirestoreItems() {
     })
   }, [uid])
 
+  const executeContribution = useCallback(async ({ itemId, itemFields, transaction, newLot, lotClose, prefFields }) => {
+    if (!uid) throw new Error('No uid')
+    const { db, fs } = await getFirebase()
+    return fs.runTransaction(db, async (tx) => {
+      // --- READS (only needed for withdraw / FIFO close) ---
+      let closes = []
+      if (lotClose && lotClose.symbol && lotClose.qty > 0) {
+        const lotsSnap = await tx.get(fs.query(
+          fs.collection(db, `users/${uid}/lots`),
+          fs.where('symbol', '==', lotClose.symbol),
+          fs.where('status', '==', 'open'),
+        ))
+        let openLots = lotsSnap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((l) => l.quantity > 0)
+          .sort((a, b) => (a.acquisitionDate || '').localeCompare(b.acquisitionDate || ''))
+        if (lotClose.institution) {
+          const instLots = openLots.filter((l) => l.institution === lotClose.institution)
+          if (instLots.length > 0) openLots = instLots
+        }
+        let remaining = lotClose.qty
+        for (const lot of openLots) {
+          if (remaining <= 0) break
+          const closable = Math.min(remaining, lot.quantity)
+          closes.push({ lot, closable, realizedGain: (lotClose.price - lot.costBasis) * closable })
+          remaining -= closable
+        }
+      }
+
+      // --- WRITES ---
+      const itemRef = fs.doc(db, `users/${uid}/items`, itemId)
+      tx.update(itemRef, strip(itemFields))
+
+      for (const c of closes) {
+        if (c.closable >= c.lot.quantity - QTY_EPSILON) {
+          tx.update(fs.doc(db, `users/${uid}/lots`, c.lot.id), {
+            status: 'closed', quantity: c.closable, closedDate: lotClose.date, closedPrice: lotClose.price, realizedGain: c.realizedGain,
+          })
+        } else {
+          tx.update(fs.doc(db, `users/${uid}/lots`, c.lot.id), { quantity: roundQty(c.lot.quantity - c.closable) })
+          const closedId = `${c.lot.id}-closed-${lotClose.date}`
+          const { id: _lotId, ...lotData } = c.lot
+          tx.set(fs.doc(db, `users/${uid}/lots`, closedId), {
+            ...lotData, quantity: c.closable, status: 'closed',
+            closedDate: lotClose.date, closedPrice: lotClose.price, realizedGain: c.realizedGain,
+            createdAt: c.lot.createdAt,
+          })
+        }
+      }
+
+      if (newLot) {
+        const qty = Math.round((newLot.quantity || 0) * 1e8)
+        const cost = Math.round((newLot.costBasis || 0) * 100)
+        const inst = (newLot.institution || '').replace(/[/\\]/g, '-').slice(0, 20)
+        const lid = `${(newLot.symbol || 'lot').toUpperCase()}-${newLot.acquisitionDate || 'nodate'}-${qty}-${cost}${inst ? `-${inst}` : ''}`
+        tx.set(fs.doc(db, `users/${uid}/lots`, lid), strip({ ...newLot, status: 'open', createdAt: new Date().toISOString() }))
+      }
+
+      if (transaction) {
+        tx.set(fs.doc(db, `users/${uid}/transactions`, txDocId(transaction)), strip({ ...transaction, createdAt: new Date().toISOString() }))
+      }
+
+      if (prefFields) {
+        tx.update(itemRef, strip(prefFields))
+      }
+    })
+  }, [uid])
+
   const addFinanceTransaction = useCallback(async (tx) => {
     if (!uid) return false
     try {
@@ -699,7 +767,7 @@ export function useFirestoreItems() {
     addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     addAlert, deleteAlert, updateAlert,
     addLot, updateLot, closeLotsFIFO,
-    transferFunds, executeSaleAtomic,
+    transferFunds, executeSaleAtomic, executeContribution,
     bulkImport,
     addPortfolio, deletePortfolio,
     saveGoals, saveSettings, saveProfile,
