@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { formatCurrency, formatCompact, getItemValue, getItemPrice, getTypeCategory } from './utils'
+import { formatCurrency, formatCompact, getItemValue, getItemPrice, getTypeCategory, buildIncomeEvents } from './utils'
 import { authFetch, safeJson } from '@/lib/authFetch'
 
 const PERIODS = ['DAY', '1W', 'MTD', '1M', '3M', 'YTD', '1Y', 'ALL']
@@ -12,7 +12,7 @@ function polyline(pts) {
   return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
 }
 
-export default function InstitutionPerformance({ items, lots, lang, convert, baseCurrency }) {
+export default function InstitutionPerformance({ items, lots, transactions, lang, convert, baseCurrency }) {
   const [selected, setSelected] = useState('ALL')
   const [period, setPeriod] = useState('YTD')
   const [dataPoints, setDataPoints] = useState([])
@@ -106,6 +106,7 @@ export default function InstitutionPerformance({ items, lots, lang, convert, bas
             const cur = it._originalCurrency || it.currency || 'USD'
             const toUSD = (p) => convert ? convert(p || 0, cur, 'USD') : (p || 0)
             return {
+              id: it.id,
               symbol: it.symbol, type: it.type, quantity: it.quantity,
               currentPrice: toUSD(it._originalPrice ?? it.currentPrice),
               purchasePrice: toUSD(it._originalPurchasePrice ?? it.purchasePrice),
@@ -119,6 +120,7 @@ export default function InstitutionPerformance({ items, lots, lang, convert, bas
             closedDate: l.closedDate || null,
             costBasis: l.costBasis,
           })) : undefined,
+          income: buildIncomeEvents(transactions, chartableItems, convert, 'USD'),
           period: apiPeriod,
         }),
       })
@@ -152,7 +154,7 @@ export default function InstitutionPerformance({ items, lots, lang, convert, bas
       setDataPoints([])
     }
     if (mountedRef.current) setLoading(false)
-  }, [filteredItems, period, baseCurrency, hasChartableItems])
+  }, [filteredItems, transactions, period, baseCurrency, hasChartableItems])
 
   useEffect(() => {
     mountedRef.current = true

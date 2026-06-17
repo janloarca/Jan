@@ -776,7 +776,7 @@ export default function DashboardPage() {
         {/* ═══ COMPOSICIÓN: Allocation + Rendimiento por institución ═══ */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 items-start">
           <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} /></CardBoundary>
-          <CardBoundary id="INST-01"><InstitutionPerformance items={portfolioItems} lots={lots} lang={lang} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
+          <CardBoundary id="INST-01"><InstitutionPerformance items={portfolioItems} lots={lots} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
         </div>
 
         <ActionButtons
@@ -1052,7 +1052,8 @@ export default function DashboardPage() {
       )}
 
       {detailItem && (
-        <AssetDetailModal item={detailItem} onClose={handleCloseDetail} lang={lang} uid={user?.uid} />
+        <AssetDetailModal item={detailItem} onClose={handleCloseDetail} lang={lang} uid={user?.uid}
+          transactions={transactions} convert={convert} baseCurrency={baseCurrency} />
       )}
 
       {showReview && !editItem && (

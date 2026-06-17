@@ -8,7 +8,7 @@ import DocumentVault from './DocumentVault'
 
 const STATIC_TYPES = /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo|bond|bono|instrumento|inversion|inversión|cdt|plazo|treasury|letra|pagare|deposito|certificado|inmueble|real.?estate|property/i
 
-export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
+export default function AssetDetailModal({ item, onClose, lang = 'es', uid, transactions = [], convert, baseCurrency = 'USD' }) {
   const trapRef = useFocusTrap()
   const [chartData, setChartData] = useState(null)
   const [chartError, setChartError] = useState(null)
@@ -19,6 +19,27 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
   const t = (es, en) => lang === 'es' ? es : en
   const ranges = ['1W', '1M', '3M', '6M', '1Y', 'ALL']
   const isStatic = STATIC_TYPES.test(item.type || '')
+
+  // Reinvested interest/dividends paid by THIS asset, as step-ups (in base currency).
+  // For market assets reinvested shares already raise qty; for bonds the interest
+  // raises the carried value, so we layer it onto the series below.
+  const assetIncome = useMemo(() => {
+    const sym = (item.symbol || item.name || '').toUpperCase()
+    return (transactions || [])
+      .filter((tx) => (tx.type || '').toUpperCase() === 'DIVIDEND')
+      .filter((tx) => tx._linkedItemId === item.id || (!tx._linkedItemId && (tx.symbol || '').toUpperCase() === sym))
+      .map((tx) => {
+        const amtRaw = Number(tx.totalAmount ?? tx.amount ?? 0)
+        const cur = tx.currency || baseCurrency
+        const amount = convert ? convert(amtRaw, cur, baseCurrency) : amtRaw
+        const reinvested = tx._reinvested === true || item.dividendAction === 'reinvest'
+        return { ts: tx.date ? new Date(tx.date).getTime() : 0, amount, reinvested }
+      })
+      .filter((e) => e.ts > 0 && e.amount > 0 && e.reinvested)
+      .sort((a, b) => a.ts - b.ts)
+  }, [transactions, item, convert, baseCurrency])
+
+  const cumIncomeAt = (ts) => assetIncome.reduce((s, e) => (e.ts <= ts ? s + e.amount : s), 0)
 
   const rangeMap = { '1W': '5d', '1M': '1mo', '3M': '3mo', '6M': '6mo', '1Y': '1y', 'ALL': '5y' }
 
@@ -51,27 +72,65 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
   const pnl = totalValue - cost
   const pnlPct = cost > 0 ? (pnl / cost) * 100 : 0
 
-  const points = useMemo(() => {
-    if (!chartData?.prices || chartData.prices.length < 2) return null
-    const prices = chartData.prices
-    const min = Math.min(...prices.map((p) => p.close)) * 0.98
-    const max = Math.max(...prices.map((p) => p.close)) * 1.02
+  // Project an array of {ts, value, date} onto the SVG canvas.
+  function project(series) {
+    if (!series || series.length < 2) return null
+    const min = Math.min(...series.map((s) => s.value)) * 0.98
+    const max = Math.max(...series.map((s) => s.value)) * 1.02
     const rng = max - min || 1
     const w = 600, h = 200
     const pad = { top: 16, right: 12, bottom: 24, left: 0 }
     const cw = w - pad.left - pad.right
     const ch = h - pad.top - pad.bottom
-
-    return prices.map((p, i) => ({
-      x: pad.left + (i / Math.max(prices.length - 1, 1)) * cw,
-      y: pad.top + ch - ((p.close - min) / rng) * ch,
-      close: p.close,
-      date: p.date,
+    return series.map((s, i) => ({
+      x: pad.left + (i / Math.max(series.length - 1, 1)) * cw,
+      y: pad.top + ch - ((s.value - min) / rng) * ch,
+      close: s.value,
+      date: s.date,
     }))
-  }, [chartData])
+  }
 
-  const isPositive = points ? points[points.length - 1].close >= points[0].close : pnl >= 0
+  // Market assets: value = qty × price(t) + reinvested income to date.
+  const points = useMemo(() => {
+    if (!chartData?.prices || chartData.prices.length < 2) return null
+    const qty = item.quantity || 0
+    const priceCur = chartData.currency || item._originalCurrency || 'USD'
+    const series = chartData.prices.map((p) => {
+      const ts = p.date ? new Date(p.date).getTime() : 0
+      let v = qty * (p.close || 0)
+      if (convert && priceCur !== baseCurrency) v = convert(v, priceCur, baseCurrency)
+      return { ts, date: p.date, value: v + cumIncomeAt(ts) }
+    })
+    return project(series)
+  }, [chartData, item.quantity, assetIncome, convert, baseCurrency])
+
+  // Income-bearing bonds: flat carried value that steps up on each reinvested payment.
+  const staticPoints = useMemo(() => {
+    if (!isStatic || assetIncome.length === 0) return null
+    let baseVal = (item.quantity || 1) * (item.purchasePrice || getItemPrice(item) || 0)
+    if (convert && item._originalCurrency && item._originalCurrency !== baseCurrency) {
+      // purchasePrice on enriched items is already base; only convert if raw.
+      if (item._originalPurchasePrice != null) {
+        baseVal = (item.quantity || 1) * item._originalPurchasePrice
+        baseVal = convert(baseVal, item._originalCurrency, baseCurrency)
+      }
+    }
+    const acq = item.acquisitionDate ? new Date(item.acquisitionDate).getTime() : assetIncome[0].ts
+    const stamps = [acq, ...assetIncome.map((e) => e.ts), Date.now()]
+      .filter((v, i, a) => a.indexOf(v) === i).sort((a, b) => a - b)
+    const series = stamps.map((ts) => ({ ts, date: new Date(ts).toISOString(), value: baseVal + cumIncomeAt(ts) }))
+    return project(series)
+  }, [isStatic, assetIncome, item, convert, baseCurrency])
+
+  const renderPts = isStatic ? staticPoints : points
+  const isPositive = renderPts ? renderPts[renderPts.length - 1].close >= renderPts[0].close : pnl >= 0
   const lineColor = isPositive ? '#34d399' : '#ef4444'
+
+  // Straight segments keep bond interest step-ups crisp (vs the smoothed curve).
+  function linePath(pts) {
+    if (!pts || pts.length < 2) return ''
+    return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+  }
 
   function smoothPath(pts) {
     if (!pts || pts.length < 2) return ''
@@ -88,7 +147,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
     return d
   }
 
-  const hp = hoverIdx != null && points ? points[hoverIdx] : null
+  const hp = hoverIdx != null && renderPts ? renderPts[hoverIdx] : null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="asset-detail-title">
@@ -166,7 +225,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
 
           {/* Chart */}
           <div>
-            {isStatic ? (
+            {isStatic && assetIncome.length === 0 ? (
               <div className="h-[120px] bg-[#000000] rounded-lg flex flex-col items-center justify-center gap-2">
                 <span className="text-sm text-slate-500">
                   {t('Este activo no tiene datos de mercado', 'This asset has no market data')}
@@ -178,26 +237,28 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
             ) : (
             <>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-slate-500">{t('Historico de precio', 'Price history')}</span>
-              <div className="flex gap-0.5 bg-[#000000] rounded-lg p-0.5">
-                {ranges.map((r) => (
-                  <button key={r} onClick={() => setRange(r)}
-                    className="px-2 py-1 text-xs font-medium rounded-md transition-all"
-                    style={range === r
-                      ? { backgroundColor: '#3b82f6', color: '#ffffff' }
-                      : { color: 'var(--text-muted)' }
-                    }>
-                    {r}
-                  </button>
-                ))}
-              </div>
+              <span className="text-xs text-slate-500">{t('Histórico de valor', 'Value history')}</span>
+              {!isStatic && (
+                <div className="flex gap-0.5 bg-[#000000] rounded-lg p-0.5">
+                  {ranges.map((r) => (
+                    <button key={r} onClick={() => setRange(r)}
+                      className="px-2 py-1 text-xs font-medium rounded-md transition-all"
+                      style={range === r
+                        ? { backgroundColor: '#3b82f6', color: '#ffffff' }
+                        : { color: 'var(--text-muted)' }
+                      }>
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {loading ? (
+            {loading && !isStatic ? (
               <div className="h-[200px] bg-[#000000] rounded-lg animate-pulse flex items-center justify-center">
                 <span className="text-slate-600 text-sm">{t('Cargando...', 'Loading...')}</span>
               </div>
-            ) : points ? (
+            ) : renderPts ? (
               <div className="relative">
                 <svg viewBox="0 0 600 200" className="w-full" preserveAspectRatio="xMidYMid meet"
                   onMouseLeave={() => setHoverIdx(null)}
@@ -205,7 +266,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
                     const rect = e.currentTarget.getBoundingClientRect()
                     const mx = ((e.clientX - rect.left) / rect.width) * 600
                     let closest = 0, minD = Infinity
-                    points.forEach((p, i) => { const d = Math.abs(p.x - mx); if (d < minD) { minD = d; closest = i } })
+                    renderPts.forEach((p, i) => { const d = Math.abs(p.x - mx); if (d < minD) { minD = d; closest = i } })
                     setHoverIdx(closest)
                   }}>
                   <defs>
@@ -214,9 +275,9 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid }) {
                       <stop offset="100%" stopColor={lineColor} stopOpacity="0.02" />
                     </linearGradient>
                   </defs>
-                  <path d={`${smoothPath(points)} L ${points[points.length-1].x} 192 L ${points[0].x} 192 Z`}
+                  <path d={`${(isStatic ? linePath : smoothPath)(renderPts)} L ${renderPts[renderPts.length-1].x} 192 L ${renderPts[0].x} 192 Z`}
                     fill="url(#assetGrad)" />
-                  <path d={smoothPath(points)} fill="none" stroke={lineColor} strokeWidth="2" strokeLinecap="round" />
+                  <path d={(isStatic ? linePath : smoothPath)(renderPts)} fill="none" stroke={lineColor} strokeWidth="2" strokeLinecap="round" />
                   {hp && (
                     <g>
                       <line x1={hp.x} y1={16} x2={hp.x} y2={192} stroke="#475569" strokeDasharray="4 3" />

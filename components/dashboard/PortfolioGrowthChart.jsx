@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { formatCurrency, formatCompact, formatDate, computeModifiedDietz, getItemValue } from './utils'
+import { formatCurrency, formatCompact, formatDate, computeModifiedDietz, getItemValue, buildIncomeEvents } from './utils'
 import { computeTWRSeries } from './analytics'
 import { authFetch, safeJson } from '@/lib/authFetch'
 
@@ -74,9 +74,30 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const containerRef = useRef(null)
   const mountedRef = useRef(true)
   const [chartWidth, setChartWidth] = useState(650)
+  const [selectedInst, setSelectedInst] = useState('ALL')
 
   const periods = ['DAY', '1W', 'MTD', '1M', '3M', 'YTD', '1Y', 'ALL', 'CUSTOM']
   const t = (es, en) => lang === 'es' ? es : en
+
+  // Group holdings by institution so the chart can show a single institution's
+  // combined behaviour (e.g. a bond + the cash account it pays into move together).
+  const institutions = useMemo(() => {
+    if (!items || items.length === 0) return []
+    const map = {}
+    items.forEach((it) => {
+      const inst = it.institution || t('Sin institución', 'No institution')
+      if (!map[inst]) map[inst] = { name: inst, value: 0, items: [] }
+      map[inst].value += getItemValue(it)
+      map[inst].items.push(it)
+    })
+    return Object.values(map).sort((a, b) => b.value - a.value)
+  }, [items, lang])
+
+  const scopedItems = useMemo(() => {
+    if (selectedInst === 'ALL') return items || []
+    const inst = institutions.find((i) => i.name === selectedInst)
+    return inst ? inst.items : []
+  }, [selectedInst, items, institutions])
   const benchmarkPeriodMap = { DAY: '1M', '1W': '1M', MTD: '1M', '1M': '1M', '3M': '3M', '6M': '6M', YTD: 'YTD', '1Y': '1Y', ALL: 'ALL' }
 
   useEffect(() => {
@@ -97,7 +118,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   }, [period, lang])
 
   const fetchHistory = useCallback(async () => {
-    if (!items || items.length === 0) return
+    if (!scopedItems || scopedItems.length === 0) return
     if (period === 'CUSTOM' && !customRange.from) return
     if (period === 'DAY') { setLoading(false); return }
     setLoading(true)
@@ -114,16 +135,23 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         else if (diffDays <= 365) apiPeriod = '1Y'
         else apiPeriod = 'ALL'
       }
-      const allLots = (lots || []).filter(l => l.quantity > 0)
+      const scopedSymbols = new Set(scopedItems.map(it => (it.symbol || '').toUpperCase()).filter(Boolean))
+      const instFilter = selectedInst === 'ALL' ? null : selectedInst
+      const allLots = (lots || []).filter(l =>
+        l.quantity > 0
+        && scopedSymbols.has((l.symbol || '').toUpperCase())
+        && (!instFilter || l.institution === instFilter)
+      )
       const res = await authFetch('/api/prices/portfolio-history', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          items: items.map((it) => {
+          items: scopedItems.map((it) => {
             // The API sums values assuming USD — convert original-currency prices first
             const cur = it._originalCurrency || it.currency || 'USD'
             const toUSD = (p) => convert ? convert(p || 0, cur, 'USD') : (p || 0)
             return {
+              id: it.id,
               symbol: it.symbol, type: it.type, quantity: it.quantity,
               currentPrice: toUSD(it._originalPrice ?? it.currentPrice),
               purchasePrice: toUSD(it._originalPurchasePrice ?? it.purchasePrice),
@@ -137,6 +165,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
             closedDate: l.closedDate || null,
             costBasis: l.costBasis,
           })) : undefined,
+          income: buildIncomeEvents(transactions, scopedItems, convert, 'USD'),
           period: apiPeriod,
         }),
       })
@@ -177,7 +206,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       setFetchError(t('Error cargando historial', 'Failed to load history'))
     }
     if (mountedRef.current) setLoading(false)
-  }, [items, lots, period, baseCurrency, convert, customRange])
+  }, [scopedItems, lots, transactions, period, baseCurrency, convert, customRange, selectedInst])
 
   useEffect(() => {
     mountedRef.current = true
@@ -198,9 +227,9 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   }, [period, benchmarkSymbol])
 
   const currentTotal = useMemo(() => {
-    if (!items) return 0
-    return items.reduce((s, it) => s + getItemValue(it), 0)
-  }, [items])
+    if (!scopedItems) return 0
+    return scopedItems.reduce((s, it) => s + getItemValue(it), 0)
+  }, [scopedItems])
 
   const snapshotData = useMemo(() => {
     if (!snapshots || snapshots.length === 0) return []
@@ -651,6 +680,30 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           )}
         </div>
       </div>
+
+      {/* Institution filter: selecting one sums its holdings (e.g. bond + the
+          cash account it pays into) into a single combined line. */}
+      {institutions.length > 1 && (
+        <div className="flex gap-1.5 overflow-x-auto pb-2 mb-3 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
+          <button onClick={() => { setSelectedInst('ALL'); setHoverIdx(null) }}
+            className="shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all border"
+            style={selectedInst === 'ALL'
+              ? { backgroundColor: 'var(--accent-blue)', color: '#fff', borderColor: 'var(--accent-blue)' }
+              : { backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-secondary)', borderColor: 'var(--card-border)' }}>
+            {t('Todas', 'All')}
+          </button>
+          {institutions.map((inst) => (
+            <button key={inst.name} onClick={() => { setSelectedInst(inst.name); setHoverIdx(null) }}
+              className="shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all border"
+              style={selectedInst === inst.name
+                ? { backgroundColor: 'var(--accent-blue)', color: '#fff', borderColor: 'var(--accent-blue)' }
+                : { backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-secondary)', borderColor: 'var(--card-border)' }}>
+              {inst.name}
+              <span className="ml-1.5 opacity-70">{formatCompact(inst.value, baseCurrency)}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Header stats */}
       {viewMode === 'value' ? (

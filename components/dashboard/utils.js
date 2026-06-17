@@ -100,6 +100,33 @@ export function isExcludedFromNetWorth(item) {
   return !!(item.isReceivable && !item.countInNetWorth)
 }
 
+// Build the income-event payload for /api/prices/portfolio-history from DIVIDEND
+// transactions. Reinvested step-ups raise the linked asset's value; cash-destination
+// payments are excluded (their value already lives in the destination account).
+// Amounts are converted to `baseTo` (the chart pre-converts everything to USD).
+export function buildIncomeEvents(transactions, items, convert, baseTo = 'USD') {
+  if (!transactions || transactions.length === 0) return []
+  const byId = new Map((items || []).map((it) => [it.id, it]))
+  const out = []
+  for (const tx of transactions) {
+    if ((tx.type || '').toUpperCase() !== 'DIVIDEND') continue
+    const amtRaw = Number(tx.totalAmount ?? tx.amount ?? 0)
+    if (!(amtRaw > 0) || !tx.date) continue
+    const cur = tx.currency || 'USD'
+    const amount = convert ? convert(amtRaw, cur, baseTo) : amtRaw
+    const linked = tx._linkedItemId ? byId.get(tx._linkedItemId) : null
+    const reinvested = tx._reinvested === true || (linked && linked.dividendAction === 'reinvest')
+    out.push({
+      itemId: tx._linkedItemId || null,
+      symbol: tx.symbol || (linked && (linked.symbol || linked.name)) || null,
+      date: tx.date,
+      amount,
+      reinvested: !!reinvested,
+    })
+  }
+  return out
+}
+
 export const TYPE_ICONS = {
   stocks: 'TrendingUp',
   crypto: 'Bitcoin',
