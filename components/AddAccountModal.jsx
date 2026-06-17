@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { safeJson } from '@/lib/authFetch'
+import InlineCreateAccount from './InlineCreateAccount'
 
 const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
 
@@ -88,7 +89,7 @@ const ACCOUNT_TYPES = [
   { key: 'tax-free', es: 'Libre', en: 'Tax-free' },
 ]
 
-export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAddLot, existingItems = [], activePortfolio, activeEntity = 'default', lang = 'es' }) {
+export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAddLot, onCreateDestination, existingItems = [], activePortfolio, activeEntity = 'default', lang = 'es' }) {
   const trapRef = useFocusTrap()
   const [step, setStep] = useState(1)
   const [type, setType] = useState('Stock')
@@ -134,6 +135,14 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
   const t = (es, en) => lang === 'es' ? es : en
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
+  const [creatingDest, setCreatingDest] = useState(null) // 'income' | 'capital' | null
+  const [extraItems, setExtraItems] = useState([])
+  const destItems = useMemo(() => [...existingItems, ...extraItems], [existingItems, extraItems])
+  const handleDestCreated = (field, newId, newItem) => {
+    setExtraItems(prev => [...prev, { id: newId, ...newItem }])
+    set(field, newId)
+    setCreatingDest(null)
+  }
   const isMarketAsset = type === 'Stock' || type === 'Crypto' || type === 'Fund'
   const isProperty = type === 'RealEstate'
   const isBank = type === 'Bank'
@@ -1047,15 +1056,20 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 )}
 
                 {/* Income destination */}
-                {existingItems.length > 0 && (
-                  <div>
-                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('¿Dónde llega el rendimiento?', 'Where does the yield go?')}</label>
-                    <select value={form.incomeDestination} onChange={e => set('incomeDestination', e.target.value)} className={inputCls}>
-                      <option value="">{t('-- Seleccionar --', '-- Select --')}</option>
-                      {existingItems.map(it => <option key={it.id} value={it.id}>{it.name || it.symbol} {it.institution ? `(${it.institution})` : ''}</option>)}
-                    </select>
-                  </div>
-                )}
+                <div>
+                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('¿Dónde llega el rendimiento?', 'Where does the yield go?')}</label>
+                  <select value={form.incomeDestination}
+                    onChange={e => { if (e.target.value === '__new__') { setCreatingDest('income'); return } set('incomeDestination', e.target.value) }}
+                    className={inputCls}>
+                    <option value="">{t('-- Seleccionar --', '-- Select --')}</option>
+                    {destItems.map(it => <option key={it.id} value={it.id}>{it.name || it.symbol} {it.institution ? `(${it.institution})` : ''}</option>)}
+                    {onCreateDestination && <option value="__new__">+ {t('Crear cuenta nueva', 'Create new account')}</option>}
+                  </select>
+                  {creatingDest === 'income' && onCreateDestination && (
+                    <InlineCreateAccount onCreate={onCreateDestination} onCancel={() => setCreatingDest(null)}
+                      onCreated={(id, it) => handleDestCreated('incomeDestination', id, it)} lang={lang} defaultCurrency={form.currency} />
+                  )}
+                </div>
 
                 {/* Capital return */}
                 <div>
@@ -1206,13 +1220,20 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               </div>
             </div>
 
-            {!isNewMoney && existingItems.length > 0 && (
+            {!isNewMoney && (
               <div>
                 <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('¿De dónde sale?', 'Source account?')}</label>
-                <select value={form.capitalDestination} onChange={e => set('capitalDestination', e.target.value)} className={inputCls}>
+                <select value={form.capitalDestination}
+                  onChange={e => { if (e.target.value === '__new__') { setCreatingDest('capital'); return } set('capitalDestination', e.target.value) }}
+                  className={inputCls}>
                   <option value="">{t('-- Seleccionar --', '-- Select --')}</option>
-                  {existingItems.map(it => <option key={it.id} value={it.id}>{it.name || it.symbol} {it.institution ? `(${it.institution})` : ''} - {it.currency}</option>)}
+                  {destItems.map(it => <option key={it.id} value={it.id}>{it.name || it.symbol} {it.institution ? `(${it.institution})` : ''} - {it.currency}</option>)}
+                  {onCreateDestination && <option value="__new__">+ {t('Crear cuenta nueva', 'Create new account')}</option>}
                 </select>
+                {creatingDest === 'capital' && onCreateDestination && (
+                  <InlineCreateAccount onCreate={onCreateDestination} onCancel={() => setCreatingDest(null)}
+                    onCreated={(id, it) => handleDestCreated('capitalDestination', id, it)} lang={lang} defaultCurrency={form.currency} />
+                )}
               </div>
             )}
 

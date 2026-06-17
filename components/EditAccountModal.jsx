@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
+import InlineCreateAccount from './InlineCreateAccount'
 
 const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
 const ACCOUNT_TYPES = [
@@ -40,8 +41,11 @@ function InfoTip({ text }) {
   )
 }
 
-export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es', allItems, onNavigate, onAddTransaction, transactions, onExecuteContribution, baseCurrency }) {
+export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es', allItems, onNavigate, onAddTransaction, transactions, onExecuteContribution, onCreateDestination, baseCurrency }) {
   const trapRef = useFocusTrap()
+  const [creatingDest, setCreatingDest] = useState(false)
+  const [extraItems, setExtraItems] = useState([])
+  const destItems = useMemo(() => [...existingItems, ...extraItems], [existingItems, extraItems])
   const [form, setForm] = useState({
     symbol: item.symbol || '',
     name: item.name || '',
@@ -120,6 +124,11 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
   const t = (es, en) => lang === 'es' ? es : en
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
+  const handleDestCreated = (newId, newItem) => {
+    setExtraItems(prev => [...prev, { id: newId, ...newItem }])
+    set('incomeDestination', newId)
+    setCreatingDest(false)
+  }
 
   const isMarket = /stock|crypto|fund|etf/i.test(form.type) && !/realestate/i.test(form.type)
   const isBank = /bank|banco/i.test(form.type)
@@ -942,15 +951,22 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   </button>
                 </div>
               </div>
-              {form.dividendAction === 'cash' && existingItems.length > 0 && (
+              {form.dividendAction === 'cash' && (
                 <div>
                   <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Dividendos van a:', 'Dividends go to:')}</label>
-                  <select value={form.incomeDestination} onChange={e => set('incomeDestination', e.target.value)} className={inputCls}>
+                  <select value={form.incomeDestination}
+                    onChange={e => { if (e.target.value === '__new__') { setCreatingDest(true); return } set('incomeDestination', e.target.value) }}
+                    className={inputCls}>
                     <option value="">{t('Auto (cash del broker)', 'Auto (broker cash)')}</option>
-                    {existingItems.filter(it => it.id !== item.id).map(it => (
+                    {destItems.filter(it => it.id !== item.id).map(it => (
                       <option key={it.id} value={it.id}>{it.name || it.symbol} {it.institution ? `(${it.institution})` : ''}</option>
                     ))}
+                    {onCreateDestination && <option value="__new__">+ {t('Crear cuenta nueva', 'Create new account')}</option>}
                   </select>
+                  {creatingDest && onCreateDestination && (
+                    <InlineCreateAccount onCreate={onCreateDestination} onCancel={() => setCreatingDest(false)}
+                      onCreated={handleDestCreated} lang={lang} defaultCurrency={form.currency} />
+                  )}
                 </div>
               )}
             </div>
@@ -1069,17 +1085,22 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               )}
 
               {/* Income destination */}
-              {existingItems.length > 0 && (
-                <div>
-                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Pagos van a:', 'Payments go to:')}</label>
-                  <select value={form.incomeDestination} onChange={e => set('incomeDestination', e.target.value)} className={inputCls}>
-                    <option value="">{t('-- Seleccionar --', '-- Select --')}</option>
-                    {existingItems.filter(it => it.id !== item.id).map(it => (
-                      <option key={it.id} value={it.id}>{it.name || it.symbol} {it.institution ? `(${it.institution})` : ''}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
+              <div>
+                <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Pagos van a:', 'Payments go to:')}</label>
+                <select value={form.incomeDestination}
+                  onChange={e => { if (e.target.value === '__new__') { setCreatingDest(true); return } set('incomeDestination', e.target.value) }}
+                  className={inputCls}>
+                  <option value="">{t('-- Seleccionar --', '-- Select --')}</option>
+                  {destItems.filter(it => it.id !== item.id).map(it => (
+                    <option key={it.id} value={it.id}>{it.name || it.symbol} {it.institution ? `(${it.institution})` : ''}</option>
+                  ))}
+                  {onCreateDestination && <option value="__new__">+ {t('Crear cuenta nueva', 'Create new account')}</option>}
+                </select>
+                {creatingDest && onCreateDestination && (
+                  <InlineCreateAccount onCreate={onCreateDestination} onCancel={() => setCreatingDest(false)}
+                    onCreated={handleDestCreated} lang={lang} defaultCurrency={form.currency} />
+                )}
+              </div>
 
               {/* Capital return */}
               <div>

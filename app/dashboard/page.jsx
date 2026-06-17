@@ -854,6 +854,7 @@ export default function DashboardPage() {
             showToast(lang === 'es' ? `${item.symbol || item.name} agregado` : `${item.symbol || item.name} added`)
           }}
           onAddTransaction={addTransaction} onAddLot={addLot}
+          onCreateDestination={addItem}
           existingItems={items} activePortfolio={activePortfolio}
           activeEntity={activeEntity !== '__all__' ? activeEntity : 'default'}
           lang={lang}
@@ -1036,6 +1037,7 @@ export default function DashboardPage() {
           }}
           onAddTransaction={addTransaction}
           onExecuteContribution={executeContribution}
+          onCreateDestination={addItem}
           transactions={transactions}
           baseCurrency={baseCurrency}
           existingItems={items} lang={lang}

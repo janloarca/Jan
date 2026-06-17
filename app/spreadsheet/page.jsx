@@ -282,6 +282,7 @@ export default function SpreadsheetPage() {
           }}
           onDelete={deleteItem} existingItems={items} lang={lang}
           onAddTransaction={addTransaction} onExecuteContribution={executeContribution}
+          onCreateDestination={addItem}
           transactions={transactions} baseCurrency={baseCurrency} />
       )}
 
@@ -289,6 +290,7 @@ export default function SpreadsheetPage() {
         <AddAccountModal
           onClose={() => { setShowAddModal(false); setAddModalDefaults(null) }}
           onAdd={addItem}
+          onCreateDestination={addItem}
           existingItems={items}
           lang={lang}
           defaults={addModalDefaults}
