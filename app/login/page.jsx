@@ -29,7 +29,9 @@ function LoginForm() {
   const router = useRouter()
   const firebaseAuthRef = useRef(null)
 
-  const redirectTo = searchParams.get('redirect') || '/dashboard'
+  // Only allow same-origin internal paths to prevent open-redirect (e.g. ?redirect=//evil.com)
+  const rawRedirect = searchParams.get('redirect') || '/dashboard'
+  const redirectTo = rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') ? rawRedirect : '/dashboard'
 
   useEffect(() => {
     if (isInAppBrowser()) setInAppBrowser(true)
@@ -183,15 +185,16 @@ function LoginForm() {
           )}
 
           {error && (
-            <div className="mb-4 p-3 rounded-lg text-sm" style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: 'var(--text-negative)' }}>
+            <div role="alert" aria-live="assertive" className="mb-4 p-3 rounded-lg text-sm" style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: 'var(--text-negative)' }}>
               {error}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="text-xs text-slate-400 mb-1.5 block">Email</label>
+              <label htmlFor="login-email" className="text-xs text-slate-400 mb-1.5 block">Email</label>
               <input
+                id="login-email"
                 type="email"
                 inputMode="email"
                 autoComplete="email"
@@ -203,8 +206,9 @@ function LoginForm() {
               />
             </div>
             <div>
-              <label className="text-xs text-slate-400 mb-1.5 block">Password</label>
+              <label htmlFor="login-password" className="text-xs text-slate-400 mb-1.5 block">Password</label>
               <input
+                id="login-password"
                 type="password"
                 autoComplete={isSignUp ? 'new-password' : 'current-password'}
                 placeholder="••••••••"

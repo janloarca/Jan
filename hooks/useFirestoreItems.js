@@ -430,14 +430,20 @@ export function useFirestoreItems() {
   }, [uid])
 
   const addFinanceTransaction = useCallback(async (tx) => {
-    if (!uid) return
-    const { db, fs } = await getFirebase()
-    const amt = Math.round((tx.amount || 0) * 100)
-    const desc = (tx.description || '').slice(0, 30).replace(/[/\\]/g, '-')
-    const nonce = `-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
-    const id = `ftx-${tx.date || 'nodate'}-${desc}-${amt}${nonce}`
-    const txData = Object.fromEntries(Object.entries({ ...tx, createdAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
-    await fs.setDoc(fs.doc(db, `users/${uid}/financeTransactions`, id), txData)
+    if (!uid) return false
+    try {
+      const { db, fs } = await getFirebase()
+      const amt = Math.round((tx.amount || 0) * 100)
+      const desc = (tx.description || '').slice(0, 30).replace(/[/\\]/g, '-')
+      const nonce = `-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+      const id = `ftx-${tx.date || 'nodate'}-${desc}-${amt}${nonce}`
+      const txData = Object.fromEntries(Object.entries({ ...tx, createdAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
+      await fs.setDoc(fs.doc(db, `users/${uid}/financeTransactions`, id), txData)
+      return true
+    } catch (err) {
+      console.error('[finance] add failed', err)
+      return false
+    }
   }, [uid])
 
   const deleteFinanceTransaction = useCallback(async (txId) => {

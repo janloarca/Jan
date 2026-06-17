@@ -5,7 +5,7 @@ import { useExchangeRates } from './useExchangeRates'
 import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass } from '@/components/dashboard/utils'
+import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth } from '@/components/dashboard/utils'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
 
@@ -533,8 +533,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   const { totalFromItems, totalDebt: liveDebt } = useMemo(() => {
     let assets = 0, debt = 0
     portfolioItems.forEach(it => {
-      const val = Math.abs((it.quantity || 0) * (it.currentPrice || it.purchasePrice || 0))
-      if (it.isDebt) debt += val
+      // Skip receivables the user explicitly excluded from net worth
+      if (isExcludedFromNetWorth(it)) return
+      // getItemValue honors illiquid manual valuations and returns signed values
+      const val = getItemValue(it)
+      if (it.isDebt) debt += Math.abs(val)
       else assets += val
     })
     return { totalFromItems: assets, totalDebt: debt }

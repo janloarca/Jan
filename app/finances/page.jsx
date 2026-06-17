@@ -70,8 +70,11 @@ export default function FinancesPage() {
   const monthTransactions = useMemo(() => {
     return financeTransactions.filter(tx => {
       if (!tx.date) return false
-      const d = new Date(tx.date)
-      return d.getMonth() === month && d.getFullYear() === year
+      // Parse YYYY-MM-DD parts directly. `new Date('2026-06-01')` is UTC midnight,
+      // which shifts to the prior day/month for users west of UTC (e.g. GT, UTC-6).
+      const [y, m] = String(tx.date).split('-').map(Number)
+      if (!y || !m) return false
+      return (m - 1) === month && y === year
     })
   }, [financeTransactions, month, year])
 

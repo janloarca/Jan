@@ -14,6 +14,7 @@ export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es'
     currency: 'GTQ',
   })
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
@@ -31,9 +32,17 @@ export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es'
   }, [form.type])
 
   const handleSubmit = async () => {
-    if (!form.amount || parseFloat(form.amount) <= 0) return
+    setError('')
+    if (!form.amount || parseFloat(form.amount) <= 0) {
+      setError(t('Ingresa un monto válido.', 'Enter a valid amount.'))
+      return
+    }
+    if (!form.date || isNaN(new Date(form.date).getTime())) {
+      setError(t('Selecciona una fecha válida.', 'Select a valid date.'))
+      return
+    }
     setSaving(true)
-    await onAdd({
+    const ok = await onAdd({
       type: form.type,
       amount: parseFloat(form.amount),
       category: form.category,
@@ -43,6 +52,10 @@ export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es'
       source: 'manual',
     })
     setSaving(false)
+    if (ok === false) {
+      setError(t('No se pudo guardar. Revisa tu conexión e intenta de nuevo.', 'Could not save. Check your connection and try again.'))
+      return
+    }
     onClose()
   }
 
@@ -55,6 +68,11 @@ export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es'
         </div>
 
         <div className="p-6 space-y-4">
+          {error && (
+            <div role="alert" aria-live="assertive" className="p-3 rounded-lg text-sm" style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: 'var(--text-negative)' }}>
+              {error}
+            </div>
+          )}
           <div className="flex bg-[#000000] rounded-lg border border-[#38383A]">
             {['EXPENSE', 'INCOME'].map(type => (
               <button key={type} onClick={() => setForm({ ...form, type })}
