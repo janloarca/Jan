@@ -700,7 +700,7 @@ export default function DashboardPage() {
           ) : (
             <span className="w-2 h-2 rounded-full bg-slate-500" />
           )}
-          <span className="text-xs" style={{ color: dataAge >= 7 ? '#f87171' : dataAge >= 1 ? '#fbbf24' : '#64748b' }}>
+          <span className="text-xs" style={{ color: dataAge >= 7 ? '#f87171' : dataAge >= 1 ? '#fbbf24' : '#7c8a9c' }}>
             {dataAge === 0
               ? (lang === 'es' ? 'Datos al día' : 'Data up to date')
               : dataAge != null

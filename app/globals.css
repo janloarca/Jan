@@ -85,6 +85,16 @@ textarea:focus-visible {
   outline-offset: 2px;
 }
 
+/* iOS Safari zooms in when a focused input has font-size < 16px and never
+   zooms back out. Force 16px on form controls on small screens to prevent it. */
+@media (max-width: 640px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
 /* Skip to content for keyboard users */
 .skip-link {
   position: absolute;

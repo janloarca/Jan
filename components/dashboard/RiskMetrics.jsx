@@ -149,7 +149,7 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
             </div>
 
             <div className="bg-[#000000] rounded-lg p-3 border border-[#27272a]/50 text-center">
-              <span className="text-xs text-slate-500 block">Beta</span>
+              <span className="text-xs text-slate-500 block">Beta<InfoTip text={t('Sensibilidad a los movimientos del mercado. 1.0 = se mueve igual que el mercado, mayor a 1 = más volátil, menor a 1 = más estable.', 'Sensitivity to market movements. 1.0 = moves with the market, above 1 = more volatile, below 1 = more stable.')} /></span>
               <span className="text-base sm:text-lg font-bold text-slate-300 block">
                 {metrics.beta != null ? metrics.beta.toFixed(2) : 'N/A'}
               </span>

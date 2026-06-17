@@ -95,7 +95,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
   const milestone = getMilestone(netWorth, displayReturn, lang)
 
   return (
-    <div className="bg-gradient-to-br from-[#141416] to-[#141416] rounded-2xl border border-[#27272a]/60 p-6 card-hero">
+    <div className="bg-gradient-to-br from-[#1C1C1E] to-[#141416] rounded-2xl border border-[#38383A] p-6 card-hero">
       {/* Greeting + currency picker */}
       <div className="flex items-center justify-between mb-4">
         <span className="text-xs text-slate-500 uppercase tracking-wider font-medium">{greeting}</span>
@@ -153,10 +153,10 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
           {hasYTD ? 'YTD' : sinceStartDate ? (lang === 'es' ? 'Desde ' : 'Since ') + new Date(sinceStartDate).toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short', year: '2-digit' }) : 'YTD'}
           {' '}<span className="font-mono">{hasReturn ? `${isYTDPositive ? '+' : ''}${displayReturn.toFixed(2)}%` : 'N/A'}</span>
           {hasReturn && <span className="opacity-50 ml-0.5" style={{ fontSize: '9px' }}>TWR</span>}
-          {hasYTD && <InfoTip text={lang === 'es' ? 'Year-to-Date: retorno total desde el 1 de enero del año en curso.' : 'Year-to-Date: total return since January 1st of the current year.'} />}
+          {hasYTD && <InfoTip text={lang === 'es' ? 'Year-to-Date: retorno desde el 1 de enero del año en curso. Calculado con TWR (Time-Weighted Return), que descuenta tus depósitos y retiros para medir el rendimiento real de tus inversiones.' : 'Year-to-Date: return since January 1st of the current year. Calculated using TWR (Time-Weighted Return), which excludes your deposits and withdrawals to measure true investment performance.'} />}
         </span>
         {yearlyChange != null && isFinite(yearlyChange) && (
-          <span className="text-xs" style={{ color: isYearlyPositive ? 'rgba(74,222,128,0.6)' : 'rgba(248,113,113,0.6)' }}>
+          <span className="text-xs" style={{ color: isYearlyPositive ? 'var(--accent-green)' : 'var(--text-negative)' }}>
             {isYearlyPositive ? '▲' : '▼'} <span className="font-mono">{Math.abs(yearlyChange).toFixed(1)}%</span> {lang === 'es' ? 'vs año ant.' : 'vs prior yr'}
           </span>
         )}
