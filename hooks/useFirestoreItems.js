@@ -452,25 +452,77 @@ export function useFirestoreItems() {
     await batch.commit()
   }, [uid])
 
-  const executeSale = useCallback(async ({ itemId, itemFields, transactions = [], destId, destFields, destLot }) => {
+  // Fully atomic sale: source item update + SELL/WITHDRAWAL txs + destination
+  // credit + destination lot + source-lot FIFO close all in ONE Firestore
+  // transaction. Either everything commits or nothing does — no money vanishes
+  // and lots can never desync from the item. Idempotent on retry (deterministic
+  // ids), and runTransaction auto-retries on contention.
+  const executeSaleAtomic = useCallback(async ({ itemId, itemFields, transactions = [], destId, destFields, destLot, lotClose }) => {
     if (!uid) throw new Error('No uid')
     const { db, fs } = await getFirebase()
-    const batch = fs.writeBatch(db)
-    batch.update(fs.doc(db, `users/${uid}/items`, itemId), strip(itemFields))
-    transactions.forEach((tx) => {
-      batch.set(fs.doc(db, `users/${uid}/transactions`, txDocId(tx)), strip({ ...tx, createdAt: new Date().toISOString() }))
+    return fs.runTransaction(db, async (tx) => {
+      // --- READS FIRST (Firestore requires all reads before any writes) ---
+      let closes = []
+      if (lotClose && lotClose.symbol && lotClose.qty > 0) {
+        const lotsSnap = await tx.get(fs.query(
+          fs.collection(db, `users/${uid}/lots`),
+          fs.where('symbol', '==', lotClose.symbol),
+          fs.where('status', '==', 'open'),
+        ))
+        let openLots = lotsSnap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((l) => l.quantity > 0)
+          .sort((a, b) => (a.acquisitionDate || '').localeCompare(b.acquisitionDate || ''))
+        if (lotClose.institution) {
+          const instLots = openLots.filter((l) => l.institution === lotClose.institution)
+          if (instLots.length > 0) openLots = instLots
+        }
+        let remaining = lotClose.qty
+        for (const lot of openLots) {
+          if (remaining <= 0) break
+          const closable = Math.min(remaining, lot.quantity)
+          closes.push({ lot, closable, realizedGain: (lotClose.price - lot.costBasis) * closable })
+          remaining -= closable
+        }
+      }
+
+      // --- WRITES ---
+      tx.update(fs.doc(db, `users/${uid}/items`, itemId), strip(itemFields))
+
+      for (const c of closes) {
+        if (c.closable >= c.lot.quantity - QTY_EPSILON) {
+          tx.update(fs.doc(db, `users/${uid}/lots`, c.lot.id), {
+            status: 'closed', quantity: c.closable, closedDate: lotClose.date, closedPrice: lotClose.price, realizedGain: c.realizedGain,
+          })
+        } else {
+          tx.update(fs.doc(db, `users/${uid}/lots`, c.lot.id), { quantity: roundQty(c.lot.quantity - c.closable) })
+          // Deterministic closed-lot id (date, not Date.now()) so a transaction
+          // retry overwrites the same doc instead of duplicating it.
+          const closedId = `${c.lot.id}-closed-${lotClose.date}`
+          const { id: _lotId, ...lotData } = c.lot
+          tx.set(fs.doc(db, `users/${uid}/lots`, closedId), {
+            ...lotData, quantity: c.closable, status: 'closed',
+            closedDate: lotClose.date, closedPrice: lotClose.price, realizedGain: c.realizedGain,
+            createdAt: c.lot.createdAt,
+          })
+        }
+      }
+
+      transactions.forEach((t) => {
+        tx.set(fs.doc(db, `users/${uid}/transactions`, txDocId(t)), strip({ ...t, createdAt: new Date().toISOString() }))
+      })
+
+      if (destId && destFields) {
+        tx.update(fs.doc(db, `users/${uid}/items`, destId), strip(destFields))
+      }
+      if (destLot) {
+        const qty = Math.round((destLot.quantity || 0) * 1e8)
+        const cost = Math.round((destLot.costBasis || 0) * 100)
+        const inst = (destLot.institution || '').replace(/[/\\]/g, '-').slice(0, 20)
+        const lid = `${(destLot.symbol || 'lot').toUpperCase()}-${destLot.acquisitionDate || 'nodate'}-${qty}-${cost}${inst ? `-${inst}` : ''}`
+        tx.set(fs.doc(db, `users/${uid}/lots`, lid), strip({ ...destLot, status: 'open', createdAt: new Date().toISOString() }))
+      }
     })
-    if (destId && destFields) {
-      batch.update(fs.doc(db, `users/${uid}/items`, destId), strip(destFields))
-    }
-    if (destLot) {
-      const qty = Math.round((destLot.quantity || 0) * 1e8)
-      const cost = Math.round((destLot.costBasis || 0) * 100)
-      const inst = (destLot.institution || '').replace(/[/\\]/g, '-').slice(0, 20)
-      const lid = `${(destLot.symbol || 'lot').toUpperCase()}-${destLot.acquisitionDate || 'nodate'}-${qty}-${cost}${inst ? `-${inst}` : ''}`
-      batch.set(fs.doc(db, `users/${uid}/lots`, lid), strip({ ...destLot, status: 'open', createdAt: new Date().toISOString() }))
-    }
-    await batch.commit()
   }, [uid])
 
   const addFinanceTransaction = useCallback(async (tx) => {
@@ -647,7 +699,7 @@ export function useFirestoreItems() {
     addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     addAlert, deleteAlert, updateAlert,
     addLot, updateLot, closeLotsFIFO,
-    transferFunds, executeSale,
+    transferFunds, executeSaleAtomic,
     bulkImport,
     addPortfolio, deletePortfolio,
     saveGoals, saveSettings, saveProfile,

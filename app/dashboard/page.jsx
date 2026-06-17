@@ -246,7 +246,7 @@ export default function DashboardPage() {
     saveSnapshot, deleteAllSnapshots,
     addTransaction, deleteAllTransactions,
     addAlert, deleteAlert,
-    addLot, closeLotsFIFO, transferFunds, executeSale,
+    addLot, closeLotsFIFO, transferFunds, executeSaleAtomic,
     addPortfolio, deletePortfolio,
     addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     bulkImport,
@@ -872,8 +872,7 @@ export default function DashboardPage() {
       {sellItem && (
         <SellModal
           item={sellItem} onClose={handleCloseSell}
-          onExecuteSale={executeSale}
-          onCloseLots={closeLotsFIFO}
+          onExecuteSale={executeSaleAtomic}
           onSold={() => showToast(lang === 'es' ? `${sellItem.symbol} vendido` : `${sellItem.symbol} sold`)}
           existingItems={items} lang={lang}
         />

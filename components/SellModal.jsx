@@ -1,16 +1,15 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 const QTY_EPSILON = 0.0001
 const BANK_RE = /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i
 
-export default function SellModal({ item, onClose, onExecuteSale, onCloseLots, onSold, existingItems = [], lang = 'es' }) {
+export default function SellModal({ item, onClose, onExecuteSale, onSold, existingItems = [], lang = 'es' }) {
   const trapRef = useFocusTrap()
   const t = (es, en) => lang === 'es' ? es : en
   const today = new Date().toISOString().split('T')[0]
-  const lotsClosedRef = useRef(false)
 
   const [quantity, setQuantity] = useState('')
   const [salePrice, setSalePrice] = useState((item.currentPrice || item.purchasePrice || '').toString())
@@ -95,16 +94,20 @@ export default function SellModal({ item, onClose, onExecuteSale, onCloseLots, o
         }
       }
 
-      // Close source lots FIFO first (internally atomic via a Firestore
-      // transaction). Guarded so a retry after a later failure can't double-close.
-      if (onCloseLots && item.symbol && !lotsClosedRef.current) {
-        await onCloseLots(item.symbol.toUpperCase(), qtySell, price, saleDate, item.institution || '')
-        lotsClosedRef.current = true
-      }
-
-      // Single atomic batch: source qty + SELL/WITHDRAWAL txs + destination
-      // credit + destination lot all commit together (money can't vanish).
-      await onExecuteSale({ itemId: item.id, itemFields, transactions, destId, destFields, destLot })
+      // Single atomic transaction: source qty + SELL/WITHDRAWAL txs +
+      // destination credit + destination lot + source-lot FIFO close all commit
+      // together. Nothing can partially apply.
+      await onExecuteSale({
+        itemId: item.id,
+        itemFields,
+        transactions,
+        destId,
+        destFields,
+        destLot,
+        lotClose: item.symbol
+          ? { symbol: item.symbol.toUpperCase(), qty: qtySell, price, date: saleDate, institution: item.institution || '' }
+          : null,
+      })
 
       onSold?.()
       onClose()
