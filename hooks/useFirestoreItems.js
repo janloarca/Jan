@@ -638,7 +638,9 @@ export function useFirestoreItems() {
     await fs.deleteDoc(fs.doc(db, `users/${uid}/portfolios`, portfolioId))
   }, [uid])
 
-  const SNAPSHOT_VERSION = 2
+  // v3: static-item historical values are now currency-converted to base.
+  // Bumping invalidates v2 docs that cached raw, unconverted values.
+  const SNAPSHOT_VERSION = 3
 
   const saveItemSnapshots = useCallback(async (monthKey, itemsData, currency) => {
     if (!uid || !monthKey || !itemsData) return

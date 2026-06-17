@@ -349,11 +349,17 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
         }
         if (form.rateType !== 'continuous') {
           item.incomePayDay = parseInt(form.incomePayDay) || 1
+          // incomeMonthsExplicit drives backfill of past payments and exempts the
+          // asset from the duplicate-cleanup that would otherwise delete legit
+          // semi-annual payments. Without it, a bond paying May/Nov never gets its
+          // historical payments generated (matches EditAccountModal behavior).
+          item.incomeMonthsExplicit = form.incomeMonths.length > 0
           item.incomeMonths = form.incomeMonths.length > 0 ? form.incomeMonths : [0,1,2,3,4,5,6,7,8,9,10,11]
           item.businessDayRule = form.businessDayRule
         } else {
           item.accrualMethod = 'compound_continuous'
           item.incomeMonths = [0,1,2,3,4,5,6,7,8,9,10,11]
+          item.incomeMonthsExplicit = true
         }
         item.paymentSchedule = form.paymentSchedule
         if (form.incomeDestination) item.incomeDestination = form.incomeDestination

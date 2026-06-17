@@ -60,6 +60,19 @@ async function fetchCryptoHistory(id, days) {
   }
 }
 
+// Earliest plausible portfolio date. Anything before this is treated as corrupt
+// (a 6-digit cell misread as YYYYMM → e.g. 1982, an epoch/0, or a seconds-vs-ms
+// confusion) and excluded from the ALL-period chart start.
+const MIN_VALID_TS = Date.UTC(1990, 0, 1)
+function validAcqTs(raw) {
+  if (!raw) return null
+  const t = new Date(raw).getTime()
+  if (!Number.isFinite(t)) return null
+  if (t < MIN_VALID_TS) return null
+  if (t > Date.now() + 86400000) return null
+  return t
+}
+
 function getCryptoDays(period) {
   const map = { DAY: 1, '1W': 7, '1M': 30, '3M': 90, '6M': 180, '1Y': 365, ALL: 'max' }
   if (period === 'YTD') {
@@ -78,9 +91,30 @@ export async function POST(request) {
   if (auth.error) return auth.error
 
   try {
-    const { items, lots, period } = await request.json()
+    const { items, lots, period, income } = await request.json()
     if (!items || !Array.isArray(items) || items.length > 100) {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+    }
+    if (income && (!Array.isArray(income) || income.length > 2000)) {
+      return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+    }
+
+    // Reinvested income events raise the value of their linked asset as a
+    // step-up from the payment date onward. Cash-destination income is excluded
+    // (its value already lives in the destination account's balance), so the
+    // client marks those reinvested:false and they never reach here.
+    const incomeEvents = []
+    if (income && Array.isArray(income)) {
+      for (const ev of income) {
+        const ts = ev.date ? new Date(ev.date).getTime() : 0
+        const amt = Number(ev.amount) || 0
+        if (!ts || amt <= 0 || ev.reinvested === false) continue
+        incomeEvents.push({
+          ts, amount: amt,
+          itemId: ev.itemId || null,
+          symbol: (ev.symbol || '').toUpperCase().trim() || null,
+        })
+      }
     }
 
     const lotsBySymbol = {}
@@ -191,9 +225,9 @@ export async function POST(request) {
 
     if (per === 'ALL') {
       const allDates = [
-        ...items.map((it) => it.acquisitionDate ? new Date(it.acquisitionDate).getTime() : 0),
-        ...(lots || []).map((l) => l.acquisitionDate ? new Date(l.acquisitionDate).getTime() : 0),
-      ].filter((d) => d > 0)
+        ...items.map((it) => validAcqTs(it.acquisitionDate)),
+        ...(lots || []).map((l) => validAcqTs(l.acquisitionDate)),
+      ].filter((t) => t != null)
 
       let earliest = allDates.length > 0 ? Math.min(...allDates) : 0
 
@@ -215,9 +249,22 @@ export async function POST(request) {
 
       staticItems.forEach((it) => {
         const acqTs = it.acquisitionDate ? new Date(it.acquisitionDate).getTime() : 0
-        if (ts >= acqTs) {
-          total += (it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0)
+        if (ts < acqTs) return
+        let v = (it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0)
+        // Add reinvested interest paid into THIS bond up to ts as a step-up.
+        // Market assets get their reinvested shares via lots (qtyAtTime) instead,
+        // so income step-ups apply only to static items to avoid double-counting.
+        if (incomeEvents.length > 0) {
+          const itId = it.id || null
+          const itSym = (it.symbol || '').toUpperCase().trim() || null
+          for (const ev of incomeEvents) {
+            if (ev.ts > ts) continue
+            const match = (ev.itemId && itId && ev.itemId === itId)
+              || (!ev.itemId && ev.symbol && itSym && ev.symbol === itSym)
+            if (match) v += ev.amount
+          }
         }
+        total += v
       })
 
       Object.entries(allTimeSeries).forEach(([, data]) => {

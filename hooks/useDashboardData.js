@@ -305,6 +305,20 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             amount = isPerShare ? it.incomeAmount * qty : it.incomeAmount
           }
 
+          // Net recurring fees out of each payment so the income reflects what
+          // actually lands after management/expense costs.
+          if (amount > 0) {
+            const divisor = payMonths.length || 12
+            let feePerPayment = 0
+            if (it.managementFee > 0) {
+              feePerPayment += (it.managementFeeType === 'fixed'
+                ? it.managementFee
+                : balance * (it.managementFee / 100)) / divisor
+            }
+            if (it.expenseRatio > 0) feePerPayment += (balance * (it.expenseRatio / 100)) / divisor
+            amount = Math.max(0, amount - feePerPayment)
+          }
+
           if (amount <= 0) continue
 
           const isReinvest = it.dividendAction === 'reinvest'
@@ -426,7 +440,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             quantity: item.quantity,
             costBasis: item.purchasePrice,
             currency: item.currency || 'USD',
-            acquisitionDate: item.acquisitionDate || new Date().toISOString().split('T')[0],
+            acquisitionDate: item.acquisitionDate || new Date().toLocaleDateString('en-CA'),
             institution: item.institution || 'Interactive Brokers',
             ...(tag.portfolioId ? { portfolioId: tag.portfolioId } : {}),
           })
@@ -434,9 +448,16 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       }
     }
 
-    const existingDates = new Set(snapshots.map(s => s.date))
+    // Let a fresh IBKR equity entry overwrite a stale snapshot for the same date
+    // (a wrong value written once must be correctable by a later sync). Only skip
+    // when an existing IBKR snapshot already holds the same value.
+    const byDate = new Map(snapshots.map(s => [s.date, s]))
     const newSnaps = (data.equityHistory || [])
-      .filter(entry => !existingDates.has(entry.date))
+      .filter(entry => {
+        const prev = byDate.get(entry.date)
+        const nav = entry.netWorthUSD || 0
+        return !prev || prev._source !== 'ibkr' || (prev.netWorthUSD ?? 0) !== nav
+      })
       .map(entry => ({
         date: entry.date,
         totalActivosUSD: entry.totalActivosUSD || entry.netWorthUSD || 0,
