@@ -81,7 +81,7 @@ export default function AssetAllocation({ items, lang }) {
               view !== v.key ? 'border border-slate-600/50 hover:bg-[#2C2C2E]' : ''
             }`}
             style={view === v.key
-              ? { backgroundColor: '#475569', color: '#ffffff' }
+              ? { backgroundColor: 'var(--accent-blue-strong)', color: '#ffffff' }
               : { color: 'var(--text-secondary)' }
             }>
             {v.label}

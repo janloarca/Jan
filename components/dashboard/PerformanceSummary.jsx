@@ -143,10 +143,10 @@ export default function PerformanceSummary({ items, lots, transactions, convert,
         <div className="flex gap-0.5 bg-[#000000] rounded p-0.5">
           <button onClick={() => setReturnMode('twr')}
             className="px-1.5 py-0.5 text-xs font-medium rounded transition-all"
-            style={returnMode === 'twr' ? { backgroundColor: '#475569', color: '#ffffff' } : { color: 'var(--text-muted)' }}>TWR</button>
+            style={returnMode === 'twr' ? { backgroundColor: 'var(--accent-blue-strong)', color: '#ffffff' } : { color: 'var(--text-muted)' }}>TWR</button>
           <button onClick={() => setReturnMode('mwr')}
             className="px-1.5 py-0.5 text-xs font-medium rounded transition-all"
-            style={returnMode === 'mwr' ? { backgroundColor: '#475569', color: '#ffffff' } : { color: 'var(--text-muted)' }}>MWR</button>
+            style={returnMode === 'mwr' ? { backgroundColor: 'var(--accent-blue-strong)', color: '#ffffff' } : { color: 'var(--text-muted)' }}>MWR</button>
         </div>
       </div>
       {loading ? (
