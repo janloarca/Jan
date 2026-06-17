@@ -742,12 +742,34 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     placeholder="10000" type="number" step="any" className={inputCls} />
                 </div>
                 <div>
-                  <label className={labelCls}>{t('Valor actual', 'Current value')}</label>
+                  <label className={labelCls}>{t('Valor actual', 'Current value')} <span style={{ color: 'var(--text-muted)' }}>({t('opcional', 'optional')})</span></label>
                   <input value={form.currentPrice} onChange={e => set('currentPrice', e.target.value)}
                     placeholder="10800" type="number" step="any" className={inputCls} />
                 </div>
               </div>
             )}
+
+            {/* Soft double-check: does the entered current value match what the rate implies?
+                Non-blocking — the user can save regardless or leave the field empty. */}
+            {(isBond || isAlternative) && (() => {
+              const invested = parseFloat(form.purchasePrice) || 0
+              const entered = parseFloat(form.currentPrice) || 0
+              const rate = form.incomeMode === 'percent' ? (parseFloat(form.incomeRate) || 0) : 0
+              if (!entered || !invested || !rate || !form.acquisitionDate) return null
+              const yearsHeld = Math.max(0, (Date.now() - new Date(form.acquisitionDate).getTime()) / (365.25 * 86400000))
+              const implied = invested + invested * (rate / 100) * yearsHeld
+              if (implied <= 0) return null
+              const diffPct = Math.abs(entered - implied) / implied * 100
+              if (diffPct <= 5) return null
+              return (
+                <p className="text-xs mt-1" style={{ color: 'var(--accent-orange, #fbbf24)' }}>
+                  ⚠ {t(
+                    `El valor actual (${entered.toLocaleString()}) no coincide con lo que implica la tasa (~${implied.toFixed(0)}). Puedes guardarlo igual.`,
+                    `Current value (${entered.toLocaleString()}) doesn't match what the rate implies (~${implied.toFixed(0)}). You can still save.`
+                  )}
+                </p>
+              )
+            })()}
 
             {/* Debt fields */}
             {isDebt && (
