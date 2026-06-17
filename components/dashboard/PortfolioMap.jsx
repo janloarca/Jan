@@ -155,7 +155,7 @@ export default function PortfolioMap({ items, lang }) {
             }`}
             style={groupBy === v.key
               ? { backgroundColor: '#475569', color: '#ffffff' }
-              : { color: '#94a3b8', borderColor: 'rgba(71,85,105,0.5)' }
+              : { color: 'var(--text-secondary)', borderColor: 'rgba(71,85,105,0.5)' }
             }>
             {v.label}
           </button>

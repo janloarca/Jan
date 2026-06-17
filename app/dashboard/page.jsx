@@ -70,16 +70,17 @@ import EntitySwitcher from '@/components/dashboard/EntitySwitcher'
 import { useEntities } from '@/hooks/useEntities'
 import { authFetch, safeJson } from '@/lib/authFetch'
 
-function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, lots, transactions, convert, baseCurrency, benchmarkData, benchmarkName }) {
+function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, lots, transactions, convert, baseCurrency, benchmarkData, benchmarkName, beginnerMode }) {
   const [tab, setTab] = useState('health')
   const t = (es, en) => lang === 'es' ? es : en
   const hasLots = lots && lots.length > 0
+  // Beginner mode hides the most jargon-heavy tabs (Risk metrics, Attribution)
   const tabs = [
     { key: 'health', label: t('Salud', 'Health') },
-    { key: 'risk', label: t('Riesgo', 'Risk') },
+    ...(beginnerMode ? [] : [{ key: 'risk', label: t('Riesgo', 'Risk') }]),
     { key: 'concentration', label: t('Concentración', 'Concentration') },
     ...(hasLots ? [{ key: 'gains', label: t('Ganancias', 'Gains') }] : []),
-    { key: 'attribution', label: t('Atribución', 'Attribution') },
+    ...(beginnerMode ? [] : [{ key: 'attribution', label: t('Atribución', 'Attribution') }]),
   ]
   return (
     <div className="space-y-4">
@@ -98,7 +99,7 @@ function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, 
           <CardBoundary id="AN-02"><ConcentrationRisk items={portfolioItems} lang={lang} /></CardBoundary>
         </div>
       )}
-      {tab === 'risk' && (
+      {tab === 'risk' && !beginnerMode && (
         <CardBoundary id="AN-05"><RiskMetrics snapshots={snapshots} benchmarkData={benchmarkData} netWorth={netWorth} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} benchmarkName={benchmarkName} /></CardBoundary>
       )}
       {tab === 'concentration' && (
@@ -107,7 +108,7 @@ function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, 
       {tab === 'gains' && hasLots && (
         <CardBoundary id="AN-03"><GainsReport lots={lots} items={portfolioItems} lang={lang} /></CardBoundary>
       )}
-      {tab === 'attribution' && (
+      {tab === 'attribution' && !beginnerMode && (
         <CardBoundary id="AN-04"><PerformanceAttribution items={portfolioItems} lang={lang} /></CardBoundary>
       )}
     </div>
@@ -125,6 +126,7 @@ export default function DashboardPage() {
   const [detailItem, setDetailItem] = useState(null)
   const [theme, setTheme] = useState('dark')
   const [lang, setLang] = useState('es')
+  const [beginnerMode, setBeginnerMode] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [activePortfolio, setActivePortfolio] = useState('__all__')
   const [activeEntity, setActiveEntity] = useState('__all__')
@@ -142,6 +144,7 @@ export default function DashboardPage() {
       if (saved === 'en' || saved === 'es') setLang(saved)
       const savedTheme = localStorage.getItem('chispudo-theme')
       if (savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'system') setTheme(savedTheme)
+      setBeginnerMode(localStorage.getItem('chispudo-beginner') === '1')
       function applyTheme(t) {
         if (t === 'system') {
           const sys = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
@@ -180,6 +183,12 @@ export default function DashboardPage() {
     setLang(next)
     if (typeof window !== 'undefined') localStorage.setItem('chispudo-lang', next)
   }, [lang])
+
+  const handleToggleBeginner = useCallback((val) => {
+    const next = typeof val === 'boolean' ? val : !beginnerMode
+    setBeginnerMode(next)
+    if (typeof window !== 'undefined') localStorage.setItem('chispudo-beginner', next ? '1' : '0')
+  }, [beginnerMode])
 
   // Auth
   useEffect(() => {
@@ -754,7 +763,6 @@ export default function DashboardPage() {
               lang={lang} netContributions={netContributions} cashTotal={cashTotal} snapshots={snapshots}
             />
             </CardBoundary>
-            <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} /></CardBoundary>
           </div>
 
           <div className="md:col-span-2 lg:col-span-3 flex flex-col gap-4">
@@ -765,8 +773,11 @@ export default function DashboardPage() {
 
         <CardBoundary id="INS-01"><InsightCards items={portfolioItems} profile={profile} netWorth={netWorth} estimatedAnnualIncome={estimatedAnnualIncome} lang={lang} onOpenSettings={handleOpenSettings} /></CardBoundary>
 
-        {/* ═══ RENDIMIENTO POR INSTITUCIÓN ═══ */}
-        <CardBoundary id="INST-01"><InstitutionPerformance items={portfolioItems} lots={lots} lang={lang} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
+        {/* ═══ COMPOSICIÓN: Allocation + Rendimiento por institución ═══ */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 items-start">
+          <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} /></CardBoundary>
+          <CardBoundary id="INST-01"><InstitutionPerformance items={portfolioItems} lots={lots} lang={lang} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
+        </div>
 
         <ActionButtons
           onImport={handleOpenImport} onAddAccount={handleOpenAccount}
@@ -801,9 +812,9 @@ export default function DashboardPage() {
         </SectionCollapse>
 
         {/* ═══ ANALISIS ═══ */}
-        <SectionCollapse title={lang === 'es' ? 'Análisis' : 'Analysis'} id="analysis" defaultOpen={!!(lots && lots.length > 0)}>
+        <SectionCollapse title={lang === 'es' ? 'Análisis' : 'Analysis'} id="analysis" defaultOpen={!beginnerMode && !!(lots && lots.length > 0)}>
           <ErrorBoundary lang={lang}>
-            <AnalysisTabs lang={lang} portfolioItems={portfolioItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lots={lots} transactions={transactions} convert={convert} baseCurrency={baseCurrency} benchmarkData={benchmarkData} benchmarkName={benchmarkName} />
+            <AnalysisTabs lang={lang} portfolioItems={portfolioItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lots={lots} transactions={transactions} convert={convert} baseCurrency={baseCurrency} benchmarkData={benchmarkData} benchmarkName={benchmarkName} beginnerMode={beginnerMode} />
           </ErrorBoundary>
         </SectionCollapse>
 
@@ -1011,6 +1022,7 @@ export default function DashboardPage() {
           onAddAccount={handleOpenAccount}
           onOpenBlockchain={handleOpenBlockchain}
           theme={theme} onToggleTheme={handleSetTheme} lang={lang}
+          beginnerMode={beginnerMode} onToggleBeginner={handleToggleBeginner}
           profile={profile} onSaveProfile={saveProfile}
         />
       )}

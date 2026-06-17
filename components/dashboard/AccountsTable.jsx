@@ -114,7 +114,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
             }`}
             style={filter === tab.key
               ? { backgroundColor: 'rgba(59,130,246,0.2)', color: '#60a5fa', borderColor: 'rgba(59,130,246,0.3)' }
-              : { color: '#94a3b8', borderColor: 'rgba(71,85,105,0.5)' }
+              : { color: 'var(--text-secondary)', borderColor: 'rgba(71,85,105,0.5)' }
             }>
             {tab.icon} {tab.label}
           </button>
@@ -190,7 +190,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
             }`}
             style={breakdown === opt.key
               ? { backgroundColor: '#475569', color: '#ffffff' }
-              : { color: '#94a3b8', borderColor: 'rgba(71,85,105,0.5)' }
+              : { color: 'var(--text-secondary)', borderColor: 'rgba(71,85,105,0.5)' }
             }>
             {opt.label}
           </button>

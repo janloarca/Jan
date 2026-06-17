@@ -88,7 +88,7 @@ export default function IncomeCalendar({ items, lang }) {
             <div key={i} className="text-center p-1.5 rounded-lg transition-colors"
               style={isCurrent
                 ? { backgroundColor: 'rgba(52,211,153,0.1)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(52,211,153,0.2)' }
-                : { backgroundColor: '#000000', borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(56,56,58,0.2)' }
+                : { backgroundColor: 'var(--bg-input)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'var(--border-color)' }
               }>
               <div className="text-xs text-slate-500 mb-1">{monthNames[i]}</div>
               <div className="flex justify-center items-end h-8 mb-1">

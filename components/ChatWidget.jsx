@@ -286,7 +286,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
                 }`}
                   style={msg.role === 'user'
                     ? { backgroundColor: '#2563eb', color: '#ffffff' }
-                    : { backgroundColor: '#000000', color: '#e2e8f0', borderWidth: '1px', borderStyle: 'solid', borderColor: '#38383A' }
+                    : { backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'var(--border-color)' }
                   }>
                   <MessageContent content={msg.content} />
                 </div>

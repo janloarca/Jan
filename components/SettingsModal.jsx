@@ -25,7 +25,7 @@ const CURRENCIES = [
   { code: 'CNY', name: 'Chinese Yuan', symbol: '¥' },
 ]
 
-export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onExportBackup, onSyncBroker, onOpenIBKR, onImport, onAddAccount, onOpenBlockchain, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, lang = 'es', profile, onSaveProfile, lastSyncTime, portfolioItems = [] }) {
+export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onExportBackup, onSyncBroker, onOpenIBKR, onImport, onAddAccount, onOpenBlockchain, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, beginnerMode = false, onToggleBeginner, lang = 'es', profile, onSaveProfile, lastSyncTime, portfolioItems = [] }) {
   const trapRef = useFocusTrap()
   const [baseCurrency, setBaseCurrency] = useState(settings?.baseCurrency || 'USD')
   const [benchmarkSymbol, setBenchmarkSymbol] = useState(settings?.benchmarkSymbol || '%5EGSPC')
@@ -431,6 +431,34 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Beginner mode toggle */}
+              <div>
+                <label className="text-xs text-slate-400 mb-2 block font-medium">{t('Modo principiante', 'Beginner mode')}</label>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={beginnerMode}
+                  onClick={() => onToggleBeginner?.(!beginnerMode)}
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg border transition-all text-left"
+                  style={beginnerMode
+                    ? { color: '#60a5fa', borderColor: 'rgba(59,130,246,0.4)', backgroundColor: 'rgba(59,130,246,0.15)' }
+                    : { borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-input)' }}>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium" style={beginnerMode ? undefined : { color: 'var(--text-primary)' }}>
+                      {t('Simplificar el panel', 'Simplify the dashboard')}
+                    </div>
+                    <div className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+                      {t('Oculta métricas avanzadas (Riesgo, Atribución) y colapsa el análisis. Todo sigue accesible.', 'Hides advanced metrics (Risk, Attribution) and collapses analysis. Everything stays accessible.')}
+                    </div>
+                  </div>
+                  <span className="shrink-0 w-10 h-6 rounded-full flex items-center transition-all px-0.5"
+                    style={{ backgroundColor: beginnerMode ? '#2563eb' : 'var(--bg-tertiary)' }}>
+                    <span className="w-5 h-5 rounded-full bg-white transition-transform"
+                      style={{ transform: beginnerMode ? 'translateX(16px)' : 'translateX(0)' }} />
+                  </span>
+                </button>
               </div>
 
               <div>

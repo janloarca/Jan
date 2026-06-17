@@ -58,7 +58,7 @@ export default function EmptyState({ onAdd, onImport, onTemplate, lang }) {
             { Icon: Building2, label: t('Bancos & Cash', 'Banks & Cash'), color: '#94a3b8' },
             { Icon: CreditCard, label: t('Deudas', 'Debts'), color: 'var(--text-negative)' },
           ].map((type) => (
-            <div key={type.label} className="flex items-center gap-2 text-xs py-1" style={{ color: '#94a3b8' }}>
+            <div key={type.label} className="flex items-center gap-2 text-xs py-1" style={{ color: 'var(--text-secondary)' }}>
               <type.Icon size={14} style={{ color: type.color }} />
               <span>{type.label}</span>
             </div>

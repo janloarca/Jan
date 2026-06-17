@@ -117,7 +117,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
                 {QUICK_CURRENCIES.map((c) => (
                   <button key={c} onClick={() => { setTempCurrency(c === baseCur ? null : c); setShowPicker(false) }}
                     className="block w-full text-left px-3 py-1.5 text-xs rounded transition-colors"
-                    style={displayCur === c ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.1)' } : { color: '#94a3b8' }}>
+                    style={displayCur === c ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.1)' } : { color: 'var(--text-secondary)' }}>
                     {c}
                   </button>
                 ))}
@@ -145,7 +145,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
       <div className="flex items-center gap-3 mt-2">
         <span className="text-xs font-medium px-2 py-0.5 rounded-full"
           style={!hasReturn
-            ? { backgroundColor: 'rgba(100,116,139,0.12)', color: '#94a3b8' }
+            ? { backgroundColor: 'rgba(100,116,139,0.12)', color: 'var(--text-secondary)' }
             : isYTDPositive
               ? { backgroundColor: 'rgba(52,211,153,0.12)', color: 'var(--accent-green)' }
               : { backgroundColor: 'rgba(239,68,68,0.12)', color: 'var(--text-negative)' }

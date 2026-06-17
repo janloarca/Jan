@@ -79,7 +79,7 @@ export default function ConcentrationRisk({ items, lang }) {
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#60a5fa' }} />
           {t('RIESGO DE CONCENTRACIÓN', 'CONCENTRATION RISK')}
         </h3>
-        <span className="text-xs font-medium px-2 py-1 rounded-full border" style={{ color: levelLabel[displayHHI.level].textColor, borderColor: levelLabel[displayHHI.level].borderColor, backgroundColor: '#141416' }}>
+        <span className="text-xs font-medium px-2 py-1 rounded-full border" style={{ color: levelLabel[displayHHI.level].textColor, borderColor: levelLabel[displayHHI.level].borderColor, backgroundColor: 'var(--bg-card)' }}>
           {lang === 'es' ? levelLabel[displayHHI.level].es : levelLabel[displayHHI.level].en}
         </span>
       </div>
@@ -90,7 +90,7 @@ export default function ConcentrationRisk({ items, lang }) {
             className="px-2 py-1 text-xs font-medium rounded-md transition-colors border"
             style={dimension === d.key
               ? { backgroundColor: '#475569', color: '#ffffff', borderColor: '#475569' }
-              : { color: '#94a3b8', borderColor: 'rgba(71,85,105,0.5)' }}>
+              : { color: 'var(--text-secondary)', borderColor: 'rgba(71,85,105,0.5)' }}>
             {d.label}
           </button>
         ))}

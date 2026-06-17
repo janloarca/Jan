@@ -82,7 +82,7 @@ export default function AssetAllocation({ items, lang }) {
             }`}
             style={view === v.key
               ? { backgroundColor: '#475569', color: '#ffffff' }
-              : { color: '#94a3b8' }
+              : { color: 'var(--text-secondary)' }
             }>
             {v.label}
           </button>
@@ -138,7 +138,7 @@ export default function AssetAllocation({ items, lang }) {
               {/* Bar track + fill */}
               <div
                 className="rounded-full overflow-hidden"
-                style={{ height: 8, backgroundColor: '#27272a' }}
+                style={{ height: 8, backgroundColor: 'var(--bg-input)' }}
               >
                 <div
                   className="h-full rounded-full transition-all duration-500 ease-out"
