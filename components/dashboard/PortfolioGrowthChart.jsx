@@ -264,13 +264,6 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       }
     }
 
-    if (currentTotal > 0 && pts.length > 0) {
-      const lastTs = pts[pts.length - 1].ts
-      if (Date.now() - lastTs > 3600000) {
-        pts.push({ ts: Date.now(), date: new Date(), value: currentTotal })
-      }
-    }
-
     return pts
   }, [snapshots, period, convert, baseCurrency, customRange, currentTotal])
 
@@ -301,6 +294,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       }
       const recentApi = apiPts.filter(p => p.ts > lastSnapTs + 3600000)
       pts.push(...recentApi)
+      pts.sort((a, b) => a.ts - b.ts)
     } else if (apiPts.length >= 2) {
       pts = apiPts
     } else {

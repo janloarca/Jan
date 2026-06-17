@@ -52,7 +52,7 @@ describe('computeModifiedDietz', () => {
     expect(result.pct).toBeLessThan(20)
   })
 
-  test('handles BUY/SELL flow types', () => {
+  test('BUY/SELL are internal rebalancing, not external flows', () => {
     const result = computeModifiedDietz({
       startValue: 10000,
       endValue: 12000,
@@ -60,6 +60,19 @@ describe('computeModifiedDietz', () => {
       endTs: 30 * day,
       transactions: [
         { date: new Date(10 * day).toISOString(), type: 'BUY', totalAmount: 1000, currency: 'USD' },
+      ],
+    })
+    expect(result.abs).toBeCloseTo(2000)
+  })
+
+  test('DEPOSIT is counted as external flow', () => {
+    const result = computeModifiedDietz({
+      startValue: 10000,
+      endValue: 12000,
+      startTs: 0,
+      endTs: 30 * day,
+      transactions: [
+        { date: new Date(10 * day).toISOString(), type: 'DEPOSIT', totalAmount: 1000, currency: 'USD' },
       ],
     })
     expect(result.abs).toBeCloseTo(1000)

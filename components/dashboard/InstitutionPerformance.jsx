@@ -91,9 +91,13 @@ export default function InstitutionPerformance({ items, lots, lang, convert, bas
     setLoading(true)
     try {
       const apiPeriod = period === 'MTD' ? '1M' : period
-      const chartableSymbols = new Set(chartableItems.map(it => it.symbol).filter(Boolean))
+      const chartableSymbols = new Set(chartableItems.map(it => (it.symbol || '').toUpperCase()).filter(Boolean))
+      const selectedInst = selected === 'ALL' ? null : selected
       const relevantLots = (lots || [])
-        .filter(l => l.quantity > 0 && chartableSymbols.has(l.symbol))
+        .filter(l => l.quantity > 0
+          && chartableSymbols.has((l.symbol || '').toUpperCase())
+          && (!selectedInst || l.institution === selectedInst)
+        )
       const data = await authFetch('/api/prices/portfolio-history', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
