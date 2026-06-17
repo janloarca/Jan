@@ -429,6 +429,50 @@ export function useFirestoreItems() {
     })
   }, [uid])
 
+  // Atomic money-movement helpers — all writes in a single writeBatch so a
+  // partial failure cannot leave money debited from one account but never
+  // credited to the other (or duplicated).
+  const strip = (o) => Object.fromEntries(Object.entries(o || {}).filter(([, v]) => v !== undefined))
+  // Deterministic id (no nonce) so retrying a failed atomic write overwrites the
+  // same transaction doc instead of creating a duplicate.
+  const txDocId = (tx) => {
+    const amt = Math.round((tx.totalAmount || 0) * 100)
+    return `${tx.date || 'nodate'}-${(tx.symbol || 'nosym').toUpperCase()}-${tx.type || 'tx'}-${amt}`
+  }
+
+  const transferFunds = useCallback(async ({ fromId, fromFields, toId, toFields, transaction }) => {
+    if (!uid) throw new Error('No uid')
+    const { db, fs } = await getFirebase()
+    const batch = fs.writeBatch(db)
+    batch.update(fs.doc(db, `users/${uid}/items`, fromId), strip(fromFields))
+    batch.update(fs.doc(db, `users/${uid}/items`, toId), strip(toFields))
+    if (transaction) {
+      batch.set(fs.doc(db, `users/${uid}/transactions`, txDocId(transaction)), strip({ ...transaction, createdAt: new Date().toISOString() }))
+    }
+    await batch.commit()
+  }, [uid])
+
+  const executeSale = useCallback(async ({ itemId, itemFields, transactions = [], destId, destFields, destLot }) => {
+    if (!uid) throw new Error('No uid')
+    const { db, fs } = await getFirebase()
+    const batch = fs.writeBatch(db)
+    batch.update(fs.doc(db, `users/${uid}/items`, itemId), strip(itemFields))
+    transactions.forEach((tx) => {
+      batch.set(fs.doc(db, `users/${uid}/transactions`, txDocId(tx)), strip({ ...tx, createdAt: new Date().toISOString() }))
+    })
+    if (destId && destFields) {
+      batch.update(fs.doc(db, `users/${uid}/items`, destId), strip(destFields))
+    }
+    if (destLot) {
+      const qty = Math.round((destLot.quantity || 0) * 1e8)
+      const cost = Math.round((destLot.costBasis || 0) * 100)
+      const inst = (destLot.institution || '').replace(/[/\\]/g, '-').slice(0, 20)
+      const lid = `${(destLot.symbol || 'lot').toUpperCase()}-${destLot.acquisitionDate || 'nodate'}-${qty}-${cost}${inst ? `-${inst}` : ''}`
+      batch.set(fs.doc(db, `users/${uid}/lots`, lid), strip({ ...destLot, status: 'open', createdAt: new Date().toISOString() }))
+    }
+    await batch.commit()
+  }, [uid])
+
   const addFinanceTransaction = useCallback(async (tx) => {
     if (!uid) return false
     try {
@@ -603,6 +647,7 @@ export function useFirestoreItems() {
     addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     addAlert, deleteAlert, updateAlert,
     addLot, updateLot, closeLotsFIFO,
+    transferFunds, executeSale,
     bulkImport,
     addPortfolio, deletePortfolio,
     saveGoals, saveSettings, saveProfile,

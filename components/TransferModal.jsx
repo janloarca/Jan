@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 
-export default function TransferModal({ onClose, onSave, onAddTransaction, existingItems = [], lang = 'es' }) {
+export default function TransferModal({ onClose, onTransfer, onAddTransaction, existingItems = [], lang = 'es' }) {
   const trapRef = useFocusTrap()
   const [fromId, setFromId] = useState('')
   const [toId, setToId] = useState('')
@@ -41,36 +41,37 @@ export default function TransferModal({ onClose, onSave, onAddTransaction, exist
     setSaving(true)
     setError('')
     try {
-      // Deduct from source
-      const updatedFrom = { ...fromItem }
+      // Compute only the fields that change on each side
+      let fromFields, toFields
       if (isBank(fromItem)) {
-        updatedFrom.currentPrice = (fromItem.currentPrice || fromItem.purchasePrice || 0) - amt
-        updatedFrom.purchasePrice = updatedFrom.currentPrice
+        const newBal = (fromItem.currentPrice || fromItem.purchasePrice || 0) - amt
+        fromFields = { currentPrice: newBal, purchasePrice: newBal }
       } else {
         const price = fromItem.currentPrice || fromItem.purchasePrice || 1
-        updatedFrom.quantity = (fromItem.quantity || 0) - amt / price
+        fromFields = { quantity: (fromItem.quantity || 0) - amt / price }
       }
-
-      // Add to destination
-      const updatedTo = { ...toItem }
       if (isBank(toItem)) {
-        updatedTo.currentPrice = (toItem.currentPrice || toItem.purchasePrice || 0) + amt
-        updatedTo.purchasePrice = updatedTo.currentPrice
+        const newBal = (toItem.currentPrice || toItem.purchasePrice || 0) + amt
+        toFields = { currentPrice: newBal, purchasePrice: newBal }
       } else {
         const price = toItem.currentPrice || toItem.purchasePrice || 1
-        updatedTo.quantity = (toItem.quantity || 0) + amt / price
+        toFields = { quantity: (toItem.quantity || 0) + amt / price }
       }
 
-      await onSave(updatedFrom)
-      await onSave(updatedTo)
-      await onAddTransaction({
-        type: 'TRANSFER',
-        symbol: fromItem.symbol,
-        description: `Transfer: ${fromItem.name} → ${toItem.name}`,
-        date,
-        totalAmount: amt,
-        currency: fromItem.currency,
+      // Single atomic batch: both balances + the transaction record commit together
+      await onTransfer({
+        fromId: fromItem.id, fromFields,
+        toId: toItem.id, toFields,
+        transaction: {
+          type: 'TRANSFER',
+          symbol: fromItem.symbol,
+          description: `Transfer: ${fromItem.name} → ${toItem.name}`,
+          date,
+          totalAmount: amt,
+          currency: fromItem.currency,
+        },
       })
+      onAddTransaction?.()
       onClose()
     } catch (err) {
       setError(err.message)

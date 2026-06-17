@@ -246,7 +246,7 @@ export default function DashboardPage() {
     saveSnapshot, deleteAllSnapshots,
     addTransaction, deleteAllTransactions,
     addAlert, deleteAlert,
-    addLot, closeLotsFIFO,
+    addLot, closeLotsFIFO, transferFunds, executeSale,
     addPortfolio, deletePortfolio,
     addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     bulkImport,
@@ -863,13 +863,8 @@ export default function DashboardPage() {
       {modal === 'transfer' && (
         <TransferModal
           onClose={handleCloseModal}
-          onSave={async (item) => {
-            await addItem(item)
-          }}
-          onAddTransaction={async (tx) => {
-            await addTransaction(tx)
-            showToast(lang === 'es' ? 'Transferencia registrada' : 'Transfer recorded')
-          }}
+          onTransfer={transferFunds}
+          onAddTransaction={() => showToast(lang === 'es' ? 'Transferencia registrada' : 'Transfer recorded')}
           existingItems={items} lang={lang}
         />
       )}
@@ -877,12 +872,9 @@ export default function DashboardPage() {
       {sellItem && (
         <SellModal
           item={sellItem} onClose={handleCloseSell}
-          onSell={async (item) => {
-            await addItem(item)
-            showToast(lang === 'es' ? `${sellItem.symbol} vendido` : `${sellItem.symbol} sold`)
-          }}
-          onUpdate={updateItem}
-          onAddTransaction={addTransaction} onCloseLots={closeLotsFIFO}
+          onExecuteSale={executeSale}
+          onCloseLots={closeLotsFIFO}
+          onSold={() => showToast(lang === 'es' ? `${sellItem.symbol} vendido` : `${sellItem.symbol} sold`)}
           existingItems={items} lang={lang}
         />
       )}

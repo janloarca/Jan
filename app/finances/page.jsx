@@ -3,6 +3,11 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useFirestoreItems } from '@/hooks/useFirestoreItems'
+import { useExchangeRates } from '@/hooks/useExchangeRates'
+
+// Finanzas is GTQ-denominated; normalize every transaction to GTQ before summing
+// so a USD entry isn't added 1:1 to GTQ totals (and mislabeled "Q").
+const FINANCE_CURRENCY = 'GTQ'
 
 import Header from '@/components/dashboard/Header'
 import MobileNav from '@/components/dashboard/MobileNav'
@@ -67,16 +72,25 @@ export default function FinancesPage() {
     settings,
   } = useFirestoreItems()
 
+  const { convert } = useExchangeRates()
+
   const monthTransactions = useMemo(() => {
-    return financeTransactions.filter(tx => {
-      if (!tx.date) return false
-      // Parse YYYY-MM-DD parts directly. `new Date('2026-06-01')` is UTC midnight,
-      // which shifts to the prior day/month for users west of UTC (e.g. GT, UTC-6).
-      const [y, m] = String(tx.date).split('-').map(Number)
-      if (!y || !m) return false
-      return (m - 1) === month && y === year
-    })
-  }, [financeTransactions, month, year])
+    return financeTransactions
+      .filter(tx => {
+        if (!tx.date) return false
+        // Parse YYYY-MM-DD parts directly. `new Date('2026-06-01')` is UTC midnight,
+        // which shifts to the prior day/month for users west of UTC (e.g. GT, UTC-6).
+        const [y, m] = String(tx.date).split('-').map(Number)
+        if (!y || !m) return false
+        return (m - 1) === month && y === year
+      })
+      .map(tx => {
+        const cur = tx.currency || FINANCE_CURRENCY
+        const amount = convert ? convert(tx.amount || 0, cur, FINANCE_CURRENCY) : (tx.amount || 0)
+        // Keep the original for reference; display/sum use the GTQ-normalized amount
+        return cur === FINANCE_CURRENCY ? tx : { ...tx, amount, _originalAmount: tx.amount, _originalCurrency: cur }
+      })
+  }, [financeTransactions, month, year, convert])
 
   const income = useMemo(() =>
     monthTransactions.filter(tx => tx.type === 'INCOME').reduce((s, tx) => s + (tx.amount || 0), 0),

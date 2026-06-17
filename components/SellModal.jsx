@@ -1,14 +1,16 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 const QTY_EPSILON = 0.0001
+const BANK_RE = /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i
 
-export default function SellModal({ item, onClose, onSell, onUpdate, onAddTransaction, onCloseLots, existingItems = [], lang = 'es' }) {
+export default function SellModal({ item, onClose, onExecuteSale, onCloseLots, onSold, existingItems = [], lang = 'es' }) {
   const trapRef = useFocusTrap()
   const t = (es, en) => lang === 'es' ? es : en
   const today = new Date().toISOString().split('T')[0]
+  const lotsClosedRef = useRef(false)
 
   const [quantity, setQuantity] = useState('')
   const [salePrice, setSalePrice] = useState((item.currentPrice || item.purchasePrice || '').toString())
@@ -40,33 +42,25 @@ export default function SellModal({ item, onClose, onSell, onUpdate, onAddTransa
 
     setSaving(true)
     try {
+      // Build the source item update
       const newQty = (item.quantity || 0) - qtySell
-      if (newQty <= QTY_EPSILON) {
-        await onUpdate(item.id, { quantity: 0, currentPrice: 0, purchasePrice: 0, saleDate, salePrice: price, soldFully: true })
-      } else {
-        await onUpdate(item.id, { quantity: newQty })
-      }
+      const itemFields = newQty <= QTY_EPSILON
+        ? { quantity: 0, currentPrice: 0, purchasePrice: 0, saleDate, salePrice: price, soldFully: true }
+        : { quantity: newQty }
 
-      // 2. Create SELL transaction
-      if (onAddTransaction) {
-        await onAddTransaction({
-          type: 'SELL',
-          symbol: item.symbol || '',
-          description: `${t('Venta', 'Sale')} ${qtySell} ${item.name || item.symbol} @ ${price}`,
-          date: saleDate,
-          totalAmount: proceeds,
-          currency: item.currency || 'USD',
-        })
-      }
+      // SELL transaction (+ WITHDRAWAL if the money leaves the portfolio)
+      const transactions = [{
+        type: 'SELL',
+        symbol: item.symbol || '',
+        description: `${t('Venta', 'Sale')} ${qtySell} ${item.name || item.symbol} @ ${price}`,
+        date: saleDate,
+        totalAmount: proceeds,
+        currency: item.currency || 'USD',
+      }]
 
-      // 2b. Close lots FIFO
-      if (onCloseLots && item.symbol) {
-        await onCloseLots(item.symbol.toUpperCase(), qtySell, price, saleDate, item.institution || '')
-      }
-
-      // 3. If exits portfolio, create WITHDRAWAL transaction
-      if (destination === '__exit__' && onAddTransaction) {
-        await onAddTransaction({
+      let destId, destFields, destLot
+      if (destination === '__exit__') {
+        transactions.push({
           type: 'WITHDRAWAL',
           symbol: item.symbol || '',
           description: `${t('Retiro', 'Withdrawal')} - ${item.name || item.symbol}`,
@@ -74,23 +68,45 @@ export default function SellModal({ item, onClose, onSell, onUpdate, onAddTransa
           totalAmount: proceeds,
           currency: item.currency || 'USD',
         })
-      }
-
-      // 4. If stays in portfolio, add proceeds to destination (targeted update only)
-      if (destination === '__stay__' && destinationId) {
+      } else if (destination === '__stay__' && destinationId) {
         const dest = existingItems.find((it) => it.id === destinationId)
         if (dest) {
-          const isBankDest = /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i.test(dest.type || '')
-          if (isBankDest) {
+          if (BANK_RE.test(dest.type || '')) {
             const newBal = (dest.currentPrice || dest.purchasePrice || 0) + proceeds
-            await onUpdate(dest.id, { currentPrice: newBal, purchasePrice: newBal })
+            destId = dest.id
+            destFields = { currentPrice: newBal, purchasePrice: newBal }
           } else {
-            const addQty = proceeds / (dest.currentPrice || dest.purchasePrice || 1)
-            await onUpdate(dest.id, { quantity: (dest.quantity || 0) + addQty })
+            // Buying more of a market asset with the proceeds: bump quantity AND
+            // create a matching lot so lots stay consistent with item.quantity
+            // (otherwise FIFO/cost-basis breaks per the lots model).
+            const destPrice = dest.currentPrice || dest.purchasePrice || 1
+            const addQty = proceeds / destPrice
+            destId = dest.id
+            destFields = { quantity: (dest.quantity || 0) + addQty }
+            destLot = {
+              symbol: (dest.symbol || '').toUpperCase(),
+              quantity: addQty,
+              costBasis: destPrice,
+              acquisitionDate: saleDate,
+              institution: dest.institution || '',
+              currency: dest.currency || item.currency || 'USD',
+            }
           }
         }
       }
 
+      // Close source lots FIFO first (internally atomic via a Firestore
+      // transaction). Guarded so a retry after a later failure can't double-close.
+      if (onCloseLots && item.symbol && !lotsClosedRef.current) {
+        await onCloseLots(item.symbol.toUpperCase(), qtySell, price, saleDate, item.institution || '')
+        lotsClosedRef.current = true
+      }
+
+      // Single atomic batch: source qty + SELL/WITHDRAWAL txs + destination
+      // credit + destination lot all commit together (money can't vanish).
+      await onExecuteSale({ itemId: item.id, itemFields, transactions, destId, destFields, destLot })
+
+      onSold?.()
       onClose()
     } catch (err) {
       setError(err.message)
