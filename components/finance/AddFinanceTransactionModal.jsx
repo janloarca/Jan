@@ -79,7 +79,7 @@ export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es'
                 className="flex-1 py-2.5 text-sm font-medium transition-colors rounded-lg"
                 style={form.type === type
                   ? { backgroundColor: type === 'INCOME' ? '#059669' : '#dc2626', color: '#ffffff' }
-                  : { color: '#94a3b8' }
+                  : { color: 'var(--text-secondary)' }
                 }>
                 {type === 'INCOME' ? t('Ingreso', 'Income') : t('Gasto', 'Expense')}
               </button>

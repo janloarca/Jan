@@ -33,7 +33,7 @@ export default function FinanceTransactionList({ transactions, onDelete, lang = 
             ].map(f => (
               <button key={f.key} onClick={() => setFilter(f.key)}
                 className="px-3 py-1.5 transition-colors rounded-lg"
-                style={filter === f.key ? { backgroundColor: '#2563eb', color: '#ffffff' } : { color: '#94a3b8' }}>
+                style={filter === f.key ? { backgroundColor: '#2563eb', color: '#ffffff' } : { color: 'var(--text-secondary)' }}>
                 {f.label}
               </button>
             ))}
@@ -74,7 +74,7 @@ export default function FinanceTransactionList({ transactions, onDelete, lang = 
                     </span>
                   </td>
                   <td className="py-2 px-2 text-right font-medium font-mono tabular-nums whitespace-nowrap"
-                    style={{ color: tx.type === 'INCOME' ? '#34d399' : '#f87171' }}>
+                    style={{ color: tx.type === 'INCOME' ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                     {tx.type === 'INCOME' ? '+' : '-'}Q{fmt(tx.amount)}
                   </td>
                   <td className="py-2 px-2 text-center">
