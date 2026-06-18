@@ -639,8 +639,10 @@ export function useFirestoreItems() {
   }, [uid])
 
   // v3: static-item historical values are now currency-converted to base.
-  // Bumping invalidates v2 docs that cached raw, unconverted values.
-  const SNAPSHOT_VERSION = 3
+  // v4: market-asset past-month share counts are reconstructed from real trade
+  // history (transactions), not import-stamped lots — invalidates docs that
+  // cached zeroed/understated stock values before the import date.
+  const SNAPSHOT_VERSION = 4
 
   const saveItemSnapshots = useCallback(async (monthKey, itemsData, currency) => {
     if (!uid || !monthKey || !itemsData) return

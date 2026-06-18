@@ -128,7 +128,7 @@ const EditableCell = memo(function EditableCell({ displayValue, editValue, onSav
   )
 })
 
-export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateItem, onEditItem, returnYTD, netWorth, convert, baseCurrency, onSaveItemSnapshots, onLoadItemSnapshots, lots }) {
+export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateItem, onEditItem, returnYTD, netWorth, convert, baseCurrency, onSaveItemSnapshots, onLoadItemSnapshots, lots, transactions }) {
   const t = (es, en) => lang === 'es' ? es : en
   const [showOriginal, setShowOriginal] = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(false)
@@ -281,7 +281,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
 
     let cancelled = false
     import('@/lib/historicalValues').then(({ getHistoricalItemValues }) => {
-      getHistoricalItemValues(itemsWithCategory, missingMonths, convert, baseCurrency, lots).then(async (data) => {
+      getHistoricalItemValues(itemsWithCategory, missingMonths, convert, baseCurrency, lots, transactions).then(async (data) => {
         if (cancelled) return
         setHistoricalItems(prev => {
           const merged = { ...prev }
@@ -300,7 +300,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       }).catch(() => { if (!cancelled) setLoadingHistory(false) })
     }).catch(() => { if (!cancelled) setLoadingHistory(false) })
     return () => { cancelled = true }
-  }, [items, months, currentMonthKey, historicalItems, convert, baseCurrency, onSaveItemSnapshots, lots, selectedYear])
+  }, [items, months, currentMonthKey, historicalItems, convert, baseCurrency, onSaveItemSnapshots, lots, transactions, selectedYear])
 
   const itemValue = useCallback((item) => {
     return showOriginal ? getOriginalValue(item) : getItemValue(item)

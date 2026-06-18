@@ -293,6 +293,21 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       }
     }
 
+    // Drop an isolated corrupt/stale NAV doc (e.g. a one-off bad value a later
+    // sync never overwrote): a point that deviates >40% from BOTH neighbors while
+    // the neighbors agree with each other is a spike, not a real market move.
+    if (pts.length >= 3) {
+      pts = pts.filter((p, i) => {
+        if (i === 0 || i === pts.length - 1) return true
+        const prev = pts[i - 1].value, next = pts[i + 1].value
+        if (prev <= 0 || next <= 0) return true
+        const devPrev = Math.abs(p.value - prev) / prev
+        const devNext = Math.abs(p.value - next) / next
+        const neighborsAgree = Math.abs(prev - next) / prev < 0.2
+        return !(devPrev > 0.4 && devNext > 0.4 && neighborsAgree)
+      })
+    }
+
     return pts
   }, [snapshots, period, convert, baseCurrency, customRange, currentTotal])
 
@@ -316,10 +331,20 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     } else if (snapPts.length >= 2) {
       pts = [...snapPts]
       const firstSnapTs = snapPts[0].ts
+      const firstSnapVal = snapPts[0].value
       const lastSnapTs = snapPts[snapPts.length - 1].ts
       if (period !== 'ALL') {
         const olderApi = apiPts.filter(p => p.ts < firstSnapTs - 3600000)
-        if (olderApi.length > 0) pts.unshift(...olderApi)
+        if (olderApi.length > 0) {
+          // The API segment is an ESTIMATE (Σ qty×historical price) and can sit at
+          // a different level than the true snapshot NAV — splicing it in raw
+          // creates a fake cliff (and a phantom drawdown) at the seam. Scale it so
+          // its last point meets the first snapshot value, joining continuously.
+          const apiSeam = olderApi[olderApi.length - 1].value
+          const scale = apiSeam > 0 && firstSnapVal > 0 ? firstSnapVal / apiSeam : 1
+          const scaled = Math.abs(scale - 1) > 0.02 ? olderApi.map(p => ({ ...p, value: p.value * scale })) : olderApi
+          pts.unshift(...scaled)
+        }
       }
       const recentApi = apiPts.filter(p => p.ts > lastSnapTs + 3600000)
       pts.push(...recentApi)

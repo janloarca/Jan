@@ -227,6 +227,7 @@ export default function SpreadsheetPage() {
             onSaveItemSnapshots={saveItemSnapshots}
             onLoadItemSnapshots={loadItemSnapshots}
             lots={lots}
+            transactions={transactions}
           />
         </div>
       ) : view === 'debts' ? (

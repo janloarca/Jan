@@ -429,7 +429,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             conid: item.conid,
             _ibkrAccountId: item._ibkrAccountId,
             _source: 'ibkr',
-            ...(item.acquisitionDate && !existing.acquisitionDate ? { acquisitionDate: item.acquisitionDate } : {}),
+            // Repair the acquisition date when the incoming (real trade) date is
+            // earlier than what's stored — fixes positions previously stamped with
+            // the import date, which collapsed historical share counts to zero.
+            ...(item.acquisitionDate && (!existing.acquisitionDate || new Date(item.acquisitionDate) < new Date(existing.acquisitionDate))
+              ? { acquisitionDate: item.acquisitionDate } : {}),
           },
         })
       } else {
