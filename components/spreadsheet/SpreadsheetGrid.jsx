@@ -87,7 +87,7 @@ export default function SpreadsheetGrid({ initialRows, context, onSave, lang }) 
   return (
     <div className="flex flex-col h-full">
       {/* Formula bar */}
-      <div className="flex items-center gap-2 px-4 py-2 bg-[#1C1C1E] border-b border-[#38383A]">
+      <div className="flex items-center gap-2 px-4 py-2 bg-theme-card border-b border-glass-border">
         <span className="text-xs text-slate-500 font-mono w-12">
           {activeCell ? `${COL_LETTERS[activeCell.col]}${activeCell.row + 1}` : ''}
         </span>
@@ -97,7 +97,7 @@ export default function SpreadsheetGrid({ initialRows, context, onSave, lang }) 
             type="text"
             readOnly
             value={activeCellFormula || ''}
-            className="flex-1 bg-[#000000] border border-[#38383A] rounded px-2 py-1 text-sm text-white font-mono focus:outline-none"
+            className="flex-1 bg-theme-base border border-glass-border rounded px-2 py-1 text-sm text-white font-mono focus:outline-none"
             placeholder={t('Selecciona una celda...', 'Select a cell...')}
           />
         </div>
@@ -128,7 +128,7 @@ export default function SpreadsheetGrid({ initialRows, context, onSave, lang }) 
 
         {/* Formula reference panel */}
         {showFormulas && (
-          <div className="w-72 border-l border-[#38383A] bg-[#1C1C1E] overflow-y-auto p-3">
+          <div className="w-72 border-l border-glass-border bg-theme-card overflow-y-auto p-3">
             <h3 className="text-sm font-semibold text-white mb-3">{t('Fórmulas Disponibles', 'Available Formulas')}</h3>
             {FORMULA_CATALOG.map(cat => (
               <div key={cat.category} className="mb-4">

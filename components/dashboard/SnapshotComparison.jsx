@@ -95,12 +95,12 @@ export default function SnapshotComparison({ snapshots, items, lang }) {
   }, [sorted])
 
   return (
-    <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 p-4 sm:p-5">
+    <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-4 sm:p-5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold text-white flex items-center gap-2">
           📸 {t('Comparación de Snapshots', 'Snapshot Comparison')}
         </h3>
-        <div className="flex gap-0.5 bg-[#000000] rounded p-0.5">
+        <div className="flex gap-0.5 bg-theme-base rounded p-0.5">
           {['1W', '1M', '3M', '6M', '1Y', 'YTD', 'ALL'].map((p) => (
             <button key={p} onClick={() => setSelectedPeriod(p)}
               className="px-1.5 py-0.5 text-[10px] font-medium rounded transition-all"
@@ -117,11 +117,11 @@ export default function SnapshotComparison({ snapshots, items, lang }) {
       {comparison ? (
         <>
           <div className="grid grid-cols-3 gap-3 mb-4">
-            <div className="bg-[#000000] rounded-lg p-3 border border-[#38383A]/50 text-center">
+            <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50 text-center">
               <div className="text-[10px] text-slate-500 mb-1">{formatDate(comparison.startDate)}</div>
               <div className="text-sm font-bold text-slate-400">{formatCurrency(comparison.startVal)}</div>
             </div>
-            <div className="bg-[#000000] rounded-lg p-3 border border-[#38383A]/50 text-center">
+            <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50 text-center">
               <div className="text-[10px] text-slate-500 mb-1">{t('Cambio', 'Change')}</div>
               <div className="text-sm font-bold" style={{ color: comparison.change >= 0 ? '#34d399' : '#f87171' }}>
                 {comparison.change >= 0 ? '+' : ''}{comparison.changePct.toFixed(2)}%
@@ -130,7 +130,7 @@ export default function SnapshotComparison({ snapshots, items, lang }) {
                 {comparison.change >= 0 ? '+' : ''}{formatCurrency(comparison.change)}
               </div>
             </div>
-            <div className="bg-[#000000] rounded-lg p-3 border border-[#38383A]/50 text-center">
+            <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50 text-center">
               <div className="text-[10px] text-slate-500 mb-1">{formatDate(comparison.endDate)}</div>
               <div className="text-sm font-bold text-white">{formatCurrency(comparison.endVal)}</div>
             </div>

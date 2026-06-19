@@ -23,7 +23,7 @@ export default function EntitySwitcher({ entities, activeEntity, onSelect, onAdd
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-slate-300 bg-[#1C1C1E] border border-[#38383A] rounded-lg hover:bg-[#2C2C2E] transition-colors"
+        className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-slate-300 bg-theme-card border border-glass-border rounded-lg hover:bg-theme-elevated transition-colors"
       >
         <Users size={12} className="text-slate-400" />
         <span>{activeEntity === '__all__' ? allLabel : (current?.icon ? `${current.icon} ` : '') + (current?.name || 'Personal')}</span>
@@ -31,11 +31,11 @@ export default function EntitySwitcher({ entities, activeEntity, onSelect, onAdd
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-1 w-48 bg-[#1C1C1E] border border-[#38383A] rounded-lg shadow-xl z-50 py-1">
+        <div className="absolute top-full left-0 mt-1 w-48 bg-theme-card border border-glass-border rounded-lg shadow-xl z-50 py-1">
           <button
             onClick={() => { onSelect('__all__'); setOpen(false) }}
             className={`w-full text-left px-3 py-2 text-xs transition-colors ${
-              activeEntity !== '__all__' ? 'hover:bg-[#2C2C2E]' : ''
+              activeEntity !== '__all__' ? 'hover:bg-theme-elevated' : ''
             }`}
             style={activeEntity === '__all__'
               ? { color: '#60a5fa', backgroundColor: 'rgba(96,165,250,0.1)' }
@@ -44,13 +44,13 @@ export default function EntitySwitcher({ entities, activeEntity, onSelect, onAdd
           >
             📊 {allLabel}
           </button>
-          <div className="border-t border-[#38383A] my-1" />
+          <div className="border-t border-glass-border my-1" />
           {entities.map(entity => (
             <button
               key={entity.id}
               onClick={() => { onSelect(entity.id); setOpen(false) }}
               className={`w-full text-left px-3 py-2 text-xs transition-colors ${
-                activeEntity !== entity.id ? 'hover:bg-[#2C2C2E]' : ''
+                activeEntity !== entity.id ? 'hover:bg-theme-elevated' : ''
               }`}
               style={activeEntity === entity.id
                 ? { color: '#60a5fa', backgroundColor: 'rgba(96,165,250,0.1)' }
@@ -62,10 +62,10 @@ export default function EntitySwitcher({ entities, activeEntity, onSelect, onAdd
           ))}
           {onAdd && (
             <>
-              <div className="border-t border-[#38383A] my-1" />
+              <div className="border-t border-glass-border my-1" />
               <button
                 onClick={() => { onAdd(); setOpen(false) }}
-                className="w-full text-left px-3 py-2 text-xs text-slate-400 hover:text-blue-400 hover:bg-[#2C2C2E] transition-colors flex items-center gap-1.5"
+                className="w-full text-left px-3 py-2 text-xs text-slate-400 hover:text-blue-400 hover:bg-theme-elevated transition-colors flex items-center gap-1.5"
               >
                 <Plus size={12} /> {t('Nueva entidad', 'New entity')}
               </button>

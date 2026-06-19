@@ -61,8 +61,8 @@ export default function AddTransactionModal({ onClose, onAdd, lang = 'es' }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="add-tx-modal-title">
-      <div ref={trapRef} className="bg-[#1C1C1E] border border-[#38383A] rounded-xl shadow-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#38383A]">
+      <div ref={trapRef} className="bg-theme-card border border-glass-border rounded-xl shadow-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
           <h2 id="add-tx-modal-title" className="text-lg font-bold text-white">{t('Registrar Transacción', 'Record Transaction')}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label="Close">&times;</button>
         </div>
@@ -90,12 +90,12 @@ export default function AddTransactionModal({ onClose, onAdd, lang = 'es' }) {
             <div>
               <label className="text-xs text-slate-400 mb-1 block">{t('Símbolo', 'Symbol')}</label>
               <input value={form.symbol} onChange={(e) => set('symbol', e.target.value)}
-                placeholder="AAPL" className="w-full px-3 py-2 bg-[#000000] border border-[#38383A] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                placeholder="AAPL" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
             </div>
             <div>
               <label className="text-xs text-slate-400 mb-1 block">{t('Fecha', 'Date')}</label>
               <input value={form.date} onChange={(e) => set('date', e.target.value)}
-                type="date" className="w-full px-3 py-2 bg-[#000000] border border-[#38383A] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
+                type="date" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
             </div>
           </div>
 
@@ -103,7 +103,7 @@ export default function AddTransactionModal({ onClose, onAdd, lang = 'es' }) {
             <label className="text-xs text-slate-400 mb-1 block">{t('Descripción', 'Description')}</label>
             <input value={form.description} onChange={(e) => set('description', e.target.value)}
               placeholder={t('Compra de acciones...', 'Stock purchase...')}
-              className="w-full px-3 py-2 bg-[#000000] border border-[#38383A] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+              className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
           </div>
 
           {form.type === 'DIVIDEND' || form.type === 'DEPOSIT' || form.type === 'WITHDRAWAL' ? (
@@ -111,12 +111,12 @@ export default function AddTransactionModal({ onClose, onAdd, lang = 'es' }) {
               <div>
                 <label className="text-xs text-slate-400 mb-1 block">{t('Monto', 'Amount')}</label>
                 <input value={form.totalAmount} onChange={(e) => set('totalAmount', e.target.value)}
-                  placeholder="500" type="number" step="any" className="w-full px-3 py-2 bg-[#000000] border border-[#38383A] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                  placeholder="500" type="number" step="any" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
               </div>
               <div>
                 <label className="text-xs text-slate-400 mb-1 block">{t('Moneda', 'Currency')}</label>
                 <select value={form.currency} onChange={(e) => set('currency', e.target.value)}
-                  className="w-full px-2 py-2 bg-[#000000] border border-[#38383A] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
+                  className="w-full px-2 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
                   {['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY'].map((c) => (
                     <option key={c} value={c}>{c}</option>
                   ))}
@@ -128,23 +128,23 @@ export default function AddTransactionModal({ onClose, onAdd, lang = 'es' }) {
               <div>
                 <label className="text-xs text-slate-400 mb-1 block">{t('Cantidad', 'Qty')}</label>
                 <input value={form.quantity} onChange={(e) => set('quantity', e.target.value)}
-                  placeholder="10" type="number" step="any" className="w-full px-3 py-2 bg-[#000000] border border-[#38383A] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                  placeholder="10" type="number" step="any" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
               </div>
               <div>
                 <label className="text-xs text-slate-400 mb-1 block">{t('Precio', 'Price')}</label>
                 <input value={form.pricePerUnit} onChange={(e) => set('pricePerUnit', e.target.value)}
-                  placeholder="150" type="number" step="any" className="w-full px-3 py-2 bg-[#000000] border border-[#38383A] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                  placeholder="150" type="number" step="any" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
               </div>
               <div>
                 <label className="text-xs text-slate-400 mb-1 block">Total</label>
                 <input value={form.totalAmount} onChange={(e) => set('totalAmount', e.target.value)}
                   placeholder={form.quantity && form.pricePerUnit ? (parseFloat(form.quantity) * parseFloat(form.pricePerUnit)).toFixed(2) : '1500'}
-                  type="number" step="any" className="w-full px-3 py-2 bg-[#000000] border border-[#38383A] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                  type="number" step="any" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
               </div>
               <div>
                 <label className="text-xs text-slate-400 mb-1 block">{t('Moneda', 'Currency')}</label>
                 <select value={form.currency} onChange={(e) => set('currency', e.target.value)}
-                  className="w-full px-2 py-2 bg-[#000000] border border-[#38383A] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
+                  className="w-full px-2 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
                   {['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY'].map((c) => (
                     <option key={c} value={c}>{c}</option>
                   ))}
@@ -155,7 +155,7 @@ export default function AddTransactionModal({ onClose, onAdd, lang = 'es' }) {
 
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose}
-              className="flex-1 py-2.5 border border-[#38383A] text-slate-300 rounded-lg hover:bg-[#2C2C2E] transition-colors text-sm">
+              className="flex-1 py-2.5 border border-glass-border text-slate-300 rounded-lg hover:bg-theme-elevated transition-colors text-sm">
               {t('Cancelar', 'Cancel')}
             </button>
             <button type="submit" disabled={saving}

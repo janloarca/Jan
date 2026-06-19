@@ -34,14 +34,14 @@ export default function EntityManager({ entities, onAdd, onUpdate, onDelete, lan
 
       <div className="space-y-1">
         {entities.map(entity => (
-          <div key={entity.id} className="flex items-center gap-2 px-3 py-2 bg-[#000000] rounded-lg">
+          <div key={entity.id} className="flex items-center gap-2 px-3 py-2 bg-theme-base rounded-lg">
             <span className="text-sm">{entity.icon || '📁'}</span>
             {editId === entity.id ? (
               <div className="flex-1 flex items-center gap-1">
                 <input
                   type="text" value={editName} onChange={(e) => setEditName(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') handleRename(entity.id); if (e.key === 'Escape') setEditId(null) }}
-                  autoFocus className="flex-1 px-2 py-0.5 text-xs bg-[#1C1C1E] border rounded text-white focus:outline-none"
+                  autoFocus className="flex-1 px-2 py-0.5 text-xs bg-theme-card border rounded text-white focus:outline-none"
                   style={{ borderColor: 'rgba(59,130,246,0.5)' }}
                 />
                 <button onClick={() => handleRename(entity.id)} className="hover:opacity-80" style={{ color: 'var(--accent-green)' }}><Check size={14} /></button>
@@ -62,12 +62,12 @@ export default function EntityManager({ entities, onAdd, onUpdate, onDelete, lan
       </div>
 
       {adding ? (
-        <div className="space-y-2 p-3 bg-[#000000] rounded-lg border border-[#38383A]">
+        <div className="space-y-2 p-3 bg-theme-base rounded-lg border border-glass-border">
           <input
             type="text" value={newName} onChange={(e) => setNewName(e.target.value)}
             placeholder={t('Nombre de la entidad', 'Entity name')}
             autoFocus onKeyDown={(e) => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') setAdding(false) }}
-            className="w-full px-3 py-1.5 text-xs bg-[#1C1C1E] border border-[#38383A] rounded text-white focus:outline-none focus:border-blue-500/50"
+            className="w-full px-3 py-1.5 text-xs bg-theme-card border border-glass-border rounded text-white focus:outline-none focus:border-blue-500/50"
           />
           <div className="flex gap-1.5">
             {ENTITY_TYPES.map(et => (
@@ -90,7 +90,7 @@ export default function EntityManager({ entities, onAdd, onUpdate, onDelete, lan
         </div>
       ) : (
         <button onClick={() => setAdding(true)}
-          className="w-full px-3 py-2 text-xs text-slate-400 border border-dashed border-[#38383A] rounded-lg hover:text-blue-400 hover:border-blue-500/30 transition-colors">
+          className="w-full px-3 py-2 text-xs text-slate-400 border border-dashed border-glass-border rounded-lg hover:text-blue-400 hover:border-blue-500/30 transition-colors">
           + {t('Agregar entidad', 'Add entity')}
         </button>
       )}

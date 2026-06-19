@@ -68,7 +68,7 @@ export default function InsightCards({ items, profile, netWorth, estimatedAnnual
         const accent = TYPE_ACCENT[card.type] || TYPE_ACCENT.info
         return (
           <div key={i}
-            className={`p-3 rounded-lg border border-[#27272a]/50 ${card.action ? 'cursor-pointer hover:bg-[#2C2C2E]/60 transition-colors' : ''}`}
+            className={`p-3 rounded-lg border border-glass-border/50 ${card.action ? 'cursor-pointer hover:bg-theme-elevated/60 transition-colors' : ''}`}
             style={{ backgroundColor: 'rgba(20,20,22,0.8)', borderLeftWidth: '2px', borderLeftColor: accent.border }}
             onClick={card.action === 'profile' && onOpenSettings ? onOpenSettings : undefined}
             role={card.action ? 'button' : undefined}

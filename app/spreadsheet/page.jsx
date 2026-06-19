@@ -143,7 +143,7 @@ export default function SpreadsheetPage() {
 
   if (authLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#09090b]">
+      <div className="flex items-center justify-center min-h-screen bg-theme-base">
         <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent" />
       </div>
     )
@@ -196,7 +196,7 @@ export default function SpreadsheetPage() {
 
       {/* Templates dropdown */}
       {showTemplates && (
-        <div className="px-4 py-3 bg-[#141416]/80 border-b border-[#27272a]">
+        <div className="px-4 py-3 bg-theme-surface/80 border-b border-glass-border">
           <div className="flex items-center gap-3 flex-wrap">
             <span className="text-xs text-slate-500">{t('Crear desde plantilla:', 'Create from template:')}</span>
             {TEMPLATES.map(tmpl => (

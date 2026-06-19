@@ -12,7 +12,7 @@ export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettin
 
   return (
     <>
-      <div className="fixed bottom-0 left-0 right-0 z-40 sm:hidden bg-[#09090b]/95 backdrop-blur-sm border-t border-[#38383A]" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+      <div className="fixed bottom-0 left-0 right-0 z-40 sm:hidden bg-theme-base/95 backdrop-blur-sm border-t border-glass-border" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
         <div className="flex items-center justify-around h-14 px-2">
           <Link href="/dashboard" aria-label={t('Patrimonio', 'Portfolio')} className="flex flex-col items-center gap-0.5 transition-colors p-2.5 min-w-[44px] min-h-[44px] justify-center" style={{ color: pathname === '/dashboard' ? '#60a5fa' : '#94a3b8' }}>
             <Home size={20} />
@@ -41,7 +41,7 @@ export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettin
 
       {moreOpen && (
         <div className="fixed inset-0 z-50 sm:hidden" onClick={() => setMoreOpen(false)}>
-          <div className="absolute bottom-14 left-0 right-0 bg-[#1C1C1E] border-t border-[#38383A] rounded-t-2xl shadow-2xl p-4 space-y-1" onClick={(e) => e.stopPropagation()}>
+          <div className="absolute bottom-14 left-0 right-0 bg-theme-card border-t border-glass-border rounded-t-2xl shadow-2xl p-4 space-y-1" onClick={(e) => e.stopPropagation()}>
             {[
               { action: onImport, icon: Upload, label: t('Importar archivo', 'Import file') },
               { action: onExport, icon: Download, label: t('Exportar Excel', 'Export Excel') },
@@ -49,7 +49,7 @@ export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettin
               { action: onSettings, icon: Settings, label: t('Configuración', 'Settings') },
             ].map((item, i) => (
               <button key={i} onClick={() => { item.action(); setMoreOpen(false) }}
-                className="w-full flex items-center gap-3 px-4 py-3 text-left text-white rounded-lg hover:bg-[#2C2C2E] transition-colors">
+                className="w-full flex items-center gap-3 px-4 py-3 text-left text-white rounded-lg hover:bg-theme-elevated transition-colors">
                 <item.icon size={18} className="text-slate-400" />
                 <span className="text-body">{item.label}</span>
               </button>

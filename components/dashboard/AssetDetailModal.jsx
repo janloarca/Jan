@@ -151,8 +151,8 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="asset-detail-title">
-      <div ref={trapRef} className="bg-[#1C1C1E] border border-[#38383A] rounded-xl shadow-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#38383A]">
+      <div ref={trapRef} className="bg-theme-card border border-glass-border rounded-xl shadow-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
           <div>
             <h2 id="asset-detail-title" className="text-lg font-bold text-white">{item.name || item.symbol}</h2>
             <span className="text-xs text-slate-500">{item.symbol} · {item.type}{item.subtype ? `/${item.subtype}` : ''} {item.institution ? `· ${item.institution}` : ''}</span>
@@ -163,15 +163,15 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
         <div className="p-6 space-y-5">
           {/* Stats row */}
           <div className="grid grid-cols-3 gap-3">
-            <div className="bg-[#000000] rounded-lg p-3 border border-[#38383A]/50">
+            <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50">
               <span className="text-xs text-slate-500 block">{t('Precio actual', 'Current price')}</span>
               <span className="text-lg font-bold text-white">{formatCurrency(currentPrice)}</span>
             </div>
-            <div className="bg-[#000000] rounded-lg p-3 border border-[#38383A]/50">
+            <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50">
               <span className="text-xs text-slate-500 block">{t('Valor total', 'Total value')}</span>
               <span className="text-lg font-bold text-white">{formatCurrency(totalValue)}</span>
             </div>
-            <div className="bg-[#000000] rounded-lg p-3 border border-[#38383A]/50">
+            <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50">
               <span className="text-xs text-slate-500 block">P&L</span>
               <span className="text-lg font-bold" style={{ color: pnl >= 0 ? '#34d399' : '#f87171' }}>
                 {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}
@@ -226,7 +226,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
           {/* Chart */}
           <div>
             {isStatic && assetIncome.length === 0 ? (
-              <div className="h-[120px] bg-[#000000] rounded-lg flex flex-col items-center justify-center gap-2">
+              <div className="h-[120px] bg-theme-base rounded-lg flex flex-col items-center justify-center gap-2">
                 <span className="text-sm text-slate-500">
                   {t('Este activo no tiene datos de mercado', 'This asset has no market data')}
                 </span>
@@ -239,7 +239,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs text-slate-500">{t('Histórico de valor', 'Value history')}</span>
               {!isStatic && (
-                <div className="flex gap-0.5 bg-[#000000] rounded-lg p-0.5">
+                <div className="flex gap-0.5 bg-theme-base rounded-lg p-0.5">
                   {ranges.map((r) => (
                     <button key={r} onClick={() => setRange(r)}
                       className="px-2 py-1 text-xs font-medium rounded-md transition-all"
@@ -255,7 +255,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
             </div>
 
             {loading && !isStatic ? (
-              <div className="h-[200px] bg-[#000000] rounded-lg animate-pulse flex items-center justify-center">
+              <div className="h-[200px] bg-theme-base rounded-lg animate-pulse flex items-center justify-center">
                 <span className="text-slate-600 text-sm">{t('Cargando...', 'Loading...')}</span>
               </div>
             ) : renderPts ? (
@@ -294,7 +294,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
                 )}
               </div>
             ) : (
-              <div className="h-[200px] bg-[#000000] rounded-lg flex items-center justify-center">
+              <div className="h-[200px] bg-theme-base rounded-lg flex items-center justify-center">
                 <span className="text-sm" style={{ color: chartError ? 'rgba(248,113,113,0.7)' : '#475569' }}>
                   {chartError ? t('Error cargando datos', 'Failed to load data') : t('Sin datos de precio disponibles', 'No price data available')}
                 </span>

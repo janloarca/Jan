@@ -152,7 +152,7 @@ function LoginForm() {
 
   if (checkingAuth) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#000000]">
+      <div className="flex items-center justify-center min-h-screen bg-theme-base">
         <div className="flex items-center gap-2 text-slate-500 text-sm">
           <div className="w-4 h-4 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
           Verificando sesión...
@@ -162,7 +162,7 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-[#000000]">
+    <div className="flex items-center justify-center min-h-screen bg-theme-base">
       <div className="w-full max-w-md px-6">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-2">
@@ -172,7 +172,7 @@ function LoginForm() {
           <p className="text-slate-500 text-sm">Tu control financiero personal</p>
         </div>
 
-        <div className="bg-[#1C1C1E] border border-[#38383A] rounded-xl p-6">
+        <div className="bg-theme-card border border-glass-border rounded-xl p-6">
           <h2 className="text-lg font-semibold text-white text-center mb-5">
             {isSignUp ? 'Crear cuenta' : 'Iniciar sesión'}
           </h2>
@@ -205,7 +205,7 @@ function LoginForm() {
                 placeholder="tu@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2.5 bg-[#000000] border border-[#38383A] rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 text-base"
+                className="w-full px-4 py-2.5 bg-theme-base border border-glass-border rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 text-base"
                 required
               />
             </div>
@@ -218,7 +218,7 @@ function LoginForm() {
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2.5 bg-[#000000] border border-[#38383A] rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 text-base"
+                className="w-full px-4 py-2.5 bg-theme-base border border-glass-border rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 text-base"
                 required
               />
             </div>
@@ -240,7 +240,7 @@ function LoginForm() {
           )}
 
           {showReset && (
-            <div className="mt-3 p-3 bg-[#000000] rounded-lg border border-[#38383A]/50">
+            <div className="mt-3 p-3 bg-theme-base rounded-lg border border-glass-border/50">
               {resetSent ? (
                 <p className="text-sm text-center" style={{ color: 'var(--accent-green)' }}>
                   Revisa tu email para restablecer tu contraseña.
@@ -258,9 +258,9 @@ function LoginForm() {
           )}
 
           <div className="relative my-5">
-            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-[#38383A]" /></div>
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-glass-border" /></div>
             <div className="relative flex justify-center">
-              <span className="bg-[#1C1C1E] px-3 text-xs text-slate-500">o</span>
+              <span className="bg-theme-card px-3 text-xs text-slate-500">o</span>
             </div>
           </div>
 
@@ -297,7 +297,7 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <div className="flex items-center justify-center min-h-screen bg-[#000000]">
+      <div className="flex items-center justify-center min-h-screen bg-theme-base">
         <div className="flex items-center gap-2 text-slate-500 text-sm">
           <div className="w-4 h-4 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
         </div>

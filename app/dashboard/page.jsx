@@ -17,7 +17,7 @@ import { SkeletonCard, SkeletonChart } from '@/components/dashboard/Skeleton'
 function ModalSkeleton() {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-[#1C1C1E] border border-[#38383A] rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
+      <div className="bg-theme-card border border-glass-border rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
         <div className="h-5 w-32 bg-slate-700/50 rounded animate-pulse mb-4" />
         <div className="space-y-3">
           <div className="h-10 bg-slate-700/30 rounded animate-pulse" />
@@ -566,7 +566,7 @@ export default function DashboardPage() {
   // Loading state
   if (authLoading || (user && dataLoading)) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#09090b]">
+      <div className="flex items-center justify-center min-h-screen bg-theme-base">
         <div className="text-center">
           <div className="inline-flex items-center gap-2 mb-4">
             <span className="text-2xl" style={{ color: '#60a5fa' }}>⚡</span>
@@ -584,7 +584,7 @@ export default function DashboardPage() {
   if (!user) return null
 
   return (
-    <div className="min-h-screen bg-[#09090b]">
+    <div className="min-h-screen bg-theme-base">
       <a href="#main-content" className="skip-link">{lang === 'es' ? 'Ir al contenido' : 'Skip to content'}</a>
       <Header
         user={user} lang={lang}
@@ -823,11 +823,11 @@ export default function DashboardPage() {
 
         <div className="flex items-center justify-center gap-3 pt-4 pb-8">
           <button onClick={handleReport}
-            className="px-5 py-2.5 text-sm font-medium text-slate-400 bg-[#141416] border border-[#27272a]/60 rounded-xl hover:bg-[#2C2C2E] hover:text-white hover:border-[#475569] transition-all inline-flex items-center gap-2">
+            className="px-5 py-2.5 text-sm font-medium text-slate-400 bg-theme-surface border border-glass-border/60 rounded-xl hover:bg-theme-elevated hover:text-white hover:border-[#475569] transition-all inline-flex items-center gap-2">
             {lang === 'es' ? 'Descargar PDF' : 'Download PDF'}
           </button>
           <button onClick={handleOpenPrint}
-            className="px-5 py-2.5 text-sm font-medium text-slate-400 bg-[#141416] border border-[#27272a]/60 rounded-xl hover:bg-[#2C2C2E] hover:text-white hover:border-[#475569] transition-all inline-flex items-center gap-2">
+            className="px-5 py-2.5 text-sm font-medium text-slate-400 bg-theme-surface border border-glass-border/60 rounded-xl hover:bg-theme-elevated hover:text-white hover:border-[#475569] transition-all inline-flex items-center gap-2">
             {lang === 'es' ? 'Imprimir Resumen' : 'Print Summary'}
           </button>
         </div>

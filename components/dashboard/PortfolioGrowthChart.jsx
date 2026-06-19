@@ -600,7 +600,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   }, [snapshotRows, onSaveSnapshot, baseCurrency, convert])
 
   const periodSelector = (
-    <div className="flex flex-wrap gap-0.5 bg-[#09090b] rounded-lg p-0.5 border border-[#27272a]/50">
+    <div className="flex flex-wrap gap-0.5 bg-theme-base rounded-lg p-0.5 border border-glass-border/50">
       {periods.map((p) => (
         <button key={p} onClick={() => {
           setPeriod(p)
@@ -615,7 +615,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
   if (loading && chartData.length < 2) {
     return (
-      <div className="bg-[#141416] rounded-2xl border border-[#27272a] p-5 card-primary">
+      <div className="bg-theme-surface rounded-2xl border border-glass-border p-5 card-primary">
         <div className="flex items-center justify-center min-h-[260px]">
           <div className="flex items-center gap-2 text-slate-500 text-sm">
             <div className="w-4 h-4 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
@@ -628,7 +628,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
   if (fetchError && chartData.length < 2) {
     return (
-      <div className="bg-[#141416] rounded-2xl border border-[#27272a] p-5 card-primary">
+      <div className="bg-theme-surface rounded-2xl border border-glass-border p-5 card-primary">
         <div className="flex flex-col items-center justify-center min-h-[200px] gap-2">
           <p className="text-sm" style={{ color: 'var(--text-negative)' }}>{fetchError}</p>
           <button onClick={fetchHistory} className="text-xs" style={{ color: '#60a5fa' }}>{t('Reintentar', 'Retry')}</button>
@@ -639,7 +639,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
   if (chartData.length < 2) {
     return (
-      <div className="bg-[#141416] rounded-2xl border border-[#27272a] p-5 card-primary">
+      <div className="bg-theme-surface rounded-2xl border border-glass-border p-5 card-primary">
         <div className="flex flex-col items-center justify-center min-h-[200px] gap-2 text-slate-500 text-sm">
           {period === 'DAY' ? (
             <>
@@ -661,7 +661,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const hd = hoverIdx != null ? chartData[hoverIdx] : null
 
   return (
-    <div ref={containerRef} className="bg-[#141416] rounded-2xl border border-[#27272a] p-5 card-primary">
+    <div ref={containerRef} className="bg-theme-surface rounded-2xl border border-glass-border p-5 card-primary">
       {/* Tab bar: Value | Performance */}
       <div className="flex items-center gap-4 mb-4">
         <button onClick={() => setViewMode('value')}
@@ -688,7 +688,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
             </button>
           )}
           {viewMode === 'performance' && (
-            <div className="flex gap-0.5 bg-[#000000] rounded-lg p-0.5">
+            <div className="flex gap-0.5 bg-theme-base rounded-lg p-0.5">
               <button onClick={() => setReturnMode('twr')}
                 className="px-2 py-1 text-xs font-medium rounded-md transition-all"
                 style={returnMode === 'twr' ? { backgroundColor: '#2563eb', color: '#fff' } : { color: 'var(--text-muted)' }}
@@ -940,7 +940,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
           {/* Hover tooltip */}
           {hd && hp && (
-            <div className="absolute pointer-events-none bg-[#000000] border border-[#475569] text-white text-xs rounded-lg px-3 py-2 shadow-xl z-10"
+            <div className="absolute pointer-events-none bg-theme-base border border-[#475569] text-white text-xs rounded-lg px-3 py-2 shadow-xl z-10"
               style={{
                 left: `${Math.min(85, Math.max(15, (hp.x / width) * 100))}%`,
                 top: `${(hp.y / chartHeight) * 100 - 14}%`,
@@ -1026,12 +1026,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           <label className="text-xs text-slate-400">{t('Desde', 'From')}:</label>
           <input type="date" value={customRange.from}
             onChange={e => setCustomRange(prev => ({ ...prev, from: e.target.value }))}
-            className="px-2 py-1 bg-[#09090b] border border-[#27272a] rounded text-xs text-white focus:outline-none focus:border-[#3b82f6]" />
+            className="px-2 py-1 bg-theme-base border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[#3b82f6]" />
           <label className="text-xs text-slate-400">{t('Hasta', 'To')}:</label>
           <input type="date" value={customRange.to}
             onChange={e => setCustomRange(prev => ({ ...prev, to: e.target.value }))}
             max={new Date().toISOString().split('T')[0]}
-            className="px-2 py-1 bg-[#09090b] border border-[#27272a] rounded text-xs text-white focus:outline-none focus:border-[#3b82f6]" />
+            className="px-2 py-1 bg-theme-base border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[#3b82f6]" />
         </div>
       )}
 
@@ -1044,7 +1044,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       </div>
 
       {showSnapshotImport && (
-        <div className="mt-2 p-3 bg-[#09090b] border border-[#27272a] rounded-lg">
+        <div className="mt-2 p-3 bg-theme-base border border-glass-border rounded-lg">
           <p className="text-[10px] text-slate-400 mb-2">
             {t('Agrega valores pasados de tu portafolio para completar la gráfica.',
                'Add past portfolio values to complete the chart.')}
@@ -1054,12 +1054,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
               <div key={i} className="flex gap-2 items-center">
                 <input type="date" value={row.date}
                   onChange={e => setSnapshotRows(prev => prev.map((r, idx) => idx === i ? { ...r, date: e.target.value } : r))}
-                  className="px-2 py-1 bg-[#1C1C1E] border border-[#27272a] rounded text-xs text-white focus:outline-none focus:border-[#3b82f6] w-36" />
+                  className="px-2 py-1 bg-theme-card border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[#3b82f6] w-36" />
                 <div className="flex items-center gap-1 flex-1">
                   <span className="text-xs text-slate-500">$</span>
                   <input type="number" value={row.value} placeholder={t('Valor total', 'Total value')}
                     onChange={e => setSnapshotRows(prev => prev.map((r, idx) => idx === i ? { ...r, value: e.target.value } : r))}
-                    className="w-full px-2 py-1 bg-[#1C1C1E] border border-[#27272a] rounded text-xs text-white focus:outline-none focus:border-[#3b82f6]" />
+                    className="w-full px-2 py-1 bg-theme-card border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[#3b82f6]" />
                 </div>
                 {snapshotRows.length > 1 && (
                   <button onClick={() => setSnapshotRows(prev => prev.filter((_, idx) => idx !== i))}

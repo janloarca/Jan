@@ -7,6 +7,16 @@ module.exports = {
   ],
   theme: {
     extend: {
+      colors: {
+        'theme-base': 'var(--bg-primary)',
+        'theme-surface': 'var(--bg-secondary)',
+        'theme-card': 'var(--bg-card)',
+        'theme-elevated': 'var(--bg-card-hover)',
+        'theme-input': 'var(--bg-input)',
+        'theme-tertiary': 'var(--bg-tertiary)',
+        'glass-border': 'var(--border-primary)',
+        'glass-subtle': 'var(--border-subtle)',
+      },
       fontFamily: {
         sans: ['-apple-system', 'BlinkMacSystemFont', 'SF Pro Text', 'SF Pro Display', 'system-ui', 'Helvetica Neue', 'sans-serif'],
         mono: ['SF Mono', 'JetBrains Mono', 'Fira Code', 'monospace'],

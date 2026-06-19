@@ -41,7 +41,7 @@ export default function DataQuality({ items, lang }) {
   const barColorHex = quality.score >= 80 ? '#34d399' : quality.score >= 60 ? '#f59e0b' : '#ef4444'
 
   return (
-    <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 px-4 py-3">
+    <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 px-4 py-3">
       <div className="flex items-center gap-3">
         <div className="text-center shrink-0">
           <div className="text-lg font-bold" style={{ color: colorHex }}>{quality.score}%</div>

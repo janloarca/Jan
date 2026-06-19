@@ -102,12 +102,12 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
     onClose()
   }, [results, onSyncComplete, onClose])
 
-  const inputCls = 'w-full px-3 py-2 bg-[#000000] border border-[#38383A] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50'
+  const inputCls = 'w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div ref={trapRef} className="bg-[#1C1C1E] border border-[#38383A] rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#38383A]">
+      <div ref={trapRef} className="bg-theme-card border border-glass-border rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <span className="text-xl">🔒</span> Ledger Sync
           </h2>
@@ -131,7 +131,7 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
                 <div key={i} className="flex gap-2 items-start">
                   <div className="w-20 shrink-0">
                     <select value={row.chain} onChange={e => updateRow(i, 'chain', e.target.value)}
-                      className="w-full px-2 py-2 bg-[#000000] border border-[#38383A] rounded-lg text-xs text-white">
+                      className="w-full px-2 py-2 bg-theme-base border border-glass-border rounded-lg text-xs text-white">
                       {CHAINS.map(c => <option key={c.key} value={c.key}>{c.key}</option>)}
                     </select>
                   </div>
@@ -177,7 +177,7 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
 
             <div className="space-y-2">
               {results.results.map((r, i) => (
-                <div key={i} className="flex items-center justify-between px-3 py-2 bg-[#000000] rounded-lg">
+                <div key={i} className="flex items-center justify-between px-3 py-2 bg-theme-base rounded-lg">
                   <div>
                     <span className="text-white text-sm font-medium">{r.chain}</span>
                     <span className="text-slate-500 text-xs ml-2 font-mono">{r.address.slice(0, 8)}...{r.address.slice(-6)}</span>
@@ -200,7 +200,7 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
 
             <div className="flex gap-3">
               <button onClick={() => { setStep('input'); setResults(null) }}
-                className="flex-1 py-2.5 border border-[#38383A] text-slate-300 rounded-lg hover:bg-[#000000] transition-colors text-sm">
+                className="flex-1 py-2.5 border border-glass-border text-slate-300 rounded-lg hover:bg-theme-base transition-colors text-sm">
                 {t('Atrás', 'Back')}
               </button>
               <button onClick={handleConfirm}

@@ -69,7 +69,7 @@ export default function DocumentVault({ uid, itemId, lang }) {
   }
 
   return (
-    <div className="border-t border-[#38383A]/50 pt-4 mt-4">
+    <div className="border-t border-glass-border/50 pt-4 mt-4">
       <div className="flex items-center justify-between mb-3">
         <h4 className="text-xs font-medium text-slate-400 flex items-center gap-1.5">
           <span>📁</span> {t('Documentos', 'Documents')}
@@ -93,7 +93,7 @@ export default function DocumentVault({ uid, itemId, lang }) {
       ) : (
         <div className="space-y-1.5">
           {docs.map((doc) => (
-            <div key={doc.id} className="flex items-center gap-2 p-2 bg-[#000000] rounded-lg border border-[#38383A]/30 group">
+            <div key={doc.id} className="flex items-center gap-2 p-2 bg-theme-base rounded-lg border border-glass-border/30 group">
               <span className="text-sm">{FILE_ICONS[doc.type] || FILE_ICONS.default}</span>
               <a href={doc.url?.startsWith('https://') ? doc.url : '#'} target="_blank" rel="noopener noreferrer"
                 className="flex-1 min-w-0 text-xs text-slate-300 hover:text-blue-400 truncate transition-colors">

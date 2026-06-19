@@ -138,7 +138,7 @@ export default function PortfolioMap({ items, lang }) {
   ]
 
   return (
-    <div className="bg-[#1C1C1E] rounded-2xl border border-[#38383A] p-5 card-primary">
+    <div className="bg-theme-card rounded-2xl border border-glass-border p-5 card-primary">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-cyan-400" />
@@ -151,7 +151,7 @@ export default function PortfolioMap({ items, lang }) {
         {views.map(v => (
           <button key={v.key} onClick={() => { setGroupBy(v.key); setSelected(null) }}
             className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
-              groupBy !== v.key ? 'border hover:bg-[#2C2C2E]' : ''
+              groupBy !== v.key ? 'border hover:bg-theme-elevated' : ''
             }`}
             style={groupBy === v.key
               ? { backgroundColor: '#475569', color: '#ffffff' }
@@ -224,7 +224,7 @@ export default function PortfolioMap({ items, lang }) {
 
       {/* Detail panel */}
       {selectedGroup && (
-        <div className="mt-3 p-3 bg-[#000000] rounded-xl border border-[#38383A]/50 animate-in fade-in duration-200">
+        <div className="mt-3 p-3 bg-theme-base rounded-xl border border-glass-border/50 animate-in fade-in duration-200">
           <div className="flex items-center justify-between mb-2.5">
             <h4 className="text-sm font-semibold text-white flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: selectedGroup.color }} />
@@ -245,7 +245,7 @@ export default function PortfolioMap({ items, lang }) {
               const retPct = hasRet ? ((item.currentPrice - item.purchasePrice) / item.purchasePrice) * 100 : null
 
               return (
-                <div key={item.id || i} className="flex items-center gap-2.5 py-1.5 border-b border-[#38383A]/20 last:border-0">
+                <div key={item.id || i} className="flex items-center gap-2.5 py-1.5 border-b border-glass-border/20 last:border-0">
                   <div className="w-1 h-7 rounded-full shrink-0" style={{ backgroundColor: clr }} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">

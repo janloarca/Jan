@@ -31,10 +31,10 @@ function InfoTip({ text }) {
         i
       </button>
       {show && (
-        <div className="absolute z-50 bottom-6 left-1/2 -translate-x-1/2 w-52 p-2 bg-[#000000] border border-[#475569] rounded-lg text-[11px] text-slate-300 shadow-xl"
+        <div className="absolute z-50 bottom-6 left-1/2 -translate-x-1/2 w-52 p-2 bg-theme-base border border-[#475569] rounded-lg text-[11px] text-slate-300 shadow-xl"
           onClick={(e) => e.stopPropagation()}>
           {text}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-[#000000] border-r border-b border-[#475569] rotate-45 -mt-1" />
+          <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-theme-base border-r border-b border-[#475569] rotate-45 -mt-1" />
         </div>
       )}
     </span>

@@ -73,7 +73,7 @@ export default function ConcentrationRisk({ items, lang }) {
   const PALETTE = CHART_PALETTE
 
   return (
-    <div className="bg-[#141416]/80 rounded-xl border border-[#27272a]/50 p-4">
+    <div className="bg-theme-surface/80 rounded-xl border border-glass-border/50 p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#60a5fa' }} />
@@ -96,7 +96,7 @@ export default function ConcentrationRisk({ items, lang }) {
         ))}
       </div>
 
-      <div className="flex items-center gap-3 mb-3 px-2 py-1.5 bg-[#000000] rounded-lg border border-[#27272a]/50">
+      <div className="flex items-center gap-3 mb-3 px-2 py-1.5 bg-theme-base rounded-lg border border-glass-border/50">
         <span className="text-xs text-slate-500">HHI<InfoTip text={t('Índice Herfindahl-Hirschman. Mide la concentración del portafolio. Bajo 1500 = diversificado, 1500-2500 = moderado, arriba de 2500 = concentrado.', 'Herfindahl-Hirschman Index. Measures portfolio concentration. Below 1500 = diversified, 1500-2500 = moderate, above 2500 = concentrated.')} /></span>
         <div className="flex-1 h-1.5 bg-slate-700/30 rounded-full overflow-hidden">
           <div className="h-full rounded-full transition-all" style={{

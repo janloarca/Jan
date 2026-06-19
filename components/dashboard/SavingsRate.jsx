@@ -81,7 +81,7 @@ export default function SavingsRate({ goals, transactions, netWorth, snapshots, 
   const ringColor = rates.savingsRate >= 30 ? '#34d399' : rates.savingsRate >= 15 ? '#f59e0b' : '#ef4444'
 
   return (
-    <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 p-4 sm:p-5">
+    <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-4 sm:p-5">
       <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
         🎯 {t('Tasa de Ahorro', 'Savings Rate')}
       </h3>
@@ -116,7 +116,7 @@ export default function SavingsRate({ goals, transactions, netWorth, snapshots, 
       )}
 
       {growthFromSavings && (
-        <div className="mb-3 p-3 bg-[#000000] rounded-lg border border-[#38383A]/50">
+        <div className="mb-3 p-3 bg-theme-base rounded-lg border border-glass-border/50">
           <div className="text-xs text-slate-500 mb-2">{t('Crecimiento del portafolio', 'Portfolio growth breakdown')}</div>
           <div className="grid grid-cols-2 gap-3">
             <div className="text-center">
@@ -136,7 +136,7 @@ export default function SavingsRate({ goals, transactions, netWorth, snapshots, 
       )}
 
       {fireNumber && netWorth > 0 && (
-        <div className="pt-3 border-t border-[#38383A]/30">
+        <div className="pt-3 border-t border-glass-border/30">
           <div className="flex items-center justify-between text-xs mb-1.5">
             <span className="text-slate-500">FIRE {t('número', 'number')} (25x)</span>
             <span className="text-white font-medium">{formatCurrency(fireNumber)}</span>
