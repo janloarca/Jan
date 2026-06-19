@@ -234,7 +234,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
           {/* API Key input */}
           {showKeyInput && (
             <div className="px-4 py-3 border-b border-glass-border bg-theme-base">
-              <label className="text-[10px] text-slate-400 uppercase tracking-wide mb-1 block">Anthropic API Key</label>
+              <label className="text-xs text-slate-400 uppercase tracking-wide mb-1 block">Anthropic API Key</label>
               <div className="flex gap-2">
                 <input
                   type="password"
@@ -251,7 +251,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
                   OK
                 </button>
               </div>
-              <p className="text-[9px] text-slate-500 mt-1">
+              <p className="text-xs text-slate-500 mt-1">
                 {t('Tu key se guarda solo en tu navegador. Nunca se almacena en nuestros servidores.',
                    'Your key is stored only in your browser. Never saved on our servers.')}
               </p>

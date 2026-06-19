@@ -850,7 +850,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                     {t('Formato detectado', 'Format detected')}: {detectedBroker.institution}
                   </span>
                   {detectedBroker.instructions && (
-                    <p className="text-[11px] text-slate-500 mt-1">
+                    <p className="text-xs text-slate-500 mt-1">
                       {detectedBroker.instructions[lang] || detectedBroker.instructions.en}
                     </p>
                   )}
@@ -1101,7 +1101,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                   </button>
                 </div>
                 {ibkrImportMode === 'replace' && existingItems && (
-                  <p className="text-[11px] mt-2" style={{ color: 'rgba(251,146,60,0.7)' }}>
+                  <p className="text-xs mt-2" style={{ color: 'rgba(251,146,60,0.7)' }}>
                     {(() => {
                       const ibkrCount = existingItems.filter(it => it.institution === 'Interactive Brokers' || it._source === 'ibkr').length
                       return ibkrCount > 0

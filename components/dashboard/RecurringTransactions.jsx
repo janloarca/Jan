@@ -148,7 +148,7 @@ export default function RecurringTransactions({ goals, onSaveGoals, lang }) {
                   <span className="text-sm">{cat.icon}</span>
                   <div className="flex-1 min-w-0">
                     <span className="text-xs text-white truncate block">{r.name}</span>
-                    <span className="text-[10px] text-slate-500">{freqLabel}</span>
+                    <span className="text-xs text-slate-500">{freqLabel}</span>
                   </div>
                   <span className="text-xs font-medium" style={{ color: r.isInflow ? '#34d399' : '#f87171' }}>
                     {r.isInflow ? '+' : '-'}{formatCurrency(r.amount)}
@@ -177,7 +177,7 @@ export default function RecurringTransactions({ goals, onSaveGoals, lang }) {
                 {summary.net >= 0 ? '+' : ''}{formatCurrency(summary.net)}
               </span>
             </div>
-            <div className="flex justify-between text-[10px]">
+            <div className="flex justify-between text-xs">
               <span className="text-slate-600">{t('Proyección anual', 'Annual projection')}</span>
               <span style={{ color: summary.annualNet >= 0 ? 'rgba(52,211,153,0.6)' : 'rgba(248,113,113,0.6)' }}>
                 {summary.annualNet >= 0 ? '+' : ''}{formatCurrency(summary.annualNet)}/yr

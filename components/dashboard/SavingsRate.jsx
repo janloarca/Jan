@@ -123,13 +123,13 @@ export default function SavingsRate({ goals, transactions, netWorth, snapshots, 
               <div className="text-sm font-bold" style={{ color: growthFromSavings.fromFlows >= 0 ? '#60a5fa' : '#f87171' }}>
                 {formatCurrency(growthFromSavings.fromFlows)}
               </div>
-              <div className="text-[10px] text-slate-500">{t('De aportes netos', 'From net deposits')}</div>
+              <div className="text-xs text-slate-500">{t('De aportes netos', 'From net deposits')}</div>
             </div>
             <div className="text-center">
               <div className="text-sm font-bold" style={{ color: growthFromSavings.fromInvestment >= 0 ? '#34d399' : '#f87171' }}>
                 {formatCurrency(growthFromSavings.fromInvestment)}
               </div>
-              <div className="text-[10px] text-slate-500">{t('De inversiones', 'From investments')}</div>
+              <div className="text-xs text-slate-500">{t('De inversiones', 'From investments')}</div>
             </div>
           </div>
         </div>
@@ -145,7 +145,7 @@ export default function SavingsRate({ goals, transactions, netWorth, snapshots, 
             <div className="h-full rounded-full bg-emerald-500 transition-all"
               style={{ width: `${Math.min((netWorth / fireNumber) * 100, 100)}%` }} />
           </div>
-          <div className="text-[10px] text-slate-600 mt-1 text-right">
+          <div className="text-xs text-slate-600 mt-1 text-right">
             {((netWorth / fireNumber) * 100).toFixed(1)}% {t('alcanzado', 'reached')}
           </div>
         </div>

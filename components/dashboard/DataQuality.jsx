@@ -45,7 +45,7 @@ export default function DataQuality({ items, lang }) {
       <div className="flex items-center gap-3">
         <div className="text-center shrink-0">
           <div className="text-lg font-bold" style={{ color: colorHex }}>{quality.score}%</div>
-          <div className="text-[10px] text-slate-600">{t('Calidad', 'Quality')}</div>
+          <div className="text-xs text-slate-600">{t('Calidad', 'Quality')}</div>
         </div>
         <div className="flex-1 min-w-0">
           <div className="h-1.5 bg-slate-700/50 rounded-full overflow-hidden mb-1.5">
@@ -53,7 +53,7 @@ export default function DataQuality({ items, lang }) {
           </div>
           <div className="flex flex-wrap gap-x-3 gap-y-0.5">
             {quality.checks.slice(0, 3).map((c, i) => (
-              <span key={i} className="text-[10px] text-slate-500">{c.icon} {c.text}</span>
+              <span key={i} className="text-xs text-slate-500">{c.icon} {c.text}</span>
             ))}
           </div>
         </div>

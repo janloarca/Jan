@@ -71,7 +71,7 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
           <div className="p-6 space-y-4">
             <div className="border rounded-lg p-3" style={{ backgroundColor: 'rgba(59,130,246,0.1)', borderColor: 'rgba(59,130,246,0.2)' }}>
               <p className="text-xs font-medium mb-1" style={{ color: '#60a5fa' }}>{t('Cómo obtener tu API key:', 'How to get your API key:')}</p>
-              <ol className="text-[11px] space-y-0.5 list-decimal list-inside" style={{ color: 'rgba(147,197,253,0.8)' }}>
+              <ol className="text-xs space-y-0.5 list-decimal list-inside" style={{ color: 'rgba(147,197,253,0.8)' }}>
                 <li>{t('Ve a Blockchain.com Exchange', 'Go to Blockchain.com Exchange')}</li>
                 <li>{t('Settings → API Management', 'Settings → API Management')}</li>
                 <li>{t('Crea una nueva API Key (solo lectura)', 'Create a new API Key (read-only)')}</li>
@@ -142,13 +142,13 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
                   className="flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors border"
                   style={syncMode === 'merge' ? { backgroundColor: 'rgba(59,130,246,0.2)', color: '#60a5fa', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: 'var(--bg-input)', color: 'var(--text-secondary)', borderColor: 'var(--border-color)' }}>
                   {t('Fusionar', 'Merge')}
-                  <span className="block text-[10px] mt-0.5 opacity-60">{t('Actualiza existentes, agrega nuevos', 'Update existing, add new')}</span>
+                  <span className="block text-xs mt-0.5 opacity-60">{t('Actualiza existentes, agrega nuevos', 'Update existing, add new')}</span>
                 </button>
                 <button onClick={() => setSyncMode('replace')}
                   className="flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors border"
                   style={syncMode === 'replace' ? { backgroundColor: 'rgba(245,158,11,0.2)', color: '#fbbf24', borderColor: 'rgba(245,158,11,0.4)' } : { backgroundColor: 'var(--bg-input)', color: 'var(--text-secondary)', borderColor: 'var(--border-color)' }}>
                   {t('Reemplazar', 'Replace')}
-                  <span className="block text-[10px] mt-0.5 opacity-60">{t('Borra todo de Blockchain.com', 'Delete all from Blockchain.com')}</span>
+                  <span className="block text-xs mt-0.5 opacity-60">{t('Borra todo de Blockchain.com', 'Delete all from Blockchain.com')}</span>
                 </button>
               </div>
             </div>

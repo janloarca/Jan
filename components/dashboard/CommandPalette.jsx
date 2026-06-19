@@ -125,7 +125,7 @@ export default function CommandPalette({ open, onClose, items, lang, onAction })
             placeholder={lang === 'es' ? 'Buscar posición o acción...' : 'Search position or action...'}
             className="flex-1 bg-transparent text-white text-sm placeholder-slate-500 focus:outline-none"
           />
-          <kbd className="hidden sm:inline-block text-[10px] text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">ESC</kbd>
+          <kbd className="hidden sm:inline-block text-xs text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">ESC</kbd>
         </div>
 
         <div ref={listRef} className="max-h-[50vh] overflow-y-auto py-1">
@@ -152,7 +152,7 @@ export default function CommandPalette({ open, onClose, items, lang, onAction })
                 {r.detail && <div className="text-xs text-slate-500 truncate">{r.detail}</div>}
               </div>
               {r.shortcut && (
-                <kbd className="text-[10px] text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700 shrink-0">
+                <kbd className="text-xs text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700 shrink-0">
                   ⌘{r.shortcut}
                 </kbd>
               )}
@@ -163,7 +163,7 @@ export default function CommandPalette({ open, onClose, items, lang, onAction })
           ))}
         </div>
 
-        <div className="px-4 py-2 border-t border-glass-border flex items-center gap-4 text-[10px] text-slate-600">
+        <div className="px-4 py-2 border-t border-glass-border flex items-center gap-4 text-xs text-slate-600">
           <span>↑↓ {lang === 'es' ? 'navegar' : 'navigate'}</span>
           <span>↵ {lang === 'es' ? 'seleccionar' : 'select'}</span>
           <span>esc {lang === 'es' ? 'cerrar' : 'close'}</span>

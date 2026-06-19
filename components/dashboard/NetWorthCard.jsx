@@ -101,7 +101,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
         <span className="text-xs text-slate-500 uppercase tracking-wider font-medium">{greeting}</span>
         <div className="flex items-center gap-2">
           {milestone.text && (
-            <span className="text-[11px] font-medium px-2 py-0.5 rounded-full"
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full"
               style={milestone.positive
                 ? { backgroundColor: 'rgba(52,211,153,0.1)', color: 'var(--accent-green)' }
                 : { backgroundColor: 'rgba(245,158,11,0.1)', color: '#fbbf24' }
@@ -183,7 +183,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
               )
             })()}
           </div>
-          <div className="flex items-center gap-3 mt-1 text-[11px] text-slate-600">
+          <div className="flex items-center gap-3 mt-1 text-xs text-slate-600">
             <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'rgba(59,130,246,0.5)' }} />{lang === 'es' ? 'Invertido' : 'Invested'}</span>
             <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'rgba(52,211,153,0.5)' }} />{lang === 'es' ? 'Ganancias' : 'Gains'}</span>
           </div>

@@ -185,7 +185,7 @@ export default function PortfolioMap({ items, lang }) {
                 >
                   <div className="min-w-0">
                     {wide && <p className="text-xs font-semibold text-white truncate leading-tight">{rect.name}</p>}
-                    {wide && tall && <p className="text-[11px] text-slate-400 leading-tight">{rect.pct.toFixed(1)}%</p>}
+                    {wide && tall && <p className="text-xs text-slate-400 leading-tight">{rect.pct.toFixed(1)}%</p>}
                   </div>
                   {tall && (
                     <div className="min-w-0">
@@ -193,14 +193,14 @@ export default function PortfolioMap({ items, lang }) {
                         {formatCurrency(rect.value)}
                       </p>
                       {wide && rect.h > 40 && (
-                        <p className="text-[10px] text-slate-500 truncate mt-0.5">
+                        <p className="text-xs text-slate-500 truncate mt-0.5">
                           {rect.items.slice(0, 5).map(it => it.symbol || (it.name || '').split(' ')[0]).join(' · ')}
                         </p>
                       )}
                     </div>
                   )}
                   {!wide && !tall && (
-                    <p className="text-[9px] text-white/70 truncate text-center">{rect.name.slice(0, 6)}</p>
+                    <p className="text-xs text-white/70 truncate text-center">{rect.name.slice(0, 6)}</p>
                   )}
                 </div>
               </div>
@@ -251,7 +251,7 @@ export default function PortfolioMap({ items, lang }) {
                     <div className="flex items-center gap-1.5">
                       <span className="text-xs font-medium text-white truncate">{item.name || item.symbol}</span>
                       {item.symbol && item.name && (
-                        <span className="text-[10px] text-slate-600 shrink-0">{item.symbol}</span>
+                        <span className="text-xs text-slate-600 shrink-0">{item.symbol}</span>
                       )}
                     </div>
                     <div className="w-full h-1 bg-slate-700/30 rounded-full overflow-hidden mt-1">
@@ -261,7 +261,7 @@ export default function PortfolioMap({ items, lang }) {
                   <div className="text-right shrink-0">
                     <p className="text-xs font-medium text-white">{formatCurrency(val)}</p>
                     {retPct != null && (
-                      <p className="text-[10px]" style={{ color: retPct >= 0 ? '#34d399' : '#f87171' }}>
+                      <p className="text-xs" style={{ color: retPct >= 0 ? '#34d399' : '#f87171' }}>
                         {retPct >= 0 ? '+' : ''}{retPct.toFixed(1)}%
                       </p>
                     )}

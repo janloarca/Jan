@@ -117,19 +117,19 @@ export default function DebtSpreadsheet({ items, lang, onEditItem, onAdd }) {
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] uppercase tracking-wide text-slate-400">{t('Deuda Total', 'Total Debt')}</p>
+          <p className="text-xs uppercase tracking-wide text-slate-400">{t('Deuda Total', 'Total Debt')}</p>
           <p className="text-xl font-bold text-red-600 mt-1">${fmt(totals.totalBalance)}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] uppercase tracking-wide text-slate-400">{t('Pago Mensual', 'Monthly Payment')}</p>
+          <p className="text-xs uppercase tracking-wide text-slate-400">{t('Pago Mensual', 'Monthly Payment')}</p>
           <p className="text-xl font-bold text-slate-800 mt-1">${fmt(totals.totalMonthly)}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] uppercase tracking-wide text-slate-400">{t('Interés Mensual', 'Monthly Interest')}</p>
+          <p className="text-xs uppercase tracking-wide text-slate-400">{t('Interés Mensual', 'Monthly Interest')}</p>
           <p className="text-xl font-bold text-amber-600 mt-1">${fmt(totals.totalInterest)}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] uppercase tracking-wide text-slate-400">{t('Tasa Promedio', 'Avg Rate')}</p>
+          <p className="text-xs uppercase tracking-wide text-slate-400">{t('Tasa Promedio', 'Avg Rate')}</p>
           <p className="text-xl font-bold text-slate-800 mt-1">{pctFmt(totals.avgRate)}</p>
         </div>
       </div>
@@ -197,7 +197,7 @@ export default function DebtSpreadsheet({ items, lang, onEditItem, onAdd }) {
                             <span className="text-xs" title={debt.rewardType}>{REWARD_ICONS[debt.rewardType] || ''}</span>
                           )}
                         </div>
-                        {debt.institution && <p className="text-[10px] text-slate-400 mt-0.5">{debt.institution}</p>}
+                        {debt.institution && <p className="text-xs text-slate-400 mt-0.5">{debt.institution}</p>}
                       </td>
                       <td className="px-3 py-2.5">
                         <span className="text-xs text-slate-500">{subtypeLabel}</span>
@@ -237,7 +237,7 @@ export default function DebtSpreadsheet({ items, lang, onEditItem, onAdd }) {
                     {isCC && debt.rewardBalance > 0 && (
                       <tr className="bg-slate-50/50">
                         <td colSpan={9} className="px-8 py-1.5">
-                          <span className="text-[10px] text-slate-400">
+                          <span className="text-xs text-slate-400">
                             {REWARD_ICONS[debt.rewardType]} {debt.rewardType}: {debt.rewardBalance?.toLocaleString()}
                             {debt.cardBrand && ` · ${debt.cardBrand.toUpperCase()}`}
                             {debt.rewardRate && ` · ${debt.rewardRate}% earn rate`}

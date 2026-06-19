@@ -113,7 +113,7 @@ export default function AssetAllocation({ items, lang }) {
                       {displayName}
                     </span>
                     {returnTypeDesc && (
-                      <span className="text-[10px] text-slate-500 leading-tight">
+                      <span className="text-xs text-slate-500 leading-tight">
                         {returnTypeDesc}
                       </span>
                     )}

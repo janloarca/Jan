@@ -118,7 +118,7 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
           <div className="p-6 space-y-4">
             <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
               <p className="text-xs text-blue-400 font-medium mb-1">{t('Cómo funciona:', 'How it works:')}</p>
-              <p className="text-[11px] text-blue-300/80">
+              <p className="text-xs text-blue-300/80">
                 {t(
                   'Pega tus direcciones públicas. Leemos el balance directamente del blockchain. No necesitas conectar tu Ledger ni compartir keys privadas.',
                   'Paste your public addresses. We read the balance directly from the blockchain. No need to connect your Ledger or share private keys.'
@@ -193,7 +193,7 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
               <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
                 <p className="text-xs text-amber-400 font-medium mb-1">{t('Errores:', 'Errors:')}</p>
                 {results.errors.map((e, i) => (
-                  <p key={i} className="text-[11px] text-amber-300/70">{e.address?.slice(0, 12)}... — {e.error}</p>
+                  <p key={i} className="text-xs text-amber-300/70">{e.address?.slice(0, 12)}... — {e.error}</p>
                 ))}
               </div>
             )}

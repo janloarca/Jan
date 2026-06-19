@@ -80,15 +80,15 @@ export default function FeeAnalysis({ items, netWorth, lang }) {
       <div className="grid grid-cols-3 gap-3 mb-4">
         <div className="text-center">
           <div className="text-lg font-bold" style={{ color: feeColorHex }}>{formatCurrency(analysis.totalFees)}</div>
-          <div className="text-[10px] text-slate-500">{t('Comisiones/año', 'Fees/year')}</div>
+          <div className="text-xs text-slate-500">{t('Comisiones/año', 'Fees/year')}</div>
         </div>
         <div className="text-center">
           <div className="text-lg font-bold" style={{ color: feeColorHex }}>{analysis.avgPct.toFixed(2)}%</div>
-          <div className="text-[10px] text-slate-500">{t('Tasa promedio', 'Avg rate')}</div>
+          <div className="text-xs text-slate-500">{t('Tasa promedio', 'Avg rate')}</div>
         </div>
         <div className="text-center">
           <div className="text-lg font-bold" style={{ color: 'var(--text-negative)' }}>{formatCurrency(analysis.tenYearImpact)}</div>
-          <div className="text-[10px] text-slate-500">{t('Impacto 10 años', '10yr impact')}</div>
+          <div className="text-xs text-slate-500">{t('Impacto 10 años', '10yr impact')}</div>
         </div>
       </div>
 

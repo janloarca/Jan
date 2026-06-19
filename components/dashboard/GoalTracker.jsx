@@ -181,7 +181,7 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
                 <div>
                   <span className="text-sm font-semibold text-white block">{t('Probabilidad de éxito', 'Probability of success')}</span>
                   <span className="text-xs font-medium mt-0.5 block" style={{ color: probColor }}>{probLabel}</span>
-                  <span className="text-[11px] text-slate-600 mt-1 block">{t('Monte Carlo · 500 simulaciones', 'Monte Carlo · 500 simulations')}</span>
+                  <span className="text-xs text-slate-600 mt-1 block">{t('Monte Carlo · 500 simulaciones', 'Monte Carlo · 500 simulations')}</span>
                 </div>
               </div>
             )

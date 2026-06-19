@@ -286,7 +286,7 @@ function LoginForm() {
           </p>
         </div>
 
-        <p className="text-center text-[10px] text-slate-600 mt-6">
+        <p className="text-center text-xs text-slate-600 mt-6">
           Powered by Chispudo
         </p>
       </div>

@@ -149,7 +149,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
               <div className="text-xs font-semibold font-mono tabular-nums" style={{ color: m.net >= 0 ? '#34d399' : '#f87171' }}>
                 {m.net >= 0 ? '+' : ''}{formatCurrency(m.net)}
               </div>
-              <div className="text-[10px] text-slate-600">{m.count} txs</div>
+              <div className="text-xs text-slate-600">{m.count} txs</div>
             </div>
           ))}
         </div>

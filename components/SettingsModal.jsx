@@ -563,7 +563,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                   { key: 'targetYear', label: t('Año objetivo', 'Target year'), placeholder: '2030' },
                 ].map((field) => (
                   <div key={field.key}>
-                    <label className="text-[11px] text-slate-500 uppercase tracking-wider mb-1.5 block">{field.label}</label>
+                    <label className="text-xs text-slate-500 uppercase tracking-wider mb-1.5 block">{field.label}</label>
                     <input type="number" value={profileForm[field.key]} onChange={(e) => setProfileForm((p) => ({ ...p, [field.key]: e.target.value }))}
                       placeholder={field.placeholder}
                       className="w-full px-4 py-2.5 bg-theme-base border border-glass-border/60 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
@@ -572,7 +572,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               </div>
 
               <div>
-                <label className="text-[11px] text-slate-500 uppercase tracking-wider mb-1.5 block">{t('Tolerancia al riesgo', 'Risk tolerance')}</label>
+                <label className="text-xs text-slate-500 uppercase tracking-wider mb-1.5 block">{t('Tolerancia al riesgo', 'Risk tolerance')}</label>
                 <div className="flex gap-2">
                   {[
                     { key: 'conservative', label: t('Conservador', 'Conservative') },
@@ -652,21 +652,21 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-white">{broker.name}</p>
                       {conn?.configured && (
-                        <p className="text-[10px] text-emerald-400">{t('Vinculado', 'Linked')}</p>
+                        <p className="text-xs text-emerald-400">{t('Vinculado', 'Linked')}</p>
                       )}
                       {!conn?.configured && broker.apiNote && !broker.hasApi && (
-                        <p className="text-[10px] text-slate-600">{broker.apiNote}</p>
+                        <p className="text-xs text-slate-600">{broker.apiNote}</p>
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       {broker.hasApi && conn?.configured ? (
                         <>
                           <button onClick={() => handleBrokerSync(broker)} disabled={isSyncing}
-                            className="px-2.5 py-1 bg-blue-600 text-white text-[11px] font-medium rounded-md hover:bg-blue-500 disabled:opacity-50 transition-colors">
+                            className="px-2.5 py-1 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-500 disabled:opacity-50 transition-colors">
                             {isSyncing ? '...' : 'Sync'}
                           </button>
                           <button onClick={() => handleBrokerDisconnect(broker)} disabled={isSyncing}
-                            className="px-2 py-1 text-[11px] text-red-400/60 hover:text-red-400 transition-colors">
+                            className="px-2 py-1 text-xs text-red-400/60 hover:text-red-400 transition-colors">
                             ✕
                           </button>
                         </>
@@ -675,16 +675,16 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                           if (broker.authType === 'oauth') { handleBrokerConnect(broker); return }
                           setExpandedBroker(isExpanded ? null : broker.id); setBrokerForm({}); setBrokerError(null)
                         }}
-                          className="px-2.5 py-1 border border-blue-500/40 text-blue-400 text-[11px] font-medium rounded-md hover:bg-blue-500/10 transition-colors">
+                          className="px-2.5 py-1 border border-blue-500/40 text-blue-400 text-xs font-medium rounded-md hover:bg-blue-500/10 transition-colors">
                           {isSyncing ? '...' : broker.authType === 'oauth' ? 'OAuth' : isExpanded ? t('Cancelar', 'Cancel') : 'API'}
                         </button>
                       ) : broker.apiNote ? (
-                        <span className="px-2 py-0.5 text-[10px] text-slate-600 border border-glass-border/40 rounded">
+                        <span className="px-2 py-0.5 text-xs text-slate-600 border border-glass-border/40 rounded">
                           {broker.apiNote}
                         </span>
                       ) : null}
                       <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport(broker.id) }, 50) }}
-                        className="px-2.5 py-1 border border-glass-border text-slate-400 text-[11px] font-medium rounded-md hover:bg-theme-elevated transition-colors">
+                        className="px-2.5 py-1 border border-glass-border text-slate-400 text-xs font-medium rounded-md hover:bg-theme-elevated transition-colors">
                         CSV
                       </button>
                     </div>
@@ -692,14 +692,14 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                   {isExpanded && broker.hasApi && !broker.authType && (
                     <div className="px-3 pb-3 pt-1 border-t border-glass-border/30 space-y-2">
                       {broker.instructions && (
-                        <p className="text-[10px] text-slate-600">{broker.instructions[lang] || broker.instructions.en}</p>
+                        <p className="text-xs text-slate-600">{broker.instructions[lang] || broker.instructions.en}</p>
                       )}
                       {brokerError && expandedBroker === broker.id && (
                         <p className="text-xs text-red-400">{brokerError}</p>
                       )}
                       {broker.fields.map(f => (
                         <div key={f.key}>
-                          <label className="text-[10px] text-slate-500 mb-0.5 block">{f.label}</label>
+                          <label className="text-xs text-slate-500 mb-0.5 block">{f.label}</label>
                           <input type={f.type || 'text'} value={brokerForm[f.key] || ''}
                             onChange={(e) => setBrokerForm(prev => ({ ...prev, [f.key]: e.target.value }))}
                             placeholder={f.placeholder}
@@ -721,7 +721,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
             <div className="space-y-5">
               {/* ── IBKR (API + CSV) ── */}
               <div>
-                <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">Interactive Brokers</p>
+                <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Interactive Brokers</p>
                 <div className="p-3 bg-theme-base border border-glass-border rounded-xl">
                   <div className="flex items-center gap-3">
                     <div className="relative shrink-0">
@@ -730,7 +730,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-white">Interactive Brokers</p>
-                      <p className="text-[11px]" style={{ color: statusColor.text }}>
+                      <p className="text-xs" style={{ color: statusColor.text }}>
                         {ibkrConfigured ? statusLabel : t('No vinculado', 'Not linked')}
                         {ibkrConfigured && <span className="text-slate-600 ml-1">· ID: {ibkrQueryId}</span>}
                       </p>
@@ -738,23 +738,23 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                     <div className="flex items-center gap-1.5 shrink-0">
                       {ibkrConfigured ? (
                         <button onClick={() => { onClose(); setTimeout(() => { if (onOpenIBKR) onOpenIBKR() }, 50) }}
-                          className="px-2.5 py-1 bg-blue-600 text-white text-[11px] font-medium rounded-md hover:bg-blue-500 transition-colors">
+                          className="px-2.5 py-1 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-500 transition-colors">
                           Sync
                         </button>
                       ) : (
                         <button onClick={() => setShowConfig(true)}
-                          className="px-2.5 py-1 border border-blue-500/40 text-blue-400 text-[11px] font-medium rounded-md hover:bg-blue-500/10 transition-colors">
+                          className="px-2.5 py-1 border border-blue-500/40 text-blue-400 text-xs font-medium rounded-md hover:bg-blue-500/10 transition-colors">
                           API
                         </button>
                       )}
                       <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport('ibkr') }, 50) }}
-                        className="px-2.5 py-1 border border-glass-border text-slate-400 text-[11px] font-medium rounded-md hover:bg-theme-elevated transition-colors">
+                        className="px-2.5 py-1 border border-glass-border text-slate-400 text-xs font-medium rounded-md hover:bg-theme-elevated transition-colors">
                         CSV
                       </button>
                     </div>
                   </div>
                   {ibkrConfigured && syncStatus === 'stale' && (
-                    <p className="text-[10px] text-amber-400 mt-2 pl-9">
+                    <p className="text-xs text-amber-400 mt-2 pl-9">
                       {t('Tus datos podrían estar desactualizados', 'Your data may be outdated')}
                     </p>
                   )}
@@ -762,19 +762,19 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
 
                 {!ibkrConfigured && showConfig && (
                   <div className="space-y-3 p-3 bg-theme-base border border-glass-border rounded-xl mt-2">
-                    <p className="text-[10px] text-slate-600">
+                    <p className="text-xs text-slate-600">
                       {t('Ve a IBKR → Reports → Flex Queries → crear query con Open Positions + Trades. Genera un Flex Token en Settings.',
                          'Go to IBKR → Reports → Flex Queries → create query with Open Positions + Trades. Generate a Flex Token in Settings.')}
                     </p>
                     {ibkrError && <p className="text-xs text-red-400">{ibkrError}</p>}
                     <div>
-                      <label className="text-[10px] text-slate-500 mb-0.5 block">Flex Token</label>
+                      <label className="text-xs text-slate-500 mb-0.5 block">Flex Token</label>
                       <input type="password" value={ibkrToken} onChange={(e) => setIbkrToken(e.target.value)}
                         placeholder="••••••••••••••••"
                         className="w-full px-3 py-1.5 bg-theme-surface border border-glass-border/60 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
                     </div>
                     <div>
-                      <label className="text-[10px] text-slate-500 mb-0.5 block">Query ID</label>
+                      <label className="text-xs text-slate-500 mb-0.5 block">Query ID</label>
                       <input type="text" value={ibkrQueryId} onChange={(e) => setIbkrQueryId(e.target.value)}
                         placeholder="123456"
                         className="w-full px-3 py-1.5 bg-theme-surface border border-glass-border/60 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
@@ -788,14 +788,14 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
 
                 {ibkrConfigured && !confirmUnlink && (
                   <button onClick={() => setConfirmUnlink(true)}
-                    className="text-[11px] text-red-400/60 hover:text-red-400 transition-colors mt-2">
+                    className="text-xs text-red-400/60 hover:text-red-400 transition-colors mt-2">
                     {t('Desvincular', 'Unlink')}
                   </button>
                 )}
                 {ibkrConfigured && confirmUnlink && (
                   <div className="p-3 bg-theme-surface border border-glass-border border-l-4 border-l-red-500 rounded-lg space-y-2 mt-2">
                     <p className="text-xs text-red-400 font-medium">{t('¿Desvincular Interactive Brokers?', 'Unlink Interactive Brokers?')}</p>
-                    <p className="text-[11px] text-slate-400">
+                    <p className="text-xs text-slate-400">
                       {t('Se eliminará la conexión API. Tus posiciones importadas se mantienen.',
                          'The API connection will be removed. Your imported positions will be kept.')}
                     </p>
@@ -816,11 +816,11 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               {/* ── BROKERS TRADICIONALES ── */}
               <details className="group" open>
                 <summary className="flex items-center justify-between cursor-pointer">
-                  <p className="text-[11px] text-slate-500 uppercase tracking-wider">
+                  <p className="text-xs text-slate-500 uppercase tracking-wider">
                     {t('Brokers Tradicionales', 'Traditional Brokers')}
                     <span className="text-slate-600 ml-1">({traditionalBrokers.length})</span>
                   </p>
-                  <span className="text-[10px] text-slate-600 group-open:rotate-180 transition-transform">▼</span>
+                  <span className="text-xs text-slate-600 group-open:rotate-180 transition-transform">▼</span>
                 </summary>
                 <div className="mt-2 space-y-1">
                   {traditionalBrokers.map(renderBrokerCard)}
@@ -830,11 +830,11 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               {/* ── CRYPTO ── */}
               <details className="group" open>
                 <summary className="flex items-center justify-between cursor-pointer">
-                  <p className="text-[11px] text-slate-500 uppercase tracking-wider">
+                  <p className="text-xs text-slate-500 uppercase tracking-wider">
                     Crypto
                     <span className="text-slate-600 ml-1">({cryptoBrokers.length + 1})</span>
                   </p>
-                  <span className="text-[10px] text-slate-600 group-open:rotate-180 transition-transform">▼</span>
+                  <span className="text-xs text-slate-600 group-open:rotate-180 transition-transform">▼</span>
                 </summary>
                 <div className="mt-2 space-y-1">
                   {cryptoBrokers.map(renderBrokerCard)}
@@ -843,10 +843,10 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                       <span className="text-sm">🔗</span>
                       <div className="flex-1">
                         <p className="text-sm text-white">{t('Wallet on-chain', 'On-chain Wallet')}</p>
-                        <p className="text-[10px] text-slate-600">Blockchain.com, Ledger, MetaMask</p>
+                        <p className="text-xs text-slate-600">Blockchain.com, Ledger, MetaMask</p>
                       </div>
                       <button onClick={() => { onClose(); setTimeout(() => { if (onOpenBlockchain) onOpenBlockchain() }, 50) }}
-                        className="px-2.5 py-1 border border-blue-500/40 text-blue-400 text-[11px] font-medium rounded-md hover:bg-blue-500/10 transition-colors">
+                        className="px-2.5 py-1 border border-blue-500/40 text-blue-400 text-xs font-medium rounded-md hover:bg-blue-500/10 transition-colors">
                         {t('Conectar', 'Connect')}
                       </button>
                     </div>
@@ -857,11 +857,11 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               {/* ── PRIVADO / VC ── */}
               <details className="group">
                 <summary className="flex items-center justify-between cursor-pointer">
-                  <p className="text-[11px] text-slate-500 uppercase tracking-wider">{t('Privado / VC', 'Private / VC')}</p>
-                  <span className="text-[10px] text-slate-600 group-open:rotate-180 transition-transform">▼</span>
+                  <p className="text-xs text-slate-500 uppercase tracking-wider">{t('Privado / VC', 'Private / VC')}</p>
+                  <span className="text-xs text-slate-600 group-open:rotate-180 transition-transform">▼</span>
                 </summary>
                 <div className="mt-2 space-y-2">
-                  <p className="text-[11px] text-slate-600 mb-1">
+                  <p className="text-xs text-slate-600 mb-1">
                     {t('SAFE notes, VC funds, PE, club deals.',
                        'SAFE notes, VC funds, PE, club deals.')}
                   </p>
@@ -881,14 +881,14 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               {/* ── YOUR INSTITUTIONS ── */}
               {nonIbkrInstitutions.length > 0 && (
                 <div>
-                  <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">{t('Tus instituciones', 'Your institutions')}</p>
+                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">{t('Tus instituciones', 'Your institutions')}</p>
                   <div className="space-y-1">
                     {nonIbkrInstitutions.map(inst => (
                       <div key={inst.name} className="flex items-center gap-3 px-3 py-2 bg-theme-base border border-glass-border/60 rounded-lg">
                         <span className="text-slate-500 text-sm">🏢</span>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-white font-medium truncate">{inst.name}</p>
-                          <p className="text-[11px] text-slate-500">
+                          <p className="text-xs text-slate-500">
                             {inst.count} {t('posiciones', 'positions')} · ${Math.abs(inst.value).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                           </p>
                         </div>

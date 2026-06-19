@@ -298,7 +298,7 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
       {/* Summary row */}
       <div className="grid grid-cols-3 gap-3 mb-4">
         <div className="bg-theme-base rounded-xl p-3">
-          <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">
+          <p className="text-xs uppercase tracking-wider text-slate-500 mb-1">
             {t('Valor total', 'Total value')}
           </p>
           <p className="text-lg font-bold text-white font-mono tabular-nums">
@@ -306,7 +306,7 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
           </p>
         </div>
         <div className="bg-theme-base rounded-xl p-3">
-          <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">
+          <p className="text-xs uppercase tracking-wider text-slate-500 mb-1">
             {t('Posiciones', 'Positions')}
           </p>
           <p className="text-lg font-bold text-white font-mono tabular-nums">
@@ -314,7 +314,7 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
           </p>
         </div>
         <div className="bg-theme-base rounded-xl p-3">
-          <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">
+          <p className="text-xs uppercase tracking-wider text-slate-500 mb-1">
             {t('Ganancia', 'Gain/Loss')}
           </p>
           <p

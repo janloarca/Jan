@@ -1038,14 +1038,14 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       {/* Snapshot import section */}
       <div className="flex justify-center mt-3">
         <button onClick={() => setShowSnapshotImport(!showSnapshotImport)}
-          className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors">
+          className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
           {showSnapshotImport ? '▾' : '▸'} {t('Agregar datos históricos', 'Add historical data')}
         </button>
       </div>
 
       {showSnapshotImport && (
         <div className="mt-2 p-3 bg-theme-base border border-glass-border rounded-lg">
-          <p className="text-[10px] text-slate-400 mb-2">
+          <p className="text-xs text-slate-400 mb-2">
             {t('Agrega valores pasados de tu portafolio para completar la gráfica.',
                'Add past portfolio values to complete the chart.')}
           </p>
@@ -1070,7 +1070,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           </div>
           <div className="flex items-center gap-2 mt-2">
             <button onClick={() => setSnapshotRows(prev => [...prev, { date: '', value: '' }])}
-              className="text-[11px]" style={{ color: '#60a5fa' }}>
+              className="text-xs" style={{ color: '#60a5fa' }}>
               + {t('Agregar fila', 'Add row')}
             </button>
             <div className="ml-auto flex gap-2">

@@ -357,7 +357,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                         <div>
                           <span className="text-white text-sm font-medium font-mono tabular-nums">{formatCurrency(getItemPrice(item), item.currency)}</span>
                           {item.change7d != null && (
-                            <div className="text-[10px] font-mono tabular-nums" style={{ color: item.change7d >= 0 ? '#34d399' : '#f87171' }}>
+                            <div className="text-xs font-mono tabular-nums" style={{ color: item.change7d >= 0 ? '#34d399' : '#f87171' }}>
                               {item.change7d >= 0 ? '+' : ''}{item.change7d.toFixed(1)}%
                             </div>
                           )}
@@ -391,7 +391,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                       <span className="font-medium font-mono tabular-nums cursor-pointer hover:underline"
                         style={{ color: value < 0 ? '#f87171' : '#34d399' }}
                         onClick={() => onViewItem && onViewItem(item)}>
-                        {formatCurrency(Math.abs(value))}{value < 0 && <span className="ml-1 text-[10px] px-1 py-0.5 rounded" style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: 'var(--text-negative)' }}>{t('Deuda','Debt')}</span>}
+                        {formatCurrency(Math.abs(value))}{value < 0 && <span className="ml-1 text-xs px-1 py-0.5 rounded" style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: 'var(--text-negative)' }}>{t('Deuda','Debt')}</span>}
                       </span>
                     </td>
                     <td className="text-center py-3 hidden sm:table-cell">

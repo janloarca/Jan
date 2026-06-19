@@ -670,12 +670,12 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   <button type="button" onClick={() => { setStep(2) }}
                     className="flex-1 px-2 py-1.5 text-xs font-medium rounded bg-amber-500/20 text-amber-400 border border-amber-500/40 hover:bg-amber-500/30">
                     <span className="block">{t('Agregar a posición', 'Add to position')}</span>
-                    <span className="block text-[10px] opacity-70 mt-0.5">{t('Combina cantidades y recalcula costo', 'Combines quantities and recalculates cost')}</span>
+                    <span className="block text-xs opacity-70 mt-0.5">{t('Combina cantidades y recalcula costo', 'Combines quantities and recalculates cost')}</span>
                   </button>
                   <button type="button" onClick={() => { setDuplicateWarning(null); setStep(2) }}
                     className="flex-1 px-2 py-1.5 text-xs font-medium rounded bg-[var(--input-bg,#000000)] text-[var(--text-secondary,#94a3b8)] border border-[var(--card-border,#38383A)]">
                     <span className="block">{t('Crear separado', 'Create separate')}</span>
-                    <span className="block text-[10px] opacity-70 mt-0.5">{t('Ej. mismo activo en otro broker', 'E.g. same asset at another broker')}</span>
+                    <span className="block text-xs opacity-70 mt-0.5">{t('Ej. mismo activo en otro broker', 'E.g. same asset at another broker')}</span>
                   </button>
                 </div>
               </div>
@@ -828,7 +828,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 </div>
                 {subtype === 'credit_card' && (
                   <div className="border-t border-red-500/10 pt-3 space-y-3">
-                    <p className="text-[10px] text-red-300 uppercase tracking-wide">{t('Tarjeta de crédito', 'Credit Card')}</p>
+                    <p className="text-xs text-red-300 uppercase tracking-wide">{t('Tarjeta de crédito', 'Credit Card')}</p>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Marca', 'Brand')}</label>
@@ -874,7 +874,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 <label className={labelCls}>
                   {t('Moneda', 'Currency')} <span style={{ color: '#FF453A' }}>*</span>
                   {detectedCurrency && form.currency === detectedCurrency && (
-                    <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium" style={{ color: 'var(--accent-green)', backgroundColor: 'rgba(52,211,153,0.15)' }}>
+                    <span className="ml-1 px-1.5 py-0.5 rounded text-xs font-medium" style={{ color: 'var(--accent-green)', backgroundColor: 'rgba(52,211,153,0.15)' }}>
                       {t('Detectada', 'Detected')}
                     </span>
                   )}
@@ -888,7 +888,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 <select value={form.accountType} onChange={e => set('accountType', e.target.value)} className={inputCls}>
                   {ACCOUNT_TYPES.map(at => <option key={at.key} value={at.key}>{lang === 'es' ? at.es : at.en}</option>)}
                 </select>
-                <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
                   {form.accountType === 'taxable' ? t('Paga impuestos (ej. cuenta de bolsa normal)', 'Pays taxes (e.g. regular brokerage)') :
                    form.accountType === 'retirement' ? t('Ahorro para retiro (ej. 401k, IRA, AFP)', 'Retirement savings (e.g. 401k, IRA)') :
                    t('Exenta de impuestos (ej. Roth IRA)', 'Tax-exempt (e.g. Roth IRA)')}

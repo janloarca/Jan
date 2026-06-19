@@ -175,9 +175,9 @@ export default function MonthlyBreakdown({ items, snapshots, lang, onUpdateItem,
                   onClick={() => toggleGroup(group.name)}>
                   <td className="py-2 pr-2 sticky left-0 bg-theme-base/60 z-10">
                     <div className="flex items-center gap-2">
-                      <span className="text-slate-500 text-[10px] w-3">{isCollapsed ? '▸' : '▾'}</span>
+                      <span className="text-slate-500 text-xs w-3">{isCollapsed ? '▸' : '▾'}</span>
                       <span className="text-white font-semibold text-xs">{group.name}</span>
-                      <span className="text-slate-600 text-[10px]">{group.items.length}</span>
+                      <span className="text-slate-600 text-xs">{group.items.length}</span>
                     </div>
                   </td>
                   <td className="text-right py-2 px-2 font-bold" style={{ color: group.total < 0 ? '#f87171' : '#ffffff' }}>
@@ -220,7 +220,7 @@ export default function MonthlyBreakdown({ items, snapshots, lang, onUpdateItem,
                             ) : (
                               <span className="text-slate-200 truncate block text-xs">{item.name || item.symbol}</span>
                             )}
-                            <span className="text-[10px] text-slate-600 block">
+                            <span className="text-xs text-slate-600 block">
                               {item.symbol && item.name ? item.symbol : ''}
                               {item.quantity ? ` · ${item.quantity.toLocaleString(undefined, { maximumFractionDigits: 4 })}` : ''}
                             </span>
@@ -274,7 +274,7 @@ export default function MonthlyBreakdown({ items, snapshots, lang, onUpdateItem,
                   <td key={m.key} className="text-right py-2.5 px-2">
                     <span className="text-slate-300 font-medium tabular-nums block">{formatCurrency(m.value)}</span>
                     {change != null && (
-                      <span className="text-[10px]" style={{ color: change >= 0 ? 'rgba(52,211,153,0.6)' : 'rgba(239,68,68,0.6)' }}>
+                      <span className="text-xs" style={{ color: change >= 0 ? 'rgba(52,211,153,0.6)' : 'rgba(239,68,68,0.6)' }}>
                         {change >= 0 ? '+' : ''}{change.toFixed(1)}%
                       </span>
                     )}
