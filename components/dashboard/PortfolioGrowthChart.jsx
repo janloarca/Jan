@@ -294,18 +294,15 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     }
 
     // Drop an isolated corrupt/stale NAV doc (e.g. a one-off bad value a later
-    // sync never overwrote): a point that deviates >55% from BOTH neighbors while
-    // the neighbors agree with each other is a spike, not a real market move.
-    // Threshold is 55% (not 40%) to preserve real crash troughs (COVID was ~34%).
+    // sync never overwrote). Detect V-shaped dips: a point that is more than 45%
+    // below BOTH neighbors is almost certainly corrupt data, not a real market move.
+    // Real crashes produce gradual declines, not single-point dips.
     if (pts.length >= 3) {
       pts = pts.filter((p, i) => {
         if (i === 0 || i === pts.length - 1) return true
         const prev = pts[i - 1].value, next = pts[i + 1].value
         if (prev <= 0 || next <= 0) return true
-        const devPrev = Math.abs(p.value - prev) / prev
-        const devNext = Math.abs(p.value - next) / next
-        const neighborsAgree = Math.abs(prev - next) / prev < 0.2
-        return !(devPrev > 0.55 && devNext > 0.55 && neighborsAgree)
+        return !(p.value < prev * 0.55 && p.value < next * 0.55)
       })
     }
 
