@@ -44,7 +44,7 @@ function LoginForm() {
       unsub = onAuthStateChanged(auth, async (u) => {
         if (u) {
           try {
-            const token = await u.getIdToken(true)
+            const token = await u.getIdToken()
             setSessionCookie(token)
             router.replace(redirectTo)
           } catch {
@@ -76,7 +76,11 @@ function LoginForm() {
       }
       const token = await cred.user.getIdToken()
       setSessionCookie(token)
-      router.replace(redirectTo)
+      // Hand the redirect to the single onAuthStateChanged listener above.
+      // Navigating here too raced with it and left the soft transition
+      // uncommitted (the "must refresh to enter" bug). Show the spinner until
+      // the listener fires.
+      setCheckingAuth(true)
     } catch (err) {
       const msg = err.code === 'auth/wrong-password' ? 'Contraseña incorrecta'
         : err.code === 'auth/user-not-found' ? 'No existe una cuenta con ese email'
@@ -108,7 +112,7 @@ function LoginForm() {
       const cred = await signInWithPopup(auth, provider)
       const token = await cred.user.getIdToken()
       setSessionCookie(token)
-      router.replace(redirectTo)
+      setCheckingAuth(true) // let the onAuthStateChanged listener own the redirect
     } catch (err) {
       if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') return
       if (err.code === 'auth/popup-blocked') {

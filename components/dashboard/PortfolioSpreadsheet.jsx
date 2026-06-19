@@ -206,6 +206,17 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         byMonth[key] = convert ? convert(val, 'USD', base) : val
       }
     })
+    // Drop an isolated corrupt/stale monthly total (e.g. a bad NAV snapshot a
+    // later sync never overwrote): a value <55% of BOTH chronological neighbors
+    // is a phantom dip, not real — remove it so it doesn't poison the TOTAL row
+    // and the proportional estimates.
+    const keys = Object.keys(byMonth).sort()
+    for (let i = 1; i < keys.length - 1; i++) {
+      const prev = byMonth[keys[i - 1]], cur = byMonth[keys[i]], next = byMonth[keys[i + 1]]
+      if (prev > 0 && next > 0 && cur < prev * 0.55 && cur < next * 0.55) {
+        delete byMonth[keys[i]]
+      }
+    }
     return byMonth
   }, [snapshots, convert, baseCurrency])
 
