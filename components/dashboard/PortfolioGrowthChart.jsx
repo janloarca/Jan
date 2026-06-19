@@ -294,8 +294,9 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     }
 
     // Drop an isolated corrupt/stale NAV doc (e.g. a one-off bad value a later
-    // sync never overwrote): a point that deviates >40% from BOTH neighbors while
+    // sync never overwrote): a point that deviates >55% from BOTH neighbors while
     // the neighbors agree with each other is a spike, not a real market move.
+    // Threshold is 55% (not 40%) to preserve real crash troughs (COVID was ~34%).
     if (pts.length >= 3) {
       pts = pts.filter((p, i) => {
         if (i === 0 || i === pts.length - 1) return true
@@ -304,7 +305,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         const devPrev = Math.abs(p.value - prev) / prev
         const devNext = Math.abs(p.value - next) / next
         const neighborsAgree = Math.abs(prev - next) / prev < 0.2
-        return !(devPrev > 0.4 && devNext > 0.4 && neighborsAgree)
+        return !(devPrev > 0.55 && devNext > 0.55 && neighborsAgree)
       })
     }
 
@@ -548,7 +549,8 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const benchmarkGeoPoints = useMemo(() => {
     if (!geo || !benchmarkReturnSeries || viewMode !== 'performance') return null
     const ch = chartHeight - pad.top - pad.bottom
-    const allVals = [...returnData, ...benchmarkReturnSeries]
+    const allVals = [...returnData, ...benchmarkReturnSeries].filter(v => isFinite(v))
+    if (allVals.length === 0) return null
     const min = Math.min(...allVals)
     const max = Math.max(...allVals)
     const adjustedMin = Math.min(min, 0) - Math.abs(min || 1) * 0.1
@@ -663,19 +665,17 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       {/* Tab bar: Value | Performance */}
       <div className="flex items-center gap-4 mb-4">
         <button onClick={() => setViewMode('value')}
-          className={`text-sm font-medium pb-1 transition-all border-b-2 ${
-            viewMode === 'value'
-              ? 'text-white border-white'
-              : 'text-slate-500 border-transparent hover:text-slate-300'
-          }`}>
+          className="text-sm font-medium pb-1 transition-all border-b-2"
+          style={viewMode === 'value'
+            ? { color: '#fff', borderColor: '#fff' }
+            : { color: '#64748b', borderColor: 'transparent' }}>
           {t('Valor', 'Value')}
         </button>
         <button onClick={() => setViewMode('performance')}
-          className={`text-sm font-medium pb-1 transition-all border-b-2 ${
-            viewMode === 'performance'
-              ? 'text-white border-white'
-              : 'text-slate-500 border-transparent hover:text-slate-300'
-          }`}>
+          className="text-sm font-medium pb-1 transition-all border-b-2"
+          style={viewMode === 'performance'
+            ? { color: '#fff', borderColor: '#fff' }
+            : { color: '#64748b', borderColor: 'transparent' }}>
           {t('Rendimiento', 'Performance')}
         </button>
         <div className="ml-auto flex items-center gap-2">
@@ -783,7 +783,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           <span>
             Max drawdown: -{drawdown.pct.toFixed(1)}%
             <span className="text-slate-500 ml-1">
-              ({formatDate(chartData[drawdown.start].date.toISOString())} → {formatDate(chartData[drawdown.end].date.toISOString())})
+              ({chartData[drawdown.start] && formatDate(chartData[drawdown.start].date.toISOString())} → {chartData[drawdown.end] && formatDate(chartData[drawdown.end].date.toISOString())})
             </span>
           </span>
         </div>

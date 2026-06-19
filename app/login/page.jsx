@@ -31,7 +31,7 @@ function LoginForm() {
 
   // Only allow same-origin internal paths to prevent open-redirect (e.g. ?redirect=//evil.com)
   const rawRedirect = searchParams.get('redirect') || '/dashboard'
-  const redirectTo = rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') ? rawRedirect : '/dashboard'
+  const redirectTo = rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') && !rawRedirect.includes('\\') ? rawRedirect : '/dashboard'
 
   useEffect(() => {
     if (isInAppBrowser()) setInAppBrowser(true)
