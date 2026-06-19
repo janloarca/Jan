@@ -14,7 +14,7 @@ export default function ActionButtons({ onImport, onAddAccount, onTransfer, onCa
 
   return (
     <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-      <button onClick={onImport} className={btnBase} style={{ backgroundColor: '#2563eb', color: '#fff' }}>
+      <button onClick={onImport} className={btnBase} style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
         <Upload size={14} /> <span className="hidden sm:inline">{lang === 'es' ? 'Importar' : 'Import'}</span>
       </button>
       {onIntegrations && (

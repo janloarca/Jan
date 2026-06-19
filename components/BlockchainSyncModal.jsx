@@ -70,7 +70,7 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
         {step === 'config' && (
           <div className="p-6 space-y-4">
             <div className="border rounded-lg p-3" style={{ backgroundColor: 'rgba(59,130,246,0.1)', borderColor: 'rgba(59,130,246,0.2)' }}>
-              <p className="text-xs font-medium mb-1" style={{ color: '#60a5fa' }}>{t('Cómo obtener tu API key:', 'How to get your API key:')}</p>
+              <p className="text-xs font-medium mb-1" style={{ color: 'var(--accent-blue)' }}>{t('Cómo obtener tu API key:', 'How to get your API key:')}</p>
               <ol className="text-xs space-y-0.5 list-decimal list-inside" style={{ color: 'rgba(147,197,253,0.8)' }}>
                 <li>{t('Ve a Blockchain.com Exchange', 'Go to Blockchain.com Exchange')}</li>
                 <li>{t('Settings → API Management', 'Settings → API Management')}</li>
@@ -94,7 +94,7 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
 
             <button onClick={handleSync} disabled={syncing || !apiKey.trim()}
               className="w-full py-2.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors text-sm font-medium flex items-center justify-center gap-2"
-              style={{ backgroundColor: '#2563eb', color: '#ffffff' }}>
+              style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}>
               {syncing ? (
                 <>
                   <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
@@ -140,7 +140,7 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
               <div className="flex gap-2">
                 <button onClick={() => setSyncMode('merge')}
                   className="flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors border"
-                  style={syncMode === 'merge' ? { backgroundColor: 'rgba(59,130,246,0.2)', color: '#60a5fa', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: 'var(--bg-input)', color: 'var(--text-secondary)', borderColor: 'var(--border-color)' }}>
+                  style={syncMode === 'merge' ? { backgroundColor: 'rgba(59,130,246,0.2)', color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: 'var(--bg-input)', color: 'var(--text-secondary)', borderColor: 'var(--border-color)' }}>
                   {t('Fusionar', 'Merge')}
                   <span className="block text-xs mt-0.5 opacity-60">{t('Actualiza existentes, agrega nuevos', 'Update existing, add new')}</span>
                 </button>

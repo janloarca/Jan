@@ -76,7 +76,7 @@ export default function EntityManager({ entities, onAdd, onUpdate, onDelete, lan
                   newType !== et.key ? 'hover:text-white' : ''
                 }`}
                 style={newType === et.key
-                  ? { borderColor: 'rgba(59,130,246,0.5)', backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa' }
+                  ? { borderColor: 'rgba(59,130,246,0.5)', backgroundColor: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)' }
                   : { borderColor: '#38383A', color: '#94a3b8' }
                 }>
                 {et.icon} {lang === 'es' ? et.es : et.en}
@@ -84,7 +84,7 @@ export default function EntityManager({ entities, onAdd, onUpdate, onDelete, lan
             ))}
           </div>
           <div className="flex gap-2">
-            <button onClick={handleAdd} className="px-3 py-1 text-xs rounded hover:opacity-90" style={{ backgroundColor: '#2563eb', color: '#ffffff' }}>{t('Crear', 'Create')}</button>
+            <button onClick={handleAdd} className="px-3 py-1 text-xs rounded hover:opacity-90" style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}>{t('Crear', 'Create')}</button>
             <button onClick={() => setAdding(false)} className="px-3 py-1 text-xs text-slate-400 hover:text-white">{t('Cancelar', 'Cancel')}</button>
           </div>
         </div>

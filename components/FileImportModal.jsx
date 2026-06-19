@@ -780,7 +780,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                 className="w-full h-48 px-4 py-3 bg-theme-base border border-glass-border rounded-lg text-sm text-slate-300 placeholder-slate-600 focus:outline-none focus:border-[#3b82f6]/50 resize-none font-mono"
               />
               <button onClick={handlePaste}
-                className="mt-3 w-full py-2.5 rounded-lg hover:opacity-90 transition-colors text-sm font-medium" style={{ backgroundColor: '#2563eb', color: '#fff' }}>
+                className="mt-3 w-full py-2.5 rounded-lg hover:opacity-90 transition-colors text-sm font-medium" style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
                 {t('Procesar datos', 'Process data')}
               </button>
             </div>
@@ -832,7 +832,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
               </div>
               <button onClick={doManualImport} disabled={importing}
                 className="mt-2 w-full py-2.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors text-sm font-medium"
-                style={{ backgroundColor: '#2563eb', color: '#ffffff' }}>
+                style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}>
                 {importing ? t('Importando...', 'Importing...') : t('Agregar', 'Add')}
               </button>
             </div>
@@ -902,7 +902,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                   {t('Atrás', 'Back')}
                 </button>
                 <button onClick={buildPreview}
-                  className="flex-1 py-2.5 rounded-lg hover:opacity-90 transition-colors text-sm font-medium" style={{ backgroundColor: '#2563eb', color: '#fff' }}>
+                  className="flex-1 py-2.5 rounded-lg hover:opacity-90 transition-colors text-sm font-medium" style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
                   {t('Vista previa', 'Preview')}
                 </button>
               </div>
@@ -947,7 +947,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                 </button>
                 <button onClick={doImport} disabled={importing}
                   className="flex-1 py-2.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors text-sm font-medium"
-                  style={{ backgroundColor: '#2563eb', color: '#ffffff' }}>
+                  style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}>
                   {importing ? t('Importando...', 'Importing...') : t(`Importar ${preview.length}`, `Import ${preview.length}`)}
                 </button>
               </div>
@@ -1070,7 +1070,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                       const gain = cost > 0 ? ((val - cost) / cost * 100) : 0
                       return (
                         <tr key={i} className="border-b border-glass-border/50 hover:bg-theme-elevated">
-                          <td className="py-1.5 px-1.5 font-medium" style={{ color: '#60a5fa' }}>{item.symbol}</td>
+                          <td className="py-1.5 px-1.5 font-medium" style={{ color: 'var(--accent-blue)' }}>{item.symbol}</td>
                           <td className="py-1.5 px-1.5 text-white max-w-[120px] truncate">{item.name}</td>
                           <td className="py-1.5 px-1.5 text-right text-slate-300">{item.quantity?.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
                           <td className="py-1.5 px-1.5 text-right text-slate-300">${item.currentPrice?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
@@ -1091,7 +1091,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                 <div className="flex gap-2">
                   <button onClick={() => setIbkrImportMode('merge')}
                     className="flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-colors border"
-                    style={ibkrImportMode === 'merge' ? { backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(59,130,246,0.4)', color: '#60a5fa' } : { borderColor: '#38383A', color: '#94a3b8' }}>
+                    style={ibkrImportMode === 'merge' ? { backgroundColor: 'rgba(108,122,255,0.2)', borderColor: 'rgba(59,130,246,0.4)', color: 'var(--accent-blue)' } : { borderColor: '#38383A', color: '#94a3b8' }}>
                     {t('Agregar junto a existentes', 'Add alongside existing')}
                   </button>
                   <button onClick={() => setIbkrImportMode('replace')}
@@ -1119,7 +1119,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                 </button>
                 <button onClick={doIBKRImport} disabled={importing}
                   className="flex-1 py-2.5 text-white rounded-lg disabled:opacity-50 hover:opacity-90 transition-colors text-sm font-medium"
-                  style={{ backgroundColor: ibkrImportMode === 'replace' ? '#ea580c' : '#2563eb' }}>
+                  style={{ backgroundColor: ibkrImportMode === 'replace' ? '#ea580c' : 'var(--accent-blue)' }}>
                   {importing
                     ? importProgress.total > 0
                       ? t(`Importando ${importProgress.done}/${importProgress.total}`, `Importing ${importProgress.done}/${importProgress.total}`)
@@ -1163,7 +1163,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                 <p className="text-[#f87171] text-xs mt-2">{result.errorMsg}</p>
               )}
               <button onClick={onClose}
-                className="mt-6 px-8 py-2.5 rounded-lg hover:opacity-90 transition-colors text-sm font-medium" style={{ backgroundColor: '#2563eb', color: '#fff' }}>
+                className="mt-6 px-8 py-2.5 rounded-lg hover:opacity-90 transition-colors text-sm font-medium" style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
                 {t('Cerrar', 'Close')}
               </button>
             </div>

@@ -67,14 +67,14 @@ export default function CurrencyImpact({ items, convert, baseCurrency, rates, la
   return (
     <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-4">
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
-        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#60a5fa' }} />
+        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
         {t('IMPACTO CAMBIARIO', 'CURRENCY IMPACT')}
       </h3>
 
       {/* Foreign exposure headline */}
       <div className="flex items-center justify-between mb-3">
         <span className="text-xs text-slate-400">{t('Exposición extranjera', 'Foreign exposure')}</span>
-        <span className="text-sm font-bold" style={{ color: '#60a5fa' }}>{exposure.foreignPct.toFixed(1)}%</span>
+        <span className="text-sm font-bold" style={{ color: 'var(--accent-blue)' }}>{exposure.foreignPct.toFixed(1)}%</span>
       </div>
 
       {/* Stacked bar */}

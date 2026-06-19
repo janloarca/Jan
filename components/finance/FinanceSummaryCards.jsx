@@ -19,11 +19,11 @@ export default function FinanceSummaryCards({ income, expenses, lang = 'es' }) {
       </div>
       <div className="bg-theme-card border border-glass-border rounded-xl p-4">
         <p className="text-caption text-slate-500 mb-1">{t('Ahorro', 'Savings')}</p>
-        <p className="text-h2 font-mono tabular-nums" style={{ color: savings >= 0 ? '#60a5fa' : '#f87171' }}>
+        <p className="text-h2 font-mono tabular-nums" style={{ color: savings >= 0 ? 'var(--accent-blue-soft)' : '#f87171' }}>
           Q{fmt(savings)}
         </p>
         {income > 0 && (
-          <p className="text-xs font-mono tabular-nums mt-0.5" style={{ color: savingsRate >= 0 ? 'rgba(96,165,250,0.7)' : 'rgba(248,113,113,0.7)' }}>
+          <p className="text-xs font-mono tabular-nums mt-0.5" style={{ color: savingsRate >= 0 ? 'rgba(108,122,255,0.7)' : 'rgba(248,113,113,0.7)' }}>
             {savingsRate >= 0 ? '+' : ''}{savingsRate.toFixed(1)}%
           </p>
         )}

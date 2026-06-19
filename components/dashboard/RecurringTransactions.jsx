@@ -13,7 +13,7 @@ const FREQUENCIES = [
 
 const CATEGORIES = [
   { value: 'savings', labelEs: 'Ahorro', labelEn: 'Savings', icon: '💰', color: 'var(--accent-green)' },
-  { value: 'investment', labelEs: 'Inversión', labelEn: 'Investment', icon: '📈', color: '#60a5fa' },
+  { value: 'investment', labelEs: 'Inversión', labelEn: 'Investment', icon: '📈', color: 'var(--accent-blue)' },
   { value: 'income', labelEs: 'Ingreso', labelEn: 'Income', icon: '💵', color: 'var(--accent-green)' },
   { value: 'expense', labelEs: 'Gasto', labelEn: 'Expense', icon: '💸', color: 'var(--text-negative)' },
   { value: 'debt', labelEs: 'Pago deuda', labelEn: 'Debt payment', icon: '🏦', color: '#fbbf24' },

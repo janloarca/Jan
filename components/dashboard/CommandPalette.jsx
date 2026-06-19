@@ -142,7 +142,7 @@ export default function CommandPalette({ open, onClose, items, lang, onAction })
                 i === selectedIdx ? '' : 'hover:bg-theme-elevated'
               }`}
               style={i === selectedIdx
-                ? { backgroundColor: 'rgba(37,99,235,0.2)', color: '#ffffff' }
+                ? { backgroundColor: 'rgba(108,122,255,0.2)', color: '#ffffff' }
                 : { color: '#cbd5e1' }
               }
             >

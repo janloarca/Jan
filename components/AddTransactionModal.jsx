@@ -55,7 +55,7 @@ export default function AddTransactionModal({ onClose, onAdd, lang = 'es' }) {
     { value: 'BUY', label: t('Compra', 'Buy'), color: 'var(--accent-green)' },
     { value: 'SELL', label: t('Venta', 'Sell'), color: 'var(--text-negative)' },
     { value: 'DIVIDEND', label: t('Dividendo', 'Dividend'), color: '#6ee7b7' },
-    { value: 'DEPOSIT', label: t('Depósito', 'Deposit'), color: '#60a5fa' },
+    { value: 'DEPOSIT', label: t('Depósito', 'Deposit'), color: 'var(--accent-blue)' },
     { value: 'WITHDRAWAL', label: t('Retiro', 'Withdrawal'), color: '#fbbf24' },
   ]
 

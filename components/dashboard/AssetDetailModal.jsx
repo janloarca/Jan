@@ -200,7 +200,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
                 <span>{t('Vence', 'Matures')}: <span className="font-medium" style={{ color: '#fbbf24' }}>{typeof item.maturityDate === 'string' ? item.maturityDate : new Date(item.maturityDate?.seconds ? item.maturityDate.seconds * 1000 : item.maturityDate).toLocaleDateString()}</span></span>
               )}
               {item.rateType === 'variable' && item.rateMin > 0 && (
-                <span>{t('Tasa', 'Rate')}: <span className="font-medium" style={{ color: '#60a5fa' }}>{item.rateMin}% - {item.rateMax}%</span></span>
+                <span>{t('Tasa', 'Rate')}: <span className="font-medium" style={{ color: 'var(--accent-blue)' }}>{item.rateMin}% - {item.rateMax}%</span></span>
               )}
               {item.rateType === 'continuous' && item.incomeRate > 0 && (
                 <span>{t('Tasa continua', 'Continuous rate')}: <span className="font-medium" style={{ color: '#22d3ee' }}>{item.incomeRate}%</span></span>

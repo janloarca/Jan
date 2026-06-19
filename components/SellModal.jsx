@@ -203,7 +203,7 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
                     ? 'bg-[var(--input-bg,#000000)] text-[var(--text-secondary,#94a3b8)] border-[var(--card-border,#38383A)]'
                     : ''
                 }`}
-                style={destination === '__stay__' ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>{t('Queda en el portafolio', 'Stays in portfolio')}</button>
+                style={destination === '__stay__' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>{t('Queda en el portafolio', 'Stays in portfolio')}</button>
             </div>
             {destination === '__exit__' && (
               <p className="text-xs text-red-400/70">

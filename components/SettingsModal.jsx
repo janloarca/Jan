@@ -401,7 +401,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                   ? 'border-b-2'
                   : 'text-slate-400 hover:text-slate-300'
               }`}
-              style={tab === tb.key ? { color: '#60a5fa', borderColor: '#60a5fa', backgroundColor: 'rgba(96,165,250,0.05)' } : undefined}>
+              style={tab === tb.key ? { color: 'var(--accent-blue)', borderColor: 'var(--accent-blue-soft)', backgroundColor: 'rgba(108,122,255,0.05)' } : undefined}>
               {tb.label}
             </button>
           ))}
@@ -425,7 +425,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                           ? 'border'
                           : 'bg-theme-base border border-glass-border text-slate-300 hover:border-slate-500'
                       }`}
-                      style={theme === opt.key ? { color: '#60a5fa', borderColor: 'rgba(59,130,246,0.4)', backgroundColor: 'rgba(59,130,246,0.15)' } : undefined}>
+                      style={theme === opt.key ? { color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.4)', backgroundColor: 'rgba(59,130,246,0.15)' } : undefined}>
                       <span className="text-lg">{opt.icon}</span>
                       <span className="text-sm font-medium">{opt.label}</span>
                     </button>
@@ -443,7 +443,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                   onClick={() => onToggleBeginner?.(!beginnerMode)}
                   className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg border transition-all text-left"
                   style={beginnerMode
-                    ? { color: '#60a5fa', borderColor: 'rgba(59,130,246,0.4)', backgroundColor: 'rgba(59,130,246,0.15)' }
+                    ? { color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.4)', backgroundColor: 'rgba(59,130,246,0.15)' }
                     : { borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-input)' }}>
                   <div className="min-w-0">
                     <div className="text-sm font-medium" style={beginnerMode ? undefined : { color: 'var(--text-primary)' }}>
@@ -454,7 +454,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                     </div>
                   </div>
                   <span className="shrink-0 w-10 h-6 rounded-full flex items-center transition-all px-0.5"
-                    style={{ backgroundColor: beginnerMode ? '#2563eb' : 'var(--bg-tertiary)' }}>
+                    style={{ backgroundColor: beginnerMode ? 'var(--accent-blue)' : 'var(--bg-tertiary)' }}>
                     <span className="w-5 h-5 rounded-full bg-white transition-transform"
                       style={{ transform: beginnerMode ? 'translateX(16px)' : 'translateX(0)' }} />
                   </span>
@@ -472,7 +472,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                           ? 'border'
                           : 'bg-theme-base border border-glass-border text-slate-300 hover:border-slate-500'
                       }`}
-                      style={baseCurrency === c.code ? { color: '#60a5fa', borderColor: 'rgba(59,130,246,0.4)', backgroundColor: 'rgba(59,130,246,0.15)' } : undefined}>
+                      style={baseCurrency === c.code ? { color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.4)', backgroundColor: 'rgba(59,130,246,0.15)' } : undefined}>
                       <span className="text-sm font-bold w-8">{c.symbol}</span>
                       <div className="min-w-0">
                         <div className="text-xs font-medium">{c.code}</div>
@@ -499,7 +499,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                           ? 'border'
                           : 'bg-theme-base border border-glass-border text-slate-300 hover:border-slate-500'
                       }`}
-                      style={benchmarkSymbol === key ? { color: '#60a5fa', borderColor: 'rgba(59,130,246,0.4)', backgroundColor: 'rgba(59,130,246,0.15)' } : undefined}>
+                      style={benchmarkSymbol === key ? { color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.4)', backgroundColor: 'rgba(59,130,246,0.15)' } : undefined}>
                       <div className="min-w-0">
                         <div className="text-xs font-medium">{bm.short}</div>
                         <div className="text-xs text-slate-500 truncate">{bm.name}</div>
@@ -585,7 +585,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                           ? 'border'
                           : 'bg-theme-base border border-glass-border text-slate-300 hover:border-slate-500'
                       }`}
-                      style={profileForm.riskTolerance === opt.key ? { color: '#60a5fa', borderColor: 'rgba(59,130,246,0.4)', backgroundColor: 'rgba(59,130,246,0.15)' } : undefined}>
+                      style={profileForm.riskTolerance === opt.key ? { color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.4)', backgroundColor: 'rgba(59,130,246,0.15)' } : undefined}>
                       {opt.label}
                     </button>
                   ))}

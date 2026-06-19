@@ -75,7 +75,7 @@ export default function DocumentVault({ uid, itemId, lang }) {
           <span>📁</span> {t('Documentos', 'Documents')}
           {docs.length > 0 && <span className="text-slate-600">({docs.length})</span>}
         </h4>
-        <label className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer" style={{ backgroundColor: 'rgba(37,99,235,0.2)', color: '#60a5fa' }}>
+        <label className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer" style={{ backgroundColor: 'rgba(108,122,255,0.2)', color: 'var(--accent-blue)' }}>
           {uploading ? '...' : `+ ${t('Subir', 'Upload')}`}
           <input ref={fileRef} type="file" className="hidden" onChange={handleUpload} disabled={uploading}
             accept=".pdf,.jpg,.jpeg,.png,.webp,.xlsx,.xls,.csv" />

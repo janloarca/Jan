@@ -56,7 +56,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
 
   const typeBadgeStyle = (type) => {
     const t = (type || '').toUpperCase()
-    if (t === 'BUY') return { backgroundColor: 'rgba(59,130,246,0.2)', color: '#60a5fa' }
+    if (t === 'BUY') return { backgroundColor: 'rgba(59,130,246,0.2)', color: 'var(--accent-blue)' }
     if (t === 'SELL') return { backgroundColor: 'rgba(100,116,139,0.2)', color: '#94a3b8' }
     if (t === 'DIVIDEND') return { backgroundColor: 'rgba(52,211,153,0.15)', color: '#6ee7b7' }
     if (t === 'DEPOSIT') return { backgroundColor: 'rgba(100,116,139,0.2)', color: '#cbd5e1' }
@@ -101,7 +101,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
           const count = txCount(opt.key)
           const isActive = typeFilter === opt.key
           const activeStyles = {
-            blue: { backgroundColor: 'rgba(59,130,246,0.15)', borderColor: 'rgba(59,130,246,0.3)', color: '#60a5fa' },
+            blue: { backgroundColor: 'rgba(59,130,246,0.15)', borderColor: 'rgba(59,130,246,0.3)', color: 'var(--accent-blue)' },
             emerald: { backgroundColor: 'rgba(52,211,153,0.15)', borderColor: 'rgba(52,211,153,0.3)', color: 'var(--accent-green)' },
             red: { backgroundColor: 'rgba(239,68,68,0.15)', borderColor: 'rgba(239,68,68,0.3)', color: 'var(--text-negative)' },
             amber: { backgroundColor: 'rgba(245,158,11,0.15)', borderColor: 'rgba(245,158,11,0.3)', color: '#fbbf24' },

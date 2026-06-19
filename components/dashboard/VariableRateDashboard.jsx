@@ -28,7 +28,7 @@ export default function VariableRateDashboard({ items, lang }) {
   return (
     <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-4">
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-3">
-        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#60a5fa' }} />
+        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
         {t('TASAS VARIABLES', 'VARIABLE RATES')}
       </h3>
 

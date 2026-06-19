@@ -631,7 +631,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       <div className="bg-theme-surface rounded-2xl border border-glass-border p-5 card-primary">
         <div className="flex flex-col items-center justify-center min-h-[200px] gap-2">
           <p className="text-sm" style={{ color: 'var(--text-negative)' }}>{fetchError}</p>
-          <button onClick={fetchHistory} className="text-xs" style={{ color: '#60a5fa' }}>{t('Reintentar', 'Retry')}</button>
+          <button onClick={fetchHistory} className="text-xs" style={{ color: 'var(--accent-blue)' }}>{t('Reintentar', 'Retry')}</button>
         </div>
       </div>
     )
@@ -644,7 +644,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           {period === 'DAY' ? (
             <>
               <p>{t('Sin datos intradía — el mercado puede estar cerrado.', 'No intraday data — market may be closed.')}</p>
-              <button onClick={() => setPeriod('1W')} className="text-xs" style={{ color: '#60a5fa' }}>
+              <button onClick={() => setPeriod('1W')} className="text-xs" style={{ color: 'var(--accent-blue)' }}>
                 {t('Ver última semana', 'View last week')}
               </button>
             </>
@@ -682,7 +682,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           {viewMode === 'value' && contributionLine && (
             <button onClick={() => setShowContributions(!showContributions)}
               className="px-2 py-1 text-xs font-medium rounded-md transition-all"
-              style={showContributions ? { backgroundColor: '#2563eb', color: '#fff' } : { color: 'var(--text-muted)' }}
+              style={showContributions ? { backgroundColor: 'var(--accent-blue)', color: '#fff' } : { color: 'var(--text-muted)' }}
               title={t('Mostrar/ocultar capital invertido', 'Show/hide invested capital')}>
               {t('Invertido', 'Invested')}
             </button>
@@ -691,13 +691,13 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
             <div className="flex gap-0.5 bg-theme-base rounded-lg p-0.5">
               <button onClick={() => setReturnMode('twr')}
                 className="px-2 py-1 text-xs font-medium rounded-md transition-all"
-                style={returnMode === 'twr' ? { backgroundColor: '#2563eb', color: '#fff' } : { color: 'var(--text-muted)' }}
+                style={returnMode === 'twr' ? { backgroundColor: 'var(--accent-blue)', color: '#fff' } : { color: 'var(--text-muted)' }}
                 title={t('Retorno ponderado por tiempo — mide el rendimiento del portafolio sin importar depósitos/retiros', 'Time-Weighted Return — measures portfolio performance regardless of deposits/withdrawals')}>
                 TWR
               </button>
               <button onClick={() => setReturnMode('mwr')}
                 className="px-2 py-1 text-xs font-medium rounded-md transition-all"
-                style={returnMode === 'mwr' ? { backgroundColor: '#2563eb', color: '#fff' } : { color: 'var(--text-muted)' }}
+                style={returnMode === 'mwr' ? { backgroundColor: 'var(--accent-blue)', color: '#fff' } : { color: 'var(--text-muted)' }}
                 title={t('Retorno ponderado por dinero — refleja tu experiencia real como inversionista', 'Money-Weighted Return — reflects your actual experience as an investor')}>
                 MWR
               </button>
@@ -1070,7 +1070,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           </div>
           <div className="flex items-center gap-2 mt-2">
             <button onClick={() => setSnapshotRows(prev => [...prev, { date: '', value: '' }])}
-              className="text-xs" style={{ color: '#60a5fa' }}>
+              className="text-xs" style={{ color: 'var(--accent-blue)' }}>
               + {t('Agregar fila', 'Add row')}
             </button>
             <div className="ml-auto flex gap-2">
@@ -1080,7 +1080,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
               </button>
               <button onClick={handleSaveSnapshots} disabled={snapshotSaving || !snapshotRows.some(r => r.date && r.value)}
                 className="px-3 py-1 text-xs rounded disabled:opacity-40 transition-colors"
-                style={{ backgroundColor: '#2563eb', color: '#fff' }}>
+                style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
                 {snapshotSaving ? '...' : t('Guardar', 'Save')}
               </button>
             </div>

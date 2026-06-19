@@ -34,7 +34,7 @@ function DoneStep({ result, onClose, t }) {
         {new Date(result.syncedAt).toLocaleString()}
       </p>
       <button onClick={onClose}
-        className="mt-8 px-10 py-3 rounded-xl hover:opacity-90 transition-all text-sm font-medium" style={{ backgroundColor: '#2563eb', color: '#fff' }}>
+        className="mt-8 px-10 py-3 rounded-xl hover:opacity-90 transition-all text-sm font-medium" style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
         {t('Cerrar', 'Close')} ({countdown}s)
       </button>
     </div>
@@ -465,7 +465,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
 
               <button onClick={handleSync}
                 className="w-full py-3 text-white rounded-xl transition-all text-sm font-medium flex items-center justify-center gap-2"
-                style={{ backgroundColor: '#2563eb' }}
+                style={{ backgroundColor: 'var(--accent-blue)' }}
                 disabled={decrypting}>
                 <RefreshCw size={14} />
                 {decrypting ? t('Desencriptando...', 'Decrypting...') : t('Sincronizar ahora', 'Sync now')}
@@ -694,7 +694,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
               )}
 
               <button onClick={handleSync} disabled={syncing || !token || !queryId || decrypting}
-                className="w-full py-3 rounded-xl disabled:opacity-50 hover:opacity-90 transition-all text-sm font-medium flex items-center justify-center gap-2" style={{ backgroundColor: '#2563eb', color: '#fff' }}>
+                className="w-full py-3 rounded-xl disabled:opacity-50 hover:opacity-90 transition-all text-sm font-medium flex items-center justify-center gap-2" style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
                 {syncing ? (
                   <>
                     <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
@@ -828,7 +828,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                         }}
                           className="px-3 py-2 rounded-lg text-xs font-mono transition-all border"
                           style={isSelected
-                            ? { borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa' }
+                            ? { borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)' }
                             : { borderColor: '#38383A', color: 'var(--text-muted)' }
                           }>
                           {acc} <span className="text-slate-600 ml-1">({count})</span>
@@ -1013,7 +1013,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                     {t('Atrás', 'Back')}
                   </button>
                   <button onClick={handleConfirm}
-                    className="flex-1 py-3 rounded-xl hover:opacity-90 transition-all text-sm font-medium" style={{ backgroundColor: '#2563eb', color: '#fff' }}>
+                    className="flex-1 py-3 rounded-xl hover:opacity-90 transition-all text-sm font-medium" style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
                     {t('Confirmar', 'Confirm')}
                   </button>
                 </div>

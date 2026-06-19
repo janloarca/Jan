@@ -174,7 +174,7 @@ export default function SpreadsheetPage() {
             ].map(tab => (
               <button key={tab.key} onClick={() => setView(tab.key)}
                 className="px-3 py-1 text-xs rounded-md transition-colors"
-                style={view === tab.key ? { backgroundColor: '#2563eb', color: '#ffffff' } : { color: view === 'custom' ? '#94a3b8' : '#64748b' }}>
+                style={view === tab.key ? { backgroundColor: 'var(--accent-blue)', color: '#ffffff' } : { color: view === 'custom' ? '#94a3b8' : '#64748b' }}>
                 {tab.label}
               </button>
             ))}

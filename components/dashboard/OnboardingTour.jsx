@@ -130,13 +130,13 @@ export default function OnboardingTour({ lang, onAction, onComplete }) {
       <div className="bg-theme-card border border-glass-border rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
         <div className="p-8 text-center">
           <div className="flex justify-center mb-4">
-            {(() => { const IconComp = ICON_MAP[current.icon]; return IconComp ? <IconComp size={40} style={{ color: '#60a5fa' }} /> : null })()}
+            {(() => { const IconComp = ICON_MAP[current.icon]; return IconComp ? <IconComp size={40} style={{ color: 'var(--accent-blue)' }} /> : null })()}
           </div>
           <h2 className="text-xl font-bold text-white mb-3">{current.title}</h2>
           <p className="text-slate-400 text-sm leading-relaxed mb-4">{current.body}</p>
           {current.tip && (
             <div className="inline-block px-3 py-1.5 rounded-lg" style={{ backgroundColor: 'rgba(59,130,246,0.1)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(59,130,246,0.2)' }}>
-              <p className="text-xs" style={{ color: '#60a5fa' }}>{current.tip}</p>
+              <p className="text-xs" style={{ color: 'var(--accent-blue)' }}>{current.tip}</p>
             </div>
           )}
         </div>
@@ -148,7 +148,7 @@ export default function OnboardingTour({ lang, onAction, onComplete }) {
               className="h-2 rounded-full transition-all"
               style={{
                 width: i === step ? '1.5rem' : '0.5rem',
-                backgroundColor: i === step ? '#60a5fa' : i < step ? 'rgba(96,165,250,0.4)' : '#475569'
+                backgroundColor: i === step ? 'var(--accent-blue-soft)' : i < step ? 'rgba(108,122,255,0.4)' : '#475569'
               }} />
           ))}
         </div>
@@ -168,7 +168,7 @@ export default function OnboardingTour({ lang, onAction, onComplete }) {
           )}
           <button onClick={handleNext}
             className="flex-1 px-4 py-3.5 text-sm font-medium transition-colors border-l border-glass-border hover:opacity-80"
-            style={{ color: '#60a5fa' }}>
+            style={{ color: 'var(--accent-blue)' }}>
             {step < steps.length - 1 ? t('Siguiente', 'Next') : t('Empezar', 'Start')}
           </button>
         </div>

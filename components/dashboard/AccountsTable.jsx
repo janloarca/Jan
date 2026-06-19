@@ -113,7 +113,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                 : 'hover:bg-theme-elevated'
             }`}
             style={filter === tab.key
-              ? { backgroundColor: 'rgba(59,130,246,0.2)', color: '#60a5fa', borderColor: 'rgba(59,130,246,0.3)' }
+              ? { backgroundColor: 'rgba(59,130,246,0.2)', color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.3)' }
               : { color: 'var(--text-secondary)', borderColor: 'rgba(71,85,105,0.5)' }
             }>
             {tab.icon} {tab.label}
@@ -137,7 +137,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
       {/* Bulk actions */}
       {selected.size > 0 && (
         <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-lg" style={{ backgroundColor: 'rgba(59,130,246,0.1)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(59,130,246,0.2)' }}>
-          <span className="text-xs font-medium" style={{ color: '#60a5fa' }}>{selected.size} {t('seleccionado(s)', 'selected')}</span>
+          <span className="text-xs font-medium" style={{ color: 'var(--accent-blue)' }}>{selected.size} {t('seleccionado(s)', 'selected')}</span>
           <div className="flex-1" />
           <button onClick={() => {
             const selectedItems = items.filter((it) => selected.has(it.id))
@@ -154,7 +154,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
             a.click()
           }}
             className="text-xs px-2 py-1 rounded border hover:opacity-80"
-            style={{ color: '#60a5fa', borderColor: 'rgba(59,130,246,0.3)' }}>
+            style={{ color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.3)' }}>
             {t('Exportar CSV', 'Export CSV')}
           </button>
           <button onClick={async () => {
@@ -326,7 +326,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                               return <span className="text-xs px-1.5 py-0.5 rounded" style={matStyle}>{mat.expired ? '⚠' : '⏱'} {mat.label}</span>
                             })()}
                             {item.rateType === 'variable' && item.rateMin > 0 && (
-                              <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa' }}>
+                              <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)' }}>
                                 {item.rateMin}-{item.rateMax}%
                               </span>
                             )}
@@ -408,7 +408,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                       {(() => {
                         const y = getEffectiveYield(item)
                         return y != null ? (
-                          <span className="text-xs" style={{ color: '#60a5fa' }}>{y.toFixed(1)}%</span>
+                          <span className="text-xs" style={{ color: 'var(--accent-blue)' }}>{y.toFixed(1)}%</span>
                         ) : (
                           <span className="text-slate-700">—</span>
                         )

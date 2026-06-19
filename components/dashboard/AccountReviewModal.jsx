@@ -204,7 +204,7 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
           </button>
           <button onClick={handleEdit}
             className="flex-1 px-4 py-2.5 text-sm font-medium rounded-lg hover:opacity-90 transition-colors"
-            style={{ color: '#2563eb', borderWidth: '1px', borderStyle: 'solid', borderColor: '#bfdbfe', backgroundColor: '#eff6ff' }}>
+            style={{ color: 'var(--accent-blue-strong)', borderWidth: '1px', borderStyle: 'solid', borderColor: '#bfdbfe', backgroundColor: '#eff6ff' }}>
             {t('Editar', 'Edit')}
           </button>
           <button onClick={markReviewed}

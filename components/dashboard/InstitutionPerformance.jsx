@@ -421,8 +421,8 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
             >
               <defs>
                 <linearGradient id="inst-grad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#0A84FF" stopOpacity="0.25" />
-                  <stop offset="100%" stopColor="#0A84FF" stopOpacity="0.02" />
+                  <stop offset="0%" stopColor="var(--accent-blue)" stopOpacity="0.25" />
+                  <stop offset="100%" stopColor="var(--accent-blue)" stopOpacity="0.02" />
                 </linearGradient>
               </defs>
 
@@ -451,7 +451,7 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
               <path
                 d={polyline(geo.points)}
                 fill="none"
-                stroke="#0A84FF"
+                stroke="var(--accent-blue)"
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -492,7 +492,7 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
                     cx={hp.x}
                     cy={hp.y}
                     r="4.5"
-                    fill="#0A84FF"
+                    fill="var(--accent-blue)"
                     stroke="#000000"
                     strokeWidth="2"
                   />

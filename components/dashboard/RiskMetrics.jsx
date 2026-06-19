@@ -107,7 +107,7 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
   return (
     <div className="bg-theme-surface/80 rounded-xl border border-glass-border/50 p-4">
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
-        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#60a5fa' }} />
+        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
         {t('MÉTRICAS DE RIESGO', 'RISK METRICS')}
       </h3>
 

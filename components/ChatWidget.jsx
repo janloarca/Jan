@@ -191,7 +191,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
       <button
         onClick={() => setOpen(!open)}
         className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105 hover:opacity-90"
-        style={{ backgroundColor: '#2563eb', color: '#ffffff' }}
+        style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}
         title={t('Asistente AI', 'AI Assistant')}
         aria-label={open ? t('Cerrar asistente', 'Close assistant') : t('Abrir asistente', 'Open assistant')}
       >
@@ -246,7 +246,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
                 <button
                   onClick={(e) => saveKey(e.target.previousSibling.value)}
                   className="px-3 py-1.5 text-xs rounded hover:opacity-90 transition-colors"
-                  style={{ backgroundColor: '#2563eb', color: '#ffffff' }}
+                  style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}
                 >
                   OK
                 </button>
@@ -271,7 +271,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
                   ].map((suggestion, i) => (
                     <button key={i} onClick={() => { setInput(suggestion) }}
                       className="block w-full text-left px-3 py-2 text-xs rounded-lg transition-colors"
-                      style={{ color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.1)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(59,130,246,0.2)' }}>
+                      style={{ color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.1)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(59,130,246,0.2)' }}>
                       {suggestion}
                     </button>
                   ))}
@@ -285,7 +285,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
                   msg.role === 'user' ? 'rounded-br-sm' : 'rounded-bl-sm'
                 }`}
                   style={msg.role === 'user'
-                    ? { backgroundColor: '#2563eb', color: '#ffffff' }
+                    ? { backgroundColor: 'var(--accent-blue)', color: '#ffffff' }
                     : { backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'var(--border-color)' }
                   }>
                   <MessageContent content={msg.content} />
@@ -328,7 +328,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
                 onClick={sendMessage}
                 disabled={loading || !input.trim()}
                 className="px-3 py-2 rounded-lg hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                style={{ backgroundColor: '#2563eb', color: '#ffffff' }}
+                style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}
                 aria-label={t('Enviar', 'Send')}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

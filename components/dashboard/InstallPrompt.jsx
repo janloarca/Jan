@@ -62,7 +62,7 @@ export default function InstallPrompt({ lang }) {
         {!isIOS && (
           <button onClick={handleInstall}
             className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors hover:opacity-90"
-            style={{ backgroundColor: '#2563eb', color: '#fff' }}>
+            style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
             {t('Instalar', 'Install')}
           </button>
         )}

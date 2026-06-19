@@ -11,7 +11,7 @@ const TYPE_ACCENT = {
   warning: { border: '#f59e0b', icon: '#fbbf24' },
   danger: { border: '#ef4444', icon: '#f87171' },
   info: { border: '#64748b', icon: '#94a3b8' },
-  cta: { border: '#3b82f6', icon: '#60a5fa' },
+  cta: { border: '#3b82f6', icon: 'var(--accent-blue-soft)' },
 }
 
 const TYPE_ICONS = {

@@ -510,7 +510,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
               {months.map(mk => {
                 const isCurrent = mk === currentMonthKey
                 return (
-                  <th key={mk} className="text-right py-2.5 px-2 font-semibold text-xs w-32" style={isCurrent ? { backgroundColor: '#eff6ff', color: '#2563eb' } : { color: '#94a3b8' }}>
+                  <th key={mk} className="text-right py-2.5 px-2 font-semibold text-xs w-32" style={isCurrent ? { backgroundColor: '#eff6ff', color: 'var(--accent-blue-strong)' } : { color: '#94a3b8' }}>
                     {getMonthLabel(mk, lang)}
                     {isCurrent && <div className="text-xs font-normal text-blue-400">{t('actual', 'current')}</div>}
                   </th>

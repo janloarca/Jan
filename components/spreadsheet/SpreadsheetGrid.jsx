@@ -104,7 +104,7 @@ export default function SpreadsheetGrid({ initialRows, context, onSave, lang }) 
         <button
           onClick={() => setShowFormulas(!showFormulas)}
           className="px-3 py-1 text-xs rounded border transition-colors"
-          style={showFormulas ? { backgroundColor: 'rgba(59,130,246,0.2)', color: '#60a5fa', borderColor: 'rgba(59,130,246,0.3)' } : { color: '#94a3b8', borderColor: '#475569' }}
+          style={showFormulas ? { backgroundColor: 'rgba(59,130,246,0.2)', color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.3)' } : { color: '#94a3b8', borderColor: '#475569' }}
         >
           {t('Fórmulas', 'Formulas')}
         </button>
@@ -132,7 +132,7 @@ export default function SpreadsheetGrid({ initialRows, context, onSave, lang }) 
             <h3 className="text-sm font-semibold text-white mb-3">{t('Fórmulas Disponibles', 'Available Formulas')}</h3>
             {FORMULA_CATALOG.map(cat => (
               <div key={cat.category} className="mb-4">
-                <h4 className="text-xs font-medium uppercase tracking-wider mb-2" style={{ color: '#60a5fa' }}>{cat.category}</h4>
+                <h4 className="text-xs font-medium uppercase tracking-wider mb-2" style={{ color: 'var(--accent-blue)' }}>{cat.category}</h4>
                 <div className="space-y-1.5">
                   {cat.formulas.map(f => (
                     <div key={f.name} className="group">

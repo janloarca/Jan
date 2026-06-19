@@ -152,9 +152,9 @@ function LoginForm() {
 
   if (checkingAuth) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-theme-base">
-        <div className="flex items-center gap-2 text-slate-500 text-sm">
-          <div className="w-4 h-4 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
+      <div className="flex items-center justify-center min-h-screen bg-theme-base" style={{ background: 'radial-gradient(ellipse at 20% 50%, rgba(59,130,246,0.08) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(139,92,246,0.06) 0%, transparent 50%), var(--bg-primary)' }}>
+        <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+          <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--text-secondary)', borderTopColor: 'transparent' }} />
           Verificando sesión...
         </div>
       </div>
@@ -162,17 +162,17 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-theme-base">
+    <div className="flex items-center justify-center min-h-screen bg-theme-base" style={{ background: 'radial-gradient(ellipse at 20% 50%, rgba(59,130,246,0.08) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(139,92,246,0.06) 0%, transparent 50%), var(--bg-primary)' }}>
       <div className="w-full max-w-md px-6">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-2">
-            <span className="text-3xl" style={{ color: '#60a5fa' }}>⚡</span>
-            <h1 className="text-3xl font-bold" style={{ color: '#60a5fa' }}>Chispudo</h1>
+            <span className="text-3xl" style={{ color: 'var(--accent-blue)' }}>⚡</span>
+            <h1 className="text-3xl font-bold" style={{ color: 'var(--accent-blue)' }}>Chispudo</h1>
           </div>
-          <p className="text-slate-500 text-sm">Tu control financiero personal</p>
+          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Tu control financiero personal</p>
         </div>
 
-        <div className="bg-theme-card border border-glass-border rounded-xl p-6">
+        <div className="bg-theme-card rounded-xl p-6" style={{ backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)', boxShadow: 'var(--shadow-elevated)', border: 'var(--glass-border)' }}>
           <h2 className="text-lg font-semibold text-white text-center mb-5">
             {isSignUp ? 'Crear cuenta' : 'Iniciar sesión'}
           </h2>
@@ -182,7 +182,7 @@ function LoginForm() {
               Para mejor experiencia, abre en tu navegador:
               <a href={typeof window !== 'undefined' ? window.location.href : '#'}
                 target="_blank" rel="noopener noreferrer"
-                className="block mt-1 underline font-medium" style={{ color: '#60a5fa' }}>
+                className="block mt-1 underline font-medium" style={{ color: 'var(--accent-blue)' }}>
                 Abrir en Safari / Chrome
               </a>
             </div>
@@ -196,7 +196,7 @@ function LoginForm() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="login-email" className="text-xs text-slate-400 mb-1.5 block">Email</label>
+              <label htmlFor="login-email" className="text-xs mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>Email</label>
               <input
                 id="login-email"
                 type="email"
@@ -205,12 +205,13 @@ function LoginForm() {
                 placeholder="tu@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2.5 bg-theme-base border border-glass-border rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 text-base"
+                className="w-full px-4 py-2.5 rounded-lg text-white placeholder-slate-600 focus:outline-none text-base"
+                style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: 'var(--glass-border)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.2)' }}
                 required
               />
             </div>
             <div>
-              <label htmlFor="login-password" className="text-xs text-slate-400 mb-1.5 block">Password</label>
+              <label htmlFor="login-password" className="text-xs mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>Password</label>
               <input
                 id="login-password"
                 type="password"
@@ -218,15 +219,15 @@ function LoginForm() {
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2.5 bg-theme-base border border-glass-border rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 text-base"
+                className="w-full px-4 py-2.5 rounded-lg text-white placeholder-slate-600 focus:outline-none text-base"
+                style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: 'var(--glass-border)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.2)' }}
                 required
               />
             </div>
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-lg disabled:opacity-50 transition-colors font-medium text-base"
-              style={{ backgroundColor: '#2563eb', color: '#ffffff' }}
+              className="btn-primary w-full py-3 rounded-lg disabled:opacity-50 transition-colors font-medium text-base"
             >
               {loading ? 'Cargando...' : (isSignUp ? 'Crear cuenta' : 'Iniciar sesión')}
             </button>
@@ -234,22 +235,23 @@ function LoginForm() {
 
           {!isSignUp && !showReset && (
             <button onClick={() => setShowReset(true)}
-              className="w-full mt-2 text-xs transition-colors text-center" style={{ color: '#64748b' }}>
+              className="w-full mt-2 text-xs transition-colors text-center" style={{ color: 'var(--text-secondary)' }}>
               ¿Olvidaste tu contraseña?
             </button>
           )}
 
           {showReset && (
-            <div className="mt-3 p-3 bg-theme-base rounded-lg border border-glass-border/50">
+            <div className="mt-3 p-3 rounded-lg" style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: 'var(--glass-border)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}>
               {resetSent ? (
                 <p className="text-sm text-center" style={{ color: 'var(--accent-green)' }}>
                   Revisa tu email para restablecer tu contraseña.
                 </p>
               ) : (
                 <>
-                  <p className="text-xs text-slate-400 mb-2">Ingresa tu email arriba y presiona:</p>
+                  <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>Ingresa tu email arriba y presiona:</p>
                   <button onClick={handleResetPassword} disabled={loading}
-                    className="w-full py-2 text-sm bg-slate-700 text-white rounded-lg hover:bg-slate-600 active:bg-slate-800 disabled:opacity-50 transition-colors">
+                    className="w-full py-2 text-sm text-white rounded-lg disabled:opacity-50 transition-colors"
+                    style={{ backgroundColor: 'rgba(255,255,255,0.08)', border: 'var(--glass-border)' }}>
                     {loading ? 'Enviando...' : 'Enviar enlace de recuperación'}
                   </button>
                 </>
@@ -260,7 +262,7 @@ function LoginForm() {
           <div className="relative my-5">
             <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-glass-border" /></div>
             <div className="relative flex justify-center">
-              <span className="bg-theme-card px-3 text-xs text-slate-500">o</span>
+              <span className="bg-theme-card px-3 text-xs" style={{ color: 'var(--text-secondary)' }}>o</span>
             </div>
           </div>
 
@@ -275,18 +277,18 @@ function LoginForm() {
             {googleLoading ? 'Conectando...' : 'Continuar con Google'}
           </button>
 
-          <p className="mt-5 text-center text-sm text-slate-500">
+          <p className="mt-5 text-center text-sm" style={{ color: 'var(--text-secondary)' }}>
             {isSignUp ? '¿Ya tienes cuenta?' : '¿No tienes cuenta?'}{' '}
             <button
               onClick={() => { setIsSignUp(!isSignUp); setError(''); setShowReset(false); setResetSent(false) }}
-              className="font-medium" style={{ color: '#60a5fa' }}
+              className="font-medium" style={{ color: 'var(--accent-blue)' }}
             >
               {isSignUp ? 'Inicia sesión' : 'Regístrate'}
             </button>
           </p>
         </div>
 
-        <p className="text-center text-xs text-slate-600 mt-6">
+        <p className="text-center text-xs mt-6" style={{ color: 'var(--text-tertiary, var(--text-secondary))' }}>
           Powered by Chispudo
         </p>
       </div>
@@ -297,9 +299,9 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <div className="flex items-center justify-center min-h-screen bg-theme-base">
-        <div className="flex items-center gap-2 text-slate-500 text-sm">
-          <div className="w-4 h-4 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
+      <div className="flex items-center justify-center min-h-screen bg-theme-base" style={{ background: 'radial-gradient(ellipse at 20% 50%, rgba(59,130,246,0.08) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(139,92,246,0.06) 0%, transparent 50%), var(--bg-primary)' }}>
+        <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+          <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--text-secondary)', borderTopColor: 'transparent' }} />
         </div>
       </div>
     }>
