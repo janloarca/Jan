@@ -373,8 +373,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       }
     }
 
-    dividendsProcessedRef.current = todayKey
-    processDividends().catch((err) => console.error('[dividends]', err))
+    processDividends().then(() => {
+      dividendsProcessedRef.current = todayKey
+    }).catch((err) => console.error('[dividends]', err))
     return () => { cancelled = true }
   }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, transactions, addTransaction, deleteTransaction, updateItem, convert])
 
