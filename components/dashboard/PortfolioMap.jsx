@@ -138,7 +138,7 @@ export default function PortfolioMap({ items, lang }) {
   ]
 
   return (
-    <div className="bg-[#1C1C1E] rounded-2xl border border-[#38383A] p-5 card-primary">
+    <div className="bg-theme-card rounded-2xl border border-glass-border p-5 card-primary">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-cyan-400" />
@@ -151,7 +151,7 @@ export default function PortfolioMap({ items, lang }) {
         {views.map(v => (
           <button key={v.key} onClick={() => { setGroupBy(v.key); setSelected(null) }}
             className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
-              groupBy !== v.key ? 'border hover:bg-[#2C2C2E]' : ''
+              groupBy !== v.key ? 'border hover:bg-theme-elevated' : ''
             }`}
             style={groupBy === v.key
               ? { backgroundColor: '#475569', color: '#ffffff' }
@@ -185,7 +185,7 @@ export default function PortfolioMap({ items, lang }) {
                 >
                   <div className="min-w-0">
                     {wide && <p className="text-xs font-semibold text-white truncate leading-tight">{rect.name}</p>}
-                    {wide && tall && <p className="text-[11px] text-slate-400 leading-tight">{rect.pct.toFixed(1)}%</p>}
+                    {wide && tall && <p className="text-xs text-slate-400 leading-tight">{rect.pct.toFixed(1)}%</p>}
                   </div>
                   {tall && (
                     <div className="min-w-0">
@@ -193,14 +193,14 @@ export default function PortfolioMap({ items, lang }) {
                         {formatCurrency(rect.value)}
                       </p>
                       {wide && rect.h > 40 && (
-                        <p className="text-[10px] text-slate-500 truncate mt-0.5">
+                        <p className="text-xs text-slate-500 truncate mt-0.5">
                           {rect.items.slice(0, 5).map(it => it.symbol || (it.name || '').split(' ')[0]).join(' · ')}
                         </p>
                       )}
                     </div>
                   )}
                   {!wide && !tall && (
-                    <p className="text-[9px] text-white/70 truncate text-center">{rect.name.slice(0, 6)}</p>
+                    <p className="text-xs text-white/70 truncate text-center">{rect.name.slice(0, 6)}</p>
                   )}
                 </div>
               </div>
@@ -224,7 +224,7 @@ export default function PortfolioMap({ items, lang }) {
 
       {/* Detail panel */}
       {selectedGroup && (
-        <div className="mt-3 p-3 bg-[#000000] rounded-xl border border-[#38383A]/50 animate-in fade-in duration-200">
+        <div className="mt-3 p-3 bg-theme-base rounded-xl border border-glass-border/50 animate-in fade-in duration-200">
           <div className="flex items-center justify-between mb-2.5">
             <h4 className="text-sm font-semibold text-white flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: selectedGroup.color }} />
@@ -245,13 +245,13 @@ export default function PortfolioMap({ items, lang }) {
               const retPct = hasRet ? ((item.currentPrice - item.purchasePrice) / item.purchasePrice) * 100 : null
 
               return (
-                <div key={item.id || i} className="flex items-center gap-2.5 py-1.5 border-b border-[#38383A]/20 last:border-0">
+                <div key={item.id || i} className="flex items-center gap-2.5 py-1.5 border-b border-glass-border/20 last:border-0">
                   <div className="w-1 h-7 rounded-full shrink-0" style={{ backgroundColor: clr }} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       <span className="text-xs font-medium text-white truncate">{item.name || item.symbol}</span>
                       {item.symbol && item.name && (
-                        <span className="text-[10px] text-slate-600 shrink-0">{item.symbol}</span>
+                        <span className="text-xs text-slate-600 shrink-0">{item.symbol}</span>
                       )}
                     </div>
                     <div className="w-full h-1 bg-slate-700/30 rounded-full overflow-hidden mt-1">
@@ -261,7 +261,7 @@ export default function PortfolioMap({ items, lang }) {
                   <div className="text-right shrink-0">
                     <p className="text-xs font-medium text-white">{formatCurrency(val)}</p>
                     {retPct != null && (
-                      <p className="text-[10px]" style={{ color: retPct >= 0 ? '#34d399' : '#f87171' }}>
+                      <p className="text-xs" style={{ color: retPct >= 0 ? '#34d399' : '#f87171' }}>
                         {retPct >= 0 ? '+' : ''}{retPct.toFixed(1)}%
                       </p>
                     )}

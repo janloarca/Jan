@@ -20,19 +20,26 @@ export default function SharedPortfolioPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#000000] flex items-center justify-center">
-        <div className="text-slate-400 animate-pulse">Loading portfolio...</div>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--bg-primary)' }}>
+        <div className="card-glass rounded-2xl p-8 text-center">
+          <div className="shimmer h-6 w-48 rounded mb-3 mx-auto" />
+          <div className="text-slate-400 text-sm">Loading portfolio...</div>
+        </div>
       </div>
     )
   }
 
   if (error || !data) {
     return (
-      <div className="min-h-screen bg-[#000000] flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-4xl mb-4">🔒</div>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--bg-primary)' }}>
+        <div className="card-glass rounded-2xl p-8 text-center max-w-sm">
+          <div className="rounded-2xl p-3 inline-block mb-4" style={{ backgroundColor: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.15)' }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent-red)' }}>
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </div>
           <h1 className="text-xl font-bold text-white mb-2">Portfolio Not Found</h1>
-          <p className="text-slate-400">{error || 'This link is invalid or has expired.'}</p>
+          <p className="text-slate-400 text-sm">{error || 'This link is invalid or has expired.'}</p>
         </div>
       </div>
     )
@@ -47,7 +54,9 @@ function SharedDashboard({ items, snapshots, baseCurrency }) {
   const toggleTheme = useCallback(() => {
     const next = theme === 'dark' ? 'light' : 'dark'
     setTheme(next)
+    document.documentElement.classList.add('theme-transitioning')
     document.documentElement.setAttribute('data-theme', next)
+    setTimeout(() => document.documentElement.classList.remove('theme-transitioning'), 400)
   }, [theme])
   const totalAssets = useMemo(() =>
     items.reduce((s, it) => {
@@ -102,8 +111,8 @@ function SharedDashboard({ items, snapshots, baseCurrency }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#000000]">
-      <header className="border-b border-[#38383A] bg-[#1C1C1E]/80 backdrop-blur-sm">
+    <div className="min-h-screen bg-theme-base">
+      <header className="border-b border-glass-border" style={{ backgroundColor: 'var(--bg-card)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="font-bold text-lg" style={{ color: 'var(--accent-green)' }}>Chispudo</span>
@@ -123,11 +132,11 @@ function SharedDashboard({ items, snapshots, baseCurrency }) {
               a.download = `portfolio-${new Date().toISOString().split('T')[0]}.csv`
               a.click()
             }}
-              className="px-2 py-1 text-xs text-slate-500 border border-[#38383A] rounded hover:bg-[#2C2C2E] transition-colors">
+              className="px-2 py-1 text-xs text-slate-500 border border-glass-border rounded hover:bg-theme-elevated transition-colors">
               CSV
             </button>
             <button onClick={toggleTheme}
-              className="px-2 py-1 text-xs text-slate-500 border border-[#38383A] rounded hover:bg-[#2C2C2E] transition-colors">
+              className="px-2 py-1 text-xs text-slate-500 border border-glass-border rounded hover:bg-theme-elevated transition-colors">
               {theme === 'dark' ? '☀️' : '🌙'}
             </button>
             <span className="text-xs text-slate-500">Advisor View</span>
@@ -137,7 +146,7 @@ function SharedDashboard({ items, snapshots, baseCurrency }) {
 
       <main className="max-w-5xl mx-auto px-4 py-8 space-y-6">
         {/* Net Worth */}
-        <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 p-6">
+        <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-6">
           <span className="text-xs text-slate-500 block mb-1">Net Worth</span>
           <div className="text-3xl font-bold text-white">{formatCurrency(netWorth)}</div>
           <div className="flex gap-6 mt-3 text-sm">
@@ -164,7 +173,7 @@ function SharedDashboard({ items, snapshots, baseCurrency }) {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Asset Allocation */}
-          <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 p-5">
+          <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-5">
             <h3 className="text-sm font-medium text-slate-400 mb-4">Asset Allocation</h3>
             <div className="space-y-2">
               {byCategory.map(([cat, val]) => {
@@ -185,13 +194,13 @@ function SharedDashboard({ items, snapshots, baseCurrency }) {
                 )
               })}
             </div>
-            <div className="mt-4 pt-3 border-t border-[#38383A]/30 text-xs text-slate-500">
+            <div className="mt-4 pt-3 border-t border-glass-border/30 text-xs text-slate-500">
               {items.filter((it) => !it.isDebt).length} positions · {baseCurrency}
             </div>
           </div>
 
           {/* Top Holdings */}
-          <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 p-5">
+          <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-5">
             <h3 className="text-sm font-medium text-slate-400 mb-4">Top Holdings</h3>
             <div className="space-y-2">
               {topHoldings.map((it) => {
@@ -217,7 +226,7 @@ function SharedDashboard({ items, snapshots, baseCurrency }) {
 
         {/* Portfolio Growth */}
         {snapshots.length >= 2 && (
-          <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 p-5">
+          <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-5">
             <h3 className="text-sm font-medium text-slate-400 mb-4">Portfolio Growth</h3>
             <GrowthChart snapshots={snapshots} />
           </div>
@@ -309,7 +318,7 @@ function IncomeMaturitySummary({ items }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {incomeItems.length > 0 && (
-        <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 p-5">
+        <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-5">
           <h3 className="text-sm font-medium text-slate-400 mb-3">Estimated Annual Income</h3>
           <div className="text-2xl font-bold mb-3" style={{ color: 'var(--accent-green)' }}>{formatCurrency(totalEstIncome)}</div>
           <div className="space-y-1.5">
@@ -327,7 +336,7 @@ function IncomeMaturitySummary({ items }) {
       )}
 
       {maturingItems.length > 0 && (
-        <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 p-5">
+        <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-5">
           <h3 className="text-sm font-medium text-slate-400 mb-3">Upcoming Maturities</h3>
           <div className="space-y-2">
             {maturingItems.slice(0, 6).map((it) => {
@@ -388,7 +397,7 @@ function RiskOverview({ items, totalAssets, byCategory }) {
   const scoreLabel = metrics.diversificationScore >= 70 ? 'Good' : metrics.diversificationScore >= 40 ? 'Moderate' : 'Concentrated'
 
   return (
-    <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 p-5">
+    <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-5">
       <h3 className="text-sm font-medium text-slate-400 mb-4">Risk Overview</h3>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="text-center">

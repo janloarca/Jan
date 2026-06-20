@@ -53,10 +53,10 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
   }
 
   return (
-    <div className="bg-[#141416]/80 rounded-xl border border-[#27272a]/50 p-4">
+    <div className="bg-theme-surface/80 rounded-xl border border-glass-border/50 p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#60a5fa' }} />
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
           {t('REBALANCEO', 'REBALANCING')}
         </h3>
         <div className="flex items-center gap-2">
@@ -90,7 +90,7 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
               <input type="number" min="0" max="100" step="5"
                 value={form[c.cat] || 0}
                 onChange={(e) => setForm({ ...form, [c.cat]: parseInt(e.target.value) || 0 })}
-                className="w-16 px-2 py-1 text-xs bg-[#000000] border border-[#27272a] rounded text-white text-center" />
+                className="w-16 px-2 py-1 text-xs bg-theme-base border border-glass-border rounded text-white text-center" />
               <span className="text-xs text-slate-500">%</span>
             </div>
           ))}
@@ -140,7 +140,7 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
           })}
 
           {!isBalanced && (
-            <div className="pt-2 border-t border-[#27272a]/30 space-y-1">
+            <div className="pt-2 border-t border-glass-border/30 space-y-1">
               {allocation.categories
                 .filter((c) => Math.abs(c.diff) > 2 && c.targetPct > 0)
                 .slice(0, 3)

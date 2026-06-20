@@ -45,7 +45,7 @@ export default function PortfolioSelector({ portfolios, activePortfolio, onSelec
       <button onClick={() => setShowMenu(!showMenu)}
         aria-haspopup="listbox"
         aria-expanded={showMenu}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-300 hover:text-white bg-[#000000]/50 border border-[#38383A]/50 rounded-lg transition-colors">
+        className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-300 hover:text-white bg-theme-base/50 border border-glass-border/50 rounded-lg transition-colors">
         <svg className="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
         </svg>
@@ -58,17 +58,17 @@ export default function PortfolioSelector({ portfolios, activePortfolio, onSelec
       {showMenu && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => { setShowMenu(false); setShowAdd(false) }} />
-          <div className="absolute top-full left-0 mt-1 w-56 bg-[#1C1C1E] border border-[#38383A] rounded-xl shadow-xl z-50 overflow-hidden" role="listbox">
+          <div className="absolute top-full left-0 mt-1 w-56 bg-theme-card border border-glass-border rounded-xl shadow-xl z-50 overflow-hidden" role="listbox">
             <button onClick={() => { onSelect('__all__'); setShowMenu(false) }}
               role="option"
               aria-selected={activePortfolio === '__all__'}
               className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left transition-colors ${
-                activePortfolio !== '__all__' ? 'hover:bg-[#2C2C2E]' : ''
+                activePortfolio !== '__all__' ? 'hover:bg-theme-elevated' : ''
               }`}
               style={{
                 ...(focusIdx === 0 ? { boxShadow: 'inset 0 0 0 1px rgba(59,130,246,0.5)' } : {}),
                 ...(activePortfolio === '__all__'
-                  ? { backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa' }
+                  ? { backgroundColor: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)' }
                   : { color: '#cbd5e1' }
                 ),
               }}>
@@ -81,12 +81,12 @@ export default function PortfolioSelector({ portfolios, activePortfolio, onSelec
                   role="option"
                   aria-selected={activePortfolio === p.id}
                   className={`flex-1 flex items-center gap-2 px-4 py-2.5 text-sm text-left transition-colors ${
-                    activePortfolio !== p.id ? 'hover:bg-[#2C2C2E]' : ''
+                    activePortfolio !== p.id ? 'hover:bg-theme-elevated' : ''
                   }`}
                   style={{
                     ...(focusIdx === i + 1 ? { boxShadow: 'inset 0 0 0 1px rgba(59,130,246,0.5)' } : {}),
                     ...(activePortfolio === p.id
-                      ? { backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa' }
+                      ? { backgroundColor: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)' }
                       : { color: '#cbd5e1' }
                     ),
                   }}>
@@ -103,20 +103,20 @@ export default function PortfolioSelector({ portfolios, activePortfolio, onSelec
               </div>
             ))}
 
-            <div className="border-t border-[#38383A]">
+            <div className="border-t border-glass-border">
               {showAdd ? (
                 <div className="p-2 flex gap-1.5">
                   <input value={newName} onChange={(e) => setNewName(e.target.value)}
                     placeholder={t('Nombre...', 'Name...')} autoFocus
                     onKeyDown={(e) => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') { setShowAdd(false); setShowMenu(false) } }}
-                    className="flex-1 px-2 py-1.5 text-xs bg-[#000000] border border-[#38383A] rounded text-white placeholder-slate-600" />
+                    className="flex-1 px-2 py-1.5 text-xs bg-theme-base border border-glass-border rounded text-white placeholder-slate-600" />
                   <button onClick={handleAdd} className="px-2 py-1.5 text-xs rounded hover:opacity-90" style={{ backgroundColor: '#059669', color: '#ffffff' }}>
                     {t('Ok', 'Ok')}
                   </button>
                 </div>
               ) : (
                 <button onClick={() => setShowAdd(true)}
-                  className="w-full px-4 py-2.5 text-sm text-slate-500 hover:text-emerald-400 hover:bg-[#2C2C2E] text-left transition-colors">
+                  className="w-full px-4 py-2.5 text-sm text-slate-500 hover:text-emerald-400 hover:bg-theme-elevated text-left transition-colors">
                   + {t('Nuevo portfolio', 'New portfolio')}
                 </button>
               )}

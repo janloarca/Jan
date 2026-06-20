@@ -55,12 +55,13 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
     onClose()
   }, [preview, syncMode, onSyncComplete, onClose])
 
-  const inputCls = 'w-full px-3 py-2 bg-[#000000] border border-[#38383A] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50'
+  const inputCls = 'w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div ref={trapRef} className="bg-[#1C1C1E] border border-[#38383A] rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#38383A]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}
+      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+      <div ref={trapRef} className="bg-theme-card border border-glass-border rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <span className="text-xl">₿</span> Blockchain.com Sync
           </h2>
@@ -70,8 +71,8 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
         {step === 'config' && (
           <div className="p-6 space-y-4">
             <div className="border rounded-lg p-3" style={{ backgroundColor: 'rgba(59,130,246,0.1)', borderColor: 'rgba(59,130,246,0.2)' }}>
-              <p className="text-xs font-medium mb-1" style={{ color: '#60a5fa' }}>{t('Cómo obtener tu API key:', 'How to get your API key:')}</p>
-              <ol className="text-[11px] space-y-0.5 list-decimal list-inside" style={{ color: 'rgba(147,197,253,0.8)' }}>
+              <p className="text-xs font-medium mb-1" style={{ color: 'var(--accent-blue)' }}>{t('Cómo obtener tu API key:', 'How to get your API key:')}</p>
+              <ol className="text-xs space-y-0.5 list-decimal list-inside" style={{ color: 'rgba(147,197,253,0.8)' }}>
                 <li>{t('Ve a Blockchain.com Exchange', 'Go to Blockchain.com Exchange')}</li>
                 <li>{t('Settings → API Management', 'Settings → API Management')}</li>
                 <li>{t('Crea una nueva API Key (solo lectura)', 'Create a new API Key (read-only)')}</li>
@@ -94,7 +95,7 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
 
             <button onClick={handleSync} disabled={syncing || !apiKey.trim()}
               className="w-full py-2.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors text-sm font-medium flex items-center justify-center gap-2"
-              style={{ backgroundColor: '#2563eb', color: '#ffffff' }}>
+              style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}>
               {syncing ? (
                 <>
                   <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
@@ -119,7 +120,7 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
                 <p className="text-xs text-slate-400 font-medium mb-2">{t('Posiciones encontradas:', 'Positions found:')}</p>
                 <div className="space-y-1 max-h-40 overflow-y-auto">
                   {preview.items.map((item, i) => (
-                    <div key={i} className="flex items-center justify-between px-3 py-1.5 bg-[#000000] rounded text-xs">
+                    <div key={i} className="flex items-center justify-between px-3 py-1.5 bg-theme-base rounded text-xs">
                       <span className="text-white font-medium">{item.symbol}</span>
                       <span className="text-slate-400">
                         {item.quantity.toLocaleString(undefined, { maximumFractionDigits: 8 })}
@@ -140,22 +141,22 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
               <div className="flex gap-2">
                 <button onClick={() => setSyncMode('merge')}
                   className="flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors border"
-                  style={syncMode === 'merge' ? { backgroundColor: 'rgba(59,130,246,0.2)', color: '#60a5fa', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: 'var(--bg-input)', color: 'var(--text-secondary)', borderColor: 'var(--border-color)' }}>
+                  style={syncMode === 'merge' ? { backgroundColor: 'rgba(59,130,246,0.2)', color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: 'var(--bg-input)', color: 'var(--text-secondary)', borderColor: 'var(--border-color)' }}>
                   {t('Fusionar', 'Merge')}
-                  <span className="block text-[10px] mt-0.5 opacity-60">{t('Actualiza existentes, agrega nuevos', 'Update existing, add new')}</span>
+                  <span className="block text-xs mt-0.5 opacity-60">{t('Actualiza existentes, agrega nuevos', 'Update existing, add new')}</span>
                 </button>
                 <button onClick={() => setSyncMode('replace')}
                   className="flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors border"
                   style={syncMode === 'replace' ? { backgroundColor: 'rgba(245,158,11,0.2)', color: '#fbbf24', borderColor: 'rgba(245,158,11,0.4)' } : { backgroundColor: 'var(--bg-input)', color: 'var(--text-secondary)', borderColor: 'var(--border-color)' }}>
                   {t('Reemplazar', 'Replace')}
-                  <span className="block text-[10px] mt-0.5 opacity-60">{t('Borra todo de Blockchain.com', 'Delete all from Blockchain.com')}</span>
+                  <span className="block text-xs mt-0.5 opacity-60">{t('Borra todo de Blockchain.com', 'Delete all from Blockchain.com')}</span>
                 </button>
               </div>
             </div>
 
             <div className="flex gap-3">
               <button onClick={() => { setStep('config'); setPreview(null) }}
-                className="flex-1 py-2.5 border border-[#38383A] text-slate-300 rounded-lg hover:bg-[#000000] transition-colors text-sm">
+                className="flex-1 py-2.5 border border-glass-border text-slate-300 rounded-lg hover:bg-theme-base transition-colors text-sm">
                 {t('Atrás', 'Back')}
               </button>
               <button onClick={handleConfirm}

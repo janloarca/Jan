@@ -40,13 +40,13 @@ export default function PerformanceAttribution({ items, lang }) {
   )
 
   return (
-    <div className="bg-[#141416]/80 rounded-xl border border-[#27272a]/50 p-4">
+    <div className="card-glass rounded-xl p-4">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#60a5fa' }} />
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
           {t('ATRIBUCIÓN DE RENDIMIENTO', 'PERFORMANCE ATTRIBUTION')}
         </h3>
-        <span className="text-sm font-bold" style={{ color: attribution.totalGain >= 0 ? '#34d399' : '#f87171' }}>
+        <span className="text-sm font-bold" style={{ color: attribution.totalGain >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
           {attribution.totalGain >= 0 ? '+' : ''}{formatCurrency(attribution.totalGain)}
         </span>
       </div>
@@ -64,15 +64,15 @@ export default function PerformanceAttribution({ items, lang }) {
                 <div className="flex-1 h-4 flex items-center">
                   {gain >= 0 ? (
                     <div className="h-full flex items-center" style={{ width: `${Math.abs(gain) / maxGain * 100}%`, minWidth: '2px' }}>
-                      <div className="h-2 bg-emerald-500/50 rounded-full w-full" />
+                      <div className="h-2 rounded-full w-full" style={{ backgroundColor: 'var(--accent-green)', opacity: 0.5 }} />
                     </div>
                   ) : (
                     <div className="h-full flex items-center justify-end ml-auto" style={{ width: `${Math.abs(gain) / maxGain * 100}%`, minWidth: '2px' }}>
-                      <div className="h-2 bg-red-500/50 rounded-full w-full" />
+                      <div className="h-2 rounded-full w-full" style={{ backgroundColor: 'var(--accent-red)', opacity: 0.5 }} />
                     </div>
                   )}
                 </div>
-                <span className="text-xs font-medium w-16 text-right" style={{ color: gain >= 0 ? '#34d399' : '#f87171' }}>
+                <span className="text-xs font-medium w-16 text-right" style={{ color: gain >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                   {gain >= 0 ? '+' : ''}{formatCurrency(gain)}
                 </span>
               </div>
@@ -84,7 +84,7 @@ export default function PerformanceAttribution({ items, lang }) {
       {/* Top contributors */}
       {attribution.positive.length > 0 && (
         <div className="mb-3">
-          <span className="text-xs text-emerald-400/70 mb-1.5 block">{t('Mayores ganadores', 'Top contributors')}</span>
+          <span className="text-xs mb-1.5 block" style={{ color: 'var(--accent-green)', opacity: 0.7 }}>{t('Mayores ganadores', 'Top contributors')}</span>
           <div className="space-y-1">
             {attribution.positive.slice(0, 5).map((a) => (
               <div key={a.symbol} className="flex items-center justify-between text-xs py-0.5">
@@ -93,8 +93,8 @@ export default function PerformanceAttribution({ items, lang }) {
                   <span className="text-slate-600">{a.weight.toFixed(1)}%</span>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-emerald-400/60">+{a.contribution.toFixed(2)}%</span>
-                  <span className="text-emerald-400 font-medium w-16 text-right">+{formatCurrency(a.gain)}</span>
+                  <span style={{ color: 'var(--accent-green)', opacity: 0.6 }}>+{a.contribution.toFixed(2)}%</span>
+                  <span className="font-medium w-16 text-right" style={{ color: 'var(--accent-green)' }}>+{formatCurrency(a.gain)}</span>
                 </div>
               </div>
             ))}
@@ -105,7 +105,7 @@ export default function PerformanceAttribution({ items, lang }) {
       {/* Top detractors */}
       {attribution.negative.length > 0 && (
         <div>
-          <span className="text-xs text-red-400/70 mb-1.5 block">{t('Mayores perdedores', 'Top detractors')}</span>
+          <span className="text-xs mb-1.5 block" style={{ color: 'var(--text-negative)', opacity: 0.7 }}>{t('Mayores perdedores', 'Top detractors')}</span>
           <div className="space-y-1">
             {attribution.negative.slice(0, 5).map((a) => (
               <div key={a.symbol} className="flex items-center justify-between text-xs py-0.5">
@@ -114,8 +114,8 @@ export default function PerformanceAttribution({ items, lang }) {
                   <span className="text-slate-600">{a.weight.toFixed(1)}%</span>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-red-400/60">{a.contribution.toFixed(2)}%</span>
-                  <span className="text-red-400 font-medium w-16 text-right">{formatCurrency(a.gain)}</span>
+                  <span style={{ color: 'var(--text-negative)', opacity: 0.6 }}>{a.contribution.toFixed(2)}%</span>
+                  <span className="font-medium w-16 text-right" style={{ color: 'var(--text-negative)' }}>{formatCurrency(a.gain)}</span>
                 </div>
               </div>
             ))}

@@ -60,10 +60,10 @@ export default function IncomeCalendar({ items, lang }) {
   if (annualTotal <= 0) return null
 
   return (
-    <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 p-4">
+    <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#60a5fa' }} />
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
           {t('CALENDARIO DE INGRESOS', 'INCOME CALENDAR')}
         </h3>
         <span className="text-xs font-medium" style={{ color: 'var(--accent-green)' }}>{formatCurrency(annualTotal)}/yr</span>
@@ -118,7 +118,7 @@ export default function IncomeCalendar({ items, lang }) {
 
         if (upcoming.length === 0) return null
         return (
-          <div className="space-y-2 pt-2 border-t border-[#38383A]/30">
+          <div className="space-y-2 pt-2 border-t border-glass-border/30">
             {upcoming.map((m) => (
               <div key={m.idx}>
                 <div className="text-xs text-slate-400 font-medium mb-1">{monthNames[m.idx]}</div>

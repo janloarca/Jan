@@ -252,7 +252,7 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
   return (
     <div
       ref={containerRef}
-      className="bg-[#141416] rounded-2xl border border-[#27272a] p-5 card-primary"
+      className="bg-theme-surface rounded-2xl border border-glass-border p-5 card-primary"
     >
       {/* Header */}
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
@@ -268,7 +268,7 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
           className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
             selected === 'ALL'
               ? 'bg-[#0A84FF] text-white border-[#0A84FF]'
-              : 'bg-[#2C2C2E] text-slate-400 border-[#27272a] hover:text-white hover:border-slate-500'
+              : 'bg-theme-elevated text-slate-400 border-glass-border hover:text-white hover:border-slate-500'
           }`}
         >
           {t('Todas', 'All')}
@@ -284,7 +284,7 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
             className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
               selected === inst.name
                 ? 'bg-[#0A84FF] text-white border-[#0A84FF]'
-                : 'bg-[#2C2C2E] text-slate-400 border-[#27272a] hover:text-white hover:border-slate-500'
+                : 'bg-theme-elevated text-slate-400 border-glass-border hover:text-white hover:border-slate-500'
             }`}
           >
             {inst.name}
@@ -297,24 +297,24 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
 
       {/* Summary row */}
       <div className="grid grid-cols-3 gap-3 mb-4">
-        <div className="bg-[#000000] rounded-xl p-3">
-          <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">
+        <div className="bg-theme-base rounded-xl p-3">
+          <p className="text-xs uppercase tracking-wider text-slate-500 mb-1">
             {t('Valor total', 'Total value')}
           </p>
           <p className="text-lg font-bold text-white font-mono tabular-nums">
             {formatCurrency(summary.totalValue, baseCurrency)}
           </p>
         </div>
-        <div className="bg-[#000000] rounded-xl p-3">
-          <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">
+        <div className="bg-theme-base rounded-xl p-3">
+          <p className="text-xs uppercase tracking-wider text-slate-500 mb-1">
             {t('Posiciones', 'Positions')}
           </p>
           <p className="text-lg font-bold text-white font-mono tabular-nums">
             {summary.positions}
           </p>
         </div>
-        <div className="bg-[#000000] rounded-xl p-3">
-          <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">
+        <div className="bg-theme-base rounded-xl p-3">
+          <p className="text-xs uppercase tracking-wider text-slate-500 mb-1">
             {t('Ganancia', 'Gain/Loss')}
           </p>
           <p
@@ -421,8 +421,8 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
             >
               <defs>
                 <linearGradient id="inst-grad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#0A84FF" stopOpacity="0.25" />
-                  <stop offset="100%" stopColor="#0A84FF" stopOpacity="0.02" />
+                  <stop offset="0%" stopColor="var(--accent-blue)" stopOpacity="0.25" />
+                  <stop offset="100%" stopColor="var(--accent-blue)" stopOpacity="0.02" />
                 </linearGradient>
               </defs>
 
@@ -451,7 +451,7 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
               <path
                 d={polyline(geo.points)}
                 fill="none"
-                stroke="#0A84FF"
+                stroke="var(--accent-blue)"
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -492,7 +492,7 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
                     cx={hp.x}
                     cy={hp.y}
                     r="4.5"
-                    fill="#0A84FF"
+                    fill="var(--accent-blue)"
                     stroke="#000000"
                     strokeWidth="2"
                   />
@@ -504,7 +504,7 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
           {/* Hover tooltip */}
           {hd && hp && (
             <div
-              className="absolute pointer-events-none bg-[#000000] border border-[#27272a] text-white text-xs rounded-lg px-3 py-2 shadow-xl z-10"
+              className="absolute pointer-events-none bg-theme-base border border-glass-border text-white text-xs rounded-lg px-3 py-2 shadow-xl z-10"
               style={{
                 left: `${Math.min(
                   85,
@@ -535,7 +535,7 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
 
       {/* Period selector */}
       <div className="flex justify-center mt-3">
-        <div className="flex flex-wrap gap-0.5 bg-[#000000] rounded-lg p-0.5">
+        <div className="flex flex-wrap gap-0.5 bg-theme-base rounded-lg p-0.5">
           {PERIODS.map((p) => (
             <button
               key={p}

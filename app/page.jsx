@@ -25,24 +25,24 @@ export default function Home() {
 
   if (checking) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#000000]">
-        <div className="text-blue-400 animate-pulse text-lg font-bold">Chispudo</div>
+      <div className="flex items-center justify-center min-h-screen bg-theme-base">
+        <div className="animate-pulse text-lg font-bold" style={{ color: 'var(--accent-blue)' }}>Chispudo</div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-[#000000] text-white">
+    <div className="min-h-screen bg-theme-base text-white">
       {/* Hero */}
       <header className="max-w-5xl mx-auto px-6 py-6 flex items-center justify-between">
-        <span className="text-blue-400 font-bold text-xl">Chispudo</span>
+        <span className="font-bold text-xl" style={{ color: 'var(--accent-blue)' }}>Chispudo</span>
         <div className="flex items-center gap-3">
           <button onClick={() => router.push('/login')}
             className="px-4 py-2 text-sm text-slate-300 hover:text-white transition-colors">
             Log in
           </button>
           <button onClick={() => router.push('/login')}
-            className="px-5 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors">
+            className="btn-primary text-sm">
             Get started
           </button>
         </div>
@@ -60,7 +60,7 @@ export default function Home() {
           </p>
           <div className="flex items-center justify-center gap-4">
             <button onClick={() => router.push('/login')}
-              className="px-8 py-3 text-base font-medium bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-colors shadow-lg shadow-blue-600/20">
+              className="btn-primary px-8 py-3 text-base">
               Start for free
             </button>
           </div>
@@ -102,7 +102,8 @@ export default function Home() {
                 desc: 'Attach contracts, certificates, and receipts directly to each asset.',
               },
             ].map((f, i) => (
-              <div key={i} className="bg-[#1C1C1E]/60 border border-[#38383A]/50 rounded-xl p-6">
+              <div key={i} className="bg-theme-card/60 rounded-xl p-6"
+                style={{ backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)', boxShadow: 'var(--shadow-card)', border: 'var(--glass-border)' }}>
                 <span className="text-2xl mb-3 block">{f.icon}</span>
                 <h3 className="text-base font-bold text-white mb-2">{f.title}</h3>
                 <p className="text-sm text-slate-400 leading-relaxed">{f.desc}</p>
@@ -117,9 +118,9 @@ export default function Home() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#38383A]">
+                <tr className="border-b border-glass-border">
                   <th className="text-left py-3 px-4 text-slate-400 font-medium">Feature</th>
-                  <th className="py-3 px-4 text-blue-400 font-bold">Chispudo</th>
+                  <th className="py-3 px-4 font-bold" style={{ color: 'var(--accent-blue)' }}>Chispudo</th>
                   <th className="py-3 px-4 text-slate-500 font-medium">Kubera</th>
                   <th className="py-3 px-4 text-slate-500 font-medium">Others</th>
                 </tr>
@@ -137,9 +138,9 @@ export default function Home() {
                   ['Multi-currency income', '✓', '~', '~'],
                   ['Price', 'Free', '$150/yr', 'Varies'],
                 ].map(([feat, c, k, o], i) => (
-                  <tr key={i} className="border-b border-[#38383A]/30">
+                  <tr key={i} className="border-b border-glass-border/30">
                     <td className="py-2.5 px-4 text-slate-300">{feat}</td>
-                    <td className="py-2.5 px-4 text-center text-blue-400 font-medium">{c}</td>
+                    <td className="py-2.5 px-4 text-center font-medium" style={{ color: 'var(--accent-blue)' }}>{c}</td>
                     <td className="py-2.5 px-4 text-center">{k}</td>
                     <td className="py-2.5 px-4 text-center">{o}</td>
                   </tr>
@@ -154,13 +155,13 @@ export default function Home() {
           <h2 className="text-3xl font-bold mb-4">Ready to see your full picture?</h2>
           <p className="text-slate-400 mb-8">Free. No credit card. Takes 2 minutes.</p>
           <button onClick={() => router.push('/login')}
-            className="px-10 py-4 text-base font-medium bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-colors shadow-lg shadow-blue-600/20">
+            className="btn-primary px-10 py-4 text-base">
             Create your portfolio
           </button>
         </section>
       </main>
 
-      <footer className="border-t border-[#38383A]/50 py-8">
+      <footer className="border-t border-glass-border/50 py-8">
         <div className="max-w-5xl mx-auto px-6 flex items-center justify-between text-xs text-slate-600">
           <span>Chispudo · chispu.xyz</span>
           <span>The portfolio tracker that actually works for Latin America.</span>

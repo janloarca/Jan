@@ -31,7 +31,10 @@ export const viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: 'cover',
-  themeColor: '#000000',
+  themeColor: [
+    { media: '(prefers-color-scheme: dark)', color: '#0A0A12' },
+    { media: '(prefers-color-scheme: light)', color: '#F0F2F8' },
+  ],
 }
 
 export default function RootLayout({ children }) {
@@ -40,14 +43,16 @@ export default function RootLayout({ children }) {
     (function() {
       try {
         var saved = localStorage.getItem('chispudo-theme');
+        var theme = 'dark';
         if (saved === 'light') {
-          document.documentElement.setAttribute('data-theme', 'light');
+          theme = 'light';
         } else if (saved === 'system') {
-          var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-          document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
-        } else {
-          document.documentElement.setAttribute('data-theme', 'dark');
+          theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         }
+        document.documentElement.setAttribute('data-theme', theme);
+        var tc = theme === 'light' ? '#F0F2F8' : '#0A0A12';
+        var metas = document.querySelectorAll('meta[name="theme-color"]');
+        metas.forEach(function(m) { m.setAttribute('content', tc); });
       } catch(e) {}
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(function(regs) {

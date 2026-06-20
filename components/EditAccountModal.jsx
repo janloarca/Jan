@@ -27,14 +27,14 @@ function InfoTip({ text }) {
   return (
     <span className="relative inline-block ml-1">
       <button type="button" onClick={(e) => { e.preventDefault(); setShow(!show) }}
-        className="w-4 h-4 rounded-full bg-slate-600/50 text-[10px] text-slate-300 hover:bg-blue-500/30 hover:text-blue-300 inline-flex items-center justify-center transition-colors leading-none">
+        className="w-4 h-4 rounded-full bg-slate-600/50 text-xs text-slate-300 hover:bg-blue-500/30 hover:text-blue-300 inline-flex items-center justify-center transition-colors leading-none">
         i
       </button>
       {show && (
-        <div className="absolute z-50 bottom-6 left-1/2 -translate-x-1/2 w-52 p-2 bg-[#000000] border border-[#475569] rounded-lg text-[11px] text-slate-300 shadow-xl"
+        <div className="absolute z-50 bottom-6 left-1/2 -translate-x-1/2 w-52 p-2 bg-theme-base border border-[#475569] rounded-lg text-xs text-slate-300 shadow-xl"
           onClick={(e) => e.stopPropagation()}>
           {text}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-[#000000] border-r border-b border-[#475569] rotate-45 -mt-1" />
+          <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-theme-base border-r border-b border-[#475569] rotate-45 -mt-1" />
         </div>
       )}
     </span>
@@ -403,8 +403,9 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
   const labelCls = 'text-xs text-[var(--text-secondary,#94a3b8)] mb-1 block'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="edit-account-title">
-      <div ref={trapRef} className="bg-[var(--card-bg,#1C1C1E)] border border-[var(--card-border,#38383A)] rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="edit-account-title"
+      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+      <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border,#38383A)]">
           <h2 id="edit-account-title" className="text-lg font-bold text-[var(--text-primary,white)]">{t('Editar', 'Edit')} {item.name || item.symbol}</h2>
           <button onClick={onClose} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-xl leading-none" aria-label="Close">&times;</button>
@@ -415,7 +416,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           {/* Sector badge */}
           {item.sector && (
             <div className="flex gap-2 flex-wrap">
-              <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa' }}>{item.sector}</span>
+              <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)' }}>{item.sector}</span>
               {item.industry && <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'rgba(168,85,247,0.1)', color: '#c084fc' }}>{item.industry}</span>}
               {item.exchangeName && <span className="text-xs bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] px-2 py-0.5 rounded">{item.exchangeName}</span>}
             </div>
@@ -589,7 +590,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                           <span style={{ color: tx.type === 'DEPOSIT' ? '#34d399' : '#f87171' }}>
                             {tx.type === 'DEPOSIT' ? '+' : '-'}{tx.currency || form.currency} {(tx.totalAmount || 0).toLocaleString()}
                           </span>
-                          {tx.description && <p className="text-[10px]" style={{ color: '#475569' }}>{tx.description}</p>}
+                          {tx.description && <p className="text-xs" style={{ color: '#475569' }}>{tx.description}</p>}
                         </div>
                       </div>
                     ))}
@@ -670,7 +671,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                     style={{ backgroundColor: form.isReceivable ? '#06b6d4' : 'var(--card-border, #38383A)' }}>
                     <span className={`absolute w-3 h-3 bg-white rounded-full top-0.5 transition-transform ${form.isReceivable ? 'left-4' : 'left-0.5'}`} />
                   </button>
-                  <span className="text-[10px] text-[var(--text-secondary,#94a3b8)]">{t('Cuenta por cobrar', 'Receivable')}</span>
+                  <span className="text-xs text-[var(--text-secondary,#94a3b8)]">{t('Cuenta por cobrar', 'Receivable')}</span>
                 </div>
               </div>
 
@@ -681,7 +682,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                     style={{ backgroundColor: form.countInNetWorth ? '#06b6d4' : 'var(--card-border, #38383A)' }}>
                     <span className={`absolute w-3 h-3 bg-white rounded-full top-0.5 transition-transform ${form.countInNetWorth ? 'left-4' : 'left-0.5'}`} />
                   </button>
-                  <span className="text-[10px]" style={{ color: '#22d3ee' }}>{t('Incluir en patrimonio neto', 'Include in net worth')}</span>
+                  <span className="text-xs" style={{ color: '#22d3ee' }}>{t('Incluir en patrimonio neto', 'Include in net worth')}</span>
                 </div>
               )}
 
@@ -740,7 +741,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
               {isCreditCard && (
                 <div className="border-t border-red-500/10 pt-3 space-y-3">
-                  <p className="text-[10px] uppercase tracking-wide" style={{ color: '#fca5a5' }}>{t('Tarjeta de crédito', 'Credit Card')}</p>
+                  <p className="text-xs uppercase tracking-wide" style={{ color: '#fca5a5' }}>{t('Tarjeta de crédito', 'Credit Card')}</p>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Marca', 'Brand')}</label>
@@ -822,8 +823,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   {t('Mgmt fee', 'Mgmt fee')}
                   {' '}
                   <button type="button" onClick={() => set('managementFeeType', form.managementFeeType === 'fixed' ? 'percent' : 'fixed')}
-                    className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--input-bg,#000000)] border border-[var(--card-border,#38383A)] transition-colors"
-                    style={{ color: '#60a5fa' }}>
+                    className="text-xs px-1.5 py-0.5 rounded bg-[var(--input-bg,#000000)] border border-[var(--card-border,#38383A)] transition-colors"
+                    style={{ color: 'var(--accent-blue)' }}>
                     {form.managementFeeType === 'fixed' ? '$' : '%'}
                   </button>
                   {' '}
@@ -842,7 +843,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               </div>
             </div>
             {(parseFloat(form.entryFee) > 0 || parseFloat(form.managementFee) > 0 || parseFloat(form.expenseRatio) > 0) && (
-              <p className="text-[10px]" style={{ color: 'rgba(251,191,36,0.6)' }}>
+              <p className="text-xs" style={{ color: 'rgba(251,191,36,0.6)' }}>
                 {parseFloat(form.entryFee) > 0 && `${t('Entrada', 'Entry')}: $${parseFloat(form.entryFee).toFixed(2)}  `}
                 {parseFloat(form.managementFee) > 0 && (
                   form.managementFeeType === 'fixed'
@@ -946,7 +947,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   </button>
                   <button type="button" onClick={() => set('dividendAction', 'reinvest')}
                     className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                    style={form.dividendAction === 'reinvest' ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                    style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                     🔄 {t('Reinvertir', 'Reinvest')}
                   </button>
                 </div>
@@ -989,7 +990,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   {[{ key: 'fixed', es: 'Fija', en: 'Fixed' }, { key: 'variable', es: 'Variable', en: 'Variable' }, { key: 'continuous', es: 'Continua', en: 'Continuous' }].map(rt => (
                     <button key={rt.key} type="button" onClick={() => set('rateType', rt.key)}
                       className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                      style={form.rateType === rt.key ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                      style={form.rateType === rt.key ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                       {lang === 'es' ? rt.es : rt.en}
                     </button>
                   ))}
@@ -1000,12 +1001,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               <div className="flex gap-1">
                 <button type="button" onClick={() => set('incomeMode', 'fixed')}
                   className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                  style={form.incomeMode === 'fixed' ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                  style={form.incomeMode === 'fixed' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                   {t('Monto fijo', 'Fixed amount')}
                 </button>
                 <button type="button" onClick={() => set('incomeMode', 'percent')}
                   className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                  style={form.incomeMode === 'percent' ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                  style={form.incomeMode === 'percent' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                   {t('% del saldo', '% of balance')}
                 </button>
               </div>
@@ -1075,7 +1076,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                         <button key={i} type="button"
                           onClick={() => set('incomeMonths', active ? form.incomeMonths.filter(x => x !== i) : [...form.incomeMonths, i].sort((a, b) => a - b))}
                           className="px-2 py-1 text-xs font-medium rounded transition-all border"
-                          style={active ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.25)', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                          style={active ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.25)', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                           {label}
                         </button>
                       )
@@ -1138,7 +1139,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
             </button>
             <button type="submit" disabled={saving}
               className="px-6 py-2.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors text-sm font-medium"
-              style={{ backgroundColor: '#2563eb', color: '#ffffff' }}>
+              style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}>
               {saving ? '...' : onNavigate ? t('Guardar →', 'Save →') : t('Guardar', 'Save')}
             </button>
           </div>

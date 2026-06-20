@@ -111,10 +111,10 @@ export default function FinancialHealth({ items, netWorth, totalAssets, snapshot
   }, [scores])
 
   return (
-    <div className="bg-[#141416]/80 rounded-xl border border-[#27272a]/50 p-4">
+    <div className="bg-theme-surface/80 rounded-xl border border-glass-border/50 p-4">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#60a5fa' }} />
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
           {lang === 'es' ? 'SALUD FINANCIERA' : 'FINANCIAL HEALTH'}
         </h3>
         <div className="flex items-center gap-2">
@@ -135,7 +135,7 @@ export default function FinancialHealth({ items, netWorth, totalAssets, snapshot
       </div>
 
       {suggestions.length > 0 && (
-        <div className="mt-4 pt-3 border-t border-[#27272a]/50">
+        <div className="mt-4 pt-3 border-t border-glass-border/50">
           <span className="text-xs text-slate-500 mb-2 block">{t('Cómo mejorar', 'How to improve')}</span>
           <div className="space-y-1.5">
             {suggestions.map((tip, i) => (

@@ -10,7 +10,7 @@ export default function DashboardError({ error, reset }) {
   }, [error])
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-[#000000]">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-theme-base">
       <div className="text-center max-w-lg px-6">
         <h2 className="text-xl font-bold text-white mb-2">Algo salio mal</h2>
         <p className="text-slate-400 text-sm mb-4">{msg}</p>

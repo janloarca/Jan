@@ -21,11 +21,11 @@ export default function FinanceTransactionList({ transactions, onDelete, lang = 
   const fmt = (v) => v.toLocaleString(lang === 'es' ? 'es-GT' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
   return (
-    <div className="bg-[#1C1C1E] border border-[#38383A] rounded-xl p-4">
+    <div className="bg-theme-card border border-glass-border rounded-xl p-4">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3">
         <h3 className="text-sm font-semibold text-white">{t('Transacciones', 'Transactions')}</h3>
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <div className="flex bg-[#000000] rounded-lg border border-[#38383A] text-xs">
+          <div className="flex bg-theme-base rounded-lg border border-glass-border text-xs">
             {[
               { key: 'ALL', label: t('Todos', 'All') },
               { key: 'INCOME', label: t('Ingresos', 'Income') },
@@ -33,7 +33,7 @@ export default function FinanceTransactionList({ transactions, onDelete, lang = 
             ].map(f => (
               <button key={f.key} onClick={() => setFilter(f.key)}
                 className="px-3 py-1.5 transition-colors rounded-lg"
-                style={filter === f.key ? { backgroundColor: '#2563eb', color: '#ffffff' } : { color: 'var(--text-secondary)' }}>
+                style={filter === f.key ? { backgroundColor: 'var(--accent-blue)', color: '#ffffff' } : { color: 'var(--text-secondary)' }}>
                 {f.label}
               </button>
             ))}
@@ -43,7 +43,7 @@ export default function FinanceTransactionList({ transactions, onDelete, lang = 
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder={t('Buscar...', 'Search...')}
-            className="px-3 py-1.5 bg-[#000000] border border-[#38383A] rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 w-full sm:w-36"
+            className="px-3 py-1.5 bg-theme-base border border-glass-border rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 w-full sm:w-36"
           />
         </div>
       </div>
@@ -54,7 +54,7 @@ export default function FinanceTransactionList({ transactions, onDelete, lang = 
         <div className="overflow-x-auto max-h-96 overflow-y-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="text-slate-500 border-b border-[#38383A] sticky top-0 bg-[#1C1C1E]">
+              <tr className="text-slate-500 border-b border-glass-border sticky top-0 bg-theme-card">
                 <th className="text-left py-2 px-2">{t('Fecha', 'Date')}</th>
                 <th className="text-left py-2 px-2">{t('Descripción', 'Description')}</th>
                 <th className="text-left py-2 px-2">{t('Categoría', 'Category')}</th>
@@ -64,7 +64,7 @@ export default function FinanceTransactionList({ transactions, onDelete, lang = 
             </thead>
             <tbody>
               {filtered.map((tx, i) => (
-                <tr key={tx.id || i} className="border-b border-[#38383A]/50 hover:bg-[#2C2C2E]">
+                <tr key={tx.id || i} className="border-b border-glass-border/50 hover:bg-theme-elevated">
                   <td className="py-2 px-2 text-slate-400 whitespace-nowrap">{tx.date}</td>
                   <td className="py-2 px-2 text-white max-w-[200px] truncate">{tx.description || '-'}</td>
                   <td className="py-2 px-2">

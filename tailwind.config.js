@@ -7,6 +7,16 @@ module.exports = {
   ],
   theme: {
     extend: {
+      colors: {
+        'theme-base': 'var(--bg-primary)',
+        'theme-surface': 'var(--bg-secondary)',
+        'theme-card': 'var(--bg-card)',
+        'theme-elevated': 'var(--bg-card-hover)',
+        'theme-input': 'var(--bg-input)',
+        'theme-tertiary': 'var(--bg-tertiary)',
+        'glass-border': 'var(--border-primary)',
+        'glass-subtle': 'var(--border-subtle)',
+      },
       fontFamily: {
         sans: ['-apple-system', 'BlinkMacSystemFont', 'SF Pro Text', 'SF Pro Display', 'system-ui', 'Helvetica Neue', 'sans-serif'],
         mono: ['SF Mono', 'JetBrains Mono', 'Fira Code', 'monospace'],
@@ -18,7 +28,8 @@ module.exports = {
         'h3': ['0.9375rem', { lineHeight: '1.4', fontWeight: '600' }],
         'body': ['0.9375rem', { lineHeight: '1.47' }],
         'caption': ['0.8125rem', { lineHeight: '1.38' }],
-        'micro': ['0.6875rem', { lineHeight: '1.27' }],
+        'micro': ['0.75rem', { lineHeight: '1.33' }],
+        'display': ['2.5rem', { lineHeight: '1.1', fontWeight: '800', letterSpacing: '-0.02em' }],
       },
     },
   },

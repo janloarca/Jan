@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { formatCurrency, formatCompact, formatDate, computeModifiedDietz, getItemValue, buildIncomeEvents } from './utils'
 import { computeTWRSeries } from './analytics'
 import { authFetch, safeJson } from '@/lib/authFetch'
+import ErrorState from '@/components/ui/ErrorState'
 
 function polyline(pts) {
   return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
@@ -597,22 +598,22 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   }, [snapshotRows, onSaveSnapshot, baseCurrency, convert])
 
   const periodSelector = (
-    <div className="flex flex-wrap gap-0.5 bg-[#09090b] rounded-lg p-0.5 border border-[#27272a]/50">
+    <div className="flex flex-wrap gap-0.5 bg-theme-base rounded-lg p-0.5 border border-glass-border/50">
       {periods.map((p) => (
         <button key={p} onClick={() => {
           setPeriod(p)
           if (p === 'CUSTOM') setShowCustomRange(true)
           else setShowCustomRange(false)
         }}
-          className="px-3 py-2 text-xs font-semibold rounded-md transition-all"
-          style={period === p ? { backgroundColor: '#3b82f6', color: '#fff' } : { color: 'var(--text-muted)' }}>{p === 'CUSTOM' ? (lang === 'es' ? 'Rango' : 'Range') : p}</button>
+          className={`px-3 py-2 text-xs font-semibold rounded-md transition-all ${period === p ? 'pill-active' : ''}`}
+          style={period === p ? { color: '#fff' } : { color: 'var(--text-muted)' }}>{p === 'CUSTOM' ? (lang === 'es' ? 'Rango' : 'Range') : p}</button>
       ))}
     </div>
   )
 
   if (loading && chartData.length < 2) {
     return (
-      <div className="bg-[#141416] rounded-2xl border border-[#27272a] p-5 card-primary">
+      <div className="card-glass rounded-2xl p-5">
         <div className="flex items-center justify-center min-h-[260px]">
           <div className="flex items-center gap-2 text-slate-500 text-sm">
             <div className="w-4 h-4 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
@@ -625,23 +626,25 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
   if (fetchError && chartData.length < 2) {
     return (
-      <div className="bg-[#141416] rounded-2xl border border-[#27272a] p-5 card-primary">
-        <div className="flex flex-col items-center justify-center min-h-[200px] gap-2">
-          <p className="text-sm" style={{ color: 'var(--text-negative)' }}>{fetchError}</p>
-          <button onClick={fetchHistory} className="text-xs" style={{ color: '#60a5fa' }}>{t('Reintentar', 'Retry')}</button>
-        </div>
+      <div className="card-glass rounded-2xl p-5">
+        <ErrorState
+          title={t('Error cargando gráfico', 'Error loading chart')}
+          message={fetchError}
+          onRetry={fetchHistory}
+          lang={lang}
+        />
       </div>
     )
   }
 
   if (chartData.length < 2) {
     return (
-      <div className="bg-[#141416] rounded-2xl border border-[#27272a] p-5 card-primary">
+      <div className="card-glass rounded-2xl p-5">
         <div className="flex flex-col items-center justify-center min-h-[200px] gap-2 text-slate-500 text-sm">
           {period === 'DAY' ? (
             <>
               <p>{t('Sin datos intradía — el mercado puede estar cerrado.', 'No intraday data — market may be closed.')}</p>
-              <button onClick={() => setPeriod('1W')} className="text-xs" style={{ color: '#60a5fa' }}>
+              <button onClick={() => setPeriod('1W')} className="text-xs" style={{ color: 'var(--accent-blue)' }}>
                 {t('Ver última semana', 'View last week')}
               </button>
             </>
@@ -658,7 +661,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const hd = hoverIdx != null ? chartData[hoverIdx] : null
 
   return (
-    <div ref={containerRef} className="bg-[#141416] rounded-2xl border border-[#27272a] p-5 card-primary">
+    <div ref={containerRef} className="card-glass rounded-2xl p-5">
       {/* Tab bar: Value | Performance */}
       <div className="flex items-center gap-4 mb-4">
         <button onClick={() => setViewMode('value')}
@@ -679,22 +682,22 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           {viewMode === 'value' && contributionLine && (
             <button onClick={() => setShowContributions(!showContributions)}
               className="px-2 py-1 text-xs font-medium rounded-md transition-all"
-              style={showContributions ? { backgroundColor: '#2563eb', color: '#fff' } : { color: 'var(--text-muted)' }}
+              style={showContributions ? { backgroundColor: 'var(--accent-blue)', color: '#fff' } : { color: 'var(--text-muted)' }}
               title={t('Mostrar/ocultar capital invertido', 'Show/hide invested capital')}>
               {t('Invertido', 'Invested')}
             </button>
           )}
           {viewMode === 'performance' && (
-            <div className="flex gap-0.5 bg-[#000000] rounded-lg p-0.5">
+            <div className="flex gap-0.5 bg-theme-base rounded-lg p-0.5">
               <button onClick={() => setReturnMode('twr')}
                 className="px-2 py-1 text-xs font-medium rounded-md transition-all"
-                style={returnMode === 'twr' ? { backgroundColor: '#2563eb', color: '#fff' } : { color: 'var(--text-muted)' }}
+                style={returnMode === 'twr' ? { backgroundColor: 'var(--accent-blue)', color: '#fff' } : { color: 'var(--text-muted)' }}
                 title={t('Retorno ponderado por tiempo — mide el rendimiento del portafolio sin importar depósitos/retiros', 'Time-Weighted Return — measures portfolio performance regardless of deposits/withdrawals')}>
                 TWR
               </button>
               <button onClick={() => setReturnMode('mwr')}
                 className="px-2 py-1 text-xs font-medium rounded-md transition-all"
-                style={returnMode === 'mwr' ? { backgroundColor: '#2563eb', color: '#fff' } : { color: 'var(--text-muted)' }}
+                style={returnMode === 'mwr' ? { backgroundColor: 'var(--accent-blue)', color: '#fff' } : { color: 'var(--text-muted)' }}
                 title={t('Retorno ponderado por dinero — refleja tu experiencia real como inversionista', 'Money-Weighted Return — reflects your actual experience as an investor')}>
                 MWR
               </button>
@@ -937,8 +940,13 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
           {/* Hover tooltip */}
           {hd && hp && (
-            <div className="absolute pointer-events-none bg-[#000000] border border-[#475569] text-white text-xs rounded-lg px-3 py-2 shadow-xl z-10"
+            <div className="absolute pointer-events-none text-white text-xs rounded-lg px-3 py-2 z-10"
               style={{
+                background: 'var(--bg-card)',
+                backdropFilter: 'var(--glass-blur)',
+                WebkitBackdropFilter: 'var(--glass-blur)',
+                border: 'var(--glass-border)',
+                boxShadow: 'var(--shadow-elevated)',
                 left: `${Math.min(85, Math.max(15, (hp.x / width) * 100))}%`,
                 top: `${(hp.y / chartHeight) * 100 - 14}%`,
                 transform: 'translate(-50%, -100%)',
@@ -1023,26 +1031,26 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           <label className="text-xs text-slate-400">{t('Desde', 'From')}:</label>
           <input type="date" value={customRange.from}
             onChange={e => setCustomRange(prev => ({ ...prev, from: e.target.value }))}
-            className="px-2 py-1 bg-[#09090b] border border-[#27272a] rounded text-xs text-white focus:outline-none focus:border-[#3b82f6]" />
+            className="px-2 py-1 bg-theme-base border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[#3b82f6]" />
           <label className="text-xs text-slate-400">{t('Hasta', 'To')}:</label>
           <input type="date" value={customRange.to}
             onChange={e => setCustomRange(prev => ({ ...prev, to: e.target.value }))}
             max={new Date().toISOString().split('T')[0]}
-            className="px-2 py-1 bg-[#09090b] border border-[#27272a] rounded text-xs text-white focus:outline-none focus:border-[#3b82f6]" />
+            className="px-2 py-1 bg-theme-base border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[#3b82f6]" />
         </div>
       )}
 
       {/* Snapshot import section */}
       <div className="flex justify-center mt-3">
         <button onClick={() => setShowSnapshotImport(!showSnapshotImport)}
-          className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors">
+          className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
           {showSnapshotImport ? '▾' : '▸'} {t('Agregar datos históricos', 'Add historical data')}
         </button>
       </div>
 
       {showSnapshotImport && (
-        <div className="mt-2 p-3 bg-[#09090b] border border-[#27272a] rounded-lg">
-          <p className="text-[10px] text-slate-400 mb-2">
+        <div className="mt-2 p-3 bg-theme-base border border-glass-border rounded-lg">
+          <p className="text-xs text-slate-400 mb-2">
             {t('Agrega valores pasados de tu portafolio para completar la gráfica.',
                'Add past portfolio values to complete the chart.')}
           </p>
@@ -1051,12 +1059,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
               <div key={i} className="flex gap-2 items-center">
                 <input type="date" value={row.date}
                   onChange={e => setSnapshotRows(prev => prev.map((r, idx) => idx === i ? { ...r, date: e.target.value } : r))}
-                  className="px-2 py-1 bg-[#1C1C1E] border border-[#27272a] rounded text-xs text-white focus:outline-none focus:border-[#3b82f6] w-36" />
+                  className="px-2 py-1 bg-theme-card border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[#3b82f6] w-36" />
                 <div className="flex items-center gap-1 flex-1">
                   <span className="text-xs text-slate-500">$</span>
                   <input type="number" value={row.value} placeholder={t('Valor total', 'Total value')}
                     onChange={e => setSnapshotRows(prev => prev.map((r, idx) => idx === i ? { ...r, value: e.target.value } : r))}
-                    className="w-full px-2 py-1 bg-[#1C1C1E] border border-[#27272a] rounded text-xs text-white focus:outline-none focus:border-[#3b82f6]" />
+                    className="w-full px-2 py-1 bg-theme-card border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[#3b82f6]" />
                 </div>
                 {snapshotRows.length > 1 && (
                   <button onClick={() => setSnapshotRows(prev => prev.filter((_, idx) => idx !== i))}
@@ -1067,7 +1075,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           </div>
           <div className="flex items-center gap-2 mt-2">
             <button onClick={() => setSnapshotRows(prev => [...prev, { date: '', value: '' }])}
-              className="text-[11px]" style={{ color: '#60a5fa' }}>
+              className="text-xs" style={{ color: 'var(--accent-blue)' }}>
               + {t('Agregar fila', 'Add row')}
             </button>
             <div className="ml-auto flex gap-2">
@@ -1077,7 +1085,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
               </button>
               <button onClick={handleSaveSnapshots} disabled={snapshotSaving || !snapshotRows.some(r => r.date && r.value)}
                 className="px-3 py-1 text-xs rounded disabled:opacity-40 transition-colors"
-                style={{ backgroundColor: '#2563eb', color: '#fff' }}>
+                style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
                 {snapshotSaving ? '...' : t('Guardar', 'Save')}
               </button>
             </div>

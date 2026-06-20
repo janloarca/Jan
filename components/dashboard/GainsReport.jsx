@@ -41,26 +41,26 @@ export default function GainsReport({ lots, items, lang }) {
   if (!report) return null
 
   return (
-    <div className="bg-[#141416]/80 rounded-xl border border-[#27272a]/50 p-4">
+    <div className="bg-theme-surface/80 rounded-xl border border-glass-border/50 p-4">
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
-        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#60a5fa' }} />
+        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
         {t('GANANCIAS Y PÉRDIDAS', 'GAINS & LOSSES')}
       </h3>
 
       <div className="grid grid-cols-3 gap-3 mb-4">
-        <div className="bg-[#000000] rounded-lg p-3 text-center border border-[#27272a]/50">
+        <div className="bg-theme-base rounded-lg p-3 text-center border border-glass-border/50">
           <span className="text-xs text-slate-500 block">{t('Realizada', 'Realized')}</span>
           <span className="text-sm font-bold block" style={{ color: report.totalRealized >= 0 ? '#34d399' : '#f87171' }}>
             {report.totalRealized >= 0 ? '+' : ''}{formatCurrency(report.totalRealized)}
           </span>
         </div>
-        <div className="bg-[#000000] rounded-lg p-3 text-center border border-[#27272a]/50">
+        <div className="bg-theme-base rounded-lg p-3 text-center border border-glass-border/50">
           <span className="text-xs text-slate-500 block">{t('No Realizada', 'Unrealized')}</span>
           <span className="text-sm font-bold block" style={{ color: report.totalUnrealized >= 0 ? '#34d399' : '#f87171' }}>
             {report.totalUnrealized >= 0 ? '+' : ''}{formatCurrency(report.totalUnrealized)}
           </span>
         </div>
-        <div className="bg-[#000000] rounded-lg p-3 text-center border border-[#27272a]/50">
+        <div className="bg-theme-base rounded-lg p-3 text-center border border-glass-border/50">
           <span className="text-xs text-slate-500 block">Total</span>
           <span className="text-sm font-bold block" style={{ color: report.totalGain >= 0 ? '#34d399' : '#f87171' }}>
             {report.totalGain >= 0 ? '+' : ''}{formatCurrency(report.totalGain)}
@@ -71,7 +71,7 @@ export default function GainsReport({ lots, items, lang }) {
       {report.symbols.length > 0 ? (
         <div className="space-y-1.5">
           {report.symbols.slice(0, 8).map((s) => (
-            <div key={s.symbol} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-[#2C2C2E]/30 transition-colors">
+            <div key={s.symbol} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-theme-elevated/30 transition-colors">
               <span className="text-sm text-white font-medium">{s.symbol}</span>
               <div className="flex items-center gap-3 text-xs">
                 {s.realized !== 0 && (

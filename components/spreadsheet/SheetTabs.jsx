@@ -8,7 +8,7 @@ export default function SheetTabs({ sheets, activeSheet, onSelect, onAdd, onRena
   const [editName, setEditName] = useState('')
 
   return (
-    <div className="flex items-center gap-1 px-2 py-1.5 bg-[#000000] border-t border-[#38383A] overflow-x-auto">
+    <div className="flex items-center gap-1 px-2 py-1.5 border-t overflow-x-auto" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--glass-border-color)' }}>
       {sheets.map((sheet) => (
         <div key={sheet.id} className="flex items-center group">
           {editing === sheet.id ? (
@@ -22,7 +22,7 @@ export default function SheetTabs({ sheets, activeSheet, onSelect, onAdd, onRena
                 if (e.key === 'Escape') setEditing(null)
               }}
               autoFocus
-              className="px-2 py-1 text-xs bg-[#1C1C1E] border border-blue-500/50 rounded text-white focus:outline-none w-24"
+              className="px-2 py-1 text-xs bg-theme-card border border-blue-500/50 rounded text-white focus:outline-none w-24"
             />
           ) : (
             <button
@@ -30,8 +30,8 @@ export default function SheetTabs({ sheets, activeSheet, onSelect, onAdd, onRena
               onDoubleClick={() => { setEditing(sheet.id); setEditName(sheet.name) }}
               className={`px-3 py-1 text-xs rounded-t transition-colors ${
                 activeSheet === sheet.id
-                  ? 'bg-[#1C1C1E] text-white border-t border-x border-[#38383A] -mb-px'
-                  : 'text-slate-500 hover:text-slate-300 hover:bg-[#1C1C1E]/50'
+                  ? 'bg-theme-card text-white border-t border-x border-glass-border -mb-px'
+                  : 'text-slate-500 hover:text-slate-300 hover:bg-theme-card/50'
               }`}
             >
               {sheet.name}

@@ -13,7 +13,7 @@ const FREQUENCIES = [
 
 const CATEGORIES = [
   { value: 'savings', labelEs: 'Ahorro', labelEn: 'Savings', icon: '💰', color: 'var(--accent-green)' },
-  { value: 'investment', labelEs: 'Inversión', labelEn: 'Investment', icon: '📈', color: '#60a5fa' },
+  { value: 'investment', labelEs: 'Inversión', labelEn: 'Investment', icon: '📈', color: 'var(--accent-blue)' },
   { value: 'income', labelEs: 'Ingreso', labelEn: 'Income', icon: '💵', color: 'var(--accent-green)' },
   { value: 'expense', labelEs: 'Gasto', labelEn: 'Expense', icon: '💸', color: 'var(--text-negative)' },
   { value: 'debt', labelEs: 'Pago deuda', labelEn: 'Debt payment', icon: '🏦', color: '#fbbf24' },
@@ -80,7 +80,7 @@ export default function RecurringTransactions({ goals, onSaveGoals, lang }) {
   }
 
   return (
-    <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 p-4 sm:p-5">
+    <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-4 sm:p-5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold text-white flex items-center gap-2">
           🔄 {t('Transacciones Recurrentes', 'Recurring Transactions')}
@@ -94,7 +94,7 @@ export default function RecurringTransactions({ goals, onSaveGoals, lang }) {
       </div>
 
       {showForm && (
-        <div className="mb-4 p-3 bg-[#000000] rounded-lg border border-[#38383A]/50 space-y-3">
+        <div className="mb-4 p-3 bg-theme-base rounded-lg border border-glass-border/50 space-y-3">
           <div className="flex gap-2">
             <button
               onClick={() => setForm({ ...form, isInflow: true })}
@@ -114,18 +114,18 @@ export default function RecurringTransactions({ goals, onSaveGoals, lang }) {
           <div className="grid grid-cols-2 gap-2">
             <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder={t('Nombre', 'Name')}
-              className="px-3 py-2 bg-[#1C1C1E] border border-[#38383A] rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+              className="px-3 py-2 bg-theme-card border border-glass-border rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
             <input value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })}
               placeholder={t('Monto', 'Amount')} type="number" step="any"
-              className="px-3 py-2 bg-[#1C1C1E] border border-[#38383A] rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+              className="px-3 py-2 bg-theme-card border border-glass-border rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <select value={form.frequency} onChange={(e) => setForm({ ...form, frequency: e.target.value })}
-              className="px-3 py-2 bg-[#1C1C1E] border border-[#38383A] rounded-lg text-xs text-white focus:outline-none focus:border-blue-500/50">
+              className="px-3 py-2 bg-theme-card border border-glass-border rounded-lg text-xs text-white focus:outline-none focus:border-blue-500/50">
               {FREQUENCIES.map((f) => <option key={f.value} value={f.value}>{lang === 'es' ? f.labelEs : f.labelEn}</option>)}
             </select>
             <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
-              className="px-3 py-2 bg-[#1C1C1E] border border-[#38383A] rounded-lg text-xs text-white focus:outline-none focus:border-blue-500/50">
+              className="px-3 py-2 bg-theme-card border border-glass-border rounded-lg text-xs text-white focus:outline-none focus:border-blue-500/50">
               {CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.icon} {lang === 'es' ? c.labelEs : c.labelEn}</option>)}
             </select>
           </div>
@@ -148,7 +148,7 @@ export default function RecurringTransactions({ goals, onSaveGoals, lang }) {
                   <span className="text-sm">{cat.icon}</span>
                   <div className="flex-1 min-w-0">
                     <span className="text-xs text-white truncate block">{r.name}</span>
-                    <span className="text-[10px] text-slate-500">{freqLabel}</span>
+                    <span className="text-xs text-slate-500">{freqLabel}</span>
                   </div>
                   <span className="text-xs font-medium" style={{ color: r.isInflow ? '#34d399' : '#f87171' }}>
                     {r.isInflow ? '+' : '-'}{formatCurrency(r.amount)}
@@ -162,7 +162,7 @@ export default function RecurringTransactions({ goals, onSaveGoals, lang }) {
             })}
           </div>
 
-          <div className="pt-3 border-t border-[#38383A]/30 space-y-1.5">
+          <div className="pt-3 border-t border-glass-border/30 space-y-1.5">
             <div className="flex justify-between text-xs">
               <span className="text-slate-500">{t('Ingresos mensuales', 'Monthly inflows')}</span>
               <span className="font-medium" style={{ color: 'var(--accent-green)' }}>+{formatCurrency(summary.monthlyIn)}</span>
@@ -171,13 +171,13 @@ export default function RecurringTransactions({ goals, onSaveGoals, lang }) {
               <span className="text-slate-500">{t('Gastos mensuales', 'Monthly outflows')}</span>
               <span className="font-medium" style={{ color: 'var(--text-negative)' }}>-{formatCurrency(summary.monthlyOut)}</span>
             </div>
-            <div className="flex justify-between text-xs font-medium pt-1 border-t border-[#38383A]/20">
+            <div className="flex justify-between text-xs font-medium pt-1 border-t border-glass-border/20">
               <span className="text-slate-400">{t('Flujo neto mensual', 'Net monthly flow')}</span>
               <span style={{ color: summary.net >= 0 ? '#34d399' : '#f87171' }}>
                 {summary.net >= 0 ? '+' : ''}{formatCurrency(summary.net)}
               </span>
             </div>
-            <div className="flex justify-between text-[10px]">
+            <div className="flex justify-between text-xs">
               <span className="text-slate-600">{t('Proyección anual', 'Annual projection')}</span>
               <span style={{ color: summary.annualNet >= 0 ? 'rgba(52,211,153,0.6)' : 'rgba(248,113,113,0.6)' }}>
                 {summary.annualNet >= 0 ? '+' : ''}{formatCurrency(summary.annualNet)}/yr

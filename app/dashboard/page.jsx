@@ -17,7 +17,7 @@ import { SkeletonCard, SkeletonChart } from '@/components/dashboard/Skeleton'
 function ModalSkeleton() {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-[#1C1C1E] border border-[#38383A] rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
+      <div className="bg-theme-card border border-glass-border rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
         <div className="h-5 w-32 bg-slate-700/50 rounded animate-pulse mb-4" />
         <div className="space-y-3">
           <div className="h-10 bg-slate-700/30 rounded animate-pulse" />
@@ -88,7 +88,7 @@ function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, 
         {tabs.map(tb => (
           <button key={tb.key} onClick={() => setTab(tb.key)}
             className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap border"
-            style={tab === tb.key ? { backgroundColor: '#2563eb', color: '#fff', borderColor: '#2563eb' } : { color: '#94a3b8', borderColor: '#38383A' }}>
+            style={tab === tb.key ? { backgroundColor: 'var(--accent-blue)', color: '#fff', borderColor: 'var(--accent-blue)' } : { color: '#94a3b8', borderColor: '#38383A' }}>
             {tb.label}
           </button>
         ))}
@@ -167,14 +167,15 @@ export default function DashboardPage() {
   const handleSetTheme = useCallback((newTheme) => {
     setTheme(newTheme)
     if (typeof window !== 'undefined') {
-      if (newTheme === 'system') {
-        const sys = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-        document.documentElement.setAttribute('data-theme', sys)
-        localStorage.setItem('chispudo-theme', 'system')
-      } else {
-        document.documentElement.setAttribute('data-theme', newTheme)
-        localStorage.setItem('chispudo-theme', newTheme)
-      }
+      document.documentElement.classList.add('theme-transitioning')
+      const resolved = newTheme === 'system'
+        ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+        : newTheme
+      document.documentElement.setAttribute('data-theme', resolved)
+      localStorage.setItem('chispudo-theme', newTheme)
+      const tc = resolved === 'light' ? '#F0F2F8' : '#0A0A12'
+      document.querySelectorAll('meta[name="theme-color"]').forEach(m => m.setAttribute('content', tc))
+      setTimeout(() => document.documentElement.classList.remove('theme-transitioning'), 400)
     }
   }, [])
 
@@ -566,11 +567,11 @@ export default function DashboardPage() {
   // Loading state
   if (authLoading || (user && dataLoading)) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#09090b]">
+      <div className="flex items-center justify-center min-h-screen bg-theme-base">
         <div className="text-center">
           <div className="inline-flex items-center gap-2 mb-4">
-            <span className="text-2xl" style={{ color: '#60a5fa' }}>⚡</span>
-            <span className="text-lg font-bold" style={{ color: '#60a5fa' }}>Chispudo</span>
+            <span className="text-2xl" style={{ color: 'var(--accent-blue)' }}>⚡</span>
+            <span className="text-lg font-bold" style={{ color: 'var(--accent-blue)' }}>Chispudo</span>
           </div>
           <div className="block">
             <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-t-transparent" style={{ borderColor: '#3b82f6', borderTopColor: 'transparent' }} />
@@ -584,7 +585,7 @@ export default function DashboardPage() {
   if (!user) return null
 
   return (
-    <div className="min-h-screen bg-[#09090b]">
+    <div className="min-h-screen bg-theme-base">
       <a href="#main-content" className="skip-link">{lang === 'es' ? 'Ir al contenido' : 'Skip to content'}</a>
       <Header
         user={user} lang={lang}
@@ -607,16 +608,16 @@ export default function DashboardPage() {
           {topBanner === 'stale' && (
             <div className="px-4 py-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)' }}>
               <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" style={{ color: '#60a5fa' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--accent-blue)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                <p className="text-sm font-medium" style={{ color: '#60a5fa' }}>
+                <p className="text-sm font-medium" style={{ color: 'var(--accent-blue)' }}>
                   {lang === 'es' ? 'Hay una nueva versión disponible' : 'A new version is available'}
                 </p>
               </div>
               <button onClick={() => { if (typeof caches !== 'undefined') caches.keys().then(ks => Promise.all(ks.map(k => caches.delete(k)))); window.location.reload() }}
                 className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
-                style={{ backgroundColor: '#2563eb', color: '#fff' }}>
+                style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
                 {lang === 'es' ? 'Actualizar' : 'Update'}
               </button>
             </div>
@@ -690,7 +691,7 @@ export default function DashboardPage() {
               </div>
               <button onClick={() => setModal('cashflow')}
                 className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
-                style={{ backgroundColor: '#2563eb', color: '#fff' }}>
+                style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
                 {lang === 'es' ? 'Registrar' : 'Log now'}
               </button>
             </div>
@@ -701,7 +702,7 @@ export default function DashboardPage() {
       <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
         <div className="flex items-center gap-3 flex-wrap">
           {dataAge === 0 ? (
-            <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: '#60a5fa' }} />
+            <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
           ) : dataAge != null && dataAge >= 7 ? (
             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#f87171' }} />
           ) : dataAge != null && dataAge >= 1 ? (
@@ -717,7 +718,7 @@ export default function DashboardPage() {
                 : (lang === 'es' ? 'Sin datos aún' : 'No data yet')}
           </span>
           {dataAge != null && dataAge >= 7 && (
-            <button onClick={handleRefresh} className="text-micro underline transition-colors" style={{ color: '#60a5fa' }}>
+            <button onClick={handleRefresh} className="text-micro underline transition-colors" style={{ color: 'var(--accent-blue)' }}>
               {lang === 'es' ? 'Actualizar' : 'Refresh'}
             </button>
           )}
@@ -823,11 +824,11 @@ export default function DashboardPage() {
 
         <div className="flex items-center justify-center gap-3 pt-4 pb-8">
           <button onClick={handleReport}
-            className="px-5 py-2.5 text-sm font-medium text-slate-400 bg-[#141416] border border-[#27272a]/60 rounded-xl hover:bg-[#2C2C2E] hover:text-white hover:border-[#475569] transition-all inline-flex items-center gap-2">
+            className="px-5 py-2.5 text-sm font-medium text-slate-400 bg-theme-surface border border-glass-border/60 rounded-xl hover:bg-theme-elevated hover:text-white hover:border-[#475569] transition-all inline-flex items-center gap-2">
             {lang === 'es' ? 'Descargar PDF' : 'Download PDF'}
           </button>
           <button onClick={handleOpenPrint}
-            className="px-5 py-2.5 text-sm font-medium text-slate-400 bg-[#141416] border border-[#27272a]/60 rounded-xl hover:bg-[#2C2C2E] hover:text-white hover:border-[#475569] transition-all inline-flex items-center gap-2">
+            className="px-5 py-2.5 text-sm font-medium text-slate-400 bg-theme-surface border border-glass-border/60 rounded-xl hover:bg-theme-elevated hover:text-white hover:border-[#475569] transition-all inline-flex items-center gap-2">
             {lang === 'es' ? 'Imprimir Resumen' : 'Print Summary'}
           </button>
         </div>

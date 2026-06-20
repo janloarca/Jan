@@ -121,8 +121,9 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
   const labelCls = 'text-xs text-[var(--text-secondary,#94a3b8)] mb-1 block'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="sell-modal-title">
-      <div ref={trapRef} className="bg-[var(--card-bg,#1C1C1E)] border border-[var(--card-border,#38383A)] rounded-xl shadow-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="sell-modal-title"
+      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+      <div ref={trapRef} className="modal-glass max-w-md w-full" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border,#38383A)]">
           <h2 id="sell-modal-title" className="text-lg font-bold text-[var(--text-primary,white)]">{t('Vender', 'Sell')} {item.symbol}</h2>
@@ -203,7 +204,7 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
                     ? 'bg-[var(--input-bg,#000000)] text-[var(--text-secondary,#94a3b8)] border-[var(--card-border,#38383A)]'
                     : ''
                 }`}
-                style={destination === '__stay__' ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>{t('Queda en el portafolio', 'Stays in portfolio')}</button>
+                style={destination === '__stay__' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>{t('Queda en el portafolio', 'Stays in portfolio')}</button>
             </div>
             {destination === '__exit__' && (
               <p className="text-xs text-red-400/70">
@@ -230,7 +231,7 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
           {/* Action buttons */}
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose}
-              className="flex-1 py-2.5 border border-[var(--card-border,#38383A)] text-[var(--text-secondary,#cbd5e1)] rounded-lg hover:bg-[#2C2C2E] transition-colors text-sm">
+              className="flex-1 py-2.5 border border-[var(--card-border,#38383A)] text-[var(--text-secondary,#cbd5e1)] rounded-lg hover:bg-theme-elevated transition-colors text-sm">
               {t('Cancelar', 'Cancel')}
             </button>
             <button type="submit" disabled={saving}

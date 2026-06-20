@@ -702,17 +702,18 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     : t('Importar Portfolio', 'Import Portfolio')
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="import-modal-title">
-      <div ref={trapRef} className="bg-[#1C1C1E] border border-[#38383A] rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="import-modal-title"
+      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+      <div ref={trapRef} className="modal-glass max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#38383A]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
           <h2 id="import-modal-title" className="text-lg font-bold text-white">{brokerInfo ? `${brokerInfo.icon} ` : ''}{modalTitle}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label="Close">&times;</button>
         </div>
 
         {/* Mode tabs */}
         {step === 'upload' && (
-          <div className="flex border-b border-[#38383A]">
+          <div className="flex border-b border-glass-border">
             {[
               { key: 'file', label: t('Archivo', 'File'), icon: '📁' },
               { key: 'paste', label: t('Pegar', 'Paste'), icon: '📋' },
@@ -740,7 +741,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                 onDrop={handleDrop}
                 onDragOver={(e) => e.preventDefault()}
                 onClick={() => fileRef.current?.click()}
-                className="border-2 border-dashed border-[#38383A] rounded-xl p-6 sm:p-12 text-center cursor-pointer hover:border-[#3b82f6]/50 hover:bg-[#3b82f6]/5 transition-colors"
+                className="border-2 border-dashed border-glass-border rounded-xl p-6 sm:p-12 text-center cursor-pointer hover:border-[#3b82f6]/50 hover:bg-[#3b82f6]/5 transition-colors"
               >
                 <div className="text-4xl mb-3">{brokerInfo ? brokerInfo.icon : '📊'}</div>
                 <p className="text-white font-medium mb-1">{t('Arrastra tu archivo aquí', 'Drag your file here')}</p>
@@ -777,10 +778,10 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                   'Pega tus datos aquí (separados por tabs o comas)...\n\nEjemplo:\nSymbol\tName\tType\tQuantity\tPrice\nAAPL\tApple Inc\tStock\t10\t150.00',
                   'Paste your data here (tab or comma separated)...\n\nExample:\nSymbol\tName\tType\tQuantity\tPrice\nAAPL\tApple Inc\tStock\t10\t150.00'
                 )}
-                className="w-full h-48 px-4 py-3 bg-[#000000] border border-[#38383A] rounded-lg text-sm text-slate-300 placeholder-slate-600 focus:outline-none focus:border-[#3b82f6]/50 resize-none font-mono"
+                className="w-full h-48 px-4 py-3 bg-theme-base border border-glass-border rounded-lg text-sm text-slate-300 placeholder-slate-600 focus:outline-none focus:border-[#3b82f6]/50 resize-none font-mono"
               />
               <button onClick={handlePaste}
-                className="mt-3 w-full py-2.5 rounded-lg hover:opacity-90 transition-colors text-sm font-medium" style={{ backgroundColor: '#2563eb', color: '#fff' }}>
+                className="mt-3 w-full py-2.5 rounded-lg hover:opacity-90 transition-colors text-sm font-medium" style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
                 {t('Procesar datos', 'Process data')}
               </button>
             </div>
@@ -792,19 +793,19 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                 <div>
                   <label className="text-xs text-slate-400 mb-1 block">{t('Símbolo', 'Symbol')} *</label>
                   <input value={manual.symbol} onChange={(e) => setManual({ ...manual, symbol: e.target.value })}
-                    placeholder="AAPL" className="w-full px-3 py-2 bg-[#000000] border border-[#38383A] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#3b82f6]/50" />
+                    placeholder="AAPL" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#3b82f6]/50" />
                 </div>
                 <div>
                   <label className="text-xs text-slate-400 mb-1 block">{t('Nombre', 'Name')}</label>
                   <input value={manual.name} onChange={(e) => setManual({ ...manual, name: e.target.value })}
-                    placeholder="Apple Inc" className="w-full px-3 py-2 bg-[#000000] border border-[#38383A] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#3b82f6]/50" />
+                    placeholder="Apple Inc" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#3b82f6]/50" />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-slate-400 mb-1 block">{t('Tipo', 'Type')}</label>
                   <select value={manual.type} onChange={(e) => setManual({ ...manual, type: e.target.value })}
-                    className="w-full px-3 py-2 bg-[#000000] border border-[#38383A] rounded-lg text-sm text-white focus:outline-none focus:border-[#3b82f6]/50">
+                    className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-[#3b82f6]/50">
                     <option value="Stock">Stock</option>
                     <option value="Crypto">Crypto</option>
                     <option value="Bond">{t('Bono/Instrumento', 'Bond')}</option>
@@ -815,24 +816,24 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                 <div>
                   <label className="text-xs text-slate-400 mb-1 block">{t('Institución', 'Institution')}</label>
                   <input value={manual.institution} onChange={(e) => setManual({ ...manual, institution: e.target.value })}
-                    placeholder="Interactive Brokers" className="w-full px-3 py-2 bg-[#000000] border border-[#38383A] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#3b82f6]/50" />
+                    placeholder="Interactive Brokers" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#3b82f6]/50" />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-slate-400 mb-1 block">{t('Cantidad', 'Quantity')} *</label>
                   <input value={manual.quantity} onChange={(e) => setManual({ ...manual, quantity: e.target.value })}
-                    placeholder="10" type="number" step="any" className="w-full px-3 py-2 bg-[#000000] border border-[#38383A] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#3b82f6]/50" />
+                    placeholder="10" type="number" step="any" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#3b82f6]/50" />
                 </div>
                 <div>
                   <label className="text-xs text-slate-400 mb-1 block">{t('Precio', 'Price')} *</label>
                   <input value={manual.purchasePrice} onChange={(e) => setManual({ ...manual, purchasePrice: e.target.value })}
-                    placeholder="150.00" type="number" step="any" className="w-full px-3 py-2 bg-[#000000] border border-[#38383A] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#3b82f6]/50" />
+                    placeholder="150.00" type="number" step="any" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#3b82f6]/50" />
                 </div>
               </div>
               <button onClick={doManualImport} disabled={importing}
                 className="mt-2 w-full py-2.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors text-sm font-medium"
-                style={{ backgroundColor: '#2563eb', color: '#ffffff' }}>
+                style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}>
                 {importing ? t('Importando...', 'Importing...') : t('Agregar', 'Add')}
               </button>
             </div>
@@ -850,7 +851,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                     {t('Formato detectado', 'Format detected')}: {detectedBroker.institution}
                   </span>
                   {detectedBroker.instructions && (
-                    <p className="text-[11px] text-slate-500 mt-1">
+                    <p className="text-xs text-slate-500 mt-1">
                       {detectedBroker.instructions[lang] || detectedBroker.instructions.en}
                     </p>
                   )}
@@ -863,7 +864,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                     <select
                       value={mapping[field] ?? ''}
                       onChange={(e) => setMapping({ ...mapping, [field]: e.target.value === '' ? undefined : parseInt(e.target.value) })}
-                      className="flex-1 px-3 py-2 bg-[#000000] border border-[#38383A] rounded-lg text-sm text-white focus:outline-none focus:border-[#3b82f6]/50"
+                      className="flex-1 px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-[#3b82f6]/50"
                     >
                       <option value="">-- {t('No mapear', 'Skip')} --</option>
                       {headers.map((h, i) => (
@@ -876,7 +877,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                   </div>
                 ))}
               </div>
-              <div className="mt-4 p-3 bg-[#000000] border border-[#38383A] rounded-lg">
+              <div className="mt-4 p-3 bg-theme-base border border-glass-border rounded-lg">
                 <p className="text-xs text-slate-500 mb-2">{t('Vista previa primera fila:', 'First row preview:')}</p>
                 <div className="text-xs text-slate-400 font-mono">
                   {headers.map((h, i) => (
@@ -898,11 +899,11 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                 </div>
               )}
               <div className="flex gap-3 mt-4">
-                <button onClick={() => setStep('upload')} className="flex-1 py-2.5 border border-[#38383A] text-slate-300 rounded-lg hover:bg-[#2C2C2E] transition-colors text-sm">
+                <button onClick={() => setStep('upload')} className="flex-1 py-2.5 border border-glass-border text-slate-300 rounded-lg hover:bg-theme-elevated transition-colors text-sm">
                   {t('Atrás', 'Back')}
                 </button>
                 <button onClick={buildPreview}
-                  className="flex-1 py-2.5 rounded-lg hover:opacity-90 transition-colors text-sm font-medium" style={{ backgroundColor: '#2563eb', color: '#fff' }}>
+                  className="flex-1 py-2.5 rounded-lg hover:opacity-90 transition-colors text-sm font-medium" style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
                   {t('Vista previa', 'Preview')}
                 </button>
               </div>
@@ -918,7 +919,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
               <div className="overflow-x-auto max-h-60 overflow-y-auto">
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="text-slate-500 border-b border-[#38383A] sticky top-0 bg-[#1C1C1E]">
+                    <tr className="text-slate-500 border-b border-glass-border sticky top-0 bg-theme-card">
                       <th className="text-left py-2 px-2">Symbol</th>
                       <th className="text-left py-2 px-2">Name</th>
                       <th className="text-left py-2 px-2">Type</th>
@@ -929,7 +930,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                   </thead>
                   <tbody>
                     {preview.map((item, i) => (
-                      <tr key={i} className="border-b border-[#38383A]/50 hover:bg-[#2C2C2E]">
+                      <tr key={i} className="border-b border-glass-border/50 hover:bg-theme-elevated">
                         <td className="py-2 px-2 text-[#34d399] font-medium">{item.symbol}</td>
                         <td className="py-2 px-2 text-white">{item.name}</td>
                         <td className="py-2 px-2 text-slate-400">{item.type}</td>
@@ -942,12 +943,12 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                 </table>
               </div>
               <div className="flex gap-3 mt-4">
-                <button onClick={() => setStep('map')} className="flex-1 py-2.5 border border-[#38383A] text-slate-300 rounded-lg hover:bg-[#2C2C2E] transition-colors text-sm">
+                <button onClick={() => setStep('map')} className="flex-1 py-2.5 border border-glass-border text-slate-300 rounded-lg hover:bg-theme-elevated transition-colors text-sm">
                   {t('Atrás', 'Back')}
                 </button>
                 <button onClick={doImport} disabled={importing}
                   className="flex-1 py-2.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors text-sm font-medium"
-                  style={{ backgroundColor: '#2563eb', color: '#ffffff' }}>
+                  style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}>
                   {importing ? t('Importando...', 'Importing...') : t(`Importar ${preview.length}`, `Import ${preview.length}`)}
                 </button>
               </div>
@@ -970,7 +971,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
               <div className="overflow-x-auto max-h-60 overflow-y-auto mb-4">
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="text-slate-500 border-b border-[#38383A] sticky top-0 bg-[#1C1C1E]">
+                    <tr className="text-slate-500 border-b border-glass-border sticky top-0 bg-theme-card">
                       <th className="text-left py-2 px-2">{t('Fecha', 'Date')}</th>
                       <th className="text-left py-2 px-2">{t('Descripción', 'Description')}</th>
                       <th className="text-left py-2 px-2">{t('Categoría', 'Category')}</th>
@@ -979,7 +980,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                   </thead>
                   <tbody>
                     {biData.transactions.map((tx, i) => (
-                      <tr key={i} className="border-b border-[#38383A]/50 hover:bg-[#2C2C2E]">
+                      <tr key={i} className="border-b border-glass-border/50 hover:bg-theme-elevated">
                         <td className="py-2 px-2 text-slate-400 whitespace-nowrap">{tx.date}</td>
                         <td className="py-2 px-2 text-white max-w-[180px] truncate">{tx.description}</td>
                         <td className="py-2 px-2">
@@ -991,7 +992,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                               updated.transactions[i] = { ...updated.transactions[i], category: e.target.value }
                               setBiData(updated)
                             }}
-                            className="bg-[#000000] border border-[#38383A] rounded text-xs text-slate-300 px-1 py-0.5 focus:outline-none"
+                            className="bg-theme-base border border-glass-border rounded text-xs text-slate-300 px-1 py-0.5 focus:outline-none"
                           >
                             {(tx.type === 'INCOME' ? FINANCE_CATEGORIES.INCOME : FINANCE_CATEGORIES.EXPENSE).map(c => (
                               <option key={c} value={c}>{c}</option>
@@ -1008,10 +1009,10 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
               </div>
 
               {biData.finalBalance > 0 && (
-                <div className="p-3 bg-[#000000] border border-[#38383A] rounded-lg mb-4">
+                <div className="p-3 bg-theme-base border border-glass-border rounded-lg mb-4">
                   <p className="text-xs text-slate-400 mb-2">{t('Actualizar cuenta bancaria:', 'Update bank account:')}</p>
                   <select value={selectedBankAccount} onChange={e => setSelectedBankAccount(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#1C1C1E] border border-[#38383A] rounded-lg text-sm text-white focus:outline-none focus:border-[#3b82f6]/50">
+                    className="w-full px-3 py-2 bg-theme-card border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-[#3b82f6]/50">
                     <option value="">{t('Crear nueva cuenta', 'Create new account')}</option>
                     {(existingItems || []).filter(it => /bank|banco/i.test(it.type || '')).map(item => (
                       <option key={item.id} value={item.id}>{item.name || item.symbol}</option>
@@ -1022,7 +1023,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
 
               <div className="flex gap-3">
                 <button onClick={() => { setBiData(null); setStep('upload') }}
-                  className="flex-1 py-2.5 border border-[#38383A] text-slate-300 rounded-lg hover:bg-[#2C2C2E] transition-colors text-sm">
+                  className="flex-1 py-2.5 border border-glass-border text-slate-300 rounded-lg hover:bg-theme-elevated transition-colors text-sm">
                   {t('Atrás', 'Back')}
                 </button>
                 <button onClick={doBIImport} disabled={importing}
@@ -1054,7 +1055,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
               <div className="overflow-x-auto max-h-52 overflow-y-auto">
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="text-slate-500 border-b border-[#38383A] sticky top-0 bg-[#1C1C1E]">
+                    <tr className="text-slate-500 border-b border-glass-border sticky top-0 bg-theme-card">
                       <th className="text-left py-2 px-1.5">Symbol</th>
                       <th className="text-left py-2 px-1.5">Name</th>
                       <th className="text-right py-2 px-1.5">Qty</th>
@@ -1069,8 +1070,8 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                       const cost = (item.purchasePrice || 0) * (item.quantity || 0)
                       const gain = cost > 0 ? ((val - cost) / cost * 100) : 0
                       return (
-                        <tr key={i} className="border-b border-[#38383A]/50 hover:bg-[#2C2C2E]">
-                          <td className="py-1.5 px-1.5 font-medium" style={{ color: '#60a5fa' }}>{item.symbol}</td>
+                        <tr key={i} className="border-b border-glass-border/50 hover:bg-theme-elevated">
+                          <td className="py-1.5 px-1.5 font-medium" style={{ color: 'var(--accent-blue)' }}>{item.symbol}</td>
                           <td className="py-1.5 px-1.5 text-white max-w-[120px] truncate">{item.name}</td>
                           <td className="py-1.5 px-1.5 text-right text-slate-300">{item.quantity?.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
                           <td className="py-1.5 px-1.5 text-right text-slate-300">${item.currentPrice?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
@@ -1086,12 +1087,12 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
               </div>
 
               {/* Merge vs Replace */}
-              <div className="mt-4 p-3 bg-[#000000] border border-[#38383A] rounded-lg">
+              <div className="mt-4 p-3 bg-theme-base border border-glass-border rounded-lg">
                 <p className="text-xs text-slate-400 mb-2">{t('Modo de importación:', 'Import mode:')}</p>
                 <div className="flex gap-2">
                   <button onClick={() => setIbkrImportMode('merge')}
                     className="flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-colors border"
-                    style={ibkrImportMode === 'merge' ? { backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(59,130,246,0.4)', color: '#60a5fa' } : { borderColor: '#38383A', color: '#94a3b8' }}>
+                    style={ibkrImportMode === 'merge' ? { backgroundColor: 'rgba(108,122,255,0.2)', borderColor: 'rgba(59,130,246,0.4)', color: 'var(--accent-blue)' } : { borderColor: '#38383A', color: '#94a3b8' }}>
                     {t('Agregar junto a existentes', 'Add alongside existing')}
                   </button>
                   <button onClick={() => setIbkrImportMode('replace')}
@@ -1101,7 +1102,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                   </button>
                 </div>
                 {ibkrImportMode === 'replace' && existingItems && (
-                  <p className="text-[11px] mt-2" style={{ color: 'rgba(251,146,60,0.7)' }}>
+                  <p className="text-xs mt-2" style={{ color: 'rgba(251,146,60,0.7)' }}>
                     {(() => {
                       const ibkrCount = existingItems.filter(it => it.institution === 'Interactive Brokers' || it._source === 'ibkr').length
                       return ibkrCount > 0
@@ -1114,12 +1115,12 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
 
               <div className="flex gap-3 mt-4">
                 <button onClick={() => { setIbkrData(null); setStep('upload') }}
-                  className="flex-1 py-2.5 border border-[#38383A] text-slate-300 rounded-lg hover:bg-[#2C2C2E] transition-colors text-sm">
+                  className="flex-1 py-2.5 border border-glass-border text-slate-300 rounded-lg hover:bg-theme-elevated transition-colors text-sm">
                   {t('Atrás', 'Back')}
                 </button>
                 <button onClick={doIBKRImport} disabled={importing}
                   className="flex-1 py-2.5 text-white rounded-lg disabled:opacity-50 hover:opacity-90 transition-colors text-sm font-medium"
-                  style={{ backgroundColor: ibkrImportMode === 'replace' ? '#ea580c' : '#2563eb' }}>
+                  style={{ backgroundColor: ibkrImportMode === 'replace' ? '#ea580c' : 'var(--accent-blue)' }}>
                   {importing
                     ? importProgress.total > 0
                       ? t(`Importando ${importProgress.done}/${importProgress.total}`, `Importing ${importProgress.done}/${importProgress.total}`)
@@ -1163,7 +1164,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                 <p className="text-[#f87171] text-xs mt-2">{result.errorMsg}</p>
               )}
               <button onClick={onClose}
-                className="mt-6 px-8 py-2.5 rounded-lg hover:opacity-90 transition-colors text-sm font-medium" style={{ backgroundColor: '#2563eb', color: '#fff' }}>
+                className="mt-6 px-8 py-2.5 rounded-lg hover:opacity-90 transition-colors text-sm font-medium" style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
                 {t('Cerrar', 'Close')}
               </button>
             </div>

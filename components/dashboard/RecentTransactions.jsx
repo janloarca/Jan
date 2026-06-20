@@ -56,7 +56,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
 
   const typeBadgeStyle = (type) => {
     const t = (type || '').toUpperCase()
-    if (t === 'BUY') return { backgroundColor: 'rgba(59,130,246,0.2)', color: '#60a5fa' }
+    if (t === 'BUY') return { backgroundColor: 'rgba(59,130,246,0.2)', color: 'var(--accent-blue)' }
     if (t === 'SELL') return { backgroundColor: 'rgba(100,116,139,0.2)', color: '#94a3b8' }
     if (t === 'DIVIDEND') return { backgroundColor: 'rgba(52,211,153,0.15)', color: '#6ee7b7' }
     if (t === 'DEPOSIT') return { backgroundColor: 'rgba(100,116,139,0.2)', color: '#cbd5e1' }
@@ -80,7 +80,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
   }
 
   return (
-    <div className="bg-[#1C1C1E] rounded-2xl border border-[#38383A] p-5 card-primary">
+    <div className="bg-theme-card rounded-2xl border border-glass-border p-5 card-primary">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-base font-semibold text-white">
           {lang === 'es' ? 'Transacciones' : 'Transactions'}
@@ -101,7 +101,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
           const count = txCount(opt.key)
           const isActive = typeFilter === opt.key
           const activeStyles = {
-            blue: { backgroundColor: 'rgba(59,130,246,0.15)', borderColor: 'rgba(59,130,246,0.3)', color: '#60a5fa' },
+            blue: { backgroundColor: 'rgba(59,130,246,0.15)', borderColor: 'rgba(59,130,246,0.3)', color: 'var(--accent-blue)' },
             emerald: { backgroundColor: 'rgba(52,211,153,0.15)', borderColor: 'rgba(52,211,153,0.3)', color: 'var(--accent-green)' },
             red: { backgroundColor: 'rgba(239,68,68,0.15)', borderColor: 'rgba(239,68,68,0.3)', color: 'var(--text-negative)' },
             amber: { backgroundColor: 'rgba(245,158,11,0.15)', borderColor: 'rgba(245,158,11,0.3)', color: '#fbbf24' },
@@ -109,7 +109,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
           }
           return (
             <button key={opt.key} onClick={() => { setTypeFilter(opt.key); setShowAll(false) }}
-              className="flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg transition-all text-center border hover:bg-[#2C2C2E]"
+              className="flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg transition-all text-center border hover:bg-theme-elevated"
               style={isActive
                 ? activeStyles[opt.color]
                 : { backgroundColor: 'rgba(0,0,0,0.5)', borderColor: 'transparent', color: 'var(--text-muted)' }
@@ -144,12 +144,12 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
       {monthlySummary && monthlySummary.length > 0 && dateRange === 'all' && typeFilter === 'ALL' && (
         <div className="grid grid-cols-3 gap-2 mb-4">
           {monthlySummary.map((m) => (
-            <div key={m.month} className="bg-[#000000] rounded-lg p-2.5 border border-[#38383A]/50 text-center">
+            <div key={m.month} className="bg-theme-base rounded-lg p-2.5 border border-glass-border/50 text-center">
               <div className="text-xs text-slate-500 mb-1">{m.month}</div>
               <div className="text-xs font-semibold font-mono tabular-nums" style={{ color: m.net >= 0 ? '#34d399' : '#f87171' }}>
                 {m.net >= 0 ? '+' : ''}{formatCurrency(m.net)}
               </div>
-              <div className="text-[10px] text-slate-600">{m.count} txs</div>
+              <div className="text-xs text-slate-600">{m.count} txs</div>
             </div>
           ))}
         </div>
@@ -167,7 +167,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
         <>
           <div className="space-y-0">
             {display.map((tx, i) => (
-              <div key={tx.id || i} className="flex items-center justify-between py-3 border-b border-[#38383A]/30 last:border-0 hover:bg-[#2C2C2E]/30 transition-colors -mx-2 px-2 rounded">
+              <div key={tx.id || i} className="flex items-center justify-between py-3 border-b border-glass-border/30 last:border-0 hover:bg-theme-elevated/30 transition-colors -mx-2 px-2 rounded">
                 <div className="flex items-center gap-3">
                   <span className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold" style={typeBadgeStyle(tx.type)}>
                     {typeIcon(tx.type)}
@@ -200,7 +200,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
           </div>
           {all.length > 5 && (
             <button onClick={() => setShowAll(!showAll)}
-              className="w-full mt-3 py-2 text-xs text-slate-400 hover:text-emerald-400 border border-[#38383A]/50 rounded-lg hover:bg-[#2C2C2E] transition-colors">
+              className="w-full mt-3 py-2 text-xs text-slate-400 hover:text-emerald-400 border border-glass-border/50 rounded-lg hover:bg-theme-elevated transition-colors">
               {showAll
                 ? (lang === 'es' ? 'Mostrar menos' : 'Show less')
                 : (lang === 'es' ? `Ver todas (${all.length})` : `View all (${all.length})`)}

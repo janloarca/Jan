@@ -37,7 +37,7 @@ export default function ContinuousYieldDisplay({ items, lang }) {
   const totalDaily = yields.reduce((s, y) => s + y.dailyRate, 0)
 
   return (
-    <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 p-4">
+    <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-4">
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-3">
         <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
         {t('RENDIMIENTO CONTINUO', 'CONTINUOUS YIELD')}
@@ -56,7 +56,7 @@ export default function ContinuousYieldDisplay({ items, lang }) {
 
       <div className="space-y-2">
         {yields.map(y => (
-          <div key={y.id || y.symbol} className="flex items-center justify-between bg-[#000000] rounded-lg p-2.5 border border-[#38383A]/30">
+          <div key={y.id || y.symbol} className="flex items-center justify-between bg-theme-base rounded-lg p-2.5 border border-glass-border/30">
             <div className="min-w-0">
               <span className="text-xs text-white font-medium truncate block">{y.name || y.symbol}</span>
               <span className="text-xs text-slate-500">{y.rate}% · {formatCurrency(y.balance)}</span>

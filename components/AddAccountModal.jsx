@@ -506,8 +506,9 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
   const labelCls = 'text-xs text-[var(--text-secondary,#94a3b8)] mb-1 block font-medium'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="add-account-title">
-      <div ref={trapRef} className="bg-[var(--card-bg,#1C1C1E)] border border-[var(--card-border,#38383A)] rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="add-account-title"
+      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+      <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border,#38383A)]">
           <div className="flex items-center gap-3">
             {step === 2 && <button onClick={() => setStep(1)} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-sm">←</button>}
@@ -517,8 +518,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
           </div>
           <div className="flex items-center gap-3">
             <div className="flex gap-1">
-              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: step >= 1 ? '#60a5fa' : 'var(--card-border, #38383A)' }} />
-              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: step >= 2 ? '#60a5fa' : 'var(--card-border, #38383A)' }} />
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: step >= 1 ? 'var(--accent-blue-soft)' : 'var(--card-border, #38383A)' }} />
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: step >= 2 ? 'var(--accent-blue-soft)' : 'var(--card-border, #38383A)' }} />
             </div>
             <button onClick={onClose} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-xl leading-none" aria-label="Close">&times;</button>
           </div>
@@ -537,7 +538,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg transition-all text-center border ${
                       type !== tp.key ? 'bg-[var(--input-bg,#000000)] border-[var(--card-border,#38383A)] text-[var(--text-secondary,#94a3b8)] hover:border-[var(--text-secondary,#94a3b8)]' : ''
                     }`}
-                    style={type === tp.key ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>
+                    style={type === tp.key ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>
                     <span className="text-lg">{tp.icon}</span>
                     <span className="text-xs font-medium">{lang === 'es' ? tp.es : tp.en}</span>
                   </button>
@@ -550,7 +551,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                       className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all border ${
                         subtype !== st.key ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)] hover:border-[var(--text-secondary,#94a3b8)]' : ''
                       }`}
-                      style={subtype === st.key ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>
+                      style={subtype === st.key ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>
                       {lang === 'es' ? st.es : st.en}
                     </button>
                   ))}
@@ -587,7 +588,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                           className="w-full px-3 py-2.5 flex items-center justify-between hover:bg-[var(--input-bg,#2C2C2E)] transition-colors text-left border-b border-[var(--card-border,#38383A)]/50 last:border-0">
                           <div className="flex items-center gap-2.5 min-w-0">
                             <span className="text-xs font-bold shrink-0 px-1.5 py-0.5 rounded" style={{
-                              color: r.type === 'Crypto' ? '#fbbf24' : r.type === 'Fund' ? '#c084fc' : '#60a5fa',
+                              color: r.type === 'Crypto' ? '#fbbf24' : r.type === 'Fund' ? '#c084fc' : 'var(--accent-blue-soft)',
                               backgroundColor: r.type === 'Crypto' ? 'rgba(245,158,11,0.2)' : r.type === 'Fund' ? 'rgba(168,85,247,0.2)' : 'rgba(59,130,246,0.2)',
                             }}>{r.symbol}</span>
                             <span className="text-xs text-[var(--text-secondary,#cbd5e1)] truncate">{r.name}</span>
@@ -670,12 +671,12 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   <button type="button" onClick={() => { setStep(2) }}
                     className="flex-1 px-2 py-1.5 text-xs font-medium rounded bg-amber-500/20 text-amber-400 border border-amber-500/40 hover:bg-amber-500/30">
                     <span className="block">{t('Agregar a posición', 'Add to position')}</span>
-                    <span className="block text-[10px] opacity-70 mt-0.5">{t('Combina cantidades y recalcula costo', 'Combines quantities and recalculates cost')}</span>
+                    <span className="block text-xs opacity-70 mt-0.5">{t('Combina cantidades y recalcula costo', 'Combines quantities and recalculates cost')}</span>
                   </button>
                   <button type="button" onClick={() => { setDuplicateWarning(null); setStep(2) }}
                     className="flex-1 px-2 py-1.5 text-xs font-medium rounded bg-[var(--input-bg,#000000)] text-[var(--text-secondary,#94a3b8)] border border-[var(--card-border,#38383A)]">
                     <span className="block">{t('Crear separado', 'Create separate')}</span>
-                    <span className="block text-[10px] opacity-70 mt-0.5">{t('Ej. mismo activo en otro broker', 'E.g. same asset at another broker')}</span>
+                    <span className="block text-xs opacity-70 mt-0.5">{t('Ej. mismo activo en otro broker', 'E.g. same asset at another broker')}</span>
                   </button>
                 </div>
               </div>
@@ -828,7 +829,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 </div>
                 {subtype === 'credit_card' && (
                   <div className="border-t border-red-500/10 pt-3 space-y-3">
-                    <p className="text-[10px] text-red-300 uppercase tracking-wide">{t('Tarjeta de crédito', 'Credit Card')}</p>
+                    <p className="text-xs text-red-300 uppercase tracking-wide">{t('Tarjeta de crédito', 'Credit Card')}</p>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Marca', 'Brand')}</label>
@@ -874,7 +875,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 <label className={labelCls}>
                   {t('Moneda', 'Currency')} <span style={{ color: '#FF453A' }}>*</span>
                   {detectedCurrency && form.currency === detectedCurrency && (
-                    <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium" style={{ color: 'var(--accent-green)', backgroundColor: 'rgba(52,211,153,0.15)' }}>
+                    <span className="ml-1 px-1.5 py-0.5 rounded text-xs font-medium" style={{ color: 'var(--accent-green)', backgroundColor: 'rgba(52,211,153,0.15)' }}>
                       {t('Detectada', 'Detected')}
                     </span>
                   )}
@@ -888,7 +889,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 <select value={form.accountType} onChange={e => set('accountType', e.target.value)} className={inputCls}>
                   {ACCOUNT_TYPES.map(at => <option key={at.key} value={at.key}>{lang === 'es' ? at.es : at.en}</option>)}
                 </select>
-                <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
                   {form.accountType === 'taxable' ? t('Paga impuestos (ej. cuenta de bolsa normal)', 'Pays taxes (e.g. regular brokerage)') :
                    form.accountType === 'retirement' ? t('Ahorro para retiro (ej. 401k, IRA, AFP)', 'Retirement savings (e.g. 401k, IRA)') :
                    t('Exenta de impuestos (ej. Roth IRA)', 'Tax-exempt (e.g. Roth IRA)')}
@@ -943,7 +944,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     </button>
                     <button type="button" onClick={() => set('dividendAction', 'reinvest')}
                       className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.dividendAction !== 'reinvest' ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
-                      style={form.dividendAction === 'reinvest' ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>
+                      style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>
                       🔄 {t('Reinvertir', 'Reinvest')}
                     </button>
                   </div>
@@ -973,7 +974,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     ].map(rt => (
                       <button key={rt.key} type="button" onClick={() => set('rateType', rt.key)}
                         className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.rateType !== rt.key ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
-                        style={form.rateType === rt.key ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>
+                        style={form.rateType === rt.key ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>
                         {lang === 'es' ? rt.es : rt.en}
                       </button>
                     ))}
@@ -984,12 +985,12 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 <div className="flex gap-1">
                   <button type="button" onClick={() => set('incomeMode', 'fixed')}
                     className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.incomeMode !== 'fixed' ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
-                    style={form.incomeMode === 'fixed' ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>
+                    style={form.incomeMode === 'fixed' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>
                     {t('Monto fijo mensual', 'Fixed monthly amount')}
                   </button>
                   <button type="button" onClick={() => set('incomeMode', 'percent')}
                     className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.incomeMode !== 'percent' ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
-                    style={form.incomeMode === 'percent' ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>
+                    style={form.incomeMode === 'percent' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>
                     {t('% anual del saldo', 'Annual % of balance')}
                   </button>
                 </div>
@@ -1062,7 +1063,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                           <button key={i} type="button"
                             onClick={() => set('incomeMonths', active ? form.incomeMonths.filter(x => x !== i) : [...form.incomeMonths, i].sort((a, b) => a - b))}
                             className="px-2 py-1 text-xs font-medium rounded transition-all border"
-                            style={active ? { backgroundColor: 'rgba(59,130,246,0.25)', color: '#60a5fa', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                            style={active ? { backgroundColor: 'rgba(59,130,246,0.25)', color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                             {label}
                           </button>
                         )
@@ -1105,7 +1106,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             {/* Advanced Options toggle */}
             <button type="button" onClick={() => setShowAdvanced(!showAdvanced)}
               className="flex items-center gap-2 text-sm w-full py-2 mt-1 transition-colors"
-              style={{ color: '#60a5fa' }}>
+              style={{ color: 'var(--accent-blue)' }}>
               <svg className="w-4 h-4 transition-transform" style={{ transform: showAdvanced ? 'rotate(90deg)' : 'rotate(0deg)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>

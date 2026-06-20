@@ -85,7 +85,7 @@ export default function MaturityCalendar({ items, lang }) {
   }
 
   return (
-    <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 p-4">
+    <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-4">
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-3">
         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#fbbf24' }} />
         {t('CALENDARIO', 'CALENDAR')}
@@ -110,7 +110,7 @@ export default function MaturityCalendar({ items, lang }) {
 
       <div className="space-y-1.5">
         {events.slice(0, 8).map((ev, i) => (
-          <div key={i} className="flex items-center gap-2 p-2 bg-[#000000] rounded-lg border border-[#38383A]/30">
+          <div key={i} className="flex items-center gap-2 p-2 bg-theme-base rounded-lg border border-glass-border/30">
             <span className="text-xs font-bold px-1.5 py-0.5 rounded border shrink-0"
               style={getDayStyle(ev.days)}>
               {formatDays(ev.days)}

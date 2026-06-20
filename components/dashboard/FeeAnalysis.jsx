@@ -72,7 +72,7 @@ export default function FeeAnalysis({ items, netWorth, lang }) {
   const feeColorHex = analysis.avgPct < 0.3 ? '#34d399' : analysis.avgPct < 1.0 ? '#fbbf24' : '#f87171'
 
   return (
-    <div className="bg-[#1C1C1E]/80 rounded-xl border border-[#38383A]/50 p-4 sm:p-5">
+    <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-4 sm:p-5">
       <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
         💸 {t('Análisis de Comisiones', 'Fee Analysis')}
       </h3>
@@ -80,15 +80,15 @@ export default function FeeAnalysis({ items, netWorth, lang }) {
       <div className="grid grid-cols-3 gap-3 mb-4">
         <div className="text-center">
           <div className="text-lg font-bold" style={{ color: feeColorHex }}>{formatCurrency(analysis.totalFees)}</div>
-          <div className="text-[10px] text-slate-500">{t('Comisiones/año', 'Fees/year')}</div>
+          <div className="text-xs text-slate-500">{t('Comisiones/año', 'Fees/year')}</div>
         </div>
         <div className="text-center">
           <div className="text-lg font-bold" style={{ color: feeColorHex }}>{analysis.avgPct.toFixed(2)}%</div>
-          <div className="text-[10px] text-slate-500">{t('Tasa promedio', 'Avg rate')}</div>
+          <div className="text-xs text-slate-500">{t('Tasa promedio', 'Avg rate')}</div>
         </div>
         <div className="text-center">
           <div className="text-lg font-bold" style={{ color: 'var(--text-negative)' }}>{formatCurrency(analysis.tenYearImpact)}</div>
-          <div className="text-[10px] text-slate-500">{t('Impacto 10 años', '10yr impact')}</div>
+          <div className="text-xs text-slate-500">{t('Impacto 10 años', '10yr impact')}</div>
         </div>
       </div>
 
@@ -110,7 +110,7 @@ export default function FeeAnalysis({ items, netWorth, lang }) {
       )}
 
       {netWorth > 0 && analysis.totalFees > 0 && (
-        <div className="pt-3 border-t border-[#38383A]/30 text-xs text-slate-500">
+        <div className="pt-3 border-t border-glass-border/30 text-xs text-slate-500">
           {t(
             `Las comisiones representan ${(analysis.totalFees / netWorth * 100).toFixed(2)}% de tu patrimonio neto`,
             `Fees represent ${(analysis.totalFees / netWorth * 100).toFixed(2)}% of your net worth`

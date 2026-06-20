@@ -61,11 +61,11 @@ export default function AssetAllocation({ items, lang }) {
   ]
 
   return (
-    <div className="bg-[#141416] rounded-2xl border border-[#27272a] p-5 card-primary">
+    <div className="card-glass rounded-2xl p-5">
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#60a5fa' }} />
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
           {t('ASIGNACIÓN DE ACTIVOS', 'ASSET ALLOCATION')}
         </h3>
         <span className="text-sm font-bold text-white font-mono tabular-nums">
@@ -78,10 +78,10 @@ export default function AssetAllocation({ items, lang }) {
         {views.map((v) => (
           <button key={v.key} onClick={() => setView(v.key)}
             className={`px-2 py-1 text-xs font-medium rounded-md transition-colors ${
-              view !== v.key ? 'border border-slate-600/50 hover:bg-[#2C2C2E]' : ''
+              view === v.key ? 'pill-active' : ''
             }`}
             style={view === v.key
-              ? { backgroundColor: 'var(--accent-blue-strong)', color: '#ffffff' }
+              ? { color: '#ffffff' }
               : { color: 'var(--text-secondary)' }
             }>
             {v.label}
@@ -100,7 +100,7 @@ export default function AssetAllocation({ items, lang }) {
             : null
 
           return (
-            <div key={seg.name} style={{ paddingTop: 6, paddingBottom: 6 }}>
+            <div key={seg.name} className="rounded-lg px-2 -mx-2 transition-colors hover:bg-white/[0.03]" style={{ paddingTop: 6, paddingBottom: 6 }}>
               {/* Top row: label left, contribution + value + pct right */}
               <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-2 min-w-0">
@@ -113,7 +113,7 @@ export default function AssetAllocation({ items, lang }) {
                       {displayName}
                     </span>
                     {returnTypeDesc && (
-                      <span className="text-[10px] text-slate-500 leading-tight">
+                      <span className="text-xs text-slate-500 leading-tight">
                         {returnTypeDesc}
                       </span>
                     )}

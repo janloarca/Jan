@@ -106,14 +106,14 @@ const EditableCell = memo(function EditableCell({ displayValue, editValue, onSav
     return (
       <div>
         <div className="flex items-center gap-1">
-          {currency && <span className="text-[10px] text-blue-500 font-semibold shrink-0">{currency}</span>}
+          {currency && <span className="text-xs text-blue-500 font-semibold shrink-0">{currency}</span>}
           <input ref={ref} type="text" value={draft}
             onChange={e => setDraft(e.target.value)}
             onBlur={commit}
             onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') cancel() }}
             className="w-full bg-white border-2 border-blue-400 rounded px-3 py-1.5 text-sm text-slate-900 text-right font-mono focus:outline-none focus:ring-2 focus:ring-blue-300" />
         </div>
-        {hint && <p className="text-[10px] text-blue-400 text-right mt-0.5 pr-1">{hint}</p>}
+        {hint && <p className="text-xs text-blue-400 text-right mt-0.5 pr-1">{hint}</p>}
       </div>
     )
   }
@@ -122,8 +122,8 @@ const EditableCell = memo(function EditableCell({ displayValue, editValue, onSav
     <div className="cursor-pointer rounded px-3 py-1.5 -mx-1 transition-all hover:bg-blue-100 hover:ring-1 hover:ring-blue-300 text-right"
       onClick={startEdit}>
       <span className="font-mono tabular-nums text-sm" style={isNegative ? { color: '#dc2626' } : { color: '#1e293b' }}>{formatNum(displayValue)}</span>
-      {currency && <span className="text-[10px] text-slate-400 ml-1">{currency}</span>}
-      {hint && <p className="text-[10px] text-slate-400 mt-0.5">{hint}</p>}
+      {currency && <span className="text-xs text-slate-400 ml-1">{currency}</span>}
+      {hint && <p className="text-xs text-slate-400 mt-0.5">{hint}</p>}
     </div>
   )
 })
@@ -464,7 +464,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
               className="w-6 h-6 flex items-center justify-center text-xs rounded text-slate-500 hover:bg-white hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
               −
             </button>
-            <span className="text-[10px] text-slate-400 w-8 text-center tabular-nums">{Math.round(zoom * 100)}%</span>
+            <span className="text-xs text-slate-400 w-8 text-center tabular-nums">{Math.round(zoom * 100)}%</span>
             <button onClick={zoomIn} disabled={zoom >= ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
               className="w-6 h-6 flex items-center justify-center text-xs rounded text-slate-500 hover:bg-white hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
               +
@@ -510,9 +510,9 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
               {months.map(mk => {
                 const isCurrent = mk === currentMonthKey
                 return (
-                  <th key={mk} className="text-right py-2.5 px-2 font-semibold text-xs w-32" style={isCurrent ? { backgroundColor: '#eff6ff', color: '#2563eb' } : { color: '#94a3b8' }}>
+                  <th key={mk} className="text-right py-2.5 px-2 font-semibold text-xs w-32" style={isCurrent ? { backgroundColor: '#eff6ff', color: 'var(--accent-blue-strong)' } : { color: '#94a3b8' }}>
                     {getMonthLabel(mk, lang)}
-                    {isCurrent && <div className="text-[10px] font-normal text-blue-400">{t('actual', 'current')}</div>}
+                    {isCurrent && <div className="text-xs font-normal text-blue-400">{t('actual', 'current')}</div>}
                   </th>
                 )
               })}
@@ -530,10 +530,10 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                   onClick={() => toggleCat(cat.key)}>
                   <td className="py-3 pl-4 pr-2 sticky left-0 bg-white z-10" style={{ borderLeft: `3px solid ${accent}` }}>
                     <div className="flex items-center gap-2">
-                      <span className="text-slate-400 text-[10px] w-3">{isCollapsed ? '>' : 'v'}</span>
+                      <span className="text-slate-400 text-xs w-3">{isCollapsed ? '>' : 'v'}</span>
                       <span className="text-slate-900 font-bold text-sm">{cat.label}</span>
                       <span className="text-slate-400 text-xs">({cat.institutions.reduce((s, i) => s + i.items.length, 0)})</span>
-                      {cat.excludedFromTotal && <span className="text-[10px] text-cyan-500 ml-1">{t('(no incluido en total)', '(not in total)')}</span>}
+                      {cat.excludedFromTotal && <span className="text-xs text-cyan-500 ml-1">{t('(no incluido en total)', '(not in total)')}</span>}
                     </div>
                   </td>
                   <td className="text-right py-3 px-1 text-slate-500 font-semibold text-sm">{Math.abs(pct).toFixed(0)}%</td>
@@ -650,14 +650,14 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                                 {qtyLabel && (
                                   <span className="text-slate-400 text-xs shrink-0">{qtyLabel}</span>
                                 )}
-                                <span className="text-[10px] font-semibold shrink-0" style={{ color: isEditing ? '#3b82f6' : '#94a3b8' }}>{cur}</span>
+                                <span className="text-xs font-semibold shrink-0" style={{ color: isEditing ? '#3b82f6' : '#94a3b8' }}>{cur}</span>
                                 {item.rewardType && REWARD_ICONS[item.rewardType] && (
-                                  <span className="text-[10px] bg-cyan-50 text-cyan-600 px-1 rounded shrink-0" title={item.rewardType}>
+                                  <span className="text-xs bg-cyan-50 text-cyan-600 px-1 rounded shrink-0" title={item.rewardType}>
                                     {REWARD_ICONS[item.rewardType]}
                                   </span>
                                 )}
                                 {item.isReceivable && !item.countInNetWorth && (
-                                  <span className="text-[9px] text-cyan-400 shrink-0">*</span>
+                                  <span className="text-xs text-cyan-400 shrink-0">*</span>
                                 )}
                               </div>
                             </td>
@@ -699,7 +699,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                           {(item.isDebt || item.isReceivable) && (item.debtTerm || item.interestRate || item.monthlyPayment || item.installmentsRemaining) && (
                             <tr className="bg-slate-50/50 border-t-0">
                               <td className={`py-0.5 ${showInst ? 'pl-12' : 'pl-8'} pr-2 sticky left-0 bg-slate-50/50 z-10`} colSpan={2 + (showOriginal ? 1 : 0) + months.length}>
-                                <div className="flex items-center gap-3 text-[10px] text-slate-400">
+                                <div className="flex items-center gap-3 text-xs text-slate-400">
                                   {item.debtTerm && <span>{DEBT_TERM_LABELS[item.debtTerm] || item.debtTerm}</span>}
                                   {item.interestRate > 0 && <span>{item.interestRate}% {t('int.', 'int.')}</span>}
                                   {item.monthlyPayment > 0 && <span>${item.monthlyPayment.toLocaleString()}/{t('mes', 'mo')}</span>}
@@ -727,9 +727,9 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                 onClick={() => setShowRemoved(p => !p)}>
                 <td className="py-2.5 pl-4 pr-2 sticky left-0 bg-slate-50 z-10" colSpan={2 + (showOriginal ? 1 : 0)}>
                   <div className="flex items-center gap-2">
-                    <span className="text-slate-400 text-[10px] w-3">{showRemoved ? 'v' : '>'}</span>
+                    <span className="text-slate-400 text-xs w-3">{showRemoved ? 'v' : '>'}</span>
                     <span className="text-slate-500 font-semibold text-xs">{t('Activos anteriores', 'Previous assets')}</span>
-                    <span className="text-slate-400 text-[10px]">({removedItems.length})</span>
+                    <span className="text-slate-400 text-xs">({removedItems.length})</span>
                   </div>
                 </td>
                 {months.map(mk => (

@@ -42,10 +42,10 @@ export default function InvestmentClassBreakdown({ items, lang }) {
   if (items.length === 0 || totalValue === 0) return null
 
   return (
-    <div className="bg-[#1C1C1E] rounded-2xl border border-[#38383A] p-5 card-primary">
+    <div className="bg-theme-card rounded-2xl border border-glass-border p-5 card-primary">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#60a5fa' }} />
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
           {t('TIPO DE RETORNO', 'RETURN TYPE')}
         </h3>
         <span className="text-xs text-slate-500">{formatCurrency(totalValue)}</span>
@@ -65,7 +65,7 @@ export default function InvestmentClassBreakdown({ items, lang }) {
               </div>
               <div>
                 <p className="text-xs font-semibold text-white leading-tight">{meta.label[lang]}</p>
-                <p className="text-[10px] leading-tight" style={{ color: `${meta.color}cc` }}>{meta.returnType[lang]}</p>
+                <p className="text-xs leading-tight" style={{ color: `${meta.color}cc` }}>{meta.returnType[lang]}</p>
               </div>
             </div>
 
@@ -76,7 +76,7 @@ export default function InvestmentClassBreakdown({ items, lang }) {
               <span className="text-xs font-medium" style={{ color: gainAbs >= 0 ? '#34d399' : '#f87171' }}>
                 {gainAbs >= 0 ? '+' : ''}{gainPct.toFixed(1)}%
               </span>
-              <span className="text-[10px] text-slate-500">{count} {count === 1 ? t('activo', 'asset') : t('activos', 'assets')}</span>
+              <span className="text-xs text-slate-500">{count} {count === 1 ? t('activo', 'asset') : t('activos', 'assets')}</span>
             </div>
 
             {/* Bar */}
@@ -86,7 +86,7 @@ export default function InvestmentClassBreakdown({ items, lang }) {
 
             {/* Top 3 */}
             {topItems.slice(0, 3).map((item, i) => (
-              <div key={i} className="flex items-center justify-between text-[11px] py-0.5">
+              <div key={i} className="flex items-center justify-between text-xs py-0.5">
                 <span className="text-slate-400 truncate max-w-[100px]">{item.name}</span>
                 <div className="flex items-center gap-1.5">
                   <span className="text-slate-300">{formatCurrency(item.value)}</span>

@@ -377,9 +377,10 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   ]
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
-      <div ref={trapRef} className="bg-[#141416] border border-[#27272a] rounded-xl shadow-2xl max-w-md w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="settings-modal-title"
+      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+      <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
           <h2 id="settings-modal-title" className="text-lg font-bold text-white flex items-center gap-2">
             <Settings size={20} className="text-slate-400" />
             {t('Configuracion', 'Settings')}
@@ -393,7 +394,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
           </div>
         )}
 
-        <div className="flex border-b border-[#27272a] overflow-x-auto">
+        <div className="flex border-b border-glass-border overflow-x-auto">
           {tabs.map((tb) => (
             <button key={tb.key} onClick={() => { setTab(tb.key); setConfirmDelete(null) }}
               className={`flex-1 px-3 py-3 text-sm font-medium transition-colors whitespace-nowrap ${
@@ -401,7 +402,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                   ? 'border-b-2'
                   : 'text-slate-400 hover:text-slate-300'
               }`}
-              style={tab === tb.key ? { color: '#60a5fa', borderColor: '#60a5fa', backgroundColor: 'rgba(96,165,250,0.05)' } : undefined}>
+              style={tab === tb.key ? { color: 'var(--accent-blue)', borderColor: 'var(--accent-blue-soft)', backgroundColor: 'rgba(108,122,255,0.05)' } : undefined}>
               {tb.label}
             </button>
           ))}
@@ -423,9 +424,9 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                       className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg transition-all ${
                         theme === opt.key
                           ? 'border'
-                          : 'bg-[#000000] border border-[#27272a] text-slate-300 hover:border-slate-500'
+                          : 'bg-theme-base border border-glass-border text-slate-300 hover:border-slate-500'
                       }`}
-                      style={theme === opt.key ? { color: '#60a5fa', borderColor: 'rgba(59,130,246,0.4)', backgroundColor: 'rgba(59,130,246,0.15)' } : undefined}>
+                      style={theme === opt.key ? { color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.4)', backgroundColor: 'rgba(59,130,246,0.15)' } : undefined}>
                       <span className="text-lg">{opt.icon}</span>
                       <span className="text-sm font-medium">{opt.label}</span>
                     </button>
@@ -443,7 +444,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                   onClick={() => onToggleBeginner?.(!beginnerMode)}
                   className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg border transition-all text-left"
                   style={beginnerMode
-                    ? { color: '#60a5fa', borderColor: 'rgba(59,130,246,0.4)', backgroundColor: 'rgba(59,130,246,0.15)' }
+                    ? { color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.4)', backgroundColor: 'rgba(59,130,246,0.15)' }
                     : { borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-input)' }}>
                   <div className="min-w-0">
                     <div className="text-sm font-medium" style={beginnerMode ? undefined : { color: 'var(--text-primary)' }}>
@@ -454,7 +455,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                     </div>
                   </div>
                   <span className="shrink-0 w-10 h-6 rounded-full flex items-center transition-all px-0.5"
-                    style={{ backgroundColor: beginnerMode ? '#2563eb' : 'var(--bg-tertiary)' }}>
+                    style={{ backgroundColor: beginnerMode ? 'var(--accent-blue)' : 'var(--bg-tertiary)' }}>
                     <span className="w-5 h-5 rounded-full bg-white transition-transform"
                       style={{ transform: beginnerMode ? 'translateX(16px)' : 'translateX(0)' }} />
                   </span>
@@ -470,9 +471,9 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                       className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-left transition-all ${
                         baseCurrency === c.code
                           ? 'border'
-                          : 'bg-[#000000] border border-[#27272a] text-slate-300 hover:border-slate-500'
+                          : 'bg-theme-base border border-glass-border text-slate-300 hover:border-slate-500'
                       }`}
-                      style={baseCurrency === c.code ? { color: '#60a5fa', borderColor: 'rgba(59,130,246,0.4)', backgroundColor: 'rgba(59,130,246,0.15)' } : undefined}>
+                      style={baseCurrency === c.code ? { color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.4)', backgroundColor: 'rgba(59,130,246,0.15)' } : undefined}>
                       <span className="text-sm font-bold w-8">{c.symbol}</span>
                       <div className="min-w-0">
                         <div className="text-xs font-medium">{c.code}</div>
@@ -497,9 +498,9 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                       className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-left transition-all ${
                         benchmarkSymbol === key
                           ? 'border'
-                          : 'bg-[#000000] border border-[#27272a] text-slate-300 hover:border-slate-500'
+                          : 'bg-theme-base border border-glass-border text-slate-300 hover:border-slate-500'
                       }`}
-                      style={benchmarkSymbol === key ? { color: '#60a5fa', borderColor: 'rgba(59,130,246,0.4)', backgroundColor: 'rgba(59,130,246,0.15)' } : undefined}>
+                      style={benchmarkSymbol === key ? { color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.4)', backgroundColor: 'rgba(59,130,246,0.15)' } : undefined}>
                       <div className="min-w-0">
                         <div className="text-xs font-medium">{bm.short}</div>
                         <div className="text-xs text-slate-500 truncate">{bm.name}</div>
@@ -517,7 +518,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               {isNotificationSupported() && (
                 <div>
                   <label className="text-xs text-slate-400 mb-2 block font-medium">{t('Notificaciones', 'Notifications')}</label>
-                  <div className="p-3 bg-[#000000] border border-[#27272a] rounded-lg flex items-center justify-between">
+                  <div className="p-3 bg-theme-base border border-glass-border rounded-lg flex items-center justify-between">
                     <div>
                       <p className="text-sm text-white font-medium">{t('Alertas del navegador', 'Browser alerts')}</p>
                       <p className="text-xs text-slate-500">{t('Pagos próximos y vencimientos', 'Upcoming payments and maturities')}</p>
@@ -563,16 +564,16 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                   { key: 'targetYear', label: t('Año objetivo', 'Target year'), placeholder: '2030' },
                 ].map((field) => (
                   <div key={field.key}>
-                    <label className="text-[11px] text-slate-500 uppercase tracking-wider mb-1.5 block">{field.label}</label>
+                    <label className="text-xs text-slate-500 uppercase tracking-wider mb-1.5 block">{field.label}</label>
                     <input type="number" value={profileForm[field.key]} onChange={(e) => setProfileForm((p) => ({ ...p, [field.key]: e.target.value }))}
                       placeholder={field.placeholder}
-                      className="w-full px-4 py-2.5 bg-[#000000] border border-[#27272a]/60 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                      className="w-full px-4 py-2.5 bg-theme-base border border-glass-border/60 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
                   </div>
                 ))}
               </div>
 
               <div>
-                <label className="text-[11px] text-slate-500 uppercase tracking-wider mb-1.5 block">{t('Tolerancia al riesgo', 'Risk tolerance')}</label>
+                <label className="text-xs text-slate-500 uppercase tracking-wider mb-1.5 block">{t('Tolerancia al riesgo', 'Risk tolerance')}</label>
                 <div className="flex gap-2">
                   {[
                     { key: 'conservative', label: t('Conservador', 'Conservative') },
@@ -583,9 +584,9 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                       className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                         profileForm.riskTolerance === opt.key
                           ? 'border'
-                          : 'bg-[#000000] border border-[#27272a] text-slate-300 hover:border-slate-500'
+                          : 'bg-theme-base border border-glass-border text-slate-300 hover:border-slate-500'
                       }`}
-                      style={profileForm.riskTolerance === opt.key ? { color: '#60a5fa', borderColor: 'rgba(59,130,246,0.4)', backgroundColor: 'rgba(59,130,246,0.15)' } : undefined}>
+                      style={profileForm.riskTolerance === opt.key ? { color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.4)', backgroundColor: 'rgba(59,130,246,0.15)' } : undefined}>
                       {opt.label}
                     </button>
                   ))}
@@ -641,7 +642,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               const isExpanded = expandedBroker === broker.id
               const isSyncing = brokerSyncing === broker.id
               return (
-                <div key={broker.id} className="bg-[#000000] border border-[#27272a]/60 rounded-lg overflow-hidden">
+                <div key={broker.id} className="bg-theme-base border border-glass-border/60 rounded-lg overflow-hidden">
                   <div className="flex items-center gap-3 px-3 py-2">
                     <div className="relative shrink-0">
                       <span className="text-sm">{broker.icon}</span>
@@ -652,21 +653,21 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-white">{broker.name}</p>
                       {conn?.configured && (
-                        <p className="text-[10px] text-emerald-400">{t('Vinculado', 'Linked')}</p>
+                        <p className="text-xs text-emerald-400">{t('Vinculado', 'Linked')}</p>
                       )}
                       {!conn?.configured && broker.apiNote && !broker.hasApi && (
-                        <p className="text-[10px] text-slate-600">{broker.apiNote}</p>
+                        <p className="text-xs text-slate-600">{broker.apiNote}</p>
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       {broker.hasApi && conn?.configured ? (
                         <>
                           <button onClick={() => handleBrokerSync(broker)} disabled={isSyncing}
-                            className="px-2.5 py-1 bg-blue-600 text-white text-[11px] font-medium rounded-md hover:bg-blue-500 disabled:opacity-50 transition-colors">
+                            className="px-2.5 py-1 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-500 disabled:opacity-50 transition-colors">
                             {isSyncing ? '...' : 'Sync'}
                           </button>
                           <button onClick={() => handleBrokerDisconnect(broker)} disabled={isSyncing}
-                            className="px-2 py-1 text-[11px] text-red-400/60 hover:text-red-400 transition-colors">
+                            className="px-2 py-1 text-xs text-red-400/60 hover:text-red-400 transition-colors">
                             ✕
                           </button>
                         </>
@@ -675,35 +676,35 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                           if (broker.authType === 'oauth') { handleBrokerConnect(broker); return }
                           setExpandedBroker(isExpanded ? null : broker.id); setBrokerForm({}); setBrokerError(null)
                         }}
-                          className="px-2.5 py-1 border border-blue-500/40 text-blue-400 text-[11px] font-medium rounded-md hover:bg-blue-500/10 transition-colors">
+                          className="px-2.5 py-1 border border-blue-500/40 text-blue-400 text-xs font-medium rounded-md hover:bg-blue-500/10 transition-colors">
                           {isSyncing ? '...' : broker.authType === 'oauth' ? 'OAuth' : isExpanded ? t('Cancelar', 'Cancel') : 'API'}
                         </button>
                       ) : broker.apiNote ? (
-                        <span className="px-2 py-0.5 text-[10px] text-slate-600 border border-[#27272a]/40 rounded">
+                        <span className="px-2 py-0.5 text-xs text-slate-600 border border-glass-border/40 rounded">
                           {broker.apiNote}
                         </span>
                       ) : null}
                       <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport(broker.id) }, 50) }}
-                        className="px-2.5 py-1 border border-[#27272a] text-slate-400 text-[11px] font-medium rounded-md hover:bg-[#2C2C2E] transition-colors">
+                        className="px-2.5 py-1 border border-glass-border text-slate-400 text-xs font-medium rounded-md hover:bg-theme-elevated transition-colors">
                         CSV
                       </button>
                     </div>
                   </div>
                   {isExpanded && broker.hasApi && !broker.authType && (
-                    <div className="px-3 pb-3 pt-1 border-t border-[#27272a]/30 space-y-2">
+                    <div className="px-3 pb-3 pt-1 border-t border-glass-border/30 space-y-2">
                       {broker.instructions && (
-                        <p className="text-[10px] text-slate-600">{broker.instructions[lang] || broker.instructions.en}</p>
+                        <p className="text-xs text-slate-600">{broker.instructions[lang] || broker.instructions.en}</p>
                       )}
                       {brokerError && expandedBroker === broker.id && (
                         <p className="text-xs text-red-400">{brokerError}</p>
                       )}
                       {broker.fields.map(f => (
                         <div key={f.key}>
-                          <label className="text-[10px] text-slate-500 mb-0.5 block">{f.label}</label>
+                          <label className="text-xs text-slate-500 mb-0.5 block">{f.label}</label>
                           <input type={f.type || 'text'} value={brokerForm[f.key] || ''}
                             onChange={(e) => setBrokerForm(prev => ({ ...prev, [f.key]: e.target.value }))}
                             placeholder={f.placeholder}
-                            className="w-full px-3 py-1.5 bg-[#141416] border border-[#27272a]/60 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                            className="w-full px-3 py-1.5 bg-theme-surface border border-glass-border/60 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
                         </div>
                       ))}
                       <button onClick={() => handleBrokerConnect(broker)}
@@ -721,8 +722,8 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
             <div className="space-y-5">
               {/* ── IBKR (API + CSV) ── */}
               <div>
-                <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">Interactive Brokers</p>
-                <div className="p-3 bg-[#000000] border border-[#27272a] rounded-xl">
+                <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Interactive Brokers</p>
+                <div className="p-3 bg-theme-base border border-glass-border rounded-xl">
                   <div className="flex items-center gap-3">
                     <div className="relative shrink-0">
                       <span className="text-xl">🏦</span>
@@ -730,7 +731,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-white">Interactive Brokers</p>
-                      <p className="text-[11px]" style={{ color: statusColor.text }}>
+                      <p className="text-xs" style={{ color: statusColor.text }}>
                         {ibkrConfigured ? statusLabel : t('No vinculado', 'Not linked')}
                         {ibkrConfigured && <span className="text-slate-600 ml-1">· ID: {ibkrQueryId}</span>}
                       </p>
@@ -738,46 +739,46 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                     <div className="flex items-center gap-1.5 shrink-0">
                       {ibkrConfigured ? (
                         <button onClick={() => { onClose(); setTimeout(() => { if (onOpenIBKR) onOpenIBKR() }, 50) }}
-                          className="px-2.5 py-1 bg-blue-600 text-white text-[11px] font-medium rounded-md hover:bg-blue-500 transition-colors">
+                          className="px-2.5 py-1 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-500 transition-colors">
                           Sync
                         </button>
                       ) : (
                         <button onClick={() => setShowConfig(true)}
-                          className="px-2.5 py-1 border border-blue-500/40 text-blue-400 text-[11px] font-medium rounded-md hover:bg-blue-500/10 transition-colors">
+                          className="px-2.5 py-1 border border-blue-500/40 text-blue-400 text-xs font-medium rounded-md hover:bg-blue-500/10 transition-colors">
                           API
                         </button>
                       )}
                       <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport('ibkr') }, 50) }}
-                        className="px-2.5 py-1 border border-[#27272a] text-slate-400 text-[11px] font-medium rounded-md hover:bg-[#2C2C2E] transition-colors">
+                        className="px-2.5 py-1 border border-glass-border text-slate-400 text-xs font-medium rounded-md hover:bg-theme-elevated transition-colors">
                         CSV
                       </button>
                     </div>
                   </div>
                   {ibkrConfigured && syncStatus === 'stale' && (
-                    <p className="text-[10px] text-amber-400 mt-2 pl-9">
+                    <p className="text-xs text-amber-400 mt-2 pl-9">
                       {t('Tus datos podrían estar desactualizados', 'Your data may be outdated')}
                     </p>
                   )}
                 </div>
 
                 {!ibkrConfigured && showConfig && (
-                  <div className="space-y-3 p-3 bg-[#000000] border border-[#27272a] rounded-xl mt-2">
-                    <p className="text-[10px] text-slate-600">
+                  <div className="space-y-3 p-3 bg-theme-base border border-glass-border rounded-xl mt-2">
+                    <p className="text-xs text-slate-600">
                       {t('Ve a IBKR → Reports → Flex Queries → crear query con Open Positions + Trades. Genera un Flex Token en Settings.',
                          'Go to IBKR → Reports → Flex Queries → create query with Open Positions + Trades. Generate a Flex Token in Settings.')}
                     </p>
                     {ibkrError && <p className="text-xs text-red-400">{ibkrError}</p>}
                     <div>
-                      <label className="text-[10px] text-slate-500 mb-0.5 block">Flex Token</label>
+                      <label className="text-xs text-slate-500 mb-0.5 block">Flex Token</label>
                       <input type="password" value={ibkrToken} onChange={(e) => setIbkrToken(e.target.value)}
                         placeholder="••••••••••••••••"
-                        className="w-full px-3 py-1.5 bg-[#141416] border border-[#27272a]/60 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                        className="w-full px-3 py-1.5 bg-theme-surface border border-glass-border/60 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
                     </div>
                     <div>
-                      <label className="text-[10px] text-slate-500 mb-0.5 block">Query ID</label>
+                      <label className="text-xs text-slate-500 mb-0.5 block">Query ID</label>
                       <input type="text" value={ibkrQueryId} onChange={(e) => setIbkrQueryId(e.target.value)}
                         placeholder="123456"
-                        className="w-full px-3 py-1.5 bg-[#141416] border border-[#27272a]/60 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                        className="w-full px-3 py-1.5 bg-theme-surface border border-glass-border/60 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
                     </div>
                     <button onClick={handleIbkrSave} disabled={ibkrSaving || !ibkrToken || !ibkrQueryId}
                       className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 text-xs font-medium">
@@ -788,14 +789,14 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
 
                 {ibkrConfigured && !confirmUnlink && (
                   <button onClick={() => setConfirmUnlink(true)}
-                    className="text-[11px] text-red-400/60 hover:text-red-400 transition-colors mt-2">
+                    className="text-xs text-red-400/60 hover:text-red-400 transition-colors mt-2">
                     {t('Desvincular', 'Unlink')}
                   </button>
                 )}
                 {ibkrConfigured && confirmUnlink && (
-                  <div className="p-3 bg-[#141416] border border-[#27272a] border-l-4 border-l-red-500 rounded-lg space-y-2 mt-2">
+                  <div className="p-3 bg-theme-surface border border-glass-border border-l-4 border-l-red-500 rounded-lg space-y-2 mt-2">
                     <p className="text-xs text-red-400 font-medium">{t('¿Desvincular Interactive Brokers?', 'Unlink Interactive Brokers?')}</p>
-                    <p className="text-[11px] text-slate-400">
+                    <p className="text-xs text-slate-400">
                       {t('Se eliminará la conexión API. Tus posiciones importadas se mantienen.',
                          'The API connection will be removed. Your imported positions will be kept.')}
                     </p>
@@ -805,7 +806,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                         {ibkrSaving ? '...' : t('Sí', 'Yes')}
                       </button>
                       <button onClick={() => setConfirmUnlink(false)}
-                        className="px-3 py-1.5 border border-[#27272a] text-slate-400 text-xs rounded-lg hover:bg-[#2C2C2E] transition-colors">
+                        className="px-3 py-1.5 border border-glass-border text-slate-400 text-xs rounded-lg hover:bg-theme-elevated transition-colors">
                         {t('No', 'No')}
                       </button>
                     </div>
@@ -816,11 +817,11 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               {/* ── BROKERS TRADICIONALES ── */}
               <details className="group" open>
                 <summary className="flex items-center justify-between cursor-pointer">
-                  <p className="text-[11px] text-slate-500 uppercase tracking-wider">
+                  <p className="text-xs text-slate-500 uppercase tracking-wider">
                     {t('Brokers Tradicionales', 'Traditional Brokers')}
                     <span className="text-slate-600 ml-1">({traditionalBrokers.length})</span>
                   </p>
-                  <span className="text-[10px] text-slate-600 group-open:rotate-180 transition-transform">▼</span>
+                  <span className="text-xs text-slate-600 group-open:rotate-180 transition-transform">▼</span>
                 </summary>
                 <div className="mt-2 space-y-1">
                   {traditionalBrokers.map(renderBrokerCard)}
@@ -830,23 +831,23 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               {/* ── CRYPTO ── */}
               <details className="group" open>
                 <summary className="flex items-center justify-between cursor-pointer">
-                  <p className="text-[11px] text-slate-500 uppercase tracking-wider">
+                  <p className="text-xs text-slate-500 uppercase tracking-wider">
                     Crypto
                     <span className="text-slate-600 ml-1">({cryptoBrokers.length + 1})</span>
                   </p>
-                  <span className="text-[10px] text-slate-600 group-open:rotate-180 transition-transform">▼</span>
+                  <span className="text-xs text-slate-600 group-open:rotate-180 transition-transform">▼</span>
                 </summary>
                 <div className="mt-2 space-y-1">
                   {cryptoBrokers.map(renderBrokerCard)}
-                  <div className="bg-[#000000] border border-[#27272a]/60 rounded-lg">
+                  <div className="bg-theme-base border border-glass-border/60 rounded-lg">
                     <div className="flex items-center gap-3 px-3 py-2">
                       <span className="text-sm">🔗</span>
                       <div className="flex-1">
                         <p className="text-sm text-white">{t('Wallet on-chain', 'On-chain Wallet')}</p>
-                        <p className="text-[10px] text-slate-600">Blockchain.com, Ledger, MetaMask</p>
+                        <p className="text-xs text-slate-600">Blockchain.com, Ledger, MetaMask</p>
                       </div>
                       <button onClick={() => { onClose(); setTimeout(() => { if (onOpenBlockchain) onOpenBlockchain() }, 50) }}
-                        className="px-2.5 py-1 border border-blue-500/40 text-blue-400 text-[11px] font-medium rounded-md hover:bg-blue-500/10 transition-colors">
+                        className="px-2.5 py-1 border border-blue-500/40 text-blue-400 text-xs font-medium rounded-md hover:bg-blue-500/10 transition-colors">
                         {t('Conectar', 'Connect')}
                       </button>
                     </div>
@@ -857,11 +858,11 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               {/* ── PRIVADO / VC ── */}
               <details className="group">
                 <summary className="flex items-center justify-between cursor-pointer">
-                  <p className="text-[11px] text-slate-500 uppercase tracking-wider">{t('Privado / VC', 'Private / VC')}</p>
-                  <span className="text-[10px] text-slate-600 group-open:rotate-180 transition-transform">▼</span>
+                  <p className="text-xs text-slate-500 uppercase tracking-wider">{t('Privado / VC', 'Private / VC')}</p>
+                  <span className="text-xs text-slate-600 group-open:rotate-180 transition-transform">▼</span>
                 </summary>
                 <div className="mt-2 space-y-2">
-                  <p className="text-[11px] text-slate-600 mb-1">
+                  <p className="text-xs text-slate-600 mb-1">
                     {t('SAFE notes, VC funds, PE, club deals.',
                        'SAFE notes, VC funds, PE, club deals.')}
                   </p>
@@ -871,7 +872,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                       {t('Agregar', 'Add')}
                     </button>
                     <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport() }, 50) }}
-                      className="flex-1 px-3 py-2 border border-[#27272a] text-slate-400 text-xs font-medium rounded-lg hover:bg-[#2C2C2E] transition-colors">
+                      className="flex-1 px-3 py-2 border border-glass-border text-slate-400 text-xs font-medium rounded-lg hover:bg-theme-elevated transition-colors">
                       CSV
                     </button>
                   </div>
@@ -881,14 +882,14 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               {/* ── YOUR INSTITUTIONS ── */}
               {nonIbkrInstitutions.length > 0 && (
                 <div>
-                  <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">{t('Tus instituciones', 'Your institutions')}</p>
+                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">{t('Tus instituciones', 'Your institutions')}</p>
                   <div className="space-y-1">
                     {nonIbkrInstitutions.map(inst => (
-                      <div key={inst.name} className="flex items-center gap-3 px-3 py-2 bg-[#000000] border border-[#27272a]/60 rounded-lg">
+                      <div key={inst.name} className="flex items-center gap-3 px-3 py-2 bg-theme-base border border-glass-border/60 rounded-lg">
                         <span className="text-slate-500 text-sm">🏢</span>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-white font-medium truncate">{inst.name}</p>
-                          <p className="text-[11px] text-slate-500">
+                          <p className="text-xs text-slate-500">
                             {inst.count} {t('posiciones', 'positions')} · ${Math.abs(inst.value).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                           </p>
                         </div>
@@ -925,7 +926,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                 </button>
               ) : (
                 <div className="space-y-3">
-                  <div className="bg-[#000000] border border-[#27272a] rounded-lg p-3">
+                  <div className="bg-theme-base border border-glass-border rounded-lg p-3">
                     <label className="text-xs text-slate-500 block mb-1.5">{t('Link de solo lectura', 'Read-only link')}</label>
                     <div className="flex items-center gap-2">
                       <input type="text" readOnly value={shareUrl}
@@ -939,7 +940,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
 
                   <div className="flex gap-2">
                     <button onClick={() => handleShareAction('regenerate')} disabled={shareLoading}
-                      className="flex-1 py-2 border border-[#27272a] text-slate-300 rounded-lg hover:bg-slate-700/50 disabled:opacity-50 transition-colors text-xs">
+                      className="flex-1 py-2 border border-glass-border text-slate-300 rounded-lg hover:bg-slate-700/50 disabled:opacity-50 transition-colors text-xs">
                       {t('Regenerar link', 'Regenerate link')}
                     </button>
                     <button onClick={() => handleShareAction('disable')} disabled={shareLoading}
@@ -962,7 +963,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
           {tab === 'data' && (
             <div className="space-y-4">
               {onExportBackup && (
-                <div className="flex items-center justify-between p-3 bg-[#000000] border border-emerald-500/20 rounded-lg">
+                <div className="flex items-center justify-between p-3 bg-theme-base border border-emerald-500/20 rounded-lg">
                   <div>
                     <div className="text-sm text-white font-medium">{t('Exportar Backup', 'Export Backup')}</div>
                     <div className="text-xs text-slate-500">{t('Descarga todos tus datos en formato JSON.', 'Download all your data as JSON.')}</div>
@@ -983,7 +984,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                 { key: 'financeTransactions', label: t('Eliminar finanzas', 'Delete finance data'), desc: t('Borra todos los ingresos y gastos.', 'Deletes all income and expense data.'), warn: t('Se perderá el historial de ingresos y gastos.', 'Income and expense history will be lost.') },
                 { key: 'all', label: t('Eliminar todo', 'Delete everything'), desc: t('Borra todos los datos del portfolio.', 'Deletes all portfolio data.'), warn: t('Se borrarán TODOS los datos: cuentas, historial, transacciones y finanzas.', 'ALL data will be deleted: accounts, history, transactions, and finances.') },
               ].map((action) => (
-                <div key={action.key} className="flex items-center justify-between p-3 bg-[#000000] border border-[#27272a] rounded-lg">
+                <div key={action.key} className="flex items-center justify-between p-3 bg-theme-base border border-glass-border rounded-lg">
                   <div>
                     <div className="text-sm text-white font-medium">{action.label}</div>
                     <div className="text-xs text-slate-500">{action.desc}</div>

@@ -21,13 +21,13 @@ export default class ErrorBoundary extends Component {
     if (this.state.hasError) {
       const lang = this.props.lang || 'es'
       return (
-        <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4 text-center">
-          <p className="text-sm text-red-400">
+        <div className="card-glass rounded-xl p-4 text-center" style={{ borderColor: 'rgba(248,113,113,0.15)' }}>
+          <p className="text-sm" style={{ color: 'var(--accent-red)' }}>
             {lang === 'es' ? 'Algo salió mal en esta sección' : 'Something went wrong in this section'}
           </p>
           <button
             onClick={() => this.setState({ hasError: false })}
-            className="mt-2 text-xs text-slate-400 hover:text-white underline"
+            className="btn-ghost mt-2 text-xs"
           >
             {lang === 'es' ? 'Reintentar' : 'Retry'}
           </button>

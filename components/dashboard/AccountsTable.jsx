@@ -85,7 +85,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
   const t = (es, en) => lang === 'es' ? es : en
 
   return (
-    <div className="bg-[#1C1C1E] rounded-2xl border border-[#38383A] p-5 card-primary">
+    <div className="bg-theme-card rounded-2xl border border-glass-border p-5 card-primary">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-base font-semibold text-white">
           {t('Cuentas e Instrumentos', 'Accounts & Instruments')}
@@ -110,10 +110,10 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
             className={`px-3 py-2.5 sm:py-1.5 text-xs font-medium rounded-full transition-colors border ${
               filter === tab.key
                 ? ''
-                : 'hover:bg-[#2C2C2E]'
+                : 'hover:bg-theme-elevated'
             }`}
             style={filter === tab.key
-              ? { backgroundColor: 'rgba(59,130,246,0.2)', color: '#60a5fa', borderColor: 'rgba(59,130,246,0.3)' }
+              ? { backgroundColor: 'rgba(59,130,246,0.2)', color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.3)' }
               : { color: 'var(--text-secondary)', borderColor: 'rgba(71,85,105,0.5)' }
             }>
             {tab.icon} {tab.label}
@@ -129,7 +129,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t('Buscar por nombre, símbolo o institución...', 'Search by name, symbol, or institution...')}
-            className="w-full px-3 py-2 bg-[#000000] border border-[#38383A] rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
+            className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50"
           />
         </div>
       )}
@@ -137,7 +137,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
       {/* Bulk actions */}
       {selected.size > 0 && (
         <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-lg" style={{ backgroundColor: 'rgba(59,130,246,0.1)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(59,130,246,0.2)' }}>
-          <span className="text-xs font-medium" style={{ color: '#60a5fa' }}>{selected.size} {t('seleccionado(s)', 'selected')}</span>
+          <span className="text-xs font-medium" style={{ color: 'var(--accent-blue)' }}>{selected.size} {t('seleccionado(s)', 'selected')}</span>
           <div className="flex-1" />
           <button onClick={() => {
             const selectedItems = items.filter((it) => selected.has(it.id))
@@ -154,7 +154,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
             a.click()
           }}
             className="text-xs px-2 py-1 rounded border hover:opacity-80"
-            style={{ color: '#60a5fa', borderColor: 'rgba(59,130,246,0.3)' }}>
+            style={{ color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.3)' }}>
             {t('Exportar CSV', 'Export CSV')}
           </button>
           <button onClick={async () => {
@@ -186,7 +186,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
             className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
               breakdown === opt.key
                 ? ''
-                : 'border hover:bg-[#2C2C2E]'
+                : 'border hover:bg-theme-elevated'
             }`}
             style={breakdown === opt.key
               ? { backgroundColor: '#475569', color: '#ffffff' }
@@ -199,7 +199,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
 
       {/* Breakdown summary */}
       {breakdownData && (
-        <div className="mb-4 p-3 bg-[#000000] rounded-lg border border-[#38383A]/50">
+        <div className="mb-4 p-3 bg-theme-base rounded-lg border border-glass-border/50">
           <div className="space-y-1.5">
             {breakdownData.map((row) => (
               <div key={row.name} className="flex items-center gap-3">
@@ -225,7 +225,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="text-slate-500 border-b border-[#38383A]">
+              <tr className="text-slate-500 border-b border-glass-border">
                 <th className="w-8 py-2">
                   <input type="checkbox"
                     checked={displayItems.length > 0 && displayItems.every((it) => selected.has(it.id))}
@@ -265,7 +265,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                 const retAbs = hasReturn ? (item.currentPrice - item.purchasePrice) * (item.quantity || 0) : null
 
                 return (
-                  <tr key={item.id || item.symbol} style={{ contentVisibility: 'auto', containIntrinsicSize: '0 60px', ...(selected.has(item.id) ? { backgroundColor: 'rgba(59,130,246,0.05)' } : {}) }} className="border-b border-[#38383A]/30 hover:bg-[#2C2C2E]/50 transition-colors group">
+                  <tr key={item.id || item.symbol} style={{ contentVisibility: 'auto', containIntrinsicSize: '0 60px', ...(selected.has(item.id) ? { backgroundColor: 'rgba(59,130,246,0.05)' } : {}) }} className="border-b border-glass-border/30 hover:bg-theme-elevated/50 transition-colors group">
                     <td className="py-4 w-8">
                       <input type="checkbox"
                         checked={selected.has(item.id)}
@@ -326,7 +326,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                               return <span className="text-xs px-1.5 py-0.5 rounded" style={matStyle}>{mat.expired ? '⚠' : '⏱'} {mat.label}</span>
                             })()}
                             {item.rateType === 'variable' && item.rateMin > 0 && (
-                              <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa' }}>
+                              <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)' }}>
                                 {item.rateMin}-{item.rateMax}%
                               </span>
                             )}
@@ -357,7 +357,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                         <div>
                           <span className="text-white text-sm font-medium font-mono tabular-nums">{formatCurrency(getItemPrice(item), item.currency)}</span>
                           {item.change7d != null && (
-                            <div className="text-[10px] font-mono tabular-nums" style={{ color: item.change7d >= 0 ? '#34d399' : '#f87171' }}>
+                            <div className="text-xs font-mono tabular-nums" style={{ color: item.change7d >= 0 ? '#34d399' : '#f87171' }}>
                               {item.change7d >= 0 ? '+' : ''}{item.change7d.toFixed(1)}%
                             </div>
                           )}
@@ -391,7 +391,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                       <span className="font-medium font-mono tabular-nums cursor-pointer hover:underline"
                         style={{ color: value < 0 ? '#f87171' : '#34d399' }}
                         onClick={() => onViewItem && onViewItem(item)}>
-                        {formatCurrency(Math.abs(value))}{value < 0 && <span className="ml-1 text-[10px] px-1 py-0.5 rounded" style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: 'var(--text-negative)' }}>{t('Deuda','Debt')}</span>}
+                        {formatCurrency(Math.abs(value))}{value < 0 && <span className="ml-1 text-xs px-1 py-0.5 rounded" style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: 'var(--text-negative)' }}>{t('Deuda','Debt')}</span>}
                       </span>
                     </td>
                     <td className="text-center py-3 hidden sm:table-cell">
@@ -408,7 +408,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                       {(() => {
                         const y = getEffectiveYield(item)
                         return y != null ? (
-                          <span className="text-xs" style={{ color: '#60a5fa' }}>{y.toFixed(1)}%</span>
+                          <span className="text-xs" style={{ color: 'var(--accent-blue)' }}>{y.toFixed(1)}%</span>
                         ) : (
                           <span className="text-slate-700">—</span>
                         )
@@ -457,7 +457,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
           </table>
           {filtered.length > 10 && (
             <button onClick={() => setShowAll(!showAll)}
-              className="w-full mt-3 py-2 text-xs text-slate-400 hover:text-emerald-400 border border-[#38383A]/50 rounded-lg hover:bg-[#2C2C2E] transition-colors">
+              className="w-full mt-3 py-2 text-xs text-slate-400 hover:text-emerald-400 border border-glass-border/50 rounded-lg hover:bg-theme-elevated transition-colors">
               {showAll
                 ? t('Mostrar menos', 'Show less')
                 : t(`Ver todos (${filtered.length})`, `View all (${filtered.length})`)}

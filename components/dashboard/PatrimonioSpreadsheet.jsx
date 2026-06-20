@@ -134,16 +134,16 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
       {/* Summary */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] uppercase tracking-wide text-slate-400">{t('Patrimonio Total', 'Total Estate')}</p>
+          <p className="text-xs uppercase tracking-wide text-slate-400">{t('Patrimonio Total', 'Total Estate')}</p>
           <p className="text-xl font-bold text-emerald-600 mt-1">${fmt(grandTotal)}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] uppercase tracking-wide text-slate-400">{t('Bienes', 'Assets')}</p>
+          <p className="text-xs uppercase tracking-wide text-slate-400">{t('Bienes', 'Assets')}</p>
           <p className="text-xl font-bold text-slate-800 mt-1">{patrimonioItems.length}</p>
         </div>
         {grouped.map(g => (
           <div key={g.key} className="bg-white rounded-xl border border-slate-200 p-4">
-            <p className="text-[10px] uppercase tracking-wide text-slate-400">{g.icon} {g.label}</p>
+            <p className="text-xs uppercase tracking-wide text-slate-400">{g.icon} {g.label}</p>
             <p className="text-lg font-bold text-slate-800 mt-1">${fmt(g.total)}</p>
           </div>
         ))}
@@ -207,7 +207,7 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
                             <span className="text-sm font-medium text-slate-800">{item.name || item.symbol}</span>
                           )}
                           {item.acquisitionDate && (
-                            <p className="text-[10px] text-slate-400 mt-0.5">{t('Adquirido', 'Acquired')}: {item.acquisitionDate}</p>
+                            <p className="text-xs text-slate-400 mt-0.5">{t('Adquirido', 'Acquired')}: {item.acquisitionDate}</p>
                           )}
                         </td>
                         <td className="px-3 py-2.5">

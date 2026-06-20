@@ -191,7 +191,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
       <button
         onClick={() => setOpen(!open)}
         className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105 hover:opacity-90"
-        style={{ backgroundColor: '#2563eb', color: '#ffffff' }}
+        style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}
         title={t('Asistente AI', 'AI Assistant')}
         aria-label={open ? t('Cerrar asistente', 'Close assistant') : t('Abrir asistente', 'Open assistant')}
       >
@@ -208,9 +208,9 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
 
       {/* Chat panel */}
       {open && (
-        <div className="fixed bottom-36 sm:bottom-20 right-4 sm:right-6 z-50 w-[340px] sm:w-[380px] max-h-[70vh] bg-[#1C1C1E] border border-[#38383A] rounded-xl shadow-2xl flex flex-col overflow-hidden">
+        <div className="fixed bottom-36 sm:bottom-20 right-4 sm:right-6 z-50 w-[340px] sm:w-[380px] max-h-[70vh] bg-theme-card border border-glass-border rounded-xl shadow-2xl flex flex-col overflow-hidden">
           {/* Header */}
-          <div className="px-4 py-3 border-b border-[#38383A] flex items-center justify-between">
+          <div className="px-4 py-3 border-b border-glass-border flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#34d399' }} />
               <span className="text-sm font-semibold text-white">{t('Asistente AI', 'AI Assistant')}</span>
@@ -233,25 +233,25 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
 
           {/* API Key input */}
           {showKeyInput && (
-            <div className="px-4 py-3 border-b border-[#38383A] bg-[#000000]">
-              <label className="text-[10px] text-slate-400 uppercase tracking-wide mb-1 block">Anthropic API Key</label>
+            <div className="px-4 py-3 border-b border-glass-border bg-theme-base">
+              <label className="text-xs text-slate-400 uppercase tracking-wide mb-1 block">Anthropic API Key</label>
               <div className="flex gap-2">
                 <input
                   type="password"
                   defaultValue={apiKey}
                   placeholder="sk-ant-..."
-                  className="flex-1 px-2 py-1.5 bg-[#1C1C1E] border border-[#38383A] rounded text-xs text-white focus:outline-none focus:border-blue-500"
+                  className="flex-1 px-2 py-1.5 bg-theme-card border border-glass-border rounded text-xs text-white focus:outline-none focus:border-blue-500"
                   onKeyDown={(e) => { if (e.key === 'Enter') saveKey(e.target.value) }}
                 />
                 <button
                   onClick={(e) => saveKey(e.target.previousSibling.value)}
                   className="px-3 py-1.5 text-xs rounded hover:opacity-90 transition-colors"
-                  style={{ backgroundColor: '#2563eb', color: '#ffffff' }}
+                  style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}
                 >
                   OK
                 </button>
               </div>
-              <p className="text-[9px] text-slate-500 mt-1">
+              <p className="text-xs text-slate-500 mt-1">
                 {t('Tu key se guarda solo en tu navegador. Nunca se almacena en nuestros servidores.',
                    'Your key is stored only in your browser. Never saved on our servers.')}
               </p>
@@ -271,7 +271,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
                   ].map((suggestion, i) => (
                     <button key={i} onClick={() => { setInput(suggestion) }}
                       className="block w-full text-left px-3 py-2 text-xs rounded-lg transition-colors"
-                      style={{ color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.1)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(59,130,246,0.2)' }}>
+                      style={{ color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.1)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(59,130,246,0.2)' }}>
                       {suggestion}
                     </button>
                   ))}
@@ -285,7 +285,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
                   msg.role === 'user' ? 'rounded-br-sm' : 'rounded-bl-sm'
                 }`}
                   style={msg.role === 'user'
-                    ? { backgroundColor: '#2563eb', color: '#ffffff' }
+                    ? { backgroundColor: 'var(--accent-blue)', color: '#ffffff' }
                     : { backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'var(--border-color)' }
                   }>
                   <MessageContent content={msg.content} />
@@ -295,7 +295,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
 
             {loading && (
               <div className="flex justify-start">
-                <div className="bg-[#000000] border border-[#38383A] rounded-xl rounded-bl-sm px-4 py-3">
+                <div className="bg-theme-base border border-glass-border rounded-xl rounded-bl-sm px-4 py-3">
                   <div className="flex gap-1">
                     <span className="w-2 h-2 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                     <span className="w-2 h-2 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -313,7 +313,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
           </div>
 
           {/* Input */}
-          <div className="px-3 py-3 border-t border-[#38383A]">
+          <div className="px-3 py-3 border-t border-glass-border">
             <div className="flex gap-2">
               <input
                 ref={inputRef}
@@ -322,13 +322,13 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
                 onKeyDown={handleKeyDown}
                 placeholder={t('Escribe tu pregunta...', 'Type your question...')}
                 disabled={loading}
-                className="flex-1 px-3 py-2 bg-[#000000] border border-[#38383A] rounded-lg text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 disabled:opacity-50"
+                className="flex-1 px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 disabled:opacity-50"
               />
               <button
                 onClick={sendMessage}
                 disabled={loading || !input.trim()}
                 className="px-3 py-2 rounded-lg hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                style={{ backgroundColor: '#2563eb', color: '#ffffff' }}
+                style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}
                 aria-label={t('Enviar', 'Send')}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -73,10 +73,10 @@ export default function ConcentrationRisk({ items, lang }) {
   const PALETTE = CHART_PALETTE
 
   return (
-    <div className="bg-[#141416]/80 rounded-xl border border-[#27272a]/50 p-4">
+    <div className="card-glass rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#60a5fa' }} />
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
           {t('RIESGO DE CONCENTRACIÓN', 'CONCENTRATION RISK')}
         </h3>
         <span className="text-xs font-medium px-2 py-1 rounded-full border" style={{ color: levelLabel[displayHHI.level].textColor, borderColor: levelLabel[displayHHI.level].borderColor, backgroundColor: 'var(--bg-card)' }}>
@@ -87,21 +87,21 @@ export default function ConcentrationRisk({ items, lang }) {
       <div className="flex items-center gap-1.5 mb-3">
         {dims.map((d) => (
           <button key={d.key} onClick={() => setDimension(d.key)}
-            className="px-2 py-1 text-xs font-medium rounded-md transition-colors border"
+            className={`px-2 py-1 text-xs font-medium rounded-md transition-colors ${dimension === d.key ? 'pill-active' : 'border'}`}
             style={dimension === d.key
-              ? { backgroundColor: '#475569', color: '#ffffff', borderColor: '#475569' }
-              : { color: 'var(--text-secondary)', borderColor: 'rgba(71,85,105,0.5)' }}>
+              ? { color: 'var(--text-primary)' }
+              : { color: 'var(--text-secondary)', borderColor: 'var(--glass-border-color)' }}>
             {d.label}
           </button>
         ))}
       </div>
 
-      <div className="flex items-center gap-3 mb-3 px-2 py-1.5 bg-[#000000] rounded-lg border border-[#27272a]/50">
+      <div className="flex items-center gap-3 mb-3 px-2 py-1.5 bg-theme-base rounded-lg border border-glass-border/50">
         <span className="text-xs text-slate-500">HHI<InfoTip text={t('Índice Herfindahl-Hirschman. Mide la concentración del portafolio. Bajo 1500 = diversificado, 1500-2500 = moderado, arriba de 2500 = concentrado.', 'Herfindahl-Hirschman Index. Measures portfolio concentration. Below 1500 = diversified, 1500-2500 = moderate, above 2500 = concentrated.')} /></span>
         <div className="flex-1 h-1.5 bg-slate-700/30 rounded-full overflow-hidden">
           <div className="h-full rounded-full transition-all" style={{
             width: `${Math.min((displayHHI.hhi / 5000) * 100, 100)}%`,
-            backgroundColor: displayHHI.level === 'low' ? '#34d399' : displayHHI.level === 'medium' ? '#f59e0b' : '#ef4444',
+            backgroundColor: displayHHI.level === 'low' ? 'var(--accent-green)' : displayHHI.level === 'medium' ? '#f59e0b' : 'var(--accent-red)',
           }} />
         </div>
         <span className="text-xs font-bold text-slate-300">{displayHHI.hhi}</span>

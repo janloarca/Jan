@@ -95,13 +95,14 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
   const milestone = getMilestone(netWorth, displayReturn, lang)
 
   return (
-    <div className="bg-gradient-to-br from-[#1C1C1E] to-[#141416] rounded-2xl border border-[#38383A] p-6 card-hero">
+    <div className="bg-gradient-to-br from-theme-card to-theme-surface rounded-2xl p-6 card-hero"
+      style={{ backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)', boxShadow: 'var(--shadow-elevated)', border: 'var(--glass-border)' }}>
       {/* Greeting + currency picker */}
       <div className="flex items-center justify-between mb-4">
         <span className="text-xs text-slate-500 uppercase tracking-wider font-medium">{greeting}</span>
         <div className="flex items-center gap-2">
           {milestone.text && (
-            <span className="text-[11px] font-medium px-2 py-0.5 rounded-full"
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full"
               style={milestone.positive
                 ? { backgroundColor: 'rgba(52,211,153,0.1)', color: 'var(--accent-green)' }
                 : { backgroundColor: 'rgba(245,158,11,0.1)', color: '#fbbf24' }
@@ -109,15 +110,17 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
           )}
           <div className="relative" ref={pickerRef}>
             <button onClick={() => setShowPicker(!showPicker)}
-              className="text-xs px-2 py-0.5 rounded text-slate-500 hover:bg-slate-700 hover:text-slate-300 transition-colors cursor-pointer border border-transparent hover:border-[#27272a]">
+              className="text-xs px-2 py-0.5 rounded text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
+              style={{ border: '1px solid transparent', ...(showPicker ? { backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)', border: 'var(--glass-border)', backgroundColor: 'rgba(255,255,255,0.05)' } : {}) }}>
               {displayCur}
             </button>
             {showPicker && (
-              <div className="absolute right-0 top-full mt-1 bg-[#1C1C1E] border border-[#27272a] rounded-lg shadow-xl z-10 p-1 min-w-[80px]">
+              <div className="absolute right-0 top-full mt-1 bg-theme-card/80 rounded-lg z-10 p-1 min-w-[80px]"
+                style={{ backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)', boxShadow: 'var(--shadow-elevated)', border: 'var(--glass-border)' }}>
                 {QUICK_CURRENCIES.map((c) => (
                   <button key={c} onClick={() => { setTempCurrency(c === baseCur ? null : c); setShowPicker(false) }}
                     className="block w-full text-left px-3 py-1.5 text-xs rounded transition-colors"
-                    style={displayCur === c ? { color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.1)' } : { color: 'var(--text-secondary)' }}>
+                    style={displayCur === c ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.1)' } : { color: 'var(--text-secondary)' }}>
                     {c}
                   </button>
                 ))}
@@ -129,13 +132,13 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
 
       {/* KPI: Main value — Level 1 typography */}
       <div className="flex items-baseline gap-2 mb-0.5">
-        <p className="text-[2rem] sm:text-[2.5rem] leading-none text-white tracking-tight font-semibold font-mono tabular-nums">{formatCurrency(displayValue, displayCur)}</p>
+        <p className="text-[2.25rem] sm:text-[3rem] leading-none text-white tracking-tight font-bold font-mono tabular-nums drop-shadow-sm">{formatCurrency(displayValue, displayCur)}</p>
         <Sparkline snapshots={snapshots} />
       </div>
 
       {/* Sub-KPI: Daily change — Level 2 typography */}
       {dailyChange && isFinite(dailyChange.pct) && (
-        <p className="text-sm font-medium mt-1" style={{ color: isDayPositive ? '#34d399' : '#f87171' }}>
+        <p className="text-sm font-medium mt-1" style={{ color: isDayPositive ? 'var(--accent-green)' : 'var(--text-negative)' }}>
           <span className="font-mono tabular-nums">{isDayPositive ? '+' : ''}{formatCurrency(cv(dailyChange.abs), displayCur)} ({isDayPositive ? '+' : ''}{dailyChange.pct.toFixed(2)}%)</span>
           <span className="text-slate-600 font-normal ml-1.5 text-xs">{lang === 'es' ? 'hoy' : 'today'}</span>
         </p>
@@ -164,12 +167,12 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
 
       {/* Contributions vs Gains */}
       {netContributions != null && netContributions > 0 && (
-        <div className="mt-4 pt-3 border-t border-[#27272a]/50">
+        <div className="mt-4 pt-3 border-t border-glass-border/50">
           <div className="flex items-center justify-between text-xs mb-1.5">
             <span className="text-slate-500">{lang === 'es' ? 'Invertido' : 'Invested'}: <span className="text-slate-300 font-medium font-mono tabular-nums">{formatCurrency(cv(netContributions), displayCur)}</span></span>
-            <span className="text-slate-500">{lang === 'es' ? 'Ganancia' : 'Gains'}: <span className="font-medium font-mono tabular-nums" style={{ color: displayValue - cv(netContributions) >= 0 ? '#34d399' : '#f87171' }}>{formatCurrency(displayValue - cv(netContributions), displayCur)}</span></span>
+            <span className="text-slate-500">{lang === 'es' ? 'Ganancia' : 'Gains'}: <span className="font-medium font-mono tabular-nums" style={{ color: displayValue - cv(netContributions) >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>{formatCurrency(displayValue - cv(netContributions), displayCur)}</span></span>
           </div>
-          <div className="w-full h-1.5 bg-[#27272a]/50 rounded-full overflow-hidden flex">
+          <div className="w-full h-1.5 rounded-full overflow-hidden flex" style={{ backgroundColor: 'rgba(127,127,127,0.15)' }}>
             {(() => {
               const displayContrib = cv(netContributions)
               const contribPct = displayContrib > 0 && displayValue > 0
@@ -183,7 +186,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
               )
             })()}
           </div>
-          <div className="flex items-center gap-3 mt-1 text-[11px] text-slate-600">
+          <div className="flex items-center gap-3 mt-1 text-xs text-slate-600">
             <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'rgba(59,130,246,0.5)' }} />{lang === 'es' ? 'Invertido' : 'Invested'}</span>
             <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'rgba(52,211,153,0.5)' }} />{lang === 'es' ? 'Ganancias' : 'Gains'}</span>
           </div>
@@ -192,12 +195,12 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
 
       {/* Cash available */}
       {cashTotal != null && cashTotal > 0 && (
-        <div className={`${netContributions > 0 ? 'mt-2' : 'mt-4 pt-3 border-t border-[#27272a]/50'} flex items-center justify-between`}>
+        <div className={`${netContributions > 0 ? 'mt-2' : 'mt-4 pt-3 border-t border-glass-border/50'} flex items-center justify-between`}>
           <span className="text-xs text-slate-500 flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'rgba(6,182,212,0.6)' }} />
+            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'var(--accent-cyan)', opacity: 0.6 }} />
             {lang === 'es' ? 'Disponible' : 'Cash available'}
           </span>
-          <span className="text-xs font-medium font-mono tabular-nums" style={{ color: '#22d3ee' }}>{formatCurrency(cv(cashTotal), displayCur)}</span>
+          <span className="text-xs font-medium font-mono tabular-nums" style={{ color: 'var(--accent-cyan)' }}>{formatCurrency(cv(cashTotal), displayCur)}</span>
         </div>
       )}
     </div>
