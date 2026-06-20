@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { formatCurrency, getTypeCategory, TYPE_COLORS, CHART_PALETTE, getItemValue, getSectorFromItem, getGeographyFromItem, getInvestmentClass, INVESTMENT_CLASS_META } from './utils'
+import { formatCurrency, getTypeCategory, TYPE_COLORS, CHART_PALETTE, getItemValue, getSectorFromItem, getGeographyFromItem, getInvestmentClass, INVESTMENT_CLASS_META, isExcludedFromNetWorth } from './utils'
 
 export default function AssetAllocation({ items, lang }) {
   const [view, setView] = useState('type')
@@ -21,7 +21,7 @@ export default function AssetAllocation({ items, lang }) {
     const gainByGroup = {}
     let total = 0
     items.forEach((it) => {
-      if (it.isDebt) return
+      if (it.isDebt || isExcludedFromNetWorth(it)) return
       const val = getItemValue(it)
       if (val <= 0) return
       const key = fn(it)
@@ -45,7 +45,11 @@ export default function AssetAllocation({ items, lang }) {
       .sort((a, b) => b.value - a.value)
   }, [items, view, lang])
 
-  const totalValue = useMemo(() => items.reduce((s, it) => s + getItemValue(it), 0), [items])
+  const totalValue = useMemo(() => items.reduce((s, it) => {
+    if (it.isDebt || isExcludedFromNetWorth(it)) return s
+    const val = getItemValue(it)
+    return val > 0 ? s + val : s
+  }, 0), [items])
 
   if (items.length === 0) return null
 
