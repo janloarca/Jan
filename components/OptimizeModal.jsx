@@ -161,8 +161,9 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
 
   if (questions.length === 0) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="optimize-done-title">
-        <div className="bg-theme-card border border-glass-border rounded-xl shadow-2xl max-w-md w-full p-6 text-center" onClick={(e) => e.stopPropagation()}>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="optimize-done-title"
+        style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+        <div className="modal-glass max-w-md w-full p-6 text-center" onClick={(e) => e.stopPropagation()}>
           <div className="text-4xl mb-3">✅</div>
           <h3 id="optimize-done-title" className="text-lg font-bold text-white mb-2">{t('Todo en orden', 'All good')}</h3>
           <p className="text-sm text-slate-400 mb-4">{t('Tu portafolio tiene toda la información completa.', 'Your portfolio data is complete.')}</p>
@@ -219,8 +220,9 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
 
   if (isDone) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="optimize-complete-title">
-        <div className="bg-theme-card border border-glass-border rounded-xl shadow-2xl max-w-md w-full p-6 text-center" onClick={(e) => e.stopPropagation()}>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="optimize-complete-title"
+        style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+        <div className="modal-glass max-w-md w-full p-6 text-center" onClick={(e) => e.stopPropagation()}>
           <div className="text-4xl mb-3">🎉</div>
           <h3 id="optimize-complete-title" className="text-lg font-bold text-white mb-2">{t('¡Listo!', 'Done!')}</h3>
           <p className="text-sm text-slate-400 mb-4">{t('Tu portafolio está más actualizado.', 'Your portfolio is more up to date.')}</p>
@@ -235,8 +237,9 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
     : (q.item.quantity || 0) * (q.item.currentPrice || q.item.purchasePrice || 0)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="optimize-modal-title">
-      <div ref={trapRef} className="bg-theme-card border border-glass-border rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="optimize-modal-title"
+      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+      <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
           <div className="flex items-center gap-2">
             <span className="text-lg">✨</span>

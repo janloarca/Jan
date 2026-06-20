@@ -8,7 +8,7 @@ export default function SheetTabs({ sheets, activeSheet, onSelect, onAdd, onRena
   const [editName, setEditName] = useState('')
 
   return (
-    <div className="flex items-center gap-1 px-2 py-1.5 bg-theme-base border-t border-glass-border overflow-x-auto">
+    <div className="flex items-center gap-1 px-2 py-1.5 border-t overflow-x-auto" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--glass-border-color)' }}>
       {sheets.map((sheet) => (
         <div key={sheet.id} className="flex items-center group">
           {editing === sheet.id ? (

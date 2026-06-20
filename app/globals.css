@@ -345,6 +345,13 @@ textarea:focus-visible {
 [data-theme="light"] .border-cyan-500\/30 { border-color: rgba(0, 151, 167, 0.3) !important; }
 
 /* Custom scrollbar — glass style with fade */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+}
+[data-theme="light"] * {
+  scrollbar-color: rgba(0, 0, 0, 0.08) transparent;
+}
 ::-webkit-scrollbar {
   width: 5px;
   height: 5px;
@@ -366,6 +373,14 @@ textarea:focus-visible {
 }
 [data-theme="light"] ::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.15);
+}
+
+/* Smooth theme transition — class added/removed by SettingsModal on toggle */
+html.theme-transitioning,
+html.theme-transitioning *,
+html.theme-transitioning *::before,
+html.theme-transitioning *::after {
+  transition: background-color 0.35s ease, color 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease !important;
 }
 
 /* Status dot pulse animation */

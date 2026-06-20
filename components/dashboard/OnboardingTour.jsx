@@ -126,8 +126,9 @@ export default function OnboardingTour({ lang, onAction, onComplete }) {
   const current = steps[step]
 
   return (
-    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 transition-opacity duration-200 ${visible ? 'opacity-100' : 'opacity-0'}`}>
-      <div className="bg-theme-card border border-glass-border rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+    <div className={`fixed inset-0 z-[60] flex items-center justify-center p-4 transition-opacity duration-200 ${visible ? 'opacity-100' : 'opacity-0'}`}
+      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+      <div className="modal-glass max-w-md w-full overflow-hidden">
         <div className="p-8 text-center">
           <div className="flex justify-center mb-4">
             {(() => { const IconComp = ICON_MAP[current.icon]; return IconComp ? <IconComp size={40} style={{ color: 'var(--accent-blue)' }} /> : null })()}

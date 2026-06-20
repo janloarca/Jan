@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { formatCurrency, formatCompact, formatDate, computeModifiedDietz, getItemValue, buildIncomeEvents } from './utils'
 import { computeTWRSeries } from './analytics'
 import { authFetch, safeJson } from '@/lib/authFetch'
+import ErrorState from '@/components/ui/ErrorState'
 
 function polyline(pts) {
   return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
@@ -628,11 +629,13 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
   if (fetchError && chartData.length < 2) {
     return (
-      <div className="bg-theme-surface rounded-2xl border border-glass-border p-5 card-primary">
-        <div className="flex flex-col items-center justify-center min-h-[200px] gap-2">
-          <p className="text-sm" style={{ color: 'var(--text-negative)' }}>{fetchError}</p>
-          <button onClick={fetchHistory} className="text-xs" style={{ color: 'var(--accent-blue)' }}>{t('Reintentar', 'Retry')}</button>
-        </div>
+      <div className="card-glass rounded-2xl p-5">
+        <ErrorState
+          title={t('Error cargando gráfico', 'Error loading chart')}
+          message={fetchError}
+          onRetry={fetchHistory}
+          lang={lang}
+        />
       </div>
     )
   }

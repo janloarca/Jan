@@ -8,7 +8,14 @@ export default function EmptyState({ onAdd, onImport, onTemplate, lang }) {
   return (
     <div className="max-w-2xl mx-auto py-12 text-center">
       <div className="mb-6 flex justify-center">
-        <BarChart3 size={48} style={{ color: 'var(--accent-blue)' }} />
+        <div className="rounded-2xl p-4" style={{
+          backgroundColor: 'rgba(108,122,255,0.08)',
+          border: '1px solid rgba(108,122,255,0.15)',
+          backdropFilter: 'var(--glass-blur)',
+          WebkitBackdropFilter: 'var(--glass-blur)',
+        }}>
+          <BarChart3 size={48} style={{ color: 'var(--accent-blue)' }} />
+        </div>
       </div>
       <h2 className="text-2xl font-bold text-white mb-3">
         {t('Bienvenido a Chispudo', 'Welcome to Chispudo')}

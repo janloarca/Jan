@@ -167,14 +167,15 @@ export default function DashboardPage() {
   const handleSetTheme = useCallback((newTheme) => {
     setTheme(newTheme)
     if (typeof window !== 'undefined') {
-      if (newTheme === 'system') {
-        const sys = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-        document.documentElement.setAttribute('data-theme', sys)
-        localStorage.setItem('chispudo-theme', 'system')
-      } else {
-        document.documentElement.setAttribute('data-theme', newTheme)
-        localStorage.setItem('chispudo-theme', newTheme)
-      }
+      document.documentElement.classList.add('theme-transitioning')
+      const resolved = newTheme === 'system'
+        ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+        : newTheme
+      document.documentElement.setAttribute('data-theme', resolved)
+      localStorage.setItem('chispudo-theme', newTheme)
+      const tc = resolved === 'light' ? '#F0F2F8' : '#0A0A12'
+      document.querySelectorAll('meta[name="theme-color"]').forEach(m => m.setAttribute('content', tc))
+      setTimeout(() => document.documentElement.classList.remove('theme-transitioning'), 400)
     }
   }, [])
 

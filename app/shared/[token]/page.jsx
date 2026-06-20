@@ -20,19 +20,26 @@ export default function SharedPortfolioPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-theme-base flex items-center justify-center">
-        <div className="text-slate-400 animate-pulse">Loading portfolio...</div>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--bg-primary)' }}>
+        <div className="card-glass rounded-2xl p-8 text-center">
+          <div className="shimmer h-6 w-48 rounded mb-3 mx-auto" />
+          <div className="text-slate-400 text-sm">Loading portfolio...</div>
+        </div>
       </div>
     )
   }
 
   if (error || !data) {
     return (
-      <div className="min-h-screen bg-theme-base flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-4xl mb-4">🔒</div>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--bg-primary)' }}>
+        <div className="card-glass rounded-2xl p-8 text-center max-w-sm">
+          <div className="rounded-2xl p-3 inline-block mb-4" style={{ backgroundColor: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.15)' }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent-red)' }}>
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </div>
           <h1 className="text-xl font-bold text-white mb-2">Portfolio Not Found</h1>
-          <p className="text-slate-400">{error || 'This link is invalid or has expired.'}</p>
+          <p className="text-slate-400 text-sm">{error || 'This link is invalid or has expired.'}</p>
         </div>
       </div>
     )
@@ -47,7 +54,9 @@ function SharedDashboard({ items, snapshots, baseCurrency }) {
   const toggleTheme = useCallback(() => {
     const next = theme === 'dark' ? 'light' : 'dark'
     setTheme(next)
+    document.documentElement.classList.add('theme-transitioning')
     document.documentElement.setAttribute('data-theme', next)
+    setTimeout(() => document.documentElement.classList.remove('theme-transitioning'), 400)
   }, [theme])
   const totalAssets = useMemo(() =>
     items.reduce((s, it) => {
@@ -103,7 +112,7 @@ function SharedDashboard({ items, snapshots, baseCurrency }) {
 
   return (
     <div className="min-h-screen bg-theme-base">
-      <header className="border-b border-glass-border bg-theme-card/80 backdrop-blur-sm">
+      <header className="border-b border-glass-border" style={{ backgroundColor: 'var(--bg-card)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="font-bold text-lg" style={{ color: 'var(--accent-green)' }}>Chispudo</span>
