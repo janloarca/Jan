@@ -608,15 +608,15 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           if (p === 'CUSTOM') setShowCustomRange(true)
           else setShowCustomRange(false)
         }}
-          className="px-3 py-2 text-xs font-semibold rounded-md transition-all"
-          style={period === p ? { backgroundColor: '#3b82f6', color: '#fff' } : { color: 'var(--text-muted)' }}>{p === 'CUSTOM' ? (lang === 'es' ? 'Rango' : 'Range') : p}</button>
+          className={`px-3 py-2 text-xs font-semibold rounded-md transition-all ${period === p ? 'pill-active' : ''}`}
+          style={period === p ? { color: '#fff' } : { color: 'var(--text-muted)' }}>{p === 'CUSTOM' ? (lang === 'es' ? 'Rango' : 'Range') : p}</button>
       ))}
     </div>
   )
 
   if (loading && chartData.length < 2) {
     return (
-      <div className="bg-theme-surface rounded-2xl border border-glass-border p-5 card-primary">
+      <div className="card-glass rounded-2xl p-5">
         <div className="flex items-center justify-center min-h-[260px]">
           <div className="flex items-center gap-2 text-slate-500 text-sm">
             <div className="w-4 h-4 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
@@ -642,7 +642,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
   if (chartData.length < 2) {
     return (
-      <div className="bg-theme-surface rounded-2xl border border-glass-border p-5 card-primary">
+      <div className="card-glass rounded-2xl p-5">
         <div className="flex flex-col items-center justify-center min-h-[200px] gap-2 text-slate-500 text-sm">
           {period === 'DAY' ? (
             <>
@@ -664,7 +664,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const hd = hoverIdx != null ? chartData[hoverIdx] : null
 
   return (
-    <div ref={containerRef} className="bg-theme-surface rounded-2xl border border-glass-border p-5 card-primary">
+    <div ref={containerRef} className="card-glass rounded-2xl p-5">
       {/* Tab bar: Value | Performance */}
       <div className="flex items-center gap-4 mb-4">
         <button onClick={() => setViewMode('value')}
@@ -943,8 +943,13 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
           {/* Hover tooltip */}
           {hd && hp && (
-            <div className="absolute pointer-events-none bg-theme-base border border-[#475569] text-white text-xs rounded-lg px-3 py-2 shadow-xl z-10"
+            <div className="absolute pointer-events-none text-white text-xs rounded-lg px-3 py-2 z-10"
               style={{
+                background: 'var(--bg-card)',
+                backdropFilter: 'var(--glass-blur)',
+                WebkitBackdropFilter: 'var(--glass-blur)',
+                border: 'var(--glass-border)',
+                boxShadow: 'var(--shadow-elevated)',
                 left: `${Math.min(85, Math.max(15, (hp.x / width) * 100))}%`,
                 top: `${(hp.y / chartHeight) * 100 - 14}%`,
                 transform: 'translate(-50%, -100%)',

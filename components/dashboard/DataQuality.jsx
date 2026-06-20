@@ -37,15 +37,15 @@ export default function DataQuality({ items, lang }) {
 
   if (!quality || quality.score >= 95 || quality.total < 3) return null
 
-  const colorHex = quality.score >= 80 ? '#34d399' : quality.score >= 60 ? '#fbbf24' : '#f87171'
-  const barColorHex = quality.score >= 80 ? '#34d399' : quality.score >= 60 ? '#f59e0b' : '#ef4444'
+  const colorHex = quality.score >= 80 ? 'var(--accent-green)' : quality.score >= 60 ? '#fbbf24' : 'var(--accent-red)'
+  const barColorHex = quality.score >= 80 ? 'var(--accent-green)' : quality.score >= 60 ? '#f59e0b' : 'var(--accent-red)'
 
   return (
-    <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 px-4 py-3">
+    <div className="card-glass rounded-xl px-4 py-3">
       <div className="flex items-center gap-3">
         <div className="text-center shrink-0">
           <div className="text-lg font-bold" style={{ color: colorHex }}>{quality.score}%</div>
-          <div className="text-xs text-slate-600">{t('Calidad', 'Quality')}</div>
+          <div className="text-xs text-slate-500">{t('Calidad', 'Quality')}</div>
         </div>
         <div className="flex-1 min-w-0">
           <div className="h-1.5 bg-slate-700/50 rounded-full overflow-hidden mb-1.5">

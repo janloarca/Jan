@@ -52,7 +52,7 @@ export default function TopMovers({ items, transactions, lang }) {
   const top = withValue.slice(0, 3)
 
   return (
-    <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-4">
+    <div className="card-glass rounded-xl p-4">
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-3">
         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
         {lang === 'es' ? 'TOP POSICIONES' : 'TOP HOLDINGS'}
@@ -64,7 +64,7 @@ export default function TopMovers({ items, transactions, lang }) {
           const colors = TYPE_COLORS[cat] || TYPE_COLORS.other
           const isPos = it.retPct >= 0
           return (
-            <div key={it.id || it.symbol} className="flex items-center gap-3">
+            <div key={it.id || it.symbol} className="flex items-center gap-3 rounded-lg px-2 py-1 -mx-2 transition-colors hover:bg-[var(--bg-card-hover)]">
               <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
                 style={{ backgroundColor: colors.bg + '22', color: colors.bg }}>
                 {(it.symbol || '??').slice(0, 3).toUpperCase()}
@@ -78,7 +78,7 @@ export default function TopMovers({ items, transactions, lang }) {
                   <div className="flex-1 h-1.5 bg-slate-700/50 rounded-full overflow-hidden">
                     <div className="h-full rounded-full" style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: 'rgba(52,211,153,0.6)' }} />
                   </div>
-                  <span className="text-xs font-medium" style={{ color: isPos ? '#34d399' : '#f87171' }}>
+                  <span className="text-xs font-medium" style={{ color: isPos ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                     <span className="font-mono tabular-nums">{isFinite(it.retPct) ? `${isPos ? '+' : ''}${it.retPct.toFixed(1)}%` : '—'}</span>
                   </span>
                 </div>

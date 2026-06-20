@@ -120,7 +120,7 @@ export default function NotificationCenter({ items, transactions, lang }) {
     <div className="space-y-1.5">
       {isNotificationSupported() && pushPermission === 'default' && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg border text-xs"
-          style={{ backgroundColor: 'rgba(59,130,246,0.08)', borderColor: 'rgba(59,130,246,0.2)', color: 'var(--accent-blue)' }}>
+          style={{ backgroundColor: 'rgba(59,130,246,0.08)', borderColor: 'rgba(59,130,246,0.2)', color: 'var(--accent-blue)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
           <span>🔔</span>
           <span className="flex-1">{t('Activa notificaciones para alertas de pagos y vencimientos', 'Enable notifications for payment and maturity alerts')}</span>
           <button onClick={handleEnablePush} className="px-2 py-1 rounded text-xs font-medium transition-colors hover:opacity-90"
@@ -133,7 +133,7 @@ export default function NotificationCenter({ items, transactions, lang }) {
         const s = typeStyles[n.type] || typeStyles.info
         return (
           <div key={n.id} className="flex items-center gap-2 px-3 py-2 rounded-lg border text-xs"
-            style={{ backgroundColor: s.bg, borderColor: s.border, color: s.color }}>
+            style={{ backgroundColor: s.bg, borderColor: s.border, color: s.color, backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
             <span>{n.icon}</span>
             <span className="flex-1">{lang === 'es' ? n.textEs : n.textEn}</span>
             {n.value && <span className="font-medium shrink-0">{formatCurrency(n.value)}</span>}

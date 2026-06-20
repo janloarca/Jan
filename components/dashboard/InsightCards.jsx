@@ -7,11 +7,11 @@ import { generateInsights } from '@/lib/insights'
 // Reduces the "everything is colored" noise — color carries one meaning:
 // green = good money, red = problem, amber = attention, blue = action/info.
 const TYPE_ACCENT = {
-  success: { border: '#34d399', icon: '#34d399' },
+  success: { border: 'var(--accent-green)', icon: 'var(--accent-green)' },
   warning: { border: '#f59e0b', icon: '#fbbf24' },
-  danger: { border: '#ef4444', icon: '#f87171' },
-  info: { border: '#64748b', icon: '#94a3b8' },
-  cta: { border: '#3b82f6', icon: 'var(--accent-blue-soft)' },
+  danger: { border: 'var(--accent-red)', icon: 'var(--text-negative)' },
+  info: { border: 'var(--text-muted)', icon: 'var(--text-secondary)' },
+  cta: { border: 'var(--accent-blue)', icon: 'var(--accent-blue-soft)' },
 }
 
 const TYPE_ICONS = {
@@ -69,7 +69,7 @@ export default function InsightCards({ items, profile, netWorth, estimatedAnnual
         return (
           <div key={i}
             className={`p-3 rounded-lg border border-glass-border/50 ${card.action ? 'cursor-pointer hover:bg-theme-elevated/60 transition-colors' : ''}`}
-            style={{ backgroundColor: 'rgba(20,20,22,0.8)', borderLeftWidth: '2px', borderLeftColor: accent.border }}
+            style={{ background: 'var(--bg-card)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)', borderLeftWidth: '2px', borderLeftColor: accent.border }}
             onClick={card.action === 'profile' && onOpenSettings ? onOpenSettings : undefined}
             role={card.action ? 'button' : undefined}
             tabIndex={card.action ? 0 : undefined}
