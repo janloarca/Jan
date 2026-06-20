@@ -183,9 +183,9 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
 
   const months = useMemo(() => {
     const result = []
-    const endMonth = selectedYear === now.getFullYear() ? now.getMonth() : 11
+    const endMonth = selectedYear === now.getUTCFullYear() ? now.getUTCMonth() : 11
     for (let m = 0; m <= endMonth; m++) {
-      result.push(getMonthKey(new Date(selectedYear, m, 1)))
+      result.push(getMonthKey(new Date(Date.UTC(selectedYear, m, 1))))
     }
     return result
   }, [selectedYear])
@@ -285,15 +285,16 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       lastFetchedYearRef.current = selectedYear
       return
     }
-    lastFetchedYearRef.current = selectedYear
     setLoadingHistory(true)
 
     const itemsWithCategory = items.map(it => ({ ...it, _category: getTypeCategory(it) }))
+    const fetchYear = selectedYear
 
     let cancelled = false
     import('@/lib/historicalValues').then(({ getHistoricalItemValues }) => {
       getHistoricalItemValues(itemsWithCategory, missingMonths, convert, baseCurrency, lots, transactions).then(async (data) => {
         if (cancelled) return
+        lastFetchedYearRef.current = fetchYear
         setHistoricalItems(prev => {
           const merged = { ...prev }
           Object.entries(data).forEach(([mk, itemData]) => {
