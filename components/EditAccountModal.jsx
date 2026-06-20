@@ -167,6 +167,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         currency: itemCurrency,
         _linkedItemId: item.id,
         _source: 'manual_contribution',
+        ...(txType === 'DIVIDEND' && isBankLike ? { _reinvested: true } : {}),
       }
 
       let itemFields, newLot, lotClose

@@ -115,7 +115,7 @@ export function buildIncomeEvents(transactions, items, convert, baseTo = 'USD') 
     const cur = tx.currency || 'USD'
     const amount = convert ? convert(amtRaw, cur, baseTo) : amtRaw
     const linked = tx._linkedItemId ? byId.get(tx._linkedItemId) : null
-    const reinvested = tx._reinvested === true || (linked && linked.dividendAction === 'reinvest')
+    const reinvested = tx._reinvested === true || (linked && linked.dividendAction === 'reinvest') || tx._source === 'manual_contribution'
     out.push({
       itemId: tx._linkedItemId || null,
       symbol: tx.symbol || (linked && (linked.symbol || linked.name)) || null,
