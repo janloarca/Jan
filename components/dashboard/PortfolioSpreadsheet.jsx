@@ -48,7 +48,7 @@ const REWARD_ICONS = {
 }
 
 function getMonthKey(d) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
 }
 
 function getMonthLabel(key, lang) {
@@ -809,7 +809,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
             {months.length >= 2 && (
               <tr className="bg-white border-t border-slate-100">
                 <td className="py-2 pl-8 pr-2 sticky left-0 bg-white z-10 text-slate-500 text-xs">
-                  {t('Retorno Mensual', 'Monthly Return')}
+                  {t('Retorno Mensual (bruto)', 'Monthly Return (gross)')}
                 </td>
                 <td />
                 {showOriginal && <td />}
