@@ -58,13 +58,15 @@ export default function Tooltip({ text, children }) {
             transform: 'translateX(-50%)',
             marginBottom: '8px',
             padding: '8px 12px',
-            backgroundColor: '#1C1C1E',
-            color: '#ffffff',
+            backgroundColor: 'var(--bg-card)',
+            backdropFilter: 'var(--glass-blur)',
+            WebkitBackdropFilter: 'var(--glass-blur)',
+            color: 'var(--text-primary)',
             fontSize: '12px',
             lineHeight: '1.4',
-            borderRadius: '8px',
-            border: '1px solid #38383A',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+            borderRadius: '10px',
+            border: 'var(--glass-border)',
+            boxShadow: 'var(--shadow-elevated)',
             maxWidth: '250px',
             minWidth: '160px',
             width: 'max-content',
@@ -87,7 +89,7 @@ export default function Tooltip({ text, children }) {
               height: 0,
               borderLeft: '6px solid transparent',
               borderRight: '6px solid transparent',
-              borderTop: '6px solid #38383A',
+              borderTop: '6px solid var(--glass-border-color)',
             }}
           />
           <span
@@ -101,7 +103,7 @@ export default function Tooltip({ text, children }) {
               height: 0,
               borderLeft: '5px solid transparent',
               borderRight: '5px solid transparent',
-              borderTop: '5px solid #1C1C1E',
+              borderTop: '5px solid var(--bg-card)',
             }}
           />
         </span>
@@ -122,9 +124,9 @@ export function InfoTip({ text }) {
           height: '14px',
           fontSize: '10px',
           lineHeight: 1,
-          color: '#7c8a9c',
+          color: 'var(--text-muted)',
           borderRadius: '50%',
-          border: '1px solid #5a6577',
+          border: '1px solid var(--border-primary)',
           marginLeft: '4px',
           flexShrink: 0,
           userSelect: 'none',
