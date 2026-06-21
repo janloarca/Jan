@@ -224,30 +224,39 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   const itemSnapshotSavedRef = useRef(false)
   const lastFetchedYearRef = useRef(null)
 
+  const snapshotSig = snapshots?.length ?? 0
+  const txSig = transactions?.length ?? 0
+  const lotSig = lots?.length ?? 0
+  useEffect(() => {
+    lastFetchedYearRef.current = null
+  }, [snapshotSig, txSig, lotSig])
+
   useEffect(() => {
     if (!onLoadItemSnapshots || months.length === 0) return
     const toLoad = months.filter(mk => mk !== currentMonthKey)
     if (toLoad.length === 0) return
     let cancelled = false
+    const base = baseCurrency || 'USD'
     onLoadItemSnapshots(toLoad).then(data => {
       if (cancelled || !data) return
       const { __currencies = {}, ...monthData } = data
-      if (Object.keys(monthData).length === 0) return
-      // Cached snapshots were saved in the baseCurrency active at the time;
-      // convert if the user has changed baseCurrency since
-      const base = baseCurrency || 'USD'
-      const adjusted = {}
-      Object.entries(monthData).forEach(([mk, itemsForMonth]) => {
-        const savedCur = __currencies[mk]
-        if (savedCur && savedCur !== base && convert) {
-          adjusted[mk] = Object.fromEntries(Object.entries(itemsForMonth).map(([id, v]) =>
-            [id, { ...v, value: convert(v.value, savedCur, base) }]
-          ))
-        } else {
-          adjusted[mk] = itemsForMonth
-        }
+      setHistoricalItems(prev => {
+        const next = { ...prev }
+        toLoad.forEach(mk => {
+          if (!monthData[mk]) delete next[mk]
+        })
+        Object.entries(monthData).forEach(([mk, itemsForMonth]) => {
+          const savedCur = __currencies[mk]
+          if (savedCur && savedCur !== base && convert) {
+            next[mk] = Object.fromEntries(Object.entries(itemsForMonth).map(([id, v]) =>
+              [id, { ...v, value: convert(v.value, savedCur, base) }]
+            ))
+          } else {
+            next[mk] = itemsForMonth
+          }
+        })
+        return next
       })
-      setHistoricalItems(prev => ({ ...prev, ...adjusted }))
     })
     return () => { cancelled = true }
   }, [onLoadItemSnapshots, months, currentMonthKey, baseCurrency, convert])
