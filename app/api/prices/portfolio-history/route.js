@@ -215,7 +215,7 @@ export async function POST(request) {
     })
 
     if (Object.keys(allTimeSeries).length === 0 && staticItems.length === 0) {
-      return NextResponse.json({ dataPoints: [], staticTotal: 0 })
+      return NextResponse.json({ dataPoints: [], staticTotal: 0, staticPoints: [] })
     }
 
     const allTs = new Set()
@@ -242,30 +242,55 @@ export async function POST(request) {
       }
     }
 
+    // Static-only scope (e.g. a single fixed-value account) has no market history
+    // to anchor timestamps, which would leave the chart empty. Synthesize a weekly
+    // series across the period so fixed-value assets still plot a line.
+    if (allTs.size === 0 && staticItems.length > 0) {
+      const now = Date.now()
+      const acqs = staticItems.map((it) => validAcqTs(it.acquisitionDate)).filter((t) => t != null)
+      const SPAN = { DAY: 1, '1W': 7, '1M': 30, '3M': 90, '6M': 180, '1Y': 365 }
+      let start
+      if (per === 'YTD') start = Date.UTC(new Date().getUTCFullYear(), 0, 1)
+      else if (per === 'ALL') start = acqs.length > 0 ? Math.min(...acqs) : now - 365 * 86400000
+      else start = now - (SPAN[per] || 365) * 86400000
+      if (acqs.length > 0) start = Math.min(start, ...acqs)
+      const step = per === 'DAY' || per === '1W' ? 86400000 : 7 * 86400000
+      for (let t = start; t < now; t += step) allTs.add(t)
+      allTs.add(now)
+    }
+
     const sortedTs = [...allTs].sort((a, b) => a - b)
 
+    const staticPoints = []
     const dataPoints = sortedTs.map((ts) => {
       let total = 0
+      let staticSubtotal = 0
 
       staticItems.forEach((it) => {
         const acqTs = it.acquisitionDate ? new Date(it.acquisitionDate).getTime() : 0
         if (ts < acqTs) return
         let v = (it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0)
-        // Add reinvested interest paid into THIS bond up to ts as a step-up.
-        // Market assets get their reinvested shares via lots (qtyAtTime) instead,
-        // so income step-ups apply only to static items to avoid double-counting.
+        // The current value already includes interest/dividends paid INTO this
+        // asset (a bond that reinvests, or a cash account credited by another
+        // asset's dividend). So reconstruct the past by REVERSING income that
+        // happened AFTER ts — the value steps down before each payment. Market
+        // assets get their reinvested shares via lots (qtyAtTime) instead, so
+        // this applies only to static items, avoiding double-counting.
         if (incomeEvents.length > 0) {
           const itId = it.id || null
           const itSym = (it.symbol || '').toUpperCase().trim() || null
           for (const ev of incomeEvents) {
-            if (ev.ts > ts) continue
+            if (ev.ts <= ts) continue
             const match = (ev.itemId && itId && ev.itemId === itId)
               || (!ev.itemId && ev.symbol && itSym && ev.symbol === itSym)
-            if (match) v += ev.amount
+            if (match) v -= ev.amount
           }
+          if (v < 0) v = 0
         }
+        staticSubtotal += v
         total += v
       })
+      staticPoints.push({ ts, value: Math.round(staticSubtotal * 100) / 100 })
 
       Object.entries(allTimeSeries).forEach(([, data]) => {
         let price = null
@@ -295,7 +320,7 @@ export async function POST(request) {
       return s + (it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0)
     }, 0)
 
-    return NextResponse.json({ dataPoints, staticTotal })
+    return NextResponse.json({ dataPoints, staticTotal, staticPoints })
   } catch (err) {
     console.error('portfolio-history error:', err)
     return NextResponse.json({ error: 'Internal server error', dataPoints: [] }, { status: 500 })

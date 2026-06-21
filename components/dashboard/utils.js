@@ -107,6 +107,7 @@ export function isExcludedFromNetWorth(item) {
 export function buildIncomeEvents(transactions, items, convert, baseTo = 'USD') {
   if (!transactions || transactions.length === 0) return []
   const byId = new Map((items || []).map((it) => [it.id, it]))
+  const bySym = new Map((items || []).map((it) => [(it.symbol || '').toUpperCase(), it]))
   const out = []
   for (const tx of transactions) {
     if ((tx.type || '').toUpperCase() !== 'DIVIDEND') continue
@@ -119,6 +120,17 @@ export function buildIncomeEvents(transactions, items, convert, baseTo = 'USD') 
       || (linked && linked.dividendAction === 'reinvest')
       || tx._source === 'manual_contribution'
       || !tx._linkedItemId
+    // A cash dividend routed to a destination account steps up THAT account's
+    // historical balance from the payment date onward (its current value already
+    // reflects it). Attribute it to the destination — not the source, which keeps
+    // its principal flat — and mark it as a step-up so the API keeps it.
+    const dest = (!reinvested && linked && linked.incomeDestination)
+      ? (byId.get(linked.incomeDestination) || bySym.get(String(linked.incomeDestination).toUpperCase()))
+      : null
+    if (dest) {
+      out.push({ itemId: dest.id || null, symbol: dest.symbol || dest.name || null, date: tx.date, amount, reinvested: true })
+      continue
+    }
     out.push({
       itemId: tx._linkedItemId || null,
       symbol: tx.symbol || (linked && (linked.symbol || linked.name)) || null,

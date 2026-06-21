@@ -452,7 +452,10 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
           ((ei.type || '').toLowerCase() === 'bank' && (ei.institution || '').toLowerCase() === inst.toLowerCase() && /cash/i.test(ei.name || ei.symbol || ''))
         )
         if (!cashExists) {
-          await onAdd({ type: 'Bank', symbol: cashSymbol, name: `${inst} - Cash`, institution: inst, currency: form.currency, quantity: 1, purchasePrice: 0, currentPrice: 0, accountType: form.accountType, ...(activeEntity && activeEntity !== 'default' ? { entityId: activeEntity } : {}) })
+          // Inherit the source asset's purchase date so the cash account has real
+          // history (income paid into it can step up from the right month) instead
+          // of appearing to start the day it was auto-created.
+          await onAdd({ type: 'Bank', symbol: cashSymbol, name: `${inst} - Cash`, institution: inst, currency: form.currency, quantity: 1, purchasePrice: 0, currentPrice: 0, accountType: form.accountType, acquisitionDate: form.acquisitionDate || new Date().toISOString().split('T')[0], ...(activeEntity && activeEntity !== 'default' ? { entityId: activeEntity } : {}) })
         }
         item.incomeDestination = cashSymbol
       }

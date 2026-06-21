@@ -63,6 +63,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const [loading, setLoading] = useState(false)
   const [fetchError, setFetchError] = useState(null)
   const [staticTotal, setStaticTotal] = useState(0)
+  const [staticPoints, setStaticPoints] = useState([])
   const [viewMode, setViewMode] = useState('value')
   const [returnMode, setReturnMode] = useState('twr')
   const [benchmarkPts, setBenchmarkPts] = useState(null)
@@ -200,6 +201,9 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         setStaticTotal(data.staticTotal != null
           ? (baseCurrency !== 'USD' && convert ? convert(data.staticTotal, 'USD', baseCurrency) : data.staticTotal)
           : 0)
+        let sp = data.staticPoints || []
+        if (baseCurrency !== 'USD' && convert) sp = sp.map(p => ({ ts: p.ts, value: convert(p.value, 'USD', baseCurrency) }))
+        setStaticPoints(sp)
       }
     } catch (err) {
       if (!mountedRef.current) return
@@ -234,6 +238,11 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
   const snapshotData = useMemo(() => {
     if (!snapshots || snapshots.length === 0) return []
+    // Whole-portfolio NAV snapshots can't be split per account. When viewing a
+    // single manual (non-IBKR) institution they would draw the entire portfolio's
+    // curve and then crash to the scoped value at the end — so fall back to the
+    // (correctly scoped) API series. IBKR-backed views keep using snapshots.
+    if (selectedInst !== 'ALL' && scopedItems.length > 0 && scopedItems.every(it => it._source !== 'ibkr')) return []
     const now = Date.now()
     const bc = baseCurrency || 'USD'
     const convertVal = (s) => {
@@ -278,6 +287,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         ts: new Date(s.date).getTime(),
         date: new Date(s.date),
         value: convertVal(s),
+        src: s._source || null,
       }))
       .filter((p) => p.value > 0)
 
@@ -308,13 +318,30 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     }
 
     return pts
-  }, [snapshots, period, convert, baseCurrency, customRange, currentTotal])
+  }, [snapshots, period, convert, baseCurrency, customRange, currentTotal, selectedInst, scopedItems])
 
   const chartData = useMemo(() => {
+    // IBKR-sourced snapshots are the broker's account NAV only — they predate any
+    // manually-added assets (a bond, a cash fund), so on the "Todas" (all) view
+    // those assets would otherwise pop in only at the present. Overlay their
+    // reconstructed historical value (staticPoints, from the API) onto each IBKR
+    // snapshot so they show from their purchase date. Daily snapshots already
+    // include them, so only IBKR-source points get the overlay.
+    const staticAt = (ts) => {
+      if (!staticPoints || staticPoints.length === 0) return 0
+      let v = 0
+      for (const sp of staticPoints) { if (sp.ts <= ts) v = sp.value; else break }
+      return v
+    }
+    const overlay = selectedInst === 'ALL' && staticPoints.length > 0
+    const snapSource = overlay
+      ? snapshotData.map((p) => p.src === 'ibkr' ? { ...p, value: p.value + staticAt(p.ts) } : p)
+      : snapshotData
+
     const apiPts = dataPoints.length >= 2
       ? dataPoints.map((dp) => ({ ts: dp.ts, date: new Date(dp.ts), value: dp.total }))
       : []
-    const snapPts = snapshotData.length >= 2 ? [...snapshotData] : []
+    const snapPts = snapSource.length >= 2 ? [...snapSource] : []
 
     let pts
 
@@ -384,7 +411,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       }
     }
     return pts
-  }, [dataPoints, snapshotData, currentTotal, period])
+  }, [dataPoints, snapshotData, currentTotal, period, staticPoints, selectedInst])
 
   const mwrData = useMemo(() => {
     if (chartData.length < 2) return []
