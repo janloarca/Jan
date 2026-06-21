@@ -223,24 +223,63 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
 
     async function processDividends() {
-      // Clean up excess auto-dividends from items that don't have explicit month config
+      // Clean up stale auto-dividends so a previous schedule doesn't leave ghost
+      // payments behind (e.g. monthly dividends lingering after switching to a
+      // May+December schedule, which showed up as a staircase on the chart).
+      // Any deleted payment that had been credited to a destination account must
+      // also be reversed out of that account's balance — accumulate per
+      // destination and apply once so the balance lands on the right figure.
+      const destReversal = {}
+      const queueReversal = (it, tx) => {
+        if (!it.incomeDestination) return
+        const amt = Number(tx.totalAmount ?? tx.amount ?? 0)
+        if (!(amt > 0)) return
+        const key = it.incomeDestination
+        if (!destReversal[key]) destReversal[key] = { amount: 0, currency: tx.currency || it._originalCurrency || 'USD' }
+        destReversal[key].amount += amt
+      }
       for (const it of scheduled) {
         if (cancelled) return
-        if (it.incomeMonthsExplicit) continue
         const sym = it.symbol || it.name
         const autoDivs = transactions.filter(tx =>
           tx._source === 'auto' &&
           (tx.type || '').toUpperCase() === 'DIVIDEND' &&
           (tx._linkedItemId === it.id || (!tx._linkedItemId && tx.symbol === sym))
         )
-        if (autoDivs.length > 1) {
-          // Keep only the most recent auto-dividend, delete the rest
+        if (it.incomeMonthsExplicit) {
+          // Explicit schedule: drop any auto-dividend whose month is no longer
+          // configured to pay, and de-duplicate within a configured month.
+          const payMonths = Array.isArray(it.incomeMonths) ? it.incomeMonths : []
+          const seen = new Set()
+          for (const tx of [...autoDivs].sort((a, b) => (a.date || '').localeCompare(b.date || ''))) {
+            if (!tx.date || !tx.id || !deleteTransaction) continue
+            const d = new Date(tx.date)
+            const key = `${d.getUTCFullYear()}-${d.getUTCMonth()}`
+            const inSchedule = payMonths.includes(d.getUTCMonth())
+            if (!inSchedule || seen.has(key)) {
+              queueReversal(it, tx)
+              await deleteTransaction(tx.id)
+            } else {
+              seen.add(key)
+            }
+          }
+        } else if (autoDivs.length > 1) {
+          // No explicit schedule: keep only the most recent auto-dividend.
           const sorted = [...autoDivs].sort((a, b) => (b.date || '').localeCompare(a.date || ''))
           for (let i = 1; i < sorted.length; i++) {
             if (sorted[i].id && deleteTransaction) {
+              queueReversal(it, sorted[i])
               await deleteTransaction(sorted[i].id)
             }
           }
+        }
+      }
+      // Apply each destination's total reversal once (reading its balance fresh).
+      for (const [destKey, rev] of Object.entries(destReversal)) {
+        if (cancelled) return
+        const dest = enrichedItems.find((d) => (d.id || d.symbol) === destKey)
+        if (dest && rev.amount > 0) {
+          try { await addToDestination(dest, -rev.amount, rev.currency) } catch (e) { console.error('[dividend-cleanup-reversal]', e.message) }
         }
       }
 
