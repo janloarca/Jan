@@ -100,6 +100,17 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     const inst = institutions.find((i) => i.name === selectedInst)
     return inst ? inst.items : []
   }, [selectedInst, items, institutions])
+
+  // When the manually-added (non-IBKR) assets were first created. Daily snapshots
+  // from before this date are broker-only and need the manual-asset overlay; later
+  // ones already include them.
+  const manualAddedTs = useMemo(() => {
+    const ts = (items || [])
+      .filter((it) => it._source !== 'ibkr' && it.createdAt)
+      .map((it) => new Date(it.createdAt).getTime())
+      .filter((t) => isFinite(t))
+    return ts.length > 0 ? Math.min(...ts) : 0
+  }, [items])
   const benchmarkPeriodMap = { DAY: '1M', '1W': '1M', MTD: '1M', '1M': '1M', '3M': '3M', '6M': '6M', YTD: 'YTD', '1Y': '1Y', ALL: 'ALL' }
 
   useEffect(() => {
@@ -324,9 +335,11 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     // IBKR-sourced snapshots are the broker's account NAV only — they predate any
     // manually-added assets (a bond, a cash fund), so on the "Todas" (all) view
     // those assets would otherwise pop in only at the present. Overlay their
-    // reconstructed historical value (staticPoints, from the API) onto each IBKR
-    // snapshot so they show from their purchase date. Daily snapshots already
-    // include them, so only IBKR-source points get the overlay.
+    // reconstructed historical value (staticPoints, from the API) onto each
+    // snapshot that does NOT already include them: IBKR-source snapshots (always
+    // broker-only), and daily snapshots taken before the manual assets were added.
+    // Daily snapshots from after they were added already include them, so skip
+    // those to avoid double-counting (which created a phantom mid-year crash).
     const staticAt = (ts) => {
       if (!staticPoints || staticPoints.length === 0) return 0
       let v = 0
@@ -334,8 +347,9 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       return v
     }
     const overlay = selectedInst === 'ALL' && staticPoints.length > 0
+    const needsOverlay = (p) => p.src === 'ibkr' || (manualAddedTs > 0 && p.ts < manualAddedTs)
     const snapSource = overlay
-      ? snapshotData.map((p) => p.src === 'ibkr' ? { ...p, value: p.value + staticAt(p.ts) } : p)
+      ? snapshotData.map((p) => needsOverlay(p) ? { ...p, value: p.value + staticAt(p.ts) } : p)
       : snapshotData
 
     const apiPts = dataPoints.length >= 2
@@ -411,7 +425,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       }
     }
     return pts
-  }, [dataPoints, snapshotData, currentTotal, period, staticPoints, selectedInst])
+  }, [dataPoints, snapshotData, currentTotal, period, staticPoints, selectedInst, manualAddedTs])
 
   const mwrData = useMemo(() => {
     if (chartData.length < 2) return []
@@ -463,8 +477,16 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const contributionLine = useMemo(() => {
     if (viewMode !== 'value' || !transactions || chartData.length < 2) return null
     const flowTypes = { DEPOSIT: 1, WITHDRAWAL: -1 }
+    // Scope contributions to the selected account — otherwise one account's
+    // deposits (e.g. a bond's purchase) show up as invested capital on another
+    // (e.g. a cash fund that only ever received income, never a deposit).
+    const scopedIds = new Set(scopedItems.map((it) => it.id).filter(Boolean))
+    const scopedSyms = new Set(scopedItems.map((it) => (it.symbol || '').toUpperCase()).filter(Boolean))
+    const inScope = (tx) => selectedInst === 'ALL'
+      || (tx._linkedItemId && scopedIds.has(tx._linkedItemId))
+      || (tx.symbol && scopedSyms.has((tx.symbol || '').toUpperCase()))
     const txs = transactions
-      .filter(tx => flowTypes[tx.type] != null)
+      .filter(tx => flowTypes[tx.type] != null && inScope(tx))
       .sort((a, b) => new Date(a.date) - new Date(b.date))
 
     const startVal = chartData[0].value
@@ -480,7 +502,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       }
       return cum
     })
-  }, [chartData, transactions, viewMode, convert, baseCurrency])
+  }, [chartData, transactions, viewMode, convert, baseCurrency, scopedItems, selectedInst])
 
   const drawdown = useMemo(() => {
     if (chartData.length < 3) return null
