@@ -191,34 +191,60 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   }, [selectedYear])
 
   const monthlyTotals = useMemo(() => {
-    if (!snapshots || snapshots.length === 0) return {}
     const base = baseCurrency || 'USD'
-    const dates = {}
-    const byMonth = {}
-    snapshots.forEach(s => {
-      if (!s.date) return
-      const key = getMonthKey(new Date(s.date))
-      const val = s.netWorthUSD ?? s.totalActivosUSD ?? 0
-      if (val === 0) return
-      const sDate = new Date(s.date)
-      if (!dates[key] || sDate > dates[key]) {
-        dates[key] = sDate
-        byMonth[key] = convert ? convert(val, 'USD', base) : val
-      }
-    })
-    // Drop an isolated corrupt/stale monthly total (e.g. a bad NAV snapshot a
-    // later sync never overwrote): a value <55% of BOTH chronological neighbors
-    // is a phantom dip, not real — remove it so it doesn't poison the TOTAL row
-    // and the proportional estimates.
-    const keys = Object.keys(byMonth).sort()
-    for (let i = 1; i < keys.length - 1; i++) {
-      const prev = byMonth[keys[i - 1]], cur = byMonth[keys[i]], next = byMonth[keys[i + 1]]
-      if (prev > 0 && next > 0 && cur < prev * 0.55 && cur < next * 0.55) {
-        delete byMonth[keys[i]]
+    // Snapshot NAV per month — used as a fallback for months that have no per-item
+    // reconstruction yet. These snapshots are IBKR/broker NAV and omit manually
+    // added assets, so they are NOT the source of truth for the TOTAL row.
+    const snapByMonth = {}
+    if (snapshots && snapshots.length) {
+      const dates = {}
+      snapshots.forEach(s => {
+        if (!s.date) return
+        const key = getMonthKey(new Date(s.date))
+        const val = s.netWorthUSD ?? s.totalActivosUSD ?? 0
+        if (val === 0) return
+        const sDate = new Date(s.date)
+        if (!dates[key] || sDate > dates[key]) {
+          dates[key] = sDate
+          snapByMonth[key] = convert ? convert(val, 'USD', base) : val
+        }
+      })
+      const keys = Object.keys(snapByMonth).sort()
+      for (let i = 1; i < keys.length - 1; i++) {
+        const prev = snapByMonth[keys[i - 1]], cur = snapByMonth[keys[i]], next = snapByMonth[keys[i + 1]]
+        if (prev > 0 && next > 0 && cur < prev * 0.55 && cur < next * 0.55) {
+          delete snapByMonth[keys[i]]
+        }
       }
     }
-    return byMonth
-  }, [snapshots, convert, baseCurrency])
+    // Prefer summing the per-item reconstruction: IBKR items are already scaled to
+    // the snapshot NAV and summed together with manually-added static assets, so
+    // the TOTAL row matches the sum of the category rows AND includes assets the
+    // broker-only snapshots leave out (a bond, a cash fund). Fall back to the raw
+    // snapshot NAV for any month not reconstructed yet.
+    const result = {}
+    const allKeys = new Set([...Object.keys(snapByMonth), ...Object.keys(historicalItems)])
+    allKeys.forEach(mk => {
+      const hist = historicalItems[mk]
+      if (hist && Object.keys(hist).length > 0) {
+        let sum = 0
+        const seen = new Set()
+        items.forEach(it => {
+          if (it.id && hist[it.id]) {
+            sum += (it.isDebt ? -1 : 1) * (hist[it.id].value || 0)
+            seen.add(it.id)
+          }
+        })
+        Object.entries(hist).forEach(([id, v]) => {
+          if (!seen.has(id)) sum += v.value || 0
+        })
+        result[mk] = sum
+      } else if (snapByMonth[mk] != null) {
+        result[mk] = snapByMonth[mk]
+      }
+    })
+    return result
+  }, [snapshots, convert, baseCurrency, historicalItems, items])
 
   const [historicalItems, setHistoricalItems] = useState({})
   const itemSnapshotSavedRef = useRef(false)
