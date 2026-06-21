@@ -190,6 +190,8 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     return result
   }, [selectedYear])
 
+  const [historicalItems, setHistoricalItems] = useState({})
+
   const monthlyTotals = useMemo(() => {
     const base = baseCurrency || 'USD'
     // Snapshot NAV per month — used as a fallback for months that have no per-item
@@ -246,7 +248,6 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     return result
   }, [snapshots, convert, baseCurrency, historicalItems, items])
 
-  const [historicalItems, setHistoricalItems] = useState({})
   const itemSnapshotSavedRef = useRef(false)
   const lastFetchedYearRef = useRef(null)
 
