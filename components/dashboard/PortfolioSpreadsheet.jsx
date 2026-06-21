@@ -270,6 +270,10 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     if (!items || items.length === 0) return
     if (!onSaveItemSnapshots) return
     if (lastFetchedYearRef.current === selectedYear) return
+    // IBKR items are reconstructed from equity snapshots — wait for them to load
+    // before computing/caching, so we never bake unscaled values into the cache.
+    const hasIBKR = items.some(it => it._source === 'ibkr')
+    if (hasIBKR && (!snapshots || snapshots.length === 0)) return
     const pastMonths = months.filter(mk => mk !== currentMonthKey)
     if (pastMonths.length === 0) return
 
@@ -292,7 +296,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
 
     let cancelled = false
     import('@/lib/historicalValues').then(({ getHistoricalItemValues }) => {
-      getHistoricalItemValues(itemsWithCategory, missingMonths, convert, baseCurrency, lots, transactions).then(async (data) => {
+      getHistoricalItemValues(itemsWithCategory, missingMonths, convert, baseCurrency, lots, transactions, snapshots).then(async (data) => {
         if (cancelled) return
         lastFetchedYearRef.current = fetchYear
         setHistoricalItems(prev => {
@@ -312,7 +316,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       }).catch(() => { if (!cancelled) setLoadingHistory(false) })
     }).catch(() => { if (!cancelled) setLoadingHistory(false) })
     return () => { cancelled = true }
-  }, [items, months, currentMonthKey, historicalItems, convert, baseCurrency, onSaveItemSnapshots, lots, transactions, selectedYear])
+  }, [items, months, currentMonthKey, historicalItems, convert, baseCurrency, onSaveItemSnapshots, lots, transactions, selectedYear, snapshots])
 
   const itemValue = useCallback((item) => {
     return showOriginal ? getOriginalValue(item) : getItemValue(item)
