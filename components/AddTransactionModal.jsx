@@ -65,10 +65,10 @@ export default function AddTransactionModal({ onClose, onAdd, lang = 'es' }) {
       <div ref={trapRef} className="bg-theme-card border border-glass-border rounded-xl shadow-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
           <h2 id="add-tx-modal-title" className="text-lg font-bold text-white">{t('Registrar Transacción', 'Record Transaction')}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label="Close">&times;</button>
+          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label="Close add transaction modal">&times;</button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-3">
-          {error && <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-sm">{error}</div>}
+          {error && <div role="alert" aria-live="assertive" className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-sm">{error}</div>}
 
           {/* Type pills */}
           <div>
@@ -89,20 +89,20 @@ export default function AddTransactionModal({ onClose, onAdd, lang = 'es' }) {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-slate-400 mb-1 block">{t('Símbolo', 'Symbol')}</label>
-              <input value={form.symbol} onChange={(e) => set('symbol', e.target.value)}
+              <label htmlFor="tx-symbol" className="text-xs text-slate-400 mb-1 block">{t('Símbolo', 'Symbol')}</label>
+              <input id="tx-symbol" value={form.symbol} onChange={(e) => set('symbol', e.target.value)}
                 placeholder="AAPL" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
             </div>
             <div>
-              <label className="text-xs text-slate-400 mb-1 block">{t('Fecha', 'Date')}</label>
-              <input value={form.date} onChange={(e) => set('date', e.target.value)}
+              <label htmlFor="tx-date" className="text-xs text-slate-400 mb-1 block">{t('Fecha', 'Date')}</label>
+              <input id="tx-date" value={form.date} onChange={(e) => set('date', e.target.value)}
                 type="date" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
             </div>
           </div>
 
           <div>
-            <label className="text-xs text-slate-400 mb-1 block">{t('Descripción', 'Description')}</label>
-            <input value={form.description} onChange={(e) => set('description', e.target.value)}
+            <label htmlFor="tx-description" className="text-xs text-slate-400 mb-1 block">{t('Descripción', 'Description')}</label>
+            <input id="tx-description" value={form.description} onChange={(e) => set('description', e.target.value)}
               placeholder={t('Compra de acciones...', 'Stock purchase...')}
               className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
           </div>
@@ -110,13 +110,13 @@ export default function AddTransactionModal({ onClose, onAdd, lang = 'es' }) {
           {form.type === 'DIVIDEND' || form.type === 'DEPOSIT' || form.type === 'WITHDRAWAL' ? (
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-slate-400 mb-1 block">{t('Monto', 'Amount')}</label>
-                <input value={form.totalAmount} onChange={(e) => set('totalAmount', e.target.value)}
+                <label htmlFor="tx-amount" className="text-xs text-slate-400 mb-1 block">{t('Monto', 'Amount')}</label>
+                <input id="tx-amount" value={form.totalAmount} onChange={(e) => set('totalAmount', e.target.value)}
                   placeholder="500" type="number" step="any" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
               </div>
               <div>
-                <label className="text-xs text-slate-400 mb-1 block">{t('Moneda', 'Currency')}</label>
-                <select value={form.currency} onChange={(e) => set('currency', e.target.value)}
+                <label htmlFor="tx-currency-1" className="text-xs text-slate-400 mb-1 block">{t('Moneda', 'Currency')}</label>
+                <select id="tx-currency-1" value={form.currency} onChange={(e) => set('currency', e.target.value)}
                   className="w-full px-2 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
                   {['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY'].map((c) => (
                     <option key={c} value={c}>{c}</option>
@@ -127,24 +127,24 @@ export default function AddTransactionModal({ onClose, onAdd, lang = 'es' }) {
           ) : (
             <div className="grid grid-cols-4 gap-3">
               <div>
-                <label className="text-xs text-slate-400 mb-1 block">{t('Cantidad', 'Qty')}</label>
-                <input value={form.quantity} onChange={(e) => set('quantity', e.target.value)}
+                <label htmlFor="tx-quantity" className="text-xs text-slate-400 mb-1 block">{t('Cantidad', 'Qty')}</label>
+                <input id="tx-quantity" value={form.quantity} onChange={(e) => set('quantity', e.target.value)}
                   placeholder="10" type="number" step="any" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
               </div>
               <div>
-                <label className="text-xs text-slate-400 mb-1 block">{t('Precio', 'Price')}</label>
-                <input value={form.pricePerUnit} onChange={(e) => set('pricePerUnit', e.target.value)}
+                <label htmlFor="tx-price" className="text-xs text-slate-400 mb-1 block">{t('Precio', 'Price')}</label>
+                <input id="tx-price" value={form.pricePerUnit} onChange={(e) => set('pricePerUnit', e.target.value)}
                   placeholder="150" type="number" step="any" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
               </div>
               <div>
-                <label className="text-xs text-slate-400 mb-1 block">Total</label>
-                <input value={form.totalAmount} onChange={(e) => set('totalAmount', e.target.value)}
+                <label htmlFor="tx-total" className="text-xs text-slate-400 mb-1 block">Total</label>
+                <input id="tx-total" value={form.totalAmount} onChange={(e) => set('totalAmount', e.target.value)}
                   placeholder={form.quantity && form.pricePerUnit ? (parseFloat(form.quantity) * parseFloat(form.pricePerUnit)).toFixed(2) : '1500'}
                   type="number" step="any" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
               </div>
               <div>
-                <label className="text-xs text-slate-400 mb-1 block">{t('Moneda', 'Currency')}</label>
-                <select value={form.currency} onChange={(e) => set('currency', e.target.value)}
+                <label htmlFor="tx-currency-2" className="text-xs text-slate-400 mb-1 block">{t('Moneda', 'Currency')}</label>
+                <select id="tx-currency-2" value={form.currency} onChange={(e) => set('currency', e.target.value)}
                   className="w-full px-2 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
                   {['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY'].map((c) => (
                     <option key={c} value={c}>{c}</option>

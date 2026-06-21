@@ -521,12 +521,12 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               <div className="w-2 h-2 rounded-full" style={{ backgroundColor: step >= 1 ? 'var(--accent-blue-soft)' : 'var(--card-border, #38383A)' }} />
               <div className="w-2 h-2 rounded-full" style={{ backgroundColor: step >= 2 ? 'var(--accent-blue-soft)' : 'var(--card-border, #38383A)' }} />
             </div>
-            <button onClick={onClose} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-xl leading-none" aria-label="Close">&times;</button>
+            <button onClick={onClose} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-xl leading-none" aria-label="Close add asset modal">&times;</button>
           </div>
         </div>
 
         <form onSubmit={step === 1 ? (e) => { e.preventDefault(); goToStep2() } : handleSubmit} className="p-6 space-y-4">
-          {error && <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-sm">{error}</div>}
+          {error && <div role="alert" aria-live="assertive" className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-sm">{error}</div>}
 
           {/* === STEP 1 === */}
           {step === 1 && (<>
@@ -563,14 +563,14 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             {isMarketAsset && (
               <div className="space-y-3">
                 <div className="relative">
-                  <label className={labelCls}>
+                  <label htmlFor="add-symbol" className={labelCls}>
                     {t('Buscar activo', 'Search asset')} *
                     <span className="text-[var(--text-muted,#475569)] ml-1 font-normal">
                       {type === 'Stock' ? '(AAPL, Apple...)' : type === 'Crypto' ? '(BTC, Bitcoin...)' : '(VOO, Vanguard...)'}
                     </span>
                   </label>
                   <div className="relative">
-                    <input ref={inputRef} value={form.symbol}
+                    <input id="add-symbol" ref={inputRef} value={form.symbol}
                       onChange={e => { set('symbol', e.target.value); setShowDropdown(true) }}
                       onFocus={() => { if (searchResults.length > 0) setShowDropdown(true) }}
                       placeholder={type === 'Stock' ? 'AAPL' : type === 'Crypto' ? 'BTC' : 'VOO'}
@@ -618,14 +618,14 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             {/* Non-market: name */}
             {!isMarketAsset && (
               <div>
-                <label className={labelCls}>
+                <label htmlFor="add-name" className={labelCls}>
                   {isBank ? t('Banco', 'Bank') : t('Nombre / Descripción', 'Name / Description')} *
                 </label>
                 {isBank ? (
-                  <input value={form.institution} onChange={e => { set('institution', e.target.value); const hint = detectCurrency(e.target.value); if (hint) set('currency', hint) }}
+                  <input id="add-name" value={form.institution} onChange={e => { set('institution', e.target.value); const hint = detectCurrency(e.target.value); if (hint) set('currency', hint) }}
                     placeholder={t('BAM, BI, Banrural...', 'Chase, BoA...')} className={inputCls} />
                 ) : (
-                  <input value={form.name} onChange={e => set('name', e.target.value)}
+                  <input id="add-name" value={form.name} onChange={e => set('name', e.target.value)}
                     placeholder={isDebt ? t('Hipoteca casa, Tarjeta...', 'Home mortgage, Credit card...') : isBond ? t('Bono Corporativo IDC', 'IDC Corporate Bond') : isAlternative ? t('Club Cash In', 'Club Cash In') : isProperty ? t('Apartamento Centro', 'Downtown Apartment') : t('CDT Banco Industrial', 'Certificate of Deposit')}
                     className={inputCls} />
                 )}
@@ -634,8 +634,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
             {isBank && (
               <div>
-                <label className={labelCls}>{t('Nombre de cuenta', 'Account name')}</label>
-                <input value={form.name} onChange={e => set('name', e.target.value)}
+                <label htmlFor="add-accountName" className={labelCls}>{t('Nombre de cuenta', 'Account name')}</label>
+                <input id="add-accountName" value={form.name} onChange={e => set('name', e.target.value)}
                   placeholder={t('Cuenta de ahorro', 'Savings account')} className={inputCls} />
               </div>
             )}
@@ -643,8 +643,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             {/* Institution with autocomplete (for non-bank, since bank already shows it) */}
             {!isBank && (
               <div className="relative">
-                <label className={labelCls}>{t('Institución / Broker', 'Institution / Broker')} *</label>
-                <input value={form.institution} onChange={e => { set('institution', e.target.value); setShowInstSuggestions(true); const hint = detectCurrency(e.target.value); if (hint && form.currency === 'USD') set('currency', hint) }}
+                <label htmlFor="add-institution" className={labelCls}>{t('Institución / Broker', 'Institution / Broker')} *</label>
+                <input id="add-institution" value={form.institution} onChange={e => { set('institution', e.target.value); setShowInstSuggestions(true); const hint = detectCurrency(e.target.value); if (hint && form.currency === 'USD') set('currency', hint) }}
                   onFocus={() => setShowInstSuggestions(true)}
                   onBlur={() => setTimeout(() => setShowInstSuggestions(false), 200)}
                   placeholder={isProperty ? t('Propio, Inmobiliaria...', 'Self, Agency...') : 'IBKR, Fidelity, Binance...'}
@@ -700,13 +700,13 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             {isMarketAsset && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelCls}>{t('Cantidad', 'Quantity')} <span style={{ color: '#FF453A' }}>*</span></label>
-                  <input value={form.quantity} onChange={e => set('quantity', e.target.value)}
+                  <label htmlFor="add-quantity" className={labelCls}>{t('Cantidad', 'Quantity')} <span style={{ color: '#FF453A' }}>*</span></label>
+                  <input id="add-quantity" value={form.quantity} onChange={e => set('quantity', e.target.value)}
                     placeholder={type === 'Crypto' ? '0.5' : '10'} type="number" step="any" className={inputCls} />
                 </div>
                 <div>
-                  <label className={labelCls}>{t('Precio de entrada', 'Entry price')} <span style={{ color: '#FF453A' }}>*</span></label>
-                  <input value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
+                  <label htmlFor="add-purchasePrice" className={labelCls}>{t('Precio de entrada', 'Entry price')} <span style={{ color: '#FF453A' }}>*</span></label>
+                  <input id="add-purchasePrice" value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
                     placeholder="150.00" type="number" step="any" className={inputCls} title={t('Precio por unidad/acción', 'Price per unit/share')} />
                 </div>
               </div>
@@ -715,13 +715,13 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             {isProperty && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelCls}>{t('Valor de compra', 'Purchase value')} <span style={{ color: '#FF453A' }}>*</span></label>
-                  <input value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
+                  <label htmlFor="add-propertyPurchasePrice" className={labelCls}>{t('Valor de compra', 'Purchase value')} <span style={{ color: '#FF453A' }}>*</span></label>
+                  <input id="add-propertyPurchasePrice" value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
                     placeholder="85000" type="number" step="any" className={inputCls} />
                 </div>
                 <div>
-                  <label className={labelCls}>{t('Valor actual', 'Current value')}</label>
-                  <input value={form.currentPrice} onChange={e => set('currentPrice', e.target.value)}
+                  <label htmlFor="add-propertyCurrentPrice" className={labelCls}>{t('Valor actual', 'Current value')}</label>
+                  <input id="add-propertyCurrentPrice" value={form.currentPrice} onChange={e => set('currentPrice', e.target.value)}
                     placeholder="95000" type="number" step="any" className={inputCls} />
                 </div>
               </div>
@@ -729,8 +729,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
             {isBank && (
               <div>
-                <label className={labelCls}>{t('Saldo actual', 'Current balance')} <span style={{ color: '#FF453A' }}>*</span></label>
-                <input value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
+                <label htmlFor="add-balance" className={labelCls}>{t('Saldo actual', 'Current balance')} <span style={{ color: '#FF453A' }}>*</span></label>
+                <input id="add-balance" value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
                   placeholder="5000" type="number" step="any" className={inputCls} />
               </div>
             )}
@@ -738,13 +738,13 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             {(isBond || isAlternative) && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelCls}>{t('Monto invertido', 'Amount invested')} <span style={{ color: '#FF453A' }}>*</span></label>
-                  <input value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
+                  <label htmlFor="add-amountInvested" className={labelCls}>{t('Monto invertido', 'Amount invested')} <span style={{ color: '#FF453A' }}>*</span></label>
+                  <input id="add-amountInvested" value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
                     placeholder="10000" type="number" step="any" className={inputCls} />
                 </div>
                 <div>
-                  <label className={labelCls}>{t('Valor actual', 'Current value')} <span style={{ color: 'var(--text-muted)' }}>({t('opcional', 'optional')})</span></label>
-                  <input value={form.currentPrice} onChange={e => set('currentPrice', e.target.value)}
+                  <label htmlFor="add-currentValue" className={labelCls}>{t('Valor actual', 'Current value')} <span style={{ color: 'var(--text-muted)' }}>({t('opcional', 'optional')})</span></label>
+                  <input id="add-currentValue" value={form.currentPrice} onChange={e => set('currentPrice', e.target.value)}
                     placeholder="10800" type="number" step="any" className={inputCls} />
                 </div>
               </div>
@@ -780,20 +780,20 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Saldo actual', 'Current balance')} <span style={{ color: '#FF453A' }}>*</span></label>
-                    <input value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
+                    <label htmlFor="add-debtBalance" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Saldo actual', 'Current balance')} <span style={{ color: '#FF453A' }}>*</span></label>
+                    <input id="add-debtBalance" value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
                       placeholder="50000" type="number" step="any" className={inputCls} />
                   </div>
                   <div>
-                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa de interés %', 'Interest rate %')}</label>
-                    <input value={form.interestRate} onChange={e => set('interestRate', e.target.value)}
+                    <label htmlFor="add-interestRate" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa de interés %', 'Interest rate %')}</label>
+                    <input id="add-interestRate" value={form.interestRate} onChange={e => set('interestRate', e.target.value)}
                       placeholder="7.5" type="number" step="any" className={inputCls} />
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Plazo', 'Term')}</label>
-                    <select value={form.debtTerm} onChange={e => set('debtTerm', e.target.value)} className={inputCls}>
+                    <label htmlFor="add-debtTerm" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Plazo', 'Term')}</label>
+                    <select id="add-debtTerm" value={form.debtTerm} onChange={e => set('debtTerm', e.target.value)} className={inputCls}>
                       <option value="">{t('-- Plazo --', '-- Term --')}</option>
                       <option value="3m">3 {t('meses', 'months')}</option>
                       <option value="6m">6 {t('meses', 'months')}</option>
@@ -805,25 +805,25 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Cuotas total', 'Total pmts')}</label>
-                    <input value={form.installmentsTotal} onChange={e => set('installmentsTotal', e.target.value)}
+                    <label htmlFor="add-installmentsTotal" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Cuotas total', 'Total pmts')}</label>
+                    <input id="add-installmentsTotal" value={form.installmentsTotal} onChange={e => set('installmentsTotal', e.target.value)}
                       placeholder="24" type="number" step="1" className={inputCls} />
                   </div>
                   <div>
-                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Cuotas rest.', 'Pmts left')}</label>
-                    <input value={form.installmentsRemaining} onChange={e => set('installmentsRemaining', e.target.value)}
+                    <label htmlFor="add-installmentsRemaining" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Cuotas rest.', 'Pmts left')}</label>
+                    <input id="add-installmentsRemaining" value={form.installmentsRemaining} onChange={e => set('installmentsRemaining', e.target.value)}
                       placeholder="18" type="number" step="1" className={inputCls} />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Pago mensual', 'Monthly payment')}</label>
-                    <input value={form.monthlyPayment} onChange={e => set('monthlyPayment', e.target.value)}
+                    <label htmlFor="add-monthlyPayment" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Pago mensual', 'Monthly payment')}</label>
+                    <input id="add-monthlyPayment" value={form.monthlyPayment} onChange={e => set('monthlyPayment', e.target.value)}
                       placeholder="500" type="number" step="any" className={inputCls} />
                   </div>
                   <div>
-                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Fecha vencimiento', 'Maturity date')}</label>
-                    <input value={form.maturityDate} onChange={e => set('maturityDate', e.target.value)}
+                    <label htmlFor="add-debtMaturityDate" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Fecha vencimiento', 'Maturity date')}</label>
+                    <input id="add-debtMaturityDate" value={form.maturityDate} onChange={e => set('maturityDate', e.target.value)}
                       type="date" className={inputCls} />
                   </div>
                 </div>
@@ -832,8 +832,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     <p className="text-xs text-red-300 uppercase tracking-wide">{t('Tarjeta de crédito', 'Credit Card')}</p>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Marca', 'Brand')}</label>
-                        <select value={form.cardBrand} onChange={e => set('cardBrand', e.target.value)} className={inputCls}>
+                        <label htmlFor="add-cardBrand" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Marca', 'Brand')}</label>
+                        <select id="add-cardBrand" value={form.cardBrand} onChange={e => set('cardBrand', e.target.value)} className={inputCls}>
                           <option value="">{t('-- Seleccionar --', '-- Select --')}</option>
                           <option value="visa">Visa</option>
                           <option value="mastercard">Mastercard</option>
@@ -841,8 +841,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                         </select>
                       </div>
                       <div>
-                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tipo reward', 'Reward type')}</label>
-                        <select value={form.rewardType} onChange={e => set('rewardType', e.target.value)} className={inputCls}>
+                        <label htmlFor="add-rewardType" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tipo reward', 'Reward type')}</label>
+                        <select id="add-rewardType" value={form.rewardType} onChange={e => set('rewardType', e.target.value)} className={inputCls}>
                           <option value="">{t('Ninguno', 'None')}</option>
                           <option value="miles">{t('Millas', 'Miles')}</option>
                           <option value="cashback">Cashback</option>
@@ -853,13 +853,13 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     {form.rewardType && (
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa reward %', 'Reward rate %')}</label>
-                          <input value={form.rewardRate} onChange={e => set('rewardRate', e.target.value)}
+                          <label htmlFor="add-rewardRate" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa reward %', 'Reward rate %')}</label>
+                          <input id="add-rewardRate" value={form.rewardRate} onChange={e => set('rewardRate', e.target.value)}
                             placeholder="1.5" type="number" step="any" className={inputCls} />
                         </div>
                         <div>
-                          <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Balance acumulado', 'Accumulated')}</label>
-                          <input value={form.rewardBalance} onChange={e => set('rewardBalance', e.target.value)}
+                          <label htmlFor="add-rewardBalance" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Balance acumulado', 'Accumulated')}</label>
+                          <input id="add-rewardBalance" value={form.rewardBalance} onChange={e => set('rewardBalance', e.target.value)}
                             placeholder="5000" type="number" step="any" className={inputCls} />
                         </div>
                       </div>
@@ -872,7 +872,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             {/* Currency + Account Type */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={labelCls}>
+                <label htmlFor="add-currency" className={labelCls}>
                   {t('Moneda', 'Currency')} <span style={{ color: '#FF453A' }}>*</span>
                   {detectedCurrency && form.currency === detectedCurrency && (
                     <span className="ml-1 px-1.5 py-0.5 rounded text-xs font-medium" style={{ color: 'var(--accent-green)', backgroundColor: 'rgba(52,211,153,0.15)' }}>
@@ -880,13 +880,13 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     </span>
                   )}
                 </label>
-                <select value={form.currency} onChange={e => set('currency', e.target.value)} className={inputCls}>
+                <select id="add-currency" value={form.currency} onChange={e => set('currency', e.target.value)} className={inputCls}>
                   {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div>
-                <label className={labelCls}>{t('Tipo de cuenta', 'Account type')}</label>
-                <select value={form.accountType} onChange={e => set('accountType', e.target.value)} className={inputCls}>
+                <label htmlFor="add-accountType" className={labelCls}>{t('Tipo de cuenta', 'Account type')}</label>
+                <select id="add-accountType" value={form.accountType} onChange={e => set('accountType', e.target.value)} className={inputCls}>
                   {ACCOUNT_TYPES.map(at => <option key={at.key} value={at.key}>{lang === 'es' ? at.es : at.en}</option>)}
                 </select>
                 <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
@@ -899,10 +899,10 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
             {/* Acquisition date */}
             <div>
-              <label className={labelCls}>
+              <label htmlFor="add-acquisitionDate" className={labelCls}>
                 {isBank ? t('Fecha de apertura', 'Opening date') : t('Fecha de compra', 'Purchase date')} <span style={{ color: '#FF453A' }}>*</span>
               </label>
-              <input value={form.acquisitionDate} onChange={e => set('acquisitionDate', e.target.value)}
+              <input id="add-acquisitionDate" value={form.acquisitionDate} onChange={e => set('acquisitionDate', e.target.value)}
                 type="date" className={inputCls} />
             </div>
 
@@ -1000,18 +1000,18 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   <>
                   <div className="grid grid-cols-3 gap-2">
                     <div>
-                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa mín %', 'Min rate %')}</label>
-                      <input value={form.rateMin} onChange={e => set('rateMin', e.target.value)}
+                      <label htmlFor="add-rateMin" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa mín %', 'Min rate %')}</label>
+                      <input id="add-rateMin" value={form.rateMin} onChange={e => set('rateMin', e.target.value)}
                         placeholder="4.5" type="number" step="any" className={inputCls} />
                     </div>
                     <div>
-                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa máx %', 'Max rate %')}</label>
-                      <input value={form.rateMax} onChange={e => set('rateMax', e.target.value)}
+                      <label htmlFor="add-rateMax" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa máx %', 'Max rate %')}</label>
+                      <input id="add-rateMax" value={form.rateMax} onChange={e => set('rateMax', e.target.value)}
                         placeholder="5.5" type="number" step="any" className={inputCls} />
                     </div>
                     <div>
-                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Día de pago', 'Pay day')}</label>
-                      <input value={form.incomePayDay} onChange={e => set('incomePayDay', e.target.value)}
+                      <label htmlFor="add-varPayDay" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Día de pago', 'Pay day')}</label>
+                      <input id="add-varPayDay" value={form.incomePayDay} onChange={e => set('incomePayDay', e.target.value)}
                         placeholder="10" type="number" min="1" max="31" className={inputCls} />
                     </div>
                   </div>

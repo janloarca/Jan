@@ -404,15 +404,15 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
   const labelCls = 'text-xs text-[var(--text-secondary,#94a3b8)] mb-1 block'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="edit-account-title"
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="edit-acct-modal-title"
       style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
       <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border,#38383A)]">
-          <h2 id="edit-account-title" className="text-lg font-bold text-[var(--text-primary,white)]">{t('Editar', 'Edit')} {item.name || item.symbol}</h2>
-          <button onClick={onClose} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-xl leading-none" aria-label="Close">&times;</button>
+          <h2 id="edit-acct-modal-title" className="text-lg font-bold text-[var(--text-primary,white)]">{t('Editar', 'Edit')} {item.name || item.symbol}</h2>
+          <button onClick={onClose} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-xl leading-none" aria-label="Close edit asset modal">&times;</button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {error && <div className="p-3 border rounded-lg text-sm" style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.2)', color: 'var(--text-negative)' }}>{error}</div>}
+          {error && <div className="p-3 border rounded-lg text-sm" role="alert" aria-live="assertive" style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.2)', color: 'var(--text-negative)' }}>{error}</div>}
 
           {/* Sector badge */}
           {item.sector && (
@@ -426,19 +426,19 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           {/* Section 1: Basic Info */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelCls}>{t('Nombre', 'Name')}</label>
-              <input value={form.name} onChange={e => set('name', e.target.value)} className={inputCls} />
+              <label htmlFor="edit-name" className={labelCls}>{t('Nombre', 'Name')}</label>
+              <input id="edit-name" value={form.name} onChange={e => set('name', e.target.value)} className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>{t('Institución', 'Institution')}</label>
-              <input value={form.institution} onChange={e => set('institution', e.target.value)} className={inputCls} />
+              <label htmlFor="edit-institution" className={labelCls}>{t('Institución', 'Institution')}</label>
+              <input id="edit-institution" value={form.institution} onChange={e => set('institution', e.target.value)} className={inputCls} />
             </div>
           </div>
 
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className={labelCls}>{t('Tipo', 'Type')}</label>
-              <select value={form.type} onChange={e => set('type', e.target.value)} className={inputCls}>
+              <label htmlFor="edit-type" className={labelCls}>{t('Tipo', 'Type')}</label>
+              <select id="edit-type" value={form.type} onChange={e => set('type', e.target.value)} className={inputCls}>
                 <option value="Stock">Stock</option>
                 <option value="Crypto">Crypto</option>
                 <option value="Fund">{t('Fondo/ETF', 'Fund/ETF')}</option>
@@ -452,14 +452,14 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               </select>
             </div>
             <div>
-              <label className={labelCls}>{t('Moneda', 'Currency')}</label>
-              <select value={form.currency} onChange={e => set('currency', e.target.value)} className={inputCls}>
+              <label htmlFor="edit-currency" className={labelCls}>{t('Moneda', 'Currency')}</label>
+              <select id="edit-currency" value={form.currency} onChange={e => set('currency', e.target.value)} className={inputCls}>
                 {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div>
-              <label className={labelCls}>{t('Cuenta', 'Account')}</label>
-              <select value={form.accountType} onChange={e => set('accountType', e.target.value)} className={inputCls}>
+              <label htmlFor="edit-account-type" className={labelCls}>{t('Cuenta', 'Account')}</label>
+              <select id="edit-account-type" value={form.accountType} onChange={e => set('accountType', e.target.value)} className={inputCls}>
                 {ACCOUNT_TYPES.map(at => <option key={at.key} value={at.key}>{lang === 'es' ? at.es : at.en}</option>)}
               </select>
             </div>
@@ -468,20 +468,20 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           {/* Section 2: Position */}
           {isBank ? (
             <div>
-              <label className={labelCls}>{t('Saldo actual', 'Current balance')}</label>
-              <input value={form.purchasePrice} onChange={e => { set('purchasePrice', e.target.value); set('quantity', '1') }}
+              <label htmlFor="edit-current-balance" className={labelCls}>{t('Saldo actual', 'Current balance')}</label>
+              <input id="edit-current-balance" value={form.purchasePrice} onChange={e => { set('purchasePrice', e.target.value); set('quantity', '1') }}
                 type="number" step="any" className={inputCls} />
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={labelCls}>{t('Cantidad', 'Quantity')} <InfoTip text={t('Número de unidades, acciones o participaciones que posees.', 'Number of units, shares or participations you own.')} /></label>
-                <input value={form.quantity} onChange={e => set('quantity', e.target.value)}
+                <label htmlFor="edit-quantity" className={labelCls}>{t('Cantidad', 'Quantity')} <InfoTip text={t('Número de unidades, acciones o participaciones que posees.', 'Number of units, shares or participations you own.')} /></label>
+                <input id="edit-quantity" value={form.quantity} onChange={e => set('quantity', e.target.value)}
                   type="number" step="any" className={inputCls} />
               </div>
               <div>
-                <label className={labelCls}>{isMarket ? t('Precio compra', 'Buy price') : t('Valor compra', 'Purchase value')} <InfoTip text={t('Precio por unidad al momento de la compra. Valor total = cantidad × precio.', 'Price per unit at time of purchase. Total value = quantity × price.')} /></label>
-                <input value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
+                <label htmlFor="edit-purchase-price" className={labelCls}>{isMarket ? t('Precio compra', 'Buy price') : t('Valor compra', 'Purchase value')} <InfoTip text={t('Precio por unidad al momento de la compra. Valor total = cantidad × precio.', 'Price per unit at time of purchase. Total value = quantity × price.')} /></label>
+                <input id="edit-purchase-price" value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
                   type="number" step="any" className={inputCls} />
               </div>
             </div>
@@ -489,16 +489,16 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
           {!isMarket && !isBank && (
             <div>
-              <label className={labelCls}>{t('Valor actual', 'Current value')} <InfoTip text={t('El valor de mercado actual. Si lo dejas vacío, se usa el precio de compra. Para activos de mercado se actualiza automáticamente.', 'Current market value. If empty, purchase price is used. Market assets update automatically.')} /></label>
-              <input value={form.currentPrice} onChange={e => set('currentPrice', e.target.value)}
+              <label htmlFor="edit-current-price" className={labelCls}>{t('Valor actual', 'Current value')} <InfoTip text={t('El valor de mercado actual. Si lo dejas vacío, se usa el precio de compra. Para activos de mercado se actualiza automáticamente.', 'Current market value. If empty, purchase price is used. Market assets update automatically.')} /></label>
+              <input id="edit-current-price" value={form.currentPrice} onChange={e => set('currentPrice', e.target.value)}
                 type="number" step="any" placeholder={t('Dejar vacío = precio de compra', 'Empty = purchase price')}
                 className={inputCls} />
             </div>
           )}
 
           <div>
-            <label className={labelCls}>{t('Fecha de adquisición', 'Acquisition date')}</label>
-            <input value={form.acquisitionDate} onChange={e => set('acquisitionDate', e.target.value)}
+            <label htmlFor="edit-acquisition-date" className={labelCls}>{t('Fecha de adquisición', 'Acquisition date')}</label>
+            <input id="edit-acquisition-date" value={form.acquisitionDate} onChange={e => set('acquisitionDate', e.target.value)}
               type="date" className={inputCls} />
           </div>
 
@@ -531,19 +531,19 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   </p>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className={labelCls}>{t('Monto', 'Amount')} ({form.currency})</label>
-                      <input value={contribAmount} onChange={e => setContribAmount(e.target.value)}
+                      <label htmlFor="edit-contrib-amount" className={labelCls}>{t('Monto', 'Amount')} ({form.currency})</label>
+                      <input id="edit-contrib-amount" value={contribAmount} onChange={e => setContribAmount(e.target.value)}
                         type="number" step="any" min="0" placeholder="7000" autoFocus className={inputCls} />
                     </div>
                     <div>
-                      <label className={labelCls}>{t('Fecha', 'Date')}</label>
-                      <input value={contribDate} onChange={e => setContribDate(e.target.value)}
+                      <label htmlFor="edit-contrib-date" className={labelCls}>{t('Fecha', 'Date')}</label>
+                      <input id="edit-contrib-date" value={contribDate} onChange={e => setContribDate(e.target.value)}
                         type="date" max={new Date().toISOString().split('T')[0]} className={inputCls} />
                     </div>
                   </div>
                   <div>
-                    <label className={labelCls}>{t('Descripción (opcional)', 'Description (optional)')}</label>
-                    <input value={contribDesc} onChange={e => setContribDesc(e.target.value)}
+                    <label htmlFor="edit-contrib-description" className={labelCls}>{t('Descripción (opcional)', 'Description (optional)')}</label>
+                    <input id="edit-contrib-description" value={contribDesc} onChange={e => setContribDesc(e.target.value)}
                       placeholder={contribType === 'add'
                         ? (contribIsIncome && !isBank
                           ? t('Ej: Intereses junio', 'E.g. June interest')
@@ -591,7 +591,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                           <span style={{ color: tx.type === 'DEPOSIT' ? '#34d399' : '#f87171' }}>
                             {tx.type === 'DEPOSIT' ? '+' : '-'}{tx.currency || form.currency} {(tx.totalAmount || 0).toLocaleString()}
                           </span>
-                          {tx.description && <p className="text-xs" style={{ color: '#475569' }}>{tx.description}</p>}
+                          {tx.description && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{tx.description}</p>}
                         </div>
                       </div>
                     ))}
@@ -605,13 +605,13 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           {isBondOrAlt && (
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={labelCls}>{t('Fecha vencimiento', 'Maturity date')}</label>
-                <input value={form.maturityDate} onChange={e => set('maturityDate', e.target.value)}
+                <label htmlFor="edit-maturity-date" className={labelCls}>{t('Fecha vencimiento', 'Maturity date')}</label>
+                <input id="edit-maturity-date" value={form.maturityDate} onChange={e => set('maturityDate', e.target.value)}
                   type="date" className={inputCls} />
               </div>
               <div>
-                <label className={labelCls}>{t('Al vencimiento', 'At maturity')}</label>
-                <select value={form.maturityAction} onChange={e => set('maturityAction', e.target.value)} className={inputCls}>
+                <label htmlFor="edit-at-maturity" className={labelCls}>{t('Al vencimiento', 'At maturity')}</label>
+                <select id="edit-at-maturity" value={form.maturityAction} onChange={e => set('maturityAction', e.target.value)} className={inputCls}>
                   <option value="return_capital">{t('Devolver capital', 'Return capital')}</option>
                   <option value="auto_renew">{t('Renovar', 'Auto-renew')}</option>
                   <option value="convert_equity">{t('Convertir', 'Convert to equity')}</option>
@@ -633,8 +633,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               </div>
               {form.isIlliquid && (
                 <div>
-                  <label className={labelCls}>{t('Valuación manual', 'Manual valuation')}</label>
-                  <input value={form.lastManualValuation} onChange={e => set('lastManualValuation', e.target.value)}
+                  <label htmlFor="edit-manual-valuation" className={labelCls}>{t('Valuación manual', 'Manual valuation')}</label>
+                  <input id="edit-manual-valuation" value={form.lastManualValuation} onChange={e => set('lastManualValuation', e.target.value)}
                     type="number" step="any" placeholder={t('Valor estimado actual', 'Current estimated value')} className={inputCls} />
                 </div>
               )}
@@ -645,8 +645,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           {isCrypto && (
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={labelCls}>{t('Custodia', 'Custody')}</label>
-                <select value={form.custodyType} onChange={e => set('custodyType', e.target.value)} className={inputCls}>
+                <label htmlFor="edit-custody" className={labelCls}>{t('Custodia', 'Custody')}</label>
+                <select id="edit-custody" value={form.custodyType} onChange={e => set('custodyType', e.target.value)} className={inputCls}>
                   <option value="">{t('-- Seleccionar --', '-- Select --')}</option>
                   <option value="custodial">{t('Exchange', 'Exchange')}</option>
                   <option value="self_custody">Self-Custody</option>
@@ -654,8 +654,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 </select>
               </div>
               <div>
-                <label className={labelCls}>{t('Detalles', 'Details')}</label>
-                <input value={form.custodyDetails} onChange={e => set('custodyDetails', e.target.value)}
+                <label htmlFor="edit-custody-details" className={labelCls}>{t('Detalles', 'Details')}</label>
+                <input id="edit-custody-details" value={form.custodyDetails} onChange={e => set('custodyDetails', e.target.value)}
                   placeholder="Ledger, Binance..." className={inputCls} />
               </div>
             </div>
@@ -689,13 +689,13 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa interés %', 'Interest rate %')}</label>
-                  <input value={form.interestRate} onChange={e => set('interestRate', e.target.value)}
+                  <label htmlFor="edit-interest-rate" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa interés %', 'Interest rate %')}</label>
+                  <input id="edit-interest-rate" value={form.interestRate} onChange={e => set('interestRate', e.target.value)}
                     placeholder="7.5" type="number" step="any" className={inputCls} />
                 </div>
                 <div>
-                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Plazo', 'Term')}</label>
-                  <select value={form.debtTerm} onChange={e => set('debtTerm', e.target.value)} className={inputCls}>
+                  <label htmlFor="edit-debt-term" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Plazo', 'Term')}</label>
+                  <select id="edit-debt-term" value={form.debtTerm} onChange={e => set('debtTerm', e.target.value)} className={inputCls}>
                     <option value="">{t('-- Seleccionar --', '-- Select --')}</option>
                     <option value="3m">3 {t('meses', 'months')}</option>
                     <option value="6m">6 {t('meses', 'months')}</option>
@@ -711,31 +711,31 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Pago mensual', 'Monthly payment')}</label>
-                  <input value={form.monthlyPayment} onChange={e => set('monthlyPayment', e.target.value)}
+                  <label htmlFor="edit-monthly-payment" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Pago mensual', 'Monthly payment')}</label>
+                  <input id="edit-monthly-payment" value={form.monthlyPayment} onChange={e => set('monthlyPayment', e.target.value)}
                     placeholder="500" type="number" step="any" className={inputCls} />
                 </div>
                 <div>
-                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Cuotas total', 'Total pmts')}</label>
-                  <input value={form.installmentsTotal} onChange={e => set('installmentsTotal', e.target.value)}
+                  <label htmlFor="edit-installments-total" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Cuotas total', 'Total pmts')}</label>
+                  <input id="edit-installments-total" value={form.installmentsTotal} onChange={e => set('installmentsTotal', e.target.value)}
                     placeholder="24" type="number" step="1" className={inputCls} />
                 </div>
                 <div>
-                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Cuotas rest.', 'Pmts left')}</label>
-                  <input value={form.installmentsRemaining} onChange={e => set('installmentsRemaining', e.target.value)}
+                  <label htmlFor="edit-installments-remaining" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Cuotas rest.', 'Pmts left')}</label>
+                  <input id="edit-installments-remaining" value={form.installmentsRemaining} onChange={e => set('installmentsRemaining', e.target.value)}
                     placeholder="18" type="number" step="1" className={inputCls} />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Pago mínimo', 'Min payment')}</label>
-                  <input value={form.minimumPayment} onChange={e => set('minimumPayment', e.target.value)}
+                  <label htmlFor="edit-min-payment" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Pago mínimo', 'Min payment')}</label>
+                  <input id="edit-min-payment" value={form.minimumPayment} onChange={e => set('minimumPayment', e.target.value)}
                     placeholder="500" type="number" step="any" className={inputCls} />
                 </div>
                 <div>
-                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Fecha vencimiento', 'Maturity date')}</label>
-                  <input value={form.maturityDate} onChange={e => set('maturityDate', e.target.value)}
+                  <label htmlFor="edit-debt-maturity-date" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Fecha vencimiento', 'Maturity date')}</label>
+                  <input id="edit-debt-maturity-date" value={form.maturityDate} onChange={e => set('maturityDate', e.target.value)}
                     type="date" className={inputCls} />
                 </div>
               </div>
@@ -745,8 +745,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   <p className="text-xs uppercase tracking-wide" style={{ color: '#fca5a5' }}>{t('Tarjeta de crédito', 'Credit Card')}</p>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Marca', 'Brand')}</label>
-                      <select value={form.cardBrand} onChange={e => set('cardBrand', e.target.value)} className={inputCls}>
+                      <label htmlFor="edit-card-brand" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Marca', 'Brand')}</label>
+                      <select id="edit-card-brand" value={form.cardBrand} onChange={e => set('cardBrand', e.target.value)} className={inputCls}>
                         <option value="">{t('-- Seleccionar --', '-- Select --')}</option>
                         <option value="visa">Visa</option>
                         <option value="mastercard">Mastercard</option>
@@ -754,8 +754,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tipo reward', 'Reward type')}</label>
-                      <select value={form.rewardType} onChange={e => set('rewardType', e.target.value)} className={inputCls}>
+                      <label htmlFor="edit-reward-type" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tipo reward', 'Reward type')}</label>
+                      <select id="edit-reward-type" value={form.rewardType} onChange={e => set('rewardType', e.target.value)} className={inputCls}>
                         <option value="">{t('Ninguno', 'None')}</option>
                         <option value="miles">{t('Millas', 'Miles')}</option>
                         <option value="cashback">Cashback</option>
@@ -766,13 +766,13 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   {form.rewardType && (
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa reward %', 'Reward rate %')}</label>
-                        <input value={form.rewardRate} onChange={e => set('rewardRate', e.target.value)}
+                        <label htmlFor="edit-reward-rate" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa reward %', 'Reward rate %')}</label>
+                        <input id="edit-reward-rate" value={form.rewardRate} onChange={e => set('rewardRate', e.target.value)}
                           placeholder="1.5" type="number" step="any" className={inputCls} />
                       </div>
                       <div>
-                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Balance acumulado', 'Accumulated balance')}</label>
-                        <input value={form.rewardBalance} onChange={e => set('rewardBalance', e.target.value)}
+                        <label htmlFor="edit-reward-balance" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Balance acumulado', 'Accumulated balance')}</label>
+                        <input id="edit-reward-balance" value={form.rewardBalance} onChange={e => set('rewardBalance', e.target.value)}
                           placeholder="5000" type="number" step="any" className={inputCls} />
                       </div>
                     </div>

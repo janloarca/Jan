@@ -507,15 +507,16 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       <div className="overflow-x-auto">
         <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', width: `${100 / zoom}%` }}>
         <table className="w-full text-sm border-collapse min-w-[600px]">
+          <caption className="sr-only">{t('Valores históricos del portafolio por mes', 'Historical portfolio values by month')}</caption>
           <thead>
             <tr className="border-b border-slate-300 bg-slate-50">
-              <th className="text-left py-2.5 pl-4 pr-2 text-slate-500 font-semibold text-xs uppercase tracking-wide sticky left-0 bg-slate-50 z-20 min-w-[140px] max-w-[200px]" />
-              <th className="text-right py-2.5 px-1 text-slate-400 font-semibold text-xs w-8">%</th>
-              {showOriginal && <th className="text-center py-2.5 px-1 text-slate-400 font-semibold text-xs w-10">{t('Mon', 'Cur')}</th>}
+              <th scope="col" className="text-left py-2.5 pl-4 pr-2 text-slate-500 font-semibold text-xs uppercase tracking-wide sticky left-0 bg-slate-50 z-20 min-w-[140px] max-w-[200px]" />
+              <th scope="col" className="text-right py-2.5 px-1 text-slate-400 font-semibold text-xs w-8">%</th>
+              {showOriginal && <th scope="col" className="text-center py-2.5 px-1 text-slate-400 font-semibold text-xs w-10">{t('Mon', 'Cur')}</th>}
               {months.map(mk => {
                 const isCurrent = mk === currentMonthKey
                 return (
-                  <th key={mk} className="text-right py-2.5 px-2 font-semibold text-xs w-32" style={isCurrent ? { backgroundColor: '#eff6ff', color: 'var(--accent-blue-strong)' } : { color: '#94a3b8' }}>
+                  <th scope="col" key={mk} className="text-right py-2.5 px-2 font-semibold text-xs w-32" style={isCurrent ? { backgroundColor: '#eff6ff', color: 'var(--accent-blue-strong)' } : { color: '#94a3b8' }}>
                     {getMonthLabel(mk, lang)}
                     {isCurrent && <div className="text-xs font-normal text-blue-400">{t('actual', 'current')}</div>}
                   </th>

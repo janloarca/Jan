@@ -214,10 +214,10 @@ export default function PortfolioMap({ items, lang }) {
         {groups.map(g => (
           <button key={g.name} onClick={() => setSelected(selected === g.name ? null : g.name)}
             className="flex items-center gap-1.5 text-xs transition-colors"
-            style={{ color: selected === g.name ? '#ffffff' : '#64748b' }}>
+            style={{ color: selected === g.name ? '#ffffff' : '#94a3b8' }}>
             <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: g.color }} />
             <span className="truncate max-w-[100px]">{g.name}</span>
-            <span style={{ color: '#475569' }}>{g.pct.toFixed(0)}%</span>
+            <span style={{ color: 'var(--text-muted)' }}>{g.pct.toFixed(0)}%</span>
           </button>
         ))}
       </div>

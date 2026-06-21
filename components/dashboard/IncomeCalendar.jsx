@@ -100,7 +100,7 @@ export default function IncomeCalendar({ items, lang }) {
                 )}
               </div>
               <div className="text-xs font-medium"
-                style={{ color: m.total > 0 ? (isPast ? '#64748b' : '#34d399') : '#334155' }}>
+                style={{ color: m.total > 0 ? (isPast ? 'var(--text-muted)' : '#34d399') : '#334155' }}>
                 {m.total > 0 ? formatCurrency(m.total) : '-'}
               </div>
             </div>

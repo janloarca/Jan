@@ -16,7 +16,7 @@ import { SkeletonCard, SkeletonChart } from '@/components/dashboard/Skeleton'
 
 function ModalSkeleton() {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" role="status" aria-live="polite" aria-label="Loading">
       <div className="bg-theme-card border border-glass-border rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
         <div className="h-5 w-32 bg-slate-700/50 rounded animate-pulse mb-4" />
         <div className="space-y-3">

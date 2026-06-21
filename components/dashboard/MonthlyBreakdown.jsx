@@ -152,16 +152,17 @@ export default function MonthlyBreakdown({ items, snapshots, lang, onUpdateItem,
 
       <div className="overflow-x-auto -mx-2 px-2">
         <table className="w-full text-xs border-collapse min-w-[480px]">
+          <caption className="sr-only">{t('Estado de cuenta por institución y activo', 'Account statement by institution and asset')}</caption>
           <thead>
             <tr className="border-b-2 border-[#475569]">
-              <th className="text-left py-2 pr-2 text-slate-500 font-semibold sticky left-0 bg-theme-card z-10 min-w-[180px]">
+              <th scope="col" className="text-left py-2 pr-2 text-slate-500 font-semibold sticky left-0 bg-theme-card z-10 min-w-[180px]">
                 {t('Cuenta / Activo', 'Account / Asset')}
               </th>
-              <th className="text-right py-2 px-2 text-slate-400 font-semibold w-24">{currentMonthLabel.toUpperCase()}</th>
-              <th className="text-right py-2 px-2 text-slate-500 font-semibold w-12">%</th>
-              <th className="text-right py-2 px-2 text-slate-500 font-semibold w-16">P&L</th>
+              <th scope="col" className="text-right py-2 px-2 text-slate-400 font-semibold w-24">{currentMonthLabel.toUpperCase()}</th>
+              <th scope="col" className="text-right py-2 px-2 text-slate-500 font-semibold w-12">%</th>
+              <th scope="col" className="text-right py-2 px-2 text-slate-500 font-semibold w-16">P&L</th>
               {monthlyTotals.map(m => (
-                <th key={m.key} className="text-right py-2 px-2 text-slate-600 font-medium w-20">
+                <th scope="col" key={m.key} className="text-right py-2 px-2 text-slate-600 font-medium w-20">
                   {formatMonthLabel(m.key, lang).toUpperCase()}
                 </th>
               ))}

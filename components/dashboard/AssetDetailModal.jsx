@@ -296,7 +296,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
               </div>
             ) : (
               <div className="h-[200px] bg-theme-base rounded-lg flex items-center justify-center">
-                <span className="text-sm" style={{ color: chartError ? 'rgba(248,113,113,0.7)' : '#475569' }}>
+                <span className="text-sm" style={{ color: chartError ? 'rgba(248,113,113,0.7)' : 'var(--text-muted)' }}>
                   {chartError ? t('Error cargando datos', 'Failed to load data') : t('Sin datos de precio disponibles', 'No price data available')}
                 </span>
               </div>

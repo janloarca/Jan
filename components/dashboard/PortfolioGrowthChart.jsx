@@ -792,7 +792,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       {/* Chart */}
       {geo && (
         <div className="relative">
-          <svg viewBox={`0 0 ${width} ${chartHeight}`} className="w-full" preserveAspectRatio="xMidYMid meet"
+          <svg role="img" aria-label={t('Gráfico de crecimiento del portafolio', 'Portfolio growth chart')} viewBox={`0 0 ${width} ${chartHeight}`} className="w-full" preserveAspectRatio="xMidYMid meet"
             onMouseLeave={() => setHoverIdx(null)}
             onTouchEnd={() => setHoverIdx(null)}
             onMouseMove={(e) => {

@@ -345,7 +345,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
                   backgroundColor: amt > 0 ? `rgba(16, 185, 129, ${0.1 + intensity * 0.3})` : 'rgba(51, 65, 85, 0.3)',
                 }}>
                   <span className="text-xs text-slate-500 block">{monthName(m)}</span>
-                  <span className="text-xs font-medium" style={{ color: amt > 0 ? '#34d399' : '#475569' }}>
+                  <span className="text-xs font-medium" style={{ color: amt > 0 ? '#34d399' : 'var(--text-muted)' }}>
                     {amt > 0 ? formatCurrency(amt) : '—'}
                   </span>
                 </div>
