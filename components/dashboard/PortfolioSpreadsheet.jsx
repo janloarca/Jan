@@ -163,10 +163,11 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   const currentMonthKey = getMonthKey(now)
 
   const earliestYear = useMemo(() => {
-    let earliest = now.getFullYear()
+    let earliest = now.getFullYear() - 1
     items.forEach(it => {
-      if (it.acquisitionDate) {
-        const y = new Date(it.acquisitionDate).getFullYear()
+      const dateStr = it.acquisitionDate || it.createdAt
+      if (dateStr) {
+        const y = new Date(dateStr).getFullYear()
         if (y >= 2000 && y < earliest) earliest = y
       }
     })
@@ -512,16 +513,14 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
               +
             </button>
           </div>
-          {availableYears.length > 1 && (
-            <div className="flex bg-slate-100 rounded-md border border-slate-200 p-0.5">
-              {availableYears.map(y => (
-                <button key={y} onClick={() => setSelectedYear(y)}
-                  className={`px-2 py-1 text-xs rounded transition-colors ${selectedYear === y ? 'bg-white text-slate-900 font-semibold shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
-                  {y}
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="flex bg-slate-100 rounded-md border border-slate-200 p-0.5">
+            {availableYears.map(y => (
+              <button key={y} onClick={() => setSelectedYear(y)}
+                className={`px-2 py-1 text-xs rounded transition-colors ${selectedYear === y ? 'bg-white text-slate-900 font-semibold shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+                {y}
+              </button>
+            ))}
+          </div>
           {loadingHistory && (
             <span className="text-xs text-blue-500 animate-pulse">{t('Calculando historial...', 'Calculating history...')}</span>
           )}
