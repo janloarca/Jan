@@ -256,6 +256,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   const lotSig = lots?.length ?? 0
   useEffect(() => {
     lastFetchedYearRef.current = null
+    setHistoricalItems({})
   }, [snapshotSig, txSig, lotSig])
 
   useEffect(() => {

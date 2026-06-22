@@ -108,6 +108,7 @@ export function buildIncomeEvents(transactions, items, convert, baseTo = 'USD') 
   if (!transactions || transactions.length === 0) return []
   const byId = new Map((items || []).map((it) => [it.id, it]))
   const bySym = new Map((items || []).map((it) => [(it.symbol || '').toUpperCase(), it]))
+  const byName = new Map((items || []).filter((it) => it.name).map((it) => [it.name.toUpperCase(), it]))
   const out = []
   for (const tx of transactions) {
     if ((tx.type || '').toUpperCase() !== 'DIVIDEND') continue
@@ -125,7 +126,7 @@ export function buildIncomeEvents(transactions, items, convert, baseTo = 'USD') 
     // reflects it). Attribute it to the destination — not the source, which keeps
     // its principal flat — and mark it as a step-up so the API keeps it.
     const dest = (!reinvested && linked && linked.incomeDestination)
-      ? (byId.get(linked.incomeDestination) || bySym.get(String(linked.incomeDestination).toUpperCase()))
+      ? (byId.get(linked.incomeDestination) || bySym.get(String(linked.incomeDestination).toUpperCase()) || byName.get(String(linked.incomeDestination).toUpperCase()))
       : null
     if (dest) {
       out.push({ itemId: dest.id || null, symbol: dest.symbol || dest.name || null, date: tx.date, amount, reinvested: true })
