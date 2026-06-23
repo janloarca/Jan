@@ -32,6 +32,27 @@ export function formatCompact(value, currency) {
   return sym + value.toFixed(0)
 }
 
+// Compact axis-tick label whose decimal precision adapts to the gap between
+// ticks, so a small value range (e.g. $6,000–$6,300) doesn't collapse every
+// tick to the same rounded "$6.0K". `step` is the value distance between ticks.
+export function formatAxisTick(value, step, currency) {
+  if (value == null || !isFinite(value)) return '$0'
+  const sym = CURRENCY_SYMBOLS[currency || _baseCurrency] || '$'
+  const abs = Math.abs(value)
+  // Decimals needed at a given scale so one step changes a shown digit.
+  const decimalsFor = (scaledStep, min) => {
+    if (!isFinite(scaledStep) || scaledStep <= 0) return min
+    return Math.min(3, Math.max(min, Math.ceil(-Math.log10(scaledStep))))
+  }
+  if (abs >= 1000000) {
+    return sym + (value / 1e6).toFixed(decimalsFor((step || 0) / 1e6, 1)) + 'M'
+  }
+  if (abs >= 1000) {
+    return sym + (value / 1e3).toFixed(decimalsFor((step || 0) / 1e3, 1)) + 'K'
+  }
+  return sym + value.toFixed(decimalsFor(step || 0, 0))
+}
+
 function coerceDate(v) {
   if (!v) return null
   if (typeof v === 'string' || typeof v === 'number') return new Date(v)

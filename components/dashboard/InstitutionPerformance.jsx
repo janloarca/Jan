@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { formatCurrency, formatCompact, getItemValue, getItemPrice, getTypeCategory, buildIncomeEvents } from './utils'
+import { formatCurrency, formatCompact, formatAxisTick, getItemValue, getItemPrice, getTypeCategory, buildIncomeEvents } from './utils'
 import { authFetch, safeJson } from '@/lib/authFetch'
 
 const PERIODS = ['DAY', '1W', 'MTD', '1M', '3M', 'YTD', '1Y', 'ALL']
@@ -200,9 +200,11 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
     const baselineY = pad.top + ch
 
     const tickCount = 4
+    const tickStep = range / (tickCount - 1)
     const yTicks = Array.from({ length: tickCount }, (_, i) => ({
       val: adjustedMin + (range * i) / (tickCount - 1),
       y: pad.top + ch - (i / (tickCount - 1)) * ch,
+      step: tickStep,
     }))
 
     return { points, baselineY, yTicks, cw, ch }
@@ -437,7 +439,7 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
                   fontSize="10"
                   fontFamily="system-ui"
                 >
-                  {formatCompact(tk.val, baseCurrency)}
+                  {formatAxisTick(tk.val, tk.step, baseCurrency)}
                 </text>
               ))}
 

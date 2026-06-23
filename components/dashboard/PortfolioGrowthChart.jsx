@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { formatCurrency, formatCompact, formatDate, computeModifiedDietz, getItemValue, buildIncomeEvents } from './utils'
+import { formatCurrency, formatCompact, formatAxisTick, formatDate, computeModifiedDietz, getItemValue, buildIncomeEvents } from './utils'
 import { computeTWRSeries } from './analytics'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import ErrorState from '@/components/ui/ErrorState'
@@ -37,9 +37,11 @@ function buildGeometry(values, mode, height, width, pad, extraSeries) {
     : pad.top + ch
 
   const tickCount = 5
+  const tickStep = range / (tickCount - 1)
   const yTicks = Array.from({ length: tickCount }, (_, i) => ({
     val: adjustedMin + (range * i) / (tickCount - 1),
     y: pad.top + ch - (i / (tickCount - 1)) * ch,
+    step: tickStep,
   }))
 
   return { points, baselineY, yTicks, cw, ch, adjustedMin, range }
@@ -874,7 +876,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
               <g key={i}>
                 <line x1={pad.left} y1={tk.y} x2={width - pad.right} y2={tk.y} stroke="#27272a" strokeDasharray="4 4" strokeOpacity="0.5" />
                 <text x={pad.left - 8} y={tk.y + 4} textAnchor="end" fill="#64748b" fontSize="10" fontFamily="system-ui">
-                  {viewMode === 'performance' ? `${tk.val >= 0 ? '+' : ''}${tk.val.toFixed(tk.val === 0 ? 0 : 2)}%` : formatCompact(tk.val)}
+                  {viewMode === 'performance' ? `${tk.val >= 0 ? '+' : ''}${tk.val.toFixed(tk.val === 0 ? 0 : 2)}%` : formatAxisTick(tk.val, tk.step, baseCurrency)}
                 </text>
               </g>
             ))}

@@ -33,7 +33,7 @@ export const viewport = {
   viewportFit: 'cover',
   themeColor: [
     { media: '(prefers-color-scheme: dark)', color: '#0A0A12' },
-    { media: '(prefers-color-scheme: light)', color: '#F0F2F8' },
+    { media: '(prefers-color-scheme: light)', color: '#F8F9FB' },
   ],
 }
 
@@ -43,14 +43,14 @@ export default function RootLayout({ children }) {
     (function() {
       try {
         var saved = localStorage.getItem('chispudo-theme');
-        var theme = 'dark';
-        if (saved === 'light') {
-          theme = 'light';
+        var theme = 'light';
+        if (saved === 'dark') {
+          theme = 'dark';
         } else if (saved === 'system') {
           theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         }
         document.documentElement.setAttribute('data-theme', theme);
-        var tc = theme === 'light' ? '#F0F2F8' : '#0A0A12';
+        var tc = theme === 'light' ? '#F8F9FB' : '#0A0A12';
         var metas = document.querySelectorAll('meta[name="theme-color"]');
         metas.forEach(function(m) { m.setAttribute('content', tc); });
       } catch(e) {}
@@ -78,7 +78,7 @@ export default function RootLayout({ children }) {
   `
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" data-theme="light" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

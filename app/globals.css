@@ -42,42 +42,43 @@
 }
 
 [data-theme="light"] {
-  --bg-primary: #F0F2F8;
-  --bg-secondary: rgba(255, 255, 255, 0.7);
-  --bg-card: rgba(255, 255, 255, 0.55);
-  --bg-card-hover: rgba(255, 255, 255, 0.75);
-  --bg-input: rgba(255, 255, 255, 0.6);
-  --bg-tertiary: rgba(240, 242, 248, 0.8);
-  --border-color: rgba(0, 0, 0, 0.08);
-  --border-primary: rgba(0, 0, 0, 0.08);
-  --border-subtle: rgba(0, 0, 0, 0.04);
-  --text-primary: #1A1A2E;
-  --text-secondary: rgba(30, 30, 50, 0.65);
-  --text-muted: rgba(30, 30, 50, 0.5);
-  --accent-blue: #5B68E8;
-  --accent-blue-strong: #4A56D4;
-  --accent-blue-soft: #5B68E8;
+  /* Clean fintech light theme — flat surfaces, subtle borders, soft shadows */
+  --bg-primary: #F8F9FB;
+  --bg-secondary: #FFFFFF;
+  --bg-card: #FFFFFF;
+  --bg-card-hover: #FFFFFF;
+  --bg-input: #FFFFFF;
+  --bg-tertiary: #F9FAFB;
+  --border-color: #E5E7EB;
+  --border-primary: #E5E7EB;
+  --border-subtle: #F3F4F6;
+  --text-primary: #111827;
+  --text-secondary: #374151;
+  --text-muted: #6B7280;
+  --accent-blue: #4F46E5;
+  --accent-blue-strong: #4338CA;
+  --accent-blue-soft: #6366F1;
   --accent-green: #059669;
-  --accent-red: #dc2626;
-  --text-negative: #dc2626;
-  --accent-orange: #FF9500;
-  --accent-purple: #AF52DE;
-  --accent-cyan: #5AC8FA;
-  --focus-ring: #5B68E8;
+  --accent-red: #DC2626;
+  --text-negative: #DC2626;
+  --accent-orange: #D97706;
+  --accent-purple: #7C3AED;
+  --accent-cyan: #0891B2;
+  --focus-ring: #4F46E5;
   --fill-primary: rgba(120, 120, 128, 0.15);
   --fill-secondary: rgba(120, 120, 128, 0.1);
-  --card-bg: rgba(255, 255, 255, 0.55);
-  --card-border: rgba(0, 0, 0, 0.08);
-  --input-bg: rgba(255, 255, 255, 0.6);
+  --card-bg: #FFFFFF;
+  --card-border: #E5E7EB;
+  --input-bg: #FFFFFF;
 
-  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
-  --shadow-elevated: 0 8px 32px rgba(0, 0, 0, 0.1);
-  --shadow-modal: 0 24px 80px rgba(0, 0, 0, 0.15);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+  --shadow-elevated: 0 4px 6px rgba(0, 0, 0, 0.04), 0 2px 4px rgba(0, 0, 0, 0.02);
+  --shadow-modal: 0 10px 15px rgba(0, 0, 0, 0.08), 0 4px 6px rgba(0, 0, 0, 0.04);
   --glass-blur: blur(20px);
   --glass-blur-strong: blur(40px);
-  --glass-border: 1px solid rgba(0, 0, 0, 0.06);
-  --glass-border-color: rgba(0, 0, 0, 0.06);
-  --glass-shine: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  --glass-border: 1px solid #E5E7EB;
+  --glass-border-color: #E5E7EB;
+  --glass-shine: none;
 }
 
 /* Glass opacity variants — needed because Tailwind can't apply /NN to CSS-var colors */
@@ -95,19 +96,19 @@
 .bg-theme-elevated\/50 { background-color: rgba(35, 35, 55, 0.50); }
 .bg-theme-elevated\/30 { background-color: rgba(35, 35, 55, 0.30); }
 
-[data-theme="light"] .bg-theme-base\/95 { background-color: rgba(240, 242, 248, 0.95); }
-[data-theme="light"] .bg-theme-base\/80 { background-color: rgba(240, 242, 248, 0.80); }
-[data-theme="light"] .bg-theme-base\/60 { background-color: rgba(240, 242, 248, 0.60); }
-[data-theme="light"] .bg-theme-base\/50 { background-color: rgba(240, 242, 248, 0.50); }
-[data-theme="light"] .bg-theme-surface\/80 { background-color: rgba(255, 255, 255, 0.70); }
-[data-theme="light"] .bg-theme-card\/95 { background-color: rgba(255, 255, 255, 0.90); }
-[data-theme="light"] .bg-theme-card\/80 { background-color: rgba(255, 255, 255, 0.70); }
-[data-theme="light"] .bg-theme-card\/60 { background-color: rgba(255, 255, 255, 0.55); }
-[data-theme="light"] .bg-theme-card\/50 { background-color: rgba(255, 255, 255, 0.45); }
-[data-theme="light"] .bg-theme-card\/40 { background-color: rgba(255, 255, 255, 0.35); }
-[data-theme="light"] .bg-theme-elevated\/60 { background-color: rgba(255, 255, 255, 0.55); }
-[data-theme="light"] .bg-theme-elevated\/50 { background-color: rgba(255, 255, 255, 0.45); }
-[data-theme="light"] .bg-theme-elevated\/30 { background-color: rgba(255, 255, 255, 0.25); }
+[data-theme="light"] .bg-theme-base\/95 { background-color: rgba(248, 249, 251, 0.95); }
+[data-theme="light"] .bg-theme-base\/80 { background-color: rgba(248, 249, 251, 0.80); }
+[data-theme="light"] .bg-theme-base\/60 { background-color: rgba(248, 249, 251, 0.60); }
+[data-theme="light"] .bg-theme-base\/50 { background-color: rgba(248, 249, 251, 0.50); }
+[data-theme="light"] .bg-theme-surface\/80 { background-color: #FFFFFF; }
+[data-theme="light"] .bg-theme-card\/95 { background-color: #FFFFFF; }
+[data-theme="light"] .bg-theme-card\/80 { background-color: #FFFFFF; }
+[data-theme="light"] .bg-theme-card\/60 { background-color: #FFFFFF; }
+[data-theme="light"] .bg-theme-card\/50 { background-color: #F9FAFB; }
+[data-theme="light"] .bg-theme-card\/40 { background-color: #F9FAFB; }
+[data-theme="light"] .bg-theme-elevated\/60 { background-color: #F9FAFB; }
+[data-theme="light"] .bg-theme-elevated\/50 { background-color: #F9FAFB; }
+[data-theme="light"] .bg-theme-elevated\/30 { background-color: #F3F4F6; }
 
 /* Hover glass variants */
 .hover\:bg-theme-elevated:hover { background-color: var(--bg-card-hover); }
@@ -140,12 +141,15 @@
 body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', system-ui, 'Helvetica Neue', sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', system-ui, 'Helvetica Neue', sans-serif;
   font-size: 16px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.3s, color 0.3s;
+  /* Tabular figures everywhere so numbers never shift width when they change */
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
 }
 
 /* Focus accessibility */
@@ -627,4 +631,76 @@ button[aria-label="Close"] {
   color: var(--text-primary);
   background: var(--bg-primary);
   caret-color: var(--accent-blue);
+}
+
+/* ============================================================
+   LIGHT THEME — flat fintech surfaces (no glassmorphism)
+   Cards become opaque white with hairline borders + soft shadow;
+   the primary CTA becomes near-black; pills use a soft indigo wash.
+   ============================================================ */
+[data-theme="light"] .card-glass,
+[data-theme="light"] .card-primary,
+[data-theme="light"] .card-hero {
+  background: #FFFFFF;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid #E5E7EB;
+  box-shadow: var(--shadow-card);
+}
+[data-theme="light"] .card-glass:hover,
+[data-theme="light"] .card-hero:hover {
+  background: #FFFFFF;
+  border-color: #D1D5DB;
+  box-shadow: var(--shadow-elevated);
+}
+
+[data-theme="light"] .btn-primary {
+  background: #111827;
+  color: #FFFFFF;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+[data-theme="light"] .btn-primary:hover {
+  background: #1F2937;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="light"] .btn-secondary {
+  background: #FFFFFF;
+  color: #374151;
+  border: 1px solid #E5E7EB;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+}
+[data-theme="light"] .btn-secondary:hover {
+  background: #F9FAFB;
+  border-color: #D1D5DB;
+  box-shadow: none;
+}
+
+[data-theme="light"] .btn-ghost:hover {
+  background: #F9FAFB;
+  color: #111827;
+}
+
+[data-theme="light"] .pill-active {
+  background: #EEF2FF;
+  border: 1px solid #C7D2FE;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  color: #4338CA;
+}
+
+[data-theme="light"] .modal-glass {
+  background: #FFFFFF;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid #E5E7EB;
+  box-shadow: var(--shadow-modal);
+}
+[data-theme="light"] .modal-backdrop {
+  background: rgba(17, 24, 39, 0.4);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
 }
