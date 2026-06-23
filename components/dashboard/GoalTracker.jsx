@@ -129,11 +129,11 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
                 <span className="text-xs text-white font-medium">{t('Ingreso pasivo', 'Passive income')}</span>
                 <span className="text-xs text-slate-500 bg-theme-base px-1.5 py-0.5 rounded">{formatCompact(incomeGoal)}/{t('año', 'yr')}</span>
               </div>
-              <span className="text-xs font-bold" style={{ color: incomePct >= 50 ? '#34d399' : '#fbbf24' }}>{incomePct.toFixed(0)}%</span>
+              <span className="text-xs font-bold" style={{ color: incomePct >= 75 ? 'var(--accent-green)' : incomePct >= 25 ? 'var(--accent-orange)' : 'var(--text-negative)' }}>{incomePct.toFixed(0)}%</span>
             </div>
-            <div className="w-full h-3 bg-slate-700/30 rounded-full overflow-hidden">
-              <div className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all"
-                style={{ width: `${incomePct}%` }} />
+            <div className="w-full h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+              <div className="h-full rounded-full transition-all"
+                style={{ width: `${incomePct}%`, background: 'linear-gradient(90deg, #4F46E5, #818CF8)' }} />
             </div>
             <div className="flex justify-between mt-1">
               <span className="text-xs text-slate-500">{formatCurrency(effectiveIncome)}</span>
@@ -148,11 +148,11 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
                 <span className="text-xs text-white font-medium">{t('Tamaño de portfolio', 'Portfolio size')}</span>
                 <span className="text-xs text-slate-500 bg-theme-base px-1.5 py-0.5 rounded">{formatCompact(portfolioGoal)}</span>
               </div>
-              <span className="text-xs font-bold" style={{ color: portfolioPct >= 50 ? '#34d399' : '#fbbf24' }}>{portfolioPct.toFixed(0)}%</span>
+              <span className="text-xs font-bold" style={{ color: portfolioPct >= 75 ? 'var(--accent-green)' : portfolioPct >= 25 ? 'var(--accent-orange)' : 'var(--text-negative)' }}>{portfolioPct.toFixed(0)}%</span>
             </div>
-            <div className="w-full h-3 bg-slate-700/30 rounded-full overflow-hidden">
-              <div className="h-full rounded-full bg-gradient-to-r from-purple-500 to-pink-400 transition-all"
-                style={{ width: `${portfolioPct}%` }} />
+            <div className="w-full h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+              <div className="h-full rounded-full transition-all"
+                style={{ width: `${portfolioPct}%`, background: 'linear-gradient(90deg, #4F46E5, #818CF8)' }} />
             </div>
             <div className="flex justify-between mt-1">
               <span className="text-xs text-slate-500">{formatCurrency(netWorth)}</span>
@@ -162,13 +162,13 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
 
           {/* Goal probability */}
           {goalProbability != null && (() => {
-            const probColor = goalProbability >= 70 ? '#34d399' : goalProbability >= 40 ? '#FF9F0A' : '#FF453A'
+            const probColor = goalProbability >= 70 ? 'var(--accent-green)' : goalProbability >= 40 ? 'var(--accent-orange)' : 'var(--text-negative)'
             const probLabel = goalProbability >= 70 ? t('Alta', 'High') : goalProbability >= 40 ? t('Moderada', 'Moderate') : t('Baja', 'Low')
             return (
               <div className="flex items-center gap-4 px-4 py-3 bg-theme-base rounded-xl border border-glass-border/50">
                 <div className="relative w-20 h-20 shrink-0">
                   <svg viewBox="0 0 36 36" className="w-full h-full">
-                    <circle cx="18" cy="18" r="15" fill="none" stroke="#38383A" strokeWidth="2.5" />
+                    <circle cx="18" cy="18" r="15" fill="none" stroke="var(--bg-tertiary)" strokeWidth="2.5" />
                     <circle cx="18" cy="18" r="15" fill="none"
                       stroke={probColor}
                       strokeWidth="2.5" strokeDasharray={`${goalProbability * 0.942} 94.2`}

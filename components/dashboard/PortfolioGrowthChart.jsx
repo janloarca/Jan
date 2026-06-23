@@ -656,8 +656,8 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           if (p === 'CUSTOM') setShowCustomRange(true)
           else setShowCustomRange(false)
         }}
-          className={`px-3 py-2 text-xs font-semibold rounded-md transition-all ${period === p ? 'pill-active' : ''}`}
-          style={period === p ? { color: '#fff' } : { color: 'var(--text-muted)' }}>{p === 'CUSTOM' ? (lang === 'es' ? 'Rango' : 'Range') : p}</button>
+          className={`px-3 py-2 text-xs font-semibold rounded-md transition-all border ${period === p ? 'pill-active' : 'border-transparent'}`}
+          style={period === p ? { color: 'var(--text-primary)' } : { color: 'var(--text-muted)' }}>{p === 'CUSTOM' ? (lang === 'es' ? 'Rango' : 'Range') : p}</button>
       ))}
     </div>
   )
@@ -718,15 +718,15 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         <button onClick={() => setViewMode('value')}
           className="text-sm font-medium pb-1 transition-all border-b-2"
           style={viewMode === 'value'
-            ? { color: '#fff', borderColor: '#fff' }
-            : { color: '#64748b', borderColor: 'transparent' }}>
+            ? { color: 'var(--text-primary)', borderColor: 'var(--text-primary)' }
+            : { color: 'var(--text-muted)', borderColor: 'transparent' }}>
           {t('Valor', 'Value')}
         </button>
         <button onClick={() => setViewMode('performance')}
           className="text-sm font-medium pb-1 transition-all border-b-2"
           style={viewMode === 'performance'
-            ? { color: '#fff', borderColor: '#fff' }
-            : { color: '#64748b', borderColor: 'transparent' }}>
+            ? { color: 'var(--text-primary)', borderColor: 'var(--text-primary)' }
+            : { color: 'var(--text-muted)', borderColor: 'transparent' }}>
           {t('Rendimiento', 'Performance')}
         </button>
         <div className="ml-auto flex items-center gap-2">
@@ -785,14 +785,14 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       {viewMode === 'value' ? (
         <div className="mb-3">
           <p className="text-3xl font-bold text-white font-mono tabular-nums">{formatCurrency(hd ? hd.value : currentTotal)}</p>
-          <p className="text-sm mt-0.5" style={{ color: growthAbs >= 0 ? '#34d399' : '#f87171' }}>
+          <p className="text-sm mt-0.5" style={{ color: growthAbs >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
             <span className="font-mono tabular-nums">{growthAbs >= 0 ? '+' : ''}{formatCurrency(growthAbs)} ({growthAbs >= 0 ? '+' : ''}{growthPct.toFixed(2)}%)</span>
             <span className="text-slate-500 ml-1">{period === 'YTD' ? t('este año', 'this year') : period === 'DAY' ? t('hoy', 'today') : period === 'CUSTOM' ? t('rango', 'range') : period}</span>
           </p>
         </div>
       ) : (
         <div className="mb-3">
-          <p className="text-3xl font-bold font-mono tabular-nums" style={{ color: lastReturn >= 0 ? '#34d399' : '#f87171' }}>
+          <p className="text-3xl font-bold font-mono tabular-nums" style={{ color: lastReturn >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
             {lastReturn >= 0 ? '+' : ''}{(hoverIdx != null && returnData[hoverIdx] != null ? returnData[hoverIdx] : lastReturn).toFixed(2)}%
           </p>
           <div className="flex items-center gap-3 mt-0.5">
@@ -874,7 +874,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
             {/* Y-axis grid lines and labels */}
             {geo.yTicks.map((tk, i) => (
               <g key={i}>
-                <line x1={pad.left} y1={tk.y} x2={width - pad.right} y2={tk.y} stroke="#27272a" strokeDasharray="4 4" strokeOpacity="0.5" />
+                <line x1={pad.left} y1={tk.y} x2={width - pad.right} y2={tk.y} stroke="var(--card-border)" strokeDasharray="4 4" strokeOpacity="0.8" />
                 <text x={pad.left - 8} y={tk.y + 4} textAnchor="end" fill="#64748b" fontSize="10" fontFamily="system-ui">
                   {viewMode === 'performance' ? `${tk.val >= 0 ? '+' : ''}${tk.val.toFixed(tk.val === 0 ? 0 : 2)}%` : formatAxisTick(tk.val, tk.step, baseCurrency)}
                 </text>
@@ -897,14 +897,14 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                     y={pad.top}
                     width={geo.points[drawdown.end].x - geo.points[drawdown.start].x}
                     height={chartHeight - pad.top - pad.bottom}
-                    fill="#ef4444" opacity="0.06" rx="2" />
+                    fill="var(--text-negative)" opacity="0.06" rx="2" />
                 )}
 
                 {/* Main value area + line */}
                 <path
                   d={`${polyline(geo.points)} L ${geo.points[geo.points.length - 1].x} ${geo.baselineY} L ${geo.points[0].x} ${geo.baselineY} Z`}
                   fill="url(#grad-value)" />
-                <path d={polyline(geo.points)} fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <path d={polyline(geo.points)} fill="none" stroke="var(--accent-blue)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
 
                 {/* Contributions line (invested capital) */}
                 {contributionGeoPoints && contributionGeoPoints.length >= 2 && showContributions && (
@@ -922,7 +922,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                       points={isBuy
                         ? `${pt.x},${markerY + 2} ${pt.x - 4},${markerY + 10} ${pt.x + 4},${markerY + 10}`
                         : `${pt.x},${markerY + 10} ${pt.x - 4},${markerY + 2} ${pt.x + 4},${markerY + 2}`}
-                      fill={isBuy ? '#34d399' : '#ef4444'} opacity="0.6" />
+                      fill={isBuy ? 'var(--accent-green)' : 'var(--text-negative)'} opacity="0.6" />
                   )
                 })}
               </>
@@ -930,12 +930,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
               <>
                 <defs>
                   <linearGradient id="grad-perf-green" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#34d399" stopOpacity="0.3" />
-                    <stop offset="100%" stopColor="#34d399" stopOpacity="0.02" />
+                    <stop offset="0%" stopColor="var(--accent-green)" stopOpacity="0.3" />
+                    <stop offset="100%" stopColor="var(--accent-green)" stopOpacity="0.02" />
                   </linearGradient>
                   <linearGradient id="grad-perf-red" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#ef4444" stopOpacity="0.02" />
-                    <stop offset="100%" stopColor="#ef4444" stopOpacity="0.3" />
+                    <stop offset="0%" stopColor="var(--text-negative)" stopOpacity="0.02" />
+                    <stop offset="100%" stopColor="var(--text-negative)" stopOpacity="0.3" />
                   </linearGradient>
                   <clipPath id="clip-above-baseline">
                     <rect x={pad.left} y={pad.top} width={geo.cw} height={Math.max(0, geo.baselineY - pad.top)} />
@@ -957,10 +957,10 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                   d={`${polyline(geo.points)} L ${geo.points[geo.points.length - 1].x} ${geo.baselineY} L ${geo.points[0].x} ${geo.baselineY} Z`}
                   fill="url(#grad-perf-red)" clipPath="url(#clip-below-baseline)" />
 
-                <path d={polyline(geo.points)} fill="none" stroke="#34d399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                <path d={polyline(geo.points)} fill="none" stroke="var(--accent-green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
                   clipPath="url(#clip-above-baseline)" />
 
-                <path d={polyline(geo.points)} fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                <path d={polyline(geo.points)} fill="none" stroke="var(--text-negative)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
                   clipPath="url(#clip-below-baseline)" />
 
                 {benchmarkGeoPoints && benchmarkGeoPoints.length >= 2 && (
@@ -983,7 +983,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
               <g>
                 <line x1={hp.x} y1={pad.top} x2={hp.x} y2={chartHeight - pad.bottom} stroke="#94a3b8" strokeWidth="1" strokeDasharray="4 3" />
                 <circle cx={hp.x} cy={hp.y} r="4.5"
-                  fill={viewMode === 'value' ? '#3b82f6' : (hp.v >= 0 ? '#34d399' : '#ef4444')}
+                  fill={viewMode === 'value' ? 'var(--accent-blue)' : (hp.v >= 0 ? 'var(--accent-green)' : 'var(--text-negative)')}
                   stroke="#000000" strokeWidth="2" />
               </g>
             )}
@@ -1011,7 +1011,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                     const chg = hd.value - prev.value
                     const chgPct = prev.value > 0 ? (chg / prev.value) * 100 : 0
                     return (
-                      <div style={{ color: chg >= 0 ? '#34d399' : '#f87171' }}>
+                      <div style={{ color: chg >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                         {chg >= 0 ? '+' : ''}{formatCurrency(chg)} ({chgPct >= 0 ? '+' : ''}{chgPct.toFixed(2)}%)
                       </div>
                     )
@@ -1028,7 +1028,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                 </>
               ) : (
                 <>
-                  <div className="font-bold" style={{ color: (returnData[hoverIdx] ?? 0) >= 0 ? '#34d399' : '#f87171' }}>
+                  <div className="font-bold" style={{ color: (returnData[hoverIdx] ?? 0) >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                     {t('Portafolio', 'Portfolio')}: {(returnData[hoverIdx] ?? 0) >= 0 ? '+' : ''}{(returnData[hoverIdx] ?? 0).toFixed(2)}%
                   </div>
                   {benchmarkReturnSeries && benchmarkReturnSeries[hoverIdx] != null && (
@@ -1061,7 +1061,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       {viewMode === 'performance' && (
         <div className="flex items-center justify-center gap-4 mt-2 text-xs text-slate-500">
           <span className="flex items-center gap-1.5">
-            <span className="w-3 h-0.5 rounded-full inline-block" style={{ backgroundColor: '#34d399' }} />
+            <span className="w-3 h-0.5 rounded-full inline-block" style={{ backgroundColor: 'var(--accent-green)' }} />
             {t('Tu portafolio', 'Your portfolio')} ({returnMode.toUpperCase()})
           </span>
           {benchmarkReturnSeries && (

@@ -56,12 +56,16 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
 
   const typeBadgeStyle = (type) => {
     const t = (type || '').toUpperCase()
-    if (t === 'BUY') return { backgroundColor: 'rgba(59,130,246,0.2)', color: 'var(--accent-blue)' }
-    if (t === 'SELL') return { backgroundColor: 'rgba(100,116,139,0.2)', color: '#94a3b8' }
-    if (t === 'DIVIDEND') return { backgroundColor: 'rgba(52,211,153,0.15)', color: '#6ee7b7' }
-    if (t === 'DEPOSIT') return { backgroundColor: 'rgba(100,116,139,0.2)', color: '#cbd5e1' }
-    if (t === 'WITHDRAWAL') return { backgroundColor: 'rgba(100,116,139,0.2)', color: '#94a3b8' }
-    return { backgroundColor: 'rgba(100,116,139,0.2)', color: '#94a3b8' }
+    const success = { backgroundColor: 'var(--alert-success-bg)', color: 'var(--alert-success-icon)' }
+    const error = { backgroundColor: 'var(--alert-error-bg)', color: 'var(--alert-error-icon)' }
+    const warn = { backgroundColor: 'var(--alert-warn-bg)', color: 'var(--alert-warn-icon)' }
+    const neutral = { backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }
+    if (t === 'BUY') return success
+    if (t === 'SELL') return error
+    if (t === 'DIVIDEND') return warn
+    if (t === 'DEPOSIT') return success
+    if (t === 'WITHDRAWAL') return error
+    return neutral
   }
 
   const typeIcon = (type) => {
@@ -95,28 +99,24 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
         )}
       </div>
 
-      {/* Visual filter tabs */}
+      {/* Visual filter tabs — outline when inactive, soft indigo wash when active */}
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 mb-4">
         {filterOptions.map((opt) => {
           const count = txCount(opt.key)
           const isActive = typeFilter === opt.key
-          const activeStyles = {
-            blue: { backgroundColor: 'rgba(59,130,246,0.15)', borderColor: 'rgba(59,130,246,0.3)', color: 'var(--accent-blue)' },
-            emerald: { backgroundColor: 'rgba(52,211,153,0.15)', borderColor: 'rgba(52,211,153,0.3)', color: 'var(--accent-green)' },
-            red: { backgroundColor: 'rgba(239,68,68,0.15)', borderColor: 'rgba(239,68,68,0.3)', color: 'var(--text-negative)' },
-            amber: { backgroundColor: 'rgba(245,158,11,0.15)', borderColor: 'rgba(245,158,11,0.3)', color: '#fbbf24' },
-            slate: { backgroundColor: 'rgba(100,116,139,0.15)', borderColor: 'rgba(100,116,139,0.3)', color: '#cbd5e1' },
+          const activeStyle = {
+            backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)',
+            borderColor: 'color-mix(in srgb, var(--accent-blue) 35%, transparent)',
+            color: 'var(--accent-blue)',
           }
+          const inactiveStyle = { backgroundColor: 'transparent', borderColor: 'var(--card-border)', color: 'var(--text-muted)' }
           return (
             <button key={opt.key} onClick={() => { setTypeFilter(opt.key); setShowAll(false) }}
-              className="flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg transition-all text-center border hover:bg-theme-elevated"
-              style={isActive
-                ? activeStyles[opt.color]
-                : { backgroundColor: 'rgba(0,0,0,0.5)', borderColor: 'transparent', color: 'var(--text-muted)' }
-              }>
-              <span className="text-sm font-bold">{opt.icon}</span>
+              className="flex flex-col items-center gap-1 px-2 py-2.5 rounded-[10px] transition-all text-center border hover:bg-theme-elevated"
+              style={isActive ? activeStyle : inactiveStyle}>
+              <span className="text-base">{opt.icon}</span>
               <span className="text-xs font-medium">{opt.label}</span>
-              {count > 0 && <span className="text-xs opacity-60">{count}</span>}
+              {count > 0 && <span className="text-sm font-bold" style={{ color: isActive ? 'var(--accent-blue)' : 'var(--text-secondary)' }}>{count}</span>}
             </button>
           )
         })}
@@ -133,8 +133,10 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
           { key: 'ytd', label: 'YTD' },
         ].map((opt) => (
           <button key={opt.key} onClick={() => { setDateRange(opt.key); setShowAll(false) }}
-            className="px-2 py-1 text-xs rounded transition-colors"
-            style={dateRange === opt.key ? { backgroundColor: '#475569', color: '#ffffff' } : { color: 'var(--text-muted)' }}>
+            className="px-3 py-1.5 text-xs font-medium rounded-md border transition-colors"
+            style={dateRange === opt.key
+              ? { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 35%, transparent)', color: 'var(--accent-blue)' }
+              : { backgroundColor: 'transparent', borderColor: 'transparent', color: 'var(--text-muted)' }}>
             {opt.label}
           </button>
         ))}
@@ -146,7 +148,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
           {monthlySummary.map((m) => (
             <div key={m.month} className="bg-theme-base rounded-lg p-2.5 border border-glass-border/50 text-center">
               <div className="text-xs text-slate-500 mb-1">{m.month}</div>
-              <div className="text-xs font-semibold font-mono tabular-nums" style={{ color: m.net >= 0 ? '#34d399' : '#f87171' }}>
+              <div className="text-xs font-semibold font-mono tabular-nums" style={{ color: m.net >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                 {m.net >= 0 ? '+' : ''}{formatCurrency(m.net)}
               </div>
               <div className="text-xs text-slate-600">{m.count} txs</div>
@@ -169,7 +171,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
             {display.map((tx, i) => (
               <div key={tx.id || i} className="flex items-center justify-between py-3 border-b border-glass-border/30 last:border-0 hover:bg-theme-elevated/30 transition-colors -mx-2 px-2 rounded">
                 <div className="flex items-center gap-3">
-                  <span className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold" style={typeBadgeStyle(tx.type)}>
+                  <span className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0" style={typeBadgeStyle(tx.type)}>
                     {typeIcon(tx.type)}
                   </span>
                   <div>
@@ -185,7 +187,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
                 <div className="text-right">
                   <span className="text-sm font-medium font-mono tabular-nums" style={{ color:
                     (tx.type || '').toUpperCase() === 'SELL' || (tx.type || '').toUpperCase() === 'WITHDRAWAL'
-                      ? '#f87171' : '#34d399'
+                      ? 'var(--text-negative)' : 'var(--accent-green)'
                   }}>
                     {formatCurrency(tx.totalAmount ?? 0)}
                   </span>

@@ -3,15 +3,15 @@
 import { useMemo } from 'react'
 import { generateInsights } from '@/lib/insights'
 
-// Neutral card with a single colored accent (left border + icon).
-// Reduces the "everything is colored" noise — color carries one meaning:
-// green = good money, red = problem, amber = attention, blue = action/info.
+// Semantic alert cards — soft tinted background + hairline border + icon chip.
+// Color carries one meaning: green = good money, red = problem, amber =
+// attention, blue = action/info. Tokens are theme-aware (see globals.css).
 const TYPE_ACCENT = {
-  success: { border: 'var(--accent-green)', icon: 'var(--accent-green)' },
-  warning: { border: '#f59e0b', icon: '#fbbf24' },
-  danger: { border: 'var(--accent-red)', icon: 'var(--text-negative)' },
-  info: { border: 'var(--text-muted)', icon: 'var(--text-secondary)' },
-  cta: { border: 'var(--accent-blue)', icon: 'var(--accent-blue-soft)' },
+  success: { bg: 'var(--alert-success-bg)', border: 'var(--alert-success-border)', icon: 'var(--alert-success-icon)' },
+  warning: { bg: 'var(--alert-warn-bg)',    border: 'var(--alert-warn-border)',    icon: 'var(--alert-warn-icon)' },
+  danger:  { bg: 'var(--alert-error-bg)',   border: 'var(--alert-error-border)',   icon: 'var(--alert-error-icon)' },
+  info:    { bg: 'var(--alert-info-bg)',     border: 'var(--alert-info-border)',     icon: 'var(--alert-info-icon)' },
+  cta:     { bg: 'var(--alert-info-bg)',     border: 'var(--alert-info-border)',     icon: 'var(--accent-blue)' },
 }
 
 const TYPE_ICONS = {
@@ -68,17 +68,20 @@ export default function InsightCards({ items, profile, netWorth, estimatedAnnual
         const accent = TYPE_ACCENT[card.type] || TYPE_ACCENT.info
         return (
           <div key={i}
-            className={`p-3 rounded-lg border border-glass-border/50 ${card.action ? 'cursor-pointer hover:bg-theme-elevated/60 transition-colors' : ''}`}
-            style={{ background: 'var(--bg-card)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)', borderLeftWidth: '2px', borderLeftColor: accent.border }}
+            className={`px-5 py-4 rounded-xl border transition-colors ${card.action ? 'cursor-pointer hover:brightness-[0.98]' : ''}`}
+            style={{ background: accent.bg, borderColor: accent.border }}
             onClick={card.action === 'profile' && onOpenSettings ? onOpenSettings : undefined}
             role={card.action ? 'button' : undefined}
             tabIndex={card.action ? 0 : undefined}
           >
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-sm" style={{ color: accent.icon }}>{TYPE_ICONS[card.type] || TYPE_ICONS.info}</span>
-              <span className="text-xs font-semibold text-slate-200">{lang === 'es' ? card.titleEs : card.titleEn}</span>
+            <div className="flex items-center gap-2.5 mb-1.5">
+              <span className="w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0"
+                style={{ color: accent.icon, backgroundColor: `color-mix(in srgb, ${accent.icon} 15%, transparent)` }}>
+                {TYPE_ICONS[card.type] || TYPE_ICONS.info}
+              </span>
+              <span className="text-[13px] font-semibold" style={{ color: accent.icon }}>{lang === 'es' ? card.titleEs : card.titleEn}</span>
             </div>
-            <p className="text-xs text-slate-400">{lang === 'es' ? card.descEs : card.descEn}</p>
+            <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? card.descEs : card.descEn}</p>
           </div>
         )
       })}

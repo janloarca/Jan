@@ -49,13 +49,20 @@ export default function FinancialHealth({ items, netWorth, totalAssets, snapshot
   }, [items, totalAssets, snapshots])
 
   const grade = scores.total >= 90 ? 'A+' : scores.total >= 80 ? 'A' : scores.total >= 70 ? 'B+' : scores.total >= 60 ? 'B' : scores.total >= 50 ? 'C' : scores.total >= 40 ? 'D' : 'F'
-  const gradeColor = scores.total >= 70 ? '#34d399' : scores.total >= 50 ? '#fbbf24' : '#f87171'
+  const gradeColor = scores.total >= 70 ? 'var(--accent-green)' : scores.total >= 50 ? 'var(--accent-orange)' : 'var(--text-negative)'
+
+  // Bar fill color reflects the score, not the metric: strong = green,
+  // mid = amber, weak = red (spec: 20–25 green, 10–19 amber, 0–9 red).
+  const barColor = (score, max) => {
+    const r = max ? score / max : 0
+    return r >= 0.8 ? 'var(--accent-green)' : r >= 0.4 ? 'var(--accent-orange)' : 'var(--text-negative)'
+  }
 
   const bars = [
-    { label: lang === 'es' ? 'Deuda' : 'Debt', score: scores.debtScore, max: 25, pct: 100 - scores.debtRatio, color: HEALTH.debt.bar },
-    { label: lang === 'es' ? 'Liquidez' : 'Liquidity', score: scores.liquidScore, max: 25, pct: scores.liquidPct, color: HEALTH.liquidity.bar },
-    { label: lang === 'es' ? 'Diversificación' : 'Diversification', score: scores.diverseScore, max: 25, pct: scores.diversePct, color: HEALTH.diversification.bar },
-    { label: lang === 'es' ? 'Crecimiento' : 'Growth', score: scores.growthScore, max: 25, pct: Math.min(100, Math.abs(scores.growthPct)), color: HEALTH.growth.bar },
+    { label: lang === 'es' ? 'Deuda' : 'Debt', score: scores.debtScore, max: 25 },
+    { label: lang === 'es' ? 'Liquidez' : 'Liquidity', score: scores.liquidScore, max: 25 },
+    { label: lang === 'es' ? 'Diversificación' : 'Diversification', score: scores.diverseScore, max: 25 },
+    { label: lang === 'es' ? 'Crecimiento' : 'Growth', score: scores.growthScore, max: 25 },
   ]
 
   const t = (es, en) => lang === 'es' ? es : en
@@ -126,10 +133,10 @@ export default function FinancialHealth({ items, netWorth, totalAssets, snapshot
         {bars.map((bar) => (
           <div key={bar.label} className="flex items-center gap-3">
             <span className="text-xs text-slate-400 w-28 shrink-0">{bar.label}</span>
-            <div className="flex-1 h-2 bg-slate-700/50 rounded-full overflow-hidden">
-              <div className={`h-full rounded-full transition-all ${bar.color}`} style={{ width: `${(bar.score / bar.max) * 100}%` }} />
+            <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+              <div className="h-full rounded-full transition-all" style={{ width: `${(bar.score / bar.max) * 100}%`, backgroundColor: barColor(bar.score, bar.max) }} />
             </div>
-            <span className="text-xs text-slate-400 w-10 text-right font-medium">{bar.score}/{bar.max}</span>
+            <span className="text-xs w-10 text-right font-medium tabular-nums" style={{ color: barColor(bar.score, bar.max) }}>{bar.score}/{bar.max}</span>
           </div>
         ))}
       </div>
@@ -141,7 +148,8 @@ export default function FinancialHealth({ items, netWorth, totalAssets, snapshot
             {suggestions.map((tip, i) => (
               <div key={i} className="flex items-center justify-between">
                 <span className="text-xs text-slate-300">{lang === 'es' ? tip.textEs : tip.textEn}</span>
-                <span className="text-xs font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                  style={{ color: 'var(--alert-success-icon)', backgroundColor: 'var(--alert-success-bg)' }}>
                   +{tip.points} pts
                 </span>
               </div>

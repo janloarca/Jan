@@ -5,9 +5,10 @@ import { usePathname } from 'next/navigation'
 import { Search, RefreshCw, Settings, LogOut, Plus, Upload, Zap } from 'lucide-react'
 
 export default function Header({ user, lang, setLang, onImport, onSignOut, onRefresh, onSettings, pricesLoading, onAddAccount, onCommandPalette, ibkrConnected, ibkrAutoSyncing, ibkrSyncStatus, onIBKR }) {
+  // Short, human date: "21 jun 2026" / "Jun 21, 2026"
   const today = new Date().toLocaleDateString(lang === 'es' ? 'es-ES' : 'en-US', {
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-  })
+    day: 'numeric', month: 'short', year: 'numeric'
+  }).replace('.', '')
   const pathname = usePathname()
 
   const navItems = [
@@ -16,58 +17,69 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
     { href: '/spreadsheet', label: lang === 'es' ? 'Hoja de Cálculo' : 'Spreadsheet' },
   ]
 
+  // Shared icon-button style (settings, logout, refresh) — 36px, hairline border.
+  const iconBtn = 'w-9 h-9 flex items-center justify-center rounded-lg border transition-colors'
+  const iconBtnStyle = { color: 'var(--text-muted)', borderColor: 'var(--card-border)' }
+
   return (
-    <header className="border-b border-glass-border sticky top-0 z-20 bg-theme-base\/95" style={{ backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+    <header className="border-b sticky top-0 z-20 bg-theme-base\/95"
+      style={{ borderColor: 'var(--card-border)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14">
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Zap size={20} style={{ color: 'var(--accent-blue)' }} />
-              <div>
-                <h1 className="text-base font-bold leading-tight" style={{ color: 'var(--accent-blue)' }}>Chispudo</h1>
-                <p className="text-caption text-slate-500 hidden sm:block leading-none">
-                  {lang === 'es' ? 'Tu dinero, tu control' : 'Your money, your control'}
-                </p>
-              </div>
+            {/* Logo — lightning integrated with the wordmark */}
+            <div className="flex items-center gap-1.5" title={lang === 'es' ? 'Tu dinero, tu control' : 'Your money, your control'}>
+              <Zap size={18} style={{ color: 'var(--accent-blue)' }} fill="var(--accent-blue)" />
+              <h1 className="text-base font-bold leading-none tracking-tight" style={{ color: 'var(--text-primary)' }}>Chispudo</h1>
             </div>
-            <nav className="hidden sm:flex items-center gap-1 ml-2" aria-label="Main navigation">
-              {navItems.map(item => (
-                <Link key={item.href} href={item.href}
-                  className={`px-3 py-1.5 text-body font-medium rounded-lg transition-colors ${
-                    pathname === item.href
-                      ? ''
-                      : 'text-slate-400 hover:text-white hover:bg-theme-elevated'
-                  }`}
-                  style={pathname === item.href ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(108,122,255,0.1)' } : undefined}>
-                  {item.label}
-                </Link>
-              ))}
+
+            {/* Navigation — segmented control */}
+            <nav className="hidden sm:flex items-center gap-0.5 p-1 rounded-[10px]"
+              style={{ backgroundColor: 'var(--bg-tertiary)' }}
+              aria-label="Main navigation">
+              {navItems.map(item => {
+                const active = pathname === item.href
+                return (
+                  <Link key={item.href} href={item.href}
+                    className="px-4 py-1.5 text-body font-medium rounded-lg transition-all"
+                    style={active
+                      ? { backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }
+                      : { color: 'var(--text-muted)' }}>
+                    {item.label}
+                  </Link>
+                )
+              })}
             </nav>
           </div>
+
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <span className="text-caption text-slate-500 hidden lg:block">{today}</span>
+            <span className="text-caption hidden lg:block" style={{ color: 'var(--text-muted)' }}>{today}</span>
+
             {onCommandPalette && (
               <button onClick={onCommandPalette}
                 aria-label={lang === 'es' ? 'Buscar' : 'Search'}
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-caption text-slate-500 border border-slate-600/50 rounded-lg hover:bg-theme-elevated hover:text-slate-300 transition-colors">
+                className="hidden sm:flex items-center gap-1.5 px-3 h-9 text-caption rounded-lg border transition-colors hover:bg-theme-elevated"
+                style={{ color: 'var(--text-muted)', borderColor: 'var(--card-border)' }}>
                 <Search size={12} />
-                <kbd className="text-micro text-slate-600 bg-slate-800/50 px-1 rounded">{typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl+K'}</kbd>
+                <kbd className="text-micro" style={{ color: 'var(--text-muted)' }}>{typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl+K'}</kbd>
               </button>
             )}
+
             <button onClick={onRefresh} disabled={pricesLoading} aria-label={lang === 'es' ? 'Actualizar precios' : 'Refresh prices'}
-              className="px-2 py-1.5 rounded-lg transition-colors disabled:opacity-50"
-              style={{ color: 'var(--accent-blue)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(108,122,255,0.3)' }}>
+              className={`${iconBtn} disabled:opacity-50 hover:bg-theme-elevated`}
+              style={{ color: 'var(--accent-blue)', borderColor: 'var(--card-border)' }}>
               <RefreshCw size={14} className={pricesLoading ? 'animate-spin' : ''} />
             </button>
+
             {ibkrConnected && (
               <button onClick={onIBKR}
                 aria-label="IBKR status"
-                className="px-2 py-1.5 text-xs font-medium rounded-lg border transition-colors flex items-center gap-1.5"
+                className="px-2.5 h-9 text-xs font-medium rounded-full border transition-colors flex items-center gap-1.5"
                 style={ibkrAutoSyncing
-                  ? { color: 'var(--accent-blue)', borderColor: 'rgba(108,122,255,0.3)', backgroundColor: 'rgba(108,122,255,0.1)' }
+                  ? { color: 'var(--accent-blue)', borderColor: 'rgba(79,70,229,0.3)', backgroundColor: 'rgba(79,70,229,0.08)' }
                   : ibkrSyncStatus === 'error'
-                    ? { color: '#fbbf24', borderColor: 'rgba(251,191,36,0.3)' }
-                    : { color: 'var(--accent-green)', borderColor: 'rgba(52,211,153,0.3)' }
+                    ? { color: '#D97706', borderColor: '#FDE68A', backgroundColor: '#FFFBEB' }
+                    : { color: '#D97706', borderColor: '#FDE68A', backgroundColor: '#FFFBEB' }
                 }>
                 <span className="font-mono">IBKR</span>
                 {ibkrAutoSyncing
@@ -78,27 +90,36 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
                 }
               </button>
             )}
+
             <button onClick={setLang} aria-label={lang === 'es' ? 'Cambiar a inglés' : 'Switch to Spanish'}
-              className="px-2 py-1.5 text-caption text-slate-400 border border-slate-600/50 rounded-lg hover:bg-theme-elevated transition-colors font-medium">
+              className="px-2 h-9 text-caption rounded-md border transition-colors hover:bg-theme-elevated font-medium"
+              style={{ color: 'var(--text-secondary)', borderColor: 'var(--card-border)' }}>
               {lang === 'en' ? 'ES' : 'EN'}
             </button>
+
             {onAddAccount && (
               <button onClick={onAddAccount} aria-label={lang === 'es' ? 'Agregar activo' : 'Add asset'}
-                className="btn-primary text-body">
+                className="btn-primary text-body" style={{ borderRadius: '8px' }}>
                 <Plus size={14} /> {lang === 'es' ? 'Nuevo' : 'New'}
               </button>
             )}
+
             <button onClick={onImport} aria-label={lang === 'es' ? 'Importar archivo' : 'Import file'}
-              className="hidden sm:flex items-center gap-1 px-3 py-1.5 text-body font-medium text-slate-300 border border-slate-600/50 rounded-lg hover:bg-theme-elevated transition-colors">
+              className="hidden sm:flex items-center gap-1 px-3 h-9 text-body font-medium rounded-lg border transition-colors hover:bg-theme-elevated"
+              style={{ color: 'var(--text-secondary)', borderColor: 'var(--card-border)' }}>
               <Upload size={14} /> {lang === 'es' ? 'Importar' : 'Import'}
             </button>
+
             <button onClick={onSettings}
-              className="px-2 py-1.5 text-slate-400 border border-slate-600/50 rounded-lg hover:bg-theme-elevated hover:text-white transition-colors"
+              className={`${iconBtn} hover:bg-theme-elevated`}
+              style={iconBtnStyle}
               aria-label={lang === 'es' ? 'Configuración' : 'Settings'}>
               <Settings size={16} />
             </button>
+
             <button onClick={onSignOut} aria-label={lang === 'es' ? 'Cerrar sesión' : 'Log out'}
-              className="px-2 py-1.5 text-slate-400 border border-slate-600/50 rounded-lg hover:bg-theme-elevated transition-colors">
+              className={`${iconBtn} hover:bg-theme-elevated`}
+              style={iconBtnStyle}>
               <LogOut size={14} />
             </button>
           </div>

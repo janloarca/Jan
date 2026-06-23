@@ -122,17 +122,17 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
                     <span className="text-slate-600">/</span>
                     <span className="text-slate-400">{c.targetPct}%</span>
                     {(isOver || isUnder) && (
-                      <span className="font-medium" style={{ color: isOver ? '#fbbf24' : '#22d3ee' }}>
+                      <span className="font-medium" style={{ color: isOver ? 'var(--text-negative)' : 'var(--accent-green)' }}>
                         {c.diff > 0 ? '+' : ''}{c.diff.toFixed(1)}%
                       </span>
                     )}
                   </div>
                 </div>
-                <div className="h-1.5 bg-slate-700/30 rounded-full overflow-hidden relative">
-                  <div className="h-full rounded-full" style={{ width: `${Math.min(c.currentPct, 100)}%`, backgroundColor: color, opacity: 0.7 }} />
+                <div className="h-2 rounded-full overflow-hidden relative" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                  <div className="h-full rounded-full" style={{ width: `${Math.min(c.currentPct, 100)}%`, backgroundColor: color }} />
                   {c.targetPct > 0 && (
-                    <div className="absolute top-0 h-full w-0.5 bg-white/40"
-                      style={{ left: `${Math.min(c.targetPct, 100)}%` }} />
+                    <div className="absolute top-0 h-full w-0.5 opacity-50"
+                      style={{ left: `${Math.min(c.targetPct, 100)}%`, backgroundColor: color }} />
                   )}
                 </div>
               </div>
@@ -151,7 +151,7 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
                         ? `${t('Reducir', 'Reduce')} ${c.cat}`
                         : `${t('Aumentar', 'Increase')} ${c.cat}`}
                     </span>
-                    <span className="font-medium" style={{ color: c.diff > 0 ? '#fbbf24' : '#22d3ee' }}>
+                    <span className="font-medium" style={{ color: c.diff > 0 ? 'var(--text-negative)' : 'var(--accent-green)' }}>
                       {c.diff > 0 ? '-' : '+'}{formatCurrency(Math.abs(c.diffValue))}
                     </span>
                   </div>

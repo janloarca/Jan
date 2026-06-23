@@ -32,7 +32,7 @@ function Sparkline({ snapshots, width = 60, height = 24 }) {
   const max = Math.max(...values)
   const range = max - min || 1
   const trending = values[values.length - 1] >= values[0]
-  const color = trending ? '#34d399' : '#ef4444'
+  const color = trending ? 'var(--accent-green)' : 'var(--text-negative)'
 
   const points = values.map((v, i) => {
     const x = (i / (values.length - 1)) * width
@@ -105,7 +105,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
             <span className="text-xs font-medium px-2 py-0.5 rounded-full"
               style={milestone.positive
                 ? { backgroundColor: 'rgba(52,211,153,0.1)', color: 'var(--accent-green)' }
-                : { backgroundColor: 'rgba(245,158,11,0.1)', color: '#fbbf24' }
+                : { backgroundColor: 'var(--alert-warn-bg)', color: 'var(--accent-orange)' }
               }>{milestone.text}</span>
           )}
           <div className="relative" ref={pickerRef}>
@@ -180,15 +180,15 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
                 : 100
               return (
                 <>
-                  <div className="h-full rounded-l-full" style={{ width: `${contribPct}%`, backgroundColor: 'rgba(59,130,246,0.5)' }} />
-                  <div className="h-full rounded-r-full" style={{ width: `${Math.max(0, 100 - contribPct)}%`, backgroundColor: 'rgba(52,211,153,0.5)' }} />
+                  <div className="h-full rounded-l-full" style={{ width: `${contribPct}%`, backgroundColor: 'var(--accent-blue)' }} />
+                  <div className="h-full rounded-r-full" style={{ width: `${Math.max(0, 100 - contribPct)}%`, backgroundColor: 'var(--accent-green)' }} />
                 </>
               )
             })()}
           </div>
           <div className="flex items-center gap-3 mt-1 text-xs text-slate-600">
-            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'rgba(59,130,246,0.5)' }} />{lang === 'es' ? 'Invertido' : 'Invested'}</span>
-            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'rgba(52,211,153,0.5)' }} />{lang === 'es' ? 'Ganancias' : 'Gains'}</span>
+            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'var(--accent-blue)' }} />{lang === 'es' ? 'Invertido' : 'Invested'}</span>
+            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'var(--accent-green)' }} />{lang === 'es' ? 'Ganancias' : 'Gains'}</span>
           </div>
         </div>
       )}

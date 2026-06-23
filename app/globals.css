@@ -81,6 +81,21 @@
   --glass-shine: none;
 }
 
+/* Semantic alert tints (info / warning / error / success) — theme-aware so the
+   same component reads correct colors in both light and dark. */
+:root {
+  --alert-info-bg: rgba(59, 130, 246, 0.10);   --alert-info-border: rgba(59, 130, 246, 0.30);   --alert-info-icon: #60a5fa;
+  --alert-warn-bg: rgba(245, 158, 11, 0.10);   --alert-warn-border: rgba(245, 158, 11, 0.30);   --alert-warn-icon: #fbbf24;
+  --alert-error-bg: rgba(248, 113, 113, 0.10); --alert-error-border: rgba(248, 113, 113, 0.30); --alert-error-icon: #f87171;
+  --alert-success-bg: rgba(52, 211, 153, 0.10);--alert-success-border: rgba(52, 211, 153, 0.30);--alert-success-icon: #34d399;
+}
+[data-theme="light"] {
+  --alert-info-bg: #EFF6FF;    --alert-info-border: #BFDBFE;    --alert-info-icon: #3B82F6;
+  --alert-warn-bg: #FFFBEB;    --alert-warn-border: #FDE68A;    --alert-warn-icon: #D97706;
+  --alert-error-bg: #FEF2F2;   --alert-error-border: #FECACA;   --alert-error-icon: #DC2626;
+  --alert-success-bg: #ECFDF5; --alert-success-border: #A7F3D0; --alert-success-icon: #059669;
+}
+
 /* Glass opacity variants — needed because Tailwind can't apply /NN to CSS-var colors */
 .bg-theme-base\/95 { background-color: rgba(10, 10, 18, 0.95); }
 .bg-theme-base\/80 { background-color: rgba(10, 10, 18, 0.80); }
