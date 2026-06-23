@@ -124,9 +124,19 @@ export default function FinancialHealth({ items, netWorth, totalAssets, snapshot
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
           {lang === 'es' ? 'SALUD FINANCIERA' : 'FINANCIAL HEALTH'}
         </h3>
-        <div className="flex items-center gap-2">
-          <span className="text-2xl font-bold" style={{ color: gradeColor }}>{grade}</span>
-          <span className="text-sm text-slate-400">{scores.total}/100</span>
+        <div className="flex items-center gap-2.5">
+          <div className="relative w-16 h-16 shrink-0">
+            <svg viewBox="0 0 36 36" className="w-full h-full">
+              <circle cx="18" cy="18" r="16" fill="none" stroke="var(--bg-tertiary)" strokeWidth="3" />
+              <circle cx="18" cy="18" r="16" fill="none" stroke={gradeColor} strokeWidth="3"
+                strokeDasharray={`${(Math.max(0, Math.min(100, scores.total)) / 100) * 100.5} 100.5`}
+                strokeLinecap="round" transform="rotate(-90 18 18)" />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-lg font-bold" style={{ color: gradeColor }}>{grade}</span>
+            </div>
+          </div>
+          <span className="text-sm tabular-nums" style={{ color: 'var(--text-muted)' }}>{scores.total}/100</span>
         </div>
       </div>
       <div className="space-y-3">

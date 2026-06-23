@@ -77,20 +77,20 @@ export default function AssetAllocation({ items, lang }) {
         </span>
       </div>
 
-      {/* View toggle tabs */}
-      <div className="flex items-center gap-1.5 mb-5">
-        {views.map((v) => (
-          <button key={v.key} onClick={() => setView(v.key)}
-            className={`px-2 py-1 text-xs font-medium rounded-md transition-colors ${
-              view === v.key ? 'pill-active' : ''
-            }`}
-            style={view === v.key
-              ? { color: '#ffffff' }
-              : { color: 'var(--text-secondary)' }
-            }>
-            {v.label}
-          </button>
-        ))}
+      {/* View toggle — segmented control */}
+      <div className="inline-flex items-center gap-0.5 p-1 rounded-[10px] mb-5 max-w-full overflow-x-auto" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+        {views.map((v) => {
+          const active = view === v.key
+          return (
+            <button key={v.key} onClick={() => setView(v.key)}
+              className="px-2.5 py-1 text-xs font-medium rounded-md transition-all whitespace-nowrap"
+              style={active
+                ? { backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 2px rgba(0,0,0,0.08)' }
+                : { color: 'var(--text-muted)' }}>
+              {v.label}
+            </button>
+          )
+        })}
       </div>
 
       {/* Horizontal bar breakdown */}
@@ -126,7 +126,7 @@ export default function AssetAllocation({ items, lang }) {
                 <div className="flex items-center gap-3 shrink-0">
                   <span
                     className="text-xs w-14 text-right"
-                    style={{ color: seg.contribution >= 0 ? 'rgba(52,211,153,0.7)' : 'rgba(239,68,68,0.7)' }}
+                    style={{ color: seg.contribution >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}
                   >
                     {seg.contribution >= 0 ? '+' : ''}{seg.contribution.toFixed(1)}%
                   </span>
@@ -142,7 +142,7 @@ export default function AssetAllocation({ items, lang }) {
               {/* Bar track + fill */}
               <div
                 className="rounded-full overflow-hidden"
-                style={{ height: 8, backgroundColor: 'var(--bg-input)' }}
+                style={{ height: 6, backgroundColor: 'var(--bg-tertiary)' }}
               >
                 <div
                   className="h-full rounded-full transition-all duration-500 ease-out"
