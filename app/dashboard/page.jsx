@@ -84,11 +84,13 @@ function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, 
   ]
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+      <div className="inline-flex items-center gap-0.5 p-1 rounded-[10px] max-w-full overflow-x-auto" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
         {tabs.map(tb => (
           <button key={tb.key} onClick={() => setTab(tb.key)}
-            className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap border"
-            style={tab === tb.key ? { backgroundColor: 'var(--accent-blue)', color: '#fff', borderColor: 'var(--accent-blue)' } : { color: '#94a3b8', borderColor: '#38383A' }}>
+            className="px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap"
+            style={tab === tb.key
+              ? { backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 2px rgba(0,0,0,0.08)' }
+              : { color: 'var(--text-muted)' }}>
             {tb.label}
           </button>
         ))}

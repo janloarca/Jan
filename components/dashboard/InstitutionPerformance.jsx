@@ -251,6 +251,13 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
   // ---------- color from gain ----------
   const isGain = summary.gainLoss >= 0
 
+  const pillActiveStyle = {
+    backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)',
+    borderColor: 'color-mix(in srgb, var(--accent-blue) 35%, transparent)',
+    color: 'var(--accent-blue)',
+  }
+  const pillInactiveStyle = { backgroundColor: 'var(--bg-card)', borderColor: 'var(--card-border)', color: 'var(--text-muted)' }
+
   return (
     <div
       ref={containerRef}
@@ -258,7 +265,7 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
     >
       {/* Header */}
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
-        <span className="w-2 h-2 rounded-full bg-[#0A84FF]" />
+        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue)' }} />
         {t('RENDIMIENTO POR INSTITUCIÓN', 'INSTITUTION PERFORMANCE')}
       </h3>
 
@@ -267,11 +274,8 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
         {/* All pill */}
         <button
           onClick={() => setSelected('ALL')}
-          className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
-            selected === 'ALL'
-              ? 'bg-[#0A84FF] text-white border-[#0A84FF]'
-              : 'bg-theme-elevated text-slate-400 border-glass-border hover:text-white hover:border-slate-500'
-          }`}
+          className="shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all border hover:bg-theme-elevated"
+          style={selected === 'ALL' ? pillActiveStyle : pillInactiveStyle}
         >
           {t('Todas', 'All')}
           <span className="ml-1.5 opacity-70">
@@ -283,11 +287,8 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
           <button
             key={inst.name}
             onClick={() => setSelected(inst.name)}
-            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
-              selected === inst.name
-                ? 'bg-[#0A84FF] text-white border-[#0A84FF]'
-                : 'bg-theme-elevated text-slate-400 border-glass-border hover:text-white hover:border-slate-500'
-            }`}
+            className="shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all border hover:bg-theme-elevated"
+            style={selected === inst.name ? pillActiveStyle : pillInactiveStyle}
           >
             {inst.name}
             <span className="ml-1.5 opacity-70">
@@ -321,7 +322,7 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
           </p>
           <p
             className="text-lg font-bold font-mono tabular-nums"
-            style={{ color: isGain ? '#34d399' : '#FF453A' }}
+            style={{ color: isGain ? 'var(--accent-green)' : 'var(--text-negative)' }}
           >
             {isGain ? '+' : ''}
             {summary.gainPct.toFixed(2)}%
@@ -360,7 +361,7 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
             </p>
             <p
               className="text-xs mt-0.5"
-              style={{ color: growthAbs >= 0 ? '#34d399' : '#FF453A' }}
+              style={{ color: growthAbs >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}
             >
               <span className="font-mono tabular-nums">
                 {growthAbs >= 0 ? '+' : ''}
@@ -435,7 +436,7 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
                   x={pad.left - 6}
                   y={tk.y + 4}
                   textAnchor="end"
-                  fill="#64748b"
+                  fill="var(--text-muted)"
                   fontSize="10"
                   fontFamily="system-ui"
                 >
@@ -469,7 +470,7 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
                     x={pt.x}
                     y={chartHeight - 6}
                     textAnchor="middle"
-                    fill="#64748b"
+                    fill="var(--text-muted)"
                     fontSize="10"
                     fontFamily="system-ui"
                   >
@@ -537,7 +538,7 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
 
       {/* Period selector */}
       <div className="flex justify-center mt-3">
-        <div className="flex flex-wrap gap-0.5 bg-theme-base rounded-lg p-0.5">
+        <div className="flex flex-wrap gap-0.5 rounded-lg p-0.5" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
           {PERIODS.map((p) => (
             <button
               key={p}
@@ -545,11 +546,10 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
                 setPeriod(p)
                 setHoverIdx(null)
               }}
-              className={`px-2.5 py-1.5 text-xs font-medium rounded-md transition-all ${
-                period === p
-                  ? 'bg-[#0A84FF] text-white'
-                  : 'text-slate-500 hover:text-slate-300'
-              }`}
+              className="px-2.5 py-1.5 text-xs font-medium rounded-md transition-all"
+              style={period === p
+                ? { backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 2px rgba(0,0,0,0.08)' }
+                : { color: 'var(--text-muted)' }}
             >
               {p}
             </button>
