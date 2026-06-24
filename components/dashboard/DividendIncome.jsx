@@ -335,7 +335,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       {projected.sources.length > 0 && (
         <div className="mb-4">
           <span className="text-xs text-slate-500 mb-2 block">{t('Calendario de ingresos', 'Income calendar')}</span>
-          <div className="grid grid-cols-6 gap-1">
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-1">
             {incomeCalendar.map((amt, m) => {
               const paid = amt > 0
               return (

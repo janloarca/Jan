@@ -22,6 +22,12 @@ const TYPE_ICONS = {
   cta: '→',
 }
 
+const PRIORITY_BADGE = {
+  0: { label: { es: 'Alta', en: 'High' }, color: 'var(--alert-error-icon)', bg: 'var(--alert-error-bg)' },
+  1: { label: { es: 'Media', en: 'Med' }, color: 'var(--alert-warn-icon)', bg: 'var(--alert-warn-bg)' },
+  2: { label: { es: 'Baja', en: 'Low' }, color: 'var(--alert-info-icon)', bg: 'var(--alert-info-bg)' },
+}
+
 export default function InsightCards({ items, profile, netWorth, estimatedAnnualIncome, lang, onOpenSettings }) {
   const t = (es, en) => lang === 'es' ? es : en
 
@@ -79,7 +85,13 @@ export default function InsightCards({ items, profile, netWorth, estimatedAnnual
                 style={{ color: accent.icon, backgroundColor: `color-mix(in srgb, ${accent.icon} 15%, transparent)` }}>
                 {TYPE_ICONS[card.type] || TYPE_ICONS.info}
               </span>
-              <span className="text-[13px] font-semibold" style={{ color: accent.icon }}>{lang === 'es' ? card.titleEs : card.titleEn}</span>
+              <span className="text-[13px] font-semibold flex-1" style={{ color: accent.icon }}>{lang === 'es' ? card.titleEs : card.titleEn}</span>
+              {PRIORITY_BADGE[card.priority] && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0"
+                  style={{ color: PRIORITY_BADGE[card.priority].color, backgroundColor: PRIORITY_BADGE[card.priority].bg }}>
+                  {PRIORITY_BADGE[card.priority].label[lang === 'es' ? 'es' : 'en']}
+                </span>
+              )}
             </div>
             <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? card.descEs : card.descEn}</p>
           </div>

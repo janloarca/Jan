@@ -420,6 +420,18 @@ html.theme-transitioning *::after {
   animation: fade-in 0.2s ease-out;
 }
 
+/* Staggered fade-in for dashboard sections */
+@keyframes stagger-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.stagger-1 { animation: stagger-fade-in 0.4s ease-out both; animation-delay: 0ms; }
+.stagger-2 { animation: stagger-fade-in 0.4s ease-out both; animation-delay: 60ms; }
+.stagger-3 { animation: stagger-fade-in 0.4s ease-out both; animation-delay: 120ms; }
+.stagger-4 { animation: stagger-fade-in 0.4s ease-out both; animation-delay: 180ms; }
+.stagger-5 { animation: stagger-fade-in 0.4s ease-out both; animation-delay: 240ms; }
+.stagger-6 { animation: stagger-fade-in 0.4s ease-out both; animation-delay: 300ms; }
+
 /* Glass shimmer for loading states */
 @keyframes glass-shimmer {
   0% { background-position: -200% 0; }

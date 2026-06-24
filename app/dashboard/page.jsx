@@ -756,7 +756,7 @@ export default function DashboardPage() {
         {/* ═══ RESUMEN ═══ */}
         {portfolioItems.length > 0 && <>
         <ErrorBoundary lang={lang}>
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6 items-start">
+        <div className="stagger-1 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6 items-start">
           <div className="md:col-span-1 lg:col-span-2 flex flex-col gap-4">
             <CardBoundary id="OL-01">
             <NetWorthCard
@@ -774,10 +774,10 @@ export default function DashboardPage() {
         </div>
         </ErrorBoundary>
 
-        <CardBoundary id="INS-01"><InsightCards items={portfolioItems} profile={profile} netWorth={netWorth} estimatedAnnualIncome={estimatedAnnualIncome} lang={lang} onOpenSettings={handleOpenSettings} /></CardBoundary>
+        <div className="stagger-2"><CardBoundary id="INS-01"><InsightCards items={portfolioItems} profile={profile} netWorth={netWorth} estimatedAnnualIncome={estimatedAnnualIncome} lang={lang} onOpenSettings={handleOpenSettings} /></CardBoundary></div>
 
         {/* ═══ COMPOSICIÓN: Allocation + Rendimiento por institución ═══ */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 items-start">
+        <div className="stagger-3 grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 items-start">
           <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} /></CardBoundary>
           <CardBoundary id="INST-01"><InstitutionPerformance items={portfolioItems} lots={lots} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
         </div>
@@ -791,21 +791,21 @@ export default function DashboardPage() {
         />
 
         {/* ═══ INGRESOS ═══ */}
-        <SectionCollapse title={lang === 'es' ? 'Ingresos' : 'Income'} id="income">
+        <div className="stagger-4"><SectionCollapse title={lang === 'es' ? 'Ingresos' : 'Income'} id="income">
           <ErrorBoundary lang={lang}>
             <CardBoundary id="IG-01"><DividendIncome transactions={transactions} items={portfolioItems} convert={convert} baseCurrency={baseCurrency} lang={lang} netWorth={netWorth} /></CardBoundary>
           </ErrorBoundary>
-        </SectionCollapse>
+        </SectionCollapse></div>
 
         {/* ═══ ACTIVIDAD RECIENTE ═══ */}
-        <SectionCollapse title={lang === 'es' ? 'Actividad Reciente' : 'Recent Activity'} id="activity" defaultOpen={false}>
+        <div className="stagger-5"><SectionCollapse title={lang === 'es' ? 'Actividad Reciente' : 'Recent Activity'} id="activity" defaultOpen={false}>
           <ErrorBoundary lang={lang}>
             <CardBoundary id="HO-02"><RecentTransactions transactions={transactions} lang={lang} onExportCSV={handleExportTransactionsCSV} /></CardBoundary>
           </ErrorBoundary>
-        </SectionCollapse>
+        </SectionCollapse></div>
 
         {/* ═══ METAS ═══ */}
-        <SectionCollapse title={lang === 'es' ? 'Metas' : 'Goals'} id="goals" defaultOpen={!!(goals?.incomeGoal || goals?.portfolioGoal)}>
+        <div className="stagger-6"><SectionCollapse title={lang === 'es' ? 'Metas' : 'Goals'} id="goals" defaultOpen={!!(goals?.incomeGoal || goals?.portfolioGoal)}>
           <ErrorBoundary lang={lang}>
             <CardBoundary id="GO-01"><GoalTracker netWorth={netWorth} annualDividends={annualDividends} estimatedAnnualIncome={estimatedAnnualIncome} goals={goals} onSaveGoals={saveGoals} volatility={riskMetrics?.volatility} lang={lang} /></CardBoundary>
             {!settings?.hideRebalanceSuggestions && (
@@ -819,7 +819,7 @@ export default function DashboardPage() {
           <ErrorBoundary lang={lang}>
             <AnalysisTabs lang={lang} portfolioItems={portfolioItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lots={lots} transactions={transactions} convert={convert} baseCurrency={baseCurrency} benchmarkData={benchmarkData} benchmarkName={benchmarkName} beginnerMode={beginnerMode} />
           </ErrorBoundary>
-        </SectionCollapse>
+        </SectionCollapse></div>
 
         <NotificationCenter items={portfolioItems} transactions={transactions} lang={lang} />
         <InstallPrompt lang={lang} />
