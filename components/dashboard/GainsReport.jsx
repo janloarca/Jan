@@ -50,19 +50,19 @@ export default function GainsReport({ lots, items, lang }) {
       <div className="grid grid-cols-3 gap-3 mb-4">
         <div className="bg-theme-base rounded-lg p-3 text-center border border-glass-border/50">
           <span className="text-xs text-slate-500 block">{t('Realizada', 'Realized')}</span>
-          <span className="text-sm font-bold block" style={{ color: report.totalRealized >= 0 ? '#34d399' : '#f87171' }}>
+          <span className="text-sm font-bold block" style={{ color: report.totalRealized >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
             {report.totalRealized >= 0 ? '+' : ''}{formatCurrency(report.totalRealized)}
           </span>
         </div>
         <div className="bg-theme-base rounded-lg p-3 text-center border border-glass-border/50">
           <span className="text-xs text-slate-500 block">{t('No Realizada', 'Unrealized')}</span>
-          <span className="text-sm font-bold block" style={{ color: report.totalUnrealized >= 0 ? '#34d399' : '#f87171' }}>
+          <span className="text-sm font-bold block" style={{ color: report.totalUnrealized >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
             {report.totalUnrealized >= 0 ? '+' : ''}{formatCurrency(report.totalUnrealized)}
           </span>
         </div>
         <div className="bg-theme-base rounded-lg p-3 text-center border border-glass-border/50">
           <span className="text-xs text-slate-500 block">Total</span>
-          <span className="text-sm font-bold block" style={{ color: report.totalGain >= 0 ? '#34d399' : '#f87171' }}>
+          <span className="text-sm font-bold block" style={{ color: report.totalGain >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
             {report.totalGain >= 0 ? '+' : ''}{formatCurrency(report.totalGain)}
           </span>
         </div>
@@ -75,12 +75,12 @@ export default function GainsReport({ lots, items, lang }) {
               <span className="text-sm text-white font-medium">{s.symbol}</span>
               <div className="flex items-center gap-3 text-xs">
                 {s.realized !== 0 && (
-                  <span style={{ color: s.realized >= 0 ? '#34d399' : '#f87171' }}>
+                  <span style={{ color: s.realized >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                     R: {s.realized >= 0 ? '+' : ''}{formatCurrency(s.realized)}
                   </span>
                 )}
                 {s.unrealized !== 0 && (
-                  <span style={{ color: s.unrealized >= 0 ? 'rgba(52,211,153,0.7)' : 'rgba(248,113,113,0.7)' }}>
+                  <span style={{ color: s.unrealized >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                     U: {s.unrealized >= 0 ? '+' : ''}{formatCurrency(s.unrealized)}
                   </span>
                 )}

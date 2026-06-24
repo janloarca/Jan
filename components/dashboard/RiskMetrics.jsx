@@ -55,39 +55,39 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
   const t = (es, en) => lang === 'es' ? es : en
 
   const sharpeColor = metrics.sharpe == null ? '#64748b'
-    : metrics.sharpe > 1 ? '#34d399'
-    : metrics.sharpe > 0.5 ? '#fbbf24'
-    : '#f87171'
+    : metrics.sharpe > 1 ? 'var(--accent-green)'
+    : metrics.sharpe > 0.5 ? 'var(--accent-orange)'
+    : 'var(--text-negative)'
 
   const volColor = metrics.vol == null ? '#64748b'
-    : metrics.vol < 15 ? '#34d399'
-    : metrics.vol < 25 ? '#fbbf24'
-    : '#f87171'
+    : metrics.vol < 15 ? 'var(--accent-green)'
+    : metrics.vol < 25 ? 'var(--accent-orange)'
+    : 'var(--text-negative)'
 
   const ddColor = metrics.drawdown.maxDrawdownPct === 0 ? '#64748b'
-    : metrics.drawdown.maxDrawdownPct < 10 ? '#34d399'
-    : metrics.drawdown.maxDrawdownPct < 20 ? '#fbbf24'
-    : '#f87171'
+    : metrics.drawdown.maxDrawdownPct < 10 ? 'var(--accent-green)'
+    : metrics.drawdown.maxDrawdownPct < 20 ? 'var(--accent-orange)'
+    : 'var(--text-negative)'
 
   const sortinoColor = metrics.sortino === 0 ? '#64748b'
-    : metrics.sortino > 1 ? '#34d399'
-    : metrics.sortino > 0.5 ? '#fbbf24'
-    : '#f87171'
+    : metrics.sortino > 1 ? 'var(--accent-green)'
+    : metrics.sortino > 0.5 ? 'var(--accent-orange)'
+    : 'var(--text-negative)'
 
   const treynorColor = metrics.treynor === 0 ? '#64748b'
-    : metrics.treynor > 0.1 ? '#34d399'
-    : metrics.treynor > 0 ? '#fbbf24'
-    : '#f87171'
+    : metrics.treynor > 0.1 ? 'var(--accent-green)'
+    : metrics.treynor > 0 ? 'var(--accent-orange)'
+    : 'var(--text-negative)'
 
   const alphaColor = metrics.alpha === 0 ? '#64748b'
-    : metrics.alpha > 0 ? '#34d399'
-    : metrics.alpha >= -0.02 ? '#fbbf24'
-    : '#f87171'
+    : metrics.alpha > 0 ? 'var(--accent-green)'
+    : metrics.alpha >= -0.02 ? 'var(--accent-orange)'
+    : 'var(--text-negative)'
 
   const irColor = metrics.ir === 0 ? '#64748b'
-    : metrics.ir > 0.5 ? '#34d399'
-    : metrics.ir > 0 ? '#fbbf24'
-    : '#f87171'
+    : metrics.ir > 0.5 ? 'var(--accent-green)'
+    : metrics.ir > 0 ? 'var(--accent-orange)'
+    : 'var(--text-negative)'
 
   const insight = useMemo(() => {
     if (!hasData) return null
