@@ -458,10 +458,15 @@ html.theme-transitioning *::after {
   border: var(--glass-border);
   transition: background-color 0.2s, box-shadow 0.2s;
 }
+.card-glass {
+  transition: background-color 0.2s, box-shadow 0.2s, transform 0.2s, border-color 0.2s;
+}
 .card-glass:hover {
   background: var(--bg-card-hover);
   box-shadow: var(--shadow-elevated);
+  transform: translateY(-1px);
 }
+[data-theme="light"] .card-glass:hover { transform: translateY(-1px); }
 
 /* Glass modal overlay + container */
 .modal-backdrop {
