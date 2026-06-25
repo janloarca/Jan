@@ -382,10 +382,10 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
       <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
           <h2 id="settings-modal-title" className="text-lg font-bold text-white flex items-center gap-2">
-            <Settings size={20} className="text-slate-400" />
+            <Settings size={20} style={{ color: 'var(--text-secondary)' }} />
             {t('Configuracion', 'Settings')}
           </h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label="Close">&times;</button>
+          <button onClick={onClose} className="hover:text-white text-xl leading-none" style={{ color: 'var(--text-secondary)' }} aria-label="Close">&times;</button>
         </div>
 
         {saveStatus && (
@@ -400,9 +400,9 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               className={`flex-1 px-3 py-3 text-sm font-medium transition-colors whitespace-nowrap ${
                 tab === tb.key
                   ? 'border-b-2'
-                  : 'text-slate-400 hover:text-slate-300'
+                  : 'hover:text-slate-300'
               }`}
-              style={tab === tb.key ? { color: 'var(--accent-blue)', borderColor: 'var(--accent-blue-soft)', backgroundColor: 'rgba(108,122,255,0.05)' } : undefined}>
+              style={tab === tb.key ? { color: 'var(--accent-blue)', borderColor: 'var(--accent-blue-soft)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 5%, transparent)' } : { color: 'var(--text-secondary)' }}>
               {tb.label}
             </button>
           ))}
@@ -413,7 +413,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
             <div className="space-y-5">
               {/* Theme toggle */}
               <div>
-                <label className="text-xs text-slate-400 mb-2 block font-medium">{t('Tema', 'Theme')}</label>
+                <label className="text-xs mb-2 block font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Tema', 'Theme')}</label>
                 <div className="flex gap-2">
                   {[
                     { key: 'light', label: t('Claro', 'Light'), icon: '☀️' },
@@ -426,7 +426,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                           ? 'border'
                           : 'bg-theme-base border border-glass-border text-slate-300 hover:border-slate-500'
                       }`}
-                      style={theme === opt.key ? { color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.4)', backgroundColor: 'rgba(59,130,246,0.15)' } : undefined}>
+                      style={theme === opt.key ? { color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' } : undefined}>
                       <span className="text-lg">{opt.icon}</span>
                       <span className="text-sm font-medium">{opt.label}</span>
                     </button>
@@ -436,7 +436,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
 
               {/* Beginner mode toggle */}
               <div>
-                <label className="text-xs text-slate-400 mb-2 block font-medium">{t('Modo principiante', 'Beginner mode')}</label>
+                <label className="text-xs mb-2 block font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Modo principiante', 'Beginner mode')}</label>
                 <button
                   type="button"
                   role="switch"
@@ -444,7 +444,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                   onClick={() => onToggleBeginner?.(!beginnerMode)}
                   className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg border transition-all text-left"
                   style={beginnerMode
-                    ? { color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.4)', backgroundColor: 'rgba(59,130,246,0.15)' }
+                    ? { color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' }
                     : { borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-input)' }}>
                   <div className="min-w-0">
                     <div className="text-sm font-medium" style={beginnerMode ? undefined : { color: 'var(--text-primary)' }}>
@@ -463,7 +463,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               </div>
 
               <div>
-                <label className="text-xs text-slate-400 mb-2 block font-medium">{t('Moneda principal', 'Base currency')}</label>
+                <label className="text-xs mb-2 block font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Moneda principal', 'Base currency')}</label>
                 <p className="text-xs text-slate-600 mb-3">{t('Todos los valores se mostrarán en esta moneda.', 'All values will be displayed in this currency.')}</p>
                 <div className="grid grid-cols-2 gap-2">
                   {CURRENCIES.map((c) => (
@@ -473,14 +473,14 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                           ? 'border'
                           : 'bg-theme-base border border-glass-border text-slate-300 hover:border-slate-500'
                       }`}
-                      style={baseCurrency === c.code ? { color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.4)', backgroundColor: 'rgba(59,130,246,0.15)' } : undefined}>
+                      style={baseCurrency === c.code ? { color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' } : undefined}>
                       <span className="text-sm font-bold w-8">{c.symbol}</span>
                       <div className="min-w-0">
                         <div className="text-xs font-medium">{c.code}</div>
                         <div className="text-xs text-slate-500 truncate">{c.name}</div>
                       </div>
                       {baseCurrency === c.code && (
-                        <svg className="w-4 h-4 ml-auto text-blue-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <svg className="w-4 h-4 ml-auto shrink-0" style={{ color: 'var(--accent-blue)' }} fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
                       )}
@@ -490,7 +490,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               </div>
 
               <div>
-                <label className="text-xs text-slate-400 mb-2 block font-medium">{t('Benchmark', 'Benchmark')}</label>
+                <label className="text-xs mb-2 block font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Benchmark', 'Benchmark')}</label>
                 <p className="text-xs text-slate-600 mb-3">{t('Índice de referencia para comparar tu portafolio.', 'Reference index to compare your portfolio against.')}</p>
                 <div className="grid grid-cols-2 gap-2">
                   {Object.entries(BENCHMARKS).map(([key, bm]) => (
@@ -500,13 +500,13 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                           ? 'border'
                           : 'bg-theme-base border border-glass-border text-slate-300 hover:border-slate-500'
                       }`}
-                      style={benchmarkSymbol === key ? { color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.4)', backgroundColor: 'rgba(59,130,246,0.15)' } : undefined}>
+                      style={benchmarkSymbol === key ? { color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' } : undefined}>
                       <div className="min-w-0">
                         <div className="text-xs font-medium">{bm.short}</div>
                         <div className="text-xs text-slate-500 truncate">{bm.name}</div>
                       </div>
                       {benchmarkSymbol === key && (
-                        <svg className="w-4 h-4 ml-auto text-blue-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <svg className="w-4 h-4 ml-auto shrink-0" style={{ color: 'var(--accent-blue)' }} fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
                       )}
@@ -517,19 +517,19 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
 
               {isNotificationSupported() && (
                 <div>
-                  <label className="text-xs text-slate-400 mb-2 block font-medium">{t('Notificaciones', 'Notifications')}</label>
+                  <label className="text-xs mb-2 block font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Notificaciones', 'Notifications')}</label>
                   <div className="p-3 bg-theme-base border border-glass-border rounded-lg flex items-center justify-between">
                     <div>
                       <p className="text-sm text-white font-medium">{t('Alertas del navegador', 'Browser alerts')}</p>
                       <p className="text-xs text-slate-500">{t('Pagos próximos y vencimientos', 'Upcoming payments and maturities')}</p>
                     </div>
                     {getNotificationPermission() === 'granted' ? (
-                      <span className="text-xs text-emerald-400 font-medium px-2 py-1 bg-emerald-500/10 rounded">{t('Activado', 'Enabled')}</span>
+                      <span className="text-xs font-medium px-2 py-1 bg-emerald-500/10 rounded" style={{ color: 'var(--accent-green)' }}>{t('Activado', 'Enabled')}</span>
                     ) : getNotificationPermission() === 'denied' ? (
-                      <span className="text-xs text-red-400 font-medium px-2 py-1 bg-red-500/10 rounded">{t('Bloqueado', 'Blocked')}</span>
+                      <span className="text-xs font-medium px-2 py-1 bg-red-500/10 rounded" style={{ color: 'var(--text-negative)' }}>{t('Bloqueado', 'Blocked')}</span>
                     ) : (
                       <button onClick={async () => { await requestNotificationPermission(); }}
-                        className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors">
+                        className="px-3 py-1.5 text-xs font-medium text-white rounded-lg hover:bg-blue-500 transition-colors" style={{ backgroundColor: 'var(--accent-blue)' }}>
                         {t('Activar', 'Enable')}
                       </button>
                     )}
@@ -538,7 +538,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               )}
 
               <button onClick={handleSave} disabled={saving}
-                className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium">
+                className="w-full py-2.5 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium" style={{ backgroundColor: 'var(--accent-blue)' }}>
                 {saving ? '...' : t('Guardar configuracion', 'Save settings')}
               </button>
             </div>
@@ -586,7 +586,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                           ? 'border'
                           : 'bg-theme-base border border-glass-border text-slate-300 hover:border-slate-500'
                       }`}
-                      style={profileForm.riskTolerance === opt.key ? { color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.4)', backgroundColor: 'rgba(59,130,246,0.15)' } : undefined}>
+                      style={profileForm.riskTolerance === opt.key ? { color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' } : undefined}>
                       {opt.label}
                     </button>
                   ))}
@@ -594,7 +594,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               </div>
 
               <button onClick={handleSaveProfile} disabled={profileSaving}
-                className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium">
+                className="w-full py-2.5 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium" style={{ backgroundColor: 'var(--accent-blue)' }}>
                 {profileSaving ? '...' : t('Guardar perfil', 'Save profile')}
               </button>
             </div>
@@ -621,9 +621,9 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
             const syncDays = syncAge ? Math.floor(syncAge / 86400000) : null
             const syncStatus = !ibkrConfigured ? 'disconnected' : !lastSyncTime ? 'never' : syncDays > 7 ? 'stale' : 'ok'
             const statusColor = {
-              disconnected: { dot: '#ef4444', text: '#f87171' },
-              never: { dot: '#f59e0b', text: '#fbbf24' },
-              stale: { dot: '#f59e0b', text: '#fbbf24' },
+              disconnected: { dot: 'var(--text-negative)', text: 'var(--text-negative)' },
+              never: { dot: 'var(--accent-orange)', text: 'var(--accent-orange)' },
+              stale: { dot: 'var(--accent-orange)', text: 'var(--accent-orange)' },
               ok: { dot: '#34d399', text: '#34d399' },
             }[syncStatus]
             const statusLabel = {
@@ -653,7 +653,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-white">{broker.name}</p>
                       {conn?.configured && (
-                        <p className="text-xs text-emerald-400">{t('Vinculado', 'Linked')}</p>
+                        <p className="text-xs" style={{ color: 'var(--accent-green)' }}>{t('Vinculado', 'Linked')}</p>
                       )}
                       {!conn?.configured && broker.apiNote && !broker.hasApi && (
                         <p className="text-xs text-slate-600">{broker.apiNote}</p>
@@ -663,11 +663,11 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                       {broker.hasApi && conn?.configured ? (
                         <>
                           <button onClick={() => handleBrokerSync(broker)} disabled={isSyncing}
-                            className="px-2.5 py-1 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-500 disabled:opacity-50 transition-colors">
+                            className="px-2.5 py-1 text-white text-xs font-medium rounded-md hover:bg-blue-500 disabled:opacity-50 transition-colors" style={{ backgroundColor: 'var(--accent-blue)' }}>
                             {isSyncing ? '...' : 'Sync'}
                           </button>
                           <button onClick={() => handleBrokerDisconnect(broker)} disabled={isSyncing}
-                            className="px-2 py-1 text-xs text-red-400/60 hover:text-red-400 transition-colors">
+                            className="px-2 py-1 text-xs hover:opacity-100 transition-colors" style={{ color: 'var(--text-negative)', opacity: 0.6 }}>
                             ✕
                           </button>
                         </>
@@ -676,7 +676,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                           if (broker.authType === 'oauth') { handleBrokerConnect(broker); return }
                           setExpandedBroker(isExpanded ? null : broker.id); setBrokerForm({}); setBrokerError(null)
                         }}
-                          className="px-2.5 py-1 border border-blue-500/40 text-blue-400 text-xs font-medium rounded-md hover:bg-blue-500/10 transition-colors">
+                          className="px-2.5 py-1 border text-xs font-medium rounded-md hover:bg-blue-500/10 transition-colors" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
                           {isSyncing ? '...' : broker.authType === 'oauth' ? 'OAuth' : isExpanded ? t('Cancelar', 'Cancel') : 'API'}
                         </button>
                       ) : broker.apiNote ? (
@@ -685,7 +685,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                         </span>
                       ) : null}
                       <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport(broker.id) }, 50) }}
-                        className="px-2.5 py-1 border border-glass-border text-slate-400 text-xs font-medium rounded-md hover:bg-theme-elevated transition-colors">
+                        className="px-2.5 py-1 border border-glass-border text-xs font-medium rounded-md hover:bg-theme-elevated transition-colors" style={{ color: 'var(--text-secondary)' }}>
                         CSV
                       </button>
                     </div>
@@ -696,7 +696,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                         <p className="text-xs text-slate-600">{broker.instructions[lang] || broker.instructions.en}</p>
                       )}
                       {brokerError && expandedBroker === broker.id && (
-                        <p className="text-xs text-red-400">{brokerError}</p>
+                        <p className="text-xs" style={{ color: 'var(--text-negative)' }}>{brokerError}</p>
                       )}
                       {broker.fields.map(f => (
                         <div key={f.key}>
@@ -709,7 +709,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                       ))}
                       <button onClick={() => handleBrokerConnect(broker)}
                         disabled={isSyncing || broker.fields.some(f => !brokerForm[f.key])}
-                        className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 text-xs font-medium">
+                        className="w-full py-2 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 text-xs font-medium" style={{ backgroundColor: 'var(--accent-blue)' }}>
                         {isSyncing ? '...' : t('Conectar', 'Connect')}
                       </button>
                     </div>
@@ -739,23 +739,23 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                     <div className="flex items-center gap-1.5 shrink-0">
                       {ibkrConfigured ? (
                         <button onClick={() => { onClose(); setTimeout(() => { if (onOpenIBKR) onOpenIBKR() }, 50) }}
-                          className="px-2.5 py-1 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-500 transition-colors">
+                          className="px-2.5 py-1 text-white text-xs font-medium rounded-md hover:bg-blue-500 transition-colors" style={{ backgroundColor: 'var(--accent-blue)' }}>
                           Sync
                         </button>
                       ) : (
                         <button onClick={() => setShowConfig(true)}
-                          className="px-2.5 py-1 border border-blue-500/40 text-blue-400 text-xs font-medium rounded-md hover:bg-blue-500/10 transition-colors">
+                          className="px-2.5 py-1 border text-xs font-medium rounded-md hover:bg-blue-500/10 transition-colors" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
                           API
                         </button>
                       )}
                       <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport('ibkr') }, 50) }}
-                        className="px-2.5 py-1 border border-glass-border text-slate-400 text-xs font-medium rounded-md hover:bg-theme-elevated transition-colors">
+                        className="px-2.5 py-1 border border-glass-border text-xs font-medium rounded-md hover:bg-theme-elevated transition-colors" style={{ color: 'var(--text-secondary)' }}>
                         CSV
                       </button>
                     </div>
                   </div>
                   {ibkrConfigured && syncStatus === 'stale' && (
-                    <p className="text-xs text-amber-400 mt-2 pl-9">
+                    <p className="text-xs mt-2 pl-9" style={{ color: 'var(--accent-orange)' }}>
                       {t('Tus datos podrían estar desactualizados', 'Your data may be outdated')}
                     </p>
                   )}
@@ -767,7 +767,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                       {t('Ve a IBKR → Reports → Flex Queries → crear query con Open Positions + Trades. Genera un Flex Token en Settings.',
                          'Go to IBKR → Reports → Flex Queries → create query with Open Positions + Trades. Generate a Flex Token in Settings.')}
                     </p>
-                    {ibkrError && <p className="text-xs text-red-400">{ibkrError}</p>}
+                    {ibkrError && <p className="text-xs" style={{ color: 'var(--text-negative)' }}>{ibkrError}</p>}
                     <div>
                       <label className="text-xs text-slate-500 mb-0.5 block">Flex Token</label>
                       <input type="password" value={ibkrToken} onChange={(e) => setIbkrToken(e.target.value)}
@@ -781,7 +781,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                         className="w-full px-3 py-1.5 bg-theme-surface border border-glass-border/60 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
                     </div>
                     <button onClick={handleIbkrSave} disabled={ibkrSaving || !ibkrToken || !ibkrQueryId}
-                      className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 text-xs font-medium">
+                      className="w-full py-2 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 text-xs font-medium" style={{ backgroundColor: 'var(--accent-blue)' }}>
                       {ibkrSaving ? '...' : t('Conectar', 'Connect')}
                     </button>
                   </div>
@@ -789,24 +789,24 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
 
                 {ibkrConfigured && !confirmUnlink && (
                   <button onClick={() => setConfirmUnlink(true)}
-                    className="text-xs text-red-400/60 hover:text-red-400 transition-colors mt-2">
+                    className="text-xs hover:opacity-100 transition-colors mt-2" style={{ color: 'var(--text-negative)', opacity: 0.6 }}>
                     {t('Desvincular', 'Unlink')}
                   </button>
                 )}
                 {ibkrConfigured && confirmUnlink && (
                   <div className="p-3 bg-theme-surface border border-glass-border border-l-4 border-l-red-500 rounded-lg space-y-2 mt-2">
-                    <p className="text-xs text-red-400 font-medium">{t('¿Desvincular Interactive Brokers?', 'Unlink Interactive Brokers?')}</p>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs font-medium" style={{ color: 'var(--text-negative)' }}>{t('¿Desvincular Interactive Brokers?', 'Unlink Interactive Brokers?')}</p>
+                    <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
                       {t('Se eliminará la conexión API. Tus posiciones importadas se mantienen.',
                          'The API connection will be removed. Your imported positions will be kept.')}
                     </p>
                     <div className="flex gap-2">
                       <button onClick={async () => { await handleIbkrDisconnect(); setConfirmUnlink(false) }} disabled={ibkrSaving}
-                        className="px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-500 transition-colors">
+                        className="px-3 py-1.5 text-white text-xs font-medium rounded-lg hover:bg-red-500 transition-colors" style={{ backgroundColor: 'var(--text-negative)' }}>
                         {ibkrSaving ? '...' : t('Sí', 'Yes')}
                       </button>
                       <button onClick={() => setConfirmUnlink(false)}
-                        className="px-3 py-1.5 border border-glass-border text-slate-400 text-xs rounded-lg hover:bg-theme-elevated transition-colors">
+                        className="px-3 py-1.5 border border-glass-border text-xs rounded-lg hover:bg-theme-elevated transition-colors" style={{ color: 'var(--text-secondary)' }}>
                         {t('No', 'No')}
                       </button>
                     </div>
@@ -847,7 +847,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                         <p className="text-xs text-slate-600">Blockchain.com, Ledger, MetaMask</p>
                       </div>
                       <button onClick={() => { onClose(); setTimeout(() => { if (onOpenBlockchain) onOpenBlockchain() }, 50) }}
-                        className="px-2.5 py-1 border border-blue-500/40 text-blue-400 text-xs font-medium rounded-md hover:bg-blue-500/10 transition-colors">
+                        className="px-2.5 py-1 border text-xs font-medium rounded-md hover:bg-blue-500/10 transition-colors" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
                         {t('Conectar', 'Connect')}
                       </button>
                     </div>
@@ -868,11 +868,11 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                   </p>
                   <div className="flex gap-2">
                     <button onClick={() => { onClose(); setTimeout(() => { if (onAddAccount) onAddAccount() }, 50) }}
-                      className="flex-1 px-3 py-2 border border-blue-500/40 text-blue-400 text-xs font-medium rounded-lg hover:bg-blue-500/10 transition-colors">
+                      className="flex-1 px-3 py-2 border text-xs font-medium rounded-lg hover:bg-blue-500/10 transition-colors" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
                       {t('Agregar', 'Add')}
                     </button>
                     <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport() }, 50) }}
-                      className="flex-1 px-3 py-2 border border-glass-border text-slate-400 text-xs font-medium rounded-lg hover:bg-theme-elevated transition-colors">
+                      className="flex-1 px-3 py-2 border border-glass-border text-xs font-medium rounded-lg hover:bg-theme-elevated transition-colors" style={{ color: 'var(--text-secondary)' }}>
                       CSV
                     </button>
                   </div>
@@ -914,7 +914,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
 
               {!shareEnabled ? (
                 <button onClick={() => handleShareAction('enable')} disabled={shareLoading}
-                  className="w-full py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-50 transition-colors text-sm font-medium flex items-center justify-center gap-2">
+                  className="w-full py-3 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-50 transition-colors text-sm font-medium flex items-center justify-center gap-2" style={{ backgroundColor: 'var(--accent-green)' }}>
                   {shareLoading ? '...' : (
                     <>
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -932,7 +932,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                       <input type="text" readOnly value={shareUrl}
                         className="flex-1 bg-transparent text-xs text-slate-300 outline-none truncate" />
                       <button onClick={copyShareLink}
-                        className="shrink-0 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-500 transition-colors">
+                        className="shrink-0 px-3 py-1.5 text-white text-xs rounded-lg hover:bg-blue-500 transition-colors" style={{ backgroundColor: 'var(--accent-blue)' }}>
                         {shareCopied ? t('Copiado!', 'Copied!') : t('Copiar', 'Copy')}
                       </button>
                     </div>
@@ -944,13 +944,13 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                       {t('Regenerar link', 'Regenerate link')}
                     </button>
                     <button onClick={() => handleShareAction('disable')} disabled={shareLoading}
-                      className="flex-1 py-2 border border-red-500/30 text-red-400 rounded-lg hover:bg-red-500/10 disabled:opacity-50 transition-colors text-xs">
+                      className="flex-1 py-2 border rounded-lg hover:bg-red-500/10 disabled:opacity-50 transition-colors text-xs" style={{ borderColor: 'var(--text-negative)', color: 'var(--text-negative)' }}>
                       {t('Desactivar', 'Disable')}
                     </button>
                   </div>
 
-                  <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
-                    <p className="text-xs text-amber-400">{t(
+                  <div className="border rounded-lg p-3" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-orange) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-orange) 20%, transparent)' }}>
+                    <p className="text-xs" style={{ color: 'var(--accent-orange)' }}>{t(
                       'Cualquier persona con este link puede ver tu portafolio (sin montos de instituciones). Regenera o desactiva el link en cualquier momento.',
                       'Anyone with this link can view your portfolio (without institution details). Regenerate or disable the link at any time.'
                     )}</p>
@@ -969,7 +969,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                     <div className="text-xs text-slate-500">{t('Descarga todos tus datos en formato JSON.', 'Download all your data as JSON.')}</div>
                   </div>
                   <button onClick={onExportBackup}
-                    className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors shrink-0 ml-3 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10">
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors shrink-0 ml-3 border hover:bg-emerald-500/10" style={{ borderColor: 'color-mix(in srgb, var(--accent-green) 30%, transparent)', color: 'var(--accent-green)' }}>
                     {t('Descargar', 'Download')}
                   </button>
                 </div>
@@ -989,13 +989,13 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                     <div className="text-sm text-white font-medium">{action.label}</div>
                     <div className="text-xs text-slate-500">{action.desc}</div>
                     {confirmDelete === action.key && (
-                      <div className="text-xs mt-1 font-medium" style={{ color: '#fbbf24' }}>{action.warn}</div>
+                      <div className="text-xs mt-1 font-medium" style={{ color: 'var(--accent-orange)' }}>{action.warn}</div>
                     )}
                   </div>
                   <button onClick={() => handleDelete(action.key)}
                     className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors shrink-0 ml-3 border"
                     style={confirmDelete === action.key
-                      ? { backgroundColor: '#dc2626', color: '#ffffff', borderColor: '#dc2626' }
+                      ? { backgroundColor: 'var(--text-negative)', color: '#ffffff', borderColor: 'var(--text-negative)' }
                       : { color: 'var(--text-negative)', borderColor: 'rgba(239,68,68,0.3)' }}>
                     {confirmDelete === action.key ? t('Confirmar', 'Confirm') : t('Eliminar', 'Delete')}
                   </button>

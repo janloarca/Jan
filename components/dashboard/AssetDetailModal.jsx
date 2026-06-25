@@ -124,7 +124,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
 
   const renderPts = isStatic ? staticPoints : points
   const isPositive = renderPts ? renderPts[renderPts.length - 1].close >= renderPts[0].close : pnl >= 0
-  const lineColor = isPositive ? '#34d399' : '#ef4444'
+  const lineColor = isPositive ? 'var(--accent-green)' : 'var(--text-negative)'
 
   // Straight segments keep bond interest step-ups crisp (vs the smoothed curve).
   function linePath(pts) {
@@ -156,39 +156,39 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
         <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
           <div>
             <h2 id="asset-detail-title" className="text-lg font-bold text-white">{item.name || item.symbol}</h2>
-            <span className="text-xs text-slate-500">{item.symbol} · {item.type}{item.subtype ? `/${item.subtype}` : ''} {item.institution ? `· ${item.institution}` : ''}</span>
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{item.symbol} · {item.type}{item.subtype ? `/${item.subtype}` : ''} {item.institution ? `· ${item.institution}` : ''}</span>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label="Close">&times;</button>
+          <button onClick={onClose} className="hover:text-white text-xl leading-none" style={{ color: 'var(--text-secondary)' }} aria-label="Close">&times;</button>
         </div>
 
         <div className="p-6 space-y-5">
           {/* Stats row */}
           <div className="grid grid-cols-3 gap-3">
             <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50">
-              <span className="text-xs text-slate-500 block">{t('Precio actual', 'Current price')}</span>
-              <span className="text-lg font-bold text-white">{formatCurrency(currentPrice)}</span>
+              <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{t('Precio actual', 'Current price')}</span>
+              <span className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{formatCurrency(currentPrice)}</span>
             </div>
             <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50">
-              <span className="text-xs text-slate-500 block">{t('Valor total', 'Total value')}</span>
-              <span className="text-lg font-bold text-white">{formatCurrency(totalValue)}</span>
+              <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{t('Valor total', 'Total value')}</span>
+              <span className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{formatCurrency(totalValue)}</span>
             </div>
             <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50">
-              <span className="text-xs text-slate-500 block">P&L</span>
-              <span className="text-lg font-bold" style={{ color: pnl >= 0 ? '#34d399' : '#f87171' }}>
+              <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>P&L</span>
+              <span className="text-lg font-bold" style={{ color: pnl >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                 {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}
               </span>
-              <span className="text-xs block" style={{ color: pnlPct >= 0 ? '#34d399' : '#ef4444' }}>
+              <span className="text-xs block" style={{ color: pnlPct >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                 {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%
               </span>
             </div>
           </div>
 
           {/* Position details */}
-          <div className="flex items-center gap-4 text-xs text-slate-400">
-            <span>{t('Cantidad', 'Qty')}: <span className="text-white font-medium">{item.quantity?.toLocaleString(undefined, { maximumFractionDigits: 4 })}</span></span>
-            <span>{t('Costo', 'Cost')}: <span className="text-white font-medium">{formatCurrency(item.purchasePrice)}</span></span>
+          <div className="flex items-center gap-4 text-xs" style={{ color: 'var(--text-secondary)' }}>
+            <span>{t('Cantidad', 'Qty')}: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{item.quantity?.toLocaleString(undefined, { maximumFractionDigits: 4 })}</span></span>
+            <span>{t('Costo', 'Cost')}: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{formatCurrency(item.purchasePrice)}</span></span>
             {item.change7d != null && (
-              <span style={{ color: item.change7d >= 0 ? '#34d399' : '#f87171' }}>
+              <span style={{ color: item.change7d >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                 7d: {item.change7d >= 0 ? '+' : ''}{item.change7d.toFixed(1)}%
               </span>
             )}
@@ -196,15 +196,15 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
 
           {/* Extra details */}
           {(item.maturityDate || item.incomeRate || item.rateType === 'variable' || item.custodyType || item.taxJurisdiction || item.notes) && (
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400">
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs" style={{ color: 'var(--text-secondary)' }}>
               {item.maturityDate && (
-                <span>{t('Vence', 'Matures')}: <span className="font-medium" style={{ color: '#fbbf24' }}>{typeof item.maturityDate === 'string' ? item.maturityDate : new Date(item.maturityDate?.seconds ? item.maturityDate.seconds * 1000 : item.maturityDate).toLocaleDateString()}</span></span>
+                <span>{t('Vence', 'Matures')}: <span className="font-medium" style={{ color: 'var(--accent-orange)' }}>{typeof item.maturityDate === 'string' ? item.maturityDate : new Date(item.maturityDate?.seconds ? item.maturityDate.seconds * 1000 : item.maturityDate).toLocaleDateString()}</span></span>
               )}
               {item.rateType === 'variable' && item.rateMin > 0 && (
                 <span>{t('Tasa', 'Rate')}: <span className="font-medium" style={{ color: 'var(--accent-blue)' }}>{item.rateMin}% - {item.rateMax}%</span></span>
               )}
               {item.rateType === 'continuous' && item.incomeRate > 0 && (
-                <span>{t('Tasa continua', 'Continuous rate')}: <span className="font-medium" style={{ color: '#22d3ee' }}>{item.incomeRate}%</span></span>
+                <span>{t('Tasa continua', 'Continuous rate')}: <span className="font-medium" style={{ color: 'var(--accent-cyan)' }}>{item.incomeRate}%</span></span>
               )}
               {item.rateType !== 'variable' && item.rateType !== 'continuous' && item.incomeRate > 0 && (
                 <span>{t('Tasa', 'Rate')}: <span className="font-medium" style={{ color: 'var(--accent-green)' }}>{item.incomeRate}%</span></span>
@@ -216,10 +216,10 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
                 <span>🏛 {item.taxJurisdiction}</span>
               )}
               {item.isIlliquid && (
-                <span style={{ color: '#fbbf24' }}>{t('Ilíquido', 'Illiquid')}</span>
+                <span style={{ color: 'var(--accent-orange)' }}>{t('Ilíquido', 'Illiquid')}</span>
               )}
               {item.notes && (
-                <span className="text-slate-500 italic w-full mt-1">{item.notes}</span>
+                <span className="italic w-full mt-1" style={{ color: 'var(--text-muted)' }}>{item.notes}</span>
               )}
             </div>
           )}
@@ -228,24 +228,24 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
           <div>
             {isStatic && assetIncome.length === 0 ? (
               <div className="h-[120px] bg-theme-base rounded-lg flex flex-col items-center justify-center gap-2">
-                <span className="text-sm text-slate-500">
+                <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
                   {t('Este activo no tiene datos de mercado', 'This asset has no market data')}
                 </span>
-                <span className="text-xs text-slate-600">
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
                   {t('Su valor se mantiene al precio ingresado manualmente', 'Its value stays at the manually entered price')}
                 </span>
               </div>
             ) : (
             <>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-slate-500">{t('Histórico de valor', 'Value history')}</span>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('Histórico de valor', 'Value history')}</span>
               {!isStatic && (
                 <div className="flex gap-0.5 bg-theme-base rounded-lg p-0.5">
                   {ranges.map((r) => (
                     <button key={r} onClick={() => setRange(r)}
                       className="px-2 py-1 text-xs font-medium rounded-md transition-all"
                       style={range === r
-                        ? { backgroundColor: '#3b82f6', color: '#ffffff' }
+                        ? { backgroundColor: 'var(--accent-blue)', color: '#ffffff' }
                         : { color: 'var(--text-muted)' }
                       }>
                       {r}
@@ -257,7 +257,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
 
             {loading && !isStatic ? (
               <div className="h-[200px] bg-theme-base rounded-lg animate-pulse flex items-center justify-center">
-                <span className="text-slate-600 text-sm">{t('Cargando...', 'Loading...')}</span>
+                <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{t('Cargando...', 'Loading...')}</span>
               </div>
             ) : renderPts ? (
               <div className="relative">
@@ -287,10 +287,10 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
                   )}
                 </svg>
                 {hp && (
-                  <div className="absolute pointer-events-none bg-slate-800 border border-slate-600 text-white text-xs rounded-lg px-3 py-2 shadow-xl"
-                    style={{ left: `${(hp.x / 600) * 100}%`, top: `${(hp.y / 200) * 100 - 15}%`, transform: 'translate(-50%, -100%)' }}>
+                  <div className="absolute pointer-events-none text-xs rounded-lg px-3 py-2 shadow-xl"
+                    style={{ left: `${(hp.x / 600) * 100}%`, top: `${(hp.y / 200) * 100 - 15}%`, transform: 'translate(-50%, -100%)', backgroundColor: 'var(--bg-card)', border: '1px solid var(--card-border)', color: 'var(--text-primary)' }}>
                     <div className="font-bold">{formatCurrency(hp.close)}</div>
-                    <div className="text-slate-400">{formatDate(hp.date)}</div>
+                    <div style={{ color: 'var(--text-secondary)' }}>{formatDate(hp.date)}</div>
                   </div>
                 )}
               </div>

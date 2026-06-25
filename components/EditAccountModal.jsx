@@ -412,13 +412,13 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           <button onClick={onClose} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-xl leading-none" aria-label="Close edit asset modal">&times;</button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {error && <div className="p-3 border rounded-lg text-sm" role="alert" aria-live="assertive" style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.2)', color: 'var(--text-negative)' }}>{error}</div>}
+          {error && <div className="p-3 border rounded-lg text-sm" role="alert" aria-live="assertive" style={{ backgroundColor: 'color-mix(in srgb, var(--text-negative) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--text-negative) 20%, transparent)', color: 'var(--text-negative)' }}>{error}</div>}
 
           {/* Sector badge */}
           {item.sector && (
             <div className="flex gap-2 flex-wrap">
               <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)' }}>{item.sector}</span>
-              {item.industry && <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'rgba(168,85,247,0.1)', color: '#c084fc' }}>{item.industry}</span>}
+              {item.industry && <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'rgba(168,85,247,0.1)', color: 'var(--accent-purple)' }}>{item.industry}</span>}
               {item.exchangeName && <span className="text-xs bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] px-2 py-0.5 rounded">{item.exchangeName}</span>}
             </div>
           )}
@@ -506,27 +506,27 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           {!isDebt && (onExecuteContribution || onAddTransaction) && (
             <div className="space-y-3">
               {contribSuccess && (
-                <div className="px-3 py-2 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(52,211,153,0.1)', color: 'var(--accent-green)', border: '1px solid rgba(52,211,153,0.2)' }}>
+                <div className="px-3 py-2 rounded-lg text-xs font-medium" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-green) 10%, transparent)', color: 'var(--accent-green)', border: '1px solid color-mix(in srgb, var(--accent-green) 20%, transparent)' }}>
                   {contribSuccess}
                 </div>
               )}
               <div className="flex gap-2">
                 <button type="button" onClick={() => { setShowContribution(true); setContribType('add') }}
                   className="flex-1 px-3 py-2.5 text-xs font-semibold rounded-lg transition-all border flex items-center justify-center gap-1"
-                  style={{ color: 'var(--accent-green)', borderColor: 'rgba(52,211,153,0.3)', backgroundColor: 'rgba(52,211,153,0.1)' }}>
+                  style={{ color: 'var(--accent-green)', borderColor: 'color-mix(in srgb, var(--accent-green) 30%, transparent)', backgroundColor: 'color-mix(in srgb, var(--accent-green) 10%, transparent)' }}>
                   <span className="text-sm">+</span> {t('Agregar Dinero', 'Add Money')}
                 </button>
                 <button type="button" onClick={() => { setShowContribution(true); setContribType('withdraw') }}
                   className="flex-1 px-3 py-2.5 text-xs font-semibold rounded-lg transition-all border flex items-center justify-center gap-1"
-                  style={{ color: 'var(--text-negative)', borderColor: 'rgba(239,68,68,0.3)', backgroundColor: 'rgba(239,68,68,0.1)' }}>
+                  style={{ color: 'var(--text-negative)', borderColor: 'color-mix(in srgb, var(--text-negative) 30%, transparent)', backgroundColor: 'color-mix(in srgb, var(--text-negative) 10%, transparent)' }}>
                   <span className="text-sm">-</span> {t('Retirar', 'Withdraw')}
                 </button>
               </div>
 
               {showContribution && (
                 <div className="border rounded-lg p-3 space-y-3"
-                  style={{ borderColor: contribType === 'add' ? 'rgba(52,211,153,0.3)' : 'rgba(239,68,68,0.3)', backgroundColor: contribType === 'add' ? 'rgba(52,211,153,0.05)' : 'rgba(239,68,68,0.05)' }}>
-                  <p className="text-xs font-medium" style={{ color: contribType === 'add' ? '#34d399' : '#f87171' }}>
+                  style={{ borderColor: contribType === 'add' ? 'color-mix(in srgb, var(--accent-green) 30%, transparent)' : 'color-mix(in srgb, var(--text-negative) 30%, transparent)', backgroundColor: contribType === 'add' ? 'color-mix(in srgb, var(--accent-green) 5%, transparent)' : 'color-mix(in srgb, var(--text-negative) 5%, transparent)' }}>
+                  <p className="text-xs font-medium" style={{ color: contribType === 'add' ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                     {contribType === 'add' ? t('Nuevo aporte', 'New contribution') : t('Retiro de fondos', 'Withdraw funds')}
                   </p>
                   <div className="grid grid-cols-2 gap-2">
@@ -571,7 +571,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                     </button>
                     <button type="button" onClick={handleContribution} disabled={contribSaving || !contribAmount || parseFloat(contribAmount) <= 0}
                       className="flex-1 px-3 py-2 text-xs font-medium rounded-lg disabled:opacity-40"
-                      style={{ backgroundColor: contribType === 'add' ? '#059669' : '#dc2626', color: '#ffffff' }}>
+                      style={{ backgroundColor: contribType === 'add' ? 'var(--accent-green)' : 'var(--text-negative)', color: '#ffffff' }}>
                       {contribSaving ? '...' : t('Registrar', 'Record')}
                     </button>
                   </div>
@@ -588,7 +588,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                       <div key={tx.id} className="flex items-center justify-between text-xs py-1 border-b border-[var(--card-border,#38383A)]/30 last:border-0">
                         <span style={{ color: 'var(--text-muted)' }}>{tx.date}</span>
                         <div className="text-right">
-                          <span style={{ color: tx.type === 'DEPOSIT' ? '#34d399' : '#f87171' }}>
+                          <span style={{ color: tx.type === 'DEPOSIT' ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                             {tx.type === 'DEPOSIT' ? '+' : '-'}{tx.currency || form.currency} {(tx.totalAmount || 0).toLocaleString()}
                           </span>
                           {tx.description && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{tx.description}</p>}
@@ -626,7 +626,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               <div className="flex items-center gap-3 px-3 py-2 border border-[var(--card-border,#38383A)] rounded-lg">
                 <button type="button" onClick={() => set('isIlliquid', !form.isIlliquid)}
                   className="w-8 h-4 rounded-full transition-colors relative"
-                  style={{ backgroundColor: form.isIlliquid ? '#f59e0b' : 'var(--card-border, #38383A)' }}>
+                  style={{ backgroundColor: form.isIlliquid ? 'var(--accent-orange)' : 'var(--card-border, #38383A)' }}>
                   <span className={`absolute w-3 h-3 bg-white rounded-full top-0.5 transition-transform ${form.isIlliquid ? 'left-4' : 'left-0.5'}`} />
                 </button>
                 <span className="text-xs text-[var(--text-primary,white)]">{t('Activo ilíquido', 'Illiquid asset')}</span>
@@ -663,13 +663,13 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
           {/* Debt fields */}
           {isDebt && (
-            <div className="border rounded-lg p-3 space-y-3" style={{ borderColor: 'rgba(239,68,68,0.2)', backgroundColor: 'rgba(239,68,68,0.05)' }}>
+            <div className="border rounded-lg p-3 space-y-3" style={{ borderColor: 'color-mix(in srgb, var(--text-negative) 20%, transparent)', backgroundColor: 'color-mix(in srgb, var(--text-negative) 5%, transparent)' }}>
               <div className="flex items-center justify-between">
                 <p className="text-xs font-medium" style={{ color: 'var(--text-negative)' }}>{t('Deuda / Pasivo', 'Debt / Liability')}</p>
                 <div className="flex items-center gap-2">
                   <button type="button" onClick={() => set('isReceivable', !form.isReceivable)}
                     className="w-8 h-4 rounded-full transition-colors relative"
-                    style={{ backgroundColor: form.isReceivable ? '#06b6d4' : 'var(--card-border, #38383A)' }}>
+                    style={{ backgroundColor: form.isReceivable ? 'var(--accent-cyan)' : 'var(--card-border, #38383A)' }}>
                     <span className={`absolute w-3 h-3 bg-white rounded-full top-0.5 transition-transform ${form.isReceivable ? 'left-4' : 'left-0.5'}`} />
                   </button>
                   <span className="text-xs text-[var(--text-secondary,#94a3b8)]">{t('Cuenta por cobrar', 'Receivable')}</span>
@@ -677,13 +677,13 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               </div>
 
               {isReceivable && (
-                <div className="flex items-center gap-2 px-2 py-1.5 border rounded" style={{ backgroundColor: 'rgba(6,182,212,0.1)', borderColor: 'rgba(6,182,212,0.2)' }}>
+                <div className="flex items-center gap-2 px-2 py-1.5 border rounded" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-cyan) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-cyan) 20%, transparent)' }}>
                   <button type="button" onClick={() => set('countInNetWorth', !form.countInNetWorth)}
                     className="w-8 h-4 rounded-full transition-colors relative"
-                    style={{ backgroundColor: form.countInNetWorth ? '#06b6d4' : 'var(--card-border, #38383A)' }}>
+                    style={{ backgroundColor: form.countInNetWorth ? 'var(--accent-cyan)' : 'var(--card-border, #38383A)' }}>
                     <span className={`absolute w-3 h-3 bg-white rounded-full top-0.5 transition-transform ${form.countInNetWorth ? 'left-4' : 'left-0.5'}`} />
                   </button>
-                  <span className="text-xs" style={{ color: '#22d3ee' }}>{t('Incluir en patrimonio neto', 'Include in net worth')}</span>
+                  <span className="text-xs" style={{ color: 'var(--accent-cyan)' }}>{t('Incluir en patrimonio neto', 'Include in net worth')}</span>
                 </div>
               )}
 
@@ -784,8 +784,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
           {/* SAFE Note fields */}
           {isAlternative && form.subtype === 'safe_note' && (
-            <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'rgba(236,72,153,0.2)', backgroundColor: 'rgba(236,72,153,0.05)' }}>
-              <p className="text-xs font-medium" style={{ color: '#f472b6' }}>🔮 SAFE Note</p>
+            <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'color-mix(in srgb, var(--accent-pink) 20%, transparent)', backgroundColor: 'color-mix(in srgb, var(--accent-pink) 5%, transparent)' }}>
+              <p className="text-xs font-medium" style={{ color: 'var(--accent-pink)' }}>🔮 SAFE Note</p>
               <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tipo', 'Type')}</label>
@@ -810,8 +810,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           )}
 
           {/* Fees */}
-          <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'rgba(245,158,11,0.2)', backgroundColor: 'rgba(245,158,11,0.05)' }}>
-            <p className="text-xs font-medium" style={{ color: '#fbbf24' }}>{t('Costos & Comisiones', 'Costs & Fees')}</p>
+          <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'color-mix(in srgb, var(--accent-orange) 20%, transparent)', backgroundColor: 'color-mix(in srgb, var(--accent-orange) 5%, transparent)' }}>
+            <p className="text-xs font-medium" style={{ color: 'var(--accent-orange)' }}>{t('Costos & Comisiones', 'Costs & Fees')}</p>
             <div className="grid grid-cols-3 gap-2">
               <div>
                 <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Costo entrada', 'Entry fee')} <InfoTip text={t('Monto fijo en tu moneda (ej: $80). NO es porcentaje. Es el costo de entrada o comisión que pagaste una sola vez.', 'Fixed amount in your currency (e.g. $80). NOT a percentage. One-time entry cost or commission you paid.')} /></label>
@@ -844,7 +844,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               </div>
             </div>
             {(parseFloat(form.entryFee) > 0 || parseFloat(form.managementFee) > 0 || parseFloat(form.expenseRatio) > 0) && (
-              <p className="text-xs" style={{ color: 'rgba(251,191,36,0.6)' }}>
+              <p className="text-xs" style={{ color: 'color-mix(in srgb, var(--accent-orange) 60%, transparent)' }}>
                 {parseFloat(form.entryFee) > 0 && `${t('Entrada', 'Entry')}: $${parseFloat(form.entryFee).toFixed(2)}  `}
                 {parseFloat(form.managementFee) > 0 && (
                   form.managementFeeType === 'fixed'
@@ -943,7 +943,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 <div className="flex gap-2">
                   <button type="button" onClick={() => set('dividendAction', 'cash')}
                     className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                    style={form.dividendAction === 'cash' ? { backgroundColor: 'rgba(6,182,212,0.2)', color: '#22d3ee', borderColor: 'rgba(6,182,212,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                    style={form.dividendAction === 'cash' ? { backgroundColor: 'color-mix(in srgb, var(--accent-cyan) 20%, transparent)', color: 'var(--accent-cyan)', borderColor: 'color-mix(in srgb, var(--accent-cyan) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                     💵 {t('Efectivo', 'Cash')}
                   </button>
                   <button type="button" onClick={() => set('dividendAction', 'reinvest')}
@@ -1117,7 +1117,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={handleDelete}
               className="px-4 py-2.5 text-xs font-medium rounded-lg transition-colors border"
-              style={confirmDelete ? { backgroundColor: '#dc2626', color: '#ffffff', borderColor: '#dc2626' } : { color: 'var(--text-negative)', borderColor: 'rgba(239,68,68,0.3)' }}>
+              style={confirmDelete ? { backgroundColor: 'var(--text-negative)', color: '#ffffff', borderColor: 'var(--text-negative)' } : { color: 'var(--text-negative)', borderColor: 'color-mix(in srgb, var(--text-negative) 30%, transparent)' }}>
               {confirmDelete ? t('Confirmar', 'Confirm') : t('Eliminar', 'Delete')}
             </button>
             <div className="flex-1" />
@@ -1128,7 +1128,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               const isDebtType = /debt|deuda/i.test(form.type)
               const fmt = (v) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
               if (total > 0) return (
-                <span className="text-xs font-medium px-2 py-1 rounded" style={{ color: 'var(--accent-green)', backgroundColor: 'rgba(52,211,153,0.1)' }}>
+                <span className="text-xs font-medium px-2 py-1 rounded" style={{ color: 'var(--accent-green)', backgroundColor: 'color-mix(in srgb, var(--accent-green) 10%, transparent)' }}>
                   {isDebtType ? t('Deuda', 'Debt') : ''} {form.currency} {fmt(total)}
                 </span>
               )
@@ -1147,7 +1147,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
           {/* Delete warning */}
           {confirmDelete && referencedBy.length > 0 && (
-            <div className="p-3 border rounded-lg text-xs" style={{ backgroundColor: 'rgba(245,158,11,0.1)', borderColor: 'rgba(245,158,11,0.2)', color: '#fbbf24' }}>
+            <div className="p-3 border rounded-lg text-xs" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-orange) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-orange) 20%, transparent)', color: 'var(--accent-orange)' }}>
               {t('Estos activos reciben pagos de este activo y serán desvinculados:', 'These assets receive payments from this asset and will be unlinked:')}
               <ul className="mt-1 space-y-0.5">
                 {referencedBy.map(it => <li key={it.id}>• {it.name || it.symbol}</li>)}

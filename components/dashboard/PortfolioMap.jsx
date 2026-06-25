@@ -1,12 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { formatCurrency, getItemValue, getTypeCategory, TYPE_COLORS } from './utils'
-
-const GROUP_COLORS = [
-  '#3b82f6', '#34d399', '#f59e0b', '#a855f7', '#ec4899',
-  '#06b6d4', '#ef4444', '#84cc16', '#f97316', '#6366f1',
-]
+import { formatCurrency, getItemValue, getTypeCategory, TYPE_COLORS, CHART_PALETTE } from './utils'
 
 function worstRatio(row, rowArea, side) {
   if (side <= 0 || rowArea <= 0) return Infinity
@@ -113,8 +108,8 @@ export default function PortfolioMap({ items, lang }) {
         pct: total > 0 ? (data.value / total) * 100 : 0,
         items: data.items.sort((a, b) => getItemValue(b) - getItemValue(a)),
         color: groupBy === 'type'
-          ? (TYPE_COLORS[name]?.bg || GROUP_COLORS[i % GROUP_COLORS.length])
-          : GROUP_COLORS[i % GROUP_COLORS.length],
+          ? (TYPE_COLORS[name]?.bg || CHART_PALETTE[i % CHART_PALETTE.length])
+          : CHART_PALETTE[i % CHART_PALETTE.length],
       }))
       .filter(g => g.value > 0)
       .sort((a, b) => b.value - a.value)
@@ -140,11 +135,11 @@ export default function PortfolioMap({ items, lang }) {
   return (
     <div className="bg-theme-card rounded-2xl border border-glass-border p-5 card-primary">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-cyan-400" />
+        <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-cyan)' }} />
           {t('MAPA DEL PORTAFOLIO', 'PORTFOLIO MAP')}
         </h3>
-        <span className="text-xs text-slate-500">{formatCurrency(totalValue)}</span>
+        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{formatCurrency(totalValue)}</span>
       </div>
 
       <div className="flex items-center gap-1.5 mb-4">
@@ -154,8 +149,8 @@ export default function PortfolioMap({ items, lang }) {
               groupBy !== v.key ? 'border hover:bg-theme-elevated' : ''
             }`}
             style={groupBy === v.key
-              ? { backgroundColor: '#475569', color: '#ffffff' }
-              : { color: 'var(--text-secondary)', borderColor: 'rgba(71,85,105,0.5)' }
+              ? { backgroundColor: 'var(--text-muted)', color: 'var(--text-primary)' }
+              : { color: 'var(--text-secondary)', borderColor: 'color-mix(in srgb, var(--text-muted) 50%, transparent)' }
             }>
             {v.label}
           </button>
@@ -184,23 +179,23 @@ export default function PortfolioMap({ items, lang }) {
                   style={{ backgroundColor: `${rect.color}${isSel ? '35' : '20'}`, border: `1px solid ${rect.color}40` }}
                 >
                   <div className="min-w-0">
-                    {wide && <p className="text-xs font-semibold text-white truncate leading-tight">{rect.name}</p>}
-                    {wide && tall && <p className="text-xs text-slate-400 leading-tight">{rect.pct.toFixed(1)}%</p>}
+                    {wide && <p className="text-xs font-semibold truncate leading-tight" style={{ color: 'var(--text-primary)' }}>{rect.name}</p>}
+                    {wide && tall && <p className="text-xs leading-tight" style={{ color: 'var(--text-secondary)' }}>{rect.pct.toFixed(1)}%</p>}
                   </div>
                   {tall && (
                     <div className="min-w-0">
-                      <p className={`font-bold text-white leading-tight ${wide ? 'text-sm' : 'text-xs'}`}>
+                      <p className={`font-bold leading-tight ${wide ? 'text-sm' : 'text-xs'}`} style={{ color: 'var(--text-primary)' }}>
                         {formatCurrency(rect.value)}
                       </p>
                       {wide && rect.h > 40 && (
-                        <p className="text-xs text-slate-500 truncate mt-0.5">
+                        <p className="text-xs truncate mt-0.5" style={{ color: 'var(--text-muted)' }}>
                           {rect.items.slice(0, 5).map(it => it.symbol || (it.name || '').split(' ')[0]).join(' · ')}
                         </p>
                       )}
                     </div>
                   )}
                   {!wide && !tall && (
-                    <p className="text-xs text-white/70 truncate text-center">{rect.name.slice(0, 6)}</p>
+                    <p className="text-xs truncate text-center" style={{ color: 'var(--text-secondary)' }}>{rect.name.slice(0, 6)}</p>
                   )}
                 </div>
               </div>
@@ -214,7 +209,7 @@ export default function PortfolioMap({ items, lang }) {
         {groups.map(g => (
           <button key={g.name} onClick={() => setSelected(selected === g.name ? null : g.name)}
             className="flex items-center gap-1.5 text-xs transition-colors"
-            style={{ color: selected === g.name ? '#ffffff' : '#94a3b8' }}>
+            style={{ color: selected === g.name ? 'var(--text-primary)' : 'var(--text-muted)' }}>
             <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: g.color }} />
             <span className="truncate max-w-[100px]">{g.name}</span>
             <span style={{ color: 'var(--text-muted)' }}>{g.pct.toFixed(0)}%</span>
@@ -226,13 +221,13 @@ export default function PortfolioMap({ items, lang }) {
       {selectedGroup && (
         <div className="mt-3 p-3 bg-theme-base rounded-xl border border-glass-border/50 animate-in fade-in duration-200">
           <div className="flex items-center justify-between mb-2.5">
-            <h4 className="text-sm font-semibold text-white flex items-center gap-2">
+            <h4 className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
               <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: selectedGroup.color }} />
               {selectedGroup.name}
             </h4>
             <div className="text-right">
-              <span className="text-xs text-slate-400">{selectedGroup.pct.toFixed(1)}%</span>
-              <span className="text-xs text-slate-500 ml-2">{formatCurrency(selectedGroup.value)}</span>
+              <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{selectedGroup.pct.toFixed(1)}%</span>
+              <span className="text-xs ml-2" style={{ color: 'var(--text-muted)' }}>{formatCurrency(selectedGroup.value)}</span>
             </div>
           </div>
           <div className="space-y-1 max-h-52 overflow-y-auto">
@@ -249,9 +244,9 @@ export default function PortfolioMap({ items, lang }) {
                   <div className="w-1 h-7 rounded-full shrink-0" style={{ backgroundColor: clr }} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-medium text-white truncate">{item.name || item.symbol}</span>
+                      <span className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>{item.name || item.symbol}</span>
                       {item.symbol && item.name && (
-                        <span className="text-xs text-slate-600 shrink-0">{item.symbol}</span>
+                        <span className="text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>{item.symbol}</span>
                       )}
                     </div>
                     <div className="w-full h-1 bg-slate-700/30 rounded-full overflow-hidden mt-1">
@@ -259,9 +254,9 @@ export default function PortfolioMap({ items, lang }) {
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-xs font-medium text-white">{formatCurrency(val)}</p>
+                    <p className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>{formatCurrency(val)}</p>
                     {retPct != null && (
-                      <p className="text-xs" style={{ color: retPct >= 0 ? '#34d399' : '#f87171' }}>
+                      <p className="text-xs" style={{ color: retPct >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                         {retPct >= 0 ? '+' : ''}{retPct.toFixed(1)}%
                       </p>
                     )}

@@ -62,7 +62,7 @@ export default function IncomeCalendar({ items, lang }) {
   return (
     <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
+        <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
           {t('CALENDARIO DE INGRESOS', 'INCOME CALENDAR')}
         </h3>
@@ -78,29 +78,27 @@ export default function IncomeCalendar({ items, lang }) {
           const barH = maxMonthly > 0 ? Math.max(4, (m.total / maxMonthly) * 32) : 0
 
           const intensity = maxMonthly > 0 ? m.total / maxMonthly : 0
-          const barHex = m.total <= 0 ? 'rgba(51,65,85,0.3)'
-            : intensity > 0.75 ? '#34d399'
-            : intensity > 0.5  ? '#34d399'
-            : intensity > 0.25 ? '#059669'
-            : '#047857'
+          const barHex = m.total <= 0 ? 'color-mix(in srgb, var(--text-muted) 30%, transparent)'
+            : intensity > 0.5 ? 'var(--accent-green)'
+            : 'color-mix(in srgb, var(--accent-green) 70%, transparent)'
 
           return (
             <div key={i} className="text-center p-1.5 rounded-lg transition-colors"
               style={isCurrent
-                ? { backgroundColor: 'rgba(52,211,153,0.1)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(52,211,153,0.2)' }
+                ? { backgroundColor: 'color-mix(in srgb, var(--accent-green) 10%, transparent)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'color-mix(in srgb, var(--accent-green) 20%, transparent)' }
                 : { backgroundColor: 'var(--bg-input)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'var(--border-color)' }
               }>
-              <div className="text-xs text-slate-500 mb-1">{monthNames[i]}</div>
+              <div className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>{monthNames[i]}</div>
               <div className="flex justify-center items-end h-8 mb-1">
                 {m.total > 0 ? (
                   <div className="w-3 rounded-t transition-all"
                     style={{ height: `${barH}px`, backgroundColor: barHex, opacity: isPast ? 0.6 : 1 }} />
                 ) : (
-                  <div className="w-3 h-1 rounded" style={{ backgroundColor: 'rgba(51,65,85,0.3)' }} />
+                  <div className="w-3 h-1 rounded" style={{ backgroundColor: 'color-mix(in srgb, var(--text-muted) 30%, transparent)' }} />
                 )}
               </div>
               <div className="text-xs font-medium"
-                style={{ color: m.total > 0 ? (isPast ? 'var(--text-muted)' : '#34d399') : '#334155' }}>
+                style={{ color: m.total > 0 ? (isPast ? 'var(--text-muted)' : 'var(--accent-green)') : 'var(--text-muted)' }}>
                 {m.total > 0 ? formatCurrency(m.total) : '-'}
               </div>
             </div>
@@ -121,10 +119,10 @@ export default function IncomeCalendar({ items, lang }) {
           <div className="space-y-2 pt-2 border-t border-glass-border/30">
             {upcoming.map((m) => (
               <div key={m.idx}>
-                <div className="text-xs text-slate-400 font-medium mb-1">{monthNames[m.idx]}</div>
+                <div className="text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>{monthNames[m.idx]}</div>
                 {m.items.map((item, j) => (
                   <div key={`${item.name}-${j}`} className="flex items-center justify-between text-xs py-0.5">
-                    <span className="text-slate-500 truncate">{item.name}</span>
+                    <span className="truncate" style={{ color: 'var(--text-muted)' }}>{item.name}</span>
                     <span className="font-medium shrink-0 ml-2" style={{ color: 'var(--accent-green)' }}>{formatCurrency(item.amount)}</span>
                   </div>
                 ))}

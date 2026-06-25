@@ -69,7 +69,7 @@ export default function FeeAnalysis({ items, netWorth, lang }) {
 
   if (analysis.totalFees <= 0 && analysis.categories.length === 0) return null
 
-  const feeColorHex = analysis.avgPct < 0.3 ? '#34d399' : analysis.avgPct < 1.0 ? '#fbbf24' : '#f87171'
+  const feeColorHex = analysis.avgPct < 0.3 ? 'var(--accent-green)' : analysis.avgPct < 1.0 ? 'var(--accent-orange)' : 'var(--text-negative)'
 
   return (
     <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-4 sm:p-5">
@@ -80,15 +80,15 @@ export default function FeeAnalysis({ items, netWorth, lang }) {
       <div className="grid grid-cols-3 gap-3 mb-4">
         <div className="text-center">
           <div className="text-lg font-bold" style={{ color: feeColorHex }}>{formatCurrency(analysis.totalFees)}</div>
-          <div className="text-xs text-slate-500">{t('Comisiones/año', 'Fees/year')}</div>
+          <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('Comisiones/año', 'Fees/year')}</div>
         </div>
         <div className="text-center">
           <div className="text-lg font-bold" style={{ color: feeColorHex }}>{analysis.avgPct.toFixed(2)}%</div>
-          <div className="text-xs text-slate-500">{t('Tasa promedio', 'Avg rate')}</div>
+          <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('Tasa promedio', 'Avg rate')}</div>
         </div>
         <div className="text-center">
           <div className="text-lg font-bold" style={{ color: 'var(--text-negative)' }}>{formatCurrency(analysis.tenYearImpact)}</div>
-          <div className="text-xs text-slate-500">{t('Impacto 10 años', '10yr impact')}</div>
+          <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('Impacto 10 años', '10yr impact')}</div>
         </div>
       </div>
 
@@ -97,11 +97,11 @@ export default function FeeAnalysis({ items, netWorth, lang }) {
           {analysis.categories.map(({ cat, fees, pct, count }) => (
             <div key={cat} className="flex items-center justify-between text-xs">
               <div className="flex items-center gap-2">
-                <span className="text-slate-300 capitalize">{cat}</span>
-                <span className="text-slate-600">({count})</span>
+                <span className="capitalize" style={{ color: 'var(--text-secondary)' }}>{cat}</span>
+                <span style={{ color: 'var(--text-muted)' }}>({count})</span>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-slate-500">{pct.toFixed(2)}%</span>
+                <span style={{ color: 'var(--text-muted)' }}>{pct.toFixed(2)}%</span>
                 <span className="text-white font-medium w-20 text-right">{formatCurrency(fees)}</span>
               </div>
             </div>
@@ -110,7 +110,7 @@ export default function FeeAnalysis({ items, netWorth, lang }) {
       )}
 
       {netWorth > 0 && analysis.totalFees > 0 && (
-        <div className="pt-3 border-t border-glass-border/30 text-xs text-slate-500">
+        <div className="pt-3 border-t border-glass-border/30 text-xs" style={{ color: 'var(--text-muted)' }}>
           {t(
             `Las comisiones representan ${(analysis.totalFees / netWorth * 100).toFixed(2)}% de tu patrimonio neto`,
             `Fees represent ${(analysis.totalFees / netWorth * 100).toFixed(2)}% of your net worth`

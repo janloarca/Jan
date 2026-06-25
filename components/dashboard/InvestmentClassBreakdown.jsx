@@ -44,11 +44,11 @@ export default function InvestmentClassBreakdown({ items, lang }) {
   return (
     <div className="bg-theme-card rounded-2xl border border-glass-border p-5 card-primary">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
+        <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
           {t('TIPO DE RETORNO', 'RETURN TYPE')}
         </h3>
-        <span className="text-xs text-slate-500">{formatCurrency(totalValue)}</span>
+        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{formatCurrency(totalValue)}</span>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -72,11 +72,11 @@ export default function InvestmentClassBreakdown({ items, lang }) {
             <p className="text-lg font-bold text-white mb-0.5">{formatCurrency(value)}</p>
 
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-xs text-slate-400">{pct.toFixed(1)}%</span>
-              <span className="text-xs font-medium" style={{ color: gainAbs >= 0 ? '#34d399' : '#f87171' }}>
+              <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{pct.toFixed(1)}%</span>
+              <span className="text-xs font-medium" style={{ color: gainAbs >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                 {gainAbs >= 0 ? '+' : ''}{gainPct.toFixed(1)}%
               </span>
-              <span className="text-xs text-slate-500">{count} {count === 1 ? t('activo', 'asset') : t('activos', 'assets')}</span>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{count} {count === 1 ? t('activo', 'asset') : t('activos', 'assets')}</span>
             </div>
 
             {/* Bar */}
@@ -87,11 +87,11 @@ export default function InvestmentClassBreakdown({ items, lang }) {
             {/* Top 3 */}
             {topItems.slice(0, 3).map((item, i) => (
               <div key={i} className="flex items-center justify-between text-xs py-0.5">
-                <span className="text-slate-400 truncate max-w-[100px]">{item.name}</span>
+                <span className="truncate max-w-[100px]" style={{ color: 'var(--text-secondary)' }}>{item.name}</span>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-slate-300">{formatCurrency(item.value)}</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>{formatCurrency(item.value)}</span>
                   {item.yield != null && (
-                    <span style={{ color: 'rgba(52,211,153,0.7)' }}>{item.yield.toFixed(1)}%</span>
+                    <span style={{ color: 'color-mix(in srgb, var(--accent-green) 70%, transparent)' }}>{item.yield.toFixed(1)}%</span>
                   )}
                 </div>
               </div>
@@ -105,8 +105,8 @@ export default function InvestmentClassBreakdown({ items, lang }) {
         const dominant = classes.reduce((a, b) => a.pct > b.pct ? a : b)
         if (dominant.pct < 10) return null
         return (
-          <p className="text-xs text-slate-500 mt-3 text-center">
-            {dominant.pct.toFixed(0)}% {t('del portafolio está en', 'of portfolio is in')} <span className="text-slate-300 font-medium">{dominant.meta.returnType[lang]}</span>
+          <p className="text-xs mt-3 text-center" style={{ color: 'var(--text-muted)' }}>
+            {dominant.pct.toFixed(0)}% {t('del portafolio está en', 'of portfolio is in')} <span className="font-medium" style={{ color: 'var(--text-secondary)' }}>{dominant.meta.returnType[lang]}</span>
           </p>
         )
       })()}

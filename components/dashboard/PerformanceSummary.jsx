@@ -136,8 +136,8 @@ export default function PerformanceSummary({ items, lots, transactions, convert,
   return (
     <div className="bg-theme-card rounded-2xl border border-glass-border p-5 card-primary">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-purple-400" />
+        <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-purple)' }} />
           {t('RENDIMIENTO', 'PERFORMANCE SUMMARY')}
         </h3>
         <div className="flex gap-0.5 bg-theme-base rounded p-0.5">
@@ -151,7 +151,7 @@ export default function PerformanceSummary({ items, lots, transactions, convert,
       </div>
       {loading ? (
         <div className="flex items-center justify-center py-6">
-          <div className="w-4 h-4 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+          <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--accent-purple)', borderTopColor: 'transparent' }} />
         </div>
       ) : (
         <>
@@ -160,24 +160,24 @@ export default function PerformanceSummary({ items, lots, transactions, convert,
             const isPos = (p.pct ?? 0) >= 0
             return (
               <div key={p.key} className="text-center p-2 sm:p-3 bg-theme-base rounded-lg border border-glass-border/50">
-                <span className="text-xs text-slate-500 font-medium">{p.label}</span>
+                <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{p.label}</span>
                 {p.pct != null && isFinite(p.pct) ? (
                   <>
-                    <div className="text-sm sm:text-base font-bold font-mono tabular-nums mt-1" style={{ color: isPos ? '#34d399' : '#f87171' }}>
+                    <div className="text-sm sm:text-base font-bold font-mono tabular-nums mt-1" style={{ color: isPos ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                       {isPos ? '+' : ''}{p.pct.toFixed(2)}%
                     </div>
-                    <div className="text-xs sm:text-xs font-mono tabular-nums mt-0.5" style={{ color: isPos ? 'rgba(52,211,153,0.7)' : 'rgba(239,68,68,0.7)' }}>
+                    <div className="text-xs sm:text-xs font-mono tabular-nums mt-0.5" style={{ color: isPos ? 'color-mix(in srgb, var(--accent-green) 70%, transparent)' : 'color-mix(in srgb, var(--text-negative) 70%, transparent)' }}>
                       {isPos ? '+' : ''}{formatCurrency(p.abs)}
                     </div>
                   </>
                 ) : (
-                  <div className="text-sm text-slate-600 mt-1">—</div>
+                  <div className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>—</div>
                 )}
               </div>
             )
           })}
         </div>
-        <div className="text-xs text-slate-600 mt-2 text-right">
+        <div className="text-xs mt-2 text-right" style={{ color: 'var(--text-muted)' }}>
           {returnMode === 'twr' ? t('Retorno ponderado por tiempo (TWR)', 'Time-Weighted Return (TWR)') : t('Retorno ponderado por dinero (MWR)', 'Money-Weighted Return (MWR)')}
         </div>
       </>

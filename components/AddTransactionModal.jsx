@@ -54,9 +54,9 @@ export default function AddTransactionModal({ onClose, onAdd, lang = 'es' }) {
   const typeOptions = [
     { value: 'BUY', label: t('Compra', 'Buy'), color: 'var(--accent-green)' },
     { value: 'SELL', label: t('Venta', 'Sell'), color: 'var(--text-negative)' },
-    { value: 'DIVIDEND', label: t('Dividendo', 'Dividend'), color: '#6ee7b7' },
+    { value: 'DIVIDEND', label: t('Dividendo', 'Dividend'), color: 'var(--accent-green)' },
     { value: 'DEPOSIT', label: t('Depósito', 'Deposit'), color: 'var(--accent-blue)' },
-    { value: 'WITHDRAWAL', label: t('Retiro', 'Withdrawal'), color: '#fbbf24' },
+    { value: 'WITHDRAWAL', label: t('Retiro', 'Withdrawal'), color: 'var(--accent-orange)' },
   ]
 
   return (
@@ -65,21 +65,21 @@ export default function AddTransactionModal({ onClose, onAdd, lang = 'es' }) {
       <div ref={trapRef} className="bg-theme-card border border-glass-border rounded-xl shadow-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
           <h2 id="add-tx-modal-title" className="text-lg font-bold text-white">{t('Registrar Transacción', 'Record Transaction')}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label="Close add transaction modal">&times;</button>
+          <button onClick={onClose} className="hover:text-white text-xl leading-none" style={{ color: 'var(--text-secondary)' }} aria-label="Close add transaction modal">&times;</button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-3">
-          {error && <div role="alert" aria-live="assertive" className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-sm">{error}</div>}
+          {error && <div role="alert" aria-live="assertive" className="p-3 rounded-lg text-sm" style={{ backgroundColor: 'color-mix(in srgb, var(--text-negative) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--text-negative) 20%, transparent)', color: 'var(--text-negative)' }}>{error}</div>}
 
           {/* Type pills */}
           <div>
-            <label className="text-xs text-slate-400 mb-2 block">{t('Tipo', 'Type')}</label>
+            <label className="text-xs mb-2 block" style={{ color: 'var(--text-secondary)' }}>{t('Tipo', 'Type')}</label>
             <div className="flex flex-wrap gap-2">
               {typeOptions.map((opt) => (
                 <button key={opt.value} type="button" onClick={() => set('type', opt.value)}
                   className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors border"
                   style={form.type === opt.value
-                    ? { backgroundColor: 'rgba(59,130,246,0.2)', color: opt.color, borderColor: 'rgba(59,130,246,0.3)' }
-                    : { color: '#94a3b8', borderColor: '#38383A' }
+                    ? { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', color: opt.color, borderColor: 'color-mix(in srgb, var(--accent-blue) 30%, transparent)' }
+                    : { color: 'var(--text-muted)', borderColor: 'var(--card-border)' }
                   }>
                   {opt.label}
                 </button>
@@ -89,35 +89,35 @@ export default function AddTransactionModal({ onClose, onAdd, lang = 'es' }) {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label htmlFor="tx-symbol" className="text-xs text-slate-400 mb-1 block">{t('Símbolo', 'Symbol')}</label>
+              <label htmlFor="tx-symbol" className="text-xs mb-1 block" style={{ color: 'var(--text-secondary)' }}>{t('Símbolo', 'Symbol')}</label>
               <input id="tx-symbol" value={form.symbol} onChange={(e) => set('symbol', e.target.value)}
-                placeholder="AAPL" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                placeholder="AAPL" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none input-focus" />
             </div>
             <div>
-              <label htmlFor="tx-date" className="text-xs text-slate-400 mb-1 block">{t('Fecha', 'Date')}</label>
+              <label htmlFor="tx-date" className="text-xs mb-1 block" style={{ color: 'var(--text-secondary)' }}>{t('Fecha', 'Date')}</label>
               <input id="tx-date" value={form.date} onChange={(e) => set('date', e.target.value)}
-                type="date" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
+                type="date" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none input-focus" />
             </div>
           </div>
 
           <div>
-            <label htmlFor="tx-description" className="text-xs text-slate-400 mb-1 block">{t('Descripción', 'Description')}</label>
+            <label htmlFor="tx-description" className="text-xs mb-1 block" style={{ color: 'var(--text-secondary)' }}>{t('Descripción', 'Description')}</label>
             <input id="tx-description" value={form.description} onChange={(e) => set('description', e.target.value)}
               placeholder={t('Compra de acciones...', 'Stock purchase...')}
-              className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+              className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none input-focus" />
           </div>
 
           {form.type === 'DIVIDEND' || form.type === 'DEPOSIT' || form.type === 'WITHDRAWAL' ? (
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label htmlFor="tx-amount" className="text-xs text-slate-400 mb-1 block">{t('Monto', 'Amount')}</label>
+                <label htmlFor="tx-amount" className="text-xs mb-1 block" style={{ color: 'var(--text-secondary)' }}>{t('Monto', 'Amount')}</label>
                 <input id="tx-amount" value={form.totalAmount} onChange={(e) => set('totalAmount', e.target.value)}
-                  placeholder="500" type="number" step="any" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                  placeholder="500" type="number" step="any" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none input-focus" />
               </div>
               <div>
-                <label htmlFor="tx-currency-1" className="text-xs text-slate-400 mb-1 block">{t('Moneda', 'Currency')}</label>
+                <label htmlFor="tx-currency-1" className="text-xs mb-1 block" style={{ color: 'var(--text-secondary)' }}>{t('Moneda', 'Currency')}</label>
                 <select id="tx-currency-1" value={form.currency} onChange={(e) => set('currency', e.target.value)}
-                  className="w-full px-2 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
+                  className="w-full px-2 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none input-focus">
                   {['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY'].map((c) => (
                     <option key={c} value={c}>{c}</option>
                   ))}
@@ -127,25 +127,25 @@ export default function AddTransactionModal({ onClose, onAdd, lang = 'es' }) {
           ) : (
             <div className="grid grid-cols-4 gap-3">
               <div>
-                <label htmlFor="tx-quantity" className="text-xs text-slate-400 mb-1 block">{t('Cantidad', 'Qty')}</label>
+                <label htmlFor="tx-quantity" className="text-xs mb-1 block" style={{ color: 'var(--text-secondary)' }}>{t('Cantidad', 'Qty')}</label>
                 <input id="tx-quantity" value={form.quantity} onChange={(e) => set('quantity', e.target.value)}
-                  placeholder="10" type="number" step="any" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                  placeholder="10" type="number" step="any" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none input-focus" />
               </div>
               <div>
-                <label htmlFor="tx-price" className="text-xs text-slate-400 mb-1 block">{t('Precio', 'Price')}</label>
+                <label htmlFor="tx-price" className="text-xs mb-1 block" style={{ color: 'var(--text-secondary)' }}>{t('Precio', 'Price')}</label>
                 <input id="tx-price" value={form.pricePerUnit} onChange={(e) => set('pricePerUnit', e.target.value)}
-                  placeholder="150" type="number" step="any" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                  placeholder="150" type="number" step="any" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none input-focus" />
               </div>
               <div>
-                <label htmlFor="tx-total" className="text-xs text-slate-400 mb-1 block">Total</label>
+                <label htmlFor="tx-total" className="text-xs mb-1 block" style={{ color: 'var(--text-secondary)' }}>Total</label>
                 <input id="tx-total" value={form.totalAmount} onChange={(e) => set('totalAmount', e.target.value)}
                   placeholder={form.quantity && form.pricePerUnit ? (parseFloat(form.quantity) * parseFloat(form.pricePerUnit)).toFixed(2) : '1500'}
-                  type="number" step="any" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                  type="number" step="any" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none input-focus" />
               </div>
               <div>
-                <label htmlFor="tx-currency-2" className="text-xs text-slate-400 mb-1 block">{t('Moneda', 'Currency')}</label>
+                <label htmlFor="tx-currency-2" className="text-xs mb-1 block" style={{ color: 'var(--text-secondary)' }}>{t('Moneda', 'Currency')}</label>
                 <select id="tx-currency-2" value={form.currency} onChange={(e) => set('currency', e.target.value)}
-                  className="w-full px-2 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
+                  className="w-full px-2 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none input-focus">
                   {['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY'].map((c) => (
                     <option key={c} value={c}>{c}</option>
                   ))}
@@ -156,11 +156,11 @@ export default function AddTransactionModal({ onClose, onAdd, lang = 'es' }) {
 
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose}
-              className="flex-1 py-2.5 border border-glass-border text-slate-300 rounded-lg hover:bg-theme-elevated transition-colors text-sm">
+              className="flex-1 py-2.5 border border-glass-border rounded-lg hover:bg-theme-elevated transition-colors text-sm" style={{ color: 'var(--text-secondary)' }}>
               {t('Cancelar', 'Cancel')}
             </button>
             <button type="submit" disabled={saving}
-              className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium">
+              className="flex-1 py-2.5 text-white rounded-lg disabled:opacity-50 transition-colors text-sm font-medium" style={{ backgroundColor: 'var(--accent-blue)' }}>
               {saving ? '...' : t('Registrar', 'Record')}
             </button>
           </div>

@@ -73,9 +73,9 @@ export default function MaturityCalendar({ items, lang }) {
   const totalUpcomingPayments = payments.reduce((s, e) => s + e.value, 0)
 
   function getDayStyle(days) {
-    if (days <= 90) return { color: 'var(--text-negative)', backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.2)' }
-    if (days <= 365) return { color: '#fbbf24', backgroundColor: 'rgba(245,158,11,0.1)', borderColor: 'rgba(245,158,11,0.2)' }
-    return { color: 'var(--accent-green)', backgroundColor: 'rgba(52,211,153,0.1)', borderColor: 'rgba(52,211,153,0.2)' }
+    if (days <= 90) return { color: 'var(--text-negative)', backgroundColor: 'color-mix(in srgb, var(--text-negative) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--text-negative) 20%, transparent)' }
+    if (days <= 365) return { color: 'var(--accent-orange)', backgroundColor: 'color-mix(in srgb, var(--accent-orange) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-orange) 20%, transparent)' }
+    return { color: 'var(--accent-green)', backgroundColor: 'color-mix(in srgb, var(--accent-green) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-green) 20%, transparent)' }
   }
 
   function formatDays(days) {
@@ -86,24 +86,24 @@ export default function MaturityCalendar({ items, lang }) {
 
   return (
     <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-4">
-      <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-3">
-        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#fbbf24' }} />
+      <h3 className="text-sm font-medium flex items-center gap-2 mb-3" style={{ color: 'var(--text-secondary)' }}>
+        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-orange)' }} />
         {t('CALENDARIO', 'CALENDAR')}
       </h3>
 
       <div className="grid grid-cols-2 gap-3 mb-3">
         {maturities.length > 0 && (
           <div>
-            <span className="text-xs text-slate-500 block">{t('Vencimientos', 'Maturities')}</span>
-            <span className="text-sm font-bold" style={{ color: '#fbbf24' }}>{formatCurrency(totalMaturingValue)}</span>
-            <span className="text-xs text-slate-600 block">{maturities.length} {t('instrumento(s)', 'instrument(s)')}</span>
+            <span className="text-xs block">{t('Vencimientos', 'Maturities')}</span>
+            <span className="text-sm font-bold" style={{ color: 'var(--accent-orange)' }}>{formatCurrency(totalMaturingValue)}</span>
+            <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{maturities.length} {t('instrumento(s)', 'instrument(s)')}</span>
           </div>
         )}
         {payments.length > 0 && (
           <div className={maturities.length > 0 ? 'text-right' : ''}>
-            <span className="text-xs text-slate-500 block">{t('Pagos próximos', 'Upcoming payments')}</span>
+            <span className="text-xs block">{t('Pagos próximos', 'Upcoming payments')}</span>
             <span className="text-sm font-bold" style={{ color: 'var(--accent-green)' }}>{formatCurrency(totalUpcomingPayments)}</span>
-            <span className="text-xs text-slate-600 block">{payments.length} {t('pago(s)', 'payment(s)')}</span>
+            <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{payments.length} {t('pago(s)', 'payment(s)')}</span>
           </div>
         )}
       </div>
@@ -117,13 +117,13 @@ export default function MaturityCalendar({ items, lang }) {
             </span>
             <div className="flex-1 min-w-0">
               <span className="text-xs text-white truncate block">{ev.name}</span>
-              <span className="text-xs text-slate-500">{ev.date}</span>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{ev.date}</span>
             </div>
             <div className="text-right shrink-0">
-              <span className="text-xs font-medium" style={{ color: ev.type === 'maturity' ? '#fbbf24' : '#34d399' }}>
+              <span className="text-xs font-medium" style={{ color: ev.type === 'maturity' ? 'var(--accent-orange)' : 'var(--accent-green)' }}>
                 {formatCurrency(ev.value)}
               </span>
-              <span className="text-xs text-slate-600 block">
+              <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>
                 {ev.type === 'maturity'
                   ? (ev.action === 'convert_equity' ? t('Convierte', 'Converts') : t('Vence', 'Matures'))
                   : t('Pago', 'Payment')}

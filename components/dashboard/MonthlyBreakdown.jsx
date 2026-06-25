@@ -48,14 +48,15 @@ function EditableCell({ value, onSave, className, style }) {
         onChange={e => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false) }}
-        className="w-full bg-theme-base border border-blue-500/50 rounded px-1.5 py-0.5 text-xs text-white text-right font-medium tabular-nums focus:outline-none focus:ring-1 focus:ring-blue-500/30"
+        className="w-full bg-theme-base rounded px-1.5 py-0.5 text-xs text-white text-right font-medium tabular-nums focus:outline-none focus:ring-1 focus:ring-blue-500/30"
+        style={{ borderColor: 'var(--accent-blue)' }}
       />
     )
   }
 
   return (
     <span
-      className={`cursor-pointer hover:bg-blue-500/10 rounded px-1 py-0.5 -mx-1 transition-colors ${className}`}
+      className={`cursor-pointer rounded px-1 py-0.5 -mx-1 transition-colors ${className}`}
       style={style}
       onClick={() => { setDraft(Math.abs(value).toFixed(2)); setEditing(true) }}
       title="Click to edit"
@@ -143,26 +144,26 @@ export default function MonthlyBreakdown({ items, snapshots, lang, onUpdateItem,
   return (
     <div className="bg-theme-card rounded-2xl border border-glass-border p-5 card-primary">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
+        <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
           <span className="w-2 h-2 rounded-full bg-emerald-400" />
           {t('ESTADO DE CUENTA', 'ACCOUNT STATEMENT')}
         </h3>
-        <span className="text-xs text-slate-500">{t('Ordenado por liquidez', 'By liquidity')}</span>
+        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('Ordenado por liquidez', 'By liquidity')}</span>
       </div>
 
       <div className="overflow-x-auto -mx-2 px-2">
         <table className="w-full text-xs border-collapse min-w-[480px]">
           <caption className="sr-only">{t('Estado de cuenta por institución y activo', 'Account statement by institution and asset')}</caption>
           <thead>
-            <tr className="border-b-2 border-[#475569]">
-              <th scope="col" className="text-left py-2 pr-2 text-slate-500 font-semibold sticky left-0 bg-theme-card z-10 min-w-[180px]">
+            <tr className="border-b-2" style={{ borderColor: 'var(--card-border)' }}>
+              <th scope="col" className="text-left py-2 pr-2 font-semibold sticky left-0 bg-theme-card z-10 min-w-[180px]" style={{ color: 'var(--text-muted)' }}>
                 {t('Cuenta / Activo', 'Account / Asset')}
               </th>
-              <th scope="col" className="text-right py-2 px-2 text-slate-400 font-semibold w-24">{currentMonthLabel.toUpperCase()}</th>
-              <th scope="col" className="text-right py-2 px-2 text-slate-500 font-semibold w-12">%</th>
-              <th scope="col" className="text-right py-2 px-2 text-slate-500 font-semibold w-16">P&L</th>
+              <th scope="col" className="text-right py-2 px-2 font-semibold w-24" style={{ color: 'var(--text-secondary)' }}>{currentMonthLabel.toUpperCase()}</th>
+              <th scope="col" className="text-right py-2 px-2 font-semibold w-12" style={{ color: 'var(--text-muted)' }}>%</th>
+              <th scope="col" className="text-right py-2 px-2 font-semibold w-16" style={{ color: 'var(--text-muted)' }}>P&L</th>
               {monthlyTotals.map(m => (
-                <th scope="col" key={m.key} className="text-right py-2 px-2 text-slate-600 font-medium w-20">
+                <th scope="col" key={m.key} className="text-right py-2 px-2 font-medium w-20" style={{ color: 'var(--text-muted)' }}>
                   {formatMonthLabel(m.key, lang).toUpperCase()}
                 </th>
               ))}
@@ -176,18 +177,18 @@ export default function MonthlyBreakdown({ items, snapshots, lang, onUpdateItem,
                   onClick={() => toggleGroup(group.name)}>
                   <td className="py-2 pr-2 sticky left-0 bg-theme-base/60 z-10">
                     <div className="flex items-center gap-2">
-                      <span className="text-slate-500 text-xs w-3">{isCollapsed ? '▸' : '▾'}</span>
+                      <span className="text-xs w-3" style={{ color: 'var(--text-muted)' }}>{isCollapsed ? '▸' : '▾'}</span>
                       <span className="text-white font-semibold text-xs">{group.name}</span>
-                      <span className="text-slate-600 text-xs">{group.items.length}</span>
+                      <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{group.items.length}</span>
                     </div>
                   </td>
-                  <td className="text-right py-2 px-2 font-bold" style={{ color: group.total < 0 ? '#f87171' : '#ffffff' }}>
+                  <td className="text-right py-2 px-2 font-bold" style={{ color: group.total < 0 ? 'var(--text-negative)' : '#ffffff' }}>
                     {formatCurrency(group.total)}
                   </td>
-                  <td className="text-right py-2 px-2 text-slate-400 font-medium">{group.pct.toFixed(1)}%</td>
+                  <td className="text-right py-2 px-2 font-medium" style={{ color: 'var(--text-secondary)' }}>{group.pct.toFixed(1)}%</td>
                   <td className="text-right py-2 px-2" />
                   {monthlyTotals.map(m => (
-                    <td key={m.key} className="text-right py-2 px-2 text-slate-700">—</td>
+                    <td key={m.key} className="text-right py-2 px-2" style={{ color: 'var(--text-muted)' }}>—</td>
                   ))}
                 </tr>
 
@@ -200,28 +201,28 @@ export default function MonthlyBreakdown({ items, snapshots, lang, onUpdateItem,
                   const isDebt = val < 0
 
                   return (
-                    <tr key={item.id || i} className="border-b border-[#1C1C1E] hover:bg-theme-elevated/30 transition-colors">
+                    <tr key={item.id || i} className="border-b hover:bg-theme-elevated/30 transition-colors" style={{ borderColor: 'var(--card-border)' }}>
                       <td className="py-1.5 pr-2 pl-7 sticky left-0 bg-theme-card z-10">
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="w-1 h-5 rounded-full shrink-0" style={{ backgroundColor:
-                            cat === 'banks' ? '#06b6d4' :
-                            cat === 'bonds' ? '#f59e0b' :
-                            cat === 'stocks' ? '#3b82f6' :
-                            cat === 'funds' ? '#6366f1' :
-                            cat === 'crypto' ? '#f97316' :
-                            cat === 'realestate' ? '#34d399' :
-                            cat === 'debts' ? '#ef4444' :
-                            '#64748b'
+                            cat === 'banks' ? 'var(--accent-cyan)' :
+                            cat === 'bonds' ? 'var(--accent-orange)' :
+                            cat === 'stocks' ? 'var(--accent-blue)' :
+                            cat === 'funds' ? 'var(--accent-purple)' :
+                            cat === 'crypto' ? 'var(--accent-orange)' :
+                            cat === 'realestate' ? 'var(--accent-green)' :
+                            cat === 'debts' ? 'var(--text-negative)' :
+                            'var(--text-muted)'
                           }} />
                           <div className="min-w-0">
                             {onEditItem ? (
-                              <button className="text-slate-200 truncate block text-xs text-left hover:text-blue-400 hover:underline transition-colors" onClick={(e) => { e.stopPropagation(); onEditItem(item) }}>
+                              <button className="truncate block text-xs text-left hover:underline transition-colors" style={{ color: 'var(--text-secondary)' }} onClick={(e) => { e.stopPropagation(); onEditItem(item) }}>
                                 {item.name || item.symbol}
                               </button>
                             ) : (
-                              <span className="text-slate-200 truncate block text-xs">{item.name || item.symbol}</span>
+                              <span className="truncate block text-xs" style={{ color: 'var(--text-secondary)' }}>{item.name || item.symbol}</span>
                             )}
-                            <span className="text-xs text-slate-600 block">
+                            <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>
                               {item.symbol && item.name ? item.symbol : ''}
                               {item.quantity ? ` · ${item.quantity.toLocaleString(undefined, { maximumFractionDigits: 4 })}` : ''}
                             </span>
@@ -234,26 +235,26 @@ export default function MonthlyBreakdown({ items, snapshots, lang, onUpdateItem,
                             value={val}
                             onSave={(newVal) => handleValueUpdate(item, newVal)}
                             className="font-medium tabular-nums"
-                            style={{ color: isDebt ? '#f87171' : '#e2e8f0' }}
+                            style={{ color: isDebt ? 'var(--text-negative)' : 'var(--text-secondary)' }}
                           />
                         ) : (
-                          <span className="font-medium font-mono tabular-nums" style={{ color: isDebt ? '#f87171' : '#e2e8f0' }}>
+                          <span className="font-medium font-mono tabular-nums" style={{ color: isDebt ? 'var(--text-negative)' : 'var(--text-secondary)' }}>
                             {isDebt ? '-' : ''}{formatCurrency(Math.abs(val))}
                           </span>
                         )}
                       </td>
-                      <td className="text-right py-1.5 px-2 text-slate-600 font-mono tabular-nums">{Math.abs(pct).toFixed(1)}</td>
+                      <td className="text-right py-1.5 px-2 font-mono tabular-nums" style={{ color: 'var(--text-muted)' }}>{Math.abs(pct).toFixed(1)}</td>
                       <td className="text-right py-1.5 px-2 font-mono tabular-nums">
                         {retPct != null ? (
-                          <span style={{ color: retPct >= 0 ? 'rgba(52,211,153,0.8)' : 'rgba(248,113,113,0.8)' }}>
+                          <span style={{ color: retPct >= 0 ? 'color-mix(in srgb, var(--accent-green) 80%, transparent)' : 'color-mix(in srgb, var(--text-negative) 80%, transparent)' }}>
                             {retPct >= 0 ? '+' : ''}{retPct.toFixed(1)}%
                           </span>
                         ) : (
-                          <span style={{ color: '#1e293b' }}>—</span>
+                          <span style={{ color: 'var(--bg-card)' }}>—</span>
                         )}
                       </td>
                       {monthlyTotals.map(m => (
-                        <td key={m.key} className="text-right py-1.5 px-2 text-slate-800">—</td>
+                        <td key={m.key} className="text-right py-1.5 px-2" style={{ color: 'var(--text-muted)' }}>—</td>
                       ))}
                     </tr>
                   )
@@ -262,20 +263,20 @@ export default function MonthlyBreakdown({ items, snapshots, lang, onUpdateItem,
             )
           })}
           <tfoot>
-            <tr className="border-t-2 border-[#475569]">
+            <tr className="border-t-2" style={{ borderColor: 'var(--card-border)' }}>
               <td className="py-2.5 pr-2 sticky left-0 bg-theme-card z-10">
                 <span className="text-white font-bold text-xs">TOTAL</span>
               </td>
               <td className="text-right py-2.5 px-2 text-white font-bold tabular-nums">{formatCurrency(netWorth)}</td>
-              <td className="text-right py-2.5 px-2 text-slate-400 font-bold">100%</td>
+              <td className="text-right py-2.5 px-2 font-bold" style={{ color: 'var(--text-secondary)' }}>100%</td>
               <td className="text-right py-2.5 px-2" />
               {monthlyTotals.map(m => {
                 const change = netWorth > 0 && m.value > 0 ? ((netWorth - m.value) / m.value) * 100 : null
                 return (
                   <td key={m.key} className="text-right py-2.5 px-2">
-                    <span className="text-slate-300 font-medium tabular-nums block">{formatCurrency(m.value)}</span>
+                    <span className="font-medium tabular-nums block" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(m.value)}</span>
                     {change != null && (
-                      <span className="text-xs" style={{ color: change >= 0 ? 'rgba(52,211,153,0.6)' : 'rgba(239,68,68,0.6)' }}>
+                      <span className="text-xs" style={{ color: change >= 0 ? 'color-mix(in srgb, var(--accent-green) 60%, transparent)' : 'color-mix(in srgb, var(--text-negative) 60%, transparent)' }}>
                         {change >= 0 ? '+' : ''}{change.toFixed(1)}%
                       </span>
                     )}

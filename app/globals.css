@@ -23,6 +23,7 @@
   --accent-blue-strong: #5B68E8;
   --accent-blue-soft: #8B96FF;
   --accent-purple: #BF5AF2;
+  --accent-pink: #F472B6;
   --accent-cyan: #64D2FF;
   --focus-ring: #6C7AFF;
   --fill-primary: rgba(120, 120, 128, 0.36);
@@ -63,6 +64,7 @@
   --text-negative: #DC2626;
   --accent-orange: #D97706;
   --accent-purple: #7C3AED;
+  --accent-pink: #DB2777;
   --accent-cyan: #0891B2;
   --focus-ring: #4F46E5;
   --fill-primary: rgba(120, 120, 128, 0.15);
@@ -586,6 +588,12 @@ html.theme-transitioning *::after {
   background: rgba(248, 113, 113, 0.25);
 }
 .btn-danger:active { transform: scale(0.97); }
+
+.input-focus:focus {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 1px var(--accent-blue);
+  outline: none;
+}
 
 /* Active/selected pill style for tabs and filters */
 .pill-active {

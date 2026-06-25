@@ -122,25 +122,25 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
   return (
     <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-4">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-cyan-400" />
+        <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-cyan)' }} />
           {t('SIMULADOR DE PROYECCIÓN', 'PROJECTION SIMULATOR')}
         </h3>
         <div className="flex items-center gap-2">
           <div className="flex bg-theme-base rounded-lg border border-glass-border/50 overflow-hidden">
             <button onClick={() => setMode('deterministic')}
               className="px-2 py-1 text-xs font-medium transition-colors"
-              style={mode === 'deterministic' ? { backgroundColor: 'rgba(59,130,246,0.2)', color: 'var(--accent-blue)' } : { color: 'var(--text-muted)' }}>
+              style={mode === 'deterministic' ? { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', color: 'var(--accent-blue)' } : { color: 'var(--text-muted)' }}>
               {t('Lineal', 'Linear')}
             </button>
             <button onClick={() => setMode('montecarlo')}
               className="px-2 py-1 text-xs font-medium transition-colors"
-              style={mode === 'montecarlo' ? { backgroundColor: 'rgba(59,130,246,0.2)', color: 'var(--accent-blue)' } : { color: 'var(--text-muted)' }}>
+              style={mode === 'montecarlo' ? { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', color: 'var(--accent-blue)' } : { color: 'var(--text-muted)' }}>
               Monte Carlo
             </button>
           </div>
           <button onClick={() => setExpanded(!expanded)}
-            className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors">
+            className="text-xs transition-colors" style={{ color: 'var(--accent-green)' }}>
             {expanded ? t('Cerrar', 'Close') : t('Ajustar', 'Adjust')}
           </button>
         </div>
@@ -149,19 +149,19 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
       {expanded && (
         <div className="grid grid-cols-3 gap-3 mb-4">
           <div>
-            <label className="text-xs text-slate-500 mb-1 block">{t('Inversión mensual', 'Monthly investment')}</label>
+            <label className="text-xs mb-1 block" style={{ color: 'var(--text-muted)' }}>{t('Inversión mensual', 'Monthly investment')}</label>
             <input value={monthly} onChange={(e) => setMonthly(parseFloat(e.target.value) || 0)}
               type="number" step="100"
               className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
           </div>
           <div>
-            <label className="text-xs text-slate-500 mb-1 block">{t('Años', 'Years')}</label>
+            <label className="text-xs mb-1 block" style={{ color: 'var(--text-muted)' }}>{t('Años', 'Years')}</label>
             <input value={years} onChange={(e) => setYears(parseInt(e.target.value) || 1)}
               type="number" min="1" max="50"
               className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
           </div>
           <div>
-            <label className="text-xs text-slate-500 mb-1 block">{t('Retorno anual %', 'Annual return %')}</label>
+            <label className="text-xs mb-1 block" style={{ color: 'var(--text-muted)' }}>{t('Retorno anual %', 'Annual return %')}</label>
             <input value={rate} onChange={(e) => setRate(parseFloat(e.target.value) || 0)}
               type="number" step="0.5" min="0" max="30"
               className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
@@ -173,31 +173,31 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
       {mode === 'montecarlo' && mcResult ? (
         <div className="grid grid-cols-3 gap-2 mb-4">
           <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50 text-center">
-            <span className="text-xs text-slate-500 block">{t('Mediana (p50)', 'Median (p50)')}</span>
-            <span className="text-base font-bold text-emerald-400">{formatCompact(mcResult.medianFinal)}</span>
+            <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{t('Mediana (p50)', 'Median (p50)')}</span>
+            <span className="text-base font-bold" style={{ color: 'var(--accent-green)' }}>{formatCompact(mcResult.medianFinal)}</span>
           </div>
           <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50 text-center">
-            <span className="text-xs text-slate-500 block">{t('90% prob ≥', '90% prob ≥')}</span>
+            <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{t('90% prob ≥', '90% prob ≥')}</span>
             <span className="text-base font-bold text-amber-400">{formatCompact(mcResult.p10Final)}</span>
           </div>
           <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50 text-center">
-            <span className="text-xs text-slate-500 block">{t('10% prob ≥', '10% prob ≥')}</span>
-            <span className="text-base font-bold text-cyan-400">{formatCompact(mcResult.p90Final)}</span>
+            <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{t('10% prob ≥', '10% prob ≥')}</span>
+            <span className="text-base font-bold" style={{ color: 'var(--accent-cyan)' }}>{formatCompact(mcResult.p90Final)}</span>
           </div>
         </div>
       ) : (
         <div className="grid grid-cols-3 gap-2 mb-4">
           <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50 text-center">
-            <span className="text-xs text-slate-500 block">{t('Valor futuro', 'Future value')}</span>
-            <span className="text-base font-bold text-emerald-400">{formatCompact(finalBalance)}</span>
+            <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{t('Valor futuro', 'Future value')}</span>
+            <span className="text-base font-bold" style={{ color: 'var(--accent-green)' }}>{formatCompact(finalBalance)}</span>
           </div>
           <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50 text-center">
-            <span className="text-xs text-slate-500 block">{t('Invertido', 'Invested')}</span>
+            <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{t('Invertido', 'Invested')}</span>
             <span className="text-base font-bold text-white">{formatCompact(totalInvested)}</span>
           </div>
           <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50 text-center">
-            <span className="text-xs text-slate-500 block">{t('Ganancias', 'Gains')}</span>
-            <span className="text-base font-bold text-cyan-400">{formatCompact(totalGains)}</span>
+            <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{t('Ganancias', 'Gains')}</span>
+            <span className="text-base font-bold" style={{ color: 'var(--accent-cyan)' }}>{formatCompact(totalGains)}</span>
           </div>
         </div>
       )}
@@ -206,23 +206,23 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full" preserveAspectRatio="xMidYMid meet">
         <defs>
           <linearGradient id="projGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#34d399" stopOpacity="0.15" />
-            <stop offset="100%" stopColor="#34d399" stopOpacity="0.02" />
+            <stop offset="0%" stopColor="var(--accent-green)" stopOpacity="0.15" />
+            <stop offset="100%" stopColor="var(--accent-green)" stopOpacity="0.02" />
           </linearGradient>
           <linearGradient id="contribGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.1" />
-            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.02" />
+            <stop offset="0%" stopColor="var(--accent-blue)" stopOpacity="0.1" />
+            <stop offset="100%" stopColor="var(--accent-blue)" stopOpacity="0.02" />
           </linearGradient>
         </defs>
 
         {/* Monte Carlo bands */}
         {mode === 'montecarlo' && mcPoints && (
           <>
-            <path d={bandPath(mcPoints.p90, mcPoints.p10)} fill="rgba(168, 85, 247, 0.06)" />
-            <path d={bandPath(mcPoints.p75, mcPoints.p25)} fill="rgba(168, 85, 247, 0.1)" />
-            <path d={linePath(mcPoints.p50)} fill="none" stroke="#a855f7" strokeWidth="2" />
-            <path d={linePath(mcPoints.p90)} fill="none" stroke="#a855f7" strokeWidth="0.5" strokeOpacity="0.4" />
-            <path d={linePath(mcPoints.p10)} fill="none" stroke="#a855f7" strokeWidth="0.5" strokeOpacity="0.4" />
+            <path d={bandPath(mcPoints.p90, mcPoints.p10)} fill="color-mix(in srgb, var(--accent-purple) 6%, transparent)" />
+            <path d={bandPath(mcPoints.p75, mcPoints.p25)} fill="color-mix(in srgb, var(--accent-purple) 10%, transparent)" />
+            <path d={linePath(mcPoints.p50)} fill="none" stroke="var(--accent-purple)" strokeWidth="2" />
+            <path d={linePath(mcPoints.p90)} fill="none" stroke="var(--accent-purple)" strokeWidth="0.5" strokeOpacity="0.4" />
+            <path d={linePath(mcPoints.p10)} fill="none" stroke="var(--accent-purple)" strokeWidth="0.5" strokeOpacity="0.4" />
           </>
         )}
 
@@ -233,23 +233,23 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
               fill="url(#projGrad)" />
             <path d={`${linePath(contribPts)} L ${contribPts[contribPts.length-1].x} ${pad.top + ch} L ${contribPts[0].x} ${pad.top + ch} Z`}
               fill="url(#contribGrad)" />
-            <path d={linePath(balancePts)} fill="none" stroke="#34d399" strokeWidth="2" />
+            <path d={linePath(balancePts)} fill="none" stroke="var(--accent-green)" strokeWidth="2" />
           </>
         )}
 
         {/* Invested capital line (both modes) */}
-        <path d={linePath(contribPts)} fill="none" stroke="#3b82f6" strokeWidth="1.5" strokeDasharray="4 3" />
+        <path d={linePath(contribPts)} fill="none" stroke="var(--accent-blue)" strokeWidth="1.5" strokeDasharray="4 3" />
 
         {/* Deterministic dashed line in MC mode for reference */}
         {mode === 'montecarlo' && (
-          <path d={linePath(balancePts)} fill="none" stroke="#34d399" strokeWidth="1" strokeDasharray="3 3" strokeOpacity="0.5" />
+          <path d={linePath(balancePts)} fill="none" stroke="var(--accent-green)" strokeWidth="1" strokeDasharray="3 3" strokeOpacity="0.5" />
         )}
 
         {/* X labels */}
         {points.filter((_, i) => i % Math.max(1, Math.floor(points.length / 6)) === 0 || i === points.length - 1).map((p, i) => {
           const idx = points.indexOf(p)
           return (
-            <text key={i} x={balancePts[idx].x} y={height - 6} textAnchor="middle" fill="#475569" fontSize="9" fontFamily="system-ui">
+            <text key={i} x={balancePts[idx].x} y={height - 6} textAnchor="middle" fill="var(--text-muted)" fontSize="9" fontFamily="system-ui">
               {t(`Año ${p.year}`, `Yr ${p.year}`)}
             </text>
           )
@@ -258,29 +258,29 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
         {/* End label */}
         {mode === 'montecarlo' && mcPoints ? (
           <text x={mcPoints.p50[mcPoints.p50.length-1].x - 4} y={mcPoints.p50[mcPoints.p50.length-1].y - 8}
-            textAnchor="end" fill="#a855f7" fontSize="10" fontWeight="bold">
+            textAnchor="end" fill="var(--accent-purple)" fontSize="10" fontWeight="bold">
             {formatCompact(mcResult?.medianFinal || 0)}
           </text>
         ) : (
           <text x={balancePts[balancePts.length-1].x - 4} y={balancePts[balancePts.length-1].y - 8}
-            textAnchor="end" fill="#34d399" fontSize="10" fontWeight="bold">
+            textAnchor="end" fill="var(--accent-green)" fontSize="10" fontWeight="bold">
             {formatCompact(finalBalance)}
           </text>
         )}
       </svg>
 
       {/* Legend */}
-      <div className="flex items-center gap-3 mt-2 text-xs text-slate-500 flex-wrap">
+      <div className="flex items-center gap-3 mt-2 text-xs flex-wrap" style={{ color: 'var(--text-muted)' }}>
         {mode === 'montecarlo' ? (
           <>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-500" /> p50 ({t('mediana', 'median')})</span>
-            <span className="flex items-center gap-1"><span className="w-3 h-2 rounded bg-purple-500/20" /> p10-p90</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500/50" /> {t('Determinista', 'Deterministic')}</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-purple)' }} /> p50 ({t('mediana', 'median')})</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-2 rounded" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-purple) 20%, transparent)' }} /> p10-p90</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-green) 50%, transparent)' }} /> {t('Determinista', 'Deterministic')}</span>
           </>
         ) : (
           <>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" /> {t('Valor proyectado', 'Projected value')}</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500" /> {t('Capital invertido', 'Invested capital')}</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-green)' }} /> {t('Valor proyectado', 'Projected value')}</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue)' }} /> {t('Capital invertido', 'Invested capital')}</span>
           </>
         )}
         <span>{formatCurrency(monthly)}/{t('mes', 'mo')} · {rate}% · {years}{t(' años', 'y')}</span>
@@ -289,10 +289,10 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
       {/* Goal probability in MC mode */}
       {mode === 'montecarlo' && mcResult?.goalProbability != null && goalValue > 0 && (
         <div className="mt-3 px-3 py-2 bg-theme-base rounded-lg border border-glass-border/50 flex items-center gap-2">
-          <span className="text-sm font-bold" style={{ color: mcResult.goalProbability >= 70 ? '#34d399' : mcResult.goalProbability >= 40 ? '#fbbf24' : '#f87171' }}>
+          <span className="text-sm font-bold" style={{ color: mcResult.goalProbability >= 70 ? 'var(--accent-green)' : mcResult.goalProbability >= 40 ? '#fbbf24' : '#f87171' }}>
             {mcResult.goalProbability}%
           </span>
-          <span className="text-xs text-slate-400">
+          <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
             {t(`probabilidad de alcanzar ${formatCompact(goalValue)}`, `probability of reaching ${formatCompact(goalValue)}`)}
           </span>
         </div>

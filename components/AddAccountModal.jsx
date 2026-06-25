@@ -529,7 +529,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
         </div>
 
         <form onSubmit={step === 1 ? (e) => { e.preventDefault(); goToStep2() } : handleSubmit} className="p-6 space-y-4">
-          {error && <div role="alert" aria-live="assertive" className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-sm">{error}</div>}
+          {error && <div role="alert" aria-live="assertive" className="p-3 rounded-lg text-sm" style={{ backgroundColor: 'color-mix(in srgb, var(--text-negative) 10%, transparent)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'color-mix(in srgb, var(--text-negative) 20%, transparent)', color: 'var(--text-negative)' }}>{error}</div>}
 
           {/* === STEP 1 === */}
           {step === 1 && (<>
@@ -541,7 +541,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg transition-all text-center border ${
                       type !== tp.key ? 'bg-[var(--input-bg,#000000)] border-[var(--card-border,#38383A)] text-[var(--text-secondary,#94a3b8)] hover:border-[var(--text-secondary,#94a3b8)]' : ''
                     }`}
-                    style={type === tp.key ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>
+                    style={type === tp.key ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : undefined}>
                     <span className="text-lg">{tp.icon}</span>
                     <span className="text-xs font-medium">{lang === 'es' ? tp.es : tp.en}</span>
                   </button>
@@ -554,7 +554,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                       className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all border ${
                         subtype !== st.key ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)] hover:border-[var(--text-secondary,#94a3b8)]' : ''
                       }`}
-                      style={subtype === st.key ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>
+                      style={subtype === st.key ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : undefined}>
                       {lang === 'es' ? st.es : st.en}
                     </button>
                   ))}
@@ -591,8 +591,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                           className="w-full px-3 py-2.5 flex items-center justify-between hover:bg-[var(--input-bg,#2C2C2E)] transition-colors text-left border-b border-[var(--card-border,#38383A)]/50 last:border-0">
                           <div className="flex items-center gap-2.5 min-w-0">
                             <span className="text-xs font-bold shrink-0 px-1.5 py-0.5 rounded" style={{
-                              color: r.type === 'Crypto' ? '#fbbf24' : r.type === 'Fund' ? '#c084fc' : 'var(--accent-blue-soft)',
-                              backgroundColor: r.type === 'Crypto' ? 'rgba(245,158,11,0.2)' : r.type === 'Fund' ? 'rgba(168,85,247,0.2)' : 'rgba(59,130,246,0.2)',
+                              color: r.type === 'Crypto' ? 'var(--accent-orange)' : r.type === 'Fund' ? 'var(--accent-purple)' : 'var(--accent-blue-soft)',
+                              backgroundColor: r.type === 'Crypto' ? 'color-mix(in srgb, var(--accent-orange) 20%, transparent)' : r.type === 'Fund' ? 'color-mix(in srgb, var(--accent-purple) 20%, transparent)' : 'color-mix(in srgb, var(--accent-blue) 20%, transparent)',
                             }}>{r.symbol}</span>
                             <span className="text-xs text-[var(--text-secondary,#cbd5e1)] truncate">{r.name}</span>
                           </div>
@@ -606,7 +606,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   <div className="flex items-center justify-between bg-[var(--input-bg,#000000)] border border-[var(--card-border,#38383A)] rounded-lg px-3 py-2">
                     <span className="text-sm text-[var(--text-primary,white)]">{form.name}</span>
                     <div className="flex items-center gap-2">
-                      {form.sector && <span className="text-xs bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded">{form.sector}</span>}
+                      {form.sector && <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 10%, transparent)', color: 'var(--accent-blue)' }}>{form.sector}</span>}
                       {fetchingQuote ? (
                         <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
                       ) : form.purchasePrice ? (
@@ -667,12 +667,12 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
             {/* Duplicate warning */}
             {duplicateWarning && (
-              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg space-y-2">
-                <p className="text-xs text-amber-400 font-medium">{t('Este activo ya existe en tu portafolio', 'This asset already exists in your portfolio')}</p>
+              <div className="p-3 rounded-lg space-y-2" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-orange) 10%, transparent)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'color-mix(in srgb, var(--accent-orange) 30%, transparent)' }}>
+                <p className="text-xs font-medium" style={{ color: 'var(--accent-orange)' }}>{t('Este activo ya existe en tu portafolio', 'This asset already exists in your portfolio')}</p>
                 <p className="text-xs text-[var(--text-secondary,#94a3b8)]">{duplicateWarning.name} ({duplicateWarning.institution || '—'}) — {duplicateWarning.quantity} @ {duplicateWarning.currency}</p>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => { setStep(2) }}
-                    className="flex-1 px-2 py-1.5 text-xs font-medium rounded bg-amber-500/20 text-amber-400 border border-amber-500/40 hover:bg-amber-500/30">
+                    className="flex-1 px-2 py-1.5 text-xs font-medium rounded" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-orange) 20%, transparent)', color: 'var(--accent-orange)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'color-mix(in srgb, var(--accent-orange) 40%, transparent)' }}>
                     <span className="block">{t('Agregar a posición', 'Add to position')}</span>
                     <span className="block text-xs opacity-70 mt-0.5">{t('Combina cantidades y recalcula costo', 'Combines quantities and recalculates cost')}</span>
                   </button>
@@ -703,12 +703,12 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             {isMarketAsset && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="add-quantity" className={labelCls}>{t('Cantidad', 'Quantity')} <span style={{ color: '#FF453A' }}>*</span></label>
+                  <label htmlFor="add-quantity" className={labelCls}>{t('Cantidad', 'Quantity')} <span style={{ color: 'var(--text-negative)' }}>*</span></label>
                   <input id="add-quantity" value={form.quantity} onChange={e => set('quantity', e.target.value)}
                     placeholder={type === 'Crypto' ? '0.5' : '10'} type="number" step="any" className={inputCls} />
                 </div>
                 <div>
-                  <label htmlFor="add-purchasePrice" className={labelCls}>{t('Precio de entrada', 'Entry price')} <span style={{ color: '#FF453A' }}>*</span></label>
+                  <label htmlFor="add-purchasePrice" className={labelCls}>{t('Precio de entrada', 'Entry price')} <span style={{ color: 'var(--text-negative)' }}>*</span></label>
                   <input id="add-purchasePrice" value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
                     placeholder="150.00" type="number" step="any" className={inputCls} title={t('Precio por unidad/acción', 'Price per unit/share')} />
                 </div>
@@ -718,7 +718,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             {isProperty && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="add-propertyPurchasePrice" className={labelCls}>{t('Valor de compra', 'Purchase value')} <span style={{ color: '#FF453A' }}>*</span></label>
+                  <label htmlFor="add-propertyPurchasePrice" className={labelCls}>{t('Valor de compra', 'Purchase value')} <span style={{ color: 'var(--text-negative)' }}>*</span></label>
                   <input id="add-propertyPurchasePrice" value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
                     placeholder="85000" type="number" step="any" className={inputCls} />
                 </div>
@@ -732,7 +732,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
             {isBank && (
               <div>
-                <label htmlFor="add-balance" className={labelCls}>{t('Saldo actual', 'Current balance')} <span style={{ color: '#FF453A' }}>*</span></label>
+                <label htmlFor="add-balance" className={labelCls}>{t('Saldo actual', 'Current balance')} <span style={{ color: 'var(--text-negative)' }}>*</span></label>
                 <input id="add-balance" value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
                   placeholder="5000" type="number" step="any" className={inputCls} />
               </div>
@@ -741,7 +741,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             {(isBond || isAlternative) && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="add-amountInvested" className={labelCls}>{t('Monto invertido', 'Amount invested')} <span style={{ color: '#FF453A' }}>*</span></label>
+                  <label htmlFor="add-amountInvested" className={labelCls}>{t('Monto invertido', 'Amount invested')} <span style={{ color: 'var(--text-negative)' }}>*</span></label>
                   <input id="add-amountInvested" value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
                     placeholder="10000" type="number" step="any" className={inputCls} />
                 </div>
@@ -766,7 +766,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               const diffPct = Math.abs(entered - implied) / implied * 100
               if (diffPct <= 5) return null
               return (
-                <p className="text-xs mt-1" style={{ color: 'var(--accent-orange, #fbbf24)' }}>
+                <p className="text-xs mt-1" style={{ color: 'var(--accent-orange)' }}>
                   ⚠ {t(
                     `El valor actual (${entered.toLocaleString()}) no coincide con lo que implica la tasa (~${implied.toFixed(0)}). Puedes guardarlo igual.`,
                     `Current value (${entered.toLocaleString()}) doesn't match what the rate implies (~${implied.toFixed(0)}). You can still save.`
@@ -777,13 +777,13 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
             {/* Debt fields */}
             {isDebt && (
-              <div className="border border-red-500/20 bg-red-500/5 rounded-lg p-3 space-y-3">
-                <p className="text-xs text-red-400 font-medium">
+              <div className="rounded-lg p-3 space-y-3" style={{ borderWidth: '1px', borderStyle: 'solid', borderColor: 'color-mix(in srgb, var(--text-negative) 20%, transparent)', backgroundColor: 'color-mix(in srgb, var(--text-negative) 5%, transparent)' }}>
+                <p className="text-xs font-medium" style={{ color: 'var(--text-negative)' }}>
                   {subtype === 'receivable' ? t('Cuenta por Cobrar', 'Receivable') : t('Deuda / Pasivo', 'Debt / Liability')}
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label htmlFor="add-debtBalance" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Saldo actual', 'Current balance')} <span style={{ color: '#FF453A' }}>*</span></label>
+                    <label htmlFor="add-debtBalance" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Saldo actual', 'Current balance')} <span style={{ color: 'var(--text-negative)' }}>*</span></label>
                     <input id="add-debtBalance" value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
                       placeholder="50000" type="number" step="any" className={inputCls} />
                   </div>
@@ -831,8 +831,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   </div>
                 </div>
                 {subtype === 'credit_card' && (
-                  <div className="border-t border-red-500/10 pt-3 space-y-3">
-                    <p className="text-xs text-red-300 uppercase tracking-wide">{t('Tarjeta de crédito', 'Credit Card')}</p>
+                  <div className="border-t pt-3 space-y-3" style={{ borderColor: 'color-mix(in srgb, var(--text-negative) 10%, transparent)' }}>
+                    <p className="text-xs uppercase tracking-wide" style={{ color: 'var(--text-negative)' }}>{t('Tarjeta de crédito', 'Credit Card')}</p>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label htmlFor="add-cardBrand" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Marca', 'Brand')}</label>
@@ -876,9 +876,9 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label htmlFor="add-currency" className={labelCls}>
-                  {t('Moneda', 'Currency')} <span style={{ color: '#FF453A' }}>*</span>
+                  {t('Moneda', 'Currency')} <span style={{ color: 'var(--text-negative)' }}>*</span>
                   {detectedCurrency && form.currency === detectedCurrency && (
-                    <span className="ml-1 px-1.5 py-0.5 rounded text-xs font-medium" style={{ color: 'var(--accent-green)', backgroundColor: 'rgba(52,211,153,0.15)' }}>
+                    <span className="ml-1 px-1.5 py-0.5 rounded text-xs font-medium" style={{ color: 'var(--accent-green)', backgroundColor: 'color-mix(in srgb, var(--accent-green) 15%, transparent)' }}>
                       {t('Detectada', 'Detected')}
                     </span>
                   )}
@@ -903,7 +903,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             {/* Acquisition date */}
             <div>
               <label htmlFor="add-acquisitionDate" className={labelCls}>
-                {isBank ? t('Fecha de apertura', 'Opening date') : t('Fecha de compra', 'Purchase date')} <span style={{ color: '#FF453A' }}>*</span>
+                {isBank ? t('Fecha de apertura', 'Opening date') : t('Fecha de compra', 'Purchase date')} <span style={{ color: 'var(--text-negative)' }}>*</span>
               </label>
               <input id="add-acquisitionDate" value={form.acquisitionDate} onChange={e => set('acquisitionDate', e.target.value)}
                 type="date" className={inputCls} />
@@ -917,7 +917,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               </div>
             )}
             {isMarketAsset && divInfo?.hasDividend && (
-              <div className="border border-blue-500/20 bg-blue-500/5 rounded-lg p-3 space-y-3">
+              <div className="rounded-lg p-3 space-y-3" style={{ borderWidth: '1px', borderStyle: 'solid', borderColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 5%, transparent)' }}>
                 <div className="flex items-center gap-1.5">
                   <span className="text-emerald-400 text-xs font-medium">💰 {t('Dividendo detectado', 'Dividend detected')}</span>
                 </div>
@@ -947,7 +947,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     </button>
                     <button type="button" onClick={() => set('dividendAction', 'reinvest')}
                       className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.dividendAction !== 'reinvest' ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
-                      style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>
+                      style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : undefined}>
                       🔄 {t('Reinvertir', 'Reinvest')}
                     </button>
                   </div>
@@ -977,7 +977,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     ].map(rt => (
                       <button key={rt.key} type="button" onClick={() => set('rateType', rt.key)}
                         className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.rateType !== rt.key ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
-                        style={form.rateType === rt.key ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>
+                        style={form.rateType === rt.key ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : undefined}>
                         {lang === 'es' ? rt.es : rt.en}
                       </button>
                     ))}
@@ -988,12 +988,12 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 <div className="flex gap-1">
                   <button type="button" onClick={() => set('incomeMode', 'fixed')}
                     className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.incomeMode !== 'fixed' ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
-                    style={form.incomeMode === 'fixed' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>
+                    style={form.incomeMode === 'fixed' ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : undefined}>
                     {t('Monto fijo mensual', 'Fixed monthly amount')}
                   </button>
                   <button type="button" onClick={() => set('incomeMode', 'percent')}
                     className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.incomeMode !== 'percent' ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
-                    style={form.incomeMode === 'percent' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>
+                    style={form.incomeMode === 'percent' ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : undefined}>
                     {t('% anual del saldo', 'Annual % of balance')}
                   </button>
                 </div>
@@ -1019,7 +1019,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     </div>
                   </div>
                   {form.rateMin && !form.rateMax && (
-                    <p className="text-xs text-amber-400">⚠ {t('Falta la tasa máxima — el ingreso se calculará como 0.', 'Missing max rate — income will be calculated as 0.')}</p>
+                    <p className="text-xs" style={{ color: 'var(--accent-orange)' }}>⚠ {t('Falta la tasa máxima — el ingreso se calculará como 0.', 'Missing max rate — income will be calculated as 0.')}</p>
                   )}
                   </>
                 ) : (
@@ -1066,7 +1066,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                           <button key={i} type="button"
                             onClick={() => set('incomeMonths', active ? form.incomeMonths.filter(x => x !== i) : [...form.incomeMonths, i].sort((a, b) => a - b))}
                             className="px-2 py-1 text-xs font-medium rounded transition-all border"
-                            style={active ? { backgroundColor: 'rgba(59,130,246,0.25)', color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                            style={active ? { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 25%, transparent)', color: 'var(--accent-blue)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                             {label}
                           </button>
                         )
@@ -1117,7 +1117,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             </button>
 
             {showAdvanced && (
-              <div className="space-y-3 pl-1 border-l-2 border-blue-500/20 ml-1">
+              <div className="space-y-3 pl-1 ml-1" style={{ borderLeft: '2px solid color-mix(in srgb, var(--accent-blue) 20%, transparent)' }}>
                 {/* Maturity date for bonds/alternatives */}
                 {(isBond || isAlternative) && (
                   <div className="grid grid-cols-2 gap-3">
@@ -1275,14 +1275,14 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 if (isMarketAsset && qty > 0 && price > 0 && qty === price) warnings.push(t('⚠ Cantidad y precio son iguales — ¿es correcto?', '⚠ Quantity and price are the same — is this correct?'))
                 return (
                   <div className="p-3 rounded-lg border text-xs"
-                    style={warnings.length > 0 ? { backgroundColor: 'rgba(245,158,11,0.1)', borderColor: 'rgba(245,158,11,0.2)' } : { backgroundColor: 'rgba(52,211,153,0.1)', borderColor: 'rgba(52,211,153,0.2)' }}>
-                    <div className="font-medium" style={{ color: warnings.length > 0 ? '#fbbf24' : '#34d399' }}>
+                    style={warnings.length > 0 ? { backgroundColor: 'color-mix(in srgb, var(--accent-orange) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-orange) 20%, transparent)' } : { backgroundColor: 'color-mix(in srgb, var(--accent-green) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-green) 20%, transparent)' }}>
+                    <div className="font-medium" style={{ color: warnings.length > 0 ? 'var(--accent-orange)' : 'var(--accent-green)' }}>
                       {isDebt ? t('Deuda', 'Debt') : t('Valor total', 'Total value')}: {form.currency} {fmt(total)}
                     </div>
                     {isMarketAsset && qty > 0 && price > 0 && (
                       <div className="text-[var(--text-muted,#64748b)] mt-0.5">{qty} × {form.currency} {fmt(price)} {t('por unidad', 'per unit')}</div>
                     )}
-                    {warnings.map((w, i) => <div key={i} className="mt-1" style={{ color: '#fbbf24' }}>{w}</div>)}
+                    {warnings.map((w, i) => <div key={i} className="mt-1" style={{ color: 'var(--accent-orange)' }}>{w}</div>)}
                   </div>
                 )
               }
