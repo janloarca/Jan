@@ -95,10 +95,10 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
   const milestone = getMilestone(netWorth, displayReturn, lang)
 
   return (
-    <div className="bg-gradient-to-br from-theme-card to-theme-surface rounded-2xl p-6 card-hero"
+    <div className="bg-gradient-to-br from-theme-card to-theme-surface rounded-2xl p-5 card-hero"
       style={{ backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)', boxShadow: 'var(--shadow-elevated)', border: 'var(--glass-border)' }}>
       {/* Greeting + currency picker */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-3">
         <span className="text-xs text-slate-500 uppercase tracking-wider font-medium">{greeting}</span>
         <div className="flex items-center gap-2">
           {milestone.text && (
@@ -167,7 +167,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
 
       {/* Contributions vs Gains */}
       {netContributions != null && netContributions > 0 && (
-        <div className="mt-4 pt-3 border-t border-glass-border/50">
+        <div className="mt-3 pt-2 border-t border-glass-border/50">
           <div className="flex items-center justify-between text-xs mb-1.5">
             <span className="text-slate-500">{lang === 'es' ? 'Invertido' : 'Invested'}: <span className="text-slate-300 font-medium font-mono tabular-nums">{formatCurrency(cv(netContributions), displayCur)}</span></span>
             <span className="text-slate-500">{lang === 'es' ? 'Ganancia' : 'Gains'}: <span className="font-medium font-mono tabular-nums" style={{ color: displayValue - cv(netContributions) >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>{formatCurrency(displayValue - cv(netContributions), displayCur)}</span></span>

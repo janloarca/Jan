@@ -261,7 +261,7 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
   return (
     <div
       ref={containerRef}
-      className="bg-theme-surface rounded-2xl border border-glass-border p-5 card-primary"
+      className="bg-theme-surface rounded-2xl border border-glass-border p-4 card-primary"
     >
       {/* Header */}
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
@@ -270,7 +270,7 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
       </h3>
 
       {/* Institution pills - horizontal scroll */}
-      <div className="flex gap-1.5 overflow-x-auto pb-2 mb-4 scrollbar-hide -mx-1 px-1">
+      <div className="flex gap-1.5 overflow-x-auto pb-2 mb-3 scrollbar-hide -mx-1 px-1">
         {/* All pill */}
         <button
           onClick={() => setSelected('ALL')}
@@ -299,8 +299,8 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
       </div>
 
       {/* Summary row */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        <div className="bg-theme-base rounded-xl p-3">
+      <div className="grid grid-cols-3 gap-3 mb-3">
+        <div className="bg-theme-base rounded-xl p-2.5">
           <p className="text-xs uppercase tracking-wider text-slate-500 mb-1">
             {t('Valor total', 'Total value')}
           </p>
@@ -308,7 +308,7 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
             {formatCurrency(summary.totalValue, baseCurrency)}
           </p>
         </div>
-        <div className="bg-theme-base rounded-xl p-3">
+        <div className="bg-theme-base rounded-xl p-2.5">
           <p className="text-xs uppercase tracking-wider text-slate-500 mb-1">
             {t('Posiciones', 'Positions')}
           </p>
@@ -316,7 +316,7 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
             {summary.positions}
           </p>
         </div>
-        <div className="bg-theme-base rounded-xl p-3">
+        <div className="bg-theme-base rounded-xl p-2.5">
           <p className="text-xs uppercase tracking-wider text-slate-500 mb-1">
             {t('Ganancia', 'Gain/Loss')}
           </p>
@@ -354,25 +354,6 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
         </div>
       ) : (
         <div className="relative">
-          {/* Chart header stats */}
-          <div className="mb-2">
-            <p className="text-2xl font-bold text-white font-mono tabular-nums">
-              {formatCurrency(hd ? hd.value : lastVal, baseCurrency)}
-            </p>
-            <p
-              className="text-xs mt-0.5"
-              style={{ color: growthAbs >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}
-            >
-              <span className="font-mono tabular-nums">
-                {growthAbs >= 0 ? '+' : ''}
-                {formatCurrency(growthAbs, baseCurrency)} (
-                {growthAbs >= 0 ? '+' : ''}
-                {growthPct.toFixed(2)}%)
-              </span>
-              <span className="text-slate-500 ml-1">{period}</span>
-            </p>
-          </div>
-
           {/* SVG Chart */}
           {geo && (
             <svg
@@ -537,7 +518,7 @@ export default function InstitutionPerformance({ items, lots, transactions, lang
       )}
 
       {/* Period selector */}
-      <div className="flex justify-center mt-3">
+      <div className="flex justify-center mt-2">
         <div className="flex flex-wrap gap-0.5 rounded-lg p-0.5" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
           {PERIODS.map((p) => (
             <button

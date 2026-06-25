@@ -69,12 +69,12 @@ export default function InsightCards({ items, profile, netWorth, estimatedAnnual
   if (!cards || cards.length === 0) return null
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
       {cards.map((card, i) => {
         const accent = TYPE_ACCENT[card.type] || TYPE_ACCENT.info
         return (
           <div key={i}
-            className={`px-5 py-4 rounded-xl border transition-colors ${card.action ? 'cursor-pointer hover:brightness-[0.98]' : ''}`}
+            className={`px-4 py-3 rounded-xl border transition-colors ${card.action ? 'cursor-pointer hover:brightness-[0.98]' : ''}`}
             style={{ background: accent.bg, borderColor: accent.border }}
             onClick={card.action === 'profile' && onOpenSettings ? onOpenSettings : undefined}
             role={card.action ? 'button' : undefined}

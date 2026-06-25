@@ -701,7 +701,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
+      <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-5 space-y-3 sm:space-y-4">
         <div className="flex items-center gap-3 flex-wrap">
           {dataAge === 0 ? (
             <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
@@ -756,7 +756,7 @@ export default function DashboardPage() {
         {/* ═══ RESUMEN ═══ */}
         {portfolioItems.length > 0 && <>
         <ErrorBoundary lang={lang}>
-        <div className="stagger-1 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6 items-start">
+        <div className="stagger-1 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 items-start">
           <div className="md:col-span-1 lg:col-span-2 flex flex-col gap-4">
             <CardBoundary id="OL-01">
             <NetWorthCard
@@ -777,7 +777,7 @@ export default function DashboardPage() {
         <div className="stagger-2"><CardBoundary id="INS-01"><InsightCards items={portfolioItems} profile={profile} netWorth={netWorth} estimatedAnnualIncome={estimatedAnnualIncome} lang={lang} onOpenSettings={handleOpenSettings} /></CardBoundary></div>
 
         {/* ═══ COMPOSICIÓN: Allocation + Rendimiento por institución ═══ */}
-        <div className="stagger-3 grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 items-start">
+        <div className="stagger-3 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 items-start">
           <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} /></CardBoundary>
           <CardBoundary id="INST-01"><InstitutionPerformance items={portfolioItems} lots={lots} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
         </div>
