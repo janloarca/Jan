@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { formatCurrency, formatDate } from './utils'
+import { formatCurrency, formatDate, formatMonth } from './utils'
 
 export default function RecentTransactions({ transactions, lang, onExportCSV }) {
   const [showAll, setShowAll] = useState(false)
@@ -147,7 +147,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
         <div className="grid grid-cols-3 gap-2 mb-4">
           {monthlySummary.map((m) => (
             <div key={m.month} className="bg-theme-base rounded-lg p-2.5 border border-glass-border/50 text-center">
-              <div className="text-xs text-slate-500 mb-1">{m.month}</div>
+              <div className="text-xs text-slate-500 mb-1">{formatMonth(m.month)}</div>
               <div className="text-xs font-semibold font-mono tabular-nums" style={{ color: m.net >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                 {m.net >= 0 ? '+' : ''}{formatCurrency(m.net)}
               </div>

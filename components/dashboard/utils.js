@@ -80,6 +80,19 @@ export function formatShortDate(dateStr) {
   } catch { return typeof dateStr === 'string' ? dateStr : '' }
 }
 
+// Human-readable month label from a "YYYY-MM" key, e.g. "2026-06" -> "Jun 26".
+// Localized via the module `_lang`. Never render the raw key to users.
+export function formatMonth(monthKey) {
+  if (!monthKey || typeof monthKey !== 'string') return monthKey || ''
+  const [y, m] = monthKey.split('-')
+  if (!y || !m) return monthKey
+  const locale = _lang === 'es' ? 'es' : 'en'
+  const d = new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1)
+  if (isNaN(d.getTime())) return monthKey
+  const label = d.toLocaleDateString(locale, { month: 'short', year: '2-digit' })
+  return label.charAt(0).toUpperCase() + label.slice(1)
+}
+
 export function getTypeCategory(itemOrType) {
   if (!itemOrType) return 'other'
   const type = typeof itemOrType === 'string' ? itemOrType : itemOrType.type || ''

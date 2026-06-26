@@ -108,6 +108,16 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
     const last6 = monthKeys.slice(-6)
     const maxBar = Math.max(...last6.map((k) => byMonth[k]), 1)
 
+    // Trailing 12 months (oldest → newest) for the history bar chart. Months
+    // with no payment stay at 0 so they render as a flat gray bar.
+    const monthly12 = []
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(thisYear, thisMonth - i, 1)
+      const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, '0')}`
+      monthly12.push({ key, month: d.getMonth(), value: byMonth[key] || 0 })
+    }
+    const maxBar12 = Math.max(...monthly12.map((b) => b.value), 1)
+
     const topPayers = Object.entries(bySymbol)
       .map(([symbol, total]) => ({ symbol, total }))
       .sort((a, b) => b.total - a.total)
@@ -115,7 +125,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
 
     return {
       totalAll, totalYTD, totalThisMonth, avgMonthly, dailyAvg,
-      divCount: divs.length, byMonth, last6, maxBar, topPayers,
+      divCount: divs.length, byMonth, last6, maxBar, topPayers, monthly12, maxBar12,
     }
   }, [transactions, convert, baseCurrency])
 
@@ -199,7 +209,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
         </div>
         <div className="text-center">
           <span className="text-xs text-slate-500 block">{t('Rendimiento', 'Yield')}</span>
-          <span className="text-lg font-bold text-slate-200 font-mono tabular-nums">{portfolioYield.toFixed(2)}%</span>
+          <span className="text-lg font-bold font-mono tabular-nums" style={{ color: 'var(--text-muted)' }}>{portfolioYield.toFixed(2)}%</span>
         </div>
         <div className="text-right">
           <span className="text-xs text-slate-500 block">YTD {t('recibido', 'received')}</span>
@@ -207,25 +217,36 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
         </div>
       </div>
 
-      {yoyComparison && yoyComparison.lastYear > 0 && (
-        <div className="flex items-center gap-3 mb-4 p-2.5 bg-theme-base rounded-lg border border-glass-border/50">
-          <div className="flex-1">
-            <span className="text-xs text-slate-500 block">{new Date().getFullYear() - 1}</span>
-            <span className="text-sm font-medium text-slate-400">{formatCurrency(yoyComparison.lastYear)}</span>
+      {yoyComparison && yoyComparison.lastYear > 0 && (() => {
+        const ly = yoyComparison.lastYear
+        const ty = yoyComparison.thisYear
+        const total = ly + ty
+        const leftPct = total > 0 ? (ly / total) * 100 : 50
+        const rightPct = total > 0 ? (ty / total) * 100 : 50
+        const up = (yoyComparison.growth ?? 0) >= 0
+        return (
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs text-slate-500">{new Date().getFullYear() - 1}</span>
+              <span className="text-xs text-slate-500">{new Date().getFullYear()} YTD</span>
+            </div>
+            <div className="relative flex items-center w-full rounded-full overflow-hidden" style={{ height: '24px' }}>
+              <div className="h-full flex items-center px-2.5" style={{ width: `${leftPct}%`, backgroundColor: 'var(--bg-tertiary)' }}>
+                <span className="text-xs font-medium font-mono tabular-nums truncate" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(ly)}</span>
+              </div>
+              <div className="h-full flex items-center justify-end px-2.5" style={{ width: `${rightPct}%`, backgroundColor: 'var(--accent-green)' }}>
+                <span className="text-xs font-semibold font-mono tabular-nums truncate text-white">{formatCurrency(ty)}</span>
+              </div>
+              {yoyComparison.growth != null && (
+                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-xs font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
+                  style={{ color: up ? 'var(--alert-success-icon)' : 'var(--alert-error-icon)', backgroundColor: up ? 'var(--alert-success-bg)' : 'var(--alert-error-bg)', border: '1px solid var(--card-border)' }}>
+                  {up ? '▲' : '▼'} {up ? '+' : ''}{yoyComparison.growth.toFixed(0)}% YoY
+                </span>
+              )}
+            </div>
           </div>
-          <div className="text-center">
-            {yoyComparison.growth != null && (
-              <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ color: yoyComparison.growth >= 0 ? 'var(--alert-success-icon)' : 'var(--alert-error-icon)', backgroundColor: yoyComparison.growth >= 0 ? 'var(--alert-success-bg)' : 'var(--alert-error-bg)' }}>
-                {yoyComparison.growth >= 0 ? '+' : ''}{yoyComparison.growth.toFixed(0)}% YoY
-              </span>
-            )}
-          </div>
-          <div className="flex-1 text-right">
-            <span className="text-xs text-slate-500 block">{new Date().getFullYear()} YTD</span>
-            <span className="text-sm font-medium text-white">{formatCurrency(yoyComparison.thisYear)}</span>
-          </div>
-        </div>
-      )}
+        )
+      })()}
 
       {incomeByType.length > 1 && (
         <div className="flex items-center gap-2 mb-3">
@@ -288,21 +309,24 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
         </div>
       )}
 
-      {/* Mini bar chart - last 6 months */}
-      {stats.last6.length > 0 && (
+      {/* Mini bar chart - trailing 12 months */}
+      {stats.divCount > 0 && (
         <div className="mb-4">
-          <span className="text-xs text-slate-500 mb-2 block">{t('Historial reciente', 'Recent history')}</span>
-          <div className="flex items-end gap-1.5 h-16">
-            {stats.last6.map((key) => {
-              const val = stats.byMonth[key]
-              const h = (val / stats.maxBar) * 100
-              const [y, m] = key.split('-')
-              const monthLabel = new Date(parseInt(y), parseInt(m)).toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short' })
+          <span className="text-xs text-slate-500 mb-2 block">{t('Historial (12 meses)', 'History (12 months)')}</span>
+          <div className="flex items-end gap-1 h-16">
+            {stats.monthly12.map((b) => {
+              const paid = b.value > 0
+              const h = paid ? (b.value / stats.maxBar12) * 100 : 0
               return (
-                <div key={key} className="flex-1 flex flex-col items-center gap-1">
-                  <span className="text-xs" style={{ color: 'var(--accent-green)' }}>{formatCurrency(val)}</span>
-                  <div className="w-full rounded-t" style={{ height: `${Math.max(h, 8)}%`, backgroundColor: 'var(--accent-green)' }} />
-                  <span className="text-xs text-slate-500">{monthLabel}</span>
+                <div key={b.key} className="flex-1 flex flex-col items-center justify-end h-full group relative">
+                  {paid && (
+                    <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 -translate-y-full opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 px-2 py-1 rounded text-xs font-mono tabular-nums whitespace-nowrap"
+                      style={{ backgroundColor: 'var(--text-primary)', color: 'var(--bg-primary)' }}>
+                      {formatCurrency(b.value)}
+                    </div>
+                  )}
+                  <div className="w-full rounded-t" style={{ height: paid ? `${Math.max(h, 6)}%` : '4px', backgroundColor: paid ? 'var(--accent-green)' : 'var(--bg-tertiary)' }} />
+                  <span className="text-[10px] text-slate-500 mt-1">{monthName(b.month)}</span>
                 </div>
               )
             })}
