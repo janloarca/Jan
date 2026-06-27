@@ -763,7 +763,7 @@ export default function DashboardPage() {
               netWorth={netWorth} returnYTD={returnYTD} ytdChange={ytdChange}
               returnSinceStart={returnSinceStart} sinceStartDate={sinceStartDate}
               yearlyChange={yearlyChange} dailyChange={dailyChange} convert={convert}
-              lang={lang} netContributions={netContributions} cashTotal={cashTotal} snapshots={snapshots}
+              lang={lang} netContributions={netContributions} cashTotal={cashTotal} snapshots={snapshots} items={portfolioItems}
             />
             </CardBoundary>
           </div>

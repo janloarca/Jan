@@ -1,10 +1,22 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { formatCurrency, getBaseCurrency } from './utils'
+import { useState, useEffect, useRef, useMemo } from 'react'
+import { formatCurrency, getBaseCurrency, getTypeCategory, getItemValue, isExcludedFromNetWorth, TYPE_COLORS, CHART_PALETTE } from './utils'
 import { InfoTip } from '../ui/Tooltip'
 
 const QUICK_CURRENCIES = ['USD', 'EUR', 'GBP', 'MXN', 'GTQ', 'COP', 'BRL', 'CAD']
+
+const CATEGORY_LABELS = {
+  banks: { es: 'Caja & Bancos', en: 'Cash & Banks' },
+  funds: { es: 'Fondos', en: 'Funds' },
+  stocks: { es: 'Acciones', en: 'Stocks' },
+  crypto: { es: 'Cripto', en: 'Crypto' },
+  alternatives: { es: 'Alternativos', en: 'Alternatives' },
+  bonds: { es: 'Bonos', en: 'Bonds' },
+  realestate: { es: 'Bienes Raíces', en: 'Real Estate' },
+  receivables: { es: 'Por Cobrar', en: 'Receivables' },
+  other: { es: 'Otros', en: 'Other' },
+}
 
 function getGreeting(lang) {
   const hour = new Date().getHours()
@@ -66,7 +78,7 @@ function Sparkline({ snapshots, width = 60, height = 24 }) {
   )
 }
 
-export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, yearlyChange, dailyChange, convert, lang, netContributions, cashTotal, snapshots }) {
+export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, yearlyChange, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items }) {
   const hasYTD = returnYTD != null && isFinite(returnYTD)
   const displayReturn = hasYTD ? returnYTD : (returnSinceStart != null && isFinite(returnSinceStart) ? returnSinceStart : null)
   const hasReturn = displayReturn != null
@@ -93,6 +105,45 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
 
   const greeting = getGreeting(lang)
   const milestone = getMilestone(netWorth, displayReturn, lang)
+
+  // Asset-class composition of net worth — fills the card and explains where
+  // the money sits. Percentages are currency-agnostic; values use cv() so they
+  // follow the temporary currency picker like the rest of the card.
+  const allocation = useMemo(() => {
+    if (!items || items.length === 0) return []
+    const byGroup = {}
+    let total = 0
+    items.forEach((it) => {
+      if (it.isDebt || isExcludedFromNetWorth(it)) return
+      const val = getItemValue(it)
+      if (val <= 0) return
+      const key = getTypeCategory(it)
+      byGroup[key] = (byGroup[key] || 0) + val
+      total += val
+    })
+    let segs = Object.entries(byGroup)
+      .map(([name, value], i) => ({
+        name, value,
+        pct: total > 0 ? (value / total) * 100 : 0,
+        color: TYPE_COLORS[name]?.bg || CHART_PALETTE[i % CHART_PALETTE.length],
+      }))
+      .sort((a, b) => b.value - a.value)
+    if (segs.length > 5) {
+      const tail = segs.slice(4)
+      segs = segs.slice(0, 4)
+      segs.push({
+        name: '_more', isOther: true, count: tail.length,
+        value: tail.reduce((s, x) => s + x.value, 0),
+        pct: tail.reduce((s, x) => s + x.pct, 0),
+        color: 'var(--text-muted)',
+      })
+    }
+    return segs
+  }, [items])
+
+  const catLabel = (seg) => seg.isOther
+    ? (lang === 'es' ? `Otros (${seg.count})` : `Others (${seg.count})`)
+    : (CATEGORY_LABELS[seg.name]?.[lang] || seg.name)
 
   return (
     <div className="bg-gradient-to-br from-theme-card to-theme-surface rounded-2xl p-5 card-hero h-full flex flex-col"
@@ -164,6 +215,33 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
           </span>
         )}
       </div>
+
+      {/* Composition — fills the card, shows where the net worth sits */}
+      {allocation.length > 0 && (
+        <div className="flex-1 flex flex-col justify-center min-h-0 py-4">
+          <span className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2.5">{lang === 'es' ? 'Composición' : 'Composition'}</span>
+          {/* Stacked bar */}
+          <div className="w-full h-2.5 rounded-full overflow-hidden flex mb-3" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+            {allocation.map((seg) => (
+              <div key={seg.name} className="h-full first:rounded-l-full last:rounded-r-full"
+                style={{ width: `${Math.max(seg.pct, 0.5)}%`, backgroundColor: seg.color }}
+                title={`${catLabel(seg)} · ${seg.pct.toFixed(1)}%`} />
+            ))}
+          </div>
+          {/* Legend */}
+          <div className="grid grid-cols-2 gap-x-5 gap-y-2">
+            {allocation.map((seg) => (
+              <div key={seg.name} className="flex items-center justify-between gap-2 min-w-0">
+                <span className="flex items-center gap-1.5 min-w-0">
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: seg.color }} />
+                  <span className="text-xs text-slate-400 truncate">{catLabel(seg)}</span>
+                </span>
+                <span className="text-xs font-medium font-mono tabular-nums shrink-0" style={{ color: 'var(--text-secondary)' }}>{seg.pct.toFixed(0)}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="mt-auto">
       {/* Contributions vs Gains */}
