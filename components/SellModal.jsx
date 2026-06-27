@@ -6,13 +6,20 @@ import { useFocusTrap } from '@/hooks/useFocusTrap'
 const QTY_EPSILON = 0.0001
 const BANK_RE = /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i
 
+// Sale figures must be in the item's ORIGINAL currency (the one its lots' costBasis
+// is stored in) so realizedGain stays consistent. Enriched items carry _original*
+// (raw price/currency); for base-currency items these equal the converted fields,
+// so the common case is unchanged.
+const origPriceOf = (it) => it._originalPrice ?? it.currentPrice ?? it._originalPurchasePrice ?? it.purchasePrice ?? 0
+
 export default function SellModal({ item, onClose, onExecuteSale, onSold, existingItems = [], lang = 'es' }) {
   const trapRef = useFocusTrap()
   const t = (es, en) => lang === 'es' ? es : en
   const today = new Date().toISOString().split('T')[0]
+  const origCur = item._originalCurrency || item.currency || 'USD'
 
   const [quantity, setQuantity] = useState('')
-  const [salePrice, setSalePrice] = useState((item.currentPrice || item.purchasePrice || '').toString())
+  const [salePrice, setSalePrice] = useState((origPriceOf(item) || '').toString())
   const [saleDate, setSaleDate] = useState(today)
   const [destination, setDestination] = useState('__exit__')
   const [destinationId, setDestinationId] = useState('')
@@ -25,7 +32,7 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
     return () => window.removeEventListener('keydown', handleEsc)
   }, [onClose])
 
-  const totalValue = (item.quantity || 0) * (item.currentPrice || item.purchasePrice || 0)
+  const totalValue = (item.quantity || 0) * origPriceOf(item)
   const qtySell = parseFloat(quantity) || 0
   const price = parseFloat(salePrice) || 0
   const proceeds = Math.round(qtySell * price * 100) / 100
@@ -54,7 +61,7 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
         description: `${t('Venta', 'Sale')} ${qtySell} ${item.name || item.symbol} @ ${price}`,
         date: saleDate,
         totalAmount: proceeds,
-        currency: item.currency || 'USD',
+        currency: origCur,
       }]
 
       let destId, destFields, destLot
@@ -65,20 +72,25 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
           description: `${t('Retiro', 'Withdrawal')} - ${item.name || item.symbol}`,
           date: saleDate,
           totalAmount: proceeds,
-          currency: item.currency || 'USD',
+          currency: origCur,
         })
       } else if (destination === '__stay__' && destinationId) {
         const dest = existingItems.find((it) => it.id === destinationId)
         if (dest) {
           if (BANK_RE.test(dest.type || '')) {
-            const newBal = (dest.currentPrice || dest.purchasePrice || 0) + proceeds
+            // Bank balances are stored raw (in the account's own currency), so add
+            // proceeds to the original-currency balance (same-currency assumption).
+            const newBal = origPriceOf(dest) + proceeds
             destId = dest.id
             destFields = { currentPrice: newBal, purchasePrice: newBal }
           } else {
             // Buying more of a market asset with the proceeds: bump quantity AND
             // create a matching lot so lots stay consistent with item.quantity
-            // (otherwise FIFO/cost-basis breaks per the lots model).
-            const destPrice = dest.currentPrice || dest.purchasePrice || 1
+            // (otherwise FIFO/cost-basis breaks per the lots model). Use the dest's
+            // ORIGINAL price/currency so the new lot's costBasis matches the lots
+            // convention. NOTE: addQty = proceeds / destPrice assumes source and
+            // destination share a currency (SellModal has no FX converter).
+            const destPrice = origPriceOf(dest) || 1
             const addQty = proceeds / destPrice
             destId = dest.id
             destFields = { quantity: (dest.quantity || 0) + addQty }
@@ -88,7 +100,7 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
               costBasis: destPrice,
               acquisitionDate: saleDate,
               institution: dest.institution || '',
-              currency: dest.currency || item.currency || 'USD',
+              currency: dest._originalCurrency || dest.currency || origCur,
             }
           }
         }
@@ -142,13 +154,13 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
             <div className="text-center">
               <p className={labelCls}>{t('Precio actual', 'Current price')}</p>
               <p className="text-sm font-semibold text-[var(--text-primary,white)]">
-                {(item.currentPrice || item.purchasePrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {origPriceOf(item).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             </div>
             <div className="text-center">
               <p className={labelCls}>{t('Valor total', 'Total value')}</p>
               <p className="text-sm font-semibold text-emerald-400">
-                {item.currency} {totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {origCur} {totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             </div>
           </div>
@@ -175,7 +187,7 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
           {/* Proceeds preview */}
           {qtySell > 0 && price > 0 && (
             <p className="text-xs text-emerald-400 -mt-2">
-              {t('Monto de venta', 'Sale proceeds')}: {item.currency || 'USD'} {proceeds.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {t('Monto de venta', 'Sale proceeds')}: {origCur} {proceeds.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
           )}
 
