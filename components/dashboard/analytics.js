@@ -12,18 +12,34 @@ function stddev(arr) {
   return Math.sqrt(variance)
 }
 
-export function computeSharpeRatio({ returns, riskFreeRate }) {
+// Infer how many return-periods fit in a year from the actual snapshot cadence,
+// so volatility/Sharpe annualize correctly whether snapshots are daily (~252),
+// monthly (~12) or irregular. Defaults to 12 when there isn't enough to tell.
+export function inferPeriodsPerYear(snapshots) {
+  const dates = (snapshots || [])
+    .map((s) => new Date(s?.date).getTime())
+    .filter((t) => !isNaN(t))
+    .sort((a, b) => a - b)
+  if (dates.length < 2) return 12
+  const spanYears = (dates[dates.length - 1] - dates[0]) / (365.25 * 86400000)
+  if (spanYears <= 0) return 12
+  const ppy = (dates.length - 1) / spanYears
+  return Math.max(4, Math.min(365, ppy))
+}
+
+export function computeSharpeRatio({ returns, periodsPerYear = 12, riskFreeRate }) {
   if (!returns || returns.length < 3) return { sharpe: null, annualizedReturn: null, annualizedVolatility: null }
-  const rf = riskFreeRate ?? 0.04 / 12
+  const ppy = periodsPerYear > 0 ? periodsPerYear : 12
+  const rf = riskFreeRate ?? 0.04 / ppy
   const avgReturn = mean(returns)
   const sd = stddev(returns)
-  if (sd === 0) return { sharpe: null, annualizedReturn: avgReturn * 12 * 100, annualizedVolatility: 0 }
-  const sharpe = ((avgReturn - rf) / sd) * Math.sqrt(12)
+  if (sd === 0) return { sharpe: null, annualizedReturn: avgReturn * ppy * 100, annualizedVolatility: 0 }
+  const sharpe = ((avgReturn - rf) / sd) * Math.sqrt(ppy)
   const clamped = Math.max(-10, Math.min(10, sharpe))
   return {
     sharpe: Math.round(clamped * 100) / 100,
-    annualizedReturn: avgReturn * 12 * 100,
-    annualizedVolatility: sd * Math.sqrt(12) * 100,
+    annualizedReturn: avgReturn * ppy * 100,
+    annualizedVolatility: sd * Math.sqrt(ppy) * 100,
   }
 }
 
@@ -532,9 +548,11 @@ export function computeAssetAttribution(items) {
   return items.map((it) => {
     const qty = it.quantity || 0
     const cur = it.currentPrice || it.purchasePrice || 0
-    const cost = it.purchasePrice || cur
+    // No cost basis → we can't attribute a gain; report 0 rather than inventing
+    // cost = current price (which silently zeroed the gain anyway).
+    const cost = it.purchasePrice > 0 ? it.purchasePrice : null
     const value = qty * cur
-    const gain = value - qty * cost
+    const gain = cost != null ? value - qty * cost : 0
     return {
       symbol: it.symbol || it.name || '',
       value,

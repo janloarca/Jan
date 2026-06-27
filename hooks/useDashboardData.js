@@ -6,7 +6,7 @@ import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, augmentSnapshots } from '@/components/dashboard/utils'
-import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution } from '@/components/dashboard/analytics'
+import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
 
 export function useDashboardData({ user, lang, activePortfolio, activeEntity = '__all__' }) {
@@ -804,8 +804,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
   const riskMetrics = useMemo(() => {
     const returns = computePeriodicReturns(snapshots, transactions, convert, baseCurrency)
-    const sharpeResult = computeSharpeRatio({ returns })
-    const vol = computeVolatility({ returns })
+    const ppy = inferPeriodsPerYear(snapshots)
+    const sharpeResult = computeSharpeRatio({ returns, periodsPerYear: ppy })
+    const vol = computeVolatility({ returns, periodsPerYear: ppy })
     const valueSeries = (snapshots || [])
       .map((s) => ({ ts: new Date(s.date).getTime(), value: s.netWorthUSD ?? s.totalActivosUSD ?? 0 }))
       .filter((p) => !isNaN(p.ts) && p.value > 0)

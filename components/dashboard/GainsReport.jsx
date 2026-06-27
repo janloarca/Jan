@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import { formatCurrency } from './utils'
 
-export default function GainsReport({ lots, items, lang }) {
+export default function GainsReport({ lots, items, lang, convert, baseCurrency }) {
   const t = (es, en) => lang === 'es' ? es : en
 
   const report = useMemo(() => {
@@ -13,18 +13,29 @@ export default function GainsReport({ lots, items, lang }) {
     let totalUnrealized = 0
     const bySymbol = {}
 
+    // Lots store costBasis/realizedGain in the lot's entry currency, but item
+    // currentPrice is already in baseCurrency. Convert lot figures to base so we
+    // never subtract mixed currencies.
+    const base = baseCurrency || 'USD'
+    const toBase = (v, lot) => {
+      const c = lot.currency || base
+      return convert && c !== base ? convert(v, c, base) : v
+    }
+
     lots.forEach((lot) => {
       const sym = lot.symbol || 'Unknown'
       if (!bySymbol[sym]) bySymbol[sym] = { realized: 0, unrealized: 0, openLots: 0, closedLots: 0 }
 
       if (lot.status === 'closed' && lot.realizedGain != null) {
-        totalRealized += lot.realizedGain
-        bySymbol[sym].realized += lot.realizedGain
+        const realized = toBase(lot.realizedGain, lot)
+        totalRealized += realized
+        bySymbol[sym].realized += realized
         bySymbol[sym].closedLots++
       } else if (lot.status === 'open' && lot.quantity > 0) {
         const item = (items || []).find((it) => (it.symbol || '').toUpperCase() === sym.toUpperCase())
-        const currentPrice = item?.currentPrice || item?.purchasePrice || lot.costBasis
-        const unrealized = (currentPrice - lot.costBasis) * lot.quantity
+        const costInBase = toBase(lot.costBasis, lot)
+        const currentPrice = item?.currentPrice || item?.purchasePrice || costInBase
+        const unrealized = (currentPrice - costInBase) * lot.quantity
         totalUnrealized += unrealized
         bySymbol[sym].unrealized += unrealized
         bySymbol[sym].openLots++
@@ -36,7 +47,7 @@ export default function GainsReport({ lots, items, lang }) {
       .sort((a, b) => Math.abs(b.total) - Math.abs(a.total))
 
     return { totalRealized, totalUnrealized, totalGain: totalRealized + totalUnrealized, symbols }
-  }, [lots, items])
+  }, [lots, items, convert, baseCurrency])
 
   if (!report) return null
 

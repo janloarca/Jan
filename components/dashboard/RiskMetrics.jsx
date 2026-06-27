@@ -1,14 +1,15 @@
 'use client'
 
 import { useMemo } from 'react'
-import { computeSharpeRatio, computeVolatility, computeMaxDrawdown, computePeriodicReturns, computeBeta, computeSortino, computeTreynor, computeJensensAlpha, computeInformationRatio } from './analytics'
+import { computeSharpeRatio, computeVolatility, computeMaxDrawdown, computePeriodicReturns, computeBeta, computeSortino, computeTreynor, computeJensensAlpha, computeInformationRatio, inferPeriodsPerYear } from './analytics'
 import { InfoTip } from '../ui/Tooltip'
 
 export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, transactions, convert, baseCurrency, benchmarkName }) {
   const metrics = useMemo(() => {
     const returns = computePeriodicReturns(snapshots, transactions, convert, baseCurrency)
-    const sharpeResult = computeSharpeRatio({ returns })
-    const vol = computeVolatility({ returns })
+    const ppy = inferPeriodsPerYear(snapshots)
+    const sharpeResult = computeSharpeRatio({ returns, periodsPerYear: ppy })
+    const vol = computeVolatility({ returns, periodsPerYear: ppy })
 
     const valueSeries = (snapshots || [])
       .filter((s) => s.date)
