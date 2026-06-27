@@ -95,7 +95,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
   const milestone = getMilestone(netWorth, displayReturn, lang)
 
   return (
-    <div className="bg-gradient-to-br from-theme-card to-theme-surface rounded-2xl p-5 card-hero"
+    <div className="bg-gradient-to-br from-theme-card to-theme-surface rounded-2xl p-5 card-hero h-full flex flex-col"
       style={{ backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)', boxShadow: 'var(--shadow-elevated)', border: 'var(--glass-border)' }}>
       {/* Greeting + currency picker */}
       <div className="flex items-center justify-between mb-3">
@@ -165,6 +165,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
         )}
       </div>
 
+      <div className="mt-auto">
       {/* Contributions vs Gains */}
       {netContributions != null && netContributions > 0 && (
         <div className="mt-3 pt-2 border-t border-glass-border/50">
@@ -203,6 +204,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
           <span className="text-xs font-medium font-mono tabular-nums" style={{ color: 'var(--accent-cyan)' }}>{formatCurrency(cv(cashTotal), displayCur)}</span>
         </div>
       )}
+      </div>
     </div>
   )
 }

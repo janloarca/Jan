@@ -756,9 +756,9 @@ export default function DashboardPage() {
         {/* ═══ RESUMEN ═══ */}
         {portfolioItems.length > 0 && <>
         <ErrorBoundary lang={lang}>
-        <div className="stagger-1 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 items-start">
+        <div className="stagger-1 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 items-stretch">
           <div className="md:col-span-1 lg:col-span-2 flex flex-col gap-4">
-            <CardBoundary id="OL-01">
+            <CardBoundary id="OL-01" className="h-full">
             <NetWorthCard
               netWorth={netWorth} returnYTD={returnYTD} ytdChange={ytdChange}
               returnSinceStart={returnSinceStart} sinceStartDate={sinceStartDate}

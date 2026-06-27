@@ -32,6 +32,6 @@ export default class CardBoundary extends Component {
         </div>
       )
     }
-    return <div data-card-id={this.props.id}>{this.props.children}</div>
+    return <div data-card-id={this.props.id} className={this.props.className}>{this.props.children}</div>
   }
 }
