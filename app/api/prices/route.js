@@ -46,7 +46,12 @@ async function fetchStockPrices(symbols) {
           const price = meta.regularMarketPrice
           const prev7d = closes && closes.length > 1 ? closes.find((c) => c != null) : null
           const change7d = prev7d ? ((price - prev7d) / prev7d) * 100 : null
-          results[sym] = { price, change7d, currency: meta.currency || 'USD' }
+          // 1-day change: prefer Yahoo's previousClose (yesterday's close),
+          // else fall back to the second-to-last daily close in the range.
+          const validCloses = (closes || []).filter((c) => c != null)
+          const prevDayClose = meta.previousClose ?? (validCloses.length >= 2 ? validCloses[validCloses.length - 2] : null)
+          const change1d = prevDayClose ? ((price - prevDayClose) / prevDayClose) * 100 : null
+          results[sym] = { price, change7d, change1d, currency: meta.currency || 'USD' }
         }
       } catch (err) {
         console.error(`[api/prices] Failed to fetch ${sym}:`, err.message)
@@ -67,7 +72,7 @@ async function fetchCryptoPrices(symbols) {
   if (ids.length === 0) return { results, warnings }
 
   try {
-    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(',')}&vs_currencies=usd&include_7d_change=true`
+    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(',')}&vs_currencies=usd&include_7d_change=true&include_24hr_change=true`
     const res = await fetchWithRetry(url, { next: { revalidate: 300 } })
     if (!res.ok) {
       warnings.push(`CoinGecko returned ${res.status}`)
@@ -81,6 +86,7 @@ async function fetchCryptoPrices(symbols) {
         results[sym] = {
           price: data[id].usd,
           change7d: data[id].usd_7d_change ?? null,
+          change1d: data[id].usd_24h_change ?? null,
           currency: 'USD',
         }
       }

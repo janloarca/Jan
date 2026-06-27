@@ -145,6 +145,23 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
     ? (lang === 'es' ? `Otros (${seg.count})` : `Others (${seg.count})`)
     : (CATEGORY_LABELS[seg.name]?.[lang] || seg.name)
 
+  // Biggest movers of the day — per-asset intraday % change, ordered by the
+  // magnitude of the move (gainers and losers mixed). Deduped by symbol.
+  const movers = useMemo(() => {
+    if (!items || items.length === 0) return []
+    const seen = new Set()
+    const list = []
+    items.forEach((it) => {
+      if (it.isDebt || isExcludedFromNetWorth(it)) return
+      if (it.change1d == null || !isFinite(it.change1d)) return
+      const label = it.symbol || it.name
+      if (!label || seen.has(label)) return
+      seen.add(label)
+      list.push({ label, pct: it.change1d })
+    })
+    return list.sort((a, b) => Math.abs(b.pct) - Math.abs(a.pct)).slice(0, 5)
+  }, [items])
+
   return (
     <div className="bg-gradient-to-br from-theme-card to-theme-surface rounded-2xl p-5 card-hero h-full flex flex-col"
       style={{ backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)', boxShadow: 'var(--shadow-elevated)', border: 'var(--glass-border)' }}>
@@ -243,38 +260,29 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
         </div>
       )}
 
-      <div className="mt-auto">
-      {/* Contributions vs Gains */}
-      {netContributions != null && netContributions > 0 && (
-        <div className="mt-3 pt-2 border-t border-glass-border/50">
-          <div className="flex items-center justify-between text-xs mb-1.5">
-            <span className="text-slate-500">{lang === 'es' ? 'Invertido' : 'Invested'}: <span className="text-slate-300 font-medium font-mono tabular-nums">{formatCurrency(cv(netContributions), displayCur)}</span></span>
-            <span className="text-slate-500">{lang === 'es' ? 'Ganancia' : 'Gains'}: <span className="font-medium font-mono tabular-nums" style={{ color: displayValue - cv(netContributions) >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>{formatCurrency(displayValue - cv(netContributions), displayCur)}</span></span>
-          </div>
-          <div className="w-full h-1.5 rounded-full overflow-hidden flex" style={{ backgroundColor: 'rgba(127,127,127,0.15)' }}>
-            {(() => {
-              const displayContrib = cv(netContributions)
-              const contribPct = displayContrib > 0 && displayValue > 0
-                ? Math.min((displayContrib / displayValue) * 100, 100)
-                : 100
+      {/* Biggest movers of the day — fills the remaining height */}
+      {movers.length > 0 && (
+        <div className="flex-1 flex flex-col min-h-0 mt-3 pt-3 border-t border-glass-border/50">
+          <span className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2.5 block">{lang === 'es' ? 'Mayores movimientos hoy' : "Today's biggest movers"}</span>
+          <div className="flex-1 flex flex-col justify-evenly">
+            {movers.map((m) => {
+              const up = m.pct >= 0
               return (
-                <>
-                  <div className="h-full rounded-l-full" style={{ width: `${contribPct}%`, backgroundColor: 'var(--accent-blue)' }} />
-                  <div className="h-full rounded-r-full" style={{ width: `${Math.max(0, 100 - contribPct)}%`, backgroundColor: 'var(--accent-green)' }} />
-                </>
+                <div key={m.label} className="flex items-center justify-between py-0.5">
+                  <span className="text-sm text-slate-300 font-medium truncate pr-2">{m.label}</span>
+                  <span className="text-sm font-mono tabular-nums font-medium shrink-0" style={{ color: up ? 'var(--accent-green)' : 'var(--text-negative)' }}>
+                    {up ? '▲' : '▼'} {up ? '+' : ''}{m.pct.toFixed(2)}%
+                  </span>
+                </div>
               )
-            })()}
-          </div>
-          <div className="flex items-center gap-3 mt-1 text-xs text-slate-600">
-            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'var(--accent-blue)' }} />{lang === 'es' ? 'Invertido' : 'Invested'}</span>
-            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'var(--accent-green)' }} />{lang === 'es' ? 'Ganancias' : 'Gains'}</span>
+            })}
           </div>
         </div>
       )}
 
-      {/* Cash available */}
+      {/* Cash available — anchored at the bottom */}
       {cashTotal != null && cashTotal > 0 && (
-        <div className={`${netContributions > 0 ? 'mt-2' : 'mt-4 pt-3 border-t border-glass-border/50'} flex items-center justify-between`}>
+        <div className="mt-auto pt-3 border-t border-glass-border/50 flex items-center justify-between">
           <span className="text-xs text-slate-500 flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'var(--accent-cyan)', opacity: 0.6 }} />
             {lang === 'es' ? 'Disponible' : 'Cash available'}
@@ -282,7 +290,6 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
           <span className="text-xs font-medium font-mono tabular-nums" style={{ color: 'var(--accent-cyan)' }}>{formatCurrency(cv(cashTotal), displayCur)}</span>
         </div>
       )}
-      </div>
     </div>
   )
 }

@@ -81,6 +81,7 @@ export function useMarketPrices(items) {
       if (priceData) {
         enriched.currentPrice = priceData.price
         enriched.change7d = priceData.change7d
+        enriched.change1d = priceData.change1d
         enriched.marketCurrency = priceData.currency
       }
 
