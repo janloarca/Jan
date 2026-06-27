@@ -196,9 +196,11 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   const monthlyTotals = useMemo(() => {
     const base = baseCurrency || 'USD'
     // Snapshot NAV per month — used as a fallback for months that have no per-item
-    // reconstruction yet. These snapshots are IBKR/broker NAV and omit manually
-    // added assets, so they are NOT the source of truth for the TOTAL row.
+    // reconstruction yet. IBKR equityHistory snapshots (_source:'ibkr') are broker
+    // NAV and omit manually added assets (bonds, crypto, cash), so a month that
+    // falls back to one would undercount; we augment it below.
     const snapByMonth = {}
+    const ibkrSourceByMonth = {}
     if (snapshots && snapshots.length) {
       const dates = {}
       snapshots.forEach(s => {
@@ -210,6 +212,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         if (!dates[key] || sDate > dates[key]) {
           dates[key] = sDate
           snapByMonth[key] = convert ? convert(val, 'USD', base) : val
+          ibkrSourceByMonth[key] = s._source === 'ibkr'
         }
       })
       const keys = Object.keys(snapByMonth).sort()
@@ -220,11 +223,35 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         }
       }
     }
+
+    // Non-IBKR (manually-added) assets that an IBKR-only snapshot leaves out.
+    // Held flat at their current value, gated by an effective acquisition date so a
+    // bond bought in June doesn't inflate May. This mirrors what the per-item
+    // reconstruction produces (IBKR scaled to NAV + manual assets held flat).
+    const monthEndOf = (mk) => { const [y, m] = mk.split('-').map(Number); return Date.UTC(y, m, 0) }
+    const effAcqTs = (it) => {
+      const a = it.acquisitionDate ? Date.parse(it.acquisitionDate) : NaN
+      if (!isNaN(a)) return a
+      const c = it.createdAt ? new Date(it.createdAt) : null
+      return c && !isNaN(c.getTime()) ? Date.UTC(c.getUTCFullYear(), 0, 1) : null
+    }
+    const nonIbkrItems = items
+      .filter(it => it._source !== 'ibkr' && it.id && !isExcludedFromNetWorth(it))
+      .map(it => ({ value: getItemValue(it), acqTs: effAcqTs(it) }))
+      .filter(it => it.value)
+    const nonIbkrValueAtMonth = (mk) => {
+      const end = monthEndOf(mk)
+      let sum = 0
+      for (const it of nonIbkrItems) if (it.acqTs == null || it.acqTs <= end) sum += it.value
+      return sum
+    }
+
     // Prefer summing the per-item reconstruction: IBKR items are already scaled to
     // the snapshot NAV and summed together with manually-added static assets, so
     // the TOTAL row matches the sum of the category rows AND includes assets the
     // broker-only snapshots leave out (a bond, a cash fund). Fall back to the raw
-    // snapshot NAV for any month not reconstructed yet.
+    // snapshot NAV for any month not reconstructed yet — augmenting IBKR-only
+    // snapshots with the manual assets so the fallback never undercounts.
     const result = {}
     const allKeys = new Set([...Object.keys(snapByMonth), ...Object.keys(historicalItems)])
     allKeys.forEach(mk => {
@@ -243,7 +270,9 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         })
         result[mk] = sum
       } else if (snapByMonth[mk] != null) {
-        result[mk] = snapByMonth[mk]
+        let total = snapByMonth[mk]
+        if (ibkrSourceByMonth[mk] && nonIbkrItems.length) total += nonIbkrValueAtMonth(mk)
+        result[mk] = total
       }
     })
     return result
