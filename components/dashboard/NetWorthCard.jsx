@@ -218,8 +218,8 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
 
       {/* Composition — fills the card, shows where the net worth sits */}
       {allocation.length > 0 && (
-        <div className="flex-1 flex flex-col justify-center min-h-0 py-4">
-          <span className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2.5">{lang === 'es' ? 'Composición' : 'Composition'}</span>
+        <div className="mt-3 pt-3 border-t border-glass-border/50">
+          <span className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2.5 block">{lang === 'es' ? 'Composición' : 'Composition'}</span>
           {/* Stacked bar */}
           <div className="w-full h-2.5 rounded-full overflow-hidden flex mb-3" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
             {allocation.map((seg) => (
