@@ -642,7 +642,10 @@ export function useFirestoreItems() {
   // v4: market-asset past-month share counts are reconstructed from real trade
   // history (transactions), not import-stamped lots — invalidates docs that
   // cached zeroed/understated stock values before the import date.
-  const SNAPSHOT_VERSION = 15
+  // v16: crypto historical prices now come from CoinGecko (not Yahoo, which
+  // collided crypto tickers with unrelated equities) — invalidates docs that
+  // cached garbage crypto values.
+  const SNAPSHOT_VERSION = 16
 
   const saveItemSnapshots = useCallback(async (monthKey, itemsData, currency) => {
     if (!uid || !monthKey || !itemsData) return

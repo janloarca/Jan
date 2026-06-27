@@ -1,23 +1,9 @@
 import { NextResponse } from 'next/server'
 import { rateLimit } from '@/lib/rateLimit'
 import { fetchWithRetry } from '@/lib/fetchWithRetry'
+import { CRYPTO_MAP } from '@/lib/cryptoMap'
 
 const SYMBOL_RE = /^[A-Z0-9._\-^=]{1,20}$/i
-
-const CRYPTO_MAP = {
-  BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', ADA: 'cardano',
-  DOT: 'polkadot', AVAX: 'avalanche-2', MATIC: 'matic-network',
-  LINK: 'chainlink', UNI: 'uniswap', AAVE: 'aave', XRP: 'ripple',
-  DOGE: 'dogecoin', SHIB: 'shiba-inu', BNB: 'binancecoin',
-  ATOM: 'cosmos', NEAR: 'near', FTM: 'fantom', ALGO: 'algorand',
-  XLM: 'stellar', LTC: 'litecoin', BCH: 'bitcoin-cash',
-  USDT: 'tether', USDC: 'usd-coin', DAI: 'dai',
-  MANA: 'decentraland', SAND: 'the-sandbox', APE: 'apecoin',
-  CRO: 'crypto-com-chain', VET: 'vechain', HBAR: 'hedera-hashgraph',
-  ICP: 'internet-computer', FIL: 'filecoin', EOS: 'eos',
-  XTZ: 'tezos', THETA: 'theta-token', EGLD: 'elrond-erd-2',
-  CELR: 'celer-network', CELO: 'celo',
-}
 
 async function fetchStockPrices(symbols) {
   const results = {}

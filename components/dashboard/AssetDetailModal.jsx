@@ -53,7 +53,8 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
         const sym = encodeURIComponent(item.symbol)
         const interval = range === '1W' ? '15m' : range === '1M' ? '1d' : '1wk'
         const r = rangeMap[range]
-        const res = await fetch(`/api/prices/chart?symbol=${sym}&range=${r}&interval=${interval}`)
+        const isCrypto = /crypto|cripto/i.test(item.type || '') || item._source === 'ledger' || item._source === 'blockchain'
+        const res = await fetch(`/api/prices/chart?symbol=${sym}&range=${r}&interval=${interval}${isCrypto ? '&type=crypto' : ''}`)
         if (!res.ok) throw new Error('fetch failed')
         const data = await safeJson(res)
         if (!cancelled) setChartData(data)
