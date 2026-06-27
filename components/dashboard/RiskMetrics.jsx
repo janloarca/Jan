@@ -18,8 +18,14 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
       .sort((a, b) => a.ts - b.ts)
     const drawdown = computeMaxDrawdown(valueSeries)
 
+    // Benchmark-relative metrics need the portfolio and benchmark return series
+    // sampled over the SAME pairs. `returns` (Modified Dietz over snapshots) is
+    // filtered/derived differently than the per-valueSeries benchmark returns, so
+    // pairing them by slice(-len) would misalign. Build both here in one loop and
+    // push together, applying the same outlier guard to both.
     let beta = null
     let bReturns = []
+    let pReturnsB = []
     if (benchmarkData?.dataPoints?.length > 2 && valueSeries.length > 2) {
       const bPts = benchmarkData.dataPoints.slice().sort((a, b) => a.ts - b.ts)
       const findClosest = (ts) => {
@@ -37,17 +43,22 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
       for (let i = 1; i < valueSeries.length; i++) {
         const closestCurr = findClosest(valueSeries[i].ts)
         const closestPrev = findClosest(valueSeries[i - 1].ts)
-        if (closestCurr && closestPrev && closestPrev.close > 0) {
-          bReturns.push((closestCurr.close - closestPrev.close) / closestPrev.close)
+        const prevVal = valueSeries[i - 1].value
+        if (closestCurr && closestPrev && closestPrev.close > 0 && prevVal > 0) {
+          const pr = (valueSeries[i].value - prevVal) / prevVal
+          if (Math.abs(pr) < 1) {
+            pReturnsB.push(pr)
+            bReturns.push((closestCurr.close - closestPrev.close) / closestPrev.close)
+          }
         }
       }
-      beta = computeBeta(returns, bReturns)
+      beta = computeBeta(pReturnsB, bReturns)
     }
 
     const sortino = computeSortino(returns)
-    const treynor = computeTreynor(returns, bReturns)
-    const alpha = computeJensensAlpha(returns, bReturns)
-    const ir = computeInformationRatio(returns, bReturns)
+    const treynor = computeTreynor(pReturnsB, bReturns)
+    const alpha = computeJensensAlpha(pReturnsB, bReturns)
+    const ir = computeInformationRatio(pReturnsB, bReturns)
 
     return { sharpe: sharpeResult.sharpe, vol, drawdown, beta, sortino, treynor, alpha, ir }
   }, [snapshots, benchmarkData, transactions, convert, baseCurrency])

@@ -94,6 +94,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     let totalAssetsUSD = 0
     let totalDebtUSD = 0
     enrichedItems.forEach((it) => {
+      // Keep the snapshot baseline consistent with the live netWorth, which drops
+      // receivables the user excluded from net worth (otherwise daily change / returns
+      // would compare against a baseline that counts assets the headline does not).
+      if (isExcludedFromNetWorth(it)) return
       const origPrice = it._originalPrice ?? it.currentPrice ?? it.purchasePrice ?? 0
       const origCurrency = it._originalCurrency ?? baseCurrency ?? 'USD'
       let value = (it.quantity || 0) * origPrice
