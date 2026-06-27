@@ -5,7 +5,7 @@ import { useExchangeRates } from './useExchangeRates'
 import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth } from '@/components/dashboard/utils'
+import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, augmentSnapshots } from '@/components/dashboard/utils'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
 
@@ -592,8 +592,15 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   }, [dataLoading, settings, user, handleIBKRSync, saveSettings])
 
   // Derived values
-  const latestSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null
-  const prevSnapshot = snapshots.length > 1 ? snapshots[snapshots.length - 2] : null
+  // IBKR-only snapshots omit manually-added assets; augment them with the held-flat
+  // value of non-IBKR items so returns/changes below reflect the FULL portfolio.
+  // (The growth chart and spreadsheet get the raw snapshots and do their own thing.)
+  const augmentedSnapshots = useMemo(
+    () => augmentSnapshots(snapshots, portfolioItems, convert),
+    [snapshots, portfolioItems, convert]
+  )
+  const latestSnapshot = augmentedSnapshots.length > 0 ? augmentedSnapshots[augmentedSnapshots.length - 1] : null
+  const prevSnapshot = augmentedSnapshots.length > 1 ? augmentedSnapshots[augmentedSnapshots.length - 2] : null
 
   const { totalFromItems, totalDebt: liveDebt } = useMemo(() => {
     let assets = 0, debt = 0
@@ -626,18 +633,18 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   }, [prevSnapshot, netWorth, convertSnapshot])
 
   const yearlyChange = useMemo(() => {
-    if (snapshots.length < 2) return null
+    if (augmentedSnapshots.length < 2) return null
     const oneYearAgo = new Date()
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
     let yearAgoSnapshot = null
-    for (let i = snapshots.length - 1; i >= 0; i--) {
-      if (snapshots[i].date && new Date(snapshots[i].date) <= oneYearAgo) { yearAgoSnapshot = snapshots[i]; break }
+    for (let i = augmentedSnapshots.length - 1; i >= 0; i--) {
+      if (augmentedSnapshots[i].date && new Date(augmentedSnapshots[i].date) <= oneYearAgo) { yearAgoSnapshot = augmentedSnapshots[i]; break }
     }
     if (!yearAgoSnapshot) return null
     const prev = convertSnapshot(yearAgoSnapshot.netWorthUSD ?? yearAgoSnapshot.totalActivosUSD ?? 0)
     if (prev === 0) return null
     return ((netWorth - prev) / prev) * 100
-  }, [snapshots, netWorth, convertSnapshot])
+  }, [augmentedSnapshots, netWorth, convertSnapshot])
 
   const [jan1Value, setJan1Value] = useState(null)
   useEffect(() => {
@@ -691,8 +698,8 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const year = new Date().getUTCFullYear()
     const yearStartTs = Date.UTC(year, 0, 1)
     let startVal = null
-    if (snapshots.length >= 2) {
-      const sorted = [...snapshots].filter(s => s.date).sort((a, b) => new Date(a.date) - new Date(b.date))
+    if (augmentedSnapshots.length >= 2) {
+      const sorted = [...augmentedSnapshots].filter(s => s.date).sort((a, b) => new Date(a.date) - new Date(b.date))
       let bestSnap = sorted.find(s => {
         const d = new Date(s.date)
         return d.getFullYear() === year && d.getMonth() === 0
@@ -714,8 +721,8 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
     let returnSinceStart = null
     let sinceStartDate = null
-    if ((startVal == null || startVal <= 0) && snapshots.length >= 2) {
-      const sorted = [...snapshots]
+    if ((startVal == null || startVal <= 0) && augmentedSnapshots.length >= 2) {
+      const sorted = [...augmentedSnapshots]
         .filter(s => s.date)
         .sort((a, b) => new Date(a.date) - new Date(b.date))
       const first = sorted.find(s => (s.netWorthUSD ?? s.totalActivosUSD ?? 0) > 0)
@@ -745,7 +752,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     })
     const clampedPct = Math.max(-200, Math.min(200, pct))
     return { returnYTD: clampedPct, ytdChange: abs, returnSinceStart, sinceStartDate }
-  }, [jan1Value, netWorth, transactions, convert, baseCurrency, snapshots, convertSnapshot])
+  }, [jan1Value, netWorth, transactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot])
 
   const annualDividends = useMemo(() => {
     const divs = (transactions || []).filter((tx) => (tx.type || '').toUpperCase() === 'DIVIDEND' && !tx._reinvested)
@@ -861,7 +868,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
   return {
     // Raw Firestore data
-    items, snapshots, transactions, goals, settings, profile, alerts, lots, portfolios, financeTransactions,
+    items, snapshots, augmentedSnapshots, transactions, goals, settings, profile, alerts, lots, portfolios, financeTransactions,
     entityTransactions, entityFinanceTransactions,
     dataLoading,
 

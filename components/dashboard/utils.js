@@ -134,6 +134,61 @@ export function isExcludedFromNetWorth(item) {
   return !!(item.isReceivable && !item.countInNetWorth)
 }
 
+// Effective acquisition timestamp for an item: the real acquisitionDate, else the
+// start of the year it was added to the app (createdAt), else null (no gate).
+// Mirrors effectiveAcqDate in lib/historicalValues.js.
+export function effectiveAcqTs(it) {
+  if (it.acquisitionDate) {
+    const t = Date.parse(it.acquisitionDate)
+    if (!isNaN(t)) return t
+  }
+  if (it.createdAt) {
+    const c = new Date(it.createdAt)
+    if (!isNaN(c.getTime())) return Date.UTC(c.getUTCFullYear(), 0, 1)
+  }
+  return null
+}
+
+// Held-flat USD value of a single item (mirrors the daily-snapshot computation in
+// useDashboardData): qty × original price in the item's original currency → USD.
+function itemValueUSD(it, convert) {
+  const origPrice = it._originalPrice ?? it.currentPrice ?? it.purchasePrice ?? 0
+  const origCur = it._originalCurrency || it.currency || 'USD'
+  let v = (Number(it.quantity) || 0) * (origPrice || 0)
+  if (!isFinite(v)) return 0
+  if (convert && origCur !== 'USD') v = convert(v, origCur, 'USD')
+  return it.isDebt ? -Math.abs(v) : v
+}
+
+// IBKR equityHistory snapshots (_source:'ibkr') store only the broker NAV and omit
+// manually-added assets (bonds, crypto, cash). For consumers that want the FULL
+// portfolio NAV (returns, drawdown, sparkline…), augment ONLY those entries with the
+// held-flat USD value of non-IBKR items that already existed at the snapshot date.
+// Daily/backfill snapshots already include everything, so they are left untouched
+// (no double-counting). Returns a new array; the originals are never mutated.
+export function augmentSnapshots(snapshots, items, convert) {
+  if (!Array.isArray(snapshots) || snapshots.length === 0) return snapshots
+  const nonIbkr = (items || [])
+    .filter(it => it._source !== 'ibkr' && !isExcludedFromNetWorth(it))
+    .map(it => ({ usd: itemValueUSD(it, convert), acqTs: effectiveAcqTs(it) }))
+    .filter(x => x.usd)
+  if (nonIbkr.length === 0) return snapshots
+  const manualAt = (ts) => {
+    let sum = 0
+    for (const x of nonIbkr) if (x.acqTs == null || x.acqTs <= ts) sum += x.usd
+    return sum
+  }
+  return snapshots.map(s => {
+    if (!s || s._source !== 'ibkr' || !s.date) return s
+    const ts = new Date(s.date).getTime()
+    if (isNaN(ts)) return s
+    const add = manualAt(ts)
+    if (!add) return s
+    const nav = s.netWorthUSD ?? s.totalActivosUSD ?? 0
+    return { ...s, netWorthUSD: nav + add, totalActivosUSD: (s.totalActivosUSD ?? nav) + add }
+  })
+}
+
 // Build the income-event payload for /api/prices/portfolio-history from DIVIDEND
 // transactions. Reinvested step-ups raise the linked asset's value; cash-destination
 // payments are excluded (their value already lives in the destination account).

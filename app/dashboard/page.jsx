@@ -243,7 +243,7 @@ export default function DashboardPage() {
 
   // Data layer
   const {
-    items, snapshots, transactions, goals, settings, profile, alerts, lots, portfolios, financeTransactions,
+    items, snapshots, augmentedSnapshots, transactions, goals, settings, profile, alerts, lots, portfolios, financeTransactions,
     dataLoading,
     addItem, updateItem, deleteItem, deleteAllItems,
     saveSnapshot, deleteAllSnapshots,
@@ -763,7 +763,7 @@ export default function DashboardPage() {
               netWorth={netWorth} returnYTD={returnYTD} ytdChange={ytdChange}
               returnSinceStart={returnSinceStart} sinceStartDate={sinceStartDate}
               yearlyChange={yearlyChange} dailyChange={dailyChange} convert={convert}
-              lang={lang} netContributions={netContributions} cashTotal={cashTotal} snapshots={snapshots} items={portfolioItems}
+              lang={lang} netContributions={netContributions} cashTotal={cashTotal} snapshots={augmentedSnapshots} items={portfolioItems}
             />
             </CardBoundary>
           </div>
@@ -817,7 +817,7 @@ export default function DashboardPage() {
         {/* ═══ ANALISIS ═══ */}
         <SectionCollapse title={lang === 'es' ? 'Análisis' : 'Analysis'} id="analysis" defaultOpen={!beginnerMode && !!(lots && lots.length > 0)}>
           <ErrorBoundary lang={lang}>
-            <AnalysisTabs lang={lang} portfolioItems={portfolioItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lots={lots} transactions={transactions} convert={convert} baseCurrency={baseCurrency} benchmarkData={benchmarkData} benchmarkName={benchmarkName} beginnerMode={beginnerMode} />
+            <AnalysisTabs lang={lang} portfolioItems={portfolioItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={augmentedSnapshots} lots={lots} transactions={transactions} convert={convert} baseCurrency={baseCurrency} benchmarkData={benchmarkData} benchmarkName={benchmarkName} beginnerMode={beginnerMode} />
           </ErrorBoundary>
         </SectionCollapse></div>
 
@@ -1024,7 +1024,7 @@ export default function DashboardPage() {
 
       {modal === 'print' && (
         <PrintSummary items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets}
-          snapshots={snapshots} transactions={transactions} lang={lang} onClose={handleCloseModal} />
+          snapshots={augmentedSnapshots} transactions={transactions} lang={lang} onClose={handleCloseModal} />
       )}
 
       {editItem && (
