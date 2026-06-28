@@ -200,7 +200,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
           })
           setHasVaultCreds(true)
           onSaveCredentials?.({ ibkrToken: null, ibkrQueryId: queryId.trim(), _ibkrVaultMigrated: true })
-        } catch {}
+        } catch (e) { console.error('[ibkr] save-credentials failed (re-enter token to persist):', e?.message) }
       }
 
       if (syncMode === 'merge' && onSyncComplete) {

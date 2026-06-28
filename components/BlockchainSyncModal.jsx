@@ -43,7 +43,7 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
             body: JSON.stringify({ action: 'save-credentials', apiKey: apiKey.trim() }),
           })
           onSaveCredentials?.({ blockchainApiKey: null })
-        } catch {}
+        } catch (e) { console.error('[blockchain] save-credentials failed (re-enter key to persist):', e?.message) }
       }
     } catch (err) {
       setError(err.message || t('Error conectando con Blockchain.com', 'Error connecting to Blockchain.com'))

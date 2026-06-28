@@ -597,7 +597,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
               body: JSON.stringify({ action: 'save-credentials', token, queryId: settings.ibkrQueryId }),
             })
             saveSettings({ ibkrToken: null, _ibkrVaultMigrated: true })
-          } catch {}
+          } catch (e) { console.error('[ibkr] vault migration failed (will retry next sync):', e?.message) }
         }
         const data = await syncIBKR(token, settings.ibkrQueryId)
         if (cancelled) return
