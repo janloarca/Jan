@@ -8,7 +8,76 @@ import {
   computeCAGR,
   computeBeta,
   computeNetContributions,
+  inferPeriodsPerYear,
 } from '../analytics'
+
+describe('inferPeriodsPerYear', () => {
+  const day = 86400000
+  const series = (n, stepDays, start = Date.UTC(2025, 0, 1)) =>
+    Array.from({ length: n }, (_, i) => ({ date: new Date(start + i * stepDays * day).toISOString() }))
+
+  test('daily snapshots → near the high clamp', () => {
+    const ppy = inferPeriodsPerYear(series(40, 1))
+    expect(ppy).toBeGreaterThan(200)
+    expect(ppy).toBeLessThanOrEqual(365)
+  })
+
+  test('monthly snapshots → ~12', () => {
+    const monthly = Array.from({ length: 13 }, (_, i) => ({ date: new Date(Date.UTC(2024, i, 1)).toISOString() }))
+    const ppy = inferPeriodsPerYear(monthly)
+    expect(ppy).toBeGreaterThan(11)
+    expect(ppy).toBeLessThan(13)
+  })
+
+  test('fewer than 2 points → default 12', () => {
+    expect(inferPeriodsPerYear([])).toBe(12)
+    expect(inferPeriodsPerYear([{ date: '2025-01-01' }])).toBe(12)
+    expect(inferPeriodsPerYear(null)).toBe(12)
+  })
+
+  test('clamped to [4, 365]', () => {
+    expect(inferPeriodsPerYear(series(2, 1))).toBeLessThanOrEqual(365)
+    expect(inferPeriodsPerYear(series(2, 365 * 5))).toBe(4)
+  })
+})
+
+describe('computeSharpeRatio cadence (periodsPerYear)', () => {
+  const returns = [0.02, -0.01, 0.03, -0.02, 0.01, 0.02, -0.01, 0.03]
+
+  test('higher cadence annualizes to higher volatility', () => {
+    const daily = computeSharpeRatio({ returns, periodsPerYear: 252 })
+    const monthly = computeSharpeRatio({ returns, periodsPerYear: 12 })
+    expect(daily.annualizedVolatility).toBeGreaterThan(monthly.annualizedVolatility)
+    // factor ~ sqrt(252/12)
+    expect(daily.annualizedVolatility / monthly.annualizedVolatility).toBeCloseTo(Math.sqrt(252 / 12), 1)
+  })
+
+  test('default periodsPerYear (12) is backward-compatible', () => {
+    const explicit = computeSharpeRatio({ returns, periodsPerYear: 12 })
+    const defaulted = computeSharpeRatio({ returns })
+    expect(defaulted.annualizedVolatility).toBe(explicit.annualizedVolatility)
+    expect(defaulted.annualizedReturn).toBe(explicit.annualizedReturn)
+    expect(defaulted.sharpe).toBe(explicit.sharpe)
+  })
+})
+
+describe('computeAssetAttribution cost-basis guard', () => {
+  test('item with purchasePrice → real gain', () => {
+    const [a] = computeAssetAttribution([{ symbol: 'A', quantity: 10, currentPrice: 12, purchasePrice: 10 }])
+    expect(a.gain).toBeCloseTo((12 - 10) * 10)
+  })
+
+  test('item without purchasePrice → gain 0, not faked from currentPrice', () => {
+    const res = computeAssetAttribution([
+      { symbol: 'A', quantity: 10, currentPrice: 12, purchasePrice: 10 },
+      { symbol: 'NOCOST', quantity: 5, currentPrice: 100 },
+    ])
+    const nocost = res.find((r) => r.symbol === 'NOCOST')
+    expect(nocost.gain).toBe(0)
+    expect(nocost.value).toBeCloseTo(500)
+    expect(typeof nocost.weight).toBe('number')
+  })
+})
 
 describe('computeSharpeRatio', () => {
   test('normal returns', () => {

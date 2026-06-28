@@ -8,7 +8,66 @@ import {
   getTypeCategory,
   getGeographyFromSymbol,
   getMaturityInfo,
+  augmentSnapshots,
+  effectiveAcqTs,
+  formatMonth,
 } from '../utils'
+
+describe('augmentSnapshots', () => {
+  const idConvert = (v) => v // USD passthrough
+  const ibkrSnap = { date: '2026-03-31', _source: 'ibkr', netWorthUSD: 1000, totalActivosUSD: 1000 }
+  const dailySnap = { date: '2026-03-31', netWorthUSD: 5000, totalActivosUSD: 5000 }
+  const bond = { id: 'b1', symbol: 'BND', quantity: 1, currentPrice: 300, _originalPrice: 300, _originalCurrency: 'USD', acquisitionDate: '2025-01-01' }
+
+  test('augments only IBKR entries with non-IBKR held-flat value', () => {
+    const out = augmentSnapshots([ibkrSnap], [bond], idConvert)
+    expect(out[0].netWorthUSD).toBe(1300)
+    expect(out[0].totalActivosUSD).toBe(1300)
+  })
+
+  test('leaves non-IBKR (daily) snapshots untouched', () => {
+    const out = augmentSnapshots([dailySnap], [bond], idConvert)
+    expect(out[0].netWorthUSD).toBe(5000)
+  })
+
+  test('gates by acquisition date (asset bought after the snapshot is not added)', () => {
+    const future = { ...bond, acquisitionDate: '2026-06-01' }
+    const out = augmentSnapshots([ibkrSnap], [future], idConvert)
+    expect(out[0].netWorthUSD).toBe(1000)
+  })
+
+  test('no non-IBKR items → original array, snapshots not mutated', () => {
+    const snaps = [{ ...ibkrSnap }]
+    const out = augmentSnapshots(snaps, [{ id: 'x', _source: 'ibkr', quantity: 1, currentPrice: 10 }], idConvert)
+    expect(out).toBe(snaps)
+    expect(snaps[0].netWorthUSD).toBe(1000)
+  })
+})
+
+describe('effectiveAcqTs', () => {
+  test('uses acquisitionDate when present', () => {
+    expect(effectiveAcqTs({ acquisitionDate: '2024-05-10' })).toBe(Date.parse('2024-05-10'))
+  })
+
+  test('falls back to Jan 1 of createdAt year', () => {
+    expect(effectiveAcqTs({ createdAt: '2023-07-15T12:00:00Z' })).toBe(Date.UTC(2023, 0, 1))
+  })
+
+  test('null when neither is present', () => {
+    expect(effectiveAcqTs({})).toBeNull()
+  })
+})
+
+describe('formatMonth', () => {
+  test('YYYY-MM → short month + 2-digit year', () => {
+    expect(formatMonth('2026-06')).toBe('Jun 26')
+  })
+
+  test('non-string / invalid input is returned as-is', () => {
+    expect(formatMonth(null)).toBe('')
+    expect(formatMonth('garbage')).toBe('garbage')
+  })
+})
 
 describe('computeModifiedDietz', () => {
   const day = 86400000
