@@ -254,12 +254,27 @@ export async function POST(request) {
       else if (per === 'ALL') start = acqs.length > 0 ? Math.min(...acqs) : now - 365 * 86400000
       else start = now - (SPAN[per] || 365) * 86400000
       if (acqs.length > 0) start = Math.min(start, ...acqs)
+      // Floor the synthesized range: a far-past acquisitionDate (attacker-controlled)
+      // could otherwise generate thousands of weekly points and blow up the income-
+      // reversal inner loop below (|ts| × |staticItems| × |income|).
+      const FLOOR = now - 12 * 365.25 * 86400000
+      if (start < FLOOR) start = FLOOR
       const step = per === 'DAY' || per === '1W' ? 86400000 : 7 * 86400000
       for (let t = start; t < now; t += step) allTs.add(t)
       allTs.add(now)
     }
 
-    const sortedTs = [...allTs].sort((a, b) => a - b)
+    let sortedTs = [...allTs].sort((a, b) => a - b)
+    // Hard cap on the number of timestamps to bound per-request CPU regardless of
+    // input source; downsample evenly (keeping the last point) if exceeded.
+    const MAX_TS = 800
+    if (sortedTs.length > MAX_TS) {
+      const stride = sortedTs.length / MAX_TS
+      const sampled = []
+      for (let i = 0; i < MAX_TS - 1; i++) sampled.push(sortedTs[Math.floor(i * stride)])
+      sampled.push(sortedTs[sortedTs.length - 1])
+      sortedTs = sampled
+    }
 
     const staticPoints = []
     const dataPoints = sortedTs.map((ts) => {
