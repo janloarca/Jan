@@ -136,11 +136,20 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       try {
         if (cancelled) return
         const allLots = (lots || []).filter(l => l.quantity > 0)
+        // Only ASSETS go to portfolio-history (it has no isDebt notion, so a debt
+        // would be summed as a positive asset). Debt is held flat and subtracted below.
+        const assetItems = enrichedItems.filter(it => !it.isDebt && !isExcludedFromNetWorth(it))
+        const currentDebtUSD = enrichedItems.reduce((s, it) => {
+          if (!it.isDebt) return s
+          const cur = it._originalCurrency || it.currency || 'USD'
+          const v = (it.quantity || 0) * (it._originalPrice ?? it.currentPrice ?? it.purchasePrice ?? 0)
+          return s + Math.abs(convert ? convert(v, cur, 'USD') : v)
+        }, 0)
         const res = await authFetch('/api/prices/portfolio-history', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            items: enrichedItems.map((it) => {
+            items: assetItems.map((it) => {
               const cur = it._originalCurrency || it.currency || 'USD'
               const toUSD = (p) => convert ? convert(p || 0, cur, 'USD') : (p || 0)
               return {
@@ -168,9 +177,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           gapSet.delete(dateStr)
           await saveSnapshot({
             date: dateStr,
-            netWorthUSD: pt.total,
+            netWorthUSD: pt.total - currentDebtUSD,
             totalActivosUSD: pt.total,
-            totalDebtUSD: 0,
+            totalDebtUSD: currentDebtUSD,
             _source: 'backfill',
           })
         }
@@ -506,13 +515,21 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         const nav = entry.netWorthUSD || 0
         return !prev || prev._source !== 'ibkr' || (prev.netWorthUSD ?? 0) !== nav
       })
-      .map(entry => ({
-        date: entry.date,
-        totalActivosUSD: entry.totalActivosUSD || entry.netWorthUSD || 0,
-        totalDebtUSD: entry.totalDebtUSD || 0,
-        netWorthUSD: entry.netWorthUSD || 0,
-        _source: 'ibkr',
-      }))
+      .map(entry => {
+        // IBKR equity is in the account's base currency. Convert to USD when it
+        // isn't already (uses the current FX rate — no historical FX available — so
+        // it's an approximation, but far better than treating EUR/etc. as USD). No-op
+        // for USD-base accounts (the common case).
+        const cur = entry._equityCurrency || 'USD'
+        const toUSD = (v) => (cur !== 'USD' && convert ? convert(v || 0, cur, 'USD') : (v || 0))
+        return {
+          date: entry.date,
+          totalActivosUSD: toUSD(entry.totalActivosUSD || entry.netWorthUSD || 0),
+          totalDebtUSD: toUSD(entry.totalDebtUSD || 0),
+          netWorthUSD: toUSD(entry.netWorthUSD || 0),
+          _source: 'ibkr',
+        }
+      })
 
     const incomingSymbols = new Set(data.items.filter(it => it.symbol).map(it => it.symbol.toUpperCase()))
     items.forEach(it => {

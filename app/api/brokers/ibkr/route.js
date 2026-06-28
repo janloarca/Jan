@@ -177,11 +177,20 @@ function formatDate(dt) {
   return undefined
 }
 
+// EquitySummaryByReportDateInBase values are in the account's BASE currency, not
+// necessarily USD. Detect that base currency from AccountInformation when present
+// so the client can convert; defaults to USD (current behavior) when absent.
+function parseBaseCurrency(xml) {
+  const m = xml.match(/<AccountInformation\b[^>]*\bcurrency="([^"]+)"/i)
+  return (m && m[1] ? m[1].toUpperCase() : 'USD')
+}
+
 function parseXmlToData(xml) {
   const positions = parseFlexPositions(xml)
   const cash = parseCashPositions(xml)
   const trades = parseTrades(xml)
-  const equityHistory = parseEquitySummary(xml)
+  const baseCurrency = parseBaseCurrency(xml)
+  const equityHistory = parseEquitySummary(xml).map((e) => ({ ...e, _equityCurrency: baseCurrency }))
   const all = [...positions, ...cash]
 
   if (all.length === 0 && trades.length === 0) {
