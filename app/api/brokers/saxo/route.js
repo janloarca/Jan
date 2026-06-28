@@ -129,7 +129,7 @@ function parsePositions(data) {
 }
 
 export async function POST(request) {
-  const { limited } = rateLimit(request, { maxRequests: 20 })
+  const { limited } = await rateLimit(request, { maxRequests: 20 })
   if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 
   const { uid, error } = await verifyAuth(request)

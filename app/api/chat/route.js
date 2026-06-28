@@ -197,7 +197,7 @@ function executeToolCall(tool, input, ctx) {
 }
 
 export async function POST(request) {
-  const { limited } = rateLimit(request, { maxRequests: 30 })
+  const { limited } = await rateLimit(request, { maxRequests: 30 })
   if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 
   const { uid, error: authError } = await verifyAuth(request)

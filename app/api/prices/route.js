@@ -85,7 +85,7 @@ async function fetchCryptoPrices(symbols) {
 }
 
 export async function POST(request) {
-  const { limited } = rateLimit(request, { maxRequests: 60 })
+  const { limited } = await rateLimit(request, { maxRequests: 60 })
   if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 
   try {

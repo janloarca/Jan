@@ -272,7 +272,7 @@ async function resolveCredentials(body, uid) {
 }
 
 export async function POST(request) {
-  const { limited } = rateLimit(request, { maxRequests: 40 })
+  const { limited } = await rateLimit(request, { maxRequests: 40 })
   if (limited) return NextResponse.json({ error: 'Too many requests', errorCode: 'RATE_LIMITED' }, { status: 429 })
 
   const { uid, error } = await verifyAuth(request)

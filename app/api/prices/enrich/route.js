@@ -29,7 +29,7 @@ async function fetchProfile(symbol) {
 }
 
 export async function POST(request) {
-  const { limited } = rateLimit(request, { maxRequests: 10 })
+  const { limited } = await rateLimit(request, { maxRequests: 10 })
   if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 
   let body

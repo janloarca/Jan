@@ -73,7 +73,7 @@ async function fetchDividendInfo(symbol) {
 }
 
 export async function GET(request) {
-  const { limited } = rateLimit(request, { maxRequests: 30 })
+  const { limited } = await rateLimit(request, { maxRequests: 30 })
   if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 
   const auth = await verifyAuth(request)
@@ -91,7 +91,7 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  const { limited } = rateLimit(request, { maxRequests: 30 })
+  const { limited } = await rateLimit(request, { maxRequests: 30 })
   if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 
   const auth = await verifyAuth(request)

@@ -106,7 +106,7 @@ async function fetchQuote(symbol, type) {
 }
 
 export async function GET(request) {
-  const { limited } = rateLimit(request, { maxRequests: 60 })
+  const { limited } = await rateLimit(request, { maxRequests: 60 })
   if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 
   const { searchParams } = new URL(request.url)
