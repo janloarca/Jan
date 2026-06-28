@@ -636,11 +636,12 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                         </td>
                       )
                     }
-                    const monthTotal = monthlyTotals[mk]
-                    const catEstimate = monthTotal && grandTotal > 0 ? monthTotal * (cat.total / grandTotal) : null
+                    // No real per-item history for this category/month → show a dash
+                    // instead of a pro-rata estimate. The platform must not invent
+                    // historical values (e.g. cash balances have no price history).
                     return (
-                      <td key={mk} className="text-right py-3 px-2 tabular-nums font-mono text-sm text-slate-400 italic">
-                        {catEstimate ? formatNum(catEstimate) : ''}
+                      <td key={mk} className="text-right py-3 px-2 tabular-nums font-mono text-sm" style={{ color: '#cbd5e1' }}>
+                        —
                       </td>
                     )
                   })}
