@@ -565,7 +565,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
   useEffect(() => {
     if (dataLoading) return
-    if (!settings?.ibkrToken || !settings?.ibkrQueryId) return
+    // Proceed if there's a legacy client-stored token OR creds already migrated to
+    // the server vault (_ibkrVaultMigrated), as long as a query id exists.
+    if ((!settings?.ibkrToken && !settings?._ibkrVaultMigrated) || !settings?.ibkrQueryId) return
     if (FATAL_ERROR_CODES.includes(settings?._ibkrAutoSyncErrorCode)) {
       ibkrAutoSyncRef.current = false
       return
@@ -582,9 +584,22 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       setIbkrAutoSyncing(true)
       try {
         const { syncIBKR } = await import('@/lib/ibkrSync')
-        const { decryptToken } = await import('@/lib/crypto')
-        const plain = await decryptToken(settings.ibkrToken, user?.uid)
-        const data = await syncIBKR(plain, settings.ibkrQueryId)
+        let token = '__stored__'
+        if (settings.ibkrToken) {
+          // Legacy client-encrypted token: decrypt it for this run AND migrate it
+          // into the server vault (encrypted server-side with the master key), then
+          // drop the weak client copy. Best-effort — sync still runs if migration fails.
+          const { decryptToken } = await import('@/lib/crypto')
+          token = await decryptToken(settings.ibkrToken, user?.uid)
+          try {
+            await authFetch('/api/brokers/ibkr', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'save-credentials', token, queryId: settings.ibkrQueryId }),
+            })
+            saveSettings({ ibkrToken: null, _ibkrVaultMigrated: true })
+          } catch {}
+        }
+        const data = await syncIBKR(token, settings.ibkrQueryId)
         if (cancelled) return
         await handleIBKRSync(data, 'merge')
         saveSettings({

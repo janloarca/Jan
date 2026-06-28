@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { CheckCircle, Lock, ChevronDown, ChevronUp, Upload, RefreshCw } from 'lucide-react'
 import { parseIBKRFile, formatIBKRFileResult } from '@/lib/parsers/ibkrFileParser'
+import { authFetch } from '@/lib/authFetch'
 
 function DoneStep({ result, onClose, t }) {
   const [countdown, setCountdown] = useState(5)
@@ -54,6 +55,9 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   const [preview, setPreview] = useState(null)
   const [syncMode, setSyncMode] = useState('merge')
   const [decrypting, setDecrypting] = useState(false)
+  // True when the Flex token lives in the server-side vault (settings/ibkr), so a
+  // sync can run with '__stored__' without the client ever handling the token.
+  const [hasVaultCreds, setHasVaultCreds] = useState(false)
   const [showConfig, setShowConfig] = useState(!isConnected)
   const [showHistory, setShowHistory] = useState(false)
   const [syncStatus, setSyncStatus] = useState('')
@@ -96,6 +100,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
 
   useEffect(() => {
     if (savedToken && uid) {
+      // Legacy client-encrypted token still present: decrypt to pre-fill.
       setDecrypting(true)
       import('@/lib/crypto').then(({ decryptToken }) => {
         decryptToken(savedToken, uid).then(plain => {
@@ -109,17 +114,29 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
         setToken('')
         setDecrypting(false)
       })
+    } else if (uid) {
+      // No legacy token: check the server vault (credentials migrated / saved there).
+      let cancelled = false
+      authFetch('/api/brokers/ibkr', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'get-credentials' }),
+      }).then(r => r.json()).then(d => {
+        if (cancelled) return
+        setHasVaultCreds(!!d?.hasToken)
+        if (d?.flexQueryId) setQueryId(prev => prev || d.flexQueryId)
+      }).catch(() => {})
+      return () => { cancelled = true }
     }
   }, [savedToken, uid])
 
   // Auto-start sync when credentials already exist (only from config step, not connected)
   useEffect(() => {
     if (autoStartedRef.current) return
-    if (token && savedQueryId && !decrypting && step === 'config' && !isConnected) {
+    if ((token || hasVaultCreds) && savedQueryId && !decrypting && step === 'config' && !isConnected) {
       autoStartedRef.current = true
       handleSync()
     }
-  }, [token, savedQueryId, decrypting]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [token, hasVaultCreds, savedQueryId, decrypting]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
@@ -142,7 +159,11 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   }
 
   const handleSync = useCallback(async () => {
-    if (!token.trim() || !queryId.trim()) {
+    // Use the typed token, or '__stored__' to sync from the server vault without the
+    // client ever handling the token.
+    const typed = token.trim()
+    const effToken = typed || (hasVaultCreds ? '__stored__' : '')
+    if (!effToken || !queryId.trim()) {
       setError(t('Ingresa tu token y Query ID.', 'Enter your token and Query ID.'))
       setShowConfig(true)
       return
@@ -160,7 +181,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
     try {
       const { syncIBKR } = await import('@/lib/ibkrSync')
 
-      const data = await syncIBKR(token.trim(), queryId.trim(), {
+      const data = await syncIBKR(effToken, queryId.trim(), {
         signal: controller.signal,
         onStatus: (status, current, total) => {
           setSyncStatus(status)
@@ -168,10 +189,18 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
         },
       })
 
-      if (onSaveCredentials && uid) {
-        const { encryptToken } = await import('@/lib/crypto')
-        const encrypted = await encryptToken(token.trim(), uid)
-        onSaveCredentials({ ibkrToken: encrypted, ibkrQueryId: queryId.trim() })
+      // Persist a freshly-typed token in the server-side vault (encrypted with the
+      // master key) and drop any legacy client-encrypted copy. A '__stored__' sync
+      // reused an already-saved token, so nothing to persist.
+      if (typed && uid) {
+        try {
+          await authFetch('/api/brokers/ibkr', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'save-credentials', token: typed, queryId: queryId.trim() }),
+          })
+          setHasVaultCreds(true)
+          onSaveCredentials?.({ ibkrToken: null, ibkrQueryId: queryId.trim(), _ibkrVaultMigrated: true })
+        } catch {}
       }
 
       if (syncMode === 'merge' && onSyncComplete) {
@@ -210,7 +239,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       setPollProgress(null)
       abortRef.current = null
     }
-  }, [token, queryId, onSaveCredentials, onSyncComplete, uid, syncMode, t, ibkrHistory.items.length, isConnected])
+  }, [token, hasVaultCreds, queryId, onSaveCredentials, onSyncComplete, uid, syncMode, t, ibkrHistory.items.length, isConnected])
 
   const handleCancel = useCallback(() => {
     if (abortRef.current) {

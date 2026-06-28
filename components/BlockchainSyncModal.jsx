@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
+import { authFetch } from '@/lib/authFetch'
 
 export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCredentials, lang = 'es', uid }) {
   const trapRef = useFocusTrap()
@@ -33,10 +34,16 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
       setPreview(data)
       setStep('preview')
 
-      if (onSaveCredentials && uid) {
-        const { encryptToken } = await import('@/lib/crypto')
-        const encrypted = await encryptToken(apiKey.trim(), uid)
-        onSaveCredentials({ blockchainApiKey: encrypted })
+      // Store the API key in the server-side vault (encrypted with the master key)
+      // and drop any legacy client-encrypted copy.
+      if (uid) {
+        try {
+          await authFetch('/api/brokers/blockchain', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'save-credentials', apiKey: apiKey.trim() }),
+          })
+          onSaveCredentials?.({ blockchainApiKey: null })
+        } catch {}
       }
     } catch (err) {
       setError(err.message || t('Error conectando con Blockchain.com', 'Error connecting to Blockchain.com'))
