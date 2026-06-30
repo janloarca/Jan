@@ -96,10 +96,8 @@ function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, 
         ))}
       </div>
       {tab === 'health' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <CardBoundary id="AN-01"><FinancialHealth items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} /></CardBoundary>
-          <CardBoundary id="AN-02"><ConcentrationRisk items={portfolioItems} lang={lang} /></CardBoundary>
-        </div>
+        // Concentration lives in its own dedicated tab; don't duplicate it here.
+        <CardBoundary id="AN-01"><FinancialHealth items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} /></CardBoundary>
       )}
       {tab === 'risk' && !beginnerMode && (
         <CardBoundary id="AN-05"><RiskMetrics snapshots={snapshots} benchmarkData={benchmarkData} netWorth={netWorth} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} benchmarkName={benchmarkName} /></CardBoundary>
