@@ -6,7 +6,10 @@ import { computeHHI, computeHHIByDimension } from './analytics'
 import { InfoTip } from '../ui/Tooltip'
 
 export default function ConcentrationRisk({ items, lang }) {
-  const [dimension, setDimension] = useState('type')
+  // Default to the per-position lens — that's the one concentration view no other
+  // card shows. Type/Sector/Geo breakdowns already live in AssetAllocation, so
+  // leading with them here just mirrored that card's bars.
+  const [dimension, setDimension] = useState('asset')
 
   const data = useMemo(() => {
     const dimensionFns = {
@@ -64,8 +67,8 @@ export default function ConcentrationRisk({ items, lang }) {
   }, [displayHHI, topPosition, lang])
 
   const dims = [
-    { key: 'type', label: t('Tipo', 'Type') },
     { key: 'asset', label: t('Activo', 'Asset') },
+    { key: 'type', label: t('Tipo', 'Type') },
     { key: 'sector', label: t('Sector', 'Sector') },
     { key: 'geography', label: t('Geografía', 'Geography') },
   ]
