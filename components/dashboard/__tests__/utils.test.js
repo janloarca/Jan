@@ -3,6 +3,7 @@ import {
   getItemValue,
   getItemPrice,
   getEffectiveYield,
+  projectItemAnnualIncome,
   formatCurrency,
   formatPercent,
   getTypeCategory,
@@ -12,6 +13,48 @@ import {
   effectiveAcqTs,
   formatMonth,
 } from '../utils'
+
+describe('projectItemAnnualIncome', () => {
+  test('variable rate uses the midpoint of min/max', () => {
+    const item = { rateType: 'variable', rateMin: 4, rateMax: 6 }
+    expect(projectItemAnnualIncome(item, 10000)).toBeCloseTo(500) // 5% of 10k
+  })
+
+  test('continuous rate compounds with exp', () => {
+    const item = { rateType: 'continuous', incomeRate: 5 }
+    expect(projectItemAnnualIncome(item, 10000)).toBeCloseTo(10000 * (Math.exp(0.05) - 1))
+  })
+
+  test('fixed incomeAmount multiplies by payment count', () => {
+    const item = { incomeAmount: 100, incomeMonths: [0, 3, 6, 9] }
+    expect(projectItemAnnualIncome(item, 0)).toBe(400)
+  })
+
+  test('percent mode applies incomeRate to balance', () => {
+    const item = { incomeMode: 'percent', incomeRate: 3 }
+    expect(projectItemAnnualIncome(item, 20000)).toBeCloseTo(600)
+  })
+
+  test('dividendYield applies to balance', () => {
+    const item = { dividendYield: 2.5 }
+    expect(projectItemAnnualIncome(item, 8000)).toBeCloseTo(200)
+  })
+
+  test('variable rate takes priority over dividendYield', () => {
+    const item = { rateType: 'variable', rateMin: 2, rateMax: 4, dividendYield: 10 }
+    expect(projectItemAnnualIncome(item, 10000)).toBeCloseTo(300) // 3%, not 10%
+  })
+
+  test('incomeAmount takes priority over percent/dividendYield', () => {
+    const item = { incomeAmount: 50, incomeMonths: [0, 6], incomeMode: 'percent', incomeRate: 9, dividendYield: 9 }
+    expect(projectItemAnnualIncome(item, 100000)).toBe(100)
+  })
+
+  test('returns 0 when no income config applies', () => {
+    expect(projectItemAnnualIncome({}, 10000)).toBe(0)
+    expect(projectItemAnnualIncome({ dividendYield: 0 }, 10000)).toBe(0)
+  })
+})
 
 describe('augmentSnapshots', () => {
   const idConvert = (v) => v // USD passthrough

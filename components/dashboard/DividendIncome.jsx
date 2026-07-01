@@ -1,9 +1,9 @@
 'use client'
 
 import { useMemo } from 'react'
-import { formatCurrency, getTypeCategory } from './utils'
+import { formatCurrency, getTypeCategory, projectItemAnnualIncome } from './utils'
 
-export default function DividendIncome({ transactions, items, convert, baseCurrency, lang, netWorth }) {
+export default function DividendIncome({ transactions, items, convert, baseCurrency, lang, totalAssets }) {
   const t = (es, en) => lang === 'es' ? es : en
 
   const projected = useMemo(() => {
@@ -19,24 +19,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       const qty = it.quantity || 1
       const price = it._originalPrice || it.currentPrice || it.purchasePrice || 0
       const balance = qty * price
-      let annual = 0
-
-      if (it.rateType === 'variable' && it.rateMin > 0 && it.rateMax > 0) {
-        const midRate = (it.rateMin + it.rateMax) / 2
-        annual = balance * (midRate / 100)
-      } else if (it.rateType === 'continuous' && it.incomeRate > 0) {
-        annual = balance * (Math.exp(it.incomeRate / 100) - 1)
-      } else if (it.incomeAmount > 0 && it.incomeMonths) {
-        const payCount = Array.isArray(it.incomeMonths) ? it.incomeMonths.length : 12
-        annual = it.incomeAmount * payCount
-      } else if (it.incomeMode === 'percent' && it.incomeRate > 0) {
-        annual = balance * (it.incomeRate / 100)
-      } else if (it.dividendYield > 0) {
-        annual = balance * (it.dividendYield / 100)
-      } else {
-        return
-      }
-
+      const annual = projectItemAnnualIncome(it, balance)
       if (annual <= 0) return
 
       const converted = convert ? convert(annual, cur, baseCurrency || 'USD') : annual
@@ -66,7 +49,9 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
   }, [items, convert, baseCurrency])
 
   const stats = useMemo(() => {
-    const divs = (transactions || []).filter((tx) => (tx.type || '').toUpperCase() === 'DIVIDEND')
+    // Exclude reinvested dividends — same filter as the dashboard's annualDividends,
+    // so "YTD recibido" here matches the headline figure.
+    const divs = (transactions || []).filter((tx) => (tx.type || '').toUpperCase() === 'DIVIDEND' && !tx._reinvested)
 
     const now = new Date()
     const thisYear = now.getFullYear()
@@ -96,7 +81,15 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
     })
 
     const monthKeys = Object.keys(byMonth).sort()
-    const avgMonthly = monthKeys.length > 0 ? totalAll / monthKeys.length : 0
+    // Average over elapsed calendar months since the first payment, not over the
+    // count of months that happened to have a payment — otherwise one dividend in
+    // one month projects a full year of income (avgMonthly × 12).
+    let avgMonthly = 0
+    if (monthKeys.length > 0) {
+      const [fy, fm] = monthKeys[0].split('-').map(Number)
+      const elapsedMonths = (thisYear - fy) * 12 + (thisMonth - fm) + 1
+      avgMonthly = totalAll / Math.max(elapsedMonths, monthKeys.length)
+    }
     let daySpan = 30
     if (divs.length > 1) {
       const first = new Date(divs[0].date).getTime()
@@ -130,11 +123,13 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
   }, [transactions, convert, baseCurrency])
 
   const estAnnual = projected.annualTotal > 0 ? projected.annualTotal : (stats.avgMonthly * 12)
-  const portfolioYield = netWorth > 0 && estAnnual > 0 ? (estAnnual / netWorth) * 100 : 0
+  // Yield over total assets — dividing by net worth (assets − debt) would inflate
+  // the yield for anyone with debt.
+  const portfolioYield = totalAssets > 0 && estAnnual > 0 ? (estAnnual / totalAssets) * 100 : 0
 
   const yoyComparison = useMemo(() => {
     if (!transactions || transactions.length === 0) return null
-    const divs = transactions.filter(tx => (tx.type || '').toUpperCase() === 'DIVIDEND')
+    const divs = transactions.filter(tx => (tx.type || '').toUpperCase() === 'DIVIDEND' && !tx._reinvested)
     if (divs.length === 0) return null
     const now = new Date()
     const thisYear = now.getFullYear()

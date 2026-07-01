@@ -106,6 +106,11 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
+  // Direct balance/quantity edits change NAV without a cash-flow transaction, which
+  // the return math (Modified Dietz) would read as pure gain. When a save changes the
+  // item's value we ask whether it's new money (→ DEPOSIT/WITHDRAWAL) or a value
+  // adjustment, instead of silently inflating returns.
+  const [pendingFlowConfirm, setPendingFlowConfirm] = useState(null)
   const [showIncome, setShowIncome] = useState(
     !!(item.incomeAmount || item.incomeRate || item.dividendYield || item.incomeMonths?.length)
   )
@@ -377,7 +382,51 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         }
       }
 
+      // Detect a value change that has no matching cash-flow transaction. Only the
+      // ambiguous cases prompt: bank-like balances (deposit vs interest?) and market
+      // quantities (bought more vs correction?). Debts/receivables are skipped, and
+      // valuation-style price edits on non-market assets are treated as adjustments.
+      let flowDelta = 0
+      if (!isDebt && !form.isReceivable) {
+        const rawQty = Number(rawItem.quantity) || 0
+        const rawPP = Number(rawItem.purchasePrice) || 0
+        if (isBankLike) {
+          flowDelta = (updated.purchasePrice || 0) - rawPP
+        } else if (isMarket) {
+          const unitPrice = Number(rawItem.currentPrice) || parseFloat(form.currentPrice) || 0
+          flowDelta = ((updated.quantity || 0) - rawQty) * unitPrice
+        }
+      }
+      if (Math.abs(flowDelta) > 0.01) {
+        setSaving(false)
+        setPendingFlowConfirm({ delta: flowDelta, updated })
+        return
+      }
+
+      await finalizeSave(updated, false, 0)
+      return
+    } catch (err) { setError(err.message) }
+    setSaving(false)
+  }
+
+  const finalizeSave = async (updated, createFlow, delta) => {
+    setSaving(true)
+    setError('')
+    try {
       await onSave(updated)
+      if (createFlow && onAddTransaction && Math.abs(delta) > 0.01) {
+        await onAddTransaction({
+          date: new Date().toISOString().split('T')[0],
+          type: delta > 0 ? 'DEPOSIT' : 'WITHDRAWAL',
+          symbol: item.symbol || item.name || '',
+          description: `${delta > 0 ? t('Aporte a', 'Contribution to') : t('Retiro de', 'Withdrawal from')} ${item.name || item.symbol}`,
+          totalAmount: Math.abs(delta),
+          currency: form.currency || item._originalCurrency || item.currency || 'USD',
+          _linkedItemId: item.id,
+          _source: 'manual_edit_adjustment',
+        })
+      }
+      setPendingFlowConfirm(null)
       if (onNavigate) {
         onNavigate('next')
       } else {
@@ -1112,6 +1161,42 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               </div>
             </div>
           )}
+
+          {/* Flow confirmation — a value delta needs classifying before save */}
+          {pendingFlowConfirm && (() => {
+            const { delta, updated } = pendingFlowConfirm
+            const isAdd = delta > 0
+            const amtStr = `${form.currency} ${Math.abs(delta).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+            return (
+              <div className="p-3 border rounded-lg text-xs space-y-2" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-orange) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-orange) 25%, transparent)' }}>
+                <p style={{ color: 'var(--accent-orange)' }} className="font-medium">
+                  {t(`El valor de esta cuenta ${isAdd ? 'subió' : 'bajó'} ${amtStr}. ¿Qué representa este cambio?`,
+                     `This account's value ${isAdd ? 'increased' : 'decreased'} by ${amtStr}. What does this change represent?`)}
+                </p>
+                <p style={{ color: 'var(--text-muted)' }}>
+                  {t('Si es dinero que metiste o sacaste, se registra como movimiento para que no infle tu retorno.',
+                     'If it is money you added or took out, it is recorded as a cash flow so it does not inflate your return.')}
+                </p>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <button type="button" disabled={saving} onClick={() => finalizeSave(updated, true, delta)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50"
+                    style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}>
+                    {isAdd ? t('Aporte (dinero nuevo)', 'Deposit (new money)') : t('Retiro (dinero que salió)', 'Withdrawal (money out)')}
+                  </button>
+                  <button type="button" disabled={saving} onClick={() => finalizeSave(updated, false, 0)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium border disabled:opacity-50"
+                    style={{ color: 'var(--text-secondary)', borderColor: 'var(--card-border)' }}>
+                    {t('Ganancia/pérdida o corrección', 'Gain/loss or correction')}
+                  </button>
+                  <button type="button" disabled={saving} onClick={() => setPendingFlowConfirm(null)}
+                    className="px-3 py-1.5 rounded-lg text-xs disabled:opacity-50"
+                    style={{ color: 'var(--text-muted)' }}>
+                    {t('Cancelar', 'Cancel')}
+                  </button>
+                </div>
+              </div>
+            )
+          })()}
 
           {/* Actions */}
           <div className="flex gap-3 pt-2">

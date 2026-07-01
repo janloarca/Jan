@@ -18,8 +18,11 @@ export function useSpreadsheetContext({ items, netWorth, transactions, financeTr
     ;(financeTransactions || []).forEach(tx => {
       if (!tx.date || new Date(tx.date) < monthStart) return
       const amt = Math.abs(tx.amount || 0)
-      if (tx.type === 'income') incomeMonthly += amt
-      else if (tx.type === 'expense') expensesMonthly += amt
+      // Finance transactions store type as 'INCOME'/'EXPENSE' (uppercase) — compare
+      // case-insensitively or these tokens are permanently 0.
+      const type = (tx.type || '').toUpperCase()
+      if (type === 'INCOME') incomeMonthly += amt
+      else if (type === 'EXPENSE') expensesMonthly += amt
     })
 
     const savingsRate = incomeMonthly > 0 ? ((incomeMonthly - expensesMonthly) / incomeMonthly) * 100 : 0

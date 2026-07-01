@@ -36,10 +36,6 @@ export default function InstitutionPerformance({ items, lang, baseCurrency }) {
     [institutions]
   )
 
-  const maxValue = useMemo(
-    () => institutions.reduce((m, inst) => Math.max(m, inst.value), 0),
-    [institutions]
-  )
 
   return (
     <div className="bg-theme-surface rounded-2xl border border-glass-border p-4 card-primary">
@@ -57,7 +53,6 @@ export default function InstitutionPerformance({ items, lang, baseCurrency }) {
         <div className="space-y-3">
           {institutions.map((inst) => {
             const pctOfTotal = allTotal > 0 ? (inst.value / allTotal) * 100 : 0
-            const barPct = maxValue > 0 ? (inst.value / maxValue) * 100 : 0
             const isGain = inst.gainLoss >= 0
             const gainColor = isGain ? 'var(--accent-green)' : 'var(--text-negative)'
             return (
@@ -75,12 +70,12 @@ export default function InstitutionPerformance({ items, lang, baseCurrency }) {
                   </span>
                 </div>
 
-                {/* Bar (share of largest institution) */}
+                {/* Bar = share of the portfolio total, matching the "% del total" label below */}
                 <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-input)' }}>
                   <div
                     className="h-full rounded-full"
                     style={{
-                      width: `${Math.max(barPct, 2)}%`,
+                      width: `${Math.max(pctOfTotal, 2)}%`,
                       backgroundColor: 'var(--accent-blue)',
                     }}
                   />

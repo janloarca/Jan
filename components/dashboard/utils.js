@@ -407,6 +407,31 @@ export function computeModifiedDietz({ startValue, endValue, startTs, endTs, tra
   return { pct, abs: gain }
 }
 
+// Single source of truth for an item's projected annual income, in the item's own
+// currency. `balance` is qty × price (also in the item's currency). Both the
+// Ingresos card and estimatedAnnualIncome (InsightCards/GoalTracker) must use this —
+// they previously implemented different subsets and disagreed on rate-based items.
+export function projectItemAnnualIncome(item, balance) {
+  if (item.rateType === 'variable' && item.rateMin > 0 && item.rateMax > 0) {
+    const midRate = (item.rateMin + item.rateMax) / 2
+    return balance * (midRate / 100)
+  }
+  if (item.rateType === 'continuous' && item.incomeRate > 0) {
+    return balance * (Math.exp(item.incomeRate / 100) - 1)
+  }
+  if (item.incomeAmount > 0 && item.incomeMonths) {
+    const payCount = Array.isArray(item.incomeMonths) ? item.incomeMonths.length : 12
+    return item.incomeAmount * payCount
+  }
+  if (item.incomeMode === 'percent' && item.incomeRate > 0) {
+    return balance * (item.incomeRate / 100)
+  }
+  if (item.dividendYield > 0) {
+    return balance * (item.dividendYield / 100)
+  }
+  return 0
+}
+
 export function getEffectiveYield(item) {
   if (item.dividendYield > 0) return item.dividendYield
   if (item.rateType === 'variable' && item.rateMin > 0 && item.rateMax > 0) {

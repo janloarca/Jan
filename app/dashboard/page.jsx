@@ -461,14 +461,24 @@ export default function DashboardPage() {
   }, [handleExport, handleRefresh])
 
   const handleReport = useCallback(async () => {
-    const { generateReport } = await import('@/lib/generateReport')
-    await generateReport({
-      items: enrichedItems, snapshots, transactions,
-      netWorth, totalAssets, lang, returnYTD, annualDividends,
-      profileName: profile?.name || user?.displayName || '',
-    })
-    showToast(lang === 'es' ? 'PDF descargado' : 'PDF downloaded')
-  }, [enrichedItems, snapshots, transactions, lang, netWorth, totalAssets, returnYTD, annualDividends, profile, user, showToast])
+    if (!enrichedItems || enrichedItems.length === 0) {
+      showToast(lang === 'es' ? 'Agrega activos antes de generar el reporte' : 'Add assets before generating the report')
+      return
+    }
+    try {
+      const { generateReport } = await import('@/lib/generateReport')
+      await generateReport({
+        items: enrichedItems, snapshots, transactions,
+        netWorth, totalAssets, lang, returnYTD, annualDividends,
+        profileName: profile?.name || user?.displayName || '',
+        baseCurrency, convert,
+      })
+      showToast(lang === 'es' ? 'PDF descargado' : 'PDF downloaded')
+    } catch (err) {
+      console.error('[report] generation failed:', err)
+      showToast(lang === 'es' ? 'Error generando el PDF' : 'Error generating PDF')
+    }
+  }, [enrichedItems, snapshots, transactions, lang, netWorth, totalAssets, returnYTD, annualDividends, profile, user, showToast, baseCurrency, convert])
 
   const handleShare = useCallback(async () => {
     const t = (es, en) => lang === 'es' ? es : en
@@ -777,7 +787,7 @@ export default function DashboardPage() {
         {/* ═══ COMPOSICIÓN: Allocation + Rendimiento por institución ═══ */}
         <div className="stagger-3 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 items-start">
           <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} /></CardBoundary>
-          <CardBoundary id="INST-01"><InstitutionPerformance items={portfolioItems} lots={lots} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
+          <CardBoundary id="INST-01"><InstitutionPerformance items={portfolioItems} lang={lang} baseCurrency={baseCurrency} /></CardBoundary>
         </div>
 
         <ActionButtons
@@ -791,7 +801,7 @@ export default function DashboardPage() {
         {/* ═══ INGRESOS ═══ */}
         <div className="stagger-4"><SectionCollapse title={lang === 'es' ? 'Ingresos' : 'Income'} id="income">
           <ErrorBoundary lang={lang}>
-            <CardBoundary id="IG-01"><DividendIncome transactions={transactions} items={portfolioItems} convert={convert} baseCurrency={baseCurrency} lang={lang} netWorth={netWorth} /></CardBoundary>
+            <CardBoundary id="IG-01"><DividendIncome transactions={transactions} items={portfolioItems} convert={convert} baseCurrency={baseCurrency} lang={lang} totalAssets={totalAssets} /></CardBoundary>
           </ErrorBoundary>
         </SectionCollapse></div>
 

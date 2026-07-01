@@ -5,7 +5,7 @@ import { useExchangeRates } from './useExchangeRates'
 import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, augmentSnapshots } from '@/components/dashboard/utils'
+import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, augmentSnapshots, projectItemAnnualIncome } from '@/components/dashboard/utils'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
 
@@ -791,7 +791,15 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   }, [jan1Value, netWorth, transactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot])
 
   const annualDividends = useMemo(() => {
-    const divs = (transactions || []).filter((tx) => (tx.type || '').toUpperCase() === 'DIVIDEND' && !tx._reinvested)
+    // Trailing 12 months only — this figure is labeled "Dividendos/año" in the UI
+    // and the PDF report, so a lifetime sum would overstate it more every year.
+    // Undated dividends can't be placed in time and are excluded.
+    const cutoff = Date.now() - 365 * 86400000
+    const divs = (transactions || []).filter((tx) => {
+      if ((tx.type || '').toUpperCase() !== 'DIVIDEND' || tx._reinvested) return false
+      const ts = tx.date ? new Date(tx.date).getTime() : NaN
+      return !isNaN(ts) && ts >= cutoff
+    })
     return divs.reduce((s, tx) => {
       const amt = tx.totalAmount ?? 0
       return s + convert(amt, tx.currency || 'USD', baseCurrency)
@@ -808,15 +816,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       const price = hasOriginal ? origPrice : (it.currentPrice || it.purchasePrice || 0)
       const priceCur = hasOriginal ? itemCur : baseCurrency
       const balance = qty * price
-      let annual = 0
-      if (it.incomeAmount > 0 && it.incomeMonths) {
-        const payCount = Array.isArray(it.incomeMonths) ? it.incomeMonths.length : 12
-        annual = it.incomeAmount * payCount
-      } else if (it.incomeMode === 'percent' && it.incomeRate > 0) {
-        annual = balance * (it.incomeRate / 100)
-      } else if (it.dividendYield > 0) {
-        annual = balance * (it.dividendYield / 100)
-      }
+      const annual = projectItemAnnualIncome(it, balance)
       if (annual > 0) {
         const cur = hasOriginal ? itemCur : priceCur
         total += convert(annual, cur, baseCurrency)
@@ -853,7 +853,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
   const insights = useMemo(() => {
     const hhiResult = computeHHI(portfolioItems.map((it) => ({ value: getItemValue(it) })))
-    const incomeYield = netWorth > 0 && annualDividends > 0 ? (annualDividends / netWorth) * 100 : 0
+    // Yield over total assets, not net worth — dividing by (assets − debt) would
+    // inflate the yield for leveraged portfolios.
+    const incomeYield = totalAssets > 0 && annualDividends > 0 ? (annualDividends / totalAssets) * 100 : 0
     const attribution = computeAssetAttribution(portfolioItems)
     const topContributor = attribution.length > 0 ? attribution[0] : null
     const topDrag = attribution.length > 0 ? attribution[attribution.length - 1] : null
@@ -885,7 +887,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       topContributor, topDrag, maturingSoon, debtRatio, investmentClassPcts,
       netContributions, depositCount,
     })
-  }, [netWorth, benchmarkReturn, returnYTD, riskMetrics, portfolioItems, annualDividends, goals, transactions, netContributions])
+  }, [netWorth, totalAssets, benchmarkReturn, returnYTD, riskMetrics, portfolioItems, annualDividends, goals, transactions, netContributions])
 
   const contributionWarning = useMemo(() => {
     if (netWorth <= 0 || !snapshots || snapshots.length < 2) return false

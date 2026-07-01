@@ -223,8 +223,8 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
           }>
           {hasYTD ? 'YTD' : sinceStartDate ? (lang === 'es' ? 'Desde ' : 'Since ') + new Date(sinceStartDate).toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short', year: '2-digit' }) : 'YTD'}
           {' '}<span className="font-mono">{hasReturn ? `${isYTDPositive ? '+' : ''}${displayReturn.toFixed(2)}%` : 'N/A'}</span>
-          {hasReturn && <span className="opacity-50 ml-0.5" style={{ fontSize: '9px' }}>TWR</span>}
-          {hasYTD && <InfoTip text={lang === 'es' ? 'Year-to-Date: retorno desde el 1 de enero del año en curso. Calculado con TWR (Time-Weighted Return), que descuenta tus depósitos y retiros para medir el rendimiento real de tus inversiones.' : 'Year-to-Date: return since January 1st of the current year. Calculated using TWR (Time-Weighted Return), which excludes your deposits and withdrawals to measure true investment performance.'} />}
+          {hasReturn && <span className="opacity-50 ml-0.5" style={{ fontSize: '9px' }}>Dietz</span>}
+          {hasYTD && <InfoTip text={lang === 'es' ? 'Year-to-Date: retorno desde el 1 de enero del año en curso. Calculado con el método Dietz Modificado, que descuenta tus depósitos y retiros para que solo cuente lo que ganaron tus inversiones (no el dinero nuevo que metiste).' : 'Year-to-Date: return since January 1st of the current year. Calculated with the Modified Dietz method, which adjusts for your deposits and withdrawals so only investment performance counts (not new money you put in).'} />}
         </span>
         {yearlyChange != null && isFinite(yearlyChange) && (
           <span className="text-xs" style={{ color: isYearlyPositive ? 'var(--accent-green)' : 'var(--text-negative)' }}>
