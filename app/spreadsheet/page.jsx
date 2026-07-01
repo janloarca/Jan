@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic'
 import { useDashboardData } from '@/hooks/useDashboardData'
 import { useSpreadsheetContext } from '@/hooks/useSpreadsheetContext'
 import SheetTabs from '@/components/spreadsheet/SheetTabs'
+import { SkeletonTable } from '@/components/dashboard/Skeleton'
 import { TEMPLATES } from '@/lib/spreadsheet/formulas'
 
 const SpreadsheetGrid = dynamic(() => import('@/components/spreadsheet/SpreadsheetGrid'), { ssr: false })
@@ -53,7 +54,7 @@ export default function SpreadsheetPage() {
     items, enrichedItems, netWorth, transactions, financeTransactions, returnYTD,
     snapshots, addItem, updateItem, deleteItem, portfolioItems, convert, rates,
     baseCurrency, saveItemSnapshots, loadItemSnapshots, lots,
-    addTransaction, addLot, closeLotsFIFO, executeContribution,
+    addTransaction, addLot, closeLotsFIFO, executeContribution, dataLoading,
   } = useDashboardData({ user, lang, activePortfolio: '__all__' })
 
   const [editItem, setEditItem] = useState(null)
@@ -141,10 +142,11 @@ export default function SpreadsheetPage() {
     setShowTemplates(false)
   }, [sheets, lang, saveToStorage])
 
-  if (authLoading) {
+  // Block on data too — otherwise the grids mount empty and the content pops in.
+  if (authLoading || (user && dataLoading)) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-theme-base">
-        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent" />
+      <div className="min-h-screen bg-theme-base p-6 space-y-4">
+        <SkeletonTable />
       </div>
     )
   }

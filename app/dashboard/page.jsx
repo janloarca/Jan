@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useDashboardData } from '@/hooks/useDashboardData'
 import { getItemValue, formatCurrency, getTypeCategory } from '@/components/dashboard/utils'
 import Header from '@/components/dashboard/Header'
+import DashboardLoading from './loading'
 import NetWorthCard from '@/components/dashboard/NetWorthCard'
 import ActionButtons from '@/components/dashboard/ActionButtons'
 import SectionCollapse from '@/components/dashboard/SectionCollapse'
@@ -574,22 +575,10 @@ export default function DashboardPage() {
     return null
   }, [staleCode, ibkrSyncErrorCode, pricesError, ratesError, contributionWarning])
 
-  // Loading state
+  // Loading state — show the structural skeleton (same layout as the loaded page)
+  // instead of a lone spinner, so first paint already looks like the dashboard.
   if (authLoading || (user && dataLoading)) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-theme-base">
-        <div className="text-center">
-          <div className="inline-flex items-center gap-2 mb-4">
-            <span className="text-2xl" style={{ color: 'var(--accent-blue)' }}>⚡</span>
-            <span className="text-lg font-bold" style={{ color: 'var(--accent-blue)' }}>Chispudo</span>
-          </div>
-          <div className="block">
-            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-t-transparent" style={{ borderColor: '#3b82f6', borderTopColor: 'transparent' }} />
-          </div>
-          <p className="mt-4 text-slate-500 text-sm">{lang === 'es' ? 'Cargando tu portfolio...' : 'Loading your portfolio...'}</p>
-        </div>
-      </div>
-    )
+    return <DashboardLoading />
   }
 
   if (!user) return null

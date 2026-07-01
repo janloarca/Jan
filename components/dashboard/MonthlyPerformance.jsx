@@ -114,12 +114,14 @@ export default function MonthlyPerformance({ snapshots, transactions, convert, b
     return { year, returns: monthlyReturns, total: yearTotal }
   })
 
-  function cellColor(val) {
-    if (val == null) return ''
-    if (val > 10) return 'bg-emerald-500/40 text-emerald-300'
-    if (val > 0) return 'bg-emerald-500/20 text-emerald-400'
-    if (val > -5) return 'bg-red-500/20 text-red-400'
-    return 'bg-red-500/40 text-red-300'
+  // Inline styles, not Tailwind classes — value-driven colors via classes get stuck
+  // in cached JS chunks in production (see CLAUDE.md "Colores / CSS").
+  function cellStyle(val) {
+    if (val == null) return {}
+    if (val > 10) return { backgroundColor: 'rgba(16,185,129,0.4)', color: '#6ee7b7' }
+    if (val > 0) return { backgroundColor: 'rgba(16,185,129,0.2)', color: '#34d399' }
+    if (val > -5) return { backgroundColor: 'rgba(239,68,68,0.2)', color: '#f87171' }
+    return { backgroundColor: 'rgba(239,68,68,0.4)', color: '#fca5a5' }
   }
 
   return (
@@ -146,7 +148,7 @@ export default function MonthlyPerformance({ snapshots, transactions, convert, b
                 {row.returns.map((val, i) => (
                   <td key={i} className="text-center py-1.5 px-0.5">
                     {val != null && isFinite(val) ? (
-                      <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${cellColor(val)}`}>
+                      <span className="inline-block px-1.5 py-0.5 rounded text-xs font-medium" style={cellStyle(val)}>
                         {val > 0 ? '+' : ''}{val.toFixed(1)}%
                       </span>
                     ) : (
@@ -155,7 +157,7 @@ export default function MonthlyPerformance({ snapshots, transactions, convert, b
                   </td>
                 ))}
                 <td className="text-center py-1.5 px-2">
-                  <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${cellColor(isFinite(row.total) ? row.total : null)}`}>
+                  <span className="inline-block px-2 py-0.5 rounded text-xs font-bold" style={cellStyle(isFinite(row.total) ? row.total : null)}>
                     {isFinite(row.total) ? `${row.total > 0 ? '+' : ''}${row.total.toFixed(1)}%` : '—'}
                   </span>
                 </td>
