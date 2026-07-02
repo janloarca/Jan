@@ -262,7 +262,7 @@ export default function DashboardPage() {
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
     returnYTD, ytdChange, returnSinceStart, sinceStartDate,
     annualDividends, estimatedAnnualIncome,
-    netContributions, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
+    netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
     benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName,
     handleIBKRSync,
     ibkrConnected, ibkrAutoSyncing,
@@ -801,6 +801,24 @@ export default function DashboardPage() {
         {/* ═══ ACTIVIDAD RECIENTE ═══ */}
         <div className="stagger-5"><SectionCollapse title={lang === 'es' ? 'Actividad Reciente' : 'Recent Activity'} id="activity" defaultOpen={false}>
           <ErrorBoundary lang={lang}>
+            {/* Gross money in vs out — the return math already nets these, but the
+                user had no view of how much was actually deposited vs withdrawn */}
+            {(contributionsSummary.totalContributed > 0 || contributionsSummary.totalWithdrawn > 0) && (
+              <div className="grid grid-cols-3 gap-3 mb-4">
+                <div className="bg-theme-surface/80 rounded-xl border border-glass-border/50 p-3">
+                  <span className="text-xs text-slate-500 block">{lang === 'es' ? 'Aportado total' : 'Total deposited'}</span>
+                  <span className="text-sm font-bold font-mono tabular-nums" style={{ color: 'var(--accent-green)' }}>{formatCurrency(contributionsSummary.totalContributed)}</span>
+                </div>
+                <div className="bg-theme-surface/80 rounded-xl border border-glass-border/50 p-3">
+                  <span className="text-xs text-slate-500 block">{lang === 'es' ? 'Retirado total' : 'Total withdrawn'}</span>
+                  <span className="text-sm font-bold font-mono tabular-nums" style={{ color: 'var(--text-negative)' }}>{formatCurrency(contributionsSummary.totalWithdrawn)}</span>
+                </div>
+                <div className="bg-theme-surface/80 rounded-xl border border-glass-border/50 p-3">
+                  <span className="text-xs text-slate-500 block">{lang === 'es' ? 'Neto invertido' : 'Net invested'}</span>
+                  <span className="text-sm font-bold font-mono tabular-nums" style={{ color: 'var(--text-primary)' }}>{formatCurrency(contributionsSummary.netContributions)}</span>
+                </div>
+              </div>
+            )}
             <CardBoundary id="HO-02"><RecentTransactions transactions={transactions} lang={lang} onExportCSV={handleExportTransactionsCSV} /></CardBoundary>
           </ErrorBoundary>
         </SectionCollapse></div>
@@ -882,7 +900,7 @@ export default function DashboardPage() {
           item={sellItem} onClose={handleCloseSell}
           onExecuteSale={executeSaleAtomic}
           onSold={() => showToast(lang === 'es' ? `${sellItem.symbol} vendido` : `${sellItem.symbol} sold`)}
-          existingItems={items} lang={lang}
+          existingItems={items} lang={lang} convert={convert}
         />
       )}
 

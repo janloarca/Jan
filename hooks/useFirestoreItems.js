@@ -134,13 +134,16 @@ export function useFirestoreItems() {
       )
 
       try {
-        const goalsDoc = await fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'goals'))
+        // Independent docs — fetch in parallel instead of three round-trips in series.
+        const [goalsDoc, prefsDoc, profileDoc] = await Promise.all([
+          fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'goals')),
+          fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'preferences')),
+          fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'profile')),
+        ])
         if (!cancelled && goalsDoc.exists()) setGoals(sanitizeDoc(goalsDoc.data()))
-        const prefsDoc = await fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'preferences'))
         if (!cancelled && prefsDoc.exists()) setSettings(sanitizeDoc(prefsDoc.data()))
-        const profileDoc = await fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'profile'))
         if (!cancelled && profileDoc.exists()) setProfile(sanitizeDoc(profileDoc.data()))
-      } catch {}
+      } catch (e) { console.error('[firestore] settings load failed:', e?.message) }
 
       if (!cancelled) setLoading(false)
 
@@ -206,12 +209,24 @@ export function useFirestoreItems() {
     setItems((cur) => cur.filter((it) => it.id !== itemId))
     try {
       const { db, fs } = await getFirebase()
+      const sym = (deletedItem?.symbol || '').toUpperCase()
+      const needLotCleanup = !!sym && !items.some(it => it.id !== itemId && (it.symbol || '').toUpperCase() === sym)
+
+      // The four cleanup reads are independent — fetch them in one round-trip
+      // instead of four in series (deleting an item used to take 4× the latency).
+      // Writes below keep their original order (item first, then references).
+      const [itemsSnap, txSnap, lotSnap, isSnap] = await Promise.all([
+        skipRefCleanup ? null : fs.getDocs(fs.collection(db, `users/${uid}/items`)),
+        fs.getDocs(fs.collection(db, `users/${uid}/transactions`)),
+        needLotCleanup ? fs.getDocs(fs.collection(db, `users/${uid}/lots`)) : null,
+        fs.getDocs(fs.collection(db, `users/${uid}/itemSnapshots`)),
+      ])
+
       if (skipRefCleanup) {
         await fs.deleteDoc(fs.doc(db, `users/${uid}/items`, itemId))
       } else {
-        const snap = await fs.getDocs(fs.collection(db, `users/${uid}/items`))
         const batch = fs.writeBatch(db)
-        snap.docs.forEach((d) => {
+        itemsSnap.docs.forEach((d) => {
           if (d.id === itemId) return
           const data = d.data()
           const updates = {}
@@ -222,7 +237,7 @@ export function useFirestoreItems() {
         batch.delete(fs.doc(db, `users/${uid}/items`, itemId))
         await batch.commit()
       }
-      const txSnap = await fs.getDocs(fs.collection(db, `users/${uid}/transactions`))
+
       const txBatch = fs.writeBatch(db)
       let txCount = 0
       txSnap.docs.forEach(d => {
@@ -230,21 +245,15 @@ export function useFirestoreItems() {
       })
       if (txCount > 0) await txBatch.commit()
 
-      if (deletedItem?.symbol) {
-        const sym = (deletedItem.symbol || '').toUpperCase()
-        const hasOtherItemWithSymbol = items.some(it => it.id !== itemId && (it.symbol || '').toUpperCase() === sym)
-        if (!hasOtherItemWithSymbol) {
-          const lotSnap = await fs.getDocs(fs.collection(db, `users/${uid}/lots`))
-          const lotBatch = fs.writeBatch(db)
-          let lotCount = 0
-          lotSnap.docs.forEach(d => {
-            if ((d.data().symbol || '').toUpperCase() === sym) { lotBatch.delete(d.ref); lotCount++ }
-          })
-          if (lotCount > 0) await lotBatch.commit()
-        }
+      if (lotSnap) {
+        const lotBatch = fs.writeBatch(db)
+        let lotCount = 0
+        lotSnap.docs.forEach(d => {
+          if ((d.data().symbol || '').toUpperCase() === sym) { lotBatch.delete(d.ref); lotCount++ }
+        })
+        if (lotCount > 0) await lotBatch.commit()
       }
 
-      const isSnap = await fs.getDocs(fs.collection(db, `users/${uid}/itemSnapshots`))
       const isBatch = fs.writeBatch(db)
       let isCount = 0
       isSnap.docs.forEach(d => {

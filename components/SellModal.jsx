@@ -12,7 +12,7 @@ const BANK_RE = /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i
 // so the common case is unchanged.
 const origPriceOf = (it) => it._originalPrice ?? it.currentPrice ?? it._originalPurchasePrice ?? it.purchasePrice ?? 0
 
-export default function SellModal({ item, onClose, onExecuteSale, onSold, existingItems = [], lang = 'es' }) {
+export default function SellModal({ item, onClose, onExecuteSale, onSold, existingItems = [], lang = 'es', convert }) {
   const trapRef = useFocusTrap()
   const t = (es, en) => lang === 'es' ? es : en
   const today = new Date().toISOString().split('T')[0]
@@ -77,10 +77,15 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
       } else if (destination === '__stay__' && destinationId) {
         const dest = existingItems.find((it) => it.id === destinationId)
         if (dest) {
+          // Proceeds are in the SOLD asset's currency; the destination stores raw
+          // values in ITS OWN currency — convert before crediting, or a USD sale
+          // into a GTQ account credits ~7.8× less than reality.
+          const destCur = dest._originalCurrency || dest.currency || origCur
+          const proceedsInDest = (convert && destCur !== origCur)
+            ? convert(proceeds, origCur, destCur)
+            : proceeds
           if (BANK_RE.test(dest.type || '')) {
-            // Bank balances are stored raw (in the account's own currency), so add
-            // proceeds to the original-currency balance (same-currency assumption).
-            const newBal = origPriceOf(dest) + proceeds
+            const newBal = origPriceOf(dest) + proceedsInDest
             destId = dest.id
             destFields = { currentPrice: newBal, purchasePrice: newBal }
           } else {
@@ -88,10 +93,9 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
             // create a matching lot so lots stay consistent with item.quantity
             // (otherwise FIFO/cost-basis breaks per the lots model). Use the dest's
             // ORIGINAL price/currency so the new lot's costBasis matches the lots
-            // convention. NOTE: addQty = proceeds / destPrice assumes source and
-            // destination share a currency (SellModal has no FX converter).
+            // convention.
             const destPrice = origPriceOf(dest) || 1
-            const addQty = proceeds / destPrice
+            const addQty = proceedsInDest / destPrice
             destId = dest.id
             destFields = { quantity: (dest.quantity || 0) + addQty }
             destLot = {

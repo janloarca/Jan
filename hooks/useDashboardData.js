@@ -828,9 +828,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   const benchmarkSymbol = settings?.benchmarkSymbol || '%5EGSPC'
   const { benchmarkData, benchmarkReturn, benchmarkName, loading: benchmarkLoading, error: benchmarkError } = useBenchmark('YTD', benchmarkSymbol)
 
-  const netContributions = useMemo(() => {
-    return computeNetContributions(transactions, convert, baseCurrency).netContributions
+  // Full summary (gross in / gross out / net) — the UI used to surface only the
+  // net, leaving no way to see how much was actually deposited vs withdrawn.
+  const contributionsSummary = useMemo(() => {
+    return computeNetContributions(transactions, convert, baseCurrency)
   }, [transactions, convert, baseCurrency])
+  const netContributions = contributionsSummary.netContributions
 
   const cashTotal = useMemo(() => {
     return portfolioItems
@@ -970,7 +973,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
     returnYTD, ytdChange, returnSinceStart, sinceStartDate,
     annualDividends, estimatedAnnualIncome,
-    netContributions, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
+    netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
 
     // Benchmark
     benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName, benchmarkLoading,
