@@ -1,5 +1,6 @@
 import './globals.css'
 import RootErrorBoundary from '@/components/RootErrorBoundary'
+import { ADSENSE_CLIENT } from '@/lib/adsense'
 
 export const metadata = {
   title: 'Chispudo — Portfolio Tracker for Latin America',
@@ -86,6 +87,12 @@ export default function RootLayout({ children }) {
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        {/* AdSense loader + site-verification snippet. Site-wide so Google's crawler
+            can verify on public pages (the dashboard is behind auth). With Auto Ads
+            off, no ad renders anywhere except our manual unit (AdFooter). */}
+        {ADSENSE_CLIENT && (
+          <script async src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`} crossOrigin="anonymous" />
+        )}
       </head>
       <body className="font-sans"><RootErrorBoundary>{children}</RootErrorBoundary></body>
     </html>
