@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useDashboardData } from '@/hooks/useDashboardData'
 import { getItemValue, formatCurrency, getTypeCategory } from '@/components/dashboard/utils'
 import Header from '@/components/dashboard/Header'
+import AdFooter from '@/components/AdFooter'
 import DashboardLoading from './loading'
 import NetWorthCard from '@/components/dashboard/NetWorthCard'
 import ActionButtons from '@/components/dashboard/ActionButtons'
@@ -834,6 +835,9 @@ export default function DashboardPage() {
             {lang === 'es' ? 'Imprimir Resumen' : 'Print Summary'}
           </button>
         </div>
+
+        {/* AdSense footer — renders nothing until NEXT_PUBLIC_ADSENSE_* are set */}
+        <AdFooter lang={lang} />
         </>}
       </main>
 
