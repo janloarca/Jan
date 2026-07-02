@@ -12,7 +12,9 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
   const pathname = usePathname()
 
   const navItems = [
-    { href: '/dashboard', label: lang === 'es' ? 'Patrimonio' : 'Portfolio' },
+    // "Net Worth", not "Portfolio" — one name for the core concept everywhere
+    // (matches the page's own h1 and the NetWorth card).
+    { href: '/dashboard', label: lang === 'es' ? 'Patrimonio' : 'Net Worth' },
     { href: '/finances', label: lang === 'es' ? 'Finanzas' : 'Finances' },
     { href: '/spreadsheet', label: lang === 'es' ? 'Hoja de Cálculo' : 'Spreadsheet' },
   ]

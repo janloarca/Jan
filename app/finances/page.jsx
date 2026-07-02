@@ -104,6 +104,25 @@ export default function FinancesPage() {
 
   const t = (es, en) => lang === 'es' ? es : en
 
+  // Shared by the desktop header button and MobileNav — the export used to live
+  // only in MobileNav, so desktop had no way to download the CSV.
+  const handleExportCsv = () => {
+    if (monthTransactions.length === 0) return
+    const header = 'Date,Type,Category,Description,Amount,Currency'
+    const rows = monthTransactions.map(tx => {
+      const esc = (v) => `"${String(v || '').replace(/"/g, '""')}"`
+      return [esc(tx.date || ''), esc(tx.type || ''), esc(tx.category || ''), esc(tx.description || ''), tx.amount || 0, esc(tx.currency || 'GTQ')].join(',')
+    })
+    const csv = [header, ...rows].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `chispudo-finances-${year}-${String(month + 1).padStart(2, '0')}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   if (authLoading || (user && dataLoading)) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-theme-base">
@@ -159,11 +178,20 @@ export default function FinancesPage() {
             </button>
             <button onClick={() => setModal('import')}
               className="px-3 py-1.5 text-xs font-medium text-slate-300 border border-slate-600/50 rounded-lg hover:bg-theme-elevated transition-colors">
-              {t('Importar BI', 'Import BI')}
+              {t('Importar', 'Import')}
             </button>
+            {monthTransactions.length > 0 && (
+              <button onClick={handleExportCsv}
+                className="hidden sm:inline-flex px-3 py-1.5 text-xs font-medium text-slate-300 border border-slate-600/50 rounded-lg hover:bg-theme-elevated transition-colors">
+                {t('Exportar', 'Export')}
+              </button>
+            )}
           </div>
         </div>
 
+        {/* A brand-new user sees the empty state directly, not a stack of Q0.00
+            cards and blank breakdowns with the guidance buried below the fold. */}
+        {financeTransactions.length > 0 && <>
         <FinanceSummaryCards income={income} expenses={expenses} lang={lang} />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -176,14 +204,15 @@ export default function FinancesPage() {
           onDelete={deleteFinanceTransaction}
           lang={lang}
         />
+        </>}
 
         {financeTransactions.length === 0 && (
           <div className="text-center py-12">
             <div className="text-5xl mb-4">📊</div>
             <p className="text-white font-semibold mb-2">{t('Sin transacciones aún', 'No transactions yet')}</p>
             <p className="text-slate-500 text-sm mb-4">
-              {t('Importa tu estado de cuenta de Banco Industrial o agrega transacciones manualmente.',
-                 'Import your Banco Industrial statement or add transactions manually.')}
+              {t('Importa tu estado de cuenta bancario o agrega transacciones manualmente.',
+                 'Import your bank statement or add transactions manually.')}
             </p>
             <div className="flex items-center justify-center gap-3">
               <button onClick={() => setModal('import')}
@@ -221,22 +250,7 @@ export default function FinancesPage() {
       <MobileNav
         onAdd={() => setModal('add')}
         onImport={() => setModal('import')}
-        onExport={() => {
-          if (monthTransactions.length === 0) return
-          const header = 'Date,Type,Category,Description,Amount,Currency'
-          const rows = monthTransactions.map(tx => {
-            const esc = (v) => `"${String(v || '').replace(/"/g, '""')}"`
-            return [esc(tx.date || ''), esc(tx.type || ''), esc(tx.category || ''), esc(tx.description || ''), tx.amount || 0, esc(tx.currency || 'GTQ')].join(',')
-          })
-          const csv = [header, ...rows].join('\n')
-          const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-          const url = URL.createObjectURL(blob)
-          const a = document.createElement('a')
-          a.href = url
-          a.download = `chispudo-finances-${year}-${String(month + 1).padStart(2, '0')}.csv`
-          a.click()
-          URL.revokeObjectURL(url)
-        }}
+        onExport={handleExportCsv}
         onSettings={() => router.push('/dashboard')}
         lang={lang}
       />

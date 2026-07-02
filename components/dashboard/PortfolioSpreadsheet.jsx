@@ -509,6 +509,40 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     setTimeout(() => setSaveMsg(null), 2000)
   }, [onUpdateItem, showOriginal, convert, baseCurrency, lots, lang])
 
+  // CSV of the reconstructed monthly matrix — the dashboard export only covers
+  // current items + transactions, not this per-month history.
+  const handleExportCsv = useCallback(() => {
+    const esc = (s) => {
+      const str = String(s ?? '')
+      return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str
+    }
+    const rows = []
+    rows.push([t('Categoría', 'Category'), t('Activo', 'Asset'), ...months].map(esc).join(','))
+    categories.forEach(cat => {
+      cat.institutions.forEach(inst => {
+        inst.items.forEach(it => {
+          const cells = months.map(mk => {
+            if (mk === currentMonthKey) return getItemValue(it).toFixed(2)
+            const v = historicalItems[mk]?.[it.id]?.value
+            return v != null ? v.toFixed(2) : ''
+          })
+          rows.push([cat.label, it.symbol || it.name || '', ...cells].map(esc).join(','))
+        })
+      })
+    })
+    rows.push(['TOTAL', '', ...months.map(mk => {
+      const v = mk === currentMonthKey ? grandTotal : monthlyTotals[mk]
+      return v != null ? v.toFixed(2) : ''
+    })].map(esc).join(','))
+    const blob = new Blob(['﻿' + rows.join('\n')], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `chispudo-spreadsheet-${selectedYear}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [categories, months, currentMonthKey, historicalItems, monthlyTotals, grandTotal, selectedYear, lang])
+
   const isCurrentYear = selectedYear === now.getFullYear()
   const prevMonthKey = months.length >= 2 ? months[months.length - 2] : null
   const prevTotal = prevMonthKey ? monthlyTotals[prevMonthKey] : null
@@ -574,6 +608,11 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
               </button>
             ))}
           </div>
+          <button onClick={handleExportCsv}
+            className="px-2.5 py-1 text-xs rounded-md border border-slate-200 bg-slate-100 text-slate-500 hover:bg-white hover:text-slate-900 transition-colors"
+            title={t('Descargar la matriz mensual como CSV', 'Download the monthly matrix as CSV')}>
+            CSV
+          </button>
           {loadingHistory && (
             <span className="text-xs text-blue-500 animate-pulse">{t('Calculando historial...', 'Calculating history...')}</span>
           )}

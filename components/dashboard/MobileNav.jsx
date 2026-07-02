@@ -14,9 +14,9 @@ export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettin
     <>
       <div className="fixed bottom-0 left-0 right-0 z-40 sm:hidden bg-theme-base\/95 border-t border-glass-border" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
         <div className="flex items-center justify-around h-14 px-2">
-          <Link href="/dashboard" aria-label={t('Patrimonio', 'Portfolio')} className="flex flex-col items-center gap-0.5 transition-colors p-2.5 min-w-[44px] min-h-[44px] justify-center" style={{ color: pathname === '/dashboard' ? 'var(--accent-blue)' : '#94a3b8' }}>
+          <Link href="/dashboard" aria-label={t('Patrimonio', 'Net Worth')} className="flex flex-col items-center gap-0.5 transition-colors p-2.5 min-w-[44px] min-h-[44px] justify-center" style={{ color: pathname === '/dashboard' ? 'var(--accent-blue)' : '#94a3b8' }}>
             <Home size={20} />
-            <span className="text-micro">{t('Patrimonio', 'Portfolio')}</span>
+            <span className="text-micro">{t('Patrimonio', 'Net Worth')}</span>
           </Link>
           <Link href="/finances" aria-label={t('Finanzas', 'Finances')} className="flex flex-col items-center gap-0.5 transition-colors p-2.5 min-w-[44px] min-h-[44px] justify-center" style={{ color: pathname === '/finances' ? 'var(--accent-blue)' : '#94a3b8' }}>
             <Calculator size={20} />

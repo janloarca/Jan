@@ -218,7 +218,21 @@ export default function SpreadsheetPage() {
         </div>
       )}
 
-      {view === 'portfolio' ? (
+      {view === 'portfolio' && (portfolioItems || enrichedItems)?.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+          <div className="text-5xl mb-4">📈</div>
+          <p className="font-semibold mb-2" style={{ color: '#0f172a' }}>{t('Aún no tienes activos', 'No assets yet')}</p>
+          <p className="text-sm mb-4" style={{ color: '#64748b' }}>
+            {t('Agrega tu primer activo desde el dashboard para ver tu historial mensual aquí.',
+               'Add your first asset from the dashboard to see your monthly history here.')}
+          </p>
+          <button onClick={() => router.push('/dashboard')}
+            className="px-4 py-2 text-sm font-medium rounded-lg"
+            style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}>
+            {t('Ir al Dashboard', 'Go to Dashboard')}
+          </button>
+        </div>
+      ) : view === 'portfolio' ? (
         <div className="flex-1 p-4 sm:p-6 overflow-auto">
           <PortfolioSpreadsheet
             items={portfolioItems || enrichedItems}

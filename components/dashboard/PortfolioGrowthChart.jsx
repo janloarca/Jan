@@ -229,7 +229,10 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   useEffect(() => {
     mountedRef.current = true
     fetchHistory()
-    const interval = setInterval(fetchHistory, 60000)
+    // 5 min, not 1 — each poll re-downloads the FULL history for every symbol
+    // (Yahoo+CoinGecko fan-out server-side) and daily NAV barely moves minute to
+    // minute. 60s polling burned quota and flirted with the route's rate limit.
+    const interval = setInterval(fetchHistory, 300000)
     return () => { mountedRef.current = false; clearInterval(interval) }
   }, [fetchHistory])
 
@@ -388,7 +391,16 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           pts.unshift(...scaled)
         }
       }
-      const recentApi = apiPts.filter(p => p.ts > lastSnapTs + 3600000)
+      // Same seam treatment on the trailing side: API points appended after the
+      // last snapshot are estimates too, so scale them to meet the snapshot NAV —
+      // otherwise a level difference shows up as a fake step at "today".
+      const lastSnapVal = snapPts[snapPts.length - 1].value
+      let recentApi = apiPts.filter(p => p.ts > lastSnapTs + 3600000)
+      if (recentApi.length > 0 && lastSnapVal > 0) {
+        const apiSeamStart = recentApi[0].value
+        const scaleR = apiSeamStart > 0 ? lastSnapVal / apiSeamStart : 1
+        if (Math.abs(scaleR - 1) > 0.02) recentApi = recentApi.map(p => ({ ...p, value: p.value * scaleR }))
+      }
       pts.push(...recentApi)
       pts.sort((a, b) => a.ts - b.ts)
     } else if (apiPts.length >= 2) {
@@ -617,6 +629,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const growthAbs = lastVal - firstVal
   const growthPct = firstVal > 0 ? (growthAbs / firstVal) * 100 : 0
   const lastReturn = returnData.length > 0 ? returnData[returnData.length - 1] : 0
+  // Annualized (CAGR) companion for multi-year spans — "+180% ALL" over 6 years is
+  // easy to misread as a yearly figure.
+  const spanYears = chartData.length > 1 ? (chartData[chartData.length - 1].ts - chartData[0].ts) / (365.25 * 86400000) : 0
+  const cagrPct = spanYears > 1.5 && firstVal > 0 && lastVal > 0
+    ? (Math.pow(lastVal / firstVal, 1 / spanYears) - 1) * 100
+    : null
 
   const microInsight = useMemo(() => {
     if (benchmarkReturn == null || returnData.length < 2) return null
@@ -788,6 +806,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           <p className="text-sm mt-0.5" style={{ color: growthAbs >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
             <span className="font-mono tabular-nums">{growthAbs >= 0 ? '+' : ''}{formatCurrency(growthAbs)} ({growthAbs >= 0 ? '+' : ''}{growthPct.toFixed(2)}%)</span>
             <span className="text-slate-500 ml-1">{period === 'YTD' ? t('este año', 'this year') : period === 'DAY' ? t('hoy', 'today') : period === 'CUSTOM' ? t('rango', 'range') : period}</span>
+            {/* Raw NAV delta — deposits count as "growth" here. The deposit-adjusted
+                return lives in the YTD badge (Dietz) and the Performance tab. */}
+            <span className="text-xs text-slate-600 ml-1.5">{t('· incluye depósitos', '· includes deposits')}</span>
+            {cagrPct != null && (
+              <span className="text-xs text-slate-500 ml-1.5 font-mono tabular-nums">≈ {cagrPct >= 0 ? '+' : ''}{cagrPct.toFixed(1)}%/{t('año', 'yr')}</span>
+            )}
           </p>
         </div>
       ) : (

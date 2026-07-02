@@ -738,7 +738,8 @@ export default function DashboardPage() {
         <h1 className="sr-only">{lang === 'es' ? 'Patrimonio — Dashboard' : 'Net Worth — Dashboard'}</h1>
 
 
-        {portfolioItems.length === 0 && !dataLoading && (
+        {/* One onboarding surface at a time — don't stack this under the tour modal */}
+        {portfolioItems.length === 0 && !dataLoading && !showOnboarding && (
           <EmptyState
             onAdd={handleOpenAccount}
             onImport={handleOpenImport}

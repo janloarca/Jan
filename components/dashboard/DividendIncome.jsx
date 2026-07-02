@@ -185,7 +185,22 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
   }, [projected.sources])
 
   const hasData = stats.divCount > 0 || projected.annualTotal > 0
-  if (!hasData) return null
+  // This card lives inside the collapsible "Ingresos" section — returning null
+  // left an expandable header that opened to nothing. Show guidance instead.
+  if (!hasData) {
+    return (
+      <div className="bg-theme-surface/80 rounded-xl border border-glass-border/50 p-4">
+        <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-3">
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
+          {t('INGRESOS PASIVOS', 'PASSIVE INCOME')}
+        </h3>
+        <p className="text-sm text-slate-500">
+          {t('Aún no hay ingresos que mostrar. Configura la tasa o el monto de ingreso de un activo (bono, cuenta, acción con dividendos) al editarlo, o registra un dividendo recibido — aquí verás la proyección anual, el calendario y el historial.',
+             'No income to show yet. Set an income rate or amount on an asset (bond, account, dividend stock) when editing it, or record a received dividend — you\'ll see the annual projection, calendar and history here.')}
+        </p>
+      </div>
+    )
+  }
 
   const monthName = (m) => new Date(2024, m).toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short' })
   const calendarMax = Math.max(...incomeCalendar, 1)
