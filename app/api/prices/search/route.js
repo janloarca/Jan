@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { rateLimit } from '@/lib/rateLimit'
+import { verifyAuth } from '@/lib/apiAuth'
 import { fetchWithRetry } from '@/lib/fetchWithRetry'
 
 const CRYPTO_MAP = {
@@ -108,6 +109,10 @@ async function fetchQuote(symbol, type) {
 export async function GET(request) {
   const { limited } = await rateLimit(request, { maxRequests: 60 })
   if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+
+  // These proxy Yahoo/CoinGecko with our quota — require a signed-in user.
+  const authResult = await verifyAuth(request)
+  if (authResult.error) return authResult.error
 
   const { searchParams } = new URL(request.url)
   const q = (searchParams.get('q') || '').trim().slice(0, 50)

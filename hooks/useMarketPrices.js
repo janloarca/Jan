@@ -1,3 +1,4 @@
+import { authFetch } from '@/lib/authFetch'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 
 export function useMarketPrices(items) {
@@ -26,14 +27,14 @@ export function useMarketPrices(items) {
       const stockSyms = symbols.filter((s) => !/crypto|cripto|blockchain/i.test(s.type || ''))
 
       const [priceRes, divRes] = await Promise.all([
-        fetch('/api/prices', {
+        authFetch('/api/prices', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ items: symbols }),
           signal,
         }),
         stockSyms.length > 0
-          ? fetch('/api/prices/dividends', {
+          ? authFetch('/api/prices/dividends', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ symbols: stockSyms }),

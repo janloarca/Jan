@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { formatCurrency, formatDate, getItemPrice } from './utils'
-import { safeJson } from '@/lib/authFetch'
+import { authFetch, safeJson } from '@/lib/authFetch'
 import DocumentVault from './DocumentVault'
 
 const STATIC_TYPES = /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo|bond|bono|instrumento|inversion|inversión|cdt|plazo|treasury|letra|pagare|deposito|certificado|inmueble|real.?estate|property/i
@@ -54,7 +54,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
         const interval = range === '1W' ? '15m' : range === '1M' ? '1d' : '1wk'
         const r = rangeMap[range]
         const isCrypto = /crypto|cripto/i.test(item.type || '') || item._source === 'ledger' || item._source === 'blockchain'
-        const res = await fetch(`/api/prices/chart?symbol=${sym}&range=${r}&interval=${interval}${isCrypto ? '&type=crypto' : ''}`)
+        const res = await authFetch(`/api/prices/chart?symbol=${sym}&range=${r}&interval=${interval}${isCrypto ? '&type=crypto' : ''}`)
         if (!res.ok) throw new Error('fetch failed')
         const data = await safeJson(res)
         if (!cancelled) setChartData(data)

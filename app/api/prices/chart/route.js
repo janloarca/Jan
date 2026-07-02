@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { rateLimit } from '@/lib/rateLimit'
+import { verifyAuth } from '@/lib/apiAuth'
 import { fetchWithRetry } from '@/lib/fetchWithRetry'
 import { CRYPTO_MAP } from '@/lib/cryptoMap'
 
@@ -48,6 +49,10 @@ async function fetchCryptoChart(symbol, range) {
 export async function GET(request) {
   const { limited } = await rateLimit(request, { maxRequests: 60 })
   if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+
+  // These proxy Yahoo/CoinGecko with our quota — require a signed-in user.
+  const authResult = await verifyAuth(request)
+  if (authResult.error) return authResult.error
 
   const { searchParams } = new URL(request.url)
   const symbol = (searchParams.get('symbol') || '').trim()

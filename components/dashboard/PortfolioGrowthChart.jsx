@@ -240,7 +240,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     const bp = benchmarkPeriodMap[period] || 'YTD'
     let cancelled = false
     const sym = benchmarkSymbol || '%5EGSPC'
-    fetch(`/api/prices/benchmark?period=${encodeURIComponent(bp)}&symbol=${encodeURIComponent(sym)}`)
+    authFetch(`/api/prices/benchmark?period=${encodeURIComponent(bp)}&symbol=${encodeURIComponent(sym)}`)
       .then((res) => res.ok ? safeJson(res) : null)
       .then((data) => { if (!cancelled && data) setBenchmarkPts(data.dataPoints || null) })
       .catch(() => {})

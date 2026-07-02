@@ -4,6 +4,7 @@ import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { encryptToken, decryptToken } from '@/lib/crypto'
+import { fetchWithRetry } from '@/lib/fetchWithRetry'
 
 export const dynamic = 'force-dynamic'
 
@@ -70,9 +71,11 @@ async function binanceFetch(path, apiKey, apiSecret, params = {}) {
 }
 
 async function fetchTickerPrices() {
-  const res = await fetch(`${BASE_URL}/api/v3/ticker/price`, {
-    signal: AbortSignal.timeout(10000),
-  })
+  // Public, unsigned endpoint → fetchWithRetry is safe here (its URL-keyed GET
+  // dedup is even a win: everyone shares the same ticker snapshot). The SIGNED
+  // Binance call above must NOT be blind-retried — its timestamp/signature would
+  // fall outside recvWindow on the second attempt.
+  const res = await fetchWithRetry(`${BASE_URL}/api/v3/ticker/price`)
   if (!res.ok) {
     throw new Error(`Failed to fetch ticker prices: ${res.status}`)
   }

@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server'
 import { validateOAuthState } from '@/lib/oauthState'
+import { rateLimit } from '@/lib/rateLimit'
 
 export async function GET(request) {
+  // OAuth redirects are rare per user — a tight limit stops state-guessing loops.
+  const { limited } = await rateLimit(request, { maxRequests: 10 })
+  if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+
   const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
   const state = searchParams.get('state')

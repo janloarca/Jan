@@ -51,15 +51,31 @@ function classifyError(errMsg) {
   return { errorCode: 'UNKNOWN', error: errMsg || 'Unknown eToro error.' }
 }
 
+// Local retry (not lib/fetchWithRetry: its GET dedup keys on URL only and would
+// share responses across users authenticated via headers). Fresh timeout signal
+// per attempt — a single shared signal would abort every retry at once.
+async function fetchRetry(url, headers, timeoutMs, retries = 2) {
+  let lastErr
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const res = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs) })
+      if (res.ok || res.status < 500) return res
+      if (i === retries) return res
+    } catch (err) {
+      lastErr = err
+      if (i === retries) throw err
+    }
+    await new Promise(r => setTimeout(r, 1000 * (i + 1)))
+  }
+  throw lastErr
+}
+
 async function etoroFetch(endpoint, apiKey, userKey) {
-  const res = await fetch(`${ETORO_BASE_URL}${endpoint}`, {
-    headers: {
-      'x-api-key': apiKey,
-      'x-user-key': userKey,
-      'Accept': 'application/json',
-    },
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  })
+  const res = await fetchRetry(`${ETORO_BASE_URL}${endpoint}`, {
+    'x-api-key': apiKey,
+    'x-user-key': userKey,
+    'Accept': 'application/json',
+  }, FETCH_TIMEOUT_MS)
 
   if (!res.ok) {
     const text = await res.text().catch(() => '')

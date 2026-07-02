@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
-import { safeJson } from '@/lib/authFetch'
+import { authFetch, safeJson } from '@/lib/authFetch'
 import { validateItem } from '@/lib/validation'
 import InlineCreateAccount from './InlineCreateAccount'
 
@@ -184,7 +184,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
       searchAbortRef.current = new AbortController()
       setSearchLoading(true)
       try {
-        const res = await fetch(`/api/prices/search?q=${encodeURIComponent(q)}`, { signal: searchAbortRef.current.signal })
+        const res = await authFetch(`/api/prices/search?q=${encodeURIComponent(q)}`, { signal: searchAbortRef.current.signal })
         if (res.ok) {
           const data = await safeJson(res) || {}
           setSearchResults(data.results || [])
@@ -221,7 +221,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     searchAbortRef.current = new AbortController()
     setFetchingQuote(true)
     try {
-      const res = await fetch(`/api/prices/search?symbol=${encodeURIComponent(result.symbol)}&type=${encodeURIComponent(newType)}`, { signal: searchAbortRef.current.signal })
+      const res = await authFetch(`/api/prices/search?symbol=${encodeURIComponent(result.symbol)}&type=${encodeURIComponent(newType)}`, { signal: searchAbortRef.current.signal })
       if (res.ok) {
         const data = await safeJson(res) || {}
         if (data.quote?.price) {
@@ -249,7 +249,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
       if (sym.length < 1) return
       setDivLoading(true)
       try {
-        const res = await fetch(`/api/prices/dividends?symbol=${encodeURIComponent(sym)}`)
+        const res = await authFetch(`/api/prices/dividends?symbol=${encodeURIComponent(sym)}`)
         if (res.ok) setDivInfo(await safeJson(res))
       } catch {}
       setDivLoading(false)
