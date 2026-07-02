@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useDashboardData } from '@/hooks/useDashboardData'
 import { getItemValue, formatCurrency, getTypeCategory } from '@/components/dashboard/utils'
 import Header from '@/components/dashboard/Header'
-import AdFooter from '@/components/AdFooter'
+import AdBanner from '@/components/AdBanner'
 import DashboardLoading from './loading'
 import NetWorthCard from '@/components/dashboard/NetWorthCard'
 import ActionButtons from '@/components/dashboard/ActionButtons'
@@ -773,6 +773,10 @@ export default function DashboardPage() {
         </div>
         </ErrorBoundary>
 
+        {/* Ad slot — first seam below the hero, visible without scrolling.
+            Renders nothing until NEXT_PUBLIC_ADSENSE_SLOT_FOOTER is set. */}
+        <div className="stagger-2"><AdBanner lang={lang} /></div>
+
         {/* effectiveProfile: manual Settings figures, falling back to averages derived
             from real finance transactions so insights work without double data entry */}
         <div className="stagger-2"><CardBoundary id="INS-01"><InsightCards items={portfolioItems} profile={effectiveProfile} netWorth={netWorth} estimatedAnnualIncome={estimatedAnnualIncome} lang={lang} onOpenSettings={handleOpenSettings} /></CardBoundary></div>
@@ -854,8 +858,6 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        {/* AdSense footer — renders nothing until NEXT_PUBLIC_ADSENSE_* are set */}
-        <AdFooter lang={lang} />
         </>}
       </main>
 

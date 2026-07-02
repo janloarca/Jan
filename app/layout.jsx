@@ -89,7 +89,7 @@ export default function RootLayout({ children }) {
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         {/* AdSense loader + site-verification snippet. Site-wide so Google's crawler
             can verify on public pages (the dashboard is behind auth). With Auto Ads
-            off, no ad renders anywhere except our manual unit (AdFooter). */}
+            off, no ad renders anywhere except our manual unit (AdBanner). */}
         {ADSENSE_CLIENT && (
           <script async src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`} crossOrigin="anonymous" />
         )}
