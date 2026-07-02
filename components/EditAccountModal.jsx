@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
+import { validateItem } from '@/lib/validation'
 import InlineCreateAccount from './InlineCreateAccount'
 
 const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
@@ -382,6 +383,14 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         }
       }
 
+      // Same guardrails as file imports — manual edits previously skipped them.
+      const validationErrors = validateItem(updated)
+      if (validationErrors.length > 0) {
+        setError(validationErrors.join(' · '))
+        setSaving(false)
+        return
+      }
+
       // Detect a value change that has no matching cash-flow transaction. Only the
       // ambiguous cases prompt: bank-like balances (deposit vs interest?) and market
       // quantities (bought more vs correction?). Debts/receivables are skipped, and
@@ -548,7 +557,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           <div>
             <label htmlFor="edit-acquisition-date" className={labelCls}>{t('Fecha de adquisición', 'Acquisition date')}</label>
             <input id="edit-acquisition-date" value={form.acquisitionDate} onChange={e => set('acquisitionDate', e.target.value)}
-              type="date" className={inputCls} />
+              type="date" max={new Date().toISOString().split('T')[0]} className={inputCls} />
           </div>
 
           {/* Contribution / Withdrawal */}

@@ -171,7 +171,11 @@ export default function SpreadsheetPage() {
             {[
               { key: 'portfolio', label: 'Portfolio' },
               { key: 'debts', label: t('Deudas', 'Debts') },
-              { key: 'patrimonio', label: t('Patrimonio', 'Estate') },
+              // "Bienes", not "Patrimonio" — this tab sums only estate assets
+              // (real estate/vehicles/alternatives), while the dashboard's
+              // "Patrimonio Neto" is assets minus debt. Same word for two
+              // different numbers was misleading.
+              { key: 'patrimonio', label: t('Bienes', 'Estate') },
               { key: 'custom', label: t('Hojas', 'Sheets') },
             ].map(tab => (
               <button key={tab.key} onClick={() => setView(tab.key)}

@@ -93,7 +93,8 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
 
   const commitEditValue = useCallback((item) => {
     const num = parseFloat(editDraft.replace(/[^0-9.\-]/g, ''))
-    if (!isNaN(num) && num >= 0 && onUpdateItem) {
+    // Same ceiling as file imports (lib/validation MAX_PRICE).
+    if (!isNaN(num) && num >= 0 && num <= 10_000_000 && onUpdateItem) {
       onUpdateItem(item.id, { currentPrice: num, quantity: 1 })
     }
     setEditingValue(null)

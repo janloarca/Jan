@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { safeJson } from '@/lib/authFetch'
+import { validateItem } from '@/lib/validation'
 import InlineCreateAccount from './InlineCreateAccount'
 
 const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
@@ -467,6 +468,15 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
         item.entityId = activeEntity
       }
 
+      // Same guardrails as file imports (future dates, absurd values, bad currency) —
+      // manual entry previously skipped them entirely.
+      const validationErrors = validateItem(item)
+      if (validationErrors.length > 0) {
+        setError(validationErrors.join(' · '))
+        setSaving(false)
+        return
+      }
+
       const itemId = await onAdd(item)
 
       if (onAddLot && item.symbol && item.quantity > 0 && item.purchasePrice > 0 && !item.isDebt) {
@@ -906,7 +916,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 {isBank ? t('Fecha de apertura', 'Opening date') : t('Fecha de compra', 'Purchase date')} <span style={{ color: 'var(--text-negative)' }}>*</span>
               </label>
               <input id="add-acquisitionDate" value={form.acquisitionDate} onChange={e => set('acquisitionDate', e.target.value)}
-                type="date" className={inputCls} />
+                type="date" max={new Date().toISOString().split('T')[0]} className={inputCls} />
             </div>
 
             {/* Dividend info for market assets */}

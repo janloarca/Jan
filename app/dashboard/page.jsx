@@ -242,7 +242,7 @@ export default function DashboardPage() {
 
   // Data layer
   const {
-    items, snapshots, augmentedSnapshots, transactions, goals, settings, profile, alerts, lots, portfolios, financeTransactions,
+    items, snapshots, augmentedSnapshots, transactions, goals, settings, profile, effectiveProfile, alerts, lots, portfolios, financeTransactions,
     dataLoading,
     addItem, updateItem, deleteItem, deleteAllItems,
     saveSnapshot, deleteAllSnapshots,
@@ -771,7 +771,9 @@ export default function DashboardPage() {
         </div>
         </ErrorBoundary>
 
-        <div className="stagger-2"><CardBoundary id="INS-01"><InsightCards items={portfolioItems} profile={profile} netWorth={netWorth} estimatedAnnualIncome={estimatedAnnualIncome} lang={lang} onOpenSettings={handleOpenSettings} /></CardBoundary></div>
+        {/* effectiveProfile: manual Settings figures, falling back to averages derived
+            from real finance transactions so insights work without double data entry */}
+        <div className="stagger-2"><CardBoundary id="INS-01"><InsightCards items={portfolioItems} profile={effectiveProfile} netWorth={netWorth} estimatedAnnualIncome={estimatedAnnualIncome} lang={lang} onOpenSettings={handleOpenSettings} /></CardBoundary></div>
 
         {/* ═══ COMPOSICIÓN: Allocation + Rendimiento por institución ═══ */}
         <div className="stagger-3 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 items-start">

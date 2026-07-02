@@ -92,7 +92,9 @@ const EditableCell = memo(function EditableCell({ displayValue, editValue, onSav
 
   const commit = () => {
     const num = parseFloat(draft.replace(/[^0-9.\-]/g, ''))
-    if (isFinite(num) && num >= 0) onSave(num)
+    // Same ceiling as file imports (lib/validation MAX_PRICE) — inline edits
+    // shouldn't be the one door where absurd values slip in.
+    if (isFinite(num) && num >= 0 && num <= 10_000_000) onSave(num)
     setEditing(false)
     onEditEnd?.()
   }
@@ -278,16 +280,36 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     return result
   }, [snapshots, convert, baseCurrency, historicalItems, items])
 
+  // Months whose TOTAL comes from a snapshot NAV fallback (no per-item breakdown):
+  // the category rows show "—" there while the TOTAL shows a figure, so we mark
+  // those cells instead of leaving a column that visibly doesn't add up.
+  const fallbackMonths = useMemo(() => {
+    const s = new Set()
+    Object.keys(monthlyTotals).forEach(mk => {
+      const hist = historicalItems[mk]
+      if (!hist || Object.keys(hist).length === 0) s.add(mk)
+    })
+    return s
+  }, [monthlyTotals, historicalItems])
+
   const itemSnapshotSavedRef = useRef(false)
   const lastFetchedYearRef = useRef(null)
 
   const snapshotSig = snapshots?.length ?? 0
   const txSig = transactions?.length ?? 0
   const lotSig = lots?.length ?? 0
+  // Content signature over the edit-sensitive item fields. Counts alone miss in-place
+  // edits (quantity/symbol/date/cost), which must invalidate the cached history or
+  // past columns keep showing stale values. Live price ticks are deliberately
+  // excluded (currentPrice changes constantly and doesn't affect reconstruction
+  // inputs); purchasePrice uses the raw original so FX refreshes don't wipe it.
+  const itemContentSig = useMemo(() => (items || []).map(it =>
+    `${it.id}:${it.symbol || ''}:${it.quantity || 0}:${it._originalPurchasePrice ?? it.purchasePrice ?? 0}:${it.acquisitionDate || ''}`
+  ).sort().join('|'), [items])
   useEffect(() => {
     lastFetchedYearRef.current = null
     setHistoricalItems({})
-  }, [snapshotSig, txSig, lotSig])
+  }, [snapshotSig, txSig, lotSig, itemContentSig])
 
   useEffect(() => {
     if (!onLoadItemSnapshots || months.length === 0) return
@@ -321,7 +343,9 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
 
   useEffect(() => {
     if (!onSaveItemSnapshots || !items || items.length === 0) return
-    const itemHash = items.reduce((s, it) => s + (it.currentPrice || 0), 0).toFixed(2)
+    // Key on id+qty+symbol+price — a price-sum alone misses quantity/symbol edits
+    // that leave the sum unchanged, so the current month's snapshot never re-saved.
+    const itemHash = items.map(it => `${it.id}:${it.symbol || ''}:${it.quantity || 0}:${(it.currentPrice || 0).toFixed(4)}`).sort().join('|')
     const saveKey = `${currentMonthKey}-${itemHash}`
     if (itemSnapshotSavedRef.current === saveKey) return
     itemSnapshotSavedRef.current = saveKey
@@ -870,9 +894,11 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
               {months.map(mk => {
                 const isCurrent = mk === currentMonthKey
                 const val = isCurrent ? grandTotal : (monthlyTotals[mk] || null)
+                const isFallback = !isCurrent && val != null && fallbackMonths.has(mk)
                 return (
-                  <td key={mk} className="text-right py-3.5 px-2 font-black tabular-nums font-mono text-base" style={isCurrent ? { backgroundColor: '#eff6ff', color: '#0f172a' } : { color: val ? '#475569' : '#cbd5e1' }}>
-                    {val ? formatCurrency(val) : '—'}
+                  <td key={mk} className="text-right py-3.5 px-2 font-black tabular-nums font-mono text-base" style={isCurrent ? { backgroundColor: '#eff6ff', color: '#0f172a' } : { color: val ? '#475569' : '#cbd5e1' }}
+                    title={isFallback ? t('Valor total del snapshot (sin desglose por categoría para este mes)', 'Snapshot total (no per-category breakdown for this month)') : undefined}>
+                    {val ? formatCurrency(val) : '—'}{isFallback ? <span style={{ color: '#94a3b8' }}>*</span> : null}
                   </td>
                 )
               })}
@@ -950,6 +976,12 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
           </tfoot>
         </table>
         </div>
+        {months.some(mk => mk !== currentMonthKey && monthlyTotals[mk] != null && fallbackMonths.has(mk)) && (
+          <p className="text-xs px-4 py-2" style={{ color: '#94a3b8' }}>
+            * {t('Total del snapshot de ese mes — aún sin desglose por categoría (las filas muestran "—").',
+                 'Snapshot total for that month — no per-category breakdown yet (rows show "—").')}
+          </p>
+        )}
       </div>
     </div>
   )

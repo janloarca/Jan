@@ -905,9 +905,45 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
   const dataAge = latestSnapshot ? Math.round((Date.now() - new Date(latestSnapshot.date).getTime()) / 86400000) : null
 
+  // Profile figures for insights. The user types monthlyIncome/monthlyExpenses by
+  // hand in Settings, but also records the real thing as finance transactions —
+  // two entries of the same money that silently diverge. When a manual figure is
+  // missing, derive it from the last 3 closed months of finance transactions
+  // (manual values always win; the current partial month is excluded).
+  const effectiveProfile = useMemo(() => {
+    const p = profile || {}
+    if (p.monthlyIncome > 0 && p.monthlyExpenses > 0) return p
+    const txs = entityFinanceTransactions || []
+    if (txs.length === 0) return p
+    const now = new Date()
+    const start = new Date(now.getFullYear(), now.getMonth() - 3, 1).getTime()
+    const end = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
+    let income = 0, expenses = 0
+    const monthsSeen = new Set()
+    txs.forEach(tx => {
+      const ts = tx.date ? new Date(tx.date).getTime() : NaN
+      if (isNaN(ts) || ts < start || ts >= end) return
+      const type = (tx.type || '').toUpperCase()
+      if (type !== 'INCOME' && type !== 'EXPENSE') return
+      const amt = convert(Math.abs(tx.amount || 0), tx.currency || baseCurrency, baseCurrency)
+      if (type === 'INCOME') income += amt
+      else expenses += amt
+      const d = new Date(tx.date)
+      monthsSeen.add(`${d.getFullYear()}-${d.getMonth()}`)
+    })
+    const n = monthsSeen.size
+    if (n === 0) return p
+    return {
+      ...p,
+      monthlyIncome: p.monthlyIncome > 0 ? p.monthlyIncome : income / n,
+      monthlyExpenses: p.monthlyExpenses > 0 ? p.monthlyExpenses : expenses / n,
+      _derivedFromFinances: true,
+    }
+  }, [profile, entityFinanceTransactions, convert, baseCurrency])
+
   return {
     // Raw Firestore data
-    items, snapshots, augmentedSnapshots, transactions, goals, settings, profile, alerts, lots, portfolios, financeTransactions,
+    items, snapshots, augmentedSnapshots, transactions, goals, settings, profile, effectiveProfile, alerts, lots, portfolios, financeTransactions,
     entityTransactions, entityFinanceTransactions,
     dataLoading,
 
