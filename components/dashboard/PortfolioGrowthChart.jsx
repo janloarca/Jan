@@ -16,12 +16,14 @@ function normInst(s) {
   return (s || '').trim().replace(/\s+/g, ' ').toLowerCase()
 }
 
-function buildGeometry(values, mode, height, width, pad, extraSeries) {
+function buildGeometry(values, mode, height, width, pad, extraSeries, timestamps) {
   const ch = height - pad.top - pad.bottom
   const cw = width - pad.left - pad.right
 
   let allVals = values.filter(v => isFinite(v))
-  if (mode === 'performance' && extraSeries && extraSeries.length > 0) {
+  // extraSeries shares the Y scale (benchmark in performance mode, invested-capital
+  // line in value mode) — both lines must live on ONE axis or comparisons lie.
+  if (extraSeries && extraSeries.length > 0) {
     allVals = [...allVals, ...extraSeries.filter(v => isFinite(v))]
   }
   if (allVals.length === 0) allVals = [0]
@@ -32,8 +34,18 @@ function buildGeometry(values, mode, height, width, pad, extraSeries) {
   const adjustedMax = mode === 'performance' ? Math.max(max, 0) + Math.abs(max || 1) * 0.1 : max + paddingVal
   const range = adjustedMax - adjustedMin || 1
 
+  // X positions proportional to TIME when timestamps are supplied — index-based
+  // spacing drew sparse early snapshots and dense recent days at equal widths,
+  // visually lying about the time axis (a 5-month gap looked like one month).
+  const t0 = timestamps?.[0]
+  const tN = timestamps?.[timestamps.length - 1]
+  const timeScaled = timestamps && timestamps.length === values.length && isFinite(t0) && isFinite(tN) && tN > t0
+  const xAt = (i) => timeScaled
+    ? pad.left + ((timestamps[i] - t0) / (tN - t0)) * cw
+    : pad.left + (i / Math.max(values.length - 1, 1)) * cw
+
   const points = values.map((v, i) => ({
-    x: pad.left + (i / Math.max(values.length - 1, 1)) * cw,
+    x: xAt(i),
     y: pad.top + ch - ((v - adjustedMin) / range) * ch,
     v,
   }))
@@ -640,10 +652,26 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         }
         return { ...tx, chartIdx: closest }
       })
+      // Aggregate per chart point & direction: several same-day transactions used
+      // to stack N identical triangles on one x — now one marker + "×N" badge.
+      .reduce((acc, tx) => {
+        const isBuy = tx.type === 'BUY' || tx.type === 'DEPOSIT'
+        const key = `${tx.chartIdx}:${isBuy ? 'b' : 's'}`
+        const existing = acc.map.get(key)
+        if (existing) existing.count++
+        else {
+          const m = { chartIdx: tx.chartIdx, isBuy, count: 1 }
+          acc.map.set(key, m)
+          acc.list.push(m)
+        }
+        return acc
+      }, { map: new Map(), list: [] }).list
   }, [scopedTransactions, chartData])
 
   const width = chartWidth
-  const chartHeight = 260
+  // 200px on phones — the card stacks header+banner+legend+pills and 260 made it
+  // very tall on small screens; buildGeometry takes height as a param.
+  const chartHeight = width < 480 ? 200 : 260
   const pad = { top: 16, right: 16, bottom: 32, left: 52 }
 
   const step = Math.max(1, Math.floor(chartData.length / 6))
@@ -656,39 +684,39 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         label: period === 'DAY'
           ? `${d.date.getHours().toString().padStart(2, '0')}:${d.date.getMinutes().toString().padStart(2, '0')}`
           : useDay
-            ? d.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-            : d.date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+            ? d.date.toLocaleDateString(lang === 'es' ? 'es' : 'en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+            : d.date.toLocaleDateString(lang === 'es' ? 'es' : 'en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' }),
         idx: i,
       }))
       .filter((_, i) => i % step === 0 || i === chartData.length - 1)
     return raw.filter((xl, i) => i === 0 || xl.label !== raw[i - 1].label)
-  }, [chartData, step, period])
+  }, [chartData, step, period, lang])
 
   const growthValues = useMemo(() => chartData.map((d) => d.value), [chartData])
 
   const geo = useMemo(() => {
     const vals = viewMode === 'value' ? growthValues : returnData
     if (vals.length < 2) return null
-    const extra = (viewMode === 'performance' && benchmarkReturnSeries) ? benchmarkReturnSeries : null
-    return buildGeometry(vals, viewMode === 'value' ? 'value' : 'performance', chartHeight, width, pad, extra)
-  }, [viewMode, growthValues, returnData, benchmarkReturnSeries, width])
+    // Extra series shares the axis: benchmark (performance) / invested capital
+    // (value). Including it here is what keeps both lines on ONE scale.
+    const extra = viewMode === 'performance'
+      ? (benchmarkReturnSeries || null)
+      : (showContributions ? contributionLine : null)
+    const timestamps = chartData.map((d) => d.ts)
+    return buildGeometry(vals, viewMode === 'value' ? 'value' : 'performance', chartHeight, width, pad, extra, timestamps)
+  }, [viewMode, growthValues, returnData, benchmarkReturnSeries, contributionLine, showContributions, chartData, width])
 
   const contributionGeoPoints = useMemo(() => {
     if (!geo || !contributionLine || viewMode !== 'value' || !showContributions) return null
+    // Derive from geo — same X (time-scaled) and same Y scale as the value line.
+    // Recomputing a private range here drew the two lines on different axes.
     const ch = chartHeight - pad.top - pad.bottom
-    const allVals = [...growthValues, ...contributionLine].filter(v => isFinite(v))
-    const min = Math.min(...allVals)
-    const max = Math.max(...allVals)
-    const paddingVal = (max - min) * 0.05
-    const adjustedMin = min - paddingVal
-    const adjustedMax = max + paddingVal
-    const range = adjustedMax - adjustedMin || 1
     return contributionLine.map((v, i) => ({
-      x: pad.left + (i / Math.max(contributionLine.length - 1, 1)) * geo.cw,
-      y: pad.top + ch - ((v - adjustedMin) / range) * ch,
+      x: geo.points[i]?.x ?? pad.left,
+      y: pad.top + ch - ((v - geo.adjustedMin) / geo.range) * ch,
       v,
     }))
-  }, [geo, contributionLine, viewMode, showContributions, growthValues, chartHeight, pad])
+  }, [geo, contributionLine, viewMode, showContributions, chartHeight, pad])
 
   const resolvedXLabels = useMemo(() => {
     if (!geo) return []
@@ -697,20 +725,15 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
   const benchmarkGeoPoints = useMemo(() => {
     if (!geo || !benchmarkReturnSeries || viewMode !== 'performance') return null
+    // Derive from geo (which already includes the benchmark in its extent) so the
+    // SPX line is guaranteed to share axis AND time-scaled X with the portfolio.
     const ch = chartHeight - pad.top - pad.bottom
-    const allVals = [...returnData, ...benchmarkReturnSeries].filter(v => isFinite(v))
-    if (allVals.length === 0) return null
-    const min = Math.min(...allVals)
-    const max = Math.max(...allVals)
-    const adjustedMin = Math.min(min, 0) - Math.abs(min || 1) * 0.1
-    const adjustedMax = Math.max(max, 0) + Math.abs(max || 1) * 0.1
-    const range = adjustedMax - adjustedMin || 1
     return benchmarkReturnSeries.map((v, i) => ({
-      x: pad.left + (i / Math.max(benchmarkReturnSeries.length - 1, 1)) * geo.cw,
-      y: pad.top + ch - ((v - adjustedMin) / range) * ch,
+      x: geo.points[i]?.x ?? pad.left,
+      y: pad.top + ch - ((v - geo.adjustedMin) / geo.range) * ch,
       v,
     }))
-  }, [geo, benchmarkReturnSeries, viewMode, returnData, chartHeight, pad])
+  }, [geo, benchmarkReturnSeries, viewMode, chartHeight, pad])
 
   const firstVal = chartData.length > 0 ? chartData[0].value : 0
   const lastVal = chartData.length > 0 ? chartData[chartData.length - 1].value : 0
@@ -775,7 +798,9 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   }, [snapshotRows, onSaveSnapshot, baseCurrency, convert])
 
   const periodSelector = (
-    <div className="flex flex-wrap gap-0.5 bg-theme-base rounded-lg p-0.5 border border-glass-border/50">
+    // Single row with horizontal scroll on mobile (9 pills used to wrap to 2 rows
+    // and fatten the card); desktop unaffected because everything fits.
+    <div className="flex flex-nowrap sm:flex-wrap overflow-x-auto max-w-full gap-0.5 bg-theme-base rounded-lg p-0.5 border border-glass-border/50" style={{ scrollbarWidth: 'none' }}>
       {periods.map((p) => (
         <button key={p} onClick={() => {
           setPeriod(p)
@@ -924,36 +949,47 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         </div>
       ) : (
         <div className="mb-3">
-          <p className="text-3xl font-bold font-mono tabular-nums" style={{ color: lastReturn >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
+          <p className="text-3xl font-bold font-mono tabular-nums flex items-center gap-2" style={{ color: lastReturn >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
             {lastReturn >= 0 ? '+' : ''}{(hoverIdx != null && returnData[hoverIdx] != null ? returnData[hoverIdx] : lastReturn).toFixed(2)}%
+            {/* Mode chip inline with the number — the tiny caption below was easy
+                to miss, and an unlabeled return % invites misreading. */}
+            <span className="text-xs font-sans font-semibold px-1.5 py-0.5 rounded" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-tertiary)' }}>
+              {returnMode.toUpperCase()}
+            </span>
           </p>
           <div className="flex items-center gap-3 mt-0.5">
             <span className="text-sm text-slate-400">
               {period === 'YTD' ? t('Retorno total del año', 'Total return this year') : period === 'DAY' ? t('Retorno hoy', 'Return today') : `${t('Retorno', 'Return')} ${period}`}
             </span>
+            {/* Parallel phrasing: both captions describe the deposit treatment */}
             <span className="text-xs text-slate-600">
               {returnMode === 'twr'
-                ? t('TWR · Sin efecto de depósitos', 'TWR · Excludes cashflow effects')
-                : t('MWR · Tu experiencia real', 'MWR · Your actual experience')}
+                ? t('Sin efecto de tus depósitos', 'Without your deposits’ effect')
+                : t('Con efecto de tus depósitos', 'With your deposits’ effect')}
             </span>
           </div>
         </div>
       )}
 
-      {/* Benchmark insight (performance mode only) */}
+      {/* Benchmark insight (performance mode only). Alert tokens (not hardcoded
+          rgba) so light theme works; the DELTA leads — three raw percentages in
+          one line were hard to scan, especially on mobile. */}
       {viewMode === 'performance' && microInsight && (
         <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs mb-3"
           style={microInsight.isOut
-            ? { backgroundColor: 'rgba(52,211,153,0.05)', border: '1px solid rgba(52,211,153,0.2)', color: 'var(--accent-green)' }
-            : { backgroundColor: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.2)', color: 'var(--text-negative)' }
+            ? { backgroundColor: 'var(--alert-success-bg)', border: '1px solid var(--alert-success-border)', color: 'var(--accent-green)' }
+            : { backgroundColor: 'var(--alert-error-bg)', border: '1px solid var(--alert-error-border)', color: 'var(--text-negative)' }
           }>
           <span>{microInsight.isOut ? '▲' : '▼'}</span>
           <span>
-            {t('Portafolio', 'Portfolio')} {microInsight.portfolioRet >= 0 ? '+' : ''}{microInsight.portfolioRet.toFixed(2)}%
-            {` vs ${benchmarkName || 'S&P 500'} `}{microInsight.benchmarkRet >= 0 ? '+' : ''}{microInsight.benchmarkRet.toFixed(2)}%
-            {' · '}{microInsight.isOut
-              ? t(`Superas por ${Math.abs(microInsight.delta).toFixed(2)}%`, `Outperforming by ${Math.abs(microInsight.delta).toFixed(2)}%`)
-              : t(`Debajo por ${Math.abs(microInsight.delta).toFixed(2)}%`, `Underperforming by ${Math.abs(microInsight.delta).toFixed(2)}%`)}
+            <span className="font-semibold">
+              {microInsight.isOut
+                ? t(`Superas al ${benchmarkName || 'S&P 500'} por +${Math.abs(microInsight.delta).toFixed(2)}%`, `Beating ${benchmarkName || 'S&P 500'} by +${Math.abs(microInsight.delta).toFixed(2)}%`)
+                : t(`Vas debajo del ${benchmarkName || 'S&P 500'} por ${Math.abs(microInsight.delta).toFixed(2)}%`, `Trailing ${benchmarkName || 'S&P 500'} by ${Math.abs(microInsight.delta).toFixed(2)}%`)}
+            </span>
+            <span className="opacity-70 ml-1.5">
+              ({t('tú', 'you')} {microInsight.portfolioRet >= 0 ? '+' : ''}{microInsight.portfolioRet.toFixed(2)}% · {benchmarkName || 'SPX'} {microInsight.benchmarkRet >= 0 ? '+' : ''}{microInsight.benchmarkRet.toFixed(2)}%)
+            </span>
           </span>
         </div>
       )}
@@ -961,7 +997,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       {/* Drawdown indicator */}
       {viewMode === 'value' && drawdown && (
         <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs mb-3"
-          style={{ backgroundColor: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.2)', color: 'var(--text-negative)' }}>
+          style={{ backgroundColor: 'var(--alert-error-bg)', border: '1px solid var(--alert-error-border)', color: 'var(--text-negative)' }}>
           <span>↓</span>
           <span>
             Max drawdown: -{drawdown.pct.toFixed(1)}%
@@ -1003,22 +1039,29 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
               setHoverIdx(Math.abs(geo.points[lo].x - mx) <= Math.abs(geo.points[hi].x - mx) ? lo : hi)
             }}>
 
-            {/* Y-axis grid lines and labels */}
-            {geo.yTicks.map((tk, i) => (
-              <g key={i}>
-                <line x1={pad.left} y1={tk.y} x2={width - pad.right} y2={tk.y} stroke="var(--card-border)" strokeDasharray="4 4" strokeOpacity="0.8" />
-                <text x={pad.left - 8} y={tk.y + 4} textAnchor="end" fill="#64748b" fontSize="10" fontFamily="system-ui">
-                  {viewMode === 'performance' ? `${tk.val >= 0 ? '+' : ''}${tk.val.toFixed(tk.val === 0 ? 0 : 2)}%` : formatAxisTick(tk.val, tk.step, baseCurrency)}
-                </text>
-              </g>
-            ))}
+            {/* Y-axis grid lines and labels. In performance mode a tick can land a
+                few px from the dedicated "0%" baseline label — skip its text (keep
+                the gridline) so the two never collide ("-1.20%" over "0%"). */}
+            {geo.yTicks.map((tk, i) => {
+              const collidesWithBaseline = viewMode === 'performance' && Math.abs(tk.y - geo.baselineY) < 12
+              return (
+                <g key={i}>
+                  <line x1={pad.left} y1={tk.y} x2={width - pad.right} y2={tk.y} stroke="var(--card-border)" strokeDasharray="4 4" strokeOpacity="0.8" />
+                  {!collidesWithBaseline && (
+                    <text x={pad.left - 8} y={tk.y + 4} textAnchor="end" fill="var(--text-muted)" fontSize="10" fontFamily="system-ui">
+                      {viewMode === 'performance' ? `${tk.val >= 0 ? '+' : ''}${tk.val.toFixed(tk.val === 0 ? 0 : 2)}%` : formatAxisTick(tk.val, tk.step, baseCurrency)}
+                    </text>
+                  )}
+                </g>
+              )
+            })}
 
             {viewMode === 'value' ? (
               <>
                 <defs>
                   <linearGradient id="grad-value" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.25" />
-                    <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.02" />
+                    <stop offset="0%" stopColor="var(--accent-blue)" stopOpacity="0.25" />
+                    <stop offset="100%" stopColor="var(--accent-blue)" stopOpacity="0.02" />
                   </linearGradient>
                 </defs>
 
@@ -1040,21 +1083,26 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
                 {/* Contributions line (invested capital) */}
                 {contributionGeoPoints && contributionGeoPoints.length >= 2 && showContributions && (
-                  <path d={polyline(contributionGeoPoints)} fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6 3" opacity="0.5" />
+                  <path d={polyline(contributionGeoPoints)} fill="none" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6 3" opacity="0.5" />
                 )}
 
-                {/* Transaction markers */}
-                {txMarkers.map((tx, i) => {
-                  const pt = geo.points[tx.chartIdx]
+                {/* Transaction markers (aggregated: one triangle per point+direction) */}
+                {txMarkers.map((m, i) => {
+                  const pt = geo.points[m.chartIdx]
                   if (!pt) return null
-                  const isBuy = tx.type === 'BUY' || tx.type === 'DEPOSIT'
                   const markerY = chartHeight - pad.bottom
+                  const color = m.isBuy ? 'var(--accent-green)' : 'var(--text-negative)'
                   return (
-                    <polygon key={i}
-                      points={isBuy
-                        ? `${pt.x},${markerY + 2} ${pt.x - 4},${markerY + 10} ${pt.x + 4},${markerY + 10}`
-                        : `${pt.x},${markerY + 10} ${pt.x - 4},${markerY + 2} ${pt.x + 4},${markerY + 2}`}
-                      fill={isBuy ? 'var(--accent-green)' : 'var(--text-negative)'} opacity="0.6" />
+                    <g key={i}>
+                      <polygon
+                        points={m.isBuy
+                          ? `${pt.x},${markerY + 2} ${pt.x - 4},${markerY + 10} ${pt.x + 4},${markerY + 10}`
+                          : `${pt.x},${markerY + 10} ${pt.x - 4},${markerY + 2} ${pt.x + 4},${markerY + 2}`}
+                        fill={color} opacity="0.6" />
+                      {m.count > 1 && (
+                        <text x={pt.x + 6} y={markerY + 9} fill={color} fontSize="8" fontFamily="system-ui" opacity="0.8">×{m.count}</text>
+                      )}
+                    </g>
                   )
                 })}
               </>
@@ -1069,17 +1117,19 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                     <stop offset="0%" stopColor="var(--text-negative)" stopOpacity="0.02" />
                     <stop offset="100%" stopColor="var(--text-negative)" stopOpacity="0.3" />
                   </linearGradient>
+                  {/* 1px overlap between the clips: the strokeWidth-2 line lost ~1px
+                      of each color exactly at the crossover, leaving a visible notch. */}
                   <clipPath id="clip-above-baseline">
-                    <rect x={pad.left} y={pad.top} width={geo.cw} height={Math.max(0, geo.baselineY - pad.top)} />
+                    <rect x={pad.left} y={pad.top} width={geo.cw} height={Math.max(0, geo.baselineY - pad.top + 1)} />
                   </clipPath>
                   <clipPath id="clip-below-baseline">
-                    <rect x={pad.left} y={geo.baselineY} width={geo.cw} height={Math.max(0, chartHeight - pad.bottom - geo.baselineY)} />
+                    <rect x={pad.left} y={geo.baselineY - 1} width={geo.cw} height={Math.max(0, chartHeight - pad.bottom - geo.baselineY + 1)} />
                   </clipPath>
                 </defs>
 
                 <line x1={pad.left} y1={geo.baselineY} x2={width - pad.right} y2={geo.baselineY}
-                  stroke="#64748b" strokeWidth="1" strokeDasharray="6 4" />
-                <text x={pad.left - 8} y={geo.baselineY + 4} textAnchor="end" fill="#94a3b8" fontSize="10" fontFamily="system-ui" fontWeight="600">0%</text>
+                  stroke="var(--text-muted)" strokeWidth="1" strokeDasharray="6 4" />
+                <text x={pad.left - 8} y={geo.baselineY + 4} textAnchor="end" fill="var(--text-muted)" fontSize="10" fontFamily="system-ui" fontWeight="600">0%</text>
 
                 <path
                   d={`${polyline(geo.points)} L ${geo.points[geo.points.length - 1].x} ${geo.baselineY} L ${geo.points[0].x} ${geo.baselineY} Z`}
@@ -1095,28 +1145,26 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                 <path d={polyline(geo.points)} fill="none" stroke="var(--text-negative)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
                   clipPath="url(#clip-below-baseline)" />
 
+                {/* No in-chart label: the legend already names the benchmark, and the
+                    old label started 12px from the right edge → always clipped ("SP"). */}
                 {benchmarkGeoPoints && benchmarkGeoPoints.length >= 2 && (
-                  <>
-                    <path d={polyline(benchmarkGeoPoints)} fill="none" stroke="#f59e0b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="4 3" strokeOpacity="0.7" />
-                    <text x={benchmarkGeoPoints[benchmarkGeoPoints.length - 1].x + 4} y={benchmarkGeoPoints[benchmarkGeoPoints.length - 1].y + 3}
-                      fill="#f59e0b" fontSize="9" fontFamily="system-ui" fontWeight="600" opacity="0.8">{benchmarkName || 'SPX'}</text>
-                  </>
+                  <path d={polyline(benchmarkGeoPoints)} fill="none" stroke="var(--accent-orange)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="4 3" strokeOpacity="0.85" />
                 )}
               </>
             )}
 
             {/* X-axis labels */}
             {resolvedXLabels.map((xl, i) => (
-              <text key={i} x={xl.x} y={chartHeight - 8} textAnchor="middle" fill="#64748b" fontSize="10" fontFamily="system-ui">{xl.label}</text>
+              <text key={i} x={xl.x} y={chartHeight - 8} textAnchor="middle" fill="var(--text-muted)" fontSize="10" fontFamily="system-ui">{xl.label}</text>
             ))}
 
             {/* Hover crosshair */}
             {hp && (
               <g>
-                <line x1={hp.x} y1={pad.top} x2={hp.x} y2={chartHeight - pad.bottom} stroke="#94a3b8" strokeWidth="1" strokeDasharray="4 3" />
+                <line x1={hp.x} y1={pad.top} x2={hp.x} y2={chartHeight - pad.bottom} stroke="var(--text-muted)" strokeWidth="1" strokeDasharray="4 3" />
                 <circle cx={hp.x} cy={hp.y} r="4.5"
                   fill={viewMode === 'value' ? 'var(--accent-blue)' : (hp.v >= 0 ? 'var(--accent-green)' : 'var(--text-negative)')}
-                  stroke="#000000" strokeWidth="2" />
+                  stroke="var(--bg-card)" strokeWidth="2" />
               </g>
             )}
           </svg>
@@ -1131,8 +1179,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                 border: 'var(--glass-border)',
                 boxShadow: 'var(--shadow-elevated)',
                 left: `${Math.min(85, Math.max(15, (hp.x / width) * 100))}%`,
-                top: `${(hp.y / chartHeight) * 100 - 14}%`,
-                transform: 'translate(-50%, -100%)',
+                // Flip below the point when it sits in the top third — the tooltip
+                // used to clip past the top of the chart there.
+                top: hp.y < chartHeight / 3
+                  ? `${(hp.y / chartHeight) * 100 + 8}%`
+                  : `${(hp.y / chartHeight) * 100 - 14}%`,
+                transform: hp.y < chartHeight / 3 ? 'translate(-50%, 0)' : 'translate(-50%, -100%)',
               }}>
               {viewMode === 'value' ? (
                 <>
@@ -1164,7 +1216,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                     {t('Portafolio', 'Portfolio')}: {(returnData[hoverIdx] ?? 0) >= 0 ? '+' : ''}{(returnData[hoverIdx] ?? 0).toFixed(2)}%
                   </div>
                   {benchmarkReturnSeries && benchmarkReturnSeries[hoverIdx] != null && (
-                    <div style={{ color: '#fbbf24' }}>
+                    <div style={{ color: 'var(--accent-orange)' }}>
                       {benchmarkName || 'S&P 500'}: {benchmarkReturnSeries[hoverIdx] >= 0 ? '+' : ''}{benchmarkReturnSeries[hoverIdx].toFixed(2)}%
                     </div>
                   )}
@@ -1178,27 +1230,38 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       )}
 
       {/* Legend + Period selector */}
-      {viewMode === 'value' && (showContributions && contributionLine) && (
-        <div className="flex items-center justify-center gap-4 mt-2 text-xs text-slate-500">
+      {viewMode === 'value' && (
+        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 mt-2 text-xs text-slate-500">
           <span className="flex items-center gap-1.5">
-            <span className="w-3 h-0.5 rounded-full inline-block" style={{ backgroundColor: '#3b82f6' }} />
+            <span className="w-3 h-0.5 rounded-full inline-block" style={{ backgroundColor: 'var(--accent-blue)' }} />
             {t('Valor actual', 'Current value')}
           </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-3 h-0.5 bg-slate-400 rounded-full inline-block opacity-50" style={{ borderBottom: '1px dashed' }} />
-            {t('Capital invertido', 'Invested capital')}
-          </span>
+          {showContributions && contributionLine && (
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-0.5 rounded-full inline-block opacity-50" style={{ backgroundColor: 'var(--text-muted)', borderBottom: '1px dashed' }} />
+              {t('Capital invertido', 'Invested capital')}
+            </span>
+          )}
+          {/* The floor triangles were never explained anywhere */}
+          {txMarkers.length > 0 && (
+            <span className="flex items-center gap-1">
+              <span style={{ color: 'var(--accent-green)' }}>▲</span>{t('Compra/Depósito', 'Buy/Deposit')}
+              <span className="ml-1" style={{ color: 'var(--text-negative)' }}>▼</span>{t('Venta/Retiro', 'Sell/Withdrawal')}
+            </span>
+          )}
         </div>
       )}
       {viewMode === 'performance' && (
-        <div className="flex items-center justify-center gap-4 mt-2 text-xs text-slate-500">
+        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 mt-2 text-xs text-slate-500">
+          {/* The line renders green above 0% and red below — document both colors */}
           <span className="flex items-center gap-1.5">
-            <span className="w-3 h-0.5 rounded-full inline-block" style={{ backgroundColor: 'var(--accent-green)' }} />
-            {t('Tu portafolio', 'Your portfolio')} ({returnMode.toUpperCase()})
+            <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: 'var(--accent-green)' }} />
+            <span className="w-1.5 h-1.5 rounded-full inline-block -ml-1" style={{ backgroundColor: 'var(--text-negative)' }} />
+            {t('Tu portafolio', 'Your portfolio')} ({returnMode.toUpperCase()}) — {t('verde sobre 0%, rojo debajo', 'green above 0%, red below')}
           </span>
           {benchmarkReturnSeries && (
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-0.5 rounded-full inline-block" style={{ backgroundColor: 'rgba(245,158,11,0.7)', borderBottom: '1px dashed' }} />
+              <span className="w-3 h-0.5 rounded-full inline-block" style={{ backgroundColor: 'var(--accent-orange)', borderBottom: '1px dashed' }} />
               {benchmarkName || 'S&P 500'}
             </span>
           )}
