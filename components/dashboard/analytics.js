@@ -418,10 +418,42 @@ export function computePeriodicReturns(snapshots, transactions, convert, baseCur
       } else {
         r = (curr - prev) / prev
       }
-      if (Math.abs(r) < 1) returns.push(r)
+      if (isFinite(r)) returns.push(r)
     }
   }
-  return returns
+  return filterOutlierReturns(returns)
+}
+
+// Robust outlier gate for periodic returns. The old fixed |r|<1 cut was
+// asymmetric in practice: a corrupt one-day NAV double (+123%) was dropped but
+// its mirror legs (−55%) were kept, blowing up volatility/Sharpe. Use median ±
+// 6×MAD when the sample allows; fall back to the symmetric |r|<1 cut otherwise.
+function filterOutlierReturns(returns) {
+  const base = returns.filter((r) => Math.abs(r) < 1)
+  if (base.length < 6) return base
+  const sorted = [...base].sort((a, b) => a - b)
+  const median = sorted[Math.floor(sorted.length / 2)]
+  const absDev = base.map((r) => Math.abs(r - median)).sort((a, b) => a - b)
+  const mad = absDev[Math.floor(absDev.length / 2)]
+  if (!mad) return base
+  // 1.4826 scales MAD to σ-equivalent for normal data; 6σ keeps real fat tails.
+  return base.filter((r) => Math.abs(r - median) <= 6 * 1.4826 * mad)
+}
+
+// Drop isolated single-point spikes/dips (>1.8× above or <0.55× below BOTH
+// neighbors) from a {ts,value} series before drawdown/risk math — the same
+// guard the growth chart applies to its merged series. A real crash or deposit
+// is a step (the neighbor stays at the new level), which this keeps.
+export function filterValueSpikes(series) {
+  if (!series || series.length < 3) return series || []
+  return series.filter((p, i) => {
+    if (i === 0 || i === series.length - 1) return true
+    const prev = series[i - 1].value, next = series[i + 1].value
+    if (prev <= 0 || next <= 0) return true
+    const upSpike = p.value > prev * 1.8 && p.value > next * 1.8
+    const downDip = p.value < prev * 0.55 && p.value < next * 0.55
+    return !(upSpike || downDip)
+  })
 }
 
 export function computeBeta(portfolioReturns, benchmarkReturns) {

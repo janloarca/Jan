@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { computeSharpeRatio, computeVolatility, computeMaxDrawdown, computePeriodicReturns, computeBeta, computeSortino, computeTreynor, computeJensensAlpha, computeInformationRatio, inferPeriodsPerYear } from './analytics'
+import { computeSharpeRatio, computeVolatility, computeMaxDrawdown, computePeriodicReturns, computeBeta, computeSortino, computeTreynor, computeJensensAlpha, computeInformationRatio, inferPeriodsPerYear, filterValueSpikes } from './analytics'
 import { InfoTip } from '../ui/Tooltip'
 
 export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, transactions, convert, baseCurrency, benchmarkName }) {
@@ -16,7 +16,7 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
       .map((s) => ({ ts: new Date(s.date).getTime(), value: s.netWorthUSD ?? s.totalActivosUSD ?? 0 }))
       .filter((p) => !isNaN(p.ts) && isFinite(p.ts) && p.value > 0)
       .sort((a, b) => a.ts - b.ts)
-    const drawdown = computeMaxDrawdown(valueSeries)
+    const drawdown = computeMaxDrawdown(filterValueSpikes(valueSeries))
 
     // Benchmark-relative metrics need the portfolio and benchmark return series
     // sampled over the SAME pairs. `returns` (Modified Dietz over snapshots) is

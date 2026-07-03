@@ -9,7 +9,37 @@ import {
   computeBeta,
   computeNetContributions,
   inferPeriodsPerYear,
+  filterValueSpikes,
 } from '../analytics'
+
+describe('filterValueSpikes', () => {
+  const mk = (vals) => vals.map((value, i) => ({ ts: i, value }))
+
+  test('drops an isolated up-spike (~2× both neighbors)', () => {
+    const out = filterValueSpikes(mk([11000, 11000, 24500, 11000, 11200]))
+    expect(out.map((p) => p.value)).toEqual([11000, 11000, 11000, 11200])
+  })
+
+  test('drops an isolated down-dip (<55% of both neighbors)', () => {
+    const out = filterValueSpikes(mk([10000, 10100, 4000, 10050, 10000]))
+    expect(out.map((p) => p.value)).toEqual([10000, 10100, 10050, 10000])
+  })
+
+  test('keeps a genuine step (deposit): next point stays at the new level', () => {
+    const vals = [11000, 11000, 24000, 24100, 24200]
+    expect(filterValueSpikes(mk(vals)).map((p) => p.value)).toEqual(vals)
+  })
+
+  test('keeps a gradual crash (no single-point dip)', () => {
+    const vals = [10000, 8000, 6200, 5000, 4100]
+    expect(filterValueSpikes(mk(vals)).map((p) => p.value)).toEqual(vals)
+  })
+
+  test('endpoints are never dropped; short series pass through', () => {
+    expect(filterValueSpikes(mk([100, 5000])).length).toBe(2)
+    expect(filterValueSpikes(null)).toEqual([])
+  })
+})
 
 describe('inferPeriodsPerYear', () => {
   const day = 86400000

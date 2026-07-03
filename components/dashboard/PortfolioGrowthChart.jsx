@@ -164,7 +164,17 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const fetchHistory = useCallback(async () => {
     if (!scopedItems || scopedItems.length === 0) return
     if (period === 'CUSTOM' && !customRange.from) return
-    if (period === 'DAY') { setLoading(false); return }
+    if (period === 'CUSTOM' && customRange.to && customRange.from > customRange.to) {
+      setFetchError(t('El rango está invertido: "desde" es posterior a "hasta".', 'Range is inverted: "from" is after "to".'))
+      return
+    }
+    if (period === 'DAY') {
+      // Clear leftover points from the previous period — the DAY splice mixes any
+      // recent API points into the intraday snapshots.
+      setDataPoints([])
+      setLoading(false)
+      return
+    }
     const gen = ++fetchGenRef.current
     setLoading(true)
     setFetchError(null)
@@ -280,7 +290,15 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   }, [fetchHistory])
 
   useEffect(() => {
-    const bp = benchmarkPeriodMap[period] || 'YTD'
+    let bp = benchmarkPeriodMap[period] || 'YTD'
+    // CUSTOM used to silently fall back to YTD — the "vs SPX" box then compared
+    // your custom window against the index's year-to-date. Match the window.
+    if (period === 'CUSTOM' && customRange.from) {
+      const fromDate = new Date(customRange.from)
+      const toDate = customRange.to ? new Date(customRange.to) : new Date()
+      const diffDays = Math.ceil((toDate - fromDate) / 86400000)
+      bp = diffDays <= 30 ? '1M' : diffDays <= 90 ? '3M' : diffDays <= 180 ? '6M' : diffDays <= 365 ? '1Y' : 'ALL'
+    }
     let cancelled = false
     const sym = benchmarkSymbol || '%5EGSPC'
     authFetch(`/api/prices/benchmark?period=${encodeURIComponent(bp)}&symbol=${encodeURIComponent(sym)}`)
@@ -288,7 +306,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       .then((data) => { if (!cancelled && data) setBenchmarkPts(data.dataPoints || null) })
       .catch(() => {})
     return () => { cancelled = true }
-  }, [period, benchmarkSymbol])
+  }, [period, benchmarkSymbol, customRange])
 
   const currentTotal = useMemo(() => {
     if (!scopedItems) return 0
@@ -521,7 +539,9 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         endTs: chartData[i].ts,
         transactions: scopedTransactions, convert, baseCurrency,
       })
-      result.push(pct)
+      // Same ±200% sanity clamp the YTD card applies — an unclamped Dietz point
+      // from degenerate data would blow up the axis for the whole series.
+      result.push(Math.max(-200, Math.min(200, pct)))
     }
     return result
   }, [chartData, scopedTransactions, convert, baseCurrency])
@@ -706,6 +726,9 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
   const microInsight = useMemo(() => {
     if (benchmarkReturn == null || returnData.length < 2) return null
+    // Sanity bound: a degenerate portfolio figure shouldn't be broadcast as a
+    // triumphant "you beat the S&P by 500%" box.
+    if (!isFinite(lastReturn) || Math.abs(lastReturn) > 200) return null
     const delta = lastReturn - benchmarkReturn
     return { portfolioRet: lastReturn, benchmarkRet: benchmarkReturn, delta, isOut: delta >= 0 }
   }, [benchmarkReturn, lastReturn, returnData])
@@ -1191,6 +1214,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           <label className="text-xs text-slate-400">{t('Desde', 'From')}:</label>
           <input type="date" value={customRange.from}
             onChange={e => setCustomRange(prev => ({ ...prev, from: e.target.value }))}
+            max={customRange.to || new Date().toISOString().split('T')[0]}
             className="px-2 py-1 bg-theme-base border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[#3b82f6]" />
           <label className="text-xs text-slate-400">{t('Hasta', 'To')}:</label>
           <input type="date" value={customRange.to}
