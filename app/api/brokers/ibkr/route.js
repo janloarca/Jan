@@ -21,6 +21,12 @@ const LEGACY_POLL_DELAY_MS = 3000
 
 function classifyError(errMsg) {
   const msg = (errMsg || '').toLowerCase()
+  // IBKR lockout after repeated failed logins ("Too many failed attempts. Please
+  // review your configuration."). MUST be fatal: every retry counts as another
+  // failed login and refreshes the lock — the old UNKNOWN classification let the
+  // 30-min auto-sync keep the account blocked indefinitely.
+  if (msg.includes('too many failed attempts') || msg.includes('review your configuration'))
+    return { errorCode: 'LOCKED', error: 'IBKR bloqueó temporalmente el acceso por intentos fallidos. Verifica que tu Flex Token siga vigente (suelen expirar), genera uno nuevo si hace falta, y reintenta en ~1 hora.' }
   if (msg.includes('invalid token') || msg.includes('token is not valid') || msg.includes('not authenticated'))
     return { errorCode: 'TOKEN_EXPIRED', error: 'Tu Flex Token expiró o es inválido. Genera uno nuevo en IBKR.' }
   if (msg.includes('invalid query') || msg.includes('no matching flex') || msg.includes('query id'))

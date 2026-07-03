@@ -571,7 +571,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }, onProgress)
   }, [items, snapshots, bulkImport, activePortfolio, activeEntity])
 
-  const FATAL_ERROR_CODES = ['TOKEN_EXPIRED', 'INVALID_QUERY']
+  // LOCKED = IBKR temporarily blocked the token after failed attempts; retrying
+  // refreshes the lock, so it must halt auto-sync like the other fatal states.
+  const FATAL_ERROR_CODES = ['TOKEN_EXPIRED', 'INVALID_QUERY', 'LOCKED']
 
   useEffect(() => {
     if (dataLoading) return
@@ -585,8 +587,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     if (ibkrAutoSyncRef.current) return
     ibkrAutoSyncRef.current = true
     const SYNC_INTERVAL = 30 * 60 * 1000
+    // Space attempts by the LAST ATTEMPT, not the last success — otherwise every
+    // page load while in an error state fired another immediate try, hammering
+    // IBKR with failed logins (which is what triggers its lockout).
     const lastSync = settings._ibkrLastAutoSync ? new Date(settings._ibkrLastAutoSync).getTime() : 0
-    const shouldSync = Date.now() - lastSync > SYNC_INTERVAL
+    const lastAttempt = settings._ibkrLastAutoSyncAttempt ? new Date(settings._ibkrLastAutoSyncAttempt).getTime() : 0
+    const shouldSync = Date.now() - Math.max(lastSync, lastAttempt) > SYNC_INTERVAL
 
     let cancelled = false
     const doAutoSync = async () => {
@@ -625,6 +631,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           _ibkrAutoSyncStatus: 'error',
           _ibkrAutoSyncError: err.message,
           _ibkrAutoSyncErrorCode: code,
+          _ibkrLastAutoSyncAttempt: new Date().toISOString(),
         })
       } finally {
         if (!cancelled) setIbkrAutoSyncing(false)
