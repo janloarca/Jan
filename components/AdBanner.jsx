@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { ADSENSE_CLIENT } from '@/lib/adsense'
+import { ADSENSE_CLIENT, ADSENSE_SLOT_FOOTER } from '@/lib/adsense'
 
 // Google AdSense banner — the single ad slot on the dashboard. Placed right below
 // the hero (NetWorth + growth chart), the first natural seam: visible without
@@ -12,7 +12,7 @@ import { ADSENSE_CLIENT } from '@/lib/adsense'
 // hidden until the ad unit exists: set NEXT_PUBLIC_ADSENSE_SLOT_FOOTER after
 // AdSense approves the site. No dismiss button (AdSense policy) and Auto Ads must
 // stay OFF in the console.
-const SLOT = process.env.NEXT_PUBLIC_ADSENSE_SLOT_FOOTER
+const SLOT = ADSENSE_SLOT_FOOTER
 
 export default function AdBanner({ lang = 'es' }) {
   const enabled = !!(ADSENSE_CLIENT && SLOT)
