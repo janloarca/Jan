@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
 import { fetchWithRetry } from '@/lib/fetchWithRetry'
+import { isMarketPriced } from '@/components/dashboard/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -146,7 +147,6 @@ export async function POST(request) {
 
     const { range, interval } = RANGE_MAP[per] || RANGE_MAP.YTD
 
-    const skipTypes = /inmueble|bank|banco|real.?estate|property|inversion|inversión|bono|bond|deposito|certificado/i
     const marketItems = []
     const cryptoItems = []
     const staticItems = []
@@ -155,7 +155,10 @@ export async function POST(request) {
       const sym = (it.symbol || '').toUpperCase().trim()
       if (!sym) return
       const type = (it.type || '').toLowerCase()
-      if (skipTypes.test(type)) {
+      // Same whitelist as live quotes (isMarketPriced): anything not clearly a
+      // market instrument is reconstructed held-flat instead of being priced by
+      // whatever Yahoo ticker its symbol happens to match.
+      if (!isMarketPriced(it)) {
         staticItems.push(it)
       } else if (/crypto|cripto|blockchain/i.test(type) || CRYPTO_MAP[sym]) {
         cryptoItems.push(it)

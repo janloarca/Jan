@@ -93,6 +93,24 @@ export function formatMonth(monthKey) {
   return label.charAt(0).toUpperCase() + label.slice(1)
 }
 
+// Single source of truth for "should this item get live market quotes?".
+// This MUST be a default-deny whitelist: the old per-consumer blacklists let
+// cash/bond items with short symbols ("USD", "TE", "BOT") fetch UNRELATED Yahoo
+// tickers ("USD" is a real 2× leveraged ETF), silently replacing the stored
+// balance with an equity price — corrupting net worth, movers and snapshots.
+// Worst case under default-deny is a legit asset showing its manual price.
+const NON_MARKET_TYPE_RE = /inmueble|bank|banco|real.?estate|property|alternative|bond|bono|debt|deuda|pasivo|cash|saving|checking|cuenta|ahorro|efectivo|deposito|depósito|certificado|cdt|plazo|letra|pagar|tesoro|treasury|renta.?fija|fixed.?income|receivable|inversion|inversión/i
+const MARKET_TYPE_RE = /stock|accion|acción|equity|share|reit|etf|fund|crypto|cripto|blockchain|token|index|mutual/i
+export function isMarketPriced(item) {
+  if (!item || !item.symbol) return false
+  if (item.isIlliquid || item.isDebt || item.isReceivable) return false
+  const t = item.type || ''
+  if (NON_MARKET_TYPE_RE.test(t)) return false
+  if (MARKET_TYPE_RE.test(t)) return true
+  const cat = getTypeCategory(item)
+  return cat === 'stocks' || cat === 'crypto' || cat === 'funds'
+}
+
 export function getTypeCategory(itemOrType) {
   if (!itemOrType) return 'other'
   const type = typeof itemOrType === 'string' ? itemOrType : itemOrType.type || ''

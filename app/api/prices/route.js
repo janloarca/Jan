@@ -3,6 +3,7 @@ import { rateLimit } from '@/lib/rateLimit'
 import { verifyAuth } from '@/lib/apiAuth'
 import { fetchWithRetry } from '@/lib/fetchWithRetry'
 import { CRYPTO_MAP } from '@/lib/cryptoMap'
+import { isMarketPriced } from '@/components/dashboard/utils'
 
 const SYMBOL_RE = /^[A-Z0-9._\-^=]{1,20}$/i
 
@@ -111,6 +112,10 @@ export async function POST(request) {
     items.forEach((it) => {
       const sym = (it.symbol || '').toUpperCase().trim()
       if (!sym || !SYMBOL_RE.test(sym)) return
+      // Server-side guard mirroring the client whitelist (isMarketPriced): never
+      // quote cash/bond/manual items — a bond coded "TE" or a cash bucket "USD"
+      // would otherwise resolve to an unrelated real ticker.
+      if (!isMarketPriced(it)) return
       const type = (it.type || '').toLowerCase()
       if (/crypto|cripto|blockchain/i.test(type) || CRYPTO_MAP[sym]) {
         cryptoSymbols.push(sym)

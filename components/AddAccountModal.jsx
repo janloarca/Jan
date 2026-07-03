@@ -917,6 +917,13 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               </label>
               <input id="add-acquisitionDate" value={form.acquisitionDate} onChange={e => set('acquisitionDate', e.target.value)}
                 type="date" max={new Date().toISOString().split('T')[0]} className={inputCls} />
+              {/* The default is TODAY — if the user already held this asset and
+                  keeps the default, every history engine treats it as nonexistent
+                  before today (flat/empty past + wrong returns). Nudge hard. */}
+              <p className="text-xs mt-1" style={{ color: 'var(--accent-orange)' }}>
+                {t('Si ya lo tenías desde antes, usa la fecha REAL — el historial y los retornos arrancan en esta fecha.',
+                   'If you already held this, use the REAL date — history and returns start from this date.')}
+              </p>
             </div>
 
             {/* Dividend info for market assets */}

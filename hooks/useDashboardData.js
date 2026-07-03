@@ -108,7 +108,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const netWorthUSD = totalAssetsUSD - totalDebtUSD
     if (totalAssetsUSD > 0 || totalDebtUSD > 0) {
       const { netContributions: totalContributedUSD } = computeNetContributions(transactions, convert, 'USD')
-      saveSnapshot({ date: todayStr, totalActivosUSD: totalAssetsUSD, totalDebtUSD, netWorthUSD, totalContributedUSD, rates: rates || {}, baseCurrency })
+      // _source:'daily' marks this as a FULL-portfolio snapshot (all enriched
+      // items) so other writers (IBKR sync = broker-only NAV) know not to
+      // overwrite it with a poorer value for the same date.
+      saveSnapshot({ date: todayStr, totalActivosUSD: totalAssetsUSD, totalDebtUSD, netWorthUSD, totalContributedUSD, rates: rates || {}, baseCurrency, _source: 'daily' })
       snapshotSavedRef.current = todayStr
     }
   }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, snapshots, saveSnapshot, convert, baseCurrency, transactions])
@@ -506,14 +509,21 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
 
     // Let a fresh IBKR equity entry overwrite a stale snapshot for the same date
-    // (a wrong value written once must be correctable by a later sync). Only skip
-    // when an existing IBKR snapshot already holds the same value.
+    // (a wrong value written once must be correctable by a later sync). But NEVER
+    // downgrade a FULL-portfolio snapshot (daily writer, sums all assets) to
+    // broker-only NAV — that same-date tug-of-war alternated the chart between
+    // ~broker-NAV and ~full-NAV days (the twin-spike artifact).
     const byDate = new Map(snapshots.map(s => [s.date, s]))
     const newSnaps = (data.equityHistory || [])
       .filter(entry => {
         const prev = byDate.get(entry.date)
+        if (!prev) return true
         const nav = entry.netWorthUSD || 0
-        return !prev || prev._source !== 'ibkr' || (prev.netWorthUSD ?? 0) !== nav
+        const prevVal = prev.netWorthUSD ?? 0
+        if (prev._source === 'ibkr') return prevVal !== nav
+        // Full/daily snapshot exists: only overwrite if the broker NAV is HIGHER
+        // (then the stored one was the poorer value).
+        return nav > prevVal
       })
       .map(entry => {
         // IBKR equity is in the account's base currency. Convert to USD when it

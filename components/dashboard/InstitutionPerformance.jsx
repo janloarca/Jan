@@ -15,12 +15,14 @@ export default function InstitutionPerformance({ items, lang, baseCurrency }) {
     if (!items || items.length === 0) return []
     const map = {}
     items.forEach((it) => {
-      const inst = it.institution || t('Sin institución', 'No institution')
-      if (!map[inst]) map[inst] = { name: inst, count: 0, value: 0, cost: 0 }
-      map[inst].count += 1
-      map[inst].value += getItemValue(it)
+      const rawName = it.institution || t('Sin institución', 'No institution')
+      // Normalized key: "IDC VALORES" and "IDC Valores" are one custodian, not two rows.
+      const key = rawName.trim().replace(/\s+/g, ' ').toLowerCase()
+      if (!map[key]) map[key] = { name: rawName.trim(), count: 0, value: 0, cost: 0 }
+      map[key].count += 1
+      map[key].value += getItemValue(it)
       const qty = Number(it.quantity) || 0
-      map[inst].cost += qty * (it.purchasePrice || 0)
+      map[key].cost += qty * (it.purchasePrice || 0)
     })
     return Object.values(map)
       .map((inst) => {

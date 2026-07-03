@@ -2,11 +2,13 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
-import { formatCurrency, formatDate, getItemPrice } from './utils'
+import { formatCurrency, formatDate, getItemPrice, isMarketPriced } from './utils'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import DocumentVault from './DocumentVault'
 
-const STATIC_TYPES = /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo|bond|bono|instrumento|inversion|inversión|cdt|plazo|treasury|letra|pagare|deposito|certificado|inmueble|real.?estate|property/i
+// Unified with the app-wide market whitelist (isMarketPriced) — the old local
+// blacklist disagreed with the movers/quotes filter, so the same asset could
+// show "no market data" here while plunging -9.66% in the movers list.
 
 export default function AssetDetailModal({ item, onClose, lang = 'es', uid, transactions = [], convert, baseCurrency = 'USD' }) {
   const trapRef = useFocusTrap()
@@ -18,7 +20,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
 
   const t = (es, en) => lang === 'es' ? es : en
   const ranges = ['1W', '1M', '3M', '6M', '1Y', 'ALL']
-  const isStatic = STATIC_TYPES.test(item.type || '')
+  const isStatic = !isMarketPriced(item)
 
   // Reinvested interest/dividends paid by THIS asset, as step-ups (in base currency).
   // For market assets reinvested shares already raise qty; for bonds the interest

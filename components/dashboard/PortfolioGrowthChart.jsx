@@ -1,13 +1,19 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { formatCurrency, formatCompact, formatAxisTick, formatDate, computeModifiedDietz, getItemValue, buildIncomeEvents } from './utils'
+import { formatCurrency, formatCompact, formatAxisTick, formatDate, computeModifiedDietz, getItemValue, buildIncomeEvents, isExcludedFromNetWorth } from './utils'
 import { computeTWRSeries } from './analytics'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import ErrorState from '@/components/ui/ErrorState'
 
 function polyline(pts) {
   return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+}
+
+// Canonical institution key: trim, collapse whitespace, case-fold — so casing or
+// stray spaces in user data never split one custodian into two.
+function normInst(s) {
+  return (s || '').trim().replace(/\s+/g, ' ').toLowerCase()
 }
 
 function buildGeometry(values, mode, height, width, pad, extraSeries) {
@@ -85,23 +91,41 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
   // Group holdings by institution so the chart can show a single institution's
   // combined behaviour (e.g. a bond + the cash account it pays into move together).
+  // Grouping key is NORMALIZED (trim + collapse spaces + case-fold): "IDC VALORES"
+  // and "IDC Valores" are the same custodian, not two pills with a split book —
+  // and the lots filter below must agree with the pill on that.
   const institutions = useMemo(() => {
     if (!items || items.length === 0) return []
     const map = {}
     items.forEach((it) => {
-      const inst = it.institution || t('Sin institución', 'No institution')
-      if (!map[inst]) map[inst] = { name: inst, value: 0, items: [] }
-      map[inst].value += getItemValue(it)
-      map[inst].items.push(it)
+      if (isExcludedFromNetWorth(it)) return
+      const rawName = it.institution || t('Sin institución', 'No institution')
+      const key = normInst(rawName)
+      if (!map[key]) map[key] = { key, name: rawName, value: 0, items: [] }
+      map[key].value += getItemValue(it)
+      map[key].items.push(it)
     })
     return Object.values(map).sort((a, b) => b.value - a.value)
   }, [items, lang])
 
   const scopedItems = useMemo(() => {
     if (selectedInst === 'ALL') return items || []
-    const inst = institutions.find((i) => i.name === selectedInst)
+    const inst = institutions.find((i) => i.key === selectedInst)
     return inst ? inst.items : []
   }, [selectedInst, items, institutions])
+
+  // Transactions belonging to the selected institution. TWR/MWR/markers must use
+  // this scoped list: with the full list, a deposit into Interactive Brokers would
+  // count as a cash flow against an IDC-only value series and distort its return.
+  const scopedTransactions = useMemo(() => {
+    if (!transactions || selectedInst === 'ALL') return transactions
+    const scopedIds = new Set(scopedItems.map((it) => it.id).filter(Boolean))
+    const scopedSyms = new Set(scopedItems.map((it) => (it.symbol || '').toUpperCase()).filter(Boolean))
+    return transactions.filter((tx) =>
+      (tx._linkedItemId && scopedIds.has(tx._linkedItemId)) ||
+      (tx.symbol && scopedSyms.has((tx.symbol || '').toUpperCase()))
+    )
+  }, [transactions, scopedItems, selectedInst])
 
   // When the manually-added (non-IBKR) assets were first created. Daily snapshots
   // from before this date are broker-only and need the manual-asset overlay; later
@@ -132,10 +156,16 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     return formatDate(date.toISOString())
   }, [period, lang])
 
+  // Generation token: without it, switching periods fast lets a SLOW response
+  // from the previous period resolve last and overwrite the current one — the
+  // chart would show YTD data labeled as 1M. mountedRef alone can't catch this
+  // (it's true again by the time the stale response lands).
+  const fetchGenRef = useRef(0)
   const fetchHistory = useCallback(async () => {
     if (!scopedItems || scopedItems.length === 0) return
     if (period === 'CUSTOM' && !customRange.from) return
     if (period === 'DAY') { setLoading(false); return }
+    const gen = ++fetchGenRef.current
     setLoading(true)
     setFetchError(null)
     try {
@@ -150,18 +180,29 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         else if (diffDays <= 365) apiPeriod = '1Y'
         else apiPeriod = 'ALL'
       }
-      const scopedSymbols = new Set(scopedItems.map(it => (it.symbol || '').toUpperCase()).filter(Boolean))
+      // Assets only — the API has no isDebt notion and would sum a debt as a
+      // POSITIVE holding (the backfill path already filters this way). Excluded
+      // receivables are dropped to match the snapshot/net-worth baseline. Debt is
+      // held flat and subtracted from the returned points below, like backfill.
+      const chartItems = scopedItems.filter(it => !it.isDebt && !isExcludedFromNetWorth(it))
+      const debtUSD = scopedItems.reduce((s, it) => {
+        if (!it.isDebt) return s
+        const cur = it._originalCurrency || it.currency || 'USD'
+        const v = (it.quantity || 0) * (it._originalPrice ?? it.currentPrice ?? it.purchasePrice ?? 0)
+        return s + Math.abs(convert ? convert(v, cur, 'USD') : v)
+      }, 0)
+      const scopedSymbols = new Set(chartItems.map(it => (it.symbol || '').toUpperCase()).filter(Boolean))
       const instFilter = selectedInst === 'ALL' ? null : selectedInst
       const allLots = (lots || []).filter(l =>
         l.quantity > 0
         && scopedSymbols.has((l.symbol || '').toUpperCase())
-        && (!instFilter || l.institution === instFilter)
+        && (!instFilter || normInst(l.institution) === instFilter)
       )
       const res = await authFetch('/api/prices/portfolio-history', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          items: scopedItems.map((it) => {
+          items: chartItems.map((it) => {
             // The API sums values assuming USD — convert original-currency prices first
             const cur = it._originalCurrency || it.currency || 'USD'
             const toUSD = (p) => convert ? convert(p || 0, cur, 'USD') : (p || 0)
@@ -180,14 +221,16 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
             closedDate: l.closedDate || null,
             costBasis: l.costBasis,
           })) : undefined,
-          income: buildIncomeEvents(transactions, scopedItems, convert, 'USD'),
+          income: buildIncomeEvents(scopedTransactions, chartItems, convert, 'USD'),
           period: apiPeriod,
         }),
       })
       if (res.ok) {
         const data = await safeJson(res)
-        if (!mountedRef.current) return
+        if (!mountedRef.current || gen !== fetchGenRef.current) return
         let pts = data.dataPoints || []
+        // Net worth semantics: subtract held-flat debt (same as the backfill path)
+        if (debtUSD > 0) pts = pts.map(dp => ({ ...dp, total: dp.total - debtUSD }))
         if (baseCurrency !== 'USD' && convert) {
           pts = pts.map(dp => ({ ...dp, total: convert(dp.total, 'USD', baseCurrency) }))
         }
@@ -219,12 +262,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         setStaticPoints(sp)
       }
     } catch (err) {
-      if (!mountedRef.current) return
+      if (!mountedRef.current || gen !== fetchGenRef.current) return
       console.error('Failed to fetch portfolio history:', err)
       setFetchError(t('Error cargando historial', 'Failed to load history'))
     }
-    if (mountedRef.current) setLoading(false)
-  }, [scopedItems, lots, transactions, period, baseCurrency, convert, customRange, selectedInst])
+    if (mountedRef.current && gen === fetchGenRef.current) setLoading(false)
+  }, [scopedItems, scopedTransactions, lots, period, baseCurrency, convert, customRange, selectedInst])
 
   useEffect(() => {
     mountedRef.current = true
@@ -249,7 +292,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
   const currentTotal = useMemo(() => {
     if (!scopedItems) return 0
-    return scopedItems.reduce((s, it) => s + getItemValue(it), 0)
+    // Match the snapshot/net-worth baseline: excluded receivables don't count
+    // (the daily snapshot writer drops them too) — otherwise the live "today"
+    // point steps above the snapshot series.
+    return scopedItems
+      .filter((it) => !isExcludedFromNetWorth(it))
+      .reduce((s, it) => s + getItemValue(it), 0)
   }, [scopedItems])
 
   const snapshotData = useMemo(() => {
@@ -352,10 +400,29 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       return v
     }
     const overlay = selectedInst === 'ALL' && staticPoints.length > 0
+    // NOTE: 'backfill' snapshots are deliberately NOT overlaid — the backfill API
+    // call already includes manual assets (gated by acquisitionDate, exactly like
+    // staticAt), so adding staticAt again would double-count them.
     const needsOverlay = (p) => p.src === 'ibkr' || (manualAddedTs > 0 && p.ts < manualAddedTs)
-    const snapSource = overlay
+    let snapSource = overlay
       ? snapshotData.map((p) => needsOverlay(p) ? { ...p, value: p.value + staticAt(p.ts) } : p)
       : snapshotData
+
+    // Symmetric single-point spike guard, applied AFTER the overlay (mixed-source
+    // snapshot docs + per-point overlay can alternate levels). The pre-overlay
+    // filter only catches DOWN dips; an isolated point ~2× above both neighbors
+    // is corrupt/mixed data, not a real one-day double — a genuine deposit shows
+    // as a step (next point stays high), which this deliberately keeps.
+    if (snapSource.length >= 3) {
+      snapSource = snapSource.filter((p, i) => {
+        if (i === 0 || i === snapSource.length - 1) return true
+        const prev = snapSource[i - 1].value, next = snapSource[i + 1].value
+        if (prev <= 0 || next <= 0) return true
+        const upSpike = p.value > prev * 1.8 && p.value > next * 1.8
+        const downDip = p.value < prev * 0.55 && p.value < next * 0.55
+        return !(upSpike || downDip)
+      })
+    }
 
     const apiPts = dataPoints.length >= 2
       ? dataPoints.map((dp) => ({ ts: dp.ts, date: new Date(dp.ts), value: dp.total }))
@@ -452,17 +519,17 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         endValue: chartData[i].value,
         startTs,
         endTs: chartData[i].ts,
-        transactions, convert, baseCurrency,
+        transactions: scopedTransactions, convert, baseCurrency,
       })
       result.push(pct)
     }
     return result
-  }, [chartData, transactions, convert, baseCurrency])
+  }, [chartData, scopedTransactions, convert, baseCurrency])
 
   const twrData = useMemo(() => {
     if (chartData.length < 2) return []
-    return computeTWRSeries(chartData, transactions, convert, baseCurrency)
-  }, [chartData, transactions, convert, baseCurrency])
+    return computeTWRSeries(chartData, scopedTransactions, convert, baseCurrency)
+  }, [chartData, scopedTransactions, convert, baseCurrency])
 
   const returnData = returnMode === 'twr' ? twrData : mwrData
 
@@ -480,7 +547,11 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
   const benchmarkReturnSeries = useMemo(() => {
     if (!sortedBenchmark || chartData.length < 2) return null
-    const baseClose = sortedBenchmark[0].close
+    // Rebase to the benchmark close at the PORTFOLIO's start — the benchmark
+    // window can be wider than the chart (DAY/1W/MTD fetch 1M of data), and
+    // rebasing to its own first point made the SPX line start above/below 0%
+    // and disagree with the "vs SPX" figure in the insight box.
+    const baseClose = findClosestBenchmark(sortedBenchmark, chartData[0].ts).close
     if (baseClose <= 0) return null
     return chartData.map((dp) => {
       const closest = findClosestBenchmark(sortedBenchmark, dp.ts)
@@ -489,19 +560,16 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   }, [sortedBenchmark, chartData])
 
   const contributionLine = useMemo(() => {
-    if (viewMode !== 'value' || !transactions || chartData.length < 2) return null
+    if (viewMode !== 'value' || !scopedTransactions?.length || chartData.length < 2) return null
     const flowTypes = { DEPOSIT: 1, WITHDRAWAL: -1 }
-    // Scope contributions to the selected account — otherwise one account's
-    // deposits (e.g. a bond's purchase) show up as invested capital on another
-    // (e.g. a cash fund that only ever received income, never a deposit).
-    const scopedIds = new Set(scopedItems.map((it) => it.id).filter(Boolean))
-    const scopedSyms = new Set(scopedItems.map((it) => (it.symbol || '').toUpperCase()).filter(Boolean))
-    const inScope = (tx) => selectedInst === 'ALL'
-      || (tx._linkedItemId && scopedIds.has(tx._linkedItemId))
-      || (tx.symbol && scopedSyms.has((tx.symbol || '').toUpperCase()))
-    const txs = transactions
-      .filter(tx => flowTypes[tx.type] != null && inScope(tx))
+    // scopedTransactions already restricts to the selected institution, so a
+    // deposit into another account never shows as invested capital here.
+    const txs = scopedTransactions
+      .filter(tx => flowTypes[tx.type] != null)
       .sort((a, b) => new Date(a.date) - new Date(b.date))
+    // No real flows → no line: a flat "invested capital" at the start value
+    // suggests a contribution that never happened.
+    if (txs.length === 0) return null
 
     const startVal = chartData[0].value
     return chartData.map(dp => {
@@ -516,7 +584,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       }
       return cum
     })
-  }, [chartData, transactions, viewMode, convert, baseCurrency, scopedItems, selectedInst])
+  }, [chartData, scopedTransactions, viewMode, convert, baseCurrency])
 
   const drawdown = useMemo(() => {
     if (chartData.length < 3) return null
@@ -532,11 +600,11 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   }, [chartData])
 
   const txMarkers = useMemo(() => {
-    if (!transactions || chartData.length < 2) return []
+    if (!scopedTransactions || chartData.length < 2) return []
     const actionTypes = ['BUY', 'SELL', 'DEPOSIT', 'WITHDRAWAL']
     const startTs = chartData[0].ts
     const endTs = chartData[chartData.length - 1].ts
-    return transactions
+    return scopedTransactions
       .filter(tx => actionTypes.includes(tx.type))
       .filter(tx => {
         const txTs = new Date(tx.date).getTime()
@@ -552,7 +620,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         }
         return { ...tx, chartIdx: closest }
       })
-  }, [transactions, chartData])
+  }, [scopedTransactions, chartData])
 
   const width = chartWidth
   const chartHeight = 260
@@ -644,26 +712,43 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
   const handleSaveSnapshots = useCallback(async () => {
     if (!onSaveSnapshot) return
-    const valid = snapshotRows.filter(r => r.date && r.value && !isNaN(parseFloat(r.value)))
-    if (valid.length === 0) return
-    setSnapshotSaving(true)
-    for (const row of valid) {
-      const raw = parseFloat(row.value)
-      const inUSD = (baseCurrency !== 'USD' && convert) ? convert(raw, baseCurrency, 'USD') : raw
-      await onSaveSnapshot({
-        date: row.date,
-        totalActivosUSD: inUSD,
-        totalDebtUSD: 0,
-        netWorthUSD: inUSD,
-        baseCurrency: baseCurrency || 'USD',
-        _rawValue: raw,
-        _rawCurrency: baseCurrency || 'USD',
-        _source: 'manual',
-      })
+    const todayStr = new Date().toISOString().split('T')[0]
+    // Sanity gates: a fat-fingered extra zero or a future date silently corrupts
+    // the chart's scale/history. Zero/negative rows also used to "save" and then
+    // vanish (the chart filters value>0) with no explanation.
+    const valid = snapshotRows.filter(r => {
+      const v = parseFloat(r.value)
+      return r.date && r.date <= todayStr && isFinite(v) && v > 0
+    })
+    if (valid.length === 0) {
+      setFetchError(t('Revisa las filas: fecha pasada y valor mayor a 0.', 'Check the rows: past date and value above 0.'))
+      return
     }
-    setSnapshotSaving(false)
-    setShowSnapshotImport(false)
-    setSnapshotRows([{ date: '', value: '' }])
+    setSnapshotSaving(true)
+    try {
+      for (const row of valid) {
+        const raw = parseFloat(row.value)
+        const inUSD = (baseCurrency !== 'USD' && convert) ? convert(raw, baseCurrency, 'USD') : raw
+        await onSaveSnapshot({
+          date: row.date,
+          totalActivosUSD: inUSD,
+          totalDebtUSD: 0,
+          netWorthUSD: inUSD,
+          baseCurrency: baseCurrency || 'USD',
+          _rawValue: raw,
+          _rawCurrency: baseCurrency || 'USD',
+          _source: 'manual',
+        })
+      }
+      setShowSnapshotImport(false)
+      setSnapshotRows([{ date: '', value: '' }])
+    } catch (err) {
+      console.error('[chart] manual snapshot save failed:', err)
+      setFetchError(t('Error guardando — algunos valores pueden haberse guardado.', 'Save failed — some rows may have been saved.'))
+    } finally {
+      // Without this, a mid-batch failure left the button stuck on "..."
+      setSnapshotSaving(false)
+    }
   }, [snapshotRows, onSaveSnapshot, baseCurrency, convert])
 
   const periodSelector = (
@@ -787,9 +872,9 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
             {t('Todas', 'All')}
           </button>
           {institutions.map((inst) => (
-            <button key={inst.name} onClick={() => { setSelectedInst(inst.name); setHoverIdx(null) }}
+            <button key={inst.key} onClick={() => { setSelectedInst(inst.key); setHoverIdx(null) }}
               className="shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all border"
-              style={selectedInst === inst.name
+              style={selectedInst === inst.key
                 ? { backgroundColor: 'var(--accent-blue)', color: '#fff', borderColor: 'var(--accent-blue)' }
                 : { backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-secondary)', borderColor: 'var(--card-border)' }}>
               {inst.name}

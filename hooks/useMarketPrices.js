@@ -1,4 +1,5 @@
 import { authFetch } from '@/lib/authFetch'
+import { isMarketPriced } from '@/components/dashboard/utils'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 
 export function useMarketPrices(items) {
@@ -11,9 +12,10 @@ export function useMarketPrices(items) {
 
   const fetchPrices = useCallback(async () => {
     if (!items || items.length === 0) return
-    const skipTypes = /inmueble|bank|banco|inversion|real.?estate|property|alternative|bond|bono|debt|deuda|pasivo/i
+    // Whitelist, not blacklist — see isMarketPriced. A cash bucket named "USD"
+    // must never be quoted as the "USD" ETF.
     const symbols = items
-      .filter((it) => it.symbol && !it.isIlliquid && !skipTypes.test(it.type || ''))
+      .filter((it) => isMarketPriced(it))
       .map((it) => ({ symbol: it.symbol, type: it.type }))
     if (symbols.length === 0) return
 
@@ -79,7 +81,10 @@ export function useMarketPrices(items) {
       const divData = dividends[sym]
       const enriched = { ...it }
 
-      if (priceData) {
+      // Defense in depth: even if a quote sneaks into the map (stale cache, a
+      // symbol shared with a market item), never overwrite a non-market item's
+      // stored balance/price with it.
+      if (priceData && isMarketPriced(it)) {
         enriched.currentPrice = priceData.price
         enriched.change7d = priceData.change7d
         enriched.change1d = priceData.change1d
