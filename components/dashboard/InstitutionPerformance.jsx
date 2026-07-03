@@ -52,45 +52,39 @@ export default function InstitutionPerformance({ items, lang, baseCurrency }) {
           {t('Sin instituciones para comparar.', 'No institutions to compare.')}
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2.5">
+          {/* Compact 2-line rows: 7 institutions in 3-line rows made this card far
+              taller than its grid sibling and left a large blank column. */}
           {institutions.map((inst) => {
             const pctOfTotal = allTotal > 0 ? (inst.value / allTotal) * 100 : 0
             const isGain = inst.gainLoss >= 0
             const gainColor = isGain ? 'var(--accent-green)' : 'var(--text-negative)'
             return (
               <div key={inst.name}>
-                {/* Top row: name + count · value */}
-                <div className="flex items-baseline justify-between gap-3 mb-1.5">
+                {/* Line 1: name · count — % of total · value */}
+                <div className="flex items-baseline justify-between gap-3 mb-1">
                   <div className="flex items-baseline gap-2 min-w-0">
                     <span className="text-sm font-medium text-white truncate">{inst.name}</span>
-                    <span className="text-xs text-slate-500 shrink-0">
-                      {inst.count} {t('pos.', 'pos.')}
+                    <span className="text-xs text-slate-500 shrink-0">{inst.count} {t('pos.', 'pos.')}</span>
+                  </div>
+                  <div className="flex items-baseline gap-2.5 shrink-0">
+                    <span className="text-xs text-slate-500 font-mono tabular-nums">{pctOfTotal.toFixed(1)}%</span>
+                    <span className="text-sm font-bold text-white font-mono tabular-nums">
+                      {formatCurrency(inst.value, baseCurrency)}
                     </span>
                   </div>
-                  <span className="text-sm font-bold text-white font-mono tabular-nums shrink-0">
-                    {formatCurrency(inst.value, baseCurrency)}
-                  </span>
                 </div>
 
-                {/* Bar = share of the portfolio total, matching the "% del total" label below */}
-                <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-input)' }}>
-                  <div
-                    className="h-full rounded-full"
-                    style={{
-                      width: `${Math.max(pctOfTotal, 2)}%`,
-                      backgroundColor: 'var(--accent-blue)',
-                    }}
-                  />
-                </div>
-
-                {/* Bottom row: % of total + gain% */}
-                <div className="flex items-center justify-between mt-1">
-                  <span className="text-xs text-slate-500 font-mono tabular-nums">
-                    {pctOfTotal.toFixed(1)}% {t('del total', 'of total')}
-                  </span>
-                  <span className="text-xs font-medium font-mono tabular-nums" style={{ color: gainColor }}>
-                    {isGain ? '+' : ''}
-                    {inst.gainPct.toFixed(2)}%
+                {/* Line 2: bar (% of total) + gain% at the right */}
+                <div className="flex items-center gap-2.5">
+                  <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-input)' }}>
+                    <div
+                      className="h-full rounded-full"
+                      style={{ width: `${Math.max(pctOfTotal, 2)}%`, backgroundColor: 'var(--accent-blue)' }}
+                    />
+                  </div>
+                  <span className="text-xs font-medium font-mono tabular-nums w-16 text-right" style={{ color: gainColor }}>
+                    {isGain ? '+' : ''}{inst.gainPct.toFixed(2)}%
                   </span>
                 </div>
               </div>

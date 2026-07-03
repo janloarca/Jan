@@ -57,7 +57,6 @@ const ConcentrationRisk = dynamic(() => import('@/components/dashboard/Concentra
 const GainsReport = dynamic(() => import('@/components/dashboard/GainsReport'), { loading: () => <SkeletonCard /> })
 const PerformanceAttribution = dynamic(() => import('@/components/dashboard/PerformanceAttribution'), { loading: () => <SkeletonCard /> })
 const RiskMetrics = dynamic(() => import('@/components/dashboard/RiskMetrics'), { loading: () => <SkeletonCard /> })
-const InsightCards = dynamic(() => import('@/components/dashboard/InsightCards'), { loading: () => <SkeletonCard /> })
 const InstitutionPerformance = dynamic(() => import('@/components/dashboard/InstitutionPerformance'), { loading: () => <SkeletonCard /> })
 const RebalanceSuggestions = dynamic(() => import('@/components/dashboard/RebalanceSuggestions'), { loading: () => <SkeletonCard /> })
 
@@ -777,9 +776,9 @@ export default function DashboardPage() {
             Renders nothing until NEXT_PUBLIC_ADSENSE_SLOT_FOOTER is set. */}
         <div className="stagger-2"><AdBanner lang={lang} /></div>
 
-        {/* effectiveProfile: manual Settings figures, falling back to averages derived
-            from real finance transactions so insights work without double data entry */}
-        <div className="stagger-2"><CardBoundary id="INS-01"><InsightCards items={portfolioItems} profile={effectiveProfile} netWorth={netWorth} estimatedAnnualIncome={estimatedAnnualIncome} lang={lang} onOpenSettings={handleOpenSettings} /></CardBoundary></div>
+        {/* Insight cards feed removed at the user's request — the metrics it
+            repeated (emergency fund, FIRE, savings rate, passive income) live in
+            their dedicated cards, and the row left dead whitespace on tablets. */}
 
         {/* ═══ COMPOSICIÓN: Allocation + Rendimiento por institución ═══ */}
         <div className="stagger-3 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 items-start">
@@ -805,21 +804,21 @@ export default function DashboardPage() {
         {/* ═══ ACTIVIDAD RECIENTE ═══ */}
         <div className="stagger-5"><SectionCollapse title={lang === 'es' ? 'Actividad Reciente' : 'Recent Activity'} id="activity" defaultOpen={false}>
           <ErrorBoundary lang={lang}>
-            {/* Gross money in vs out — the return math already nets these, but the
-                user had no view of how much was actually deposited vs withdrawn */}
+            {/* Gross money in vs out — one compact strip (three separate airy cards
+                wasted a whole row of vertical space on tablets) */}
             {(contributionsSummary.totalContributed > 0 || contributionsSummary.totalWithdrawn > 0) && (
-              <div className="grid grid-cols-3 gap-3 mb-4">
-                <div className="bg-theme-surface/80 rounded-xl border border-glass-border/50 p-3">
-                  <span className="text-xs text-slate-500 block">{lang === 'es' ? 'Aportado total' : 'Total deposited'}</span>
-                  <span className="text-sm font-bold font-mono tabular-nums" style={{ color: 'var(--accent-green)' }}>{formatCurrency(contributionsSummary.totalContributed)}</span>
+              <div className="bg-theme-surface/80 rounded-xl border border-glass-border/50 px-4 py-2.5 mb-3 grid grid-cols-3 gap-3">
+                <div className="flex items-baseline gap-2 min-w-0">
+                  <span className="text-xs text-slate-500 shrink-0">{lang === 'es' ? 'Aportado' : 'Deposited'}</span>
+                  <span className="text-sm font-bold font-mono tabular-nums truncate" style={{ color: 'var(--accent-green)' }}>{formatCurrency(contributionsSummary.totalContributed)}</span>
                 </div>
-                <div className="bg-theme-surface/80 rounded-xl border border-glass-border/50 p-3">
-                  <span className="text-xs text-slate-500 block">{lang === 'es' ? 'Retirado total' : 'Total withdrawn'}</span>
-                  <span className="text-sm font-bold font-mono tabular-nums" style={{ color: 'var(--text-negative)' }}>{formatCurrency(contributionsSummary.totalWithdrawn)}</span>
+                <div className="flex items-baseline gap-2 min-w-0 justify-center">
+                  <span className="text-xs text-slate-500 shrink-0">{lang === 'es' ? 'Retirado' : 'Withdrawn'}</span>
+                  <span className="text-sm font-bold font-mono tabular-nums truncate" style={{ color: 'var(--text-negative)' }}>{formatCurrency(contributionsSummary.totalWithdrawn)}</span>
                 </div>
-                <div className="bg-theme-surface/80 rounded-xl border border-glass-border/50 p-3">
-                  <span className="text-xs text-slate-500 block">{lang === 'es' ? 'Neto invertido' : 'Net invested'}</span>
-                  <span className="text-sm font-bold font-mono tabular-nums" style={{ color: 'var(--text-primary)' }}>{formatCurrency(contributionsSummary.netContributions)}</span>
+                <div className="flex items-baseline gap-2 min-w-0 justify-end">
+                  <span className="text-xs text-slate-500 shrink-0">{lang === 'es' ? 'Neto' : 'Net'}</span>
+                  <span className="text-sm font-bold font-mono tabular-nums truncate" style={{ color: 'var(--text-primary)' }}>{formatCurrency(contributionsSummary.netContributions)}</span>
                 </div>
               </div>
             )}

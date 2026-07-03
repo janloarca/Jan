@@ -99,8 +99,9 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
         )}
       </div>
 
-      {/* Visual filter tabs — outline when inactive, soft indigo wash when active */}
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 mb-4">
+      {/* Visual filter tabs — compact single-line chips (the stacked icon/label/
+          count boxes were 3 lines tall and dominated the card with whitespace) */}
+      <div className="flex flex-wrap gap-1.5 mb-3">
         {filterOptions.map((opt) => {
           const count = txCount(opt.key)
           const isActive = typeFilter === opt.key
@@ -112,18 +113,18 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
           const inactiveStyle = { backgroundColor: 'transparent', borderColor: 'var(--card-border)', color: 'var(--text-muted)' }
           return (
             <button key={opt.key} onClick={() => { setTypeFilter(opt.key); setShowAll(false) }}
-              className="flex flex-col items-center gap-1 px-2 py-2.5 rounded-[10px] transition-all text-center border hover:bg-theme-elevated"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full transition-all border text-xs font-medium hover:bg-theme-elevated"
               style={isActive ? activeStyle : inactiveStyle}>
-              <span className="text-base">{opt.icon}</span>
-              <span className="text-xs font-medium">{opt.label}</span>
-              {count > 0 && <span className="text-sm font-bold" style={{ color: isActive ? 'var(--accent-blue)' : 'var(--text-secondary)' }}>{count}</span>}
+              <span>{opt.icon}</span>
+              <span>{opt.label}</span>
+              {count > 0 && <span className="font-bold" style={{ color: isActive ? 'var(--accent-blue)' : 'var(--text-secondary)' }}>{count}</span>}
             </button>
           )
         })}
       </div>
 
       {/* Date range filter */}
-      <div className="flex items-center gap-1.5 mb-4">
+      <div className="flex items-center gap-1.5 mb-3">
         <span className="text-xs text-slate-600 mr-1">{lang === 'es' ? 'Periodo:' : 'Period:'}</span>
         {[
           { key: 'all', label: lang === 'es' ? 'Todo' : 'All' },
@@ -142,16 +143,16 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
         ))}
       </div>
 
-      {/* Monthly summary */}
+      {/* Monthly summary — single-line chips instead of 3-line boxes */}
       {monthlySummary && monthlySummary.length > 0 && dateRange === 'all' && typeFilter === 'ALL' && (
-        <div className="grid grid-cols-3 gap-2 mb-4">
+        <div className="grid grid-cols-3 gap-2 mb-3">
           {monthlySummary.map((m) => (
-            <div key={m.month} className="bg-theme-base rounded-lg p-2.5 border border-glass-border/50 text-center">
-              <div className="text-xs text-slate-500 mb-1">{formatMonth(m.month)}</div>
-              <div className="text-xs font-semibold font-mono tabular-nums" style={{ color: m.net >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
+            <div key={m.month} className="bg-theme-base rounded-lg px-2.5 py-1.5 border border-glass-border/50 flex items-baseline justify-between gap-2">
+              <span className="text-xs text-slate-500 shrink-0">{formatMonth(m.month)}</span>
+              <span className="text-xs font-semibold font-mono tabular-nums truncate" style={{ color: m.net >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                 {m.net >= 0 ? '+' : ''}{formatCurrency(m.net)}
-              </div>
-              <div className="text-xs text-slate-600">{m.count} txs</div>
+              </span>
+              <span className="text-xs text-slate-600 shrink-0 hidden sm:inline">{m.count} txs</span>
             </div>
           ))}
         </div>
@@ -169,7 +170,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
         <>
           <div className="space-y-0">
             {display.map((tx, i) => (
-              <div key={tx.id || i} className="flex items-center justify-between py-3 border-b border-glass-border/30 last:border-0 hover:bg-theme-elevated/30 transition-colors -mx-2 px-2 rounded">
+              <div key={tx.id || i} className="flex items-center justify-between py-2 border-b border-glass-border/30 last:border-0 hover:bg-theme-elevated/30 transition-colors -mx-2 px-2 rounded">
                 <div className="flex items-center gap-3">
                   <span className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0" style={typeBadgeStyle(tx.type)}>
                     {typeIcon(tx.type)}
