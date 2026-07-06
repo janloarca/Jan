@@ -260,7 +260,11 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                 const pctPort = totalValue > 0 ? (value / totalValue) * 100 : 0
                 const abbr = (item.symbol || '??').slice(0, 4).toUpperCase()
 
-                const hasReturn = item.currentPrice != null && item.purchasePrice > 0
+                // Balance-style accounts (banks: quantity=1, price=the balance) have
+                // no meaningful unit price, 7d move or price-based P&L — the "price"
+                // IS the balance and currentPrice always equals purchasePrice.
+                const isBalanceStyle = cat === 'banks'
+                const hasReturn = !isBalanceStyle && item.currentPrice != null && item.purchasePrice > 0
                 const retPct = hasReturn ? ((item.currentPrice - item.purchasePrice) / item.purchasePrice) * 100 : null
                 const retAbs = hasReturn ? (item.currentPrice - item.purchasePrice) * (item.quantity || 0) : null
 
@@ -288,7 +292,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                         <div className="min-w-0 ml-3">
                           <div className="text-white font-medium text-sm truncate flex items-center gap-2">
                             {item.name || item.symbol}
-                            {item.change7d != null && (
+                            {!isBalanceStyle && item.change7d != null && (
                               <span className="text-xs font-medium px-1.5 py-0.5 rounded"
                                 style={item.change7d >= 0
                                   ? { backgroundColor: 'rgba(52,211,153,0.15)', color: 'var(--accent-green)' }
@@ -299,7 +303,11 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                             )}
                           </div>
                           <div className="text-slate-500 text-xs">
-                            {item.institution ? `${item.institution} · ` : ''}{item.quantity?.toLocaleString(undefined, { maximumFractionDigits: item.type === 'Crypto' ? 8 : 4 })} @ {formatCurrency(getItemPrice(item), item.currency)}
+                            {/* "1 @ $12,000" read as a unit price for bank accounts —
+                                the number is the balance, so label it as such. */}
+                            {isBalanceStyle
+                              ? <>{item.institution ? `${item.institution} · ` : ''}{lang === 'es' ? 'Saldo' : 'Balance'} {formatCurrency(getItemPrice(item), item.currency)}</>
+                              : <>{item.institution ? `${item.institution} · ` : ''}{item.quantity?.toLocaleString(undefined, { maximumFractionDigits: item.type === 'Crypto' ? 8 : 4 })} @ {formatCurrency(getItemPrice(item), item.currency)}</>}
                             {item.currency && item.currency !== getBaseCurrency() && (
                               <span className="ml-1 text-xs px-1 py-0.5 rounded bg-slate-700 text-slate-400">{item.currency}</span>
                             )}
@@ -420,31 +428,31 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                           <button onClick={() => onQuickBuy(item)}
                             className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-sm font-bold transition-colors hover:opacity-80"
                             style={{ color: 'rgba(59,130,246,0.6)' }}
-                            title={t('Comprar más', 'Buy more')}>
+                            title={t('Comprar más', 'Buy more')} aria-label={t('Comprar más', 'Buy more')}>
                             +
                           </button>
                         )}
                         {onViewItem && (
                           <button onClick={() => onViewItem(item)}
-                            className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-slate-600 hover:text-cyan-400 text-xs transition-colors" title={t('Ver detalle', 'View detail')}>
+                            className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-slate-600 hover:text-cyan-400 text-xs transition-colors" title={t('Ver detalle', 'View detail')} aria-label={t('Ver detalle', 'View detail')}>
                             📊
                           </button>
                         )}
                         {onSellItem && item.quantity > 0 && (
                           <button onClick={() => onSellItem(item)}
-                            className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-slate-600 hover:text-amber-400 text-xs transition-colors" title={t('Vender', 'Sell')}>
+                            className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-slate-600 hover:text-amber-400 text-xs transition-colors" title={t('Vender', 'Sell')} aria-label={t('Vender', 'Sell')}>
                             💰
                           </button>
                         )}
                         {onEditItem && (
                           <button onClick={() => onEditItem(item)}
-                            className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-slate-600 hover:text-emerald-400 text-xs transition-colors" title={t('Editar', 'Edit')}>
+                            className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-slate-600 hover:text-emerald-400 text-xs transition-colors" title={t('Editar', 'Edit')} aria-label={t('Editar', 'Edit')}>
                             ✏️
                           </button>
                         )}
                         {onDeleteItem && (
                           <button onClick={() => onDeleteItem(item.id)}
-                            className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-slate-600 hover:text-red-400 text-sm transition-colors" title={t('Eliminar', 'Delete')}>
+                            className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-slate-600 hover:text-red-400 text-sm transition-colors" title={t('Eliminar', 'Delete')} aria-label={t('Eliminar', 'Delete')}>
                             ×
                           </button>
                         )}

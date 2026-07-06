@@ -614,6 +614,12 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                     <p className="text-xs text-slate-500 mt-1 leading-relaxed">
                       <span className="text-[#60a5fa] font-mono">interactivebrokers.com</span> → Performance & Reports → Flex Queries → {t('crear Activity Flex Query con', 'create Activity Flex Query with')} <span className="text-white">Open Positions</span> {t('y', 'and')} <span className="text-white">Trades</span>
                     </p>
+                    {/* Without the Asset Class column everything imports as Stock —
+                        bonds/cash then fetch quotes from unrelated real tickers. */}
+                    <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--accent-orange)' }}>
+                      {t('Importante: incluye la columna "Asset Class" en Open Positions — sin ella, los bonos y el cash se importan como acciones.',
+                         'Important: include the "Asset Class" column in Open Positions — without it, bonds and cash import as stocks.')}
+                    </p>
                   </div>
                 </div>
 

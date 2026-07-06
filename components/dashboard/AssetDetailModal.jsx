@@ -169,11 +169,13 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
           <div className="grid grid-cols-3 gap-3">
             <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50">
               <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{t('Precio actual', 'Current price')}</span>
-              <span className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{formatCurrency(currentPrice)}</span>
+              {/* Values here are base-converted — say so, or a EUR asset reads as
+                  an unlabeled dollar figure */}
+              <span className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{formatCurrency(currentPrice)}<span className="text-xs font-normal ml-1" style={{ color: 'var(--text-muted)' }}>{baseCurrency}</span></span>
             </div>
             <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50">
               <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{t('Valor total', 'Total value')}</span>
-              <span className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{formatCurrency(totalValue)}</span>
+              <span className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{formatCurrency(totalValue)}<span className="text-xs font-normal ml-1" style={{ color: 'var(--text-muted)' }}>{baseCurrency}</span></span>
             </div>
             <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50">
               <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>P&L</span>
@@ -282,10 +284,31 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
                   <path d={`${(isStatic ? linePath : smoothPath)(renderPts)} L ${renderPts[renderPts.length-1].x} 192 L ${renderPts[0].x} 192 Z`}
                     fill="url(#assetGrad)" />
                   <path d={(isStatic ? linePath : smoothPath)(renderPts)} fill="none" stroke={lineColor} strokeWidth="2" strokeLinecap="round" />
+                  {/* Cost / break-even reference line — gain/loss visible on the
+                      chart itself, not only in the tiles. The value→y mapping is
+                      derived from two rendered points (project() doesn't expose
+                      its scale); skipped when it falls outside the plot. */}
+                  {(() => {
+                    if (cost <= 0 || renderPts.length < 2) return null
+                    const a = renderPts[0]
+                    const b = renderPts.find((p) => p.close !== a.close)
+                    if (!b) return null
+                    const costY = a.y + (cost - a.close) * ((b.y - a.y) / (b.close - a.close))
+                    if (!isFinite(costY) || costY < 16 || costY > 192) return null
+                    return (
+                      <g>
+                        <line x1={renderPts[0].x} y1={costY} x2={renderPts[renderPts.length - 1].x} y2={costY}
+                          stroke="var(--text-muted)" strokeWidth="1" strokeDasharray="5 4" opacity="0.6" />
+                        <text x={renderPts[renderPts.length - 1].x} y={costY - 4} textAnchor="end" fill="var(--text-muted)" fontSize="9" fontFamily="system-ui">
+                          {t('Costo', 'Cost')}
+                        </text>
+                      </g>
+                    )
+                  })()}
                   {hp && (
                     <g>
                       <line x1={hp.x} y1={16} x2={hp.x} y2={192} stroke="#475569" strokeDasharray="4 3" />
-                      <circle cx={hp.x} cy={hp.y} r="4" fill={lineColor} stroke="#000000" strokeWidth="2" />
+                      <circle cx={hp.x} cy={hp.y} r="4" fill={lineColor} stroke="var(--bg-card)" strokeWidth="2" />
                     </g>
                   )}
                 </svg>

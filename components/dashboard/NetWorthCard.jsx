@@ -146,17 +146,23 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
     : (CATEGORY_LABELS[seg.name]?.[lang] || seg.name)
 
   // Biggest movers of the day — per-asset intraday % change, ordered by the
-  // magnitude of the move (gainers and losers mixed). Deduped by symbol.
+  // magnitude of the move (gainers and losers mixed). Deduped by item id (two
+  // distinct holdings sharing a symbol must not shadow each other) and gated by
+  // position weight: a $5 position's ±10% shouldn't headline the card.
   const movers = useMemo(() => {
     if (!items || items.length === 0) return []
+    const eligible = items.filter((it) => !it.isDebt && !isExcludedFromNetWorth(it))
+    const total = eligible.reduce((s, it) => s + Math.abs(getItemValue(it)), 0)
+    const minValue = total * 0.005 // ≥0.5% of the portfolio
     const seen = new Set()
     const list = []
-    items.forEach((it) => {
-      if (it.isDebt || isExcludedFromNetWorth(it)) return
+    eligible.forEach((it) => {
       if (it.change1d == null || !isFinite(it.change1d)) return
+      if (Math.abs(getItemValue(it)) < minValue) return
+      const key = it.id || it.symbol || it.name
       const label = it.symbol || it.name
-      if (!label || seen.has(label)) return
-      seen.add(label)
+      if (!label || seen.has(key)) return
+      seen.add(key)
       list.push({ label, pct: it.change1d })
     })
     return list.sort((a, b) => Math.abs(b.pct) - Math.abs(a.pct)).slice(0, 5)
