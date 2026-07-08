@@ -372,7 +372,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
           item.incomeMonthsExplicit = true
         }
         item.paymentSchedule = form.paymentSchedule
-        if (form.incomeDestination) item.incomeDestination = form.incomeDestination
+        item.dividendAction = form.dividendAction || 'cash'
+        if (form.dividendAction !== 'reinvest' && form.incomeDestination) item.incomeDestination = form.incomeDestination
         if (form.capitalReturn) {
           item.capitalReturn = parseFloat(form.capitalReturn) || 0
           if (form.capitalDestination) item.capitalDestination = form.capitalDestination
@@ -515,13 +516,13 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     setSaving(false)
   }
 
-  const inputCls = 'w-full px-3 py-2 bg-[var(--input-bg,#000000)] border border-[var(--card-border,#38383A)] rounded-lg text-sm text-[var(--text-primary,white)] placeholder-[var(--text-muted,#475569)] focus:outline-none focus:border-blue-500/50'
+  const inputCls = 'w-full min-w-0 px-3 py-2 bg-[var(--input-bg,#000000)] border border-[var(--card-border,#38383A)] rounded-lg text-sm text-[var(--text-primary,white)] placeholder-[var(--text-muted,#475569)] focus:outline-none focus:border-blue-500/50'
   const labelCls = 'text-xs text-[var(--text-secondary,#94a3b8)] mb-1 block font-medium'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="add-account-title"
       style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
-      <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <div ref={trapRef} className="modal-glass max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border,#38383A)]">
           <div className="flex items-center gap-3">
             {step === 2 && <button onClick={() => setStep(1)} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-sm">←</button>}
@@ -545,7 +546,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
           {step === 1 && (<>
             <div>
               <label className={labelCls}>{t('Tipo de activo', 'Asset type')}</label>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                 {TYPES.map(tp => (
                   <button key={tp.key} type="button" onClick={() => { setType(tp.key); setSubtype(''); setForm(prev => ({ ...prev, symbol: '', name: '', purchasePrice: '', currentPrice: '', sector: '', industry: '', isIlliquid: false, custodyType: '', maturityDate: '' })); setDivInfo(null) }}
                     className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg transition-all text-center border ${
@@ -726,17 +727,22 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             )}
 
             {isProperty && (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label htmlFor="add-propertyPurchasePrice" className={labelCls}>{t('Valor de compra', 'Purchase value')} <span style={{ color: 'var(--text-negative)' }}>*</span></label>
-                  <input id="add-propertyPurchasePrice" value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
-                    placeholder="85000" type="number" step="any" className={inputCls} />
+              <div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="add-propertyPurchasePrice" className={labelCls}>{t('Lo que pagaste', 'What you paid')} <span style={{ color: 'var(--text-negative)' }}>*</span></label>
+                    <input id="add-propertyPurchasePrice" value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
+                      placeholder="85000" type="number" step="any" className={inputCls} />
+                  </div>
+                  <div>
+                    <label htmlFor="add-propertyCurrentPrice" className={labelCls}>{t('Valor de hoy', 'Value today')} <span style={{ color: 'var(--text-muted)' }}>({t('opcional', 'optional')})</span></label>
+                    <input id="add-propertyCurrentPrice" value={form.currentPrice} onChange={e => set('currentPrice', e.target.value)}
+                      placeholder="95000" type="number" step="any" className={inputCls} />
+                  </div>
                 </div>
-                <div>
-                  <label htmlFor="add-propertyCurrentPrice" className={labelCls}>{t('Valor actual', 'Current value')}</label>
-                  <input id="add-propertyCurrentPrice" value={form.currentPrice} onChange={e => set('currentPrice', e.target.value)}
-                    placeholder="95000" type="number" step="any" className={inputCls} />
-                </div>
+                <p className="text-xs mt-1" style={{ color: 'var(--text-muted,#475569)' }}>
+                  {t('Si dejas "Valor de hoy" vacío, usamos lo que pagaste.', 'If you leave "Value today" empty, we use what you paid.')}
+                </p>
               </div>
             )}
 
@@ -749,17 +755,22 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             )}
 
             {(isBond || isAlternative) && (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label htmlFor="add-amountInvested" className={labelCls}>{t('Monto invertido', 'Amount invested')} <span style={{ color: 'var(--text-negative)' }}>*</span></label>
-                  <input id="add-amountInvested" value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
-                    placeholder="10000" type="number" step="any" className={inputCls} />
+              <div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="add-amountInvested" className={labelCls}>{t('Lo que invertiste', 'What you invested')} <span style={{ color: 'var(--text-negative)' }}>*</span></label>
+                    <input id="add-amountInvested" value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
+                      placeholder="10000" type="number" step="any" className={inputCls} />
+                  </div>
+                  <div>
+                    <label htmlFor="add-currentValue" className={labelCls}>{t('Valor de hoy', 'Value today')} <span style={{ color: 'var(--text-muted)' }}>({t('opcional', 'optional')})</span></label>
+                    <input id="add-currentValue" value={form.currentPrice} onChange={e => set('currentPrice', e.target.value)}
+                      placeholder="10800" type="number" step="any" className={inputCls} />
+                  </div>
                 </div>
-                <div>
-                  <label htmlFor="add-currentValue" className={labelCls}>{t('Valor actual', 'Current value')} <span style={{ color: 'var(--text-muted)' }}>({t('opcional', 'optional')})</span></label>
-                  <input id="add-currentValue" value={form.currentPrice} onChange={e => set('currentPrice', e.target.value)}
-                    placeholder="10800" type="number" step="any" className={inputCls} />
-                </div>
+                <p className="text-xs mt-1" style={{ color: 'var(--text-muted,#475569)' }}>
+                  {t('Si dejas "Valor de hoy" vacío, usamos lo que invertiste.', 'If you leave "Value today" empty, we use what you invested.')}
+                </p>
               </div>
             )}
 
@@ -803,7 +814,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                       placeholder="7.5" type="number" step="any" className={inputCls} />
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label htmlFor="add-debtTerm" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Plazo', 'Term')}</label>
                     <select id="add-debtTerm" value={form.debtTerm} onChange={e => set('debtTerm', e.target.value)} className={inputCls}>
@@ -887,15 +898,15 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               <div>
                 <label htmlFor="add-currency" className={labelCls}>
                   {t('Moneda', 'Currency')} <span style={{ color: 'var(--text-negative)' }}>*</span>
-                  {detectedCurrency && form.currency === detectedCurrency && (
-                    <span className="ml-1 px-1.5 py-0.5 rounded text-xs font-medium" style={{ color: 'var(--accent-green)', backgroundColor: 'color-mix(in srgb, var(--accent-green) 15%, transparent)' }}>
-                      {t('Detectada', 'Detected')}
-                    </span>
-                  )}
                 </label>
                 <select id="add-currency" value={form.currency} onChange={e => set('currency', e.target.value)} className={inputCls}>
                   {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
+                {/* Below the field, not inside the <label> — inline it wrapped the
+                    label to two lines and misaligned the row */}
+                {detectedCurrency && form.currency === detectedCurrency && (
+                  <p className="text-xs mt-1" style={{ color: 'var(--accent-green)' }}>✓ {t('Detectada automáticamente', 'Auto-detected')}</p>
+                )}
               </div>
               <div>
                 <label htmlFor="add-accountType" className={labelCls}>{t('Tipo de cuenta', 'Account type')}</label>
@@ -1018,7 +1029,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 {/* Rate inputs */}
                 {form.rateType === 'variable' ? (
                   <>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <div>
                       <label htmlFor="add-rateMin" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa mín %', 'Min rate %')}</label>
                       <input id="add-rateMin" value={form.rateMin} onChange={e => set('rateMin', e.target.value)}
@@ -1098,21 +1109,45 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   </div>
                 )}
 
-                {/* Income destination */}
+                {/* What happens with each payment — reinvest available for any
+                    income asset, not just dividend stocks */}
                 <div>
-                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('¿Dónde llega el rendimiento?', 'Where does the yield go?')}</label>
-                  <select value={form.incomeDestination}
-                    onChange={e => { if (e.target.value === '__new__') { setCreatingDest('income'); return } set('incomeDestination', e.target.value) }}
-                    className={inputCls}>
-                    <option value="">{t('-- Seleccionar --', '-- Select --')}</option>
-                    {destItems.map(it => <option key={it.id} value={it.id}>{it.name || it.symbol} {it.institution ? `(${it.institution})` : ''}</option>)}
-                    {onCreateDestination && <option value="__new__">+ {t('Crear cuenta nueva', 'Create new account')}</option>}
-                  </select>
-                  {creatingDest === 'income' && onCreateDestination && (
-                    <InlineCreateAccount onCreate={onCreateDestination} onCancel={() => setCreatingDest(null)}
-                      onCreated={(id, it) => handleDestCreated('incomeDestination', id, it)} lang={lang} defaultCurrency={form.currency} />
-                  )}
+                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('¿Qué haces con los pagos?', 'What do you do with payments?')}</label>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => set('dividendAction', 'cash')}
+                      className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
+                      style={form.dividendAction !== 'reinvest' ? { backgroundColor: 'color-mix(in srgb, var(--accent-cyan) 20%, transparent)', color: 'var(--accent-cyan)', borderColor: 'color-mix(in srgb, var(--accent-cyan) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                      💵 {t('Los recibo', 'I receive them')}
+                    </button>
+                    <button type="button" onClick={() => set('dividendAction', 'reinvest')}
+                      className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
+                      style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                      🔄 {t('Se reinvierten', 'They reinvest')}
+                    </button>
+                  </div>
                 </div>
+
+                {/* Income destination — irrelevant while reinvesting */}
+                {form.dividendAction === 'reinvest' ? (
+                  <p className="text-xs" style={{ color: 'var(--text-muted,#475569)' }}>
+                    {t('Cada pago se reinvierte en este mismo activo (aumenta tu posición).', 'Each payment is reinvested into this same asset (grows your position).')}
+                  </p>
+                ) : (
+                  <div>
+                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('¿Dónde llega el rendimiento?', 'Where does the yield go?')}</label>
+                    <select value={form.incomeDestination}
+                      onChange={e => { if (e.target.value === '__new__') { setCreatingDest('income'); return } set('incomeDestination', e.target.value) }}
+                      className={inputCls}>
+                      <option value="">{t('-- Seleccionar --', '-- Select --')}</option>
+                      {destItems.map(it => <option key={it.id} value={it.id}>{it.name || it.symbol} {it.institution ? `(${it.institution})` : ''}</option>)}
+                      {onCreateDestination && <option value="__new__">+ {t('Crear cuenta nueva', 'Create new account')}</option>}
+                    </select>
+                    {creatingDest === 'income' && onCreateDestination && (
+                      <InlineCreateAccount onCreate={onCreateDestination} onCancel={() => setCreatingDest(null)}
+                        onCreated={(id, it) => handleDestCreated('incomeDestination', id, it)} lang={lang} defaultCurrency={form.currency} />
+                    )}
+                  </div>
+                )}
 
                 {/* Capital return */}
                 <div>
@@ -1196,7 +1231,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 {isAlternative && subtype === 'safe_note' && (
                   <div className="border border-pink-500/20 bg-pink-500/5 rounded-lg p-3 space-y-3">
                     <p className="text-xs text-pink-400 font-medium">SAFE Note</p>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <div>
                         <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tipo', 'Type')}</label>
                         <select value={form.safeType} onChange={e => set('safeType', e.target.value)} className={inputCls}>

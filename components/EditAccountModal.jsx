@@ -1144,23 +1144,48 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 </div>
               )}
 
-              {/* Income destination */}
+              {/* What happens with each payment — reinvest was only offered for
+                  dividend stocks; bonds/CDT/alternatives can reinvest too
+                  (processDividends already supports it for any asset). */}
               <div>
-                <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Pagos van a:', 'Payments go to:')}</label>
-                <select value={form.incomeDestination}
-                  onChange={e => { if (e.target.value === '__new__') { setCreatingDest(true); return } set('incomeDestination', e.target.value) }}
-                  className={inputCls}>
-                  <option value="">{t('-- Seleccionar --', '-- Select --')}</option>
-                  {destItems.filter(it => it.id !== item.id).map(it => (
-                    <option key={it.id} value={it.id}>{it.name || it.symbol} {it.institution ? `(${it.institution})` : ''}</option>
-                  ))}
-                  {onCreateDestination && <option value="__new__">+ {t('Crear cuenta nueva', 'Create new account')}</option>}
-                </select>
-                {creatingDest && onCreateDestination && (
-                  <InlineCreateAccount onCreate={onCreateDestination} onCancel={() => setCreatingDest(false)}
-                    onCreated={handleDestCreated} lang={lang} defaultCurrency={form.currency} />
-                )}
+                <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('¿Qué haces con los pagos?', 'What do you do with payments?')}</label>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => set('dividendAction', 'cash')}
+                    className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
+                    style={form.dividendAction !== 'reinvest' ? { backgroundColor: 'color-mix(in srgb, var(--accent-cyan) 20%, transparent)', color: 'var(--accent-cyan)', borderColor: 'color-mix(in srgb, var(--accent-cyan) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                    💵 {t('Los recibo', 'I receive them')}
+                  </button>
+                  <button type="button" onClick={() => set('dividendAction', 'reinvest')}
+                    className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
+                    style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                    🔄 {t('Se reinvierten', 'They reinvest')}
+                  </button>
+                </div>
               </div>
+
+              {/* Income destination — irrelevant while reinvesting */}
+              {form.dividendAction === 'reinvest' ? (
+                <p className="text-xs" style={{ color: 'var(--text-muted,#475569)' }}>
+                  {t('Cada pago se reinvierte en este mismo activo (aumenta tu posición).', 'Each payment is reinvested into this same asset (grows your position).')}
+                </p>
+              ) : (
+                <div>
+                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Pagos van a:', 'Payments go to:')}</label>
+                  <select value={form.incomeDestination}
+                    onChange={e => { if (e.target.value === '__new__') { setCreatingDest(true); return } set('incomeDestination', e.target.value) }}
+                    className={inputCls}>
+                    <option value="">{t('-- Seleccionar --', '-- Select --')}</option>
+                    {destItems.filter(it => it.id !== item.id).map(it => (
+                      <option key={it.id} value={it.id}>{it.name || it.symbol} {it.institution ? `(${it.institution})` : ''}</option>
+                    ))}
+                    {onCreateDestination && <option value="__new__">+ {t('Crear cuenta nueva', 'Create new account')}</option>}
+                  </select>
+                  {creatingDest && onCreateDestination && (
+                    <InlineCreateAccount onCreate={onCreateDestination} onCancel={() => setCreatingDest(false)}
+                      onCreated={handleDestCreated} lang={lang} defaultCurrency={form.currency} />
+                  )}
+                </div>
+              )}
 
               {/* Capital return */}
               <div>

@@ -385,6 +385,32 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       }))
       .filter((p) => p.value > 0)
 
+    // One point per calendar day: a day holding both an IBKR NAV doc and a
+    // daily/manual doc plots two different values at the same x — a vertical
+    // spike. Broker NAV wins, then backfill, then the daily writer.
+    {
+      const SRC_PRIORITY = { ibkr: 4, backfill: 3, daily: 2, manual: 1 }
+      const byDay = new Map()
+      for (const p of pts) {
+        const key = p.date.toISOString().slice(0, 10)
+        const prev = byDay.get(key)
+        if (!prev) { byDay.set(key, p); continue }
+        const a = SRC_PRIORITY[p.src] || 0
+        const b = SRC_PRIORITY[prev.src] || 0
+        if (a > b || (a === b && p.ts >= prev.ts)) byDay.set(key, p)
+      }
+      if (byDay.size < pts.length) pts = [...byDay.values()].sort((a, b) => a.ts - b.ts)
+    }
+
+    // ALL spans years: daily-dense recent data next to sparse old data reads as
+    // sawtooth on the time-proportional axis. Bucket to one point per week
+    // (last value wins), matching the weekly cadence of the ALL API series.
+    if (period === 'ALL' && pts.length > 60) {
+      const byWeek = new Map()
+      for (const p of pts) byWeek.set(Math.floor(p.ts / (7 * 86400000)), p)
+      pts = [...byWeek.values()].sort((a, b) => a.ts - b.ts)
+    }
+
     if (period === 'MTD' && pts.length < 2) {
       const sorted = [...snapshots]
         .filter(s => s.date && new Date(s.date).getTime() < cutoff)
@@ -438,20 +464,31 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       ? snapshotData.map((p) => needsOverlay(p) ? { ...p, value: p.value + staticAt(p.ts) } : p)
       : snapshotData
 
-    // Symmetric single-point spike guard, applied AFTER the overlay (mixed-source
-    // snapshot docs + per-point overlay can alternate levels). The pre-overlay
-    // filter only catches DOWN dips; an isolated point ~2× above both neighbors
-    // is corrupt/mixed data, not a real one-day double — a genuine deposit shows
-    // as a step (next point stays high), which this deliberately keeps.
-    if (snapSource.length >= 3) {
-      snapSource = snapSource.filter((p, i) => {
-        if (i === 0 || i === snapSource.length - 1) return true
-        const prev = snapSource[i - 1].value, next = snapSource[i + 1].value
-        if (prev <= 0 || next <= 0) return true
-        const upSpike = p.value > prev * 1.8 && p.value > next * 1.8
-        const downDip = p.value < prev * 0.55 && p.value < next * 0.55
-        return !(upSpike || downDip)
-      })
+    // Short-run outlier guard, applied AFTER the overlay (mixed-source snapshot
+    // docs + per-point overlay can alternate levels). Drops runs of 1-3
+    // consecutive points that sit >1.8× or <0.55× off the level BOTH before and
+    // after the run — the single-point test this replaces let 2-3 point corrupt
+    // clusters through because they held each other's level. Genuine deposits
+    // are kept: their new level persists, so the run never "returns" to the old
+    // level and fails the drop condition.
+    if (snapSource.length >= 4) {
+      const drop = new Set()
+      const MAX_RUN = 3
+      let i = 1
+      while (i < snapSource.length - 1) {
+        const prevVal = snapSource[i - 1].value
+        if (!(prevVal > 0) || drop.has(i - 1)) { i++; continue }
+        const isOut = (v) => v > prevVal * 1.8 || v < prevVal * 0.55
+        if (!isOut(snapSource[i].value)) { i++; continue }
+        let j = i
+        while (j < snapSource.length && isOut(snapSource[j].value) && (j - i) < MAX_RUN) j++
+        const next = snapSource[j]
+        if (next && next.value > 0 && !isOut(next.value)) {
+          for (let k = i; k < j; k++) drop.add(k)
+        }
+        i = j
+      }
+      if (drop.size > 0) snapSource = snapSource.filter((_, idx) => !drop.has(idx))
     }
 
     const apiPts = dataPoints.length >= 2

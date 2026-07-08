@@ -75,7 +75,7 @@ function isMarketAsset(type) {
   return /stock|crypto|fund|etf/i.test(type) && !/realestate|inmueble/i.test(type)
 }
 
-const EditableCell = memo(function EditableCell({ displayValue, editValue, onSave, hint, isNegative, currency, onEditStart, onEditEnd }) {
+const EditableCell = memo(function EditableCell({ displayValue, editValue, onSave, hint, editLabel, livePreview, isNegative, currency, onEditStart, onEditEnd }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const ref = useRef(null)
@@ -105,8 +105,10 @@ const EditableCell = memo(function EditableCell({ displayValue, editValue, onSav
   }
 
   if (editing) {
+    const draftNum = parseFloat(draft.replace(/[^0-9.\-]/g, ''))
     return (
       <div>
+        {editLabel && <p className="text-xs text-blue-500 text-right mb-0.5 pr-1 font-medium whitespace-nowrap">{editLabel}</p>}
         <div className="flex items-center gap-1">
           {currency && <span className="text-xs text-blue-500 font-semibold shrink-0">{currency}</span>}
           <input ref={ref} type="text" value={draft}
@@ -115,7 +117,9 @@ const EditableCell = memo(function EditableCell({ displayValue, editValue, onSav
             onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') cancel() }}
             className="w-full bg-white border-2 border-blue-400 rounded px-3 py-1.5 text-sm text-slate-900 text-right font-mono focus:outline-none focus:ring-2 focus:ring-blue-300" />
         </div>
-        {hint && <p className="text-xs text-blue-400 text-right mt-0.5 pr-1">{hint}</p>}
+        {livePreview && isFinite(draftNum) && (
+          <p className="text-xs text-blue-400 text-right mt-0.5 pr-1 whitespace-nowrap">{livePreview(draftNum)}</p>
+        )}
       </div>
     )
   }
@@ -493,7 +497,21 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         setTimeout(() => setBlockMsg(null), 4000)
         return
       }
-      onUpdateItem(item.id, { quantity: newVal })
+      // The cell displays the total VALUE, so the user edits value — derive the
+      // quantity from it at the current (raw-currency) price instead of making
+      // them type a share count into a dollar-looking cell.
+      const price = item._originalPrice ?? item.currentPrice ?? item.purchasePrice ?? 0
+      if (!(price > 0)) {
+        setBlockMsg(lang === 'es'
+          ? `${item.symbol}: sin precio actual — no se puede derivar la cantidad`
+          : `${item.symbol}: no current price — cannot derive quantity`)
+        setTimeout(() => setBlockMsg(null), 4000)
+        return
+      }
+      const cur = item._originalCurrency || item.currency || 'USD'
+      const base = baseCurrency || 'USD'
+      const valInOriginal = showOriginal ? newVal : (convert ? convert(newVal, base, cur) : newVal)
+      onUpdateItem(item.id, { quantity: valInOriginal / price })
     } else {
       const qty = item.quantity || 1
       if (showOriginal) {
@@ -616,7 +634,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
           {loadingHistory && (
             <span className="text-xs text-blue-500 animate-pulse">{t('Calculando historial...', 'Calculating history...')}</span>
           )}
-          <span className="text-xs text-slate-400 hidden sm:inline">{t('Click para editar', 'Click to edit')}</span>
+          <span className="text-xs text-slate-400">{t('Click para editar', 'Click to edit')}</span>
         </div>
       </div>
 
@@ -763,10 +781,15 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                         const market = isMarketAsset(item.type)
                         const qty = item.quantity || 0
                         const qtyLabel = market && qty ? qty.toLocaleString(undefined, { maximumFractionDigits: 4 }) : null
-                        const editVal = market ? qty.toFixed(4).replace(/\.?0+$/, '') : Math.abs(val).toFixed(2)
-                        const editHint = market
-                          ? (item.symbol || item.name || '')
+                        // The cell shows the total value, so the editor edits value
+                        // too (quantity is derived from the price on save).
+                        const editVal = Math.abs(val).toFixed(2)
+                        const rawPrice = item._originalPrice ?? item.currentPrice ?? item.purchasePrice ?? 0
+                        const valToOriginal = (v) => showOriginal ? v : (convert ? convert(v, baseCurrency || 'USD', itemCurrency(item)) : v)
+                        const livePreview = market && rawPrice > 0
+                          ? (v) => `≈ ${(valToOriginal(v) / rawPrice).toLocaleString(undefined, { maximumFractionDigits: 4 })} ${item.symbol || ''}`
                           : null
+                        const editLabel = t(`Valor de ${item.symbol || item.name || ''}`, `Value of ${item.symbol || item.name || ''}`)
                         const isEditing = editingItemId === item.id
                         const rowStyle = isEditing ? { backgroundColor: '#eff6ff', boxShadow: 'inset 0 0 0 2px #93c5fd' } : { backgroundColor: '#ffffff' }
                         const stickyStyle = isEditing ? { backgroundColor: '#eff6ff' } : { backgroundColor: '#ffffff' }
@@ -816,7 +839,8 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                                       displayValue={val}
                                       editValue={editVal}
                                       onSave={(v) => handleValueUpdate(item, v)}
-                                      hint={editHint}
+                                      editLabel={editLabel}
+                                      livePreview={livePreview}
                                       isNegative={val < 0}
                                       currency={cur}
                                       onEditStart={() => setEditingItemId(item.id)}

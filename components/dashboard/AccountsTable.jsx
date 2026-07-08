@@ -338,11 +338,15 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                                 {item.rateMin}-{item.rateMax}%
                               </span>
                             )}
-                            {item.incomeDestination && (
+                            {item.dividendAction === 'reinvest' ? (
+                              <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: 'rgba(96,165,250,0.8)' }} title={t('Los pagos se reinvierten en este activo', 'Payments reinvest into this asset')}>
+                                🔄 {t('Reinvierte', 'Reinvests')}
+                              </span>
+                            ) : item.incomeDestination ? (
                               <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(52,211,153,0.1)', color: 'rgba(74,222,128,0.7)' }} title={t('Destino de ingresos', 'Income destination')}>
                                 → {(() => { const dest = items.find(it => it.id === item.incomeDestination); return dest ? (dest.name || dest.symbol || '').slice(0, 15) : '?' })()}
                               </span>
-                            )}
+                            ) : null}
                             {item.subtype && (
                               <span className="text-xs px-1.5 py-0.5 rounded bg-slate-700/30 text-slate-500">
                                 {item.subtype}

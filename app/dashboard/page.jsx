@@ -570,6 +570,10 @@ export default function DashboardPage() {
     if (staleCode) return 'stale'
     if (ibkrSyncErrorCode === 'TOKEN_EXPIRED') return 'ibkr-expired'
     if (ibkrSyncErrorCode === 'INVALID_QUERY') return 'ibkr-query'
+    if (ibkrSyncErrorCode === 'LOCKED') return 'ibkr-locked'
+    // Any other auto-sync failure (RATE_LIMITED/TIMEOUT/UNKNOWN) was invisible:
+    // the user saw stale data with no hint that the last sync didn't run.
+    if (ibkrSyncErrorCode) return 'ibkr-failed'
     if (pricesError || ratesError) return 'prices'
     if (contributionWarning) return 'contribution'
     return null
@@ -652,6 +656,40 @@ export default function DashboardPage() {
                 className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
                 style={{ backgroundColor: '#d97706', color: '#fff' }}>
                 {lang === 'es' ? 'Configurar' : 'Configure'}
+              </button>
+            </div>
+          )}
+          {topBanner === 'ibkr-locked' && (
+            <div className="px-4 py-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 shrink-0" style={{ color: '#f87171' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+                <p className="text-sm font-medium" style={{ color: '#fca5a5' }}>
+                  {lang === 'es' ? 'IBKR bloqueó tu token — genera uno NUEVO en IBKR o importa un CSV mientras tanto' : 'IBKR locked your token — generate a NEW one in IBKR or import a CSV in the meantime'}
+                </p>
+              </div>
+              <button onClick={() => setModal('ibkr')}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
+                style={{ backgroundColor: '#dc2626', color: '#fff' }}>
+                {lang === 'es' ? 'Resolver' : 'Resolve'}
+              </button>
+            </div>
+          )}
+          {topBanner === 'ibkr-failed' && (
+            <div className="px-4 py-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}>
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 shrink-0" style={{ color: '#fbbf24' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+                <p className="text-sm font-medium" style={{ color: '#fcd34d' }}>
+                  {lang === 'es' ? 'La última sincronización con IBKR falló — tus datos pueden estar desactualizados' : 'The last IBKR sync failed — your data may be outdated'}
+                </p>
+              </div>
+              <button onClick={() => setModal('ibkr')}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
+                style={{ backgroundColor: '#d97706', color: '#fff' }}>
+                {lang === 'es' ? 'Reintentar' : 'Retry'}
               </button>
             </div>
           )}
@@ -822,7 +860,7 @@ export default function DashboardPage() {
                 </div>
               </div>
             )}
-            <CardBoundary id="HO-02"><RecentTransactions transactions={transactions} lang={lang} onExportCSV={handleExportTransactionsCSV} /></CardBoundary>
+            <CardBoundary id="HO-02"><RecentTransactions transactions={transactions} items={items} lang={lang} onExportCSV={handleExportTransactionsCSV} /></CardBoundary>
           </ErrorBoundary>
         </SectionCollapse></div>
 
@@ -981,6 +1019,11 @@ export default function DashboardPage() {
             await addTransaction(tx)
             showToast(lang === 'es' ? 'Flujo de caja registrado' : 'Cash flow recorded')
           }}
+          onTransfer={async (payload) => {
+            await transferFunds(payload)
+            showToast(lang === 'es' ? 'Transferencia registrada' : 'Transfer recorded')
+          }}
+          existingItems={items}
           lang={lang}
           baseCurrency={baseCurrency}
         />

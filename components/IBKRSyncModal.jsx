@@ -6,6 +6,44 @@ import { CheckCircle, Lock, ChevronDown, ChevronUp, Upload, RefreshCw } from 'lu
 import { parseIBKRFile, formatIBKRFileResult } from '@/lib/parsers/ibkrFileParser'
 import { authFetch } from '@/lib/authFetch'
 
+// Real-phase stepper: shows which of the 4 sync phases is running instead of a
+// time-based bar that fills at a fixed rate regardless of IBKR's actual state.
+function SyncStepper({ syncStatus, pollProgress, t }) {
+  const phases = [
+    { keys: ['requesting', 'requesting-retry'], label: t('Solicitando', 'Requesting') },
+    { keys: ['polling'], label: t('Generando', 'Generating') },
+    { keys: ['processing'], label: t('Procesando', 'Processing') },
+    { keys: ['importing'], label: t('Importando', 'Importing') },
+  ]
+  const activeIdx = Math.max(0, phases.findIndex(p => p.keys.includes(syncStatus)))
+  return (
+    <div className="flex flex-col items-center gap-3">
+      <div className="flex items-center gap-1">
+        {phases.map((p, i) => (
+          <div key={p.label} className="flex items-center gap-1">
+            <div className="flex flex-col items-center gap-1">
+              <div className="w-2 h-2 rounded-full" style={{
+                backgroundColor: i < activeIdx ? 'var(--accent-green)' : i === activeIdx ? 'var(--accent-blue)' : 'rgba(100,116,139,0.4)',
+                ...(i === activeIdx ? { boxShadow: '0 0 0 3px rgba(59,130,246,0.2)' } : {}),
+              }} />
+              <span className="text-[10px]" style={{ color: i === activeIdx ? 'var(--accent-blue)' : 'var(--text-muted)' }}>{p.label}</span>
+            </div>
+            {i < phases.length - 1 && <div className="w-8 h-px mb-4" style={{ backgroundColor: i < activeIdx ? 'var(--accent-green)' : 'rgba(100,116,139,0.3)' }} />}
+          </div>
+        ))}
+      </div>
+      {pollProgress && syncStatus === 'polling' && (
+        <p className="text-xs text-slate-600">
+          {t(`Esperando a IBKR... ${pollProgress.current * 3}s`, `Waiting for IBKR... ${pollProgress.current * 3}s`)}
+        </p>
+      )}
+      <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+        {t('Puede tardar hasta ~90s, sobre todo fuera de horario de mercado.', 'Can take up to ~90s, especially outside market hours.')}
+      </p>
+    </div>
+  )
+}
+
 function DoneStep({ result, onClose, t }) {
   const [countdown, setCountdown] = useState(5)
 
@@ -29,6 +67,12 @@ function DoneStep({ result, onClose, t }) {
       {result.equityHistory > 0 && (
         <p className="text-[#34d399]/80 text-xs mt-2">
           {result.equityHistory} {t('días de historial guardados', 'days of history saved')}
+        </p>
+      )}
+      {result.partial && (
+        <p className="text-xs mt-2" style={{ color: '#fbbf24' }}>
+          {t('Importación parcial — algunos registros no se guardaron. Sincroniza de nuevo para completar.',
+             'Partial import — some records were not saved. Sync again to complete.')}
         </p>
       )}
       <p className="text-xs text-slate-600 mt-2">
@@ -79,7 +123,8 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       const v = (it.currentPrice || it.purchasePrice || 0) * (it.quantity || 1)
       return s + v
     }, 0)
-    return { items, txs, snaps, allSnaps, totalValue }
+    const accounts = [...new Set(items.map(it => it._ibkrAccountId).filter(Boolean))].sort()
+    return { items, txs, snaps, allSnaps, totalValue, accounts }
   }, [existingItems, existingTransactions, existingSnapshots])
 
   const t = (es, en) => lang === 'es' ? es : en
@@ -375,13 +420,19 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       const accounts = preview.accounts || []
       const activeAccounts = selectedAccounts || accounts
       const dataToImport = preview
+      // Partial-write fallback: report what actually persisted, not the preview
+      // totals — declaring the full count here would overstate the import.
+      const partial = progress.total > 0 && progress.done < progress.total
+      const nItems = dataToImport.items.length
+      const nTx = dataToImport.transactions.length
       setResult({
-        items: dataToImport.items.length,
-        transactions: dataToImport.transactions.length,
-        equityHistory: (dataToImport.equityHistory || []).length,
+        items: Math.min(progress.done, nItems),
+        transactions: Math.min(Math.max(progress.done - nItems, 0), nTx),
+        equityHistory: Math.min(Math.max(progress.done - nItems - nTx, 0), (dataToImport.equityHistory || []).length),
         accounts: activeAccounts,
         syncedAt: dataToImport.syncedAt || new Date().toISOString(),
         mode: syncMode,
+        partial,
       })
       setStep('done')
     } else {
@@ -418,6 +469,11 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
         return t(
           'Verifica que tu Flex Query incluya "Open Positions" y "Trades" en su configuración.',
           'Verify your Flex Query includes "Open Positions" and "Trades" in its configuration.'
+        )
+      case 'LOCKED':
+        return t(
+          'IBKR bloqueó el token por demasiados intentos. Genera un token NUEVO en IBKR → Settings → API → Flex Web Service, o importa un archivo CSV mientras tanto.',
+          'IBKR locked the token after too many attempts. Generate a NEW token at IBKR → Settings → API → Flex Web Service, or import a CSV file in the meantime.'
         )
       default:
         return null
@@ -466,9 +522,19 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 </p>
               )}
               {!syncing && (
-                <button onClick={handleSync} className="mt-2 text-xs text-[#60a5fa] hover:text-blue-300 transition-colors">
-                  {t('Reintentar', 'Retry')} →
-                </button>
+                <div className="mt-2 flex items-center gap-4">
+                  <button onClick={handleSync} className="text-xs text-[#60a5fa] hover:text-blue-300 transition-colors">
+                    {t('Reintentar', 'Retry')} →
+                  </button>
+                  {/* The CSV path bypasses the Flex token entirely — offer it
+                      whenever the API path fails, not buried in a tab. */}
+                  {importMode !== 'file' && (
+                    <button onClick={() => { setImportMode('file'); setStep('config'); setShowConfig(true); setError(''); setErrorCode('') }}
+                      className="text-xs text-slate-400 hover:text-slate-200 transition-colors">
+                      {t('o importa un archivo CSV', 'or import a CSV file')} →
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -490,6 +556,14 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                     {ibkrHistory.items.length} {t('posiciones', 'positions')}
                     {ibkrHistory.txs.length > 0 && <> · {ibkrHistory.txs.length} {t('transacciones', 'trades')}</>}
                   </p>
+                )}
+                {ibkrHistory.accounts.length > 0 && (
+                  <div className="flex flex-wrap items-center justify-center gap-1.5">
+                    <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{t('Cuentas:', 'Accounts:')}</span>
+                    {ibkrHistory.accounts.map((acc) => (
+                      <span key={acc} className="text-[11px] font-mono px-1.5 py-0.5 rounded border" style={{ color: 'var(--text-secondary)', borderColor: 'rgba(71,85,105,0.5)' }}>{acc}</span>
+                    ))}
+                  </div>
                 )}
               </div>
 
@@ -521,16 +595,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
               <p className="text-sm text-slate-400">
                 {statusMessages[syncStatus] || t('Sincronizando con IBKR...', 'Syncing with IBKR...')}
               </p>
-              {pollProgress && (
-                <div className="flex flex-col items-center gap-2">
-                  <div className="w-48 h-1 bg-slate-700 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-500" style={{ backgroundColor: '#3b82f6' }}
-                      style={{ width: `${Math.min((pollProgress.current / pollProgress.total) * 100, 100)}%` }}
-                    />
-                  </div>
-                </div>
-              )}
+              <SyncStepper syncStatus={syncStatus} pollProgress={pollProgress} t={t} />
               <button onClick={handleCancel} className="text-xs text-red-500/60 hover:text-[#f87171] transition-colors">
                 {t('Cancelar', 'Cancel')}
               </button>
@@ -543,19 +608,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
               <p className="text-sm text-slate-400">
                 {statusMessages[syncStatus] || t('Sincronizando con IBKR...', 'Syncing with IBKR...')}
               </p>
-              {pollProgress && (
-                <div className="flex flex-col items-center gap-2">
-                  <div className="w-48 h-1 bg-slate-700 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-500" style={{ backgroundColor: '#3b82f6' }}
-                      style={{ width: `${Math.min((pollProgress.current / pollProgress.total) * 100, 100)}%` }}
-                    />
-                  </div>
-                  <p className="text-xs text-slate-600">
-                    {t(`Esperando... ${pollProgress.current * 3}s`, `Waiting... ${pollProgress.current * 3}s`)}
-                  </p>
-                </div>
-              )}
+              <SyncStepper syncStatus={syncStatus} pollProgress={pollProgress} t={t} />
               <div className="flex items-center gap-3">
                 <button onClick={() => setShowConfig(true)} className="text-xs text-slate-600 hover:text-slate-400 transition-colors">
                   {t('Cambiar credenciales', 'Change credentials')}
@@ -1024,8 +1077,10 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   <div className="w-full h-2.5 bg-slate-700 rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full transition-all duration-300"
-                      style={{ backgroundColor: importProgress && importProgress.total > 0 && importProgress.done >= importProgress.total ? '#34d399' : '#3b82f6' }}
-                      style={{ width: `${importProgress && importProgress.total > 0 ? Math.round((importProgress.done / importProgress.total) * 100) : 0}%` }} />
+                      style={{
+                        backgroundColor: importProgress && importProgress.total > 0 && importProgress.done >= importProgress.total ? '#34d399' : '#3b82f6',
+                        width: `${importProgress && importProgress.total > 0 ? Math.round((importProgress.done / importProgress.total) * 100) : 0}%`,
+                      }} />
                   </div>
                   <div className="flex items-center justify-center gap-2">
                     {importProgress && importProgress.total > 0 && importProgress.done >= importProgress.total ? (

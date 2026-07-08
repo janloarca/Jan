@@ -3,7 +3,12 @@
 import { useState, useMemo } from 'react'
 import { formatCurrency, formatDate, formatMonth } from './utils'
 
-export default function RecentTransactions({ transactions, lang, onExportCSV }) {
+export default function RecentTransactions({ transactions, lang, onExportCSV, items = [] }) {
+  const itemName = (id) => {
+    if (!id) return null
+    const it = items.find((i) => i.id === id)
+    return it ? (it.name || it.symbol) : null
+  }
   const [showAll, setShowAll] = useState(false)
   const [typeFilter, setTypeFilter] = useState('ALL')
   const [dateRange, setDateRange] = useState('all')
@@ -65,6 +70,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
     if (t === 'DIVIDEND') return warn
     if (t === 'DEPOSIT') return success
     if (t === 'WITHDRAWAL') return error
+    if (t === 'TRANSFER') return { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', color: 'var(--accent-blue)' }
     return neutral
   }
 
@@ -75,7 +81,29 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
     if (t === 'DIVIDEND') return '$'
     if (t === 'DEPOSIT') return '+'
     if (t === 'WITHDRAWAL') return '−'
+    if (t === 'TRANSFER') return '⇄'
     return '·'
+  }
+
+  // Human trace of how the money moved: "A → B" for transfers (from the linked
+  // item ids when present, else the description), source asset for manual yields.
+  const flowTrace = (tx) => {
+    const t = (tx.type || '').toUpperCase()
+    if (t === 'TRANSFER') {
+      const from = itemName(tx._originItemId)
+      const to = itemName(tx._linkedItemId)
+      if (from && to) return `${from} → ${to}`
+      const m = (tx.description || '').match(/Transfer:\s*(.+)/)
+      return m ? m[1] : null
+    }
+    if (t === 'DIVIDEND' && tx._origin === 'yield') {
+      const src = itemName(tx._linkedItemId)
+      return src ? (lang === 'es' ? `Rendimiento de ${src}` : `Yield from ${src}`) : (lang === 'es' ? 'Rendimiento' : 'Yield')
+    }
+    if ((t === 'DEPOSIT' || t === 'WITHDRAWAL') && tx._origin === 'external') {
+      return lang === 'es' ? (t === 'DEPOSIT' ? 'Dinero nuevo' : 'Salió del portafolio') : (t === 'DEPOSIT' ? 'New money' : 'Left portfolio')
+    }
+    return null
   }
 
   const txCount = (key) => {
@@ -182,13 +210,17 @@ export default function RecentTransactions({ transactions, lang, onExportCSV }) 
                         {tx.type || 'TX'}
                       </span>
                     </div>
-                    <span className="text-xs text-slate-500">{formatDate(tx.date)}</span>
+                    <span className="text-xs text-slate-500">
+                      {formatDate(tx.date)}
+                      {flowTrace(tx) && <span className="ml-2" style={{ color: 'var(--text-muted)' }}>· {flowTrace(tx)}</span>}
+                    </span>
                   </div>
                 </div>
                 <div className="text-right">
                   <span className="text-sm font-medium font-mono tabular-nums" style={{ color:
                     (tx.type || '').toUpperCase() === 'SELL' || (tx.type || '').toUpperCase() === 'WITHDRAWAL'
-                      ? 'var(--text-negative)' : 'var(--accent-green)'
+                      ? 'var(--text-negative)'
+                      : (tx.type || '').toUpperCase() === 'TRANSFER' ? 'var(--text-secondary)' : 'var(--accent-green)'
                   }}>
                     {formatCurrency(tx.totalAmount ?? 0)}
                   </span>
