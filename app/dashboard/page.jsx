@@ -1023,6 +1023,10 @@ export default function DashboardPage() {
             await transferFunds(payload)
             showToast(lang === 'es' ? 'Transferencia registrada' : 'Transfer recorded')
           }}
+          onExecuteContribution={async (payload) => {
+            await executeContribution(payload)
+            showToast(lang === 'es' ? 'Movimiento registrado' : 'Movement recorded')
+          }}
           existingItems={items}
           lang={lang}
           baseCurrency={baseCurrency}

@@ -480,18 +480,25 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
       const itemId = await onAdd(item)
 
-      if (onAddLot && item.symbol && item.quantity > 0 && item.purchasePrice > 0 && !item.isDebt) {
+      // On an "Add to position" merge the item now carries the COMBINED quantity
+      // and weighted-average cost — the lot and the DEPOSIT must record only THIS
+      // purchase, or the historical share count double-counts (old lots + combined).
+      const isMerge = !!duplicateWarning && isMarketAsset
+      const lotQty = isMerge ? qty : item.quantity
+      const lotCost = isMerge ? price : item.purchasePrice
+
+      if (onAddLot && item.symbol && lotQty > 0 && lotCost > 0 && !item.isDebt) {
         await onAddLot({
           symbol: (item.symbol || '').toUpperCase(),
-          quantity: item.quantity,
-          costBasis: item.purchasePrice,
+          quantity: lotQty,
+          costBasis: lotCost,
           currency: item.currency || 'USD',
           acquisitionDate: item.acquisitionDate || new Date().toISOString().split('T')[0],
           ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
         })
       }
 
-      const totalValue = (item.quantity || 1) * (item.purchasePrice || 0)
+      const totalValue = isMerge ? lotQty * lotCost : (item.quantity || 1) * (item.purchasePrice || 0)
       if (isNewMoney && onAddTransaction && totalValue > 0) {
         await onAddTransaction({
           type: 'DEPOSIT', symbol: item.symbol || '',
@@ -949,7 +956,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 <div className="flex items-center gap-1.5">
                   <span className="text-emerald-400 text-xs font-medium">💰 {t('Dividendo detectado', 'Dividend detected')}</span>
                 </div>
-                <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center">
                   <div>
                     <p className="text-xs text-[var(--text-muted,#475569)]">{t('Rendimiento', 'Yield')}</p>
                     <p className="text-sm font-semibold text-emerald-400">{divInfo.dividendYield}%</p>

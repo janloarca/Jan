@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { validateItem } from '@/lib/validation'
+import { buildContributionFields } from '@/lib/contributions'
 import InlineCreateAccount from './InlineCreateAccount'
 
 const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
@@ -176,46 +177,24 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         ...(txType === 'DIVIDEND' && isBankLike ? { _reinvested: true } : {}),
       }
 
-      let itemFields, newLot, lotClose
-      if (isBankLike) {
-        const oldPrice = parseFloat(form.purchasePrice) || 0
-        const newPrice = isAdd ? oldPrice + amt : Math.max(0, oldPrice - amt)
-        itemFields = { purchasePrice: newPrice, currentPrice: newPrice }
-        set('purchasePrice', newPrice.toString())
-        set('currentPrice', newPrice.toString())
-      } else {
-        const pricePerUnit = parseFloat(form.currentPrice) || parseFloat(form.purchasePrice) || 1
-        if (isAdd) {
-          const newShares = amt / pricePerUnit
-          const oldQty = parseFloat(form.quantity) || 0
-          const newQty = oldQty + newShares
-          itemFields = { quantity: newQty }
-          newLot = {
-            symbol: (item.symbol || '').toUpperCase(),
-            quantity: newShares,
-            costBasis: pricePerUnit,
-            currency: itemCurrency,
-            acquisitionDate: contribDate,
-            institution: item.institution || '',
-          }
-          set('quantity', newQty.toString())
-        } else {
-          const sharesToSell = amt / pricePerUnit
-          const oldQty = parseFloat(form.quantity) || 0
-          const newQty = Math.max(0, oldQty - sharesToSell)
-          itemFields = { quantity: newQty }
-          if (sharesToSell > 0) {
-            lotClose = {
-              symbol: (item.symbol || '').toUpperCase(),
-              qty: sharesToSell,
-              price: pricePerUnit,
-              date: contribDate,
-              institution: item.institution || '',
-            }
-          }
-          set('quantity', newQty.toString())
-        }
-      }
+      const { itemFields, newLot, lotClose } = buildContributionFields({
+        item: {
+          type: form.type,
+          quantity: parseFloat(form.quantity) || 0,
+          purchasePrice: parseFloat(form.purchasePrice) || 0,
+          currentPrice: parseFloat(form.currentPrice) || parseFloat(form.purchasePrice) || 0,
+          symbol: item.symbol,
+          institution: item.institution,
+          currency: itemCurrency,
+        },
+        amount: amt,
+        date: contribDate,
+        isAdd,
+        currency: itemCurrency,
+      })
+      if (itemFields.purchasePrice != null) set('purchasePrice', itemFields.purchasePrice.toString())
+      if (itemFields.currentPrice != null) set('currentPrice', itemFields.currentPrice.toString())
+      if (itemFields.quantity != null) set('quantity', itemFields.quantity.toString())
 
       const prefFields = (!isBank && isAdd && item._contribIsIncome !== contribIsIncome)
         ? { _contribIsIncome: contribIsIncome }
@@ -493,7 +472,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label htmlFor="edit-type" className={labelCls}>{t('Tipo', 'Type')}</label>
               <select id="edit-type" value={form.type} onChange={e => set('type', e.target.value)} className={inputCls}>
@@ -613,7 +592,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input type="checkbox" checked={contribIsIncome} onChange={e => setContribIsIncome(e.target.checked)}
                         className="w-3.5 h-3.5 rounded border-slate-600 accent-emerald-500" />
-                      <span className="text-xs" style={{ color: '#94a3b8' }}>
+                      <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
                         {t('Es ingreso generado (intereses, dividendos)', 'Is earned income (interest, dividends)')}
                       </span>
                       <InfoTip text={t(
@@ -767,7 +746,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label htmlFor="edit-monthly-payment" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Pago mensual', 'Monthly payment')}</label>
                   <input id="edit-monthly-payment" value={form.monthlyPayment} onChange={e => set('monthlyPayment', e.target.value)}
@@ -800,7 +779,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
               {isCreditCard && (
                 <div className="border-t border-red-500/10 pt-3 space-y-3">
-                  <p className="text-xs uppercase tracking-wide" style={{ color: '#fca5a5' }}>{t('Tarjeta de crédito', 'Credit Card')}</p>
+                  <p className="text-xs uppercase tracking-wide" style={{ color: 'var(--text-negative)' }}>{t('Tarjeta de crédito', 'Credit Card')}</p>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label htmlFor="edit-card-brand" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Marca', 'Brand')}</label>
@@ -844,7 +823,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           {isAlternative && form.subtype === 'safe_note' && (
             <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'color-mix(in srgb, var(--accent-pink) 20%, transparent)', backgroundColor: 'color-mix(in srgb, var(--accent-pink) 5%, transparent)' }}>
               <p className="text-xs font-medium" style={{ color: 'var(--accent-pink)' }}>🔮 SAFE Note</p>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <div>
                   <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tipo', 'Type')}</label>
                   <select value={form.safeType} onChange={e => set('safeType', e.target.value)} className={inputCls}>
@@ -870,7 +849,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           {/* Fees */}
           <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'color-mix(in srgb, var(--accent-orange) 20%, transparent)', backgroundColor: 'color-mix(in srgb, var(--accent-orange) 5%, transparent)' }}>
             <p className="text-xs font-medium" style={{ color: 'var(--accent-orange)' }}>{t('Costos & Comisiones', 'Costs & Fees')}</p>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <div>
                 <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Costo entrada', 'Entry fee')} <InfoTip text={t('Monto fijo en tu moneda (ej: $80). NO es porcentaje. Es el costo de entrada o comisión que pagaste una sola vez.', 'Fixed amount in your currency (e.g. $80). NOT a percentage. One-time entry cost or commission you paid.')} /></label>
                 <input value={form.entryFee} onChange={e => set('entryFee', e.target.value)}
@@ -1072,7 +1051,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
               {/* Rate inputs */}
               {form.rateType === 'variable' ? (
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <div>
                     <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa mín %', 'Min %')}</label>
                     <input value={form.rateMin} onChange={e => set('rateMin', e.target.value)}

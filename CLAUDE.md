@@ -3,6 +3,7 @@
 ## Pendientes
 
 - [ ] Vercel deployment: PR #62 (audit fixes) no deployó por límite de 100 deploys/día en free tier. Verificar que se deployó correctamente después del reset (~4 junio 2026). Si sigue fallando, considerar upgrade a Pro o reducir frecuencia de deploys.
+- [ ] Intro interactiva para usuarios nuevos: extender `OnboardingTour` (6 pasos modales ya existentes en `components/dashboard/OnboardingTour.jsx`) a un walkthrough anclado a la UI real (spotlight sobre NetWorthCard / ActionButtons / spreadsheet) + opción de datos demo para explorar sin ingresar nada. El gating actual (EmptyState vs Tour, una superficie a la vez) ya funciona — solo extender.
 
 ## Lecciones Aprendidas — Integración IBKR (para futuras integraciones)
 

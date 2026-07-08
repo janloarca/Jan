@@ -106,20 +106,25 @@ const EditableCell = memo(function EditableCell({ displayValue, editValue, onSav
 
   if (editing) {
     const draftNum = parseFloat(draft.replace(/[^0-9.\-]/g, ''))
+    // Floating editor: the label/preview are often wider than the 128px month
+    // column, so the open editor renders as an anchored popover with its own
+    // solid background instead of bleeding transparently into neighbor cells.
     return (
-      <div>
-        {editLabel && <p className="text-xs text-blue-500 text-right mb-0.5 pr-1 font-medium whitespace-nowrap">{editLabel}</p>}
-        <div className="flex items-center gap-1">
-          {currency && <span className="text-xs text-blue-500 font-semibold shrink-0">{currency}</span>}
-          <input ref={ref} type="text" value={draft}
-            onChange={e => setDraft(e.target.value)}
-            onBlur={commit}
-            onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') cancel() }}
-            className="w-full bg-white border-2 border-blue-400 rounded px-3 py-1.5 text-sm text-slate-900 text-right font-mono focus:outline-none focus:ring-2 focus:ring-blue-300" />
+      <div className="relative" style={{ minHeight: '2rem' }}>
+        <div className="absolute right-0 top-0 z-30 min-w-[190px] bg-white border-2 border-blue-400 rounded-lg shadow-lg p-2">
+          {editLabel && <p className="text-xs text-blue-500 text-right mb-1 font-medium">{editLabel}</p>}
+          <div className="flex items-center gap-1">
+            {currency && <span className="text-xs text-blue-500 font-semibold shrink-0">{currency}</span>}
+            <input ref={ref} type="text" value={draft}
+              onChange={e => setDraft(e.target.value)}
+              onBlur={commit}
+              onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') cancel() }}
+              className="w-full bg-white border border-blue-300 rounded px-2 py-1.5 text-sm text-slate-900 text-right font-mono focus:outline-none focus:ring-2 focus:ring-blue-300" />
+          </div>
+          {livePreview && isFinite(draftNum) && (
+            <p className="text-xs text-blue-400 text-right mt-1">{livePreview(draftNum)}</p>
+          )}
         </div>
-        {livePreview && isFinite(draftNum) && (
-          <p className="text-xs text-blue-400 text-right mt-0.5 pr-1 whitespace-nowrap">{livePreview(draftNum)}</p>
-        )}
       </div>
     )
   }
@@ -651,7 +656,9 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         </div>
       )}
       <div className="overflow-x-auto">
-        <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', width: `${100 / zoom}%` }}>
+        {/* CSS zoom (not transform: scale) — a transform creates a containing
+            block that disables position:sticky on the name column at zoom ≠ 1. */}
+        <div style={{ zoom }}>
         <table className="w-full text-sm border-collapse min-w-[600px]">
           <caption className="sr-only">{t('Valores históricos del portafolio por mes', 'Historical portfolio values by month')}</caption>
           <thead>

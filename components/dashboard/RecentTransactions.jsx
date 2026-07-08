@@ -98,10 +98,26 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, it
     }
     if (t === 'DIVIDEND' && tx._origin === 'yield') {
       const src = itemName(tx._linkedItemId)
-      return src ? (lang === 'es' ? `Rendimiento de ${src}` : `Yield from ${src}`) : (lang === 'es' ? 'Rendimiento' : 'Yield')
+      const dest = itemName(tx._destinationItemId)
+      const base = src ? (lang === 'es' ? `Rendimiento de ${src}` : `Yield from ${src}`) : (lang === 'es' ? 'Rendimiento' : 'Yield')
+      return dest ? `${base} → ${dest}` : base
     }
     if ((t === 'DEPOSIT' || t === 'WITHDRAWAL') && tx._origin === 'external') {
+      const linked = itemName(tx._linkedItemId)
+      if (linked) {
+        return lang === 'es'
+          ? (t === 'DEPOSIT' ? `Dinero nuevo → ${linked}` : `Desde ${linked} → fuera`)
+          : (t === 'DEPOSIT' ? `New money → ${linked}` : `From ${linked} → out`)
+      }
       return lang === 'es' ? (t === 'DEPOSIT' ? 'Dinero nuevo' : 'Salió del portafolio') : (t === 'DEPOSIT' ? 'New money' : 'Left portfolio')
+    }
+    if ((t === 'DEPOSIT' || t === 'WITHDRAWAL') && tx._linkedItemId && !tx._origin) {
+      const linked = itemName(tx._linkedItemId)
+      if (linked) {
+        return lang === 'es'
+          ? (t === 'DEPOSIT' ? `Aporte → ${linked}` : `Retiro de ${linked}`)
+          : (t === 'DEPOSIT' ? `Contribution → ${linked}` : `Withdrawal from ${linked}`)
+      }
     }
     return null
   }
