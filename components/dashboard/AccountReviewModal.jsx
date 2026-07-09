@@ -15,7 +15,7 @@ const CATEGORY_LABELS = {
   other: { es: 'Otro', en: 'Other' },
 }
 
-export default function AccountReviewModal({ items, onClose, onEditItem, lang, transactions }) {
+export default function AccountReviewModal({ items, onClose, onEditItem, lang, transactions, findings = [], globalScore = 100 }) {
   const t = (es, en) => lang === 'es' ? es : en
   const [index, setIndex] = useState(0)
   const [reviewed, setReviewed] = useState({})
@@ -25,19 +25,23 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
     [items]
   )
 
+  // Findings come from the shared data-completeness engine (lib/dataCompleteness)
+  // so this wizard and the "Chispu te sugiere" card always agree.
+  const findingsByItem = useMemo(() => {
+    const m = new Map()
+    for (const f of findings) {
+      if (!f.itemId) continue
+      if (!m.has(f.itemId)) m.set(f.itemId, [])
+      m.get(f.itemId).push(f)
+    }
+    return m
+  }, [findings])
+
   const dataQuality = useMemo(() => {
-    let complete = 0
-    const issues = []
-    sorted.forEach(it => {
-      const missing = []
-      if (!it.purchasePrice && !it.currentPrice) missing.push('price')
-      if (!it.acquisitionDate) missing.push('date')
-      if (!it.institution) missing.push('institution')
-      if (missing.length === 0) complete++
-      else issues.push({ id: it.id, name: it.name || it.symbol, missing })
-    })
-    return { complete, total: sorted.length, pct: sorted.length > 0 ? Math.round((complete / sorted.length) * 100) : 100, issues }
-  }, [sorted])
+    const total = sorted.length
+    const complete = sorted.filter(it => !(findingsByItem.get(it.id)?.length)).length
+    return { complete, total, pct: globalScore }
+  }, [sorted, findingsByItem, globalScore])
 
   const item = sorted[index]
   if (!item) return null
@@ -60,10 +64,7 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
     if (onEditItem) onEditItem(item)
   }
 
-  const missingFields = []
-  if (!item.acquisitionDate) missingFields.push(t('Fecha de compra', 'Purchase date'))
-  if (!item.institution) missingFields.push(t('Institución', 'Institution'))
-  if (!item.purchasePrice && !item.currentPrice) missingFields.push(t('Precio', 'Price'))
+  const itemFindings = findingsByItem.get(item.id) || []
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
@@ -179,11 +180,17 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
             </div>
           )}
 
-          {/* Missing fields warning */}
-          {missingFields.length > 0 && (
+          {/* Data-gap findings for this item (shared engine) */}
+          {itemFindings.length > 0 && (
             <div className="rounded-lg p-3 mb-4" style={{ backgroundColor: '#fffbeb', borderWidth: '1px', borderStyle: 'solid', borderColor: '#fde68a' }}>
-              <p className="text-xs font-medium" style={{ color: '#b45309' }}>{t('Datos faltantes:', 'Missing data:')}</p>
-              <p className="text-xs mt-0.5" style={{ color: '#d97706' }}>{missingFields.join(', ')}</p>
+              <p className="text-xs font-medium" style={{ color: '#b45309' }}>{t('Chispu detectó:', 'Chispu detected:')}</p>
+              <ul className="mt-1 space-y-1">
+                {itemFindings.map(f => (
+                  <li key={f.id} className="text-xs" style={{ color: '#d97706' }}>
+                    · {lang === 'es' ? f.textEs : f.textEn}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 

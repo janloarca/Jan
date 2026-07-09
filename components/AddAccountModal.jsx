@@ -5,6 +5,7 @@ import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { validateItem } from '@/lib/validation'
 import InlineCreateAccount from './InlineCreateAccount'
+import TimelineEditor, { validateTimelineRows } from './TimelineEditor'
 
 const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
 
@@ -118,6 +119,10 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     cardBrand: '', rewardType: '', rewardRate: '', rewardBalance: '',
   })
   const [isNewMoney, setIsNewMoney] = useState(true)
+  // How the value was built: one lump at acquisitionDate (default) or several
+  // dated contributions captured in a timeline (rows explain the total).
+  const [valueTimeline, setValueTimeline] = useState('single')
+  const [timelineRows, setTimelineRows] = useState([])
   const [detectedCurrency, setDetectedCurrency] = useState(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -298,11 +303,26 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     if (isMarketAsset && qty <= 0) { setError(t('La cantidad debe ser mayor a 0', 'Quantity must be greater than 0')); return }
     if (form.maturityDate && form.acquisitionDate && form.maturityDate < form.acquisitionDate) { setError(t('La fecha de vencimiento debe ser posterior a la de compra', 'Maturity date must be after acquisition date')); return }
 
+    // Timeline mode: rows explain how the value was built over time. Validate
+    // them and anchor the item's acquisitionDate on the earliest contribution.
+    const curPrice0 = parseFloat(form.currentPrice) || 0
+    const tlTotal = isMarketAsset ? qty * price : qty * (curPrice0 || price)
+    const useTimeline = isNewMoney && !isDebt && !duplicateWarning && valueTimeline === 'multi' && tlTotal > 0
+    let tlRows = []
+    if (useTimeline) {
+      const tlError = validateTimelineRows(timelineRows, tlTotal, { requireExact: isMarketAsset, lang })
+      if (tlError) { setError(tlError); return }
+      tlRows = timelineRows
+        .filter((r) => (parseFloat(r.amount) || 0) > 0 && r.date)
+        .sort((a, b) => a.date.localeCompare(b.date))
+    }
+    const effectiveAcqDate = useTimeline ? tlRows[0].date : form.acquisitionDate
+
     setSaving(true)
     try {
       const item = {
         type, currency: form.currency, institution: form.institution.trim(),
-        acquisitionDate: form.acquisitionDate, accountType: form.accountType,
+        acquisitionDate: effectiveAcqDate, accountType: form.accountType,
       }
 
       if (form.sector) item.sector = form.sector
@@ -487,29 +507,61 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
       const lotQty = isMerge ? qty : item.quantity
       const lotCost = isMerge ? price : item.purchasePrice
 
-      if (onAddLot && item.symbol && lotQty > 0 && lotCost > 0 && !item.isDebt) {
-        await onAddLot({
-          symbol: (item.symbol || '').toUpperCase(),
-          quantity: lotQty,
-          costBasis: lotCost,
-          currency: item.currency || 'USD',
-          acquisitionDate: item.acquisitionDate || new Date().toISOString().split('T')[0],
-          ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
-        })
+      if (useTimeline) {
+        // One DEPOSIT (and one lot for share-based) PER contribution row, so
+        // history steps up at each real date. The entered total IS the current
+        // balance — rows explain it, nothing gets re-credited.
+        for (const row of tlRows) {
+          const rowAmt = Math.round((parseFloat(row.amount) || 0) * 100) / 100
+          if (onAddLot && item.symbol && isMarketAsset && price > 0 && !item.isDebt) {
+            await onAddLot({
+              symbol: (item.symbol || '').toUpperCase(),
+              quantity: rowAmt / price,
+              costBasis: price,
+              currency: item.currency || 'USD',
+              acquisitionDate: row.date,
+              ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
+            })
+          }
+          if (onAddTransaction) {
+            await onAddTransaction({
+              type: 'DEPOSIT', symbol: item.symbol || '',
+              description: `${item.name || item.symbol} - ${t('Aporte', 'Contribution')}`,
+              date: row.date,
+              totalAmount: rowAmt, currency: item.currency || 'USD',
+              ...(itemId ? { _linkedItemId: itemId } : {}),
+              ...(activeEntity && activeEntity !== 'default' ? { entityId: activeEntity } : {}),
+              _source: 'manual_new_account',
+            })
+          }
+        }
+      } else {
+        if (onAddLot && item.symbol && lotQty > 0 && lotCost > 0 && !item.isDebt) {
+          await onAddLot({
+            symbol: (item.symbol || '').toUpperCase(),
+            quantity: lotQty,
+            costBasis: lotCost,
+            currency: item.currency || 'USD',
+            acquisitionDate: item.acquisitionDate || new Date().toISOString().split('T')[0],
+            ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
+          })
+        }
+
+        const singleDeposit = isMerge ? lotQty * lotCost : (item.quantity || 1) * (item.purchasePrice || 0)
+        if (isNewMoney && onAddTransaction && singleDeposit > 0) {
+          await onAddTransaction({
+            type: 'DEPOSIT', symbol: item.symbol || '',
+            description: `${item.name || item.symbol} - ${t('Dinero nuevo', 'New money')}`,
+            date: item.acquisitionDate || new Date().toISOString().split('T')[0],
+            totalAmount: Math.round(singleDeposit * 100) / 100, currency: item.currency || 'USD',
+            ...(itemId ? { _linkedItemId: itemId } : {}),
+            ...(activeEntity && activeEntity !== 'default' ? { entityId: activeEntity } : {}),
+            _source: 'manual_new_account',
+          })
+        }
       }
 
       const totalValue = isMerge ? lotQty * lotCost : (item.quantity || 1) * (item.purchasePrice || 0)
-      if (isNewMoney && onAddTransaction && totalValue > 0) {
-        await onAddTransaction({
-          type: 'DEPOSIT', symbol: item.symbol || '',
-          description: `${item.name || item.symbol} - ${t('Dinero nuevo', 'New money')}`,
-          date: form.acquisitionDate || new Date().toISOString().split('T')[0],
-          totalAmount: Math.round(totalValue * 100) / 100, currency: item.currency || 'USD',
-          ...(itemId ? { _linkedItemId: itemId } : {}),
-          ...(activeEntity && activeEntity !== 'default' ? { entityId: activeEntity } : {}),
-          _source: 'manual_new_account',
-        })
-      }
 
       if (!isNewMoney && form.capitalDestination && totalValue > 0) {
         const source = existingItems.find(it => it.id === form.capitalDestination)
@@ -1321,6 +1373,57 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 )}
               </div>
             )}
+
+            {/* Value timeline — only for external money (transfers between own
+                accounts belong in Movimientos, mixing them here would inflate
+                the deposit math). Rows EXPLAIN the total, they don't add to it. */}
+            {isNewMoney && !isDebt && !duplicateWarning && (() => {
+              const qty = parseFloat(form.quantity) || (isBank || isProperty ? 1 : 0)
+              const price = parseFloat(form.purchasePrice) || 0
+              const cur = parseFloat(form.currentPrice) || 0
+              // Market: rows must cover the COST (shares don't grow on their own).
+              // Balance assets: rows explain the current balance; any shortfall
+              // is growth (interest earned along the way).
+              const tlTotal = isMarketAsset ? qty * price : qty * (cur || price)
+              if (!(tlTotal > 0)) return null
+              return (
+                <div className="border border-[var(--card-border,#38383A)] rounded-lg p-3 space-y-2">
+                  <label className="text-xs text-[var(--text-primary,white)] font-medium block">
+                    {t('¿Cómo llegó a este valor?', 'How did it reach this value?')}
+                  </label>
+                  <div className="flex gap-2">
+                    {[
+                      { key: 'single', label: t('En una fecha', 'On one date') },
+                      { key: 'multi', label: t('En varias fechas', 'On several dates') },
+                    ].map((o) => (
+                      <button key={o.key} type="button"
+                        onClick={() => {
+                          setValueTimeline(o.key)
+                          if (o.key === 'multi' && timelineRows.length === 0) {
+                            setTimelineRows([{ date: form.acquisitionDate || new Date().toISOString().split('T')[0], amount: String(tlTotal) }])
+                          }
+                        }}
+                        className="flex-1 px-2 py-2 text-xs font-medium leading-tight rounded-lg border transition-colors"
+                        style={valueTimeline === o.key
+                          ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.15)', borderColor: 'rgba(59,130,246,0.5)' }
+                          : { color: 'var(--text-secondary)', borderColor: 'rgba(71,85,105,0.5)' }}>
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
+                  {valueTimeline === 'multi' && (
+                    <>
+                      <p className="text-xs text-[var(--text-muted,#475569)]">
+                        {t('Registra cada aporte con su fecha — así el historial muestra cómo creció desde el principio.',
+                           'Log each contribution with its date — history will show how it grew from the start.')}
+                      </p>
+                      <TimelineEditor rows={timelineRows} onChange={setTimelineRows}
+                        total={tlTotal} currency={form.currency} requireExact={isMarketAsset} lang={lang} />
+                    </>
+                  )}
+                </div>
+              )
+            })()}
 
             {(() => {
               const qty = parseFloat(form.quantity) || (isBank || isProperty ? 1 : 0)

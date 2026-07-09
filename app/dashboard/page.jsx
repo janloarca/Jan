@@ -61,6 +61,8 @@ const InstitutionPerformance = dynamic(() => import('@/components/dashboard/Inst
 const RebalanceSuggestions = dynamic(() => import('@/components/dashboard/RebalanceSuggestions'), { loading: () => <SkeletonCard /> })
 
 import RecentTransactions from '@/components/dashboard/RecentTransactions'
+import ChispuSuggestions from '@/components/dashboard/ChispuSuggestions'
+import { analyzeDataCompleteness } from '@/lib/dataCompleteness'
 import AssetAllocation from '@/components/dashboard/AssetAllocation'
 import NotificationCenter from '@/components/dashboard/NotificationCenter'
 import InstallPrompt from '@/components/dashboard/InstallPrompt'
@@ -121,6 +123,7 @@ export default function DashboardPage() {
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [modal, setModal] = useState(null)
+  const [cashflowPrefill, setCashflowPrefill] = useState(null)
   const [importBrokerHint, setImportBrokerHint] = useState(null)
   const [editItem, setEditItem] = useState(null)
   const [sellItem, setSellItem] = useState(null)
@@ -275,7 +278,8 @@ export default function DashboardPage() {
   const handleOpenAccount = useCallback(() => setModal('account'), [])
   const handleOpenSettings = useCallback(() => setModal('settings'), [])
   const handleOpenTransfer = useCallback(() => setModal('transfer'), [])
-  const handleOpenCashflow = useCallback(() => setModal('cashflow'), [])
+  const handleOpenCashflow = useCallback(() => { setCashflowPrefill(null); setModal('cashflow') }, [])
+  const handleOpenCashflowPrefilled = useCallback((prefill) => { setCashflowPrefill(prefill || null); setModal('cashflow') }, [])
   const handleOpenIBKR = useCallback(() => setModal('ibkr'), [])
   const handleOpenBlockchain = useCallback(() => setModal('blockchain'), [])
   const handleOpenPrint = useCallback(() => setModal('print'), [])
@@ -362,6 +366,13 @@ export default function DashboardPage() {
       return Object.keys(patches).length > 0 ? { ...item, ...patches } : item
     })
   }, [rawPortfolioItems, enrichData])
+
+  // Data-completeness engine: gap findings + score over RAW data (items carry
+  // their own currency; the engine converts per-tx via `convert`).
+  const dataCompleteness = useMemo(
+    () => analyzeDataCompleteness({ items, transactions, lots, convert, baseCurrency }),
+    [items, transactions, lots, convert, baseCurrency]
+  )
 
   // Export XLSX
   const handleExport = useCallback(async () => {
@@ -832,6 +843,19 @@ export default function DashboardPage() {
           ibkrSyncStatus={ibkrSyncStatus} ibkrLastSync={ibkrLastSync}
         />
 
+        {/* Chispu te sugiere — data gaps with one-tap fixes */}
+        <CardBoundary id="SUGG-01">
+          <ChispuSuggestions
+            findings={dataCompleteness.findings}
+            globalScore={dataCompleteness.globalScore}
+            items={items}
+            lang={lang}
+            onEditItem={setEditItem}
+            onOpenCashflow={handleOpenCashflowPrefilled}
+            onOpenReview={handleOpenReview}
+          />
+        </CardBoundary>
+
         {/* ═══ INGRESOS ═══ */}
         <div className="stagger-4"><SectionCollapse title={lang === 'es' ? 'Ingresos' : 'Income'} id="income">
           <ErrorBoundary lang={lang}>
@@ -1030,6 +1054,7 @@ export default function DashboardPage() {
           existingItems={items}
           lang={lang}
           baseCurrency={baseCurrency}
+          prefill={cashflowPrefill}
         />
       )}
 
@@ -1138,6 +1163,8 @@ export default function DashboardPage() {
           onClose={handleCloseReview}
           onEditItem={setEditItem}
           lang={lang}
+          findings={dataCompleteness.findings}
+          globalScore={dataCompleteness.globalScore}
         />
       )}
 

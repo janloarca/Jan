@@ -54,7 +54,10 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
         ? { quantity: 0, currentPrice: 0, purchasePrice: 0, saleDate, salePrice: price, soldFully: true }
         : { quantity: newQty }
 
-      // SELL transaction (+ WITHDRAWAL if the money leaves the portfolio)
+      // SELL transaction (+ WITHDRAWAL if the money leaves the portfolio).
+      // _linkedItemId ties it to the sold asset; _destinationItemId (set below
+      // for '__stay__') records WHERE the proceeds landed so history and the
+      // completeness engine can follow the money.
       const transactions = [{
         type: 'SELL',
         symbol: item.symbol || '',
@@ -62,6 +65,7 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
         date: saleDate,
         totalAmount: proceeds,
         currency: origCur,
+        _linkedItemId: item.id,
       }]
 
       let destId, destFields, destLot
@@ -73,6 +77,8 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
           date: saleDate,
           totalAmount: proceeds,
           currency: origCur,
+          _linkedItemId: item.id,
+          _origin: 'external',
         })
       } else if (destination === '__stay__' && destinationId) {
         const dest = existingItems.find((it) => it.id === destinationId)
@@ -84,6 +90,7 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
           const proceedsInDest = (convert && destCur !== origCur)
             ? convert(proceeds, origCur, destCur)
             : proceeds
+          transactions[0]._destinationItemId = dest.id
           if (BANK_RE.test(dest.type || '')) {
             const newBal = origPriceOf(dest) + proceedsInDest
             destId = dest.id
