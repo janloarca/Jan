@@ -31,7 +31,9 @@ export default function TimelineEditor({ rows, onChange, total, currency = 'USD'
     setRow(last, { amount: String(Math.round((lastAmt + remainder) * 100) / 100) })
   }
 
-  const inputCls = 'w-full px-2 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50 min-w-0'
+  // Mirrors AddAccountModal's inputCls tokens so timeline rows read like every
+  // other field in the modal (same bg, border, padding) in both themes.
+  const inputCls = 'w-full min-w-0 px-3 py-2 bg-[var(--input-bg,#000000)] border border-[var(--card-border,#38383A)] rounded-lg text-sm text-[var(--text-primary,white)] placeholder-[var(--text-muted,#475569)] focus:outline-none focus:border-blue-500/50'
 
   return (
     <div className="space-y-2">

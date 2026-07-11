@@ -748,6 +748,9 @@ export default function DashboardPage() {
       )}
 
       <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-5 space-y-3 sm:space-y-4">
+        {/* Time-sensitive alerts (maturities, dividends received) belong at the
+            top — buried at page-bottom they were invisible on mobile. */}
+        <NotificationCenter items={portfolioItems} transactions={transactions} lang={lang} />
         <div className="flex items-center gap-3 flex-wrap">
           {dataAge === 0 ? (
             <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
@@ -829,32 +832,46 @@ export default function DashboardPage() {
             repeated (emergency fund, FIRE, savings rate, passive income) live in
             their dedicated cards, and the row left dead whitespace on tablets. */}
 
-        {/* ═══ COMPOSICIÓN: Allocation + Rendimiento por institución ═══ */}
-        <div className="stagger-3 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 items-start">
-          <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} /></CardBoundary>
-          <CardBoundary id="INST-01"><InstitutionPerformance items={portfolioItems} lang={lang} baseCurrency={baseCurrency} /></CardBoundary>
-        </div>
+        {/* Chispu te sugiere — data gaps with one-tap fixes. HIGH-severity
+            findings surface above the fold (before composition/actions);
+            otherwise the card sits below the action row. */}
+        {(() => {
+          const hasHigh = dataCompleteness.findings.some((f) => f.severity === 'high')
+          const suggestionsCard = (
+            <CardBoundary id="SUGG-01">
+              <ChispuSuggestions
+                findings={dataCompleteness.findings}
+                globalScore={dataCompleteness.globalScore}
+                items={items}
+                lang={lang}
+                onEditItem={setEditItem}
+                onOpenCashflow={handleOpenCashflowPrefilled}
+                onOpenReview={handleOpenReview}
+              />
+            </CardBoundary>
+          )
+          return (
+            <>
+              {hasHigh && suggestionsCard}
 
-        <ActionButtons
-          onImport={handleOpenImport} onAddAccount={handleOpenAccount}
-          onTransfer={handleOpenTransfer} onCashFlow={handleOpenCashflow} onExport={handleExport}
-          onShare={handleShare} onIntegrations={handleOpenSettings}
-          onReview={handleOpenReview} itemCount={enrichedItems.length} lang={lang}
-          ibkrSyncStatus={ibkrSyncStatus} ibkrLastSync={ibkrLastSync}
-        />
+              {/* ═══ COMPOSICIÓN: Allocation + Rendimiento por institución ═══ */}
+              <div className="stagger-3 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 items-start">
+                <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} /></CardBoundary>
+                <CardBoundary id="INST-01"><InstitutionPerformance items={portfolioItems} lang={lang} baseCurrency={baseCurrency} /></CardBoundary>
+              </div>
 
-        {/* Chispu te sugiere — data gaps with one-tap fixes */}
-        <CardBoundary id="SUGG-01">
-          <ChispuSuggestions
-            findings={dataCompleteness.findings}
-            globalScore={dataCompleteness.globalScore}
-            items={items}
-            lang={lang}
-            onEditItem={setEditItem}
-            onOpenCashflow={handleOpenCashflowPrefilled}
-            onOpenReview={handleOpenReview}
-          />
-        </CardBoundary>
+              <ActionButtons
+                onImport={handleOpenImport} onAddAccount={handleOpenAccount}
+                onTransfer={handleOpenTransfer} onCashFlow={handleOpenCashflow} onExport={handleExport}
+                onShare={handleShare} onIntegrations={handleOpenSettings}
+                onReview={handleOpenReview} itemCount={enrichedItems.length} lang={lang}
+                ibkrSyncStatus={ibkrSyncStatus} ibkrLastSync={ibkrLastSync}
+              />
+
+              {!hasHigh && suggestionsCard}
+            </>
+          )
+        })()}
 
         {/* ═══ INGRESOS ═══ */}
         <div className="stagger-4"><SectionCollapse title={lang === 'es' ? 'Ingresos' : 'Income'} id="income">
@@ -905,7 +922,6 @@ export default function DashboardPage() {
           </ErrorBoundary>
         </SectionCollapse></div>
 
-        <NotificationCenter items={portfolioItems} transactions={transactions} lang={lang} />
         <InstallPrompt lang={lang} />
 
         <div className="flex items-center justify-center gap-3 pt-4 pb-8">
@@ -1164,7 +1180,6 @@ export default function DashboardPage() {
           onEditItem={setEditItem}
           lang={lang}
           findings={dataCompleteness.findings}
-          globalScore={dataCompleteness.globalScore}
         />
       )}
 

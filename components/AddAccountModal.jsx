@@ -607,7 +607,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               <label className={labelCls}>{t('Tipo de activo', 'Asset type')}</label>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                 {TYPES.map(tp => (
-                  <button key={tp.key} type="button" onClick={() => { setType(tp.key); setSubtype(''); setForm(prev => ({ ...prev, symbol: '', name: '', purchasePrice: '', currentPrice: '', sector: '', industry: '', isIlliquid: false, custodyType: '', maturityDate: '' })); setDivInfo(null) }}
+                  <button key={tp.key} type="button" onClick={() => { setType(tp.key); setSubtype(''); setForm(prev => ({ ...prev, symbol: '', name: '', purchasePrice: '', currentPrice: '', sector: '', industry: '', isIlliquid: false, custodyType: '', maturityDate: '' })); setDivInfo(null); setValueTimeline('single'); setTimelineRows([]) }}
                     className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg transition-all text-center border ${
                       type !== tp.key ? 'bg-[var(--input-bg,#000000)] border-[var(--card-border,#38383A)] text-[var(--text-secondary,#94a3b8)] hover:border-[var(--text-secondary,#94a3b8)]' : ''
                     }`}
@@ -761,7 +761,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 {t('Cancelar', 'Cancel')}
               </button>
               <button type="submit"
-                className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors text-sm font-medium">
+                className="flex-1 py-2.5 bg-blue-600 rounded-lg hover:bg-blue-500 transition-colors text-sm font-medium" style={{ color: '#ffffff' }}>
                 {t('Siguiente', 'Next')} →
               </button>
             </div>
@@ -986,7 +986,13 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 {isBank ? t('Fecha de apertura', 'Opening date') : t('Fecha de compra', 'Purchase date')} <span style={{ color: 'var(--text-negative)' }}>*</span>
               </label>
               <input id="add-acquisitionDate" value={form.acquisitionDate} onChange={e => set('acquisitionDate', e.target.value)}
-                type="date" max={new Date().toISOString().split('T')[0]} className={inputCls} />
+                type="date" max={new Date().toISOString().split('T')[0]} className={inputCls}
+                disabled={valueTimeline === 'multi'} />
+              {valueTimeline === 'multi' && (
+                <p className="text-xs mt-1" style={{ color: 'var(--accent-blue)' }}>
+                  {t('Se toma de la primera fila del historial de aportes.', 'Taken from the first row of the contribution history.')}
+                </p>
+              )}
               {/* The default is TODAY — if the user already held this asset and
                   keeps the default, every history engine treats it as nonexistent
                   before today (flat/empty past + wrong returns). Nudge hard. */}
@@ -1457,7 +1463,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 ← {t('Atrás', 'Back')}
               </button>
               <button type="submit" disabled={saving}
-                className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium">
+                className="flex-1 py-2.5 bg-blue-600 rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium" style={{ color: '#ffffff' }}>
                 {saving ? '...' : t('Registrar', 'Register')}
               </button>
             </div>

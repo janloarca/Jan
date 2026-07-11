@@ -26,7 +26,10 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
   const [alreadyReflected, setAlreadyReflected] = useState(!!prefill?.alreadyReflected)
   const [amount, setAmount] = useState('')
   const [currency, setCurrency] = useState(baseCurrency)
-  const [date, setDate] = useState(prefill?.date || new Date().toISOString().split('T')[0])
+  // Backfill prefills ("Capturar historia") start with an EMPTY date: the whole
+  // point is recording WHEN the money arrived — defaulting to today would stamp
+  // past history with the wrong date.
+  const [date, setDate] = useState(prefill?.date ?? (prefill?.alreadyReflected ? '' : new Date().toISOString().split('T')[0]))
   const [description, setDescription] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -68,6 +71,7 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
   const submit = async (keepOpen) => {
     const num = parseFloat(amount)
     if (!num || num <= 0) return false
+    if (!date) { setError(t('Elige la fecha del movimiento.', 'Pick the movement date.')); return false }
     if (isTransfer) {
       if (!fromItem || !toItem) { setError(t('Selecciona las dos cuentas.', 'Select both accounts.')); return false }
       if (num > sourceValue) { setError(t('El monto excede el saldo de la cuenta origen.', 'Amount exceeds the source account balance.')); return false }
@@ -292,7 +296,9 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
           {isYield && (
             <div>
               <label className="text-xs text-slate-400 mb-1 block">{t('¿Qué activo lo generó?', 'Which asset generated it?')}</label>
-              <select value={yieldSourceId} onChange={(e) => setYieldSourceId(e.target.value)} className={inputCls}>
+              <select value={yieldSourceId}
+                onChange={(e) => { setYieldSourceId(e.target.value); if (e.target.value === linkedId) setLinkedId('') }}
+                className={inputCls}>
                 <option value="">{t('Seleccionar...', 'Select...')}</option>
                 {assets.map((item) => <option key={item.id} value={item.id}>{item.name || item.symbol} ({item.institution || '—'})</option>)}
               </select>
@@ -304,7 +310,16 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
               <label className="text-xs text-slate-400 mb-1 block">
                 {linkedLabel} <span style={{ color: 'var(--text-muted)' }}>({t('opcional', 'optional')})</span>
               </label>
-              <select value={linkedId} onChange={(e) => { setLinkedId(e.target.value); setAlreadyReflected(false) }} className={inputCls}>
+              <select value={linkedId}
+                onChange={(e) => {
+                  setLinkedId(e.target.value)
+                  setAlreadyReflected(false)
+                  // Keep the currency in sync so unlinking later doesn't silently
+                  // revert an EUR movement back to the base currency.
+                  const acc = assets.find((i) => i.id === e.target.value)
+                  if (acc) setCurrency(acc.currency || 'USD')
+                }}
+                className={inputCls}>
                 <option value="">{t('— Sin vincular —', '— Not linked —')}</option>
                 {assets.filter((i) => !isYield || i.id !== yieldSourceId).map((item) => (
                   <option key={item.id} value={item.id}>{formatOption(item)}</option>
@@ -370,9 +385,13 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
 
           <div>
             <label className="text-xs text-slate-400 mb-1 block">{t('Fecha', 'Date')}</label>
-            <input type="date" value={date}
-              onChange={e => { setDate(e.target.value); if (e.target.value >= today) setAlreadyReflected(false) }}
-              max={today} className={inputCls} />
+            <input type="date" value={date} onChange={e => setDate(e.target.value)}
+              max={today} className={inputCls} required />
+            {!date && (
+              <p className="text-xs mt-1" style={{ color: 'var(--alert-warn-icon)' }}>
+                {t('¿Cuándo entró este dinero? Elige la fecha real del movimiento.', 'When did this money arrive? Pick the movement\'s real date.')}
+              </p>
+            )}
           </div>
 
           <div>
@@ -382,36 +401,36 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
               className={inputCls} />
           </div>
 
-          <div className="bg-theme-base rounded-lg p-3 text-xs text-slate-400">
+          <p className="text-[11px] leading-snug" style={{ color: 'var(--text-muted)' }}>
             {isTransfer
-              ? t('Una transferencia mueve saldo entre tus cuentas: ajusta ambos saldos y NO cuenta como aporte ni retiro en tus retornos.',
-                  'A transfer moves balance between your accounts: it adjusts both balances and does NOT count as a contribution or withdrawal in your returns.')
+              ? t('Mueve saldo entre tus cuentas — no cuenta como aporte ni retiro en tus retornos.',
+                  'Moves balance between your accounts — doesn\'t count as a contribution or withdrawal in returns.')
               : isYield
-                ? t('Un rendimiento es ganancia generada por tus activos (interés, dividendo). Cuenta como ingreso pasivo, no como aporte.',
-                    'A yield is a gain generated by your assets (interest, dividend). It counts as passive income, not a contribution.')
+                ? t('Ganancia generada por tus activos — cuenta como ingreso pasivo, no como aporte.',
+                    'Gain generated by your assets — counts as passive income, not a contribution.')
                 : flowType === 'DEPOSIT'
-                  ? t('Un depósito indica dinero nuevo que entra a tu portafolio. Esto ajusta el cálculo de retornos para no confundir aportes con ganancias.',
-                      'A deposit indicates new money entering your portfolio. This adjusts return calculations so contributions aren\'t confused with gains.')
-                  : t('Un retiro indica dinero que sale de tu portafolio. Esto ajusta el cálculo de retornos correctamente.',
-                      'A withdrawal indicates money leaving your portfolio. This adjusts return calculations correctly.')}
-          </div>
+                  ? t('Dinero nuevo que entra al portafolio — se descuenta del retorno para no confundirlo con ganancia.',
+                      'New money entering the portfolio — excluded from returns so it isn\'t confused with gains.')
+                  : t('Dinero que sale del portafolio — ajusta el cálculo de retornos.',
+                      'Money leaving the portfolio — adjusts return calculations.')}
+          </p>
 
-          <div className="flex flex-col gap-2 pt-1">
+          <div className="flex flex-col gap-1 pt-1">
             <div className="flex gap-3">
               <button type="button" onClick={onClose}
                 className="flex-1 px-4 py-2.5 border border-glass-border text-slate-300 rounded-lg hover:bg-theme-elevated transition-colors text-sm">
                 {savedCount > 0 ? t('Cerrar', 'Close') : t('Cancelar', 'Cancel')}
               </button>
               <button type="submit" disabled={saving || !amount || parseFloat(amount) <= 0}
-                className="flex-1 px-4 py-2.5 rounded-lg text-white text-sm font-medium transition-colors disabled:opacity-40"
-                style={{ backgroundColor: isTransfer ? 'var(--accent-blue)' : flowType === 'DEPOSIT' ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+                className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-40"
+                style={{ color: '#ffffff', backgroundColor: isTransfer ? 'var(--accent-blue)' : flowType === 'DEPOSIT' ? 'var(--accent-green)' : 'var(--accent-red)' }}>
                 {saving ? '...' : isTransfer ? t('Transferir', 'Transfer') : t('Registrar', 'Log')}
               </button>
             </div>
             {!isTransfer && (
               <button type="button" onClick={() => submit(true)} disabled={saving || !amount || parseFloat(amount) <= 0}
-                className="w-full px-4 py-2 rounded-lg text-xs font-medium transition-colors disabled:opacity-40 border"
-                style={{ color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.35)' }}>
+                className="w-full py-2 text-xs underline underline-offset-2 transition-colors disabled:opacity-40"
+                style={{ color: 'var(--accent-blue)' }}>
                 {t('Guardar y agregar otro', 'Save and add another')}
               </button>
             )}

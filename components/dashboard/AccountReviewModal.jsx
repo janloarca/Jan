@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useCallback } from 'react'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { getItemValue, getTypeCategory, formatCurrency } from './utils'
 
 const CATEGORY_LABELS = {
@@ -15,8 +16,9 @@ const CATEGORY_LABELS = {
   other: { es: 'Otro', en: 'Other' },
 }
 
-export default function AccountReviewModal({ items, onClose, onEditItem, lang, transactions, findings = [], globalScore = 100 }) {
+export default function AccountReviewModal({ items, onClose, onEditItem, lang, transactions, findings = [] }) {
   const t = (es, en) => lang === 'es' ? es : en
+  const trapRef = useFocusTrap()
   const [index, setIndex] = useState(0)
   const [reviewed, setReviewed] = useState({})
 
@@ -37,11 +39,13 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
     return m
   }, [findings])
 
+  // Count-based (N of M items without findings) so both numbers in the strip
+  // agree — the value-weighted globalScore lives in the dashboard card.
   const dataQuality = useMemo(() => {
     const total = sorted.length
     const complete = sorted.filter(it => !(findingsByItem.get(it.id)?.length)).length
-    return { complete, total, pct: globalScore }
-  }, [sorted, findingsByItem, globalScore])
+    return { complete, total, pct: total > 0 ? Math.round((complete / total) * 100) : 100 }
+  }, [sorted, findingsByItem])
 
   const item = sorted[index]
   if (!item) return null
@@ -68,7 +72,7 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <div ref={trapRef} className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         {/* Progress bar */}
         <div className="px-6 pt-5 pb-2">
           <div className="flex items-center justify-between mb-2">
@@ -78,8 +82,8 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
             <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none" aria-label="Close">&times;</button>
           </div>
           <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-            <div className="h-full rounded-full transition-all duration-300" style={{ backgroundColor: '#3b82f6' }}
-              style={{ width: `${((index + 1) / totalCount) * 100}%` }} />
+            <div className="h-full rounded-full transition-all duration-300"
+              style={{ backgroundColor: '#3b82f6', width: `${((index + 1) / totalCount) * 100}%` }} />
           </div>
 
           <div className="mt-2 flex items-center justify-between px-2 py-1.5 rounded-lg text-xs"
@@ -90,7 +94,7 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
                 : { backgroundColor: '#fef2f2', color: '#dc2626' }
             }>
             <span>{dataQuality.complete}/{dataQuality.total} {t('completos', 'complete')}</span>
-            <span className="font-semibold">{dataQuality.pct}% {t('calidad', 'quality')}</span>
+            <span className="font-semibold">{dataQuality.pct}% {t('completos', 'complete')}</span>
           </div>
         </div>
 
@@ -122,8 +126,8 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
             <DetailRow label={t('Precio actual', 'Current price')} value={item.currentPrice ? `$${item.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'} />
             <DetailRow label={t('Fecha compra', 'Buy date')} value={item.acquisitionDate || '-'} />
             {item.maturityDate && <DetailRow label={t('Vencimiento', 'Maturity')} value={item.maturityDate} />}
-            {item.incomeRate && <DetailRow label={t('Rendimiento', 'Yield')} value={`${item.incomeRate}%`} />}
-            {item.managementFee && <DetailRow label={t('Mgmt fee', 'Mgmt fee')} value={`${item.managementFee}%`} />}
+            {item.incomeRate && <DetailRow label={t('Tasa de interés', 'Interest rate')} value={`${item.incomeRate}%`} />}
+            {item.managementFee && <DetailRow label={t('Comisión gestión', 'Mgmt fee')} value={`${item.managementFee}%`} />}
             {item.entryFee && <DetailRow label={t('Costo entrada', 'Entry fee')} value={`$${item.entryFee}`} />}
           </div>
 
@@ -205,7 +209,7 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
 
         {/* Actions */}
         <div className="px-6 pb-5 flex items-center gap-2">
-          <button onClick={goPrev} disabled={index === 0}
+          <button onClick={goPrev} disabled={index === 0} aria-label={t('Anterior', 'Previous')}
             className="px-4 py-2.5 text-sm font-medium text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
             &#8592;
           </button>

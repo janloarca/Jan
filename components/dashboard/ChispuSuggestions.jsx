@@ -14,7 +14,7 @@ const SEV_STYLE = {
   medium: { color: 'var(--alert-warn-icon)', backgroundColor: 'var(--alert-warn-bg)', borderColor: 'var(--alert-warn-border)' },
   low: { color: 'var(--alert-info-icon)', backgroundColor: 'var(--alert-info-bg)', borderColor: 'var(--alert-info-border)' },
 }
-const SEV_ICON = { high: '⚠', medium: '◆', low: 'ℹ' }
+const SEV_ICON = { high: '⚠', medium: '●', low: 'ℹ' }
 
 export default function ChispuSuggestions({ findings = [], globalScore = 100, lang = 'es', onEditItem, onOpenCashflow, onOpenReview, items = [] }) {
   const t = (es, en) => lang === 'es' ? es : en
@@ -26,14 +26,44 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
 
   const visible = useMemo(() => findings.filter((f) => !dismissed.has(f.id)), [findings, dismissed])
   const shown = expanded ? visible : visible.slice(0, 3)
+  const dismissedCount = findings.length - visible.length
 
-  if (visible.length === 0) return null
+  // Data truly complete (no findings at all, and there IS data): confirm it in
+  // one slim line instead of vanishing — the score is a game you can win.
+  if (findings.length === 0) {
+    if (items.length === 0) return null
+    return (
+      <div className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs"
+        style={{ backgroundColor: 'var(--alert-success-bg)', border: '1px solid var(--alert-success-border)', color: 'var(--accent-green)' }}>
+        ✓ {t('Tus datos están completos — Chispu no encontró huecos.', 'Your data is complete — Chispu found no gaps.')}
+      </div>
+    )
+  }
+  if (visible.length === 0 && dismissedCount === 0) return null
 
   const dismiss = (id) => {
     const next = new Set(dismissed)
     next.add(id)
     setDismissed(next)
     try { localStorage.setItem(DISMISS_KEY, JSON.stringify([...next])) } catch {}
+  }
+
+  const restoreDismissed = () => {
+    setDismissed(new Set())
+    try { localStorage.removeItem(DISMISS_KEY) } catch {}
+  }
+
+  // Everything dismissed: keep a slim way back instead of hiding real gaps forever.
+  if (visible.length === 0) {
+    return (
+      <div className="flex items-center justify-between gap-2 px-4 py-2 rounded-xl text-xs"
+        style={{ border: '1px solid var(--card-border)', color: 'var(--text-muted)' }}>
+        <span>{t(`Descartaste ${dismissedCount} sugerencia${dismissedCount === 1 ? '' : 's'} de datos.`, `You dismissed ${dismissedCount} data suggestion${dismissedCount === 1 ? '' : 's'}.`)}</span>
+        <button onClick={restoreDismissed} className="underline shrink-0" style={{ color: 'var(--accent-blue)' }}>
+          {t('Restaurar', 'Restore')}
+        </button>
+      </div>
+    )
   }
 
   const actionLabel = (f) => {
@@ -58,8 +88,8 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
   return (
     <div className="bg-theme-card rounded-2xl border border-glass-border p-5 card-primary">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-base font-semibold text-white flex items-center gap-2">
-          💡 {t('Chispu te sugiere', 'Chispu suggests')}
+        <h3 className="text-base font-semibold text-white">
+          {t('Chispu te sugiere', 'Chispu suggests')}
         </h3>
         <span className="text-xs px-2 py-1 rounded-full font-medium"
           style={{ color: scoreColor, backgroundColor: 'color-mix(in srgb, currentColor 12%, transparent)' }}
@@ -90,11 +120,21 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
         ))}
       </div>
 
-      {visible.length > 3 && (
-        <button onClick={() => setExpanded(!expanded)}
-          className="mt-2 text-xs underline" style={{ color: 'var(--text-muted)' }}>
-          {expanded ? t('Ver menos', 'Show less') : `${t('Ver todas', 'Show all')} (${visible.length})`}
-        </button>
+      {(visible.length > 3 || dismissedCount > 0) && (
+        <div className="mt-2 flex items-center gap-3">
+          {visible.length > 3 && (
+            <button onClick={() => setExpanded(!expanded)}
+              className="text-xs underline" style={{ color: 'var(--text-muted)' }}>
+              {expanded ? t('Ver menos', 'Show less') : `${t('Ver todas', 'Show all')} (${visible.length})`}
+            </button>
+          )}
+          {dismissedCount > 0 && (
+            <button onClick={restoreDismissed}
+              className="text-xs underline" style={{ color: 'var(--text-muted)' }}>
+              {t(`Restaurar descartadas (${dismissedCount})`, `Restore dismissed (${dismissedCount})`)}
+            </button>
+          )}
+        </div>
       )}
     </div>
   )

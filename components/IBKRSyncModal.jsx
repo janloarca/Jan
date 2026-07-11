@@ -508,7 +508,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   : error}
               </p>
               {hasData && lastSyncLabel && (
-                <p className="text-amber-400/60 text-xs mt-1">
+                <p className="text-xs mt-1 opacity-80" style={{ color: 'var(--alert-warn-icon)' }}>
                   {t('Última sincronización:', 'Last synced:')} {lastSyncLabel}
                 </p>
               )}
@@ -568,8 +568,8 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
               </div>
 
               <button onClick={handleSync}
-                className="w-full py-3 text-white rounded-xl transition-all text-sm font-medium flex items-center justify-center gap-2"
-                style={{ backgroundColor: 'var(--accent-blue)' }}
+                className="w-full py-3 rounded-xl transition-all text-sm font-medium flex items-center justify-center gap-2"
+                style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}
                 disabled={decrypting}>
                 <RefreshCw size={14} />
                 {decrypting ? t('Desencriptando...', 'Decrypting...') : t('Sincronizar ahora', 'Sync now')}
@@ -582,7 +582,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
 
               {onDisconnect && (
                 <button onClick={() => { onDisconnect(); onClose() }}
-                  className="w-full py-2.5 text-xs transition-colors" style={{ color: '#ef4444' }}>
+                  className="w-full py-2.5 text-xs transition-colors" style={{ color: 'var(--accent-red)' }}>
                   {t('Desconectar IBKR', 'Disconnect IBKR')}
                 </button>
               )}
@@ -596,7 +596,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 {statusMessages[syncStatus] || t('Sincronizando con IBKR...', 'Syncing with IBKR...')}
               </p>
               <SyncStepper syncStatus={syncStatus} pollProgress={pollProgress} t={t} />
-              <button onClick={handleCancel} className="text-xs text-red-500/60 hover:text-[var(--alert-error-icon)] transition-colors">
+              <button onClick={handleCancel} className="text-xs opacity-70 hover:opacity-100 transition-opacity" style={{ color: 'var(--accent-red)' }}>
                 {t('Cancelar', 'Cancel')}
               </button>
             </div>
@@ -613,7 +613,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 <button onClick={() => setShowConfig(true)} className="text-xs text-slate-600 hover:text-slate-400 transition-colors">
                   {t('Cambiar credenciales', 'Change credentials')}
                 </button>
-                <button onClick={handleCancel} className="text-xs text-red-500/60 hover:text-[var(--alert-error-icon)] transition-colors">
+                <button onClick={handleCancel} className="text-xs opacity-70 hover:opacity-100 transition-opacity" style={{ color: 'var(--accent-red)' }}>
                   {t('Cancelar', 'Cancel')}
                 </button>
               </div>
@@ -757,7 +757,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                                     <td className="py-1.5 px-2.5 text-white font-medium">{it.symbol || it.name}</td>
                                     <td className="py-1.5 px-2.5 text-slate-500">{it.type}</td>
                                     <td className="py-1.5 px-2.5 text-right text-slate-400">{(it.quantity || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
-                                    <td className={`py-1.5 px-2.5 text-right font-medium ${val < 0 ? 'text-[var(--alert-error-icon)]' : 'text-white'}`}>
+                                    <td className="py-1.5 px-2.5 text-right font-medium" style={{ color: val < 0 ? 'var(--alert-error-icon)' : 'var(--text-primary)' }}>
                                       ${Math.abs(val).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                                     </td>
                                   </tr>
@@ -955,7 +955,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   </button>
                   <button onClick={() => setSyncMode('replace')}
                     className={`px-4 py-3 rounded-lg text-left transition-all border-2 ${syncMode !== 'replace' ? 'border-glass-border hover:border-slate-500' : ''}`}
-                    style={syncMode === 'replace' ? { borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)' } : undefined}>
+                    style={syncMode === 'replace' ? { borderColor: 'var(--accent-red)', backgroundColor: 'var(--alert-error-bg)' } : undefined}>
                     <p className="text-sm text-white font-medium">♻️ {t('Sustituir todo', 'Replace all')}</p>
                     <p className="text-xs text-slate-400 mt-1 leading-relaxed">
                       {t('Borra TODAS las posiciones de IBKR anteriores y reimporta desde cero. Útil si hay errores.',
@@ -1061,7 +1061,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                           <tr key={i} className="border-b border-glass-border/30 hover:bg-slate-700/20 transition-colors">
                             <td className="py-2.5 px-3 text-slate-500">{tx.date}</td>
                             <td className="py-2.5 px-3 text-white">{tx.symbol}</td>
-                            <td className={`py-2.5 px-3 font-medium ${tx.type === 'BUY' ? 'text-[var(--accent-green)]' : 'text-[var(--alert-error-icon)]'}`}>{tx.type}</td>
+                            <td className="py-2.5 px-3 font-medium" style={{ color: tx.type === 'BUY' ? 'var(--accent-green)' : 'var(--alert-error-icon)' }}>{tx.type}</td>
                             <td className="py-2.5 px-3 text-right text-slate-400">{tx.quantity}</td>
                             <td className="py-2.5 px-3 text-right text-slate-400">${(tx.pricePerUnit ?? 0).toFixed(2)}</td>
                           </tr>
@@ -1074,7 +1074,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
 
               {syncing ? (
                 <div className="space-y-3 pt-2">
-                  <div className="w-full h-2.5 bg-slate-700 rounded-full overflow-hidden">
+                  <div className="w-full h-2.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--fill-secondary, rgba(100,116,139,0.3))' }}>
                     <div
                       className="h-full rounded-full transition-all duration-300"
                       style={{
