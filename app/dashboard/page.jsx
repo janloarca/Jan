@@ -63,6 +63,7 @@ const RebalanceSuggestions = dynamic(() => import('@/components/dashboard/Rebala
 import RecentTransactions from '@/components/dashboard/RecentTransactions'
 import ChispuSuggestions from '@/components/dashboard/ChispuSuggestions'
 import { analyzeDataCompleteness } from '@/lib/dataCompleteness'
+import { DEMO_ITEMS, DEMO_LOTS, DEMO_TRANSACTIONS, isDemoItem } from '@/lib/demoData'
 import AssetAllocation from '@/components/dashboard/AssetAllocation'
 import NotificationCenter from '@/components/dashboard/NotificationCenter'
 import InstallPrompt from '@/components/dashboard/InstallPrompt'
@@ -248,7 +249,7 @@ export default function DashboardPage() {
     items, snapshots, augmentedSnapshots, transactions, goals, settings, profile, effectiveProfile, alerts, lots, portfolios, financeTransactions,
     dataLoading,
     addItem, updateItem, deleteItem, deleteAllItems,
-    saveSnapshot, deleteAllSnapshots,
+    saveSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, deleteAllTransactions,
     addAlert, deleteAlert,
     addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution,
@@ -293,11 +294,23 @@ export default function DashboardPage() {
   const handleCloseReview = useCallback(() => setShowReview(false), [])
   const handleDismissToast = useCallback(() => setToast(null), [])
 
+  // Demo mode (onboarding sample data): seed via the batch import path and
+  // clean up selectively by the _source:'demo' flag.
+  const handleSeedDemo = useCallback(async () => {
+    await bulkImport({ items: DEMO_ITEMS, lots: DEMO_LOTS, transactions: DEMO_TRANSACTIONS })
+  }, [bulkImport])
+
   const showToast = useCallback((msg, type = 'success', duration = 3000) => {
     if (toastTimer.current) clearTimeout(toastTimer.current)
     setToast({ msg, type })
     toastTimer.current = setTimeout(() => setToast(null), duration)
   }, [])
+
+  const isDemoMode = useMemo(() => items.some(isDemoItem), [items])
+  const handleClearDemo = useCallback(async () => {
+    await deleteDemoData()
+    showToast(lang === 'es' ? 'Datos de ejemplo eliminados' : 'Sample data removed')
+  }, [deleteDemoData, showToast, lang])
 
   useEffect(() => {
     return () => { if (toastTimer.current) clearTimeout(toastTimer.current) }
@@ -748,6 +761,21 @@ export default function DashboardPage() {
       )}
 
       <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-5 space-y-3 sm:space-y-4">
+        {/* Demo mode: the exit must always be obvious, even after the tour ends */}
+        {isDemoMode && (
+          <div className="flex items-center justify-between gap-2 px-4 py-2 rounded-xl text-xs"
+            style={{ backgroundColor: 'var(--alert-info-bg)', border: '1px solid var(--alert-info-border)' }}>
+            <span style={{ color: 'var(--text-secondary)' }}>
+              {lang === 'es' ? 'Estás explorando con datos de ejemplo — nada de esto es tuyo todavía.' : 'You are exploring with sample data — none of this is yours yet.'}
+            </span>
+            <button onClick={handleClearDemo}
+              className="shrink-0 px-2.5 py-1 rounded-lg font-medium"
+              style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
+              {lang === 'es' ? 'Borrar demo y empezar' : 'Delete demo and start'}
+            </button>
+          </div>
+        )}
+
         {/* Time-sensitive alerts (maturities, dividends received) belong at the
             top — buried at page-bottom they were invisible on mobile. */}
         <NotificationCenter items={portfolioItems} transactions={transactions} lang={lang} />
@@ -798,6 +826,12 @@ export default function DashboardPage() {
             onTemplate={async () => {
               const { generateTemplate } = await import('@/lib/generateTemplate')
               await generateTemplate()
+            }}
+            onDemo={async () => {
+              // Seed first, then open the tour: with demo items already present
+              // the tour mounts straight into the anchored walkthrough.
+              await handleSeedDemo()
+              setShowOnboarding(true)
             }}
             lang={lang}
           />
@@ -1199,6 +1233,9 @@ export default function DashboardPage() {
             else if (action === 'settings') setModal('settings')
           }}
           onComplete={() => setShowOnboarding(false)}
+          onSeedDemo={handleSeedDemo}
+          onClearDemo={handleClearDemo}
+          demoActive={isDemoMode}
         />
       )}
 

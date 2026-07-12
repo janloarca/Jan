@@ -2,7 +2,7 @@
 
 import { BarChart3, Plus, Upload, Download, TrendingUp, Bitcoin, Landmark, Briefcase, Home, Gem, Building2, CreditCard } from 'lucide-react'
 
-export default function EmptyState({ onAdd, onImport, onTemplate, lang }) {
+export default function EmptyState({ onAdd, onImport, onTemplate, onDemo, lang }) {
   const t = (es, en) => lang === 'es' ? es : en
 
   return (
@@ -49,6 +49,13 @@ export default function EmptyState({ onAdd, onImport, onTemplate, lang }) {
           <div className="text-xs text-slate-400">{t('Llena y sube después', 'Fill in and upload later')}</div>
         </button>
       </div>
+
+      {onDemo && (
+        <button onClick={onDemo}
+          className="mb-8 text-xs underline underline-offset-2" style={{ color: 'var(--accent-blue)' }}>
+          {t('o explora primero con datos de ejemplo', 'or explore with sample data first')}
+        </button>
+      )}
 
       <div className="bg-theme-card/60 border border-glass-border/30 rounded-xl p-5 text-left">
         <h3 className="text-xs font-semibold text-slate-400 mb-3 uppercase tracking-wider">

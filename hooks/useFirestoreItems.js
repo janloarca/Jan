@@ -286,12 +286,16 @@ export function useFirestoreItems() {
 
   const saveSnapshot = useCallback(async (snapshot) => {
     if (!uid) return
+    // Demo mode (onboarding sample data) must not leave real history behind —
+    // snapshots written while demo items exist would pollute the NAV chart
+    // after the demo is deleted.
+    if (items.some((i) => i._source === 'demo')) return
     const { db, fs } = await getFirebase()
     const dateStr = snapshot.date || new Date().toISOString().split('T')[0]
     const id = dateStr
     const clean = Object.fromEntries(Object.entries({ ...snapshot, createdAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
     await fs.setDoc(fs.doc(db, `users/${uid}/snapshots`, id), clean, { merge: true })
-  }, [uid])
+  }, [uid, items])
 
   const deleteAllSnapshots = useCallback(async () => {
     if (!uid) return
@@ -299,6 +303,26 @@ export function useFirestoreItems() {
     const snap = await fs.getDocs(fs.collection(db, `users/${uid}/snapshots`))
     await Promise.all(snap.docs.map((d) => fs.deleteDoc(d.ref)))
   }, [uid])
+
+  // Selective cleanup for the onboarding demo: removes every doc flagged
+  // _source:'demo' (items + lots + transactions) and nothing else. Snapshots
+  // never carry demo data (saveSnapshot/saveItemSnapshots are vetoed while
+  // demo items exist), so they need no sweep here.
+  const deleteDemoData = useCallback(async () => {
+    if (!uid) return
+    const { db, fs } = await getFirebase()
+    const refs = [
+      ...items.filter((i) => i._source === 'demo').map((i) => fs.doc(db, `users/${uid}/items`, i.id)),
+      ...lots.filter((l) => l._source === 'demo').map((l) => fs.doc(db, `users/${uid}/lots`, l.id)),
+      ...transactions.filter((t) => t._source === 'demo').map((t) => fs.doc(db, `users/${uid}/transactions`, t.id)),
+    ]
+    const CHUNK = 30
+    for (let i = 0; i < refs.length; i += CHUNK) {
+      const batch = fs.writeBatch(db)
+      for (const ref of refs.slice(i, i + CHUNK)) batch.delete(ref)
+      await batch.commit()
+    }
+  }, [uid, items, lots, transactions])
 
   const addTransaction = useCallback(async (transaction) => {
     if (!uid) return
@@ -658,6 +682,8 @@ export function useFirestoreItems() {
 
   const saveItemSnapshots = useCallback(async (monthKey, itemsData, currency) => {
     if (!uid || !monthKey || !itemsData) return
+    // Same demo-mode veto as saveSnapshot: no persistent history from sample data.
+    if (items.some((i) => i._source === 'demo')) return
     const { db, fs } = await getFirebase()
     const ref = fs.doc(db, `users/${uid}/itemSnapshots`, monthKey)
     const existing = await fs.getDoc(ref)
@@ -670,7 +696,7 @@ export function useFirestoreItems() {
       ...(currency ? { _currency: currency } : {}),
     }).filter(([, v]) => v !== undefined))
     await fs.setDoc(ref, snapData, { merge: true })
-  }, [uid])
+  }, [uid, items])
 
   const loadItemSnapshots = useCallback(async (monthKeys) => {
     if (!uid || !monthKeys || monthKeys.length === 0) return {}
@@ -778,7 +804,7 @@ export function useFirestoreItems() {
   return {
     items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, loading,
     addItem, updateItem, deleteItem, deleteAllItems,
-    saveSnapshot, deleteAllSnapshots,
+    saveSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, deleteTransaction, deleteAllTransactions,
     addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     addAlert, deleteAlert, updateAlert,

@@ -14,7 +14,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   const {
     items, snapshots, transactions, goals, settings, profile,
     loading: dataLoading, addItem, updateItem, deleteItem,
-    deleteAllItems, saveSnapshot, deleteAllSnapshots,
+    deleteAllItems, saveSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, deleteTransaction, deleteAllTransactions,
     alerts, addAlert, deleteAlert, updateAlert,
     lots, addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution, bulkImport,
@@ -202,6 +202,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     if (dividendsProcessedRef.current === todayKey) return
     if (!user || dataLoading || pricesLoading || ratesLoading) return
     if (enrichedItems.length === 0) return
+    // Demo mode: never auto-generate real dividend transactions or credit
+    // balances from sample data (snapshot writers are vetoed at the data layer).
+    if (enrichedItems.some((it) => it._source === 'demo')) return
     let cancelled = false
 
     const scheduled = enrichedItems.filter((it) =>
@@ -969,7 +972,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
     // Firestore actions
     addItem, updateItem, deleteItem, deleteAllItems,
-    saveSnapshot, deleteAllSnapshots,
+    saveSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, deleteTransaction, deleteAllTransactions,
     addAlert, deleteAlert, updateAlert,
     addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution,

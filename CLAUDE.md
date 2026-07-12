@@ -3,7 +3,7 @@
 ## Pendientes
 
 - [ ] Vercel deployment: PR #62 (audit fixes) no deployó por límite de 100 deploys/día en free tier. Verificar que se deployó correctamente después del reset (~4 junio 2026). Si sigue fallando, considerar upgrade a Pro o reducir frecuencia de deploys.
-- [ ] Intro interactiva para usuarios nuevos: extender `OnboardingTour` (6 pasos modales ya existentes en `components/dashboard/OnboardingTour.jsx`) a un walkthrough anclado a la UI real (spotlight sobre NetWorthCard / ActionButtons / spreadsheet) + opción de datos demo para explorar sin ingresar nada. El gating actual (EmptyState vs Tour, una superficie a la vez) ya funciona — solo extender.
+- [x] Intro interactiva para usuarios nuevos: hecha (Fase Q). `OnboardingTour` ofrece "Explorar con datos de ejemplo" → seed de `lib/demoData.js` vía bulkImport → walkthrough con spotlight sobre las cards reales (`data-card-id` / `data-tour`) → "Borrar demo y agregar lo mío". Mientras existan items `_source:'demo'`: banner de salida en el dashboard y VETO a saveSnapshot/saveItemSnapshots/processDividends (cero side-effects persistentes). Limpieza selectiva con `deleteDemoData()`.
 
 ## Lecciones Aprendidas — Integración IBKR (para futuras integraciones)
 
