@@ -319,8 +319,12 @@ export default function DashboardPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return
     const params = new URLSearchParams(window.location.search)
-    const oauthCode = params.get('oauth_code')
-    const oauthBroker = params.get('oauth_broker')
+    // The auth callback now delivers the single-use code in the URL FRAGMENT
+    // (never sent in Referer headers or server logs). Query is kept as a
+    // fallback for redirects already in flight during a deploy.
+    const hashParams = new URLSearchParams((window.location.hash || '').replace(/^#/, ''))
+    const oauthCode = hashParams.get('oauth_code') || params.get('oauth_code')
+    const oauthBroker = hashParams.get('oauth_broker') || params.get('oauth_broker')
     const oauthError = params.get('oauth_error')
     if (oauthError) {
       showToast(`OAuth error: ${oauthError}`, 'error', 5000)

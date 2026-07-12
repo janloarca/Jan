@@ -86,7 +86,7 @@ function getCryptoDays(period) {
 
 export async function POST(request) {
   const { limited } = await rateLimit(request, { maxRequests: 30 })
-  if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  if (limited) return NextResponse.json({ error: 'Too many requests', errorCode: 'RATE_LIMITED' }, { status: 429 })
 
   const auth = await verifyAuth(request)
   if (auth.error) return auth.error
@@ -94,10 +94,10 @@ export async function POST(request) {
   try {
     const { items, lots, period, income } = await request.json()
     if (!items || !Array.isArray(items) || items.length > 100) {
-      return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid request', errorCode: 'BAD_REQUEST' }, { status: 400 })
     }
     if (income && (!Array.isArray(income) || income.length > 2000)) {
-      return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid request', errorCode: 'BAD_REQUEST' }, { status: 400 })
     }
 
     // Reinvested income events raise the value of their linked asset as a
@@ -135,13 +135,13 @@ export async function POST(request) {
 
     const per = period || 'YTD'
     if (!VALID_PERIODS.includes(per)) {
-      return NextResponse.json({ error: 'Invalid period' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid period', errorCode: 'BAD_REQUEST' }, { status: 400 })
     }
 
     for (const it of items) {
       const sym = (it.symbol || '').trim()
       if (sym && !SYMBOL_RE.test(sym)) {
-        return NextResponse.json({ error: 'Invalid symbol' }, { status: 400 })
+        return NextResponse.json({ error: 'Invalid symbol', errorCode: 'BAD_REQUEST' }, { status: 400 })
       }
     }
 
@@ -341,6 +341,6 @@ export async function POST(request) {
     return NextResponse.json({ dataPoints, staticTotal, staticPoints })
   } catch (err) {
     console.error('portfolio-history error:', err)
-    return NextResponse.json({ error: 'Internal server error', dataPoints: [] }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error', errorCode: 'INTERNAL', dataPoints: [] }, { status: 500 })
   }
 }

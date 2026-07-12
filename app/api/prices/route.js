@@ -4,6 +4,7 @@ import { verifyAuth } from '@/lib/apiAuth'
 import { fetchWithRetry } from '@/lib/fetchWithRetry'
 import { CRYPTO_MAP } from '@/lib/cryptoMap'
 import { isMarketPriced } from '@/components/dashboard/utils'
+import { saveLastGood, getLastGood } from '@/lib/priceCache'
 
 const SYMBOL_RE = /^[A-Z0-9._\-^=]{1,20}$/i
 
@@ -88,7 +89,7 @@ async function fetchCryptoPrices(symbols) {
 
 export async function POST(request) {
   const { limited } = await rateLimit(request, { maxRequests: 60 })
-  if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  if (limited) return NextResponse.json({ error: 'Too many requests', errorCode: 'RATE_LIMITED' }, { status: 429 })
 
   // These proxy Yahoo/CoinGecko with our quota — require a signed-in user.
   const authResult = await verifyAuth(request)
@@ -99,11 +100,11 @@ export async function POST(request) {
     try {
       body = await request.json()
     } catch {
-      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid JSON', errorCode: 'BAD_REQUEST' }, { status: 400 })
     }
     const { items } = body
     if (!items || !Array.isArray(items) || items.length > 100) {
-      return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid request', errorCode: 'BAD_REQUEST' }, { status: 400 })
     }
 
     const stockSymbols = []
@@ -131,11 +132,27 @@ export async function POST(request) {
 
     const allWarnings = [...stockResult.warnings, ...cryptoResult.warnings]
     const allPrices = { ...stockResult.results, ...cryptoResult.results }
-    const requested = stockSymbols.length + cryptoSymbols.length
+    const requestedSyms = [...new Set([...stockSymbols, ...cryptoSymbols])]
 
-    if (requested > 0 && Object.keys(allPrices).length === 0) {
+    // Persist fresh quotes and backfill any missing symbol from the last-known-
+    // good cache — an upstream outage degrades to stale prices, not a dead UI.
+    let usedStale = false
+    for (const sym of requestedSyms) {
+      if (allPrices[sym]) {
+        saveLastGood(`px:${sym}`, allPrices[sym]).catch(() => {})
+      } else {
+        const cached = await getLastGood(`px:${sym}`)
+        if (cached?.data) {
+          allPrices[sym] = { ...cached.data, stale: true, asOf: cached.asOf }
+          usedStale = true
+        }
+      }
+    }
+
+    if (requestedSyms.length > 0 && Object.keys(allPrices).length === 0) {
       return NextResponse.json({
         error: 'All price sources failed',
+        errorCode: 'UPSTREAM_DOWN',
         prices: {},
         warnings: allWarnings,
         timestamp: new Date().toISOString(),
@@ -144,11 +161,12 @@ export async function POST(request) {
 
     return NextResponse.json({
       prices: allPrices,
+      ...(usedStale ? { stale: true } : {}),
       ...(allWarnings.length > 0 ? { warnings: allWarnings } : {}),
       timestamp: new Date().toISOString(),
     })
   } catch (err) {
     console.error('prices error:', err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error', errorCode: 'INTERNAL', prices: {} }, { status: 500 })
   }
 }

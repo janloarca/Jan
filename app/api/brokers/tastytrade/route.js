@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
+import { retryRequest } from '@/lib/fetchWithRetry'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { encryptToken, decryptToken } from '@/lib/crypto'
 
@@ -48,7 +49,7 @@ function classifyError(errMsg) {
 }
 
 async function createSession(username, password) {
-  const res = await fetch(`${TASTYTRADE_BASE_URL}/sessions`, {
+  const res = await retryRequest(() => fetch(`${TASTYTRADE_BASE_URL}/sessions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -56,7 +57,7 @@ async function createSession(username, password) {
     },
     body: JSON.stringify({ login: username, password }),
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  })
+  }))
 
   if (!res.ok) {
     if (res.status === 401 || res.status === 403) {
@@ -78,13 +79,13 @@ async function createSession(username, password) {
 }
 
 async function tastytradeFetch(endpoint, sessionToken) {
-  const res = await fetch(`${TASTYTRADE_BASE_URL}${endpoint}`, {
+  const res = await retryRequest(() => fetch(`${TASTYTRADE_BASE_URL}${endpoint}`, {
     headers: {
       'Authorization': sessionToken,
       'Accept': 'application/json',
     },
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  })
+  }))
 
   if (!res.ok) {
     const text = await res.text().catch(() => '')

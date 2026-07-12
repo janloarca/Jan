@@ -33,9 +33,12 @@ export async function GET(request) {
     return NextResponse.redirect(redirectUrl)
   }
 
+  // The authorization code travels in the URL FRAGMENT, not the query string:
+  // fragments never reach server logs or Referer headers, so the single-use
+  // code can't leak through those channels. The dashboard reads location.hash
+  // and immediately cleans it with history.replaceState.
   const redirectUrl = new URL('/dashboard', request.url)
-  redirectUrl.searchParams.set('oauth_code', code)
-  redirectUrl.searchParams.set('oauth_broker', broker)
+  redirectUrl.hash = `oauth_code=${encodeURIComponent(code)}&oauth_broker=${encodeURIComponent(broker)}`
 
   const response = NextResponse.redirect(redirectUrl)
   response.headers.set('Set-Cookie', 'oauth_nonce=; Path=/; HttpOnly; Max-Age=0')

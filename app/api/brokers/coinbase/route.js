@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createHmac } from 'crypto'
 import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
+import { retryRequest } from '@/lib/fetchWithRetry'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { encryptToken, decryptToken } from '@/lib/crypto'
 
@@ -52,7 +53,7 @@ async function coinbaseFetch(path, apiKey, apiSecret) {
   const signature = signRequest(timestamp, method, path, '', apiSecret)
 
   const url = `${BASE_URL}${path}`
-  const res = await fetch(url, {
+  const res = await retryRequest(() => fetch(url, {
     headers: {
       'CB-ACCESS-KEY': apiKey,
       'CB-ACCESS-SIGN': signature,
@@ -61,7 +62,7 @@ async function coinbaseFetch(path, apiKey, apiSecret) {
       'Content-Type': 'application/json',
     },
     signal: AbortSignal.timeout(15000),
-  })
+  }))
 
   if (!res.ok) {
     const body = await res.text().catch(() => '')

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
+import { retryRequest } from '@/lib/fetchWithRetry'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { encryptToken, decryptToken } from '@/lib/crypto'
 
@@ -324,7 +325,9 @@ export async function POST(request) {
 
     let fetchXml
     try {
-      const fetchRes = await fetch(fetchUrl, { signal: AbortSignal.timeout(POLL_TIMEOUT_MS) })
+      // A transient blip here used to fail the whole sync after the statement
+      // was already generated — retry the download before giving up.
+      const fetchRes = await retryRequest(() => fetch(fetchUrl, { signal: AbortSignal.timeout(POLL_TIMEOUT_MS) }))
       fetchXml = await fetchRes.text()
     } catch (err) {
       const classified = classifyError(err.name === 'TimeoutError' ? 'timed out' : err.message)

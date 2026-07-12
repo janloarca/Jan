@@ -3,8 +3,19 @@ import { rateLimit } from '@/lib/rateLimit'
 import { verifyAuth } from '@/lib/apiAuth'
 import { fetchWithRetry } from '@/lib/fetchWithRetry'
 import { CRYPTO_MAP } from '@/lib/cryptoMap'
+import { saveLastGood, getLastGood } from '@/lib/priceCache'
 
 export const dynamic = 'force-dynamic'
+
+// On upstream failure, serve the last-known-good series instead of an empty
+// chart — a Yahoo/CoinGecko outage degrades to stale data, not a collapse.
+async function staleOr(key, failBody, failStatus) {
+  const cached = await getLastGood(key)
+  if (cached?.data) {
+    return NextResponse.json({ ...cached.data, stale: true, asOf: cached.asOf })
+  }
+  return NextResponse.json(failBody, { status: failStatus })
+}
 
 const SYMBOL_RE = /^[A-Z0-9._\-^=]{1,20}$/i
 const VALID_RANGES = ['1d', '5d', '1mo', '3mo', '6mo', '1y', 'ytd', 'max']
@@ -35,12 +46,14 @@ async function fetchCryptoChart(symbol, range) {
   const res = await fetchWithRetry(url, { next: { revalidate: 600 } })
   if (!res.ok) {
     console.error(`[api/chart] CoinGecko returned ${res.status} for ${symbol} (${id})`)
-    return NextResponse.json({ symbol, currency: 'USD', prices: [], error: 'Data unavailable' }, { status: 503 })
+    return staleOr(`chart:${symbol}:${range}:crypto`,
+      { error: 'Data unavailable', errorCode: 'UPSTREAM_DOWN', prices: [] }, 503)
   }
   const data = await res.json()
   const prices = (data.prices || [])
     .filter((p) => Array.isArray(p) && p[1] != null)
     .map((p) => ({ date: new Date(p[0]).toISOString().split('T')[0], close: p[1] }))
+  if (prices.length > 0) saveLastGood(`chart:${symbol}:${range}:crypto`, { symbol, currency: 'USD', prices }).catch(() => {})
   return NextResponse.json({ symbol, currency: 'USD', prices }, {
     headers: { 'Cache-Control': 'public, max-age=300, s-maxage=600, stale-while-revalidate=3600' },
   })
@@ -48,7 +61,7 @@ async function fetchCryptoChart(symbol, range) {
 
 export async function GET(request) {
   const { limited } = await rateLimit(request, { maxRequests: 60 })
-  if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  if (limited) return NextResponse.json({ error: 'Too many requests', errorCode: 'RATE_LIMITED' }, { status: 429 })
 
   // These proxy Yahoo/CoinGecko with our quota — require a signed-in user.
   const authResult = await verifyAuth(request)
@@ -61,13 +74,13 @@ export async function GET(request) {
   const type = (searchParams.get('type') || '').toLowerCase()
 
   if (!symbol || !SYMBOL_RE.test(symbol)) {
-    return NextResponse.json({ error: 'Invalid symbol' }, { status: 400 })
+    return NextResponse.json({ error: 'Invalid symbol', errorCode: 'BAD_REQUEST', prices: [] }, { status: 400 })
   }
   if (!VALID_RANGES.includes(range)) {
-    return NextResponse.json({ error: 'Invalid range' }, { status: 400 })
+    return NextResponse.json({ error: 'Invalid range', errorCode: 'BAD_REQUEST', prices: [] }, { status: 400 })
   }
   if (!VALID_INTERVALS.includes(interval)) {
-    return NextResponse.json({ error: 'Invalid interval' }, { status: 400 })
+    return NextResponse.json({ error: 'Invalid interval', errorCode: 'BAD_REQUEST', prices: [] }, { status: 400 })
   }
 
   // Crypto symbols collide with unrelated equity tickers on Yahoo (e.g. ETH =
@@ -77,7 +90,8 @@ export async function GET(request) {
       return await fetchCryptoChart(symbol, range)
     } catch (err) {
       console.error('chart crypto error:', err)
-      return NextResponse.json({ error: 'Internal server error', prices: [] }, { status: 500 })
+      return staleOr(`chart:${symbol}:${range}:crypto`,
+        { error: 'Internal server error', errorCode: 'INTERNAL', prices: [] }, 500)
     }
   }
 
@@ -89,7 +103,8 @@ export async function GET(request) {
 
     if (!res.ok) {
       console.error(`[api/chart] Yahoo returned ${res.status} for ${symbol}`)
-      return NextResponse.json({ error: 'Data unavailable', prices: [] }, { status: 503 })
+      return staleOr(`chart:${symbol}:${range}:${interval}`,
+        { error: 'Data unavailable', errorCode: 'UPSTREAM_DOWN', prices: [] }, 503)
     }
 
     const data = await res.json()
@@ -109,15 +124,14 @@ export async function GET(request) {
       }))
       .filter((p) => p.close != null)
 
-    return NextResponse.json({
-      symbol: meta.symbol || symbol,
-      currency: meta.currency || 'USD',
-      prices,
-    }, {
+    const payload = { symbol: meta.symbol || symbol, currency: meta.currency || 'USD', prices }
+    if (prices.length > 0) saveLastGood(`chart:${symbol}:${range}:${interval}`, payload).catch(() => {})
+    return NextResponse.json(payload, {
       headers: { 'Cache-Control': 'public, max-age=300, s-maxage=600, stale-while-revalidate=3600' },
     })
   } catch (err) {
     console.error('chart error:', err)
-    return NextResponse.json({ error: 'Internal server error', prices: [] }, { status: 500 })
+    return staleOr(`chart:${symbol}:${range}:${interval}`,
+      { error: 'Internal server error', errorCode: 'INTERNAL', prices: [] }, 500)
   }
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
+import { retryRequest } from '@/lib/fetchWithRetry'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { encryptToken, decryptToken } from '@/lib/crypto'
 import { createHmac, createHash } from 'crypto'
@@ -71,18 +72,22 @@ function krakenSign(path, nonce, postData, apiSecret) {
 }
 
 async function krakenPrivate(path, apiKey, apiSecret) {
-  const nonce = Date.now().toString()
-  const postData = `nonce=${nonce}`
-  const signature = krakenSign(path, nonce, postData, apiSecret)
-
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method: 'POST',
-    headers: {
-      'API-Key': apiKey,
-      'API-Sign': signature,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: postData,
+  // Nonce + signature are regenerated INSIDE the attempt factory: a retried
+  // request must not reuse a nonce Kraken already consumed.
+  const res = await retryRequest(() => {
+    const nonce = Date.now().toString()
+    const postData = `nonce=${nonce}`
+    const signature = krakenSign(path, nonce, postData, apiSecret)
+    return fetch(`${BASE_URL}${path}`, {
+      method: 'POST',
+      headers: {
+        'API-Key': apiKey,
+        'API-Sign': signature,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: postData,
+      signal: AbortSignal.timeout(15000),
+    })
   })
 
   if (!res.ok) {
@@ -104,7 +109,7 @@ async function krakenPrivate(path, apiKey, apiSecret) {
 }
 
 async function krakenPublic(path) {
-  const res = await fetch(`${BASE_URL}${path}`)
+  const res = await retryRequest(() => fetch(`${BASE_URL}${path}`, { signal: AbortSignal.timeout(15000) }))
   if (!res.ok) {
     throw new Error(`Kraken public API error ${res.status}`)
   }

@@ -87,7 +87,7 @@ async function fetchRates() {
 
 export async function GET(request) {
   const { limited } = await rateLimit(request, { maxRequests: 60 })
-  if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  if (limited) return NextResponse.json({ error: 'Too many requests', errorCode: 'RATE_LIMITED' }, { status: 429 })
 
   // These proxy Yahoo/CoinGecko with our quota — require a signed-in user.
   const authResult = await verifyAuth(request)
@@ -96,7 +96,7 @@ export async function GET(request) {
   try {
     const result = await fetchRates()
     if (!result) {
-      return NextResponse.json({ error: 'Exchange rates unavailable' }, { status: 503 })
+      return NextResponse.json({ error: 'Exchange rates unavailable', errorCode: 'UPSTREAM_DOWN' }, { status: 503 })
     }
     const { rates, stale, asOf } = result
     const headers = stale ? { 'X-Cache-Stale': 'true' } : {}
@@ -104,6 +104,6 @@ export async function GET(request) {
     return NextResponse.json({ rates, timestamp: new Date().toISOString(), asOf, stale }, { headers })
   } catch (err) {
     console.error('[api/exchange-rates] error:', err.message)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error', errorCode: 'INTERNAL' }, { status: 500 })
   }
 }

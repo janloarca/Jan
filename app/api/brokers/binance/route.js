@@ -4,7 +4,7 @@ import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { encryptToken, decryptToken } from '@/lib/crypto'
-import { fetchWithRetry } from '@/lib/fetchWithRetry'
+import { fetchWithRetry, retryRequest } from '@/lib/fetchWithRetry'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,16 +47,17 @@ function signQuery(queryString, secretKey) {
 }
 
 async function binanceFetch(path, apiKey, apiSecret, params = {}) {
-  const timestamp = Date.now()
-  const searchParams = new URLSearchParams({ ...params, timestamp: String(timestamp) })
-  const queryString = searchParams.toString()
-  const signature = signQuery(queryString, apiSecret)
-  searchParams.set('signature', signature)
-
-  const url = `${BASE_URL}${path}?${searchParams.toString()}`
-  const res = await fetch(url, {
-    headers: { 'X-MBX-APIKEY': apiKey },
-    signal: AbortSignal.timeout(15000),
+  // Timestamp + signature regenerate per attempt so a retried request never
+  // falls outside Binance's recvWindow with a stale signature.
+  const res = await retryRequest(() => {
+    const timestamp = Date.now()
+    const searchParams = new URLSearchParams({ ...params, timestamp: String(timestamp) })
+    const signature = signQuery(searchParams.toString(), apiSecret)
+    searchParams.set('signature', signature)
+    return fetch(`${BASE_URL}${path}?${searchParams.toString()}`, {
+      headers: { 'X-MBX-APIKEY': apiKey },
+      signal: AbortSignal.timeout(15000),
+    })
   })
 
   if (!res.ok) {
@@ -73,8 +74,7 @@ async function binanceFetch(path, apiKey, apiSecret, params = {}) {
 async function fetchTickerPrices() {
   // Public, unsigned endpoint → fetchWithRetry is safe here (its URL-keyed GET
   // dedup is even a win: everyone shares the same ticker snapshot). The SIGNED
-  // Binance call above must NOT be blind-retried — its timestamp/signature would
-  // fall outside recvWindow on the second attempt.
+  // call above uses retryRequest with a per-attempt signature instead.
   const res = await fetchWithRetry(`${BASE_URL}/api/v3/ticker/price`)
   if (!res.ok) {
     throw new Error(`Failed to fetch ticker prices: ${res.status}`)

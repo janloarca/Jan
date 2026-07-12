@@ -74,7 +74,7 @@ async function fetchDividendInfo(symbol) {
 
 export async function GET(request) {
   const { limited } = await rateLimit(request, { maxRequests: 30 })
-  if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  if (limited) return NextResponse.json({ error: 'Too many requests', errorCode: 'RATE_LIMITED' }, { status: 429 })
 
   const auth = await verifyAuth(request)
   if (auth.error) return auth.error
@@ -82,7 +82,7 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url)
   const symbol = (searchParams.get('symbol') || '').trim()
   if (!symbol || !SYMBOL_RE.test(symbol)) {
-    return NextResponse.json({ error: 'Invalid symbol' }, { status: 400 })
+    return NextResponse.json({ error: 'Invalid symbol', errorCode: 'BAD_REQUEST' }, { status: 400 })
   }
   const info = await fetchDividendInfo(symbol)
   return NextResponse.json(info, {
@@ -92,7 +92,7 @@ export async function GET(request) {
 
 export async function POST(request) {
   const { limited } = await rateLimit(request, { maxRequests: 30 })
-  if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  if (limited) return NextResponse.json({ error: 'Too many requests', errorCode: 'RATE_LIMITED' }, { status: 429 })
 
   const auth = await verifyAuth(request)
   if (auth.error) return auth.error
@@ -100,13 +100,13 @@ export async function POST(request) {
   try {
     const { symbols } = await request.json()
     if (!symbols || !Array.isArray(symbols) || symbols.length > 50) {
-      return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid request', errorCode: 'BAD_REQUEST' }, { status: 400 })
     }
 
     for (const s of symbols) {
       const sym = typeof s === 'string' ? s : s?.symbol || ''
       if (sym && !SYMBOL_RE.test(sym)) {
-        return NextResponse.json({ error: 'Invalid symbol' }, { status: 400 })
+        return NextResponse.json({ error: 'Invalid symbol', errorCode: 'BAD_REQUEST' }, { status: 400 })
       }
     }
 
@@ -126,6 +126,6 @@ export async function POST(request) {
     return NextResponse.json({ dividends })
   } catch (err) {
     console.error('dividends error:', err)
-    return NextResponse.json({ error: 'Internal server error', dividends: {} }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error', errorCode: 'INTERNAL', dividends: {} }, { status: 500 })
   }
 }

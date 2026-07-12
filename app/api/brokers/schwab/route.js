@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
+import { retryRequest } from '@/lib/fetchWithRetry'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { encryptToken, decryptToken } from '@/lib/crypto'
 import { generateOAuthState, makeStateCookie } from '@/lib/oauthState'
@@ -28,7 +29,7 @@ function getAppCredentials() {
 
 async function exchangeCodeForTokens(code, app) {
   const basic = Buffer.from(`${app.clientId}:${app.clientSecret}`).toString('base64')
-  const res = await fetch(TOKEN_URL, {
+  const res = await retryRequest(() => fetch(TOKEN_URL, {
     method: 'POST',
     headers: {
       'Authorization': `Basic ${basic}`,
@@ -40,7 +41,7 @@ async function exchangeCodeForTokens(code, app) {
       redirect_uri: app.redirectUri,
     }),
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  })
+  }))
   if (!res.ok) {
     const text = await res.text().catch(() => '')
     throw new Error(`Token exchange failed: ${res.status} ${text}`)
@@ -50,7 +51,7 @@ async function exchangeCodeForTokens(code, app) {
 
 async function refreshAccessToken(refreshToken, app) {
   const basic = Buffer.from(`${app.clientId}:${app.clientSecret}`).toString('base64')
-  const res = await fetch(TOKEN_URL, {
+  const res = await retryRequest(() => fetch(TOKEN_URL, {
     method: 'POST',
     headers: {
       'Authorization': `Basic ${basic}`,
@@ -61,7 +62,7 @@ async function refreshAccessToken(refreshToken, app) {
       refresh_token: refreshToken,
     }),
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  })
+  }))
   if (!res.ok) {
     const text = await res.text().catch(() => '')
     throw new Error(`Token refresh failed: ${res.status} ${text}`)
@@ -70,13 +71,13 @@ async function refreshAccessToken(refreshToken, app) {
 }
 
 async function schwabFetch(endpoint, accessToken) {
-  const res = await fetch(`${API_BASE}${endpoint}`, {
+  const res = await retryRequest(() => fetch(`${API_BASE}${endpoint}`, {
     headers: {
       'Authorization': `Bearer ${accessToken}`,
       'Accept': 'application/json',
     },
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  })
+  }))
   if (!res.ok) {
     const text = await res.text().catch(() => '')
     throw new Error(`Schwab API ${res.status}: ${text}`)

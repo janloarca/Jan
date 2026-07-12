@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
+import { retryRequest } from '@/lib/fetchWithRetry'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { encryptToken, decryptToken } from '@/lib/crypto'
 
@@ -51,14 +52,14 @@ function classifyError(errMsg) {
 }
 
 async function alpacaFetch(endpoint, apiKey, apiSecret) {
-  const res = await fetch(`${ALPACA_BASE_URL}${endpoint}`, {
+  const res = await retryRequest(() => fetch(`${ALPACA_BASE_URL}${endpoint}`, {
     headers: {
       'APCA-API-KEY-ID': apiKey,
       'APCA-API-SECRET-KEY': apiSecret,
       'Accept': 'application/json',
     },
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  })
+  }))
 
   if (!res.ok) {
     const text = await res.text().catch(() => '')

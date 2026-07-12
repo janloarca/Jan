@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
+import { retryRequest } from '@/lib/fetchWithRetry'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { encryptToken, decryptToken } from '@/lib/crypto'
 
@@ -13,9 +14,10 @@ async function bcFetch(path, apiKey, params = {}) {
   Object.entries(params).forEach(([k, v]) => {
     if (v != null) url.searchParams.set(k, v)
   })
-  const res = await fetch(url.toString(), {
+  const res = await retryRequest(() => fetch(url.toString(), {
     headers: { 'X-API-Token': apiKey },
-  })
+    signal: AbortSignal.timeout(15000),
+  }))
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     if (res.status === 401) throw new Error('Invalid API key')

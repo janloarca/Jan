@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { rateLimit } from '@/lib/rateLimit'
 import { verifyAuth } from '@/lib/apiAuth'
 import { fetchWithRetry } from '@/lib/fetchWithRetry'
+import { saveLastGood, getLastGood } from '@/lib/priceCache'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,7 +35,7 @@ const MAX_CACHE = 60
 
 export async function GET(request) {
   const { limited } = await rateLimit(request, { maxRequests: 60 })
-  if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  if (limited) return NextResponse.json({ error: 'Too many requests', errorCode: 'RATE_LIMITED' }, { status: 429 })
 
   // These proxy Yahoo/CoinGecko with our quota — require a signed-in user.
   const authResult = await verifyAuth(request)
@@ -44,12 +45,12 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url)
     const period = searchParams.get('period') || 'YTD'
     if (!VALID_PERIODS.includes(period)) {
-      return NextResponse.json({ error: 'Invalid period' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid period', errorCode: 'BAD_REQUEST', dataPoints: [], ytdReturn: null, oneYearReturn: null }, { status: 400 })
     }
     const { range, interval } = RANGE_MAP[period] || RANGE_MAP.YTD
     const symbol = searchParams.get('symbol') || '%5EGSPC'
     if (!ALLOWED_SYMBOLS[symbol]) {
-      return NextResponse.json({ error: 'Invalid benchmark symbol' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid benchmark symbol', errorCode: 'BAD_REQUEST', dataPoints: [], ytdReturn: null, oneYearReturn: null }, { status: 400 })
     }
     const benchmarkName = ALLOWED_SYMBOLS[symbol]
 
@@ -66,7 +67,10 @@ export async function GET(request) {
 
     if (!res.ok) {
       console.error(`[api/benchmark] Yahoo returned ${res.status}`)
-      return NextResponse.json({ error: 'Benchmark data unavailable', dataPoints: [], ytdReturn: null, oneYearReturn: null }, { status: 503 })
+      // Cold instance + Yahoo down: fall back to the last-known-good series.
+      const stale = await getLastGood(`bench:${cacheKey}`)
+      if (stale?.data) return NextResponse.json({ ...stale.data, stale: true, asOf: stale.asOf })
+      return NextResponse.json({ error: 'Benchmark data unavailable', errorCode: 'UPSTREAM_DOWN', dataPoints: [], ytdReturn: null, oneYearReturn: null }, { status: 503 })
     }
 
     const raw = await res.json()
@@ -109,9 +113,10 @@ export async function GET(request) {
 
     if (cache.size >= MAX_CACHE) cache.delete(cache.keys().next().value)
     cache.set(cacheKey, { data: responseData, ts: Date.now() })
+    saveLastGood(`bench:${cacheKey}`, responseData).catch(() => {})
     return NextResponse.json(responseData)
   } catch (err) {
     console.error('[api/benchmark] error:', err.message)
-    return NextResponse.json({ error: 'Internal server error', dataPoints: [], ytdReturn: null, oneYearReturn: null }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error', errorCode: 'INTERNAL', dataPoints: [], ytdReturn: null, oneYearReturn: null }, { status: 500 })
   }
 }

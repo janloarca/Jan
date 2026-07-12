@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
+import { retryRequest } from '@/lib/fetchWithRetry'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { encryptToken, decryptToken } from '@/lib/crypto'
 import { createHmac } from 'crypto'
@@ -45,22 +46,23 @@ function bitsoSign(nonce, method, requestPath, body, apiSecret) {
 }
 
 async function bitsoFetch(method, path, apiKey, apiSecret, body = null) {
-  const nonce = Date.now().toString()
   const requestPath = `/v3${path}`
-  const signature = bitsoSign(nonce, method, requestPath, body, apiSecret)
-
-  const headers = {
-    Authorization: `Bitso ${apiKey}:${nonce}:${signature}`,
-    'Content-Type': 'application/json',
-  }
-
   const url = `${BASE_URL}${requestPath}`
-  const options = { method, headers }
-  if (body && method !== 'GET') {
-    options.body = JSON.stringify(body)
-  }
-
-  const res = await fetch(url, options)
+  // Nonce + signature regenerate per attempt (Bitso rejects reused nonces).
+  const res = await retryRequest(() => {
+    const nonce = Date.now().toString()
+    const signature = bitsoSign(nonce, method, requestPath, body, apiSecret)
+    const options = {
+      method,
+      headers: {
+        Authorization: `Bitso ${apiKey}:${nonce}:${signature}`,
+        'Content-Type': 'application/json',
+      },
+      signal: AbortSignal.timeout(15000),
+    }
+    if (body && method !== 'GET') options.body = JSON.stringify(body)
+    return fetch(url, options)
+  })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
     if (res.status === 401 || res.status === 403) throw new Error('Invalid API credentials')
@@ -80,7 +82,7 @@ async function bitsoFetch(method, path, apiKey, apiSecret, body = null) {
 }
 
 async function bitsoPublic(path) {
-  const res = await fetch(`${BASE_URL}/v3${path}`)
+  const res = await retryRequest(() => fetch(`${BASE_URL}/v3${path}`, { signal: AbortSignal.timeout(15000) }))
   if (!res.ok) {
     throw new Error(`Bitso public API error ${res.status}`)
   }
