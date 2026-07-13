@@ -68,7 +68,10 @@ export function useMarketPrices(items) {
   useEffect(() => {
     if (items && items.length > 0) {
       fetchPrices()
-      const interval = setInterval(fetchPrices, 60000)
+      // 5 min, not 1 — the dashboard shows daily change, not a trading terminal;
+      // 60s polling multiplied Yahoo/CoinGecko quota use 5× for no visible gain
+      // and churned every downstream memo (enrichedItems identity) each tick.
+      const interval = setInterval(fetchPrices, 300000)
       return () => { clearInterval(interval); abortRef.current?.abort() }
     }
     return () => abortRef.current?.abort()

@@ -211,6 +211,29 @@ export function augmentSnapshots(snapshots, items, convert) {
   })
 }
 
+// The single source of truth for "what was the portfolio worth at year start":
+// the snapshot dated in January of `year`, else late December of `year - 1`,
+// accepted only within 15 days of Jan 1. Used by BOTH the YTD Dietz badge
+// (useDashboardData) and the chart's YTD starting point so they never anchor
+// on different values. Returns the snapshot doc or null.
+export function findYearStartAnchor(snapshots, year) {
+  if (!Array.isArray(snapshots) || snapshots.length === 0) return null
+  const sorted = snapshots.filter((s) => s && s.date).sort((a, b) => new Date(a.date) - new Date(b.date))
+  let best = sorted.find((s) => {
+    const d = new Date(s.date)
+    return d.getFullYear() === year && d.getMonth() === 0
+  })
+  if (!best) {
+    best = [...sorted].reverse().find((s) => {
+      const d = new Date(s.date)
+      return d.getFullYear() === year - 1 && d.getMonth() === 11
+    })
+  }
+  if (!best) return null
+  const diff = Math.abs(new Date(best.date).getTime() - Date.UTC(year, 0, 1))
+  return diff <= 15 * 86400000 ? best : null
+}
+
 // Build the income-event payload for /api/prices/portfolio-history from DIVIDEND
 // transactions. Reinvested step-ups raise the linked asset's value; cash-destination
 // payments are excluded (their value already lives in the destination account).

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { formatCurrency, formatCompact, formatAxisTick, formatDate, computeModifiedDietz, getItemValue, buildIncomeEvents, isExcludedFromNetWorth } from './utils'
+import { formatCurrency, formatCompact, formatAxisTick, formatDate, computeModifiedDietz, getItemValue, buildIncomeEvents, isExcludedFromNetWorth, findYearStartAnchor } from './utils'
 import { computeTWRSeries } from './analytics'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import ErrorState from '@/components/ui/ErrorState'
@@ -173,7 +173,33 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   // chart would show YTD data labeled as 1M. mountedRef alone can't catch this
   // (it's true again by the time the stale response lands).
   const fetchGenRef = useRef(0)
+
+  // The 60s price poll rewrites every item's currentPrice, giving scopedItems /
+  // scopedTransactions / convert a fresh identity each tick — with them as raw
+  // deps, fetchHistory was recreated every minute and its effect re-fired the
+  // FULL portfolio-history POST (and reset the 5-min interval). Historical
+  // series don't change when live prices tick, so: read the live values through
+  // refs, and depend on a price-free signature that only changes on real edits
+  // (id/quantity/symbol/acquisitionDate).
+  const scopedItemsRef = useRef(scopedItems)
+  scopedItemsRef.current = scopedItems
+  const scopedTxRef = useRef(scopedTransactions)
+  scopedTxRef.current = scopedTransactions
+  const convertRef = useRef(convert)
+  convertRef.current = convert
+  const itemsSig = useMemo(() =>
+    (scopedItems || [])
+      .map((i) => `${i.id}:${i.quantity}:${i.symbol || ''}:${i.acquisitionDate || ''}:${i.isDebt ? 1 : 0}`)
+      .sort()
+      .join('|'),
+  [scopedItems])
+
   const fetchHistory = useCallback(async () => {
+    // Shadow the reactive values with their refs: the body below reads the
+    // freshest data without the callback depending on their identity.
+    const scopedItems = scopedItemsRef.current
+    const scopedTransactions = scopedTxRef.current
+    const convert = convertRef.current
     if (!scopedItems || scopedItems.length === 0) return
     if (period === 'CUSTOM' && !customRange.from) return
     if (period === 'CUSTOM' && customRange.to && customRange.from > customRange.to) {
@@ -289,7 +315,11 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       setFetchError(t('Error cargando historial', 'Failed to load history'))
     }
     if (mountedRef.current && gen === fetchGenRef.current) setLoading(false)
-  }, [scopedItems, scopedTransactions, lots, period, baseCurrency, convert, customRange, selectedInst])
+    // itemsSig (not scopedItems) + transactions (raw prop, only changes on real
+    // writes) — price ticks no longer recreate this callback. convert is read
+    // via ref; a rates refresh alone doesn't warrant re-downloading history
+    // (the 5-min interval picks it up).
+  }, [itemsSig, transactions, lots, period, baseCurrency, customRange, selectedInst])
 
   useEffect(() => {
     mountedRef.current = true
@@ -551,9 +581,22 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     }
 
     if (period === 'YTD' && pts.length > 0) {
-      const yearStart = Date.UTC(new Date().getUTCFullYear(), 0, 1)
+      const year = new Date().getUTCFullYear()
+      const yearStart = Date.UTC(year, 0, 1)
       if (pts[0].ts > yearStart + 86400000) {
-        pts.unshift({ ts: yearStart, date: new Date(yearStart), value: pts[0].value })
+        // Anchor the synthetic year-start point on the SAME snapshot the Dietz
+        // badge uses (findYearStartAnchor) so card and chart start the year from
+        // the same value; converted with this chart's own path so the point stays
+        // consistent with the rest of the series. Flat backfill only when no
+        // anchor snapshot exists.
+        const bc = baseCurrency || 'USD'
+        const anchorSnap = findYearStartAnchor(snapshots, year)
+        const anchorVal = anchorSnap
+          ? (anchorSnap._source === 'manual' && anchorSnap._rawValue != null && anchorSnap._rawCurrency === bc
+            ? anchorSnap._rawValue
+            : (convert ? convert(anchorSnap.netWorthUSD ?? anchorSnap.totalActivosUSD ?? 0, 'USD', bc) : (anchorSnap.netWorthUSD ?? anchorSnap.totalActivosUSD ?? 0)))
+          : null
+        pts.unshift({ ts: yearStart, date: new Date(yearStart), value: anchorVal > 0 ? anchorVal : pts[0].value })
       }
     }
     if (period === 'MTD' && pts.length > 0) {
@@ -573,7 +616,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       }
     }
     return pts
-  }, [dataPoints, snapshotData, currentTotal, period, staticPoints, selectedInst, manualAddedTs])
+  }, [dataPoints, snapshotData, currentTotal, period, staticPoints, selectedInst, manualAddedTs, snapshots, convert, baseCurrency])
 
   const mwrData = useMemo(() => {
     if (chartData.length < 2) return []
@@ -782,6 +825,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const spanYears = chartData.length > 1 ? (chartData[chartData.length - 1].ts - chartData[0].ts) / (365.25 * 86400000) : 0
   const cagrPct = spanYears > 1.5 && firstVal > 0 && lastVal > 0
     ? (Math.pow(lastVal / firstVal, 1 / spanYears) - 1) * 100
+    : null
+  // Same annualized companion for the performance modes: a cumulative "+180%
+  // TWR" over 6 years reads as a yearly figure without it. Guard the base
+  // (1 + r) > 0 — a −100% cumulative return has no real annualized root.
+  const annualizedReturn = spanYears > 1.5 && isFinite(lastReturn) && (1 + lastReturn / 100) > 0
+    ? (Math.pow(1 + lastReturn / 100, 1 / spanYears) - 1) * 100
     : null
 
   const microInsight = useMemo(() => {
@@ -993,6 +1042,11 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
             <span className="text-xs font-sans font-semibold px-1.5 py-0.5 rounded" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-tertiary)' }}>
               {returnMode.toUpperCase()}
             </span>
+            {annualizedReturn != null && hoverIdx == null && (
+              <span className="text-xs font-sans font-normal text-slate-500 font-mono tabular-nums">
+                ≈ {annualizedReturn >= 0 ? '+' : ''}{annualizedReturn.toFixed(1)}%/{t('año', 'yr')}
+              </span>
+            )}
           </p>
           <div className="flex items-center gap-3 mt-0.5">
             <span className="text-sm text-slate-400">

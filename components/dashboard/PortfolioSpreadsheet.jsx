@@ -566,6 +566,44 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     URL.revokeObjectURL(url)
   }, [categories, months, currentMonthKey, historicalItems, monthlyTotals, grandTotal, selectedYear, lang])
 
+  // Same data walk as the CSV, as a real workbook: month labels as headers,
+  // numbers as numbers (not strings), fallback-month totals flagged with * and
+  // a footnote. xlsx is already a dependency (dashboard export uses it).
+  const handleExportXlsx = useCallback(async () => {
+    const XLSX = await import('xlsx')
+    const header = [t('Categoría', 'Category'), t('Activo', 'Asset'), ...months.map((mk) => getMonthLabel(mk, lang))]
+    const rows = [header]
+    categories.forEach(cat => {
+      cat.institutions.forEach(inst => {
+        inst.items.forEach(it => {
+          const cells = months.map(mk => {
+            if (mk === currentMonthKey) return Math.round(getItemValue(it) * 100) / 100
+            const v = historicalItems[mk]?.[it.id]?.value
+            return v != null ? Math.round(v * 100) / 100 : null
+          })
+          rows.push([cat.label, it.symbol || it.name || '', ...cells])
+        })
+      })
+    })
+    rows.push(['TOTAL', '', ...months.map(mk => {
+      const v = mk === currentMonthKey ? grandTotal : monthlyTotals[mk]
+      if (v == null) return null
+      const rounded = Math.round(v * 100) / 100
+      // Fallback months carry the snapshot NAV without per-item breakdown —
+      // keep the asterisk convention from the on-screen table.
+      return fallbackMonths.has(mk) ? `${rounded}*` : rounded
+    })])
+    if ([...fallbackMonths].some((mk) => months.includes(mk))) {
+      rows.push([])
+      rows.push([t('* Total del snapshot — sin desglose por categoría', '* Snapshot total — no per-category breakdown')])
+    }
+    const ws = XLSX.utils.aoa_to_sheet(rows)
+    ws['!cols'] = [{ wch: 18 }, { wch: 22 }, ...months.map(() => ({ wch: 12 }))]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, `${t('Matriz', 'Matrix')} ${selectedYear}`)
+    XLSX.writeFile(wb, `chispudo-spreadsheet-${selectedYear}.xlsx`)
+  }, [categories, months, currentMonthKey, historicalItems, monthlyTotals, grandTotal, fallbackMonths, selectedYear, lang])
+
   const isCurrentYear = selectedYear === now.getFullYear()
   const prevMonthKey = months.length >= 2 ? months[months.length - 2] : null
   const prevTotal = prevMonthKey ? monthlyTotals[prevMonthKey] : null
@@ -635,6 +673,11 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
             className="px-2.5 py-1 text-xs rounded-md border border-slate-200 bg-slate-100 text-slate-500 hover:bg-white hover:text-slate-900 transition-colors"
             title={t('Descargar la matriz mensual como CSV', 'Download the monthly matrix as CSV')}>
             CSV
+          </button>
+          <button onClick={handleExportXlsx}
+            className="px-2.5 py-1 text-xs rounded-md border border-slate-200 bg-slate-100 text-slate-500 hover:bg-white hover:text-slate-900 transition-colors"
+            title={t('Descargar la matriz mensual como Excel', 'Download the monthly matrix as Excel')}>
+            Excel
           </button>
           {loadingHistory && (
             <span className="text-xs text-blue-500 animate-pulse">{t('Calculando historial...', 'Calculating history...')}</span>

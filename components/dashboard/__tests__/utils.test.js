@@ -10,6 +10,7 @@ import {
   getGeographyFromSymbol,
   getMaturityInfo,
   augmentSnapshots,
+  findYearStartAnchor,
   effectiveAcqTs,
   formatMonth,
 } from '../utils'
@@ -377,5 +378,48 @@ describe('getMaturityInfo', () => {
     expect(result.expired).toBe(false)
     expect(result.color).toBe('red')
     expect(result.days).toBeLessThanOrEqual(31)
+  })
+})
+
+describe('findYearStartAnchor', () => {
+  const year = 2026
+
+  it('prefers a January snapshot of the target year', () => {
+    const snaps = [
+      { date: '2025-12-28', netWorthUSD: 90 },
+      { date: '2026-01-05', netWorthUSD: 100 },
+      { date: '2026-03-01', netWorthUSD: 120 },
+    ]
+    expect(findYearStartAnchor(snaps, year).date).toBe('2026-01-05')
+  })
+
+  it('falls back to late December of the prior year', () => {
+    const snaps = [
+      { date: '2025-12-29', netWorthUSD: 90 },
+      { date: '2026-04-01', netWorthUSD: 120 },
+    ]
+    expect(findYearStartAnchor(snaps, year).date).toBe('2025-12-29')
+  })
+
+  it('rejects anchors outside the 15-day window of Jan 1', () => {
+    const snaps = [
+      { date: '2026-01-25', netWorthUSD: 100 },
+      { date: '2026-06-01', netWorthUSD: 130 },
+    ]
+    expect(findYearStartAnchor(snaps, year)).toBeNull()
+  })
+
+  it('picks the LAST December snapshot when several exist', () => {
+    const snaps = [
+      { date: '2025-12-20', netWorthUSD: 80 },
+      { date: '2025-12-30', netWorthUSD: 95 },
+    ]
+    expect(findYearStartAnchor(snaps, year).date).toBe('2025-12-30')
+  })
+
+  it('returns null for empty or dateless input', () => {
+    expect(findYearStartAnchor([], year)).toBeNull()
+    expect(findYearStartAnchor([{ netWorthUSD: 1 }], year)).toBeNull()
+    expect(findYearStartAnchor(null, year)).toBeNull()
   })
 })

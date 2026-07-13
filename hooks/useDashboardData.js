@@ -5,7 +5,7 @@ import { useExchangeRates } from './useExchangeRates'
 import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, augmentSnapshots, projectItemAnnualIncome } from '@/components/dashboard/utils'
+import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor } from '@/components/dashboard/utils'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
 
@@ -755,22 +755,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const yearStartTs = Date.UTC(year, 0, 1)
     let startVal = null
     if (augmentedSnapshots.length >= 2) {
-      const sorted = [...augmentedSnapshots].filter(s => s.date).sort((a, b) => new Date(a.date) - new Date(b.date))
-      let bestSnap = sorted.find(s => {
-        const d = new Date(s.date)
-        return d.getFullYear() === year && d.getMonth() === 0
-      })
-      if (!bestSnap) {
-        bestSnap = [...sorted].reverse().find(s => {
-          const d = new Date(s.date)
-          return d.getFullYear() === year - 1 && d.getMonth() === 11
-        })
-      }
+      // Shared anchor (also used by the chart's YTD starting point) so the
+      // Dietz badge and the chart never start the year from different values.
+      const bestSnap = findYearStartAnchor(augmentedSnapshots, year)
       if (bestSnap) {
-        const diff = Math.abs(new Date(bestSnap.date).getTime() - yearStartTs)
-        if (diff <= 15 * 86400000) {
-          startVal = convertSnapshot(bestSnap.netWorthUSD ?? bestSnap.totalActivosUSD ?? 0)
-        }
+        startVal = convertSnapshot(bestSnap.netWorthUSD ?? bestSnap.totalActivosUSD ?? 0)
       }
     }
     if (startVal == null || startVal <= 0) startVal = jan1Value
