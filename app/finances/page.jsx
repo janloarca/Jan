@@ -92,7 +92,8 @@ export default function FinancesPage() {
       })
       .map(tx => {
         const cur = tx.currency || FINANCE_CURRENCY
-        const amount = convert ? convert(tx.amount || 0, cur, FINANCE_CURRENCY) : (tx.amount || 0)
+        const conv = convert ? convert(tx.amount || 0, cur, FINANCE_CURRENCY) : NaN
+        const amount = isFinite(conv) ? conv : (tx.amount || 0)
         // Keep the original for reference; display/sum use the GTQ-normalized amount
         return cur === FINANCE_CURRENCY ? tx : { ...tx, amount, _originalAmount: tx.amount, _originalCurrency: cur }
       })
@@ -109,15 +110,21 @@ export default function FinancesPage() {
   )
 
   // ── Motor mensual: análisis, insights, ingreso de inversión (solo lectura) ──
-  const analysis = useMemo(
-    () => computeMonthlyAnalysis(financeTransactions, { month, year }, convert),
-    [financeTransactions, month, year, convert]
-  )
-  const monthInsights = useMemo(() => buildFinanceInsights(analysis, lang), [analysis, lang])
   const investmentIncome = useMemo(
     () => investmentIncomeOfMonth(portfolioTransactions, { month, year }, convert),
     [portfolioTransactions, month, year, convert]
   )
+  const analysis = useMemo(() => {
+    // The read-only investment income counts as income in every compared month,
+    // so savings/savings-rate insights agree with the summary cards.
+    const prevMY = month === 0 ? { month: 11, year: year - 1 } : { month: month - 1, year }
+    return computeMonthlyAnalysis(financeTransactions, { month, year }, convert, {
+      extraIncome: investmentIncome.total,
+      prevExtraIncome: investmentIncomeOfMonth(portfolioTransactions, prevMY, convert).total,
+      yoyExtraIncome: investmentIncomeOfMonth(portfolioTransactions, { month, year: year - 1 }, convert).total,
+    })
+  }, [financeTransactions, portfolioTransactions, investmentIncome, month, year, convert])
+  const monthInsights = useMemo(() => buildFinanceInsights(analysis, lang), [analysis, lang])
   const incomeByGroup = useMemo(() => {
     const byCat = {}
     for (const tx of monthTransactions) {
@@ -154,10 +161,16 @@ export default function FinancesPage() {
   // only in MobileNav, so desktop had no way to download the CSV.
   const handleExportCsv = () => {
     if (monthTransactions.length === 0) return
-    const header = 'Date,Type,Category,Description,Amount,Currency'
+    // Amounts here are already GTQ-normalized (monthTransactions), so the
+    // Currency column is always GTQ; converted rows keep their original next to it.
+    const header = 'Date,Type,Category,Description,Amount,Currency,OriginalAmount,OriginalCurrency'
     const rows = monthTransactions.map(tx => {
       const esc = (v) => `"${String(v || '').replace(/"/g, '""')}"`
-      return [esc(tx.date || ''), esc(tx.type || ''), esc(tx.category || ''), esc(tx.description || ''), tx.amount || 0, esc(tx.currency || 'GTQ')].join(',')
+      return [
+        esc(tx.date || ''), esc(tx.type || ''), esc(tx.category || ''), esc(tx.description || ''),
+        tx.amount || 0, esc(FINANCE_CURRENCY),
+        tx._originalCurrency ? (tx._originalAmount || 0) : '', esc(tx._originalCurrency || ''),
+      ].join(',')
     })
     const csv = [header, ...rows].join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -249,6 +262,7 @@ export default function FinancesPage() {
           daysLeft={daysLeft}
           reminderEnabled={reminderEnabled}
           onToggleReminder={handleToggleReminder}
+          reminderEmail={settings?.financeReminderEmail || user?.email || ''}
         />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

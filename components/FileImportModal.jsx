@@ -394,6 +394,12 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         setBiData(parsed)
         setBiMatch(match)
         setBiSelected(new Set(match.newTxs.map((_, i) => `n${i}`)))
+        // Preselect the BI account the balance update belongs to — the "create
+        // new" default used to mint a duplicate "BI Monetaria" on every re-import.
+        const bankAccounts = (existingItems || []).filter((it) => /bank|banco/i.test(it.type || ''))
+        const biAccount = bankAccounts.find((a) => (a.symbol || '').toUpperCase() === 'BI-MONETARIA')
+          || bankAccounts.find((a) => /banco industrial/i.test(a.institution || ''))
+        setSelectedBankAccount(biAccount ? biAccount.id : '')
         setStep('bi-preview')
       } else {
         setHeaders(hdrs)
@@ -404,7 +410,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     } catch (err) {
       setError(lang === 'es' ? `Error leyendo archivo: ${err.message}` : `Error reading file: ${err.message}`)
     }
-  }, [lang, existingFinanceTransactions])
+  }, [lang, existingFinanceTransactions, existingItems])
 
   const handlePaste = useCallback(() => {
     if (!pasteText.trim()) return
@@ -611,7 +617,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       }
     }
 
-    if (biData.finalBalance > 0) {
+    if (biData.finalBalance > 0 && selectedBankAccount !== 'skip') {
       const bankAccounts = (existingItems || []).filter(it => /bank|banco/i.test(it.type || ''))
       const target = selectedBankAccount ? bankAccounts.find(a => a.id === selectedBankAccount) : null
 
@@ -1103,10 +1109,11 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                   <p className="text-xs text-slate-400 mb-2">{t('Actualizar cuenta bancaria:', 'Update bank account:')}</p>
                   <select value={selectedBankAccount} onChange={e => setSelectedBankAccount(e.target.value)}
                     className="w-full px-3 py-2 bg-theme-card border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-[#3b82f6]/50">
-                    <option value="">{t('Crear nueva cuenta', 'Create new account')}</option>
                     {(existingItems || []).filter(it => /bank|banco/i.test(it.type || '')).map(item => (
                       <option key={item.id} value={item.id}>{item.name || item.symbol}</option>
                     ))}
+                    <option value="">{t('Crear nueva cuenta', 'Create new account')}</option>
+                    <option value="skip">{t('No actualizar ninguna cuenta', 'Don\'t update any account')}</option>
                   </select>
                 </div>
               )}

@@ -20,6 +20,7 @@ const SEV_COLOR = { warn: 'var(--alert-warn-icon)', good: 'var(--accent-green)',
 export default function FinanceInsights({
   analysis, insights = [], investmentIncome, incomeByGroup = {}, lang = 'es',
   isCurrentMonth = false, daysLeft = 0, reminderEnabled = false, onToggleReminder,
+  reminderEmail = '',
 }) {
   const t = (es, en) => (lang === 'es' ? es : en)
   if (!analysis) return null
@@ -36,9 +37,11 @@ export default function FinanceInsights({
           </span>
           {isCurrentMonth && analysis.status !== 'complete' && (
             <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              {daysLeft <= 1
+              {daysLeft === 0
                 ? t('Último día del mes — captura tus datos.', 'Last day of the month — log your data.')
-                : t(`Quedan ${daysLeft} días para cerrar el mes.`, `${daysLeft} days left to close the month.`)}
+                : daysLeft === 1
+                  ? t('Queda 1 día para cerrar el mes.', '1 day left to close the month.')
+                  : t(`Quedan ${daysLeft} días para cerrar el mes.`, `${daysLeft} days left to close the month.`)}
             </span>
           )}
         </div>
@@ -51,6 +54,9 @@ export default function FinanceInsights({
             </button>
             <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
               {t('Recordarme por correo si no he llenado el mes', 'Email me if I haven\'t filled the month')}
+              {reminderEnabled && reminderEmail && (
+                <span className="block text-[10px]" style={{ color: 'var(--text-muted)' }}>→ {reminderEmail}</span>
+              )}
             </span>
           </label>
         )}
@@ -93,7 +99,8 @@ export default function FinanceInsights({
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-white">{t('Gastos por grupo', 'Spending by group')}</h3>
             <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-              {analysis.prev && t('vs mes pasado', 'vs last month')}{analysis.yoy && ` · vs ${analysis.yoy.key}`}
+              {[analysis.prev && t('vs mes pasado', 'vs last month'), analysis.yoy && `vs ${analysis.yoy.key}`]
+                .filter(Boolean).join(' · ')}
             </span>
           </div>
           <div className="space-y-2">
