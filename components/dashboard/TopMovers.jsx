@@ -4,8 +4,6 @@ import { useMemo } from 'react'
 import { formatCurrency, getTypeCategory, TYPE_COLORS } from './utils'
 
 export default function TopMovers({ items, transactions, lang }) {
-  if (!items || items.length === 0) return null
-
   const dividendsBySymbol = useMemo(() => {
     const map = {}
     if (!transactions) return map
@@ -21,7 +19,7 @@ export default function TopMovers({ items, transactions, lang }) {
   }, [transactions])
 
   const withValue = useMemo(() => {
-    return items
+    return (items || [])
       .filter((it) => it.purchasePrice > 0 && it.quantity > 0)
       .map((it) => {
         const value = (it.currentPrice || it.purchasePrice) * it.quantity
@@ -46,10 +44,12 @@ export default function TopMovers({ items, transactions, lang }) {
       .sort((a, b) => b.value - a.value)
   }, [items, dividendsBySymbol])
 
-  if (withValue.length === 0) return null
-
   const totalVal = useMemo(() => withValue.reduce((s, x) => s + x.value, 0), [withValue])
   const top = withValue.slice(0, 3)
+
+  // Render gates live BELOW every hook — items streaming in after an empty
+  // first render must not change the hook count (React would throw).
+  if (withValue.length === 0) return null
 
   return (
     <div className="card-glass rounded-xl p-4">

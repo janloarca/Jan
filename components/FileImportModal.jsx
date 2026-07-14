@@ -1228,7 +1228,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                 </button>
                 {importing && importProgress.total > 0 && (
                   <div className="mt-2 h-1.5 bg-slate-700/30 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full transition-all" style={{ backgroundColor: '#3b82f6' }} style={{ width: `${Math.round((importProgress.done / importProgress.total) * 100)}%` }} />
+                    <div className="h-full rounded-full transition-all" style={{ backgroundColor: '#3b82f6', width: `${Math.round((importProgress.done / importProgress.total) * 100)}%` }} />
                   </div>
                 )}
               </div>

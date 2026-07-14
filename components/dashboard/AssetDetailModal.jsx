@@ -76,8 +76,11 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
   const pnlPct = cost > 0 ? (pnl / cost) * 100 : 0
 
   // Project an array of {ts, value, date} onto the SVG canvas.
-  function project(series) {
-    if (!series || series.length < 2) return null
+  function project(rawSeries) {
+    // A missing FX rate (convert → NaN) or a null close mid-series would put
+    // NaN into min/max and break every path coordinate (CLAUDE.md rule).
+    const series = (rawSeries || []).filter((s) => isFinite(s.value))
+    if (series.length < 2) return null
     const min = Math.min(...series.map((s) => s.value)) * 0.98
     const max = Math.max(...series.map((s) => s.value)) * 1.02
     const rng = max - min || 1
