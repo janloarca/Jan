@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import nodemailer from 'nodemailer'
 import { getAdminDb } from '@/lib/firebase-admin'
 
 export const dynamic = 'force-dynamic'
@@ -12,12 +13,15 @@ export const dynamic = 'force-dynamic'
 // _lastFinanceReminder = 'YYYY-MM' on the user's preferences so a user is
 // never emailed twice for the same month.
 //
+// Sending: plain SMTP against the mailbox of our own domain (e.g. a free Zoho
+// Mail account hosting recordatorios@chispu.xyz) — no third-party sending
+// service. Any SMTP host works; nothing here is provider-specific.
+//
 // Gating (repo convention: silent no-op when unconfigured):
-//   CRON_SECRET     — Vercel Cron sends `Authorization: Bearer ${CRON_SECRET}`
-//   RESEND_API_KEY  — Resend (https://resend.com) via plain fetch, no SDK
-//   RESEND_FROM     — optional, defaults to 'Chispudo <recordatorios@chispu.xyz>'
-
-const RESEND_URL = 'https://api.resend.com/emails'
+//   CRON_SECRET — Vercel Cron sends `Authorization: Bearer ${CRON_SECRET}`
+//   SMTP_HOST / SMTP_USER / SMTP_PASS — mailbox credentials (app password)
+//   SMTP_PORT — optional, defaults to 465 (implicit TLS)
+//   SMTP_FROM — optional, defaults to 'Chispudo <SMTP_USER>'
 
 function lastDayOfMonth(d) {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate()
@@ -52,9 +56,9 @@ export async function GET(request) {
     return NextResponse.json({ error: 'Unauthorized', errorCode: 'BAD_REQUEST' }, { status: 401 })
   }
 
-  const apiKey = process.env.RESEND_API_KEY
-  if (!apiKey) {
-    return NextResponse.json({ ok: true, skipped: 'RESEND_API_KEY not configured' })
+  const { SMTP_HOST, SMTP_USER, SMTP_PASS } = process.env
+  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
+    return NextResponse.json({ ok: true, skipped: 'SMTP not configured' })
   }
   const db = getAdminDb()
   if (!db) {
@@ -70,7 +74,16 @@ export async function GET(request) {
   }
 
   const monthKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`
-  const from = process.env.RESEND_FROM || 'Chispudo <recordatorios@chispu.xyz>'
+  const from = process.env.SMTP_FROM || `Chispudo <${SMTP_USER}>`
+  const port = Number(process.env.SMTP_PORT) || 465
+  const transport = nodemailer.createTransport({
+    host: SMTP_HOST,
+    port,
+    secure: port === 465, // implicit TLS on 465; STARTTLS is negotiated on 587
+    auth: { user: SMTP_USER, pass: SMTP_PASS },
+    connectionTimeout: 15000,
+    socketTimeout: 15000,
+  })
 
   // All opted-in users: settings docs live at users/{uid}/settings/preferences.
   const snap = await db.collectionGroup('settings').where('financeReminder', '==', true).get()
@@ -99,18 +112,7 @@ export async function GET(request) {
       const monthLabel = `${(lang === 'en' ? MONTHS_EN : MONTHS_ES)[now.getUTCMonth()]} ${now.getUTCFullYear()}`
       const { subject, html } = buildEmail(lang, monthLabel)
 
-      const res = await fetch(RESEND_URL, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ from, to: [email], subject, html }),
-        signal: AbortSignal.timeout(15000),
-      })
-      if (!res.ok) {
-        const body = await res.text().catch(() => '')
-        console.error(`[cron/finance-reminder] Resend ${res.status} for ${uid}:`, body.slice(0, 200))
-        failed++
-        continue
-      }
+      await transport.sendMail({ from, to: email, subject, html })
       await doc.ref.set({ _lastFinanceReminder: monthKey }, { merge: true })
       sent++
     } catch (e) {
@@ -119,5 +121,6 @@ export async function GET(request) {
     }
   }
 
+  transport.close()
   return NextResponse.json({ ok: true, monthKey, optedIn: snap.size, sent, skipped, failed })
 }
