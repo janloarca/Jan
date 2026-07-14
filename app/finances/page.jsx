@@ -15,8 +15,12 @@ import MonthSelector from '@/components/finance/MonthSelector'
 import FinanceSummaryCards from '@/components/finance/FinanceSummaryCards'
 import CategoryBreakdown from '@/components/finance/CategoryBreakdown'
 import FinanceTransactionList from '@/components/finance/FinanceTransactionList'
+import FinanceInsights from '@/components/finance/FinanceInsights'
 import AddFinanceTransactionModal from '@/components/finance/AddFinanceTransactionModal'
 import FileImportModal from '@/components/FileImportModal'
+import { SkeletonCard, SkeletonTable } from '@/components/dashboard/Skeleton'
+import { computeMonthlyAnalysis, buildFinanceInsights, investmentIncomeOfMonth } from '@/lib/financeMonth'
+import { INCOME_GROUPS } from '@/lib/financeCategories'
 
 export default function FinancesPage() {
   const router = useRouter()
@@ -70,6 +74,8 @@ export default function FinancesPage() {
     addFinanceTransaction,
     deleteFinanceTransaction,
     settings,
+    saveSettings,
+    transactions: portfolioTransactions,
   } = useFirestoreItems()
 
   const { convert } = useExchangeRates()
@@ -102,6 +108,46 @@ export default function FinancesPage() {
     [monthTransactions]
   )
 
+  // ── Motor mensual: análisis, insights, ingreso de inversión (solo lectura) ──
+  const analysis = useMemo(
+    () => computeMonthlyAnalysis(financeTransactions, { month, year }, convert),
+    [financeTransactions, month, year, convert]
+  )
+  const monthInsights = useMemo(() => buildFinanceInsights(analysis, lang), [analysis, lang])
+  const investmentIncome = useMemo(
+    () => investmentIncomeOfMonth(portfolioTransactions, { month, year }, convert),
+    [portfolioTransactions, month, year, convert]
+  )
+  const incomeByGroup = useMemo(() => {
+    const byCat = {}
+    for (const tx of monthTransactions) {
+      if (tx.type !== 'INCOME') continue
+      byCat[tx.category] = (byCat[tx.category] || 0) + (tx.amount || 0)
+    }
+    const out = {}
+    for (const g of INCOME_GROUPS) {
+      if (g.autoOnly) continue
+      out[g.key] = g.categories.reduce((s, c) => s + (byCat[c] || 0), 0)
+    }
+    return out
+  }, [monthTransactions])
+
+  const isCurrentMonth = month === now.getMonth() && year === now.getFullYear()
+  const daysLeft = isCurrentMonth
+    ? new Date(year, month + 1, 0).getDate() - now.getDate()
+    : 0
+
+  const reminderEnabled = !!settings?.financeReminder
+  const handleToggleReminder = useCallback(async () => {
+    const next = !reminderEnabled
+    // Email captured at opt-in time from Firebase Auth — the month-end cron reads it
+    // server-side without ever listing auth users.
+    await saveSettings({
+      financeReminder: next,
+      ...(next ? { financeReminderEmail: user?.email || '', financeReminderLang: lang } : {}),
+    })
+  }, [reminderEnabled, saveSettings, user, lang])
+
   const t = (es, en) => lang === 'es' ? es : en
 
   // Shared by the desktop header button and MobileNav — the export used to live
@@ -124,18 +170,14 @@ export default function FinancesPage() {
   }
 
   if (authLoading || (user && dataLoading)) {
+    // Structural skeleton instead of a bare spinner — same treatment the
+    // dashboard and spreadsheet already get.
     return (
-      <div className="flex items-center justify-center min-h-screen bg-theme-base">
-        <div className="text-center">
-          <div className="inline-flex items-center gap-2 mb-4">
-            <span className="text-blue-400 text-2xl">⚡</span>
-            <span className="text-lg font-bold text-blue-400">Chispudo</span>
-          </div>
-          <div className="block">
-            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent" />
-          </div>
-          <p className="mt-4 text-slate-500 text-sm">{t('Cargando...', 'Loading...')}</p>
+      <div className="min-h-screen bg-theme-base p-4 sm:p-6 max-w-7xl mx-auto space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <SkeletonCard /><SkeletonCard /><SkeletonCard />
         </div>
+        <SkeletonTable />
       </div>
     )
   }
@@ -173,7 +215,7 @@ export default function FinancesPage() {
           <div className="flex items-center gap-3">
             <MonthSelector month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y) }} lang={lang} />
             <button onClick={() => setModal('add')}
-              className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-500 transition-colors">
+              className="px-3 py-1.5 text-xs font-medium bg-blue-600 rounded-lg hover:bg-blue-500 transition-colors" style={{ color: '#ffffff' }}>
               + {t('Agregar', 'Add')}
             </button>
             <button onClick={() => setModal('import')}
@@ -192,7 +234,22 @@ export default function FinancesPage() {
         {/* A brand-new user sees the empty state directly, not a stack of Q0.00
             cards and blank breakdowns with the guidance buried below the fold. */}
         {financeTransactions.length > 0 && <>
-        <FinanceSummaryCards income={income} expenses={expenses} lang={lang} />
+        <FinanceSummaryCards income={income} expenses={expenses}
+          investmentIncome={investmentIncome.total}
+          momIncomePct={analysis.momIncomePct} momExpensesPct={analysis.momExpensesPct}
+          lang={lang} />
+
+        <FinanceInsights
+          analysis={analysis}
+          insights={monthInsights}
+          investmentIncome={investmentIncome}
+          incomeByGroup={incomeByGroup}
+          lang={lang}
+          isCurrentMonth={isCurrentMonth}
+          daysLeft={daysLeft}
+          reminderEnabled={reminderEnabled}
+          onToggleReminder={handleToggleReminder}
+        />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <CategoryBreakdown transactions={monthTransactions} type="EXPENSE" lang={lang} />
@@ -216,7 +273,7 @@ export default function FinancesPage() {
             </p>
             <div className="flex items-center justify-center gap-3">
               <button onClick={() => setModal('import')}
-                className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition-colors text-sm font-medium">
+                className="px-4 py-2 bg-emerald-600 rounded-lg hover:bg-emerald-500 transition-colors text-sm font-medium" style={{ color: '#ffffff' }}>
                 {t('Importar Estado de Cuenta', 'Import Bank Statement')}
               </button>
               <button onClick={() => setModal('add')}
@@ -241,6 +298,7 @@ export default function FinancesPage() {
           onClose={() => setModal(null)}
           onImportItems={addItem}
           onAddFinanceTransaction={addFinanceTransaction}
+          existingFinanceTransactions={financeTransactions}
           onUpdateItem={updateItem}
           existingItems={items}
           lang={lang}

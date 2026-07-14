@@ -159,7 +159,7 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
             )}
 
             <button onClick={handleSync} disabled={syncing}
-              className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium flex items-center justify-center gap-2">
+              className="w-full py-2.5 bg-blue-600 rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium flex items-center justify-center gap-2" style={{ color: '#ffffff' }}>
               {syncing ? (
                 <>
                   <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
@@ -205,7 +205,7 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
                 {t('Atrás', 'Back')}
               </button>
               <button onClick={handleConfirm}
-                className="flex-1 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition-colors text-sm font-medium">
+                className="flex-1 py-2.5 bg-emerald-600 rounded-lg hover:bg-emerald-500 transition-colors text-sm font-medium" style={{ color: '#ffffff' }}>
                 {t('Importar', 'Import')} ({results.results.length})
               </button>
             </div>

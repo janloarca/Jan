@@ -529,7 +529,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                       <span className="text-xs font-medium px-2 py-1 bg-red-500/10 rounded" style={{ color: 'var(--text-negative)' }}>{t('Bloqueado', 'Blocked')}</span>
                     ) : (
                       <button onClick={async () => { await requestNotificationPermission(); }}
-                        className="px-3 py-1.5 text-xs font-medium text-white rounded-lg hover:bg-blue-500 transition-colors" style={{ backgroundColor: 'var(--accent-blue)' }}>
+                        className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-blue-500 transition-colors" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
                         {t('Activar', 'Enable')}
                       </button>
                     )}
@@ -538,7 +538,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               )}
 
               <button onClick={handleSave} disabled={saving}
-                className="w-full py-2.5 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium" style={{ backgroundColor: 'var(--accent-blue)' }}>
+                className="w-full py-2.5 rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
                 {saving ? '...' : t('Guardar configuracion', 'Save settings')}
               </button>
             </div>
@@ -594,7 +594,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               </div>
 
               <button onClick={handleSaveProfile} disabled={profileSaving}
-                className="w-full py-2.5 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium" style={{ backgroundColor: 'var(--accent-blue)' }}>
+                className="w-full py-2.5 rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
                 {profileSaving ? '...' : t('Guardar perfil', 'Save profile')}
               </button>
             </div>
@@ -663,7 +663,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                       {broker.hasApi && conn?.configured ? (
                         <>
                           <button onClick={() => handleBrokerSync(broker)} disabled={isSyncing}
-                            className="px-2.5 py-1 text-white text-xs font-medium rounded-md hover:bg-blue-500 disabled:opacity-50 transition-colors" style={{ backgroundColor: 'var(--accent-blue)' }}>
+                            className="px-2.5 py-1 text-xs font-medium rounded-md hover:bg-blue-500 disabled:opacity-50 transition-colors" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
                             {isSyncing ? '...' : 'Sync'}
                           </button>
                           <button onClick={() => handleBrokerDisconnect(broker)} disabled={isSyncing}
@@ -709,7 +709,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                       ))}
                       <button onClick={() => handleBrokerConnect(broker)}
                         disabled={isSyncing || broker.fields.some(f => !brokerForm[f.key])}
-                        className="w-full py-2 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 text-xs font-medium" style={{ backgroundColor: 'var(--accent-blue)' }}>
+                        className="w-full py-2 rounded-lg hover:bg-blue-500 disabled:opacity-50 text-xs font-medium" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
                         {isSyncing ? '...' : t('Conectar', 'Connect')}
                       </button>
                     </div>
@@ -739,7 +739,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                     <div className="flex items-center gap-1.5 shrink-0">
                       {ibkrConfigured ? (
                         <button onClick={() => { onClose(); setTimeout(() => { if (onOpenIBKR) onOpenIBKR() }, 50) }}
-                          className="px-2.5 py-1 text-white text-xs font-medium rounded-md hover:bg-blue-500 transition-colors" style={{ backgroundColor: 'var(--accent-blue)' }}>
+                          className="px-2.5 py-1 text-xs font-medium rounded-md hover:bg-blue-500 transition-colors" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
                           Sync
                         </button>
                       ) : (
@@ -781,7 +781,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                         className="w-full px-3 py-1.5 bg-theme-surface border border-glass-border/60 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
                     </div>
                     <button onClick={handleIbkrSave} disabled={ibkrSaving || !ibkrToken || !ibkrQueryId}
-                      className="w-full py-2 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 text-xs font-medium" style={{ backgroundColor: 'var(--accent-blue)' }}>
+                      className="w-full py-2 rounded-lg hover:bg-blue-500 disabled:opacity-50 text-xs font-medium" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
                       {ibkrSaving ? '...' : t('Conectar', 'Connect')}
                     </button>
                   </div>
@@ -802,7 +802,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                     </p>
                     <div className="flex gap-2">
                       <button onClick={async () => { await handleIbkrDisconnect(); setConfirmUnlink(false) }} disabled={ibkrSaving}
-                        className="px-3 py-1.5 text-white text-xs font-medium rounded-lg hover:bg-red-500 transition-colors" style={{ backgroundColor: 'var(--text-negative)' }}>
+                        className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-red-500 transition-colors" style={{ color: '#ffffff', backgroundColor: 'var(--text-negative)' }}>
                         {ibkrSaving ? '...' : t('Sí', 'Yes')}
                       </button>
                       <button onClick={() => setConfirmUnlink(false)}
@@ -914,7 +914,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
 
               {!shareEnabled ? (
                 <button onClick={() => handleShareAction('enable')} disabled={shareLoading}
-                  className="w-full py-3 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-50 transition-colors text-sm font-medium flex items-center justify-center gap-2" style={{ backgroundColor: 'var(--accent-green)' }}>
+                  className="w-full py-3 rounded-lg hover:bg-emerald-500 disabled:opacity-50 transition-colors text-sm font-medium flex items-center justify-center gap-2" style={{ color: '#ffffff', backgroundColor: 'var(--accent-green)' }}>
                   {shareLoading ? '...' : (
                     <>
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -932,7 +932,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                       <input type="text" readOnly value={shareUrl}
                         className="flex-1 bg-transparent text-xs text-slate-300 outline-none truncate" />
                       <button onClick={copyShareLink}
-                        className="shrink-0 px-3 py-1.5 text-white text-xs rounded-lg hover:bg-blue-500 transition-colors" style={{ backgroundColor: 'var(--accent-blue)' }}>
+                        className="shrink-0 px-3 py-1.5 text-xs rounded-lg hover:bg-blue-500 transition-colors" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
                         {shareCopied ? t('Copiado!', 'Copied!') : t('Copiar', 'Copy')}
                       </button>
                     </div>

@@ -116,7 +116,7 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
               className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
           </div>
           <button onClick={handleSave}
-            className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors text-sm font-medium">
+            className="w-full py-2 bg-blue-600 rounded-lg hover:bg-blue-500 transition-colors text-sm font-medium" style={{ color: '#ffffff' }}>
             {t('Guardar metas', 'Save goals')}
           </button>
         </div>

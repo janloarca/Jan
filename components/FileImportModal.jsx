@@ -7,6 +7,7 @@ import { detectCoinbase, parseCoinbase } from '@/lib/parsers/coinbaseParser'
 import { detectKraken, parseKraken } from '@/lib/parsers/krakenParser'
 import { isIBKRSectionedFormat, parseIBKRFile, formatIBKRFileResult } from '@/lib/parsers/ibkrFileParser'
 import { FINANCE_CATEGORIES, CATEGORY_COLORS } from '@/lib/financeCategories'
+import { matchStatement } from '@/lib/statementMatcher'
 import { validateItem, sanitizeImportItem, sanitizeCell } from '@/lib/validation'
 
 const FIELD_MAP = {
@@ -229,7 +230,7 @@ function parseNumber(val) {
   return isFinite(num) ? num : 0
 }
 
-export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateItem, onDeleteItem, onBulkImport, existingItems, existingLots = [], activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null }) {
+export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateItem, onDeleteItem, onBulkImport, existingItems, existingLots = [], existingFinanceTransactions = [], activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null }) {
   const trapRef = useFocusTrap()
   const [mode, setMode] = useState('file')
   const [step, setStep] = useState('upload')
@@ -254,6 +255,11 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   const [extraSheets, setExtraSheets] = useState({ snapshots: [], transactions: [] })
   const [biData, setBiData] = useState(null)
   const [selectedBankAccount, setSelectedBankAccount] = useState('')
+  // Statement reconciliation: buckets from lib/statementMatcher + which rows the
+  // user checked for import (new rows pre-checked, likely-duplicates unchecked).
+  const [biMatch, setBiMatch] = useState(null)
+  const [biSelected, setBiSelected] = useState(new Set())
+  const [stmtAccount, setStmtAccount] = useState('')
 
   useEffect(() => {
     const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
@@ -382,7 +388,12 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         setStep('map')
       } else if (detectBI(hdrs)) {
         const parsed = parseBI(rows, hdrs)
+        // Reconcile against what's already recorded: only truly-new rows get
+        // imported; re-uploading the same statement yields zero additions.
+        const match = matchStatement(parsed.transactions, existingFinanceTransactions)
         setBiData(parsed)
+        setBiMatch(match)
+        setBiSelected(new Set(match.newTxs.map((_, i) => `n${i}`)))
         setStep('bi-preview')
       } else {
         setHeaders(hdrs)
@@ -393,7 +404,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     } catch (err) {
       setError(lang === 'es' ? `Error leyendo archivo: ${err.message}` : `Error reading file: ${err.message}`)
     }
-  }, [lang])
+  }, [lang, existingFinanceTransactions])
 
   const handlePaste = useCallback(() => {
     if (!pasteText.trim()) return
@@ -573,15 +584,27 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   }, [manual, onImportItems, lang])
 
   const doBIImport = useCallback(async () => {
-    if (!biData || !onAddFinanceTransaction) return
+    if (!biData || !biMatch || !onAddFinanceTransaction) return
     setImporting(true)
     setError('')
     let success = 0
     let failed = 0
 
-    for (const tx of biData.transactions) {
+    // Only the rows the user left checked: new rows (pre-checked) plus any
+    // likely-duplicates they explicitly confirmed. Exact matches never import.
+    const toImport = [
+      ...biMatch.newTxs.filter((_, i) => biSelected.has(`n${i}`)),
+      ...biMatch.likely.filter((_, i) => biSelected.has(`l${i}`)).map((x) => x.parsed),
+    ]
+
+    for (const tx of toImport) {
       try {
-        await onAddFinanceTransaction(tx)
+        await onAddFinanceTransaction({
+          ...tx,
+          description: sanitizeCell(String(tx.description || '')).slice(0, 200),
+          ...(tx.reference ? { reference: sanitizeCell(String(tx.reference)).slice(0, 60) } : {}),
+          ...(stmtAccount.trim() ? { account: sanitizeCell(stmtAccount.trim()).slice(0, 40) } : {}),
+        })
         success++
       } catch {
         failed++
@@ -608,10 +631,10 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       }
     }
 
-    setResult({ success, failed, total: biData.transactions.length, isBI: true })
+    setResult({ success, failed, total: biData.transactions.length, skipped: biMatch.exact.length, isBI: true })
     setStep('done')
     setImporting(false)
-  }, [biData, onAddFinanceTransaction, onImportItems, onUpdateItem, existingItems, selectedBankAccount])
+  }, [biData, biMatch, biSelected, stmtAccount, onAddFinanceTransaction, onImportItems, onUpdateItem, existingItems, selectedBankAccount])
 
   const doIBKRImport = useCallback(async () => {
     if (!ibkrData || !ibkrData.items || ibkrData.items.length === 0) return
@@ -964,49 +987,116 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                 </span>
               </div>
               <p className="text-slate-400 text-sm mb-3">
-                {t(`${biData.transactions.length} transacciones encontradas`, `${biData.transactions.length} transactions found`)}
+                {t(`${biData.transactions.length} transacciones en el estado`, `${biData.transactions.length} transactions in the statement`)}
+                {biMatch && ` — ${biMatch.newTxs.length} ${t('nuevas', 'new')} · ${biMatch.exact.length} ${t('ya registradas', 'already recorded')}${biMatch.likely.length > 0 ? ` · ${biMatch.likely.length} ${t('a revisar', 'to review')}` : ''}`}
                 {biData.finalBalance > 0 && ` — ${t('Saldo final', 'Final balance')}: Q${biData.finalBalance.toLocaleString()}`}
               </p>
 
-              <div className="overflow-x-auto max-h-60 overflow-y-auto mb-4">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="text-slate-500 border-b border-glass-border sticky top-0 bg-theme-card">
-                      <th className="text-left py-2 px-2">{t('Fecha', 'Date')}</th>
-                      <th className="text-left py-2 px-2">{t('Descripción', 'Description')}</th>
-                      <th className="text-left py-2 px-2">{t('Categoría', 'Category')}</th>
-                      <th className="text-right py-2 px-2">{t('Monto', 'Amount')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {biData.transactions.map((tx, i) => (
-                      <tr key={i} className="border-b border-glass-border/50 hover:bg-theme-elevated">
-                        <td className="py-2 px-2 text-slate-400 whitespace-nowrap">{tx.date}</td>
-                        <td className="py-2 px-2 text-white max-w-[180px] truncate">{tx.description}</td>
-                        <td className="py-2 px-2">
-                          <select
-                            value={tx.category}
-                            onChange={(e) => {
-                              const updated = { ...biData }
-                              updated.transactions = [...updated.transactions]
-                              updated.transactions[i] = { ...updated.transactions[i], category: e.target.value }
-                              setBiData(updated)
-                            }}
-                            className="bg-theme-base border border-glass-border rounded text-xs text-slate-300 px-1 py-0.5 focus:outline-none"
-                          >
-                            {(tx.type === 'INCOME' ? FINANCE_CATEGORIES.INCOME : FINANCE_CATEGORIES.EXPENSE).map(c => (
-                              <option key={c} value={c}>{c}</option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="py-2 px-2 text-right font-medium whitespace-nowrap" style={{ color: tx.type === 'INCOME' ? '#34d399' : '#f87171' }}>
-                          {tx.type === 'INCOME' ? '+' : '-'}Q{tx.amount.toLocaleString()}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="p-3 bg-theme-base border border-glass-border rounded-lg mb-3">
+                <label className="text-xs text-slate-400 mb-1 block">{t('¿De qué cuenta o tarjeta es este estado? (opcional)', 'Which account or card is this statement from? (optional)')}</label>
+                <input value={stmtAccount} onChange={(e) => setStmtAccount(e.target.value)} list="stmt-accounts"
+                  placeholder={t('Ej: Visa BI, Mastercard G&T…', 'E.g. Visa BI, Mastercard…')}
+                  className="w-full px-3 py-2 bg-theme-card border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-[#3b82f6]/50" />
+                <datalist id="stmt-accounts">
+                  {[...new Set((existingFinanceTransactions || []).map((x) => x.account).filter(Boolean))].map((a) => <option key={a} value={a} />)}
+                </datalist>
               </div>
+
+              {biMatch && (
+                <div className="space-y-3 mb-4">
+                  {/* NEW — pre-checked, will import */}
+                  {biMatch.newTxs.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold mb-1" style={{ color: 'var(--accent-green)' }}>
+                        ✓ {t(`Nuevas (${biMatch.newTxs.length}) — se agregarán`, `New (${biMatch.newTxs.length}) — will be added`)}
+                      </p>
+                      <div className="overflow-x-auto max-h-48 overflow-y-auto border border-glass-border/50 rounded-lg">
+                        <table className="w-full text-xs">
+                          <tbody>
+                            {biMatch.newTxs.map((tx, i) => (
+                              <tr key={`n${i}`} className="border-b border-glass-border/50 hover:bg-theme-elevated">
+                                <td className="py-1.5 px-2">
+                                  <input type="checkbox" checked={biSelected.has(`n${i}`)} onChange={(e) => {
+                                    const next = new Set(biSelected)
+                                    e.target.checked ? next.add(`n${i}`) : next.delete(`n${i}`)
+                                    setBiSelected(next)
+                                  }} />
+                                </td>
+                                <td className="py-1.5 px-2 text-slate-400 whitespace-nowrap">{tx.date}</td>
+                                <td className="py-1.5 px-2 text-white max-w-[160px] truncate">{tx.description}</td>
+                                <td className="py-1.5 px-2">
+                                  <select value={tx.category}
+                                    onChange={(e) => {
+                                      const next = { ...biMatch, newTxs: [...biMatch.newTxs] }
+                                      next.newTxs[i] = { ...next.newTxs[i], category: e.target.value }
+                                      setBiMatch(next)
+                                    }}
+                                    className="bg-theme-base border border-glass-border rounded text-xs text-slate-300 px-1 py-0.5 focus:outline-none">
+                                    {(tx.type === 'INCOME' ? FINANCE_CATEGORIES.INCOME : FINANCE_CATEGORIES.EXPENSE).map(c => (
+                                      <option key={c} value={c}>{c}</option>
+                                    ))}
+                                  </select>
+                                </td>
+                                <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap" style={{ color: tx.type === 'INCOME' ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+                                  {tx.type === 'INCOME' ? '+' : '-'}Q{tx.amount.toLocaleString()}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* LIKELY DUPLICATES — default unchecked, user decides */}
+                  {biMatch.likely.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold mb-1" style={{ color: 'var(--alert-warn-icon)' }}>
+                        ⚠ {t(`Posibles duplicados (${biMatch.likely.length}) — marca solo las que SÍ falten`, `Possible duplicates (${biMatch.likely.length}) — check only the truly missing ones`)}
+                      </p>
+                      <div className="overflow-x-auto max-h-40 overflow-y-auto border rounded-lg" style={{ borderColor: 'var(--alert-warn-border)' }}>
+                        <table className="w-full text-xs">
+                          <tbody>
+                            {biMatch.likely.map(({ parsed, match }, i) => (
+                              <tr key={`l${i}`} className="border-b border-glass-border/50">
+                                <td className="py-1.5 px-2">
+                                  <input type="checkbox" checked={biSelected.has(`l${i}`)} onChange={(e) => {
+                                    const next = new Set(biSelected)
+                                    e.target.checked ? next.add(`l${i}`) : next.delete(`l${i}`)
+                                    setBiSelected(next)
+                                  }} />
+                                </td>
+                                <td className="py-1.5 px-2 text-slate-400 whitespace-nowrap">{parsed.date}</td>
+                                <td className="py-1.5 px-2 text-white max-w-[150px] truncate">{parsed.description}</td>
+                                <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap" style={{ color: parsed.type === 'INCOME' ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+                                  {parsed.type === 'INCOME' ? '+' : '-'}Q{parsed.amount.toLocaleString()}
+                                </td>
+                                <td className="py-1.5 px-2 text-slate-500 max-w-[150px] truncate">
+                                  ≈ {match.date} · {match.description}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* EXACT — skipped, collapsed */}
+                  {biMatch.exact.length > 0 && (
+                    <details className="text-xs">
+                      <summary className="cursor-pointer" style={{ color: 'var(--text-muted)' }}>
+                        ⏭ {t(`Ya registradas (${biMatch.exact.length}) — se omiten`, `Already recorded (${biMatch.exact.length}) — skipped`)}
+                      </summary>
+                      <div className="mt-1 max-h-32 overflow-y-auto border border-glass-border/40 rounded-lg p-2 space-y-0.5">
+                        {biMatch.exact.map(({ parsed }, i) => (
+                          <p key={i} className="text-slate-500 truncate">{parsed.date} · {parsed.description} · Q{parsed.amount.toLocaleString()}</p>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+                </div>
+              )}
 
               {biData.finalBalance > 0 && (
                 <div className="p-3 bg-theme-base border border-glass-border rounded-lg mb-4">
@@ -1022,13 +1112,13 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
               )}
 
               <div className="flex gap-3">
-                <button onClick={() => { setBiData(null); setStep('upload') }}
+                <button onClick={() => { setBiData(null); setBiMatch(null); setBiSelected(new Set()); setStep('upload') }}
                   className="flex-1 py-2.5 border border-glass-border text-slate-300 rounded-lg hover:bg-theme-elevated transition-colors text-sm">
                   {t('Atrás', 'Back')}
                 </button>
                 <button onClick={doBIImport} disabled={importing}
                   className="flex-1 py-2.5 rounded-lg disabled:opacity-50 hover:opacity-90 transition-colors text-sm font-medium" style={{ backgroundColor: '#059669', color: '#fff' }}>
-                  {importing ? t('Importando...', 'Importing...') : t(`Importar ${biData.transactions.length} transacciones`, `Import ${biData.transactions.length} transactions`)}
+                  {importing ? t('Importando...', 'Importing...') : t(`Importar ${biSelected.size} transacciones`, `Import ${biSelected.size} transactions`)}
                 </button>
               </div>
             </div>

@@ -258,7 +258,7 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
               {t('Cancelar', 'Cancel')}
             </button>
             <button type="submit" disabled={saving}
-              className="flex-1 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-500 disabled:opacity-50 transition-colors text-sm font-medium">
+              className="flex-1 py-2.5 bg-red-600 rounded-lg hover:bg-red-500 disabled:opacity-50 transition-colors text-sm font-medium" style={{ color: '#ffffff' }}>
               {saving ? '...' : t('Confirmar Venta', 'Confirm Sale')}
             </button>
           </div>

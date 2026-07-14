@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { FINANCE_CATEGORIES } from '@/lib/financeCategories'
+import { FINANCE_CATEGORIES, MANUAL_INCOME_BLOCKED } from '@/lib/financeCategories'
 
 export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es' }) {
   const t = (es, en) => lang === 'es' ? es : en
@@ -22,7 +22,12 @@ export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es'
     return () => window.removeEventListener('keydown', handleEsc)
   }, [onClose])
 
-  const categories = form.type === 'INCOME' ? FINANCE_CATEGORIES.INCOME : FINANCE_CATEGORIES.EXPENSE
+  // 'Inversiones' never appears here: investment income flows in READ-ONLY
+  // from the portfolio's dividend/interest transactions — entering it manually
+  // would double-count it.
+  const categories = form.type === 'INCOME'
+    ? FINANCE_CATEGORIES.INCOME.filter((c) => !MANUAL_INCOME_BLOCKED.includes(c))
+    : FINANCE_CATEGORIES.EXPENSE
 
   useEffect(() => {
     setForm(f => ({

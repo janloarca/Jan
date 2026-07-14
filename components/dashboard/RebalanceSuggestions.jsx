@@ -106,7 +106,7 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
               {t('Total', 'Total')}: {Object.values(form).reduce((s, v) => s + (v || 0), 0)}%
             </span>
             <button onClick={handleSave}
-              className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors">
+              className="px-3 py-1.5 text-xs bg-blue-600 rounded-lg hover:bg-blue-500 transition-colors" style={{ color: '#ffffff' }}>
               {t('Guardar', 'Save')}
             </button>
           </div>
