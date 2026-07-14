@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { Settings, Building2, Users } from 'lucide-react'
 import EntityManager from '@/components/dashboard/EntityManager'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { isNotificationSupported, getNotificationPermission, requestNotificationPermission } from '@/lib/notifications'
 import { BENCHMARKS } from '@/hooks/useBenchmark'
+import { disconnectAllSyncs } from '@/lib/brokerRegistry'
 
 const CURRENCIES = [
   { code: 'USD', name: 'US Dollar', symbol: '$' },
@@ -25,7 +26,7 @@ const CURRENCIES = [
   { code: 'CNY', name: 'Chinese Yuan', symbol: '¥' },
 ]
 
-export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onExportBackup, onSyncBroker, onOpenIBKR, onImport, onAddAccount, onOpenBlockchain, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, beginnerMode = false, onToggleBeginner, lang = 'es', profile, onSaveProfile, lastSyncTime, portfolioItems = [] }) {
+export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onExportBackup, onOpenConnections, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, beginnerMode = false, onToggleBeginner, lang = 'es', profile, onSaveProfile }) {
   const trapRef = useFocusTrap()
   const [baseCurrency, setBaseCurrency] = useState(settings?.baseCurrency || 'USD')
   const [benchmarkSymbol, setBenchmarkSymbol] = useState(settings?.benchmarkSymbol || '%5EGSPC')
@@ -49,39 +50,11 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   const [shareEnabled, setShareEnabled] = useState(false)
   const [shareLoading, setShareLoading] = useState(false)
   const [shareCopied, setShareCopied] = useState(false)
-  const [ibkrToken, setIbkrToken] = useState('')
-  const [ibkrQueryId, setIbkrQueryId] = useState('')
-  const [ibkrConfigured, setIbkrConfigured] = useState(false)
-  const [ibkrSaving, setIbkrSaving] = useState(false)
-  const [ibkrError, setIbkrError] = useState('')
-  const [showConfig, setShowConfig] = useState(false)
-  const [confirmUnlink, setConfirmUnlink] = useState(false)
   const [saveStatus, setSaveStatus] = useState(null)
-  const [brokerConnections, setBrokerConnections] = useState({})
-  const [expandedBroker, setExpandedBroker] = useState(null)
-  const [brokerForm, setBrokerForm] = useState({})
-  const [brokerSyncing, setBrokerSyncing] = useState(null)
-  const [brokerError, setBrokerError] = useState(null)
 
   const t = (es, en) => lang === 'es' ? es : en
 
   const flash = (type, msg) => { setSaveStatus({ type, msg }); setTimeout(() => setSaveStatus(null), 3000) }
-
-  const institutionSummaries = useMemo(() => {
-    const map = {}
-    for (const item of portfolioItems) {
-      const inst = (item.institution || '').trim()
-      if (!inst) continue
-      if (!map[inst]) map[inst] = { name: inst, count: 0, value: 0, isIbkr: false }
-      map[inst].count++
-      const val = (item.currentPrice || item.purchasePrice || 0) * (item.quantity || 1)
-      map[inst].value += val
-      if (item._source === 'ibkr' || inst.toLowerCase().includes('interactive brokers') || inst.toLowerCase() === 'ibkr') {
-        map[inst].isIbkr = true
-      }
-    }
-    return Object.values(map).sort((a, b) => Math.abs(b.value) - Math.abs(a.value))
-  }, [portfolioItems])
 
   useEffect(() => {
     const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
@@ -114,10 +87,13 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
         await onDeleteAllSnapshots()
         await onDeleteAllTransactions()
         if (onDeleteAllFinanceTransactions) await onDeleteAllFinanceTransactions()
+        // An emptied account must not keep live broker connections silently
+        // re-importing positions — wipe every stored sync credential too.
+        await disconnectAllSyncs(authFetch)
       }
     } catch (e) { flash('err', e.message || t('Error al borrar', 'Error deleting')) }
     setConfirmDelete(null)
-    flash('ok', t('Datos eliminados', 'Data deleted'))
+    flash('ok', type === 'all' ? t('Datos y conexiones eliminados', 'Data and connections deleted') : t('Datos eliminados', 'Data deleted'))
   }
 
   const handleShareAction = useCallback(async (action) => {
@@ -145,212 +121,6 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
     setTimeout(() => setShareCopied(false), 2000)
   }, [shareUrl])
 
-  useEffect(() => {
-    authFetch('/api/brokers/ibkr', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'get-credentials' }),
-    }).then((r) => r.ok ? safeJson(r) : null).then((d) => {
-      if (d?.configured) {
-        setIbkrConfigured(true)
-        setIbkrQueryId(d.flexQueryId || '')
-      }
-    }).catch(() => {})
-  }, [])
-
-  const handleIbkrSave = async () => {
-    setIbkrSaving(true)
-    setIbkrError('')
-    try {
-      const res = await authFetch('/api/brokers/ibkr', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'save-credentials', token: ibkrToken, queryId: ibkrQueryId }),
-      })
-      if (res.ok) {
-        setIbkrConfigured(true)
-        setIbkrToken('')
-      } else {
-        const d = await safeJson(res) || {}
-        setIbkrError(d.error || 'Error')
-      }
-    } catch (e) { setIbkrError(e.message) }
-    setIbkrSaving(false)
-  }
-
-  const handleIbkrDisconnect = async () => {
-    setIbkrSaving(true)
-    try {
-      await authFetch('/api/brokers/ibkr', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'save-credentials', token: null, queryId: null }),
-      })
-      setIbkrConfigured(false)
-      setIbkrToken('')
-      setIbkrQueryId('')
-      flash('ok', t('IBKR desvinculado', 'IBKR unlinked'))
-    } catch (e) { flash('err', e.message || t('Error al desvincular', 'Error unlinking')) }
-    setIbkrSaving(false)
-  }
-
-
-  const BROKER_REGISTRY = [
-    { id: 'alpaca', name: 'Alpaca Markets', icon: '🦙', category: 'traditional', hasApi: true, fields: [
-      { key: 'apiKey', label: 'API Key', placeholder: 'PK...' },
-      { key: 'apiSecret', label: 'API Secret', placeholder: '••••••••', type: 'password' },
-    ], instructions: { es: 'Ve a tu cuenta Alpaca → Paper/Live → API Keys → Generar', en: 'Go to Alpaca account → Paper/Live → API Keys → Generate' } },
-    { id: 'schwab', name: 'Charles Schwab', icon: '🇺🇸', category: 'traditional', hasApi: true, authType: 'oauth', fields: [], instructions: { es: 'Conecta tu cuenta Schwab via OAuth. Se abrirá una ventana de autorización.', en: 'Connect your Schwab account via OAuth. An authorization window will open.' } },
-    { id: 'etoro', name: 'eToro', icon: '📈', category: 'traditional', hasApi: true, fields: [
-      { key: 'apiKey', label: 'API Key (x-api-key)', placeholder: 'Tu API key' },
-      { key: 'userKey', label: 'User Key (x-user-key)', placeholder: 'Tu user key' },
-    ], instructions: { es: 'Ve a eToro → Configuración → API → Generar keys', en: 'Go to eToro → Settings → API → Generate keys' } },
-    { id: 'tradestation', name: 'TradeStation', icon: '🖥️', category: 'traditional', hasApi: true, authType: 'oauth', fields: [], instructions: { es: 'Conecta tu cuenta TradeStation via OAuth. Requiere cuenta con $10k mínimo.', en: 'Connect your TradeStation account via OAuth. Requires $10k minimum funded account.' } },
-    { id: 'tastytrade', name: 'Tastytrade', icon: '🇺🇸', category: 'traditional', hasApi: true, apiNote: 'Session', fields: [
-      { key: 'username', label: 'Username', type: 'text' },
-      { key: 'password', label: 'Password', type: 'password' },
-    ], instructions: { es: 'Ingresa tu usuario y contraseña de Tastytrade.', en: 'Enter your Tastytrade username and password.' } },
-    { id: 'saxo', name: 'Saxo Bank', icon: '🏦', category: 'traditional', hasApi: true, authType: 'oauth', fields: [], instructions: { es: 'Conecta tu cuenta Saxo Bank via OAuth. Ambiente sim disponible.', en: 'Connect your Saxo Bank account via OAuth. Sim environment available.' } },
-    { id: 'ig', name: 'IG Markets', icon: '🇬🇧', category: 'traditional', hasApi: true, apiNote: 'API Key + Session',
-      fields: [
-        { key: 'apiKey', label: 'API Key', type: 'text' },
-        { key: 'username', label: 'Username', type: 'text' },
-        { key: 'password', label: 'Password', type: 'password' },
-      ],
-      instructions: { es: 'Genera tu API key en My IG → Settings → API. Ingresa tu usuario y contraseña.', en: 'Generate your API key at My IG → Settings → API. Enter your username and password.' }
-    },
-    { id: 'degiro', name: 'DEGIRO', icon: '🇪🇺', category: 'traditional', hasApi: false, apiNote: t('No oficial', 'Unofficial'), fields: [] },
-    { id: 'trading212', name: 'Trading 212', icon: '📊', category: 'traditional', hasApi: false, apiNote: t('Limitado', 'Limited'), fields: [] },
-    { id: 'traderepublic', name: 'Trade Republic', icon: '🇩🇪', category: 'traditional', hasApi: false, apiNote: t('No oficial', 'Unofficial'), fields: [] },
-    { id: 'lightyear', name: 'Lightyear', icon: '💡', category: 'traditional', hasApi: false },
-    { id: 'fidelity', name: 'Fidelity', icon: '🇺🇸', category: 'traditional', hasApi: false },
-    { id: 'vanguard', name: 'Vanguard', icon: '🇺🇸', category: 'traditional', hasApi: false },
-    { id: 'webull', name: 'Webull', icon: '📱', category: 'traditional', hasApi: false, apiNote: t('Partner', 'Partner') },
-    { id: 'm1finance', name: 'M1 Finance', icon: '🇺🇸', category: 'traditional', hasApi: false },
-    { id: 'revolut', name: 'Revolut Investments', icon: '💳', category: 'traditional', hasApi: false },
-    { id: 'myinvestor', name: 'MyInvestor', icon: '🇪🇸', category: 'traditional', hasApi: false },
-    { id: 'dukascopy', name: 'Dukascopy', icon: '🇨🇭', category: 'traditional', hasApi: false },
-    { id: 'ppiglobal', name: 'PPI Global', icon: '🇦🇷', category: 'traditional', hasApi: false, apiNote: t('API oficial', 'Official API') },
-    { id: 'tdameritrade', name: 'TD Ameritrade', icon: '🇺🇸', category: 'traditional', hasApi: false, apiNote: '→ Schwab' },
-    { id: 'binance', name: 'Binance', icon: '🟡', category: 'crypto', hasApi: true, fields: [
-      { key: 'apiKey', label: 'API Key', placeholder: 'Tu API key' },
-      { key: 'apiSecret', label: 'Secret Key', placeholder: '••••••••', type: 'password' },
-    ], instructions: { es: 'Ve a Binance → API Management → Crear API → Solo lectura', en: 'Go to Binance → API Management → Create API → Read-only' } },
-    { id: 'coinbase', name: 'Coinbase', icon: '🟠', category: 'crypto', hasApi: true, fields: [
-      { key: 'apiKey', label: 'API Key', placeholder: 'Tu API key' },
-      { key: 'apiSecret', label: 'API Secret', placeholder: '••••••••', type: 'password' },
-    ], instructions: { es: 'Ve a Coinbase → Settings → API → New API Key → Portfolio read', en: 'Go to Coinbase → Settings → API → New API Key → Portfolio read' } },
-    { id: 'kraken', name: 'Kraken', icon: '🦑', category: 'crypto', hasApi: true, fields: [
-      { key: 'apiKey', label: 'API Key', placeholder: 'Tu API key' },
-      { key: 'apiSecret', label: 'Private Key', placeholder: '••••••••', type: 'password' },
-    ], instructions: { es: 'Ve a Kraken → Security → API → Create Key → Solo consulta', en: 'Go to Kraken → Security → API → Create Key → Query only' } },
-    { id: 'bitso', name: 'Bitso', icon: '🟢', category: 'crypto', hasApi: true, fields: [
-      { key: 'apiKey', label: 'API Key', placeholder: 'Tu API key' },
-      { key: 'apiSecret', label: 'API Secret', placeholder: '••••••••', type: 'password' },
-    ], instructions: { es: 'Ve a Bitso → API → Crear key → 2FA requerido', en: 'Go to Bitso → API → Create key → 2FA required' } },
-  ]
-
-  useEffect(() => {
-    if (tab !== 'brokers') return
-    const controller = new AbortController()
-    const apiBrokers = BROKER_REGISTRY.filter(b => b.hasApi)
-    apiBrokers.forEach(broker => {
-      authFetch(`/api/brokers/${broker.id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'get-credentials' }),
-        signal: controller.signal,
-      }).then(r => r.ok ? safeJson(r) : null).then(d => {
-        if (controller.signal.aborted) return
-        if (d?.configured) {
-          setBrokerConnections(prev => ({ ...prev, [broker.id]: { configured: true, lastSync: d.lastSync } }))
-        }
-      }).catch(() => {})
-    })
-    return () => controller.abort()
-  }, [tab])
-
-  const handleBrokerConnect = async (broker) => {
-    setBrokerSyncing(broker.id)
-    setBrokerError(null)
-
-    if (broker.authType === 'oauth') {
-      try {
-        const res = await authFetch(`/api/brokers/${broker.id}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'get-auth-url' }),
-        })
-        if (res.ok) {
-          const data = await safeJson(res)
-          if (data.url) {
-            window.open(data.url, '_blank', 'width=600,height=700')
-            flash('ok', t('Ventana de autorización abierta. Completa el proceso allí.', 'Authorization window opened. Complete the process there.'))
-          }
-        } else {
-          const d = await safeJson(res) || {}
-          setBrokerError(d.error || 'OAuth not configured')
-        }
-      } catch (e) { setBrokerError(e.message) }
-      setBrokerSyncing(null)
-      return
-    }
-
-    try {
-      const res = await authFetch(`/api/brokers/${broker.id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'save-credentials', ...brokerForm }),
-      })
-      if (res.ok) {
-        setBrokerConnections(prev => ({ ...prev, [broker.id]: { configured: true } }))
-        setExpandedBroker(null)
-        setBrokerForm({})
-        flash('ok', `${broker.name} ${t('vinculado', 'linked')}`)
-      } else {
-        const d = await safeJson(res) || {}
-        setBrokerError(d.error || 'Error')
-      }
-    } catch (e) { setBrokerError(e.message) }
-    setBrokerSyncing(null)
-  }
-
-  const handleBrokerSync = async (broker) => {
-    setBrokerSyncing(broker.id)
-    setBrokerError(null)
-    try {
-      const res = await authFetch(`/api/brokers/${broker.id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'sync' }),
-      })
-      if (res.ok) {
-        const data = await safeJson(res)
-        if (data.positions && onSyncBroker) {
-          onSyncBroker(broker.id, data)
-        }
-        flash('ok', `${broker.name}: ${data.count || 0} ${t('posiciones sincronizadas', 'positions synced')}`)
-      } else {
-        const d = await safeJson(res) || {}
-        setBrokerError(d.error || 'Sync failed')
-      }
-    } catch (e) { setBrokerError(e.message) }
-    setBrokerSyncing(null)
-  }
-
-  const handleBrokerDisconnect = async (broker) => {
-    setBrokerSyncing(broker.id)
-    try {
-      await authFetch(`/api/brokers/${broker.id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'save-credentials' }),
-      })
-      setBrokerConnections(prev => { const n = { ...prev }; delete n[broker.id]; return n })
-      flash('ok', `${broker.name} ${t('desvinculado', 'unlinked')}`)
-    } catch (e) { flash('err', e.message) }
-    setBrokerSyncing(null)
-  }
 
   const handleSaveProfile = async () => {
     if (!onSaveProfile) return
@@ -371,7 +141,6 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
     { key: 'general', label: t('General', 'General') },
     { key: 'profile', label: t('Perfil', 'Profile') },
     { key: 'entities', label: t('Entidades', 'Entities') },
-    { key: 'brokers', label: t('Brokers', 'Brokers') },
     { key: 'share', label: t('Compartir', 'Share') },
     { key: 'data', label: t('Datos', 'Data') },
   ]
@@ -411,6 +180,20 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
         <div className="flex-1 overflow-y-auto p-6">
           {tab === 'general' && (
             <div className="space-y-5">
+              {/* Broker syncs moved to their own hub — keep a pointer for discoverability */}
+              {onOpenConnections && (
+                <div className="flex items-center justify-between p-3 bg-theme-base border border-glass-border rounded-lg">
+                  <div>
+                    <div className="text-sm text-white font-medium">🔗 {t('Conexiones y Sync', 'Connections & Sync')}</div>
+                    <div className="text-xs text-slate-500">{t('Brokers, exchanges y wallets vinculados.', 'Linked brokers, exchanges and wallets.')}</div>
+                  </div>
+                  <button onClick={() => { onClose(); setTimeout(() => onOpenConnections(), 50) }}
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors shrink-0 ml-3 border hover:bg-blue-500/10" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
+                    {t('Abrir', 'Open')}
+                  </button>
+                </div>
+              )}
+
               {/* Theme toggle */}
               <div>
                 <label className="text-xs mb-2 block font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Tema', 'Theme')}</label>
@@ -616,292 +399,6 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
             </div>
           )}
 
-          {tab === 'brokers' && (() => {
-            const syncAge = lastSyncTime ? Date.now() - new Date(lastSyncTime).getTime() : null
-            const syncDays = syncAge ? Math.floor(syncAge / 86400000) : null
-            const syncStatus = !ibkrConfigured ? 'disconnected' : !lastSyncTime ? 'never' : syncDays > 7 ? 'stale' : 'ok'
-            const statusColor = {
-              disconnected: { dot: 'var(--text-negative)', text: 'var(--text-negative)' },
-              never: { dot: 'var(--accent-orange)', text: 'var(--accent-orange)' },
-              stale: { dot: 'var(--accent-orange)', text: 'var(--accent-orange)' },
-              ok: { dot: '#34d399', text: '#34d399' },
-            }[syncStatus]
-            const statusLabel = {
-              disconnected: t('No vinculado', 'Not linked'),
-              never: t('Nunca sincronizado', 'Never synced'),
-              stale: t(`Hace ${syncDays}d`, `${syncDays}d ago`),
-              ok: syncDays === 0 ? t('Hoy', 'Today') : t(`Hace ${syncDays}d`, `${syncDays}d ago`),
-            }[syncStatus]
-
-            const nonIbkrInstitutions = institutionSummaries.filter(inst => !inst.isIbkr)
-            const traditionalBrokers = BROKER_REGISTRY.filter(b => b.category === 'traditional')
-            const cryptoBrokers = BROKER_REGISTRY.filter(b => b.category === 'crypto')
-
-            const renderBrokerCard = (broker) => {
-              const conn = brokerConnections[broker.id]
-              const isExpanded = expandedBroker === broker.id
-              const isSyncing = brokerSyncing === broker.id
-              return (
-                <div key={broker.id} className="bg-theme-base border border-glass-border/60 rounded-lg overflow-hidden">
-                  <div className="flex items-center gap-3 px-3 py-2">
-                    <div className="relative shrink-0">
-                      <span className="text-sm">{broker.icon}</span>
-                      {conn?.configured && (
-                        <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-emerald-400 rounded-full border border-[#000000]" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-white">{broker.name}</p>
-                      {conn?.configured && (
-                        <p className="text-xs" style={{ color: 'var(--accent-green)' }}>{t('Vinculado', 'Linked')}</p>
-                      )}
-                      {!conn?.configured && broker.apiNote && !broker.hasApi && (
-                        <p className="text-xs text-slate-600">{broker.apiNote}</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {broker.hasApi && conn?.configured ? (
-                        <>
-                          <button onClick={() => handleBrokerSync(broker)} disabled={isSyncing}
-                            className="px-2.5 py-1 text-xs font-medium rounded-md hover:bg-blue-500 disabled:opacity-50 transition-colors" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
-                            {isSyncing ? '...' : 'Sync'}
-                          </button>
-                          <button onClick={() => handleBrokerDisconnect(broker)} disabled={isSyncing}
-                            className="px-2 py-1 text-xs hover:opacity-100 transition-colors" style={{ color: 'var(--text-negative)', opacity: 0.6 }}>
-                            ✕
-                          </button>
-                        </>
-                      ) : broker.hasApi ? (
-                        <button onClick={() => {
-                          if (broker.authType === 'oauth') { handleBrokerConnect(broker); return }
-                          setExpandedBroker(isExpanded ? null : broker.id); setBrokerForm({}); setBrokerError(null)
-                        }}
-                          className="px-2.5 py-1 border text-xs font-medium rounded-md hover:bg-blue-500/10 transition-colors" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
-                          {isSyncing ? '...' : broker.authType === 'oauth' ? 'OAuth' : isExpanded ? t('Cancelar', 'Cancel') : 'API'}
-                        </button>
-                      ) : broker.apiNote ? (
-                        <span className="px-2 py-0.5 text-xs text-slate-600 border border-glass-border/40 rounded">
-                          {broker.apiNote}
-                        </span>
-                      ) : null}
-                      <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport(broker.id) }, 50) }}
-                        className="px-2.5 py-1 border border-glass-border text-xs font-medium rounded-md hover:bg-theme-elevated transition-colors" style={{ color: 'var(--text-secondary)' }}>
-                        CSV
-                      </button>
-                    </div>
-                  </div>
-                  {isExpanded && broker.hasApi && !broker.authType && (
-                    <div className="px-3 pb-3 pt-1 border-t border-glass-border/30 space-y-2">
-                      {broker.instructions && (
-                        <p className="text-xs text-slate-600">{broker.instructions[lang] || broker.instructions.en}</p>
-                      )}
-                      {brokerError && expandedBroker === broker.id && (
-                        <p className="text-xs" style={{ color: 'var(--text-negative)' }}>{brokerError}</p>
-                      )}
-                      {broker.fields.map(f => (
-                        <div key={f.key}>
-                          <label className="text-xs text-slate-500 mb-0.5 block">{f.label}</label>
-                          <input type={f.type || 'text'} value={brokerForm[f.key] || ''}
-                            onChange={(e) => setBrokerForm(prev => ({ ...prev, [f.key]: e.target.value }))}
-                            placeholder={f.placeholder}
-                            className="w-full px-3 py-1.5 bg-theme-surface border border-glass-border/60 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-                        </div>
-                      ))}
-                      <button onClick={() => handleBrokerConnect(broker)}
-                        disabled={isSyncing || broker.fields.some(f => !brokerForm[f.key])}
-                        className="w-full py-2 rounded-lg hover:bg-blue-500 disabled:opacity-50 text-xs font-medium" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
-                        {isSyncing ? '...' : t('Conectar', 'Connect')}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )
-            }
-
-            return (
-            <div className="space-y-5">
-              {/* ── IBKR (API + CSV) ── */}
-              <div>
-                <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Interactive Brokers</p>
-                <div className="p-3 bg-theme-base border border-glass-border rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <div className="relative shrink-0">
-                      <span className="text-xl">🏦</span>
-                      <span className="absolute -bottom-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-[#1C1C1E]" style={{ backgroundColor: statusColor.dot }} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-white">Interactive Brokers</p>
-                      <p className="text-xs" style={{ color: statusColor.text }}>
-                        {ibkrConfigured ? statusLabel : t('No vinculado', 'Not linked')}
-                        {ibkrConfigured && <span className="text-slate-600 ml-1">· ID: {ibkrQueryId}</span>}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {ibkrConfigured ? (
-                        <button onClick={() => { onClose(); setTimeout(() => { if (onOpenIBKR) onOpenIBKR() }, 50) }}
-                          className="px-2.5 py-1 text-xs font-medium rounded-md hover:bg-blue-500 transition-colors" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
-                          Sync
-                        </button>
-                      ) : (
-                        <button onClick={() => setShowConfig(true)}
-                          className="px-2.5 py-1 border text-xs font-medium rounded-md hover:bg-blue-500/10 transition-colors" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
-                          API
-                        </button>
-                      )}
-                      <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport('ibkr') }, 50) }}
-                        className="px-2.5 py-1 border border-glass-border text-xs font-medium rounded-md hover:bg-theme-elevated transition-colors" style={{ color: 'var(--text-secondary)' }}>
-                        CSV
-                      </button>
-                    </div>
-                  </div>
-                  {ibkrConfigured && syncStatus === 'stale' && (
-                    <p className="text-xs mt-2 pl-9" style={{ color: 'var(--accent-orange)' }}>
-                      {t('Tus datos podrían estar desactualizados', 'Your data may be outdated')}
-                    </p>
-                  )}
-                </div>
-
-                {!ibkrConfigured && showConfig && (
-                  <div className="space-y-3 p-3 bg-theme-base border border-glass-border rounded-xl mt-2">
-                    <p className="text-xs text-slate-600">
-                      {t('Ve a IBKR → Reports → Flex Queries → crear query con Open Positions + Trades. Genera un Flex Token en Settings.',
-                         'Go to IBKR → Reports → Flex Queries → create query with Open Positions + Trades. Generate a Flex Token in Settings.')}
-                    </p>
-                    {ibkrError && <p className="text-xs" style={{ color: 'var(--text-negative)' }}>{ibkrError}</p>}
-                    <div>
-                      <label className="text-xs text-slate-500 mb-0.5 block">Flex Token</label>
-                      <input type="password" value={ibkrToken} onChange={(e) => setIbkrToken(e.target.value)}
-                        placeholder="••••••••••••••••"
-                        className="w-full px-3 py-1.5 bg-theme-surface border border-glass-border/60 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-slate-500 mb-0.5 block">Query ID</label>
-                      <input type="text" value={ibkrQueryId} onChange={(e) => setIbkrQueryId(e.target.value)}
-                        placeholder="123456"
-                        className="w-full px-3 py-1.5 bg-theme-surface border border-glass-border/60 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-                    </div>
-                    <button onClick={handleIbkrSave} disabled={ibkrSaving || !ibkrToken || !ibkrQueryId}
-                      className="w-full py-2 rounded-lg hover:bg-blue-500 disabled:opacity-50 text-xs font-medium" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
-                      {ibkrSaving ? '...' : t('Conectar', 'Connect')}
-                    </button>
-                  </div>
-                )}
-
-                {ibkrConfigured && !confirmUnlink && (
-                  <button onClick={() => setConfirmUnlink(true)}
-                    className="text-xs hover:opacity-100 transition-colors mt-2" style={{ color: 'var(--text-negative)', opacity: 0.6 }}>
-                    {t('Desvincular', 'Unlink')}
-                  </button>
-                )}
-                {ibkrConfigured && confirmUnlink && (
-                  <div className="p-3 bg-theme-surface border border-glass-border border-l-4 border-l-red-500 rounded-lg space-y-2 mt-2">
-                    <p className="text-xs font-medium" style={{ color: 'var(--text-negative)' }}>{t('¿Desvincular Interactive Brokers?', 'Unlink Interactive Brokers?')}</p>
-                    <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                      {t('Se eliminará la conexión API. Tus posiciones importadas se mantienen.',
-                         'The API connection will be removed. Your imported positions will be kept.')}
-                    </p>
-                    <div className="flex gap-2">
-                      <button onClick={async () => { await handleIbkrDisconnect(); setConfirmUnlink(false) }} disabled={ibkrSaving}
-                        className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-red-500 transition-colors" style={{ color: '#ffffff', backgroundColor: 'var(--text-negative)' }}>
-                        {ibkrSaving ? '...' : t('Sí', 'Yes')}
-                      </button>
-                      <button onClick={() => setConfirmUnlink(false)}
-                        className="px-3 py-1.5 border border-glass-border text-xs rounded-lg hover:bg-theme-elevated transition-colors" style={{ color: 'var(--text-secondary)' }}>
-                        {t('No', 'No')}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* ── BROKERS TRADICIONALES ── */}
-              <details className="group" open>
-                <summary className="flex items-center justify-between cursor-pointer">
-                  <p className="text-xs text-slate-500 uppercase tracking-wider">
-                    {t('Brokers Tradicionales', 'Traditional Brokers')}
-                    <span className="text-slate-600 ml-1">({traditionalBrokers.length})</span>
-                  </p>
-                  <span className="text-xs text-slate-600 group-open:rotate-180 transition-transform">▼</span>
-                </summary>
-                <div className="mt-2 space-y-1">
-                  {traditionalBrokers.map(renderBrokerCard)}
-                </div>
-              </details>
-
-              {/* ── CRYPTO ── */}
-              <details className="group" open>
-                <summary className="flex items-center justify-between cursor-pointer">
-                  <p className="text-xs text-slate-500 uppercase tracking-wider">
-                    Crypto
-                    <span className="text-slate-600 ml-1">({cryptoBrokers.length + 1})</span>
-                  </p>
-                  <span className="text-xs text-slate-600 group-open:rotate-180 transition-transform">▼</span>
-                </summary>
-                <div className="mt-2 space-y-1">
-                  {cryptoBrokers.map(renderBrokerCard)}
-                  <div className="bg-theme-base border border-glass-border/60 rounded-lg">
-                    <div className="flex items-center gap-3 px-3 py-2">
-                      <span className="text-sm">🔗</span>
-                      <div className="flex-1">
-                        <p className="text-sm text-white">{t('Wallet on-chain', 'On-chain Wallet')}</p>
-                        <p className="text-xs text-slate-600">Blockchain.com, Ledger, MetaMask</p>
-                      </div>
-                      <button onClick={() => { onClose(); setTimeout(() => { if (onOpenBlockchain) onOpenBlockchain() }, 50) }}
-                        className="px-2.5 py-1 border text-xs font-medium rounded-md hover:bg-blue-500/10 transition-colors" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
-                        {t('Conectar', 'Connect')}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </details>
-
-              {/* ── PRIVADO / VC ── */}
-              <details className="group">
-                <summary className="flex items-center justify-between cursor-pointer">
-                  <p className="text-xs text-slate-500 uppercase tracking-wider">{t('Privado / VC', 'Private / VC')}</p>
-                  <span className="text-xs text-slate-600 group-open:rotate-180 transition-transform">▼</span>
-                </summary>
-                <div className="mt-2 space-y-2">
-                  <p className="text-xs text-slate-600 mb-1">
-                    {t('SAFE notes, VC funds, PE, club deals.',
-                       'SAFE notes, VC funds, PE, club deals.')}
-                  </p>
-                  <div className="flex gap-2">
-                    <button onClick={() => { onClose(); setTimeout(() => { if (onAddAccount) onAddAccount() }, 50) }}
-                      className="flex-1 px-3 py-2 border text-xs font-medium rounded-lg hover:bg-blue-500/10 transition-colors" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
-                      {t('Agregar', 'Add')}
-                    </button>
-                    <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport() }, 50) }}
-                      className="flex-1 px-3 py-2 border border-glass-border text-xs font-medium rounded-lg hover:bg-theme-elevated transition-colors" style={{ color: 'var(--text-secondary)' }}>
-                      CSV
-                    </button>
-                  </div>
-                </div>
-              </details>
-
-              {/* ── YOUR INSTITUTIONS ── */}
-              {nonIbkrInstitutions.length > 0 && (
-                <div>
-                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">{t('Tus instituciones', 'Your institutions')}</p>
-                  <div className="space-y-1">
-                    {nonIbkrInstitutions.map(inst => (
-                      <div key={inst.name} className="flex items-center gap-3 px-3 py-2 bg-theme-base border border-glass-border/60 rounded-lg">
-                        <span className="text-slate-500 text-sm">🏢</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-white font-medium truncate">{inst.name}</p>
-                          <p className="text-xs text-slate-500">
-                            {inst.count} {t('posiciones', 'positions')} · ${Math.abs(inst.value).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-            )
-          })()}
-
           {tab === 'share' && (
             <div className="space-y-5">
               <div>
@@ -982,7 +479,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                 { key: 'snapshots', label: t('Eliminar snapshots', 'Delete snapshots'), desc: t('Borra el historial de snapshots del portfolio.', 'Deletes portfolio snapshot history.'), warn: t('El gráfico de crecimiento perderá datos históricos.', 'The growth chart will lose historical data.') },
                 { key: 'transactions', label: t('Eliminar transacciones', 'Delete transactions'), desc: t('Borra el historial de transacciones.', 'Deletes transaction history.'), warn: t('Los retornos YTD y Modified Dietz serán menos precisos.', 'YTD returns and Modified Dietz will be less accurate.') },
                 { key: 'financeTransactions', label: t('Eliminar finanzas', 'Delete finance data'), desc: t('Borra todos los ingresos y gastos.', 'Deletes all income and expense data.'), warn: t('Se perderá el historial de ingresos y gastos.', 'Income and expense history will be lost.') },
-                { key: 'all', label: t('Eliminar todo', 'Delete everything'), desc: t('Borra todos los datos del portfolio.', 'Deletes all portfolio data.'), warn: t('Se borrarán TODOS los datos: cuentas, historial, transacciones y finanzas.', 'ALL data will be deleted: accounts, history, transactions, and finances.') },
+                { key: 'all', label: t('Eliminar todo', 'Delete everything'), desc: t('Borra todos los datos del portfolio.', 'Deletes all portfolio data.'), warn: t('Se borrarán TODOS los datos (cuentas, historial, transacciones, finanzas) y se desconectarán todos los brokers vinculados.', 'ALL data will be deleted (accounts, history, transactions, finances) and every linked broker will be disconnected.') },
               ].map((action) => (
                 <div key={action.key} className="flex items-center justify-between p-3 bg-theme-base border border-glass-border rounded-lg">
                   <div>

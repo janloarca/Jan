@@ -39,6 +39,7 @@ const IBKRSyncModal = dynamic(() => import('@/components/IBKRSyncModal'), { load
 const BlockchainSyncModal = dynamic(() => import('@/components/BlockchainSyncModal'), { loading: () => <ModalSkeleton /> })
 const LedgerSyncModal = dynamic(() => import('@/components/LedgerSyncModal'), { loading: () => <ModalSkeleton /> })
 const SettingsModal = dynamic(() => import('@/components/SettingsModal'), { loading: () => <ModalSkeleton /> })
+const ConnectionsModal = dynamic(() => import('@/components/ConnectionsModal'), { loading: () => <ModalSkeleton /> })
 const EditAccountModal = dynamic(() => import('@/components/EditAccountModal'), { loading: () => <ModalSkeleton /> })
 const OptimizeModal = dynamic(() => import('@/components/OptimizeModal'))
 const AssetDetailModal = dynamic(() => import('@/components/dashboard/AssetDetailModal'), { loading: () => <ModalSkeleton /> })
@@ -278,6 +279,7 @@ export default function DashboardPage() {
   }, [])
   const handleOpenAccount = useCallback(() => setModal('account'), [])
   const handleOpenSettings = useCallback(() => setModal('settings'), [])
+  const handleOpenConnections = useCallback(() => setModal('connections'), [])
   const handleOpenTransfer = useCallback(() => setModal('transfer'), [])
   const handleOpenCashflow = useCallback(() => { setCashflowPrefill(null); setModal('cashflow') }, [])
   const handleOpenCashflowPrefilled = useCallback((prefill) => { setCashflowPrefill(prefill || null); setModal('cashflow') }, [])
@@ -901,7 +903,7 @@ export default function DashboardPage() {
               <ActionButtons
                 onImport={handleOpenImport} onAddAccount={handleOpenAccount}
                 onTransfer={handleOpenTransfer} onCashFlow={handleOpenCashflow} onExport={handleExport}
-                onShare={handleShare} onIntegrations={handleOpenSettings}
+                onShare={handleShare} onIntegrations={handleOpenConnections}
                 onReview={handleOpenReview} itemCount={enrichedItems.length} lang={lang}
                 ibkrSyncStatus={ibkrSyncStatus} ibkrLastSync={ibkrLastSync}
               />
@@ -1129,8 +1131,36 @@ export default function DashboardPage() {
           onAddEntity={addEntity}
           onUpdateEntity={updateEntityData}
           onDeleteEntity={deleteEntity}
+          onOpenConnections={handleOpenConnections}
+          onExportBackup={() => {
+            const data = {
+              exportDate: new Date().toISOString(), version: '1.0',
+              items, transactions, lots, snapshots, alerts, portfolios, goals, settings, financeTransactions,
+            }
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `chispudo-backup-${new Date().toISOString().split('T')[0]}.json`
+            a.click()
+            URL.revokeObjectURL(url)
+          }}
+          theme={theme} onToggleTheme={handleSetTheme} lang={lang}
+          beginnerMode={beginnerMode} onToggleBeginner={handleToggleBeginner}
+          profile={profile} onSaveProfile={saveProfile}
+        />
+      )}
+
+      {modal === 'connections' && (
+        <ConnectionsModal
+          onClose={handleCloseModal}
+          lang={lang}
           lastSyncTime={settings?._ibkrLastSync || settings?._ibkrLastAutoSync || null}
           portfolioItems={portfolioItems}
+          onOpenIBKR={handleOpenIBKR}
+          onImport={handleOpenImport}
+          onAddAccount={handleOpenAccount}
+          onOpenBlockchain={handleOpenBlockchain}
           onSyncBroker={async (brokerId, data) => {
             const positions = data?.positions || data || []
             const posArray = Array.isArray(positions) ? positions : []
@@ -1149,26 +1179,6 @@ export default function DashboardPage() {
               showToast(`${brokerId}: ${mapped.length} positions synced`, 'success')
             }
           }}
-          onExportBackup={() => {
-            const data = {
-              exportDate: new Date().toISOString(), version: '1.0',
-              items, transactions, lots, snapshots, alerts, portfolios, goals, settings, financeTransactions,
-            }
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-            const url = URL.createObjectURL(blob)
-            const a = document.createElement('a')
-            a.href = url
-            a.download = `chispudo-backup-${new Date().toISOString().split('T')[0]}.json`
-            a.click()
-            URL.revokeObjectURL(url)
-          }}
-          onOpenIBKR={handleOpenIBKR}
-          onImport={handleOpenImport}
-          onAddAccount={handleOpenAccount}
-          onOpenBlockchain={handleOpenBlockchain}
-          theme={theme} onToggleTheme={handleSetTheme} lang={lang}
-          beginnerMode={beginnerMode} onToggleBeginner={handleToggleBeginner}
-          profile={profile} onSaveProfile={saveProfile}
         />
       )}
 
