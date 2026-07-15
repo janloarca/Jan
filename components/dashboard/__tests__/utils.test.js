@@ -11,6 +11,7 @@ import {
   getMaturityInfo,
   augmentSnapshots,
   findYearStartAnchor,
+  findMonthStartAnchor,
   effectiveAcqTs,
   formatMonth,
 } from '../utils'
@@ -421,5 +422,44 @@ describe('findYearStartAnchor', () => {
     expect(findYearStartAnchor([], year)).toBeNull()
     expect(findYearStartAnchor([{ netWorthUSD: 1 }], year)).toBeNull()
     expect(findYearStartAnchor(null, year)).toBeNull()
+  })
+})
+
+describe('findMonthStartAnchor', () => {
+  it('prefers the first snapshot of the target month', () => {
+    const snaps = [
+      { date: '2026-06-28', netWorthUSD: 90 },
+      { date: '2026-07-02', netWorthUSD: 100 },
+      { date: '2026-07-20', netWorthUSD: 120 },
+    ]
+    expect(findMonthStartAnchor(snaps, 2026, 6).date).toBe('2026-07-02') // month 6 = July
+  })
+
+  it('falls back to the last snapshot of the prior month (within 5 days)', () => {
+    const snaps = [
+      { date: '2026-06-29', netWorthUSD: 90 },
+      { date: '2026-07-15', netWorthUSD: 120 },
+    ]
+    expect(findMonthStartAnchor(snaps, 2026, 6).date).toBe('2026-06-29')
+  })
+
+  it('handles the January boundary (prior month = prior year December)', () => {
+    const snaps = [
+      { date: '2025-12-30', netWorthUSD: 80 },
+      { date: '2026-02-01', netWorthUSD: 95 },
+    ]
+    expect(findMonthStartAnchor(snaps, 2026, 0).date).toBe('2025-12-30')
+  })
+
+  it('rejects anchors outside the 5-day window of the 1st', () => {
+    const snaps = [
+      { date: '2026-07-09', netWorthUSD: 100 },
+    ]
+    expect(findMonthStartAnchor(snaps, 2026, 6)).toBeNull()
+  })
+
+  it('returns null for empty input', () => {
+    expect(findMonthStartAnchor([], 2026, 6)).toBeNull()
+    expect(findMonthStartAnchor(null, 2026, 6)).toBeNull()
   })
 })

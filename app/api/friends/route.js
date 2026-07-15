@@ -57,7 +57,7 @@ function sanitizeStatBlock(raw) {
         impactPct: isFinite(Number(m?.impactPct)) ? Number(m.impactPct) : 0,
       })).filter((m) => m.changePct != null)
     : []
-  return { ytd: clampPct(raw.ytd), day: clampPct(raw.day), movers, updatedAt: new Date().toISOString() }
+  return { ytd: clampPct(raw.ytd), mtd: clampPct(raw.mtd), day: clampPct(raw.day), movers, updatedAt: new Date().toISOString() }
 }
 
 function statsForScope(profile, scope) {
@@ -125,6 +125,7 @@ export async function POST(request) {
             avatar: prof.avatar || '',
             verified: !!prof.verified,
             ytd: st.ytd ?? null,
+            mtd: st.mtd ?? null,
             day: st.day ?? null,
             movers: Array.isArray(st.movers) ? st.movers : [],
             updatedAt: st.updatedAt || prof.updatedAt || null,

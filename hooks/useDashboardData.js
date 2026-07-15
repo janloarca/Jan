@@ -5,7 +5,7 @@ import { useExchangeRates } from './useExchangeRates'
 import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor } from '@/components/dashboard/utils'
+import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor } from '@/components/dashboard/utils'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
 
@@ -799,6 +799,25 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     return { returnYTD: clampedPct, ytdChange: abs, returnSinceStart, sinceStartDate }
   }, [jan1Value, netWorth, transactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot])
 
+  // Month-to-date return (Modified Dietz) — the "how are we doing THIS month"
+  // number for the Friends monthly leaderboard. Same shape as YTD, anchored to
+  // the prior month-end snapshot; null when there's no reliable month anchor.
+  const returnMTD = useMemo(() => {
+    const now = new Date()
+    const year = now.getUTCFullYear()
+    const month = now.getUTCMonth()
+    if (netWorth <= 0) return null
+    const anchor = findMonthStartAnchor(augmentedSnapshots, year, month)
+    let startVal = anchor ? convertSnapshot(anchor.netWorthUSD ?? anchor.totalActivosUSD ?? 0) : null
+    if (startVal == null || startVal <= 0) return null
+    const { pct } = computeModifiedDietz({
+      startValue: startVal, endValue: netWorth,
+      startTs: Date.UTC(year, month, 1), endTs: Date.now(),
+      transactions, convert, baseCurrency,
+    })
+    return Math.max(-200, Math.min(200, pct))
+  }, [netWorth, transactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot])
+
   const annualDividends = useMemo(() => {
     // Trailing 12 months only — this figure is labeled "Dividendos/año" in the UI
     // and the PDF report, so a lifetime sum would overstate it more every year.
@@ -980,7 +999,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
     // Computed values
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
-    returnYTD, ytdChange, returnSinceStart, sinceStartDate,
+    returnYTD, ytdChange, returnSinceStart, sinceStartDate, returnMTD,
     annualDividends, estimatedAnnualIncome,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
 

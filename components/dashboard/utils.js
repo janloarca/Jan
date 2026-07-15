@@ -234,6 +234,23 @@ export function findYearStartAnchor(snapshots, year) {
   return diff <= 15 * 86400000 ? best : null
 }
 
+// Month-start anchor for a month-to-date (MTD) return: the snapshot closest to
+// the 1st of the month (either just before — last day of prior month — or just
+// after), within a ~5-day window. `month` is 0-indexed (0 = January).
+export function findMonthStartAnchor(snapshots, year, month) {
+  if (!Array.isArray(snapshots) || snapshots.length === 0) return null
+  const monthStart = Date.UTC(year, month, 1)
+  const window = 5 * 86400000
+  let best = null
+  let bestDiff = Infinity
+  for (const s of snapshots) {
+    if (!s || !s.date) continue
+    const diff = Math.abs(new Date(s.date).getTime() - monthStart)
+    if (diff <= window && diff < bestDiff) { best = s; bestDiff = diff }
+  }
+  return best
+}
+
 // Build the income-event payload for /api/prices/portfolio-history from DIVIDEND
 // transactions. Reinvested step-ups raise the linked asset's value; cash-destination
 // payments are excluded (their value already lives in the destination account).

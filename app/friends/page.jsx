@@ -66,7 +66,7 @@ export default function FriendsPage() {
   }, [router])
 
   const {
-    enrichedItems, returnYTD, dailyChange, totalAssets, baseCurrency, profile, settings, dataLoading,
+    enrichedItems, returnYTD, returnMTD, dailyChange, totalAssets, baseCurrency, profile, settings, dataLoading,
   } = useDashboardData({ user, lang, activePortfolio: '__all__' })
 
   const t = useCallback((es, en) => (lang === 'es' ? es : en), [lang])
@@ -94,11 +94,11 @@ export default function FriendsPage() {
   }, [enrichedItems, totalAssets])
 
   const myStats = useMemo(() => {
-    const all = buildFriendStats({ enrichedItems, returnYTD, dailyChange, totalAssets })
+    const all = buildFriendStats({ enrichedItems, returnYTD, returnMTD, dailyChange, totalAssets })
     const out = { all }
-    if (hasIbkr) out.ibkr = buildFriendStats({ enrichedItems, returnYTD, dailyChange, totalAssets, scopeFilter: (it) => it._source === 'ibkr' })
+    if (hasIbkr) out.ibkr = buildFriendStats({ enrichedItems, returnYTD, returnMTD, dailyChange, totalAssets, scopeFilter: (it) => it._source === 'ibkr' })
     return out
-  }, [enrichedItems, returnYTD, dailyChange, totalAssets, hasIbkr])
+  }, [enrichedItems, returnYTD, returnMTD, dailyChange, totalAssets, hasIbkr])
 
   const [groups, setGroups] = useState(null)
   const [global, setGlobal] = useState(null)
@@ -110,6 +110,7 @@ export default function FriendsPage() {
   const [createName, setCreateName] = useState('')
   const [createScope, setCreateScope] = useState('all')
   const [joinCode, setJoinCode] = useState('')
+  const [metric, setMetric] = useState('ytd') // 'ytd' | 'mtd' (Este mes)
   const syncedRef = useRef(false)
 
   const flash = useCallback((msg) => { setToast(msg); setTimeout(() => setToast(null), 2500) }, [])
@@ -248,8 +249,17 @@ export default function FriendsPage() {
               <div className="text-xs text-slate-500">{t('Tú', 'You')}</div>
             </div>
             <div className="text-right">
-              <div className="text-xl font-bold font-mono tabular-nums" style={{ color: pctColor(my.ytd) }}>{fmtPct(my.ytd)}</div>
-              <div className="text-[10px] text-slate-500">YTD · {t('hoy', 'today')} <span style={{ color: pctColor(my.day) }}>{fmtPct(my.day)}</span></div>
+              <div className="flex items-end gap-3 justify-end">
+                <div>
+                  <div className="text-xl font-bold font-mono tabular-nums" style={{ color: pctColor(my.ytd) }}>{fmtPct(my.ytd)}</div>
+                  <div className="text-[9px] text-slate-500 uppercase tracking-wide">YTD</div>
+                </div>
+                <div>
+                  <div className="text-base font-bold font-mono tabular-nums" style={{ color: pctColor(my.mtd) }}>{fmtPct(my.mtd)}</div>
+                  <div className="text-[9px] text-slate-500 uppercase tracking-wide">{t('mes', 'month')}</div>
+                </div>
+              </div>
+              <div className="text-[10px] text-slate-500 mt-0.5">{t('hoy', 'today')} <span style={{ color: pctColor(my.day) }}>{fmtPct(my.day)}</span></div>
             </div>
           </div>
           <div className="flex items-center justify-between mt-3">
@@ -311,6 +321,21 @@ export default function FriendsPage() {
           </div>
         )}
 
+        {/* Metric toggle: rank by the year (YTD) or the current month (competencia) */}
+        {groups && groups.length > 0 && (
+          <div className="flex items-center gap-1.5 justify-center">
+            {[{ k: 'ytd', l: t('YTD (año)', 'YTD (year)') }, { k: 'mtd', l: t('Este mes', 'This month') }].map((o) => (
+              <button key={o.k} onClick={() => setMetric(o.k)}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors"
+                style={metric === o.k
+                  ? { borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', color: 'var(--accent-blue)' }
+                  : { borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
+                {o.k === 'mtd' && '🏁 '}{o.l}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Groups */}
         {groups === null ? (
           <p className="text-xs text-slate-500">…</p>
@@ -322,7 +347,7 @@ export default function FriendsPage() {
           </div>
         ) : (
           groups.map((g) => (
-            <GroupCard key={g.id} group={g} lang={lang} t={t} expanded={expanded} setExpanded={setExpanded}
+            <GroupCard key={g.id} group={g} lang={lang} t={t} metric={metric} expanded={expanded} setExpanded={setExpanded}
               onCopy={copyCode} onLeave={handleLeave} />
           ))
         )}
@@ -357,8 +382,10 @@ function VerifiedBadge({ lang }) {
   )
 }
 
-function GroupCard({ group, lang, t, expanded, setExpanded, onCopy, onLeave }) {
-  const rows = group.rows || []
+function GroupCard({ group, lang, t, metric = 'ytd', expanded, setExpanded, onCopy, onLeave }) {
+  // Server sends rows sorted by YTD; re-sort locally by the active metric so the
+  // "Este mes" toggle instantly re-ranks (nulls sink to the bottom).
+  const rows = [...(group.rows || [])].sort((a, b) => (b[metric] ?? -Infinity) - (a[metric] ?? -Infinity))
   return (
     <div className="rounded-xl border overflow-hidden" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--card-border)' }}>
       <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'var(--card-border)' }}>
@@ -394,7 +421,7 @@ function GroupCard({ group, lang, t, expanded, setExpanded, onCopy, onLeave }) {
               <button onClick={() => hasDetail && setExpanded((p) => ({ ...p, [key]: !p[key] }))}
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[var(--bg-card-hover)]"
                 style={r.isYou ? { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 8%, transparent)' } : undefined}>
-                <span className="w-6 text-center text-sm shrink-0">{i < 3 ? MEDALS[i] : <span className="text-xs text-slate-500">{i + 1}</span>}</span>
+                <span className="w-6 text-center text-sm shrink-0">{metric === 'mtd' && i === 0 ? '👑' : i < 3 ? MEDALS[i] : <span className="text-xs text-slate-500">{i + 1}</span>}</span>
                 <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
                   style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
                   {(r.avatar || r.displayName || '?').charAt(0).toUpperCase()}
@@ -408,8 +435,13 @@ function GroupCard({ group, lang, t, expanded, setExpanded, onCopy, onLeave }) {
                   <div className="text-[10px] text-slate-600">{t('act.', 'upd.')} {timeAgo(r.updatedAt, lang)}</div>
                 </div>
                 <div className="text-right shrink-0">
-                  <div className="text-sm font-bold font-mono tabular-nums" style={{ color: pctColor(r.ytd) }}>{fmtPct(r.ytd)}</div>
-                  <div className="text-[10px]" style={{ color: pctColor(r.day) }}>{t('hoy', 'today')} {fmtPct(r.day)}</div>
+                  <div className="text-sm font-bold font-mono tabular-nums" style={{ color: pctColor(r[metric]) }}>{fmtPct(r[metric])}</div>
+                  <div className="text-[10px] text-slate-500">
+                    {metric === 'mtd'
+                      ? <>YTD <span style={{ color: pctColor(r.ytd) }}>{fmtPct(r.ytd, 1)}</span></>
+                      : <>{t('mes', 'month')} <span style={{ color: pctColor(r.mtd) }}>{fmtPct(r.mtd, 1)}</span></>}
+                    {' · '}{t('hoy', 'today')} <span style={{ color: pctColor(r.day) }}>{fmtPct(r.day, 1)}</span>
+                  </div>
                 </div>
                 {hasDetail && <span className="text-slate-600 text-xs shrink-0">{isOpen ? '▾' : '▸'}</span>}
               </button>
