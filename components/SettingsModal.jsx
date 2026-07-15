@@ -37,7 +37,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   const [shareLoading, setShareLoading] = useState(false)
   const [shareCopied, setShareCopied] = useState(null) // token just copied
   const [shareCreating, setShareCreating] = useState(false)
-  const [shareForm, setShareForm] = useState({ label: '', scopeType: 'all', entityId: '', institutions: [] })
+  const [shareForm, setShareForm] = useState({ label: '', scopeType: 'all', entityId: '', institutions: [], display: 'both' })
   const [saveStatus, setSaveStatus] = useState(null)
 
   const t = (es, en) => lang === 'es' ? es : en
@@ -128,10 +128,10 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
         : shareForm.scopeType === 'institutions'
           ? { type: 'institutions', institutions: shareForm.institutions }
           : { type: 'all' }
-      const { link } = await shareApi({ action: 'create', label: shareForm.label, scope })
+      const { link } = await shareApi({ action: 'create', label: shareForm.label, scope, display: shareForm.display })
       setShareLinks((prev) => [...(prev || []), link])
       setShareCreating(false)
-      setShareForm({ label: '', scopeType: 'all', entityId: '', institutions: [] })
+      setShareForm({ label: '', scopeType: 'all', entityId: '', institutions: [], display: 'both' })
       copyShareLink(link.token)
       flash('ok', t('Link creado y copiado', 'Link created and copied'))
     } catch (e) { flash('err', e.message) }
@@ -336,6 +336,11 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               if (scope?.type === 'institutions') return `🏦 ${(scope.institutions || []).join(', ')}`
               return `📊 ${t('Todo el portafolio', 'Whole portfolio')}`
             }
+            const displayChip = (display) => {
+              if (display === 'percent') return ` · 👁 ${t('solo %', '% only')}`
+              if (display === 'amounts') return ` · 👁 ${t('solo montos', 'amounts only')}`
+              return ''
+            }
             const toggleInst = (inst) => setShareForm((p) => ({
               ...p,
               institutions: p.institutions.includes(inst) ? p.institutions.filter((i) => i !== inst) : [...p.institutions, inst],
@@ -366,7 +371,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                       <div className="flex items-center gap-2">
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-white font-medium truncate">{link.label || t('Sin nombre', 'Untitled')}</p>
-                          <p className="text-xs text-slate-500 truncate">{scopeChip(link.scope)}</p>
+                          <p className="text-xs text-slate-500 truncate">{scopeChip(link.scope)}{displayChip(link.display)}</p>
                         </div>
                         <button onClick={() => copyShareLink(link.token)}
                           className="shrink-0 px-2.5 py-1 text-xs font-medium rounded-md transition-colors" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
@@ -409,6 +414,28 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                         </button>
                       ))}
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1 block">{t('¿Qué números verán?', 'Which numbers will they see?')}</label>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {[
+                        { key: 'both', label: t('Montos y %', 'Amounts & %') },
+                        { key: 'amounts', label: t('Solo montos', 'Amounts only') },
+                        { key: 'percent', label: t('Solo % (oculta montos)', '% only (hides amounts)') },
+                      ].map((opt) => (
+                        <button key={opt.key} onClick={() => setShareForm((p) => ({ ...p, display: opt.key }))}
+                          className={`px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors ${shareForm.display !== opt.key ? 'hover:text-white' : ''}`}
+                          style={shareForm.display === opt.key
+                            ? { borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', color: 'var(--accent-blue)' }
+                            : { borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    {shareForm.display === 'percent' && (
+                      <p className="text-xs text-slate-600 mt-1">{t('Verán el desempeño y la asignación en %, sin ningún monto de dinero.', 'They\'ll see performance and allocation in %, without any money amounts.')}</p>
+                    )}
                   </div>
 
                   {shareForm.scopeType === 'entity' && (

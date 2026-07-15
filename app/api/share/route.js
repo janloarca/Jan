@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { rateLimit } from '@/lib/rateLimit'
+import { getItemValue } from '@/components/dashboard/utils'
 import crypto from 'crypto'
 
 // Scoped share links: each link carries what it exposes — the whole portfolio,
@@ -32,6 +33,44 @@ function sanitizeScope(raw) {
   }
   if (raw.type === 'all') return { type: 'all' }
   return null
+}
+
+// What the visitor sees: both numbers, only amounts, or only percentages.
+// 'percent' is a real privacy mode — GET masks absolute amounts server-side.
+function sanitizeDisplay(raw) {
+  return ['both', 'amounts', 'percent'].includes(raw) ? raw : 'both'
+}
+
+// Percent-only links must not leak amounts through the JSON (network tab).
+// Scaling quantity AND every price-ish field by √k multiplies each item's value
+// by k while leaving every ratio intact: gain% (price ratio), allocation %,
+// % of total. Scaling only one side would leak — real qty × public market price
+// reveals the value, and bank items carry the balance in the price field.
+const PRICE_FIELDS = ['currentPrice', 'purchasePrice', 'price', 'cost', 'averagePrice', 'lastManualValuation']
+function maskAmounts(items, snapshots) {
+  const totalAssets = items.reduce((s, it) => {
+    const v = getItemValue(it)
+    return v > 0 ? s + v : s
+  }, 0)
+  if (!(totalAssets > 0)) return { items, snapshots }
+  const k = 10000 / totalAssets
+  const sqrtK = Math.sqrt(k)
+  const maskedItems = items.map((it) => {
+    const m = { ...it }
+    if (isFinite(m.quantity)) m.quantity = m.quantity * sqrtK
+    for (const f of PRICE_FIELDS) {
+      if (isFinite(m[f])) m[f] = m[f] * sqrtK
+    }
+    if (isFinite(m.incomeAmount)) m.incomeAmount = m.incomeAmount * k
+    return m
+  })
+  const maskedSnapshots = snapshots.map((s) => {
+    const m = { ...s }
+    if (isFinite(m.netWorthUSD)) m.netWorthUSD = m.netWorthUSD * k
+    if (isFinite(m.totalActivosUSD)) m.totalActivosUSD = m.totalActivosUSD * k
+    return m
+  })
+  return { items: maskedItems, snapshots: maskedSnapshots }
 }
 
 async function readLinks(shareRef, db, uid) {
@@ -82,9 +121,10 @@ export async function POST(request) {
         return NextResponse.json({ error: `Max ${MAX_LINKS} links` }, { status: 400 })
       }
       const label = String(body.label || '').slice(0, 40).trim() || 'Portafolio'
+      const display = sanitizeDisplay(body.display)
       const token = crypto.randomBytes(16).toString('hex')
-      const link = { token, label, scope, createdAt: new Date().toISOString() }
-      await db.collection('shareTokens').doc(token).set({ uid, createdAt: link.createdAt, scope, label })
+      const link = { token, label, scope, display, createdAt: new Date().toISOString() }
+      await db.collection('shareTokens').doc(token).set({ uid, createdAt: link.createdAt, scope, label, display })
       await shareRef.set({ links: [...links, link], uid, updatedAt: new Date().toISOString() })
       return NextResponse.json({ link })
     }
@@ -134,6 +174,7 @@ export async function GET(request) {
 
     // Legacy tokens carry no scope — they always meant "everything".
     const scope = sanitizeScope(tokenData.scope) || { type: 'all' }
+    const display = sanitizeDisplay(tokenData.display)
 
     const [itemsSnap, snapshotsSnap] = await Promise.all([
       db.collection('users').doc(uid).collection('items').get(),
@@ -155,7 +196,7 @@ export async function GET(request) {
       if (scope.type === 'institutions') return scope.institutions.includes((data.institution || '').trim())
       return true
     }
-    const items = itemsSnap.docs
+    let items = itemsSnap.docs
       .map((d) => ({ id: d.id, data: d.data() }))
       .filter(({ data }) => inScope(data))
       .map(({ id, data }) => {
@@ -166,12 +207,16 @@ export async function GET(request) {
         return safe
       })
 
-    const snapshots = snapshotsSnap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    let snapshots = snapshotsSnap.docs.map((d) => ({ id: d.id, ...d.data() }))
+
+    if (display === 'percent') {
+      ;({ items, snapshots } = maskAmounts(items, snapshots))
+    }
 
     const prefsDoc = await db.collection('users').doc(uid).collection('settings').doc('preferences').get()
     const baseCurrency = prefsDoc.exists ? prefsDoc.data().baseCurrency || 'USD' : 'USD'
 
-    return NextResponse.json({ items, snapshots, baseCurrency, label: tokenData.label || null })
+    return NextResponse.json({ items, snapshots, baseCurrency, label: tokenData.label || null, display })
   } catch (err) {
     console.error('[api/share] GET error:', err.message)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
