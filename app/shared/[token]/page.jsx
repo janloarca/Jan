@@ -45,10 +45,10 @@ export default function SharedPortfolioPage() {
     )
   }
 
-  return <SharedDashboard items={data.items} snapshots={data.snapshots} baseCurrency={data.baseCurrency} />
+  return <SharedDashboard items={data.items} snapshots={data.snapshots} baseCurrency={data.baseCurrency} label={data.label} />
 }
 
-function SharedDashboard({ items, snapshots, baseCurrency }) {
+function SharedDashboard({ items, snapshots, baseCurrency, label }) {
   const [theme, setTheme] = useState('dark')
 
   const toggleTheme = useCallback(() => {
@@ -117,6 +117,7 @@ function SharedDashboard({ items, snapshots, baseCurrency }) {
           <div className="flex items-center gap-3">
             <span className="font-bold text-lg" style={{ color: 'var(--accent-green)' }}>Chispudo</span>
             <span className="text-xs text-slate-500 bg-slate-800 px-2 py-0.5 rounded">Read-only</span>
+            {label && <span className="text-xs text-slate-400 truncate max-w-[160px]" title={label}>· {label}</span>}
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => {

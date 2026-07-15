@@ -1147,7 +1147,7 @@ export default function DashboardPage() {
           }}
           theme={theme} onToggleTheme={handleSetTheme} lang={lang}
           beginnerMode={beginnerMode} onToggleBeginner={handleToggleBeginner}
-          profile={profile} onSaveProfile={saveProfile}
+          portfolioItems={portfolioItems}
         />
       )}
 
@@ -1188,7 +1188,7 @@ export default function DashboardPage() {
       )}
 
       {editItem && (
-        <EditAccountModal key={editItem.id} item={editItem} onClose={handleCloseEdit}
+        <EditAccountModal key={editItem.id} item={editItem} onClose={handleCloseEdit} entities={entities}
           onSave={async (updated) => {
             const { id, ...fields } = updated
             await updateItem(editItem.id, fields)

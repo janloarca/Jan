@@ -43,7 +43,7 @@ function InfoTip({ text }) {
   )
 }
 
-export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es', allItems, onNavigate, onAddTransaction, transactions, onExecuteContribution, onCreateDestination, baseCurrency }) {
+export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es', allItems, onNavigate, onAddTransaction, transactions, onExecuteContribution, onCreateDestination, baseCurrency, entities = [] }) {
   const trapRef = useFocusTrap()
   const [creatingDest, setCreatingDest] = useState(false)
   const [extraItems, setExtraItems] = useState([])
@@ -57,6 +57,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     purchasePrice: (item._originalPurchasePrice ?? item.purchasePrice)?.toString() || '',
     currentPrice: (item._originalPrice ?? item.currentPrice)?.toString() || '',
     institution: item.institution || '',
+    entityId: item.entityId || 'default',
     currency: item._originalCurrency || item.currency || 'USD',
     acquisitionDate: item.acquisitionDate || '',
     accountType: item.accountType || 'taxable',
@@ -246,6 +247,9 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         quantity: parseFloat(form.quantity) || 0,
         purchasePrice: parseFloat(form.purchasePrice) || 0,
         institution: form.institution.trim(),
+        // null (not undefined) clears the field on merge — the item goes back
+        // to Personal; every entity filter treats null as 'default'.
+        entityId: form.entityId && form.entityId !== 'default' ? form.entityId : null,
         currency: form.currency,
         acquisitionDate: form.acquisitionDate || '',
         accountType: form.accountType,
@@ -471,6 +475,18 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               <input id="edit-institution" value={form.institution} onChange={e => set('institution', e.target.value)} className={inputCls} />
             </div>
           </div>
+
+          {/* Move the account between entities (personal / business / family) */}
+          {entities.length > 1 && (
+            <div>
+              <label htmlFor="edit-entity" className={labelCls}>{t('Entidad', 'Entity')}</label>
+              <select id="edit-entity" value={form.entityId} onChange={e => set('entityId', e.target.value)} className={inputCls}>
+                {entities.map((en) => (
+                  <option key={en.id} value={en.id}>{en.icon || '📁'} {en.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>

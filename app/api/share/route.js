@@ -4,6 +4,49 @@ import { getAdminDb } from '@/lib/firebase-admin'
 import { rateLimit } from '@/lib/rateLimit'
 import crypto from 'crypto'
 
+// Scoped share links: each link carries what it exposes — the whole portfolio,
+// one entity, or a set of institutions (e.g. "just my IBKR"). Multiple links
+// can coexist; revoking one never touches the others.
+//
+// settings/share doc: { links: [{ token, label, scope, createdAt }] }
+// shareTokens/{token}: { uid, createdAt, scope, label } — GET resolves from here.
+// scope: { type: 'all' } | { type: 'entity', entityId, entityName }
+//        | { type: 'institutions', institutions: string[] }
+// Legacy single-token docs ({ token, enabled }) are migrated on first 'list'.
+
+const MAX_LINKS = 10
+
+function sanitizeScope(raw) {
+  if (!raw || typeof raw !== 'object') return { type: 'all' }
+  if (raw.type === 'entity') {
+    const entityId = String(raw.entityId || '').slice(0, 60)
+    if (!entityId) return null
+    return { type: 'entity', entityId, entityName: String(raw.entityName || '').slice(0, 60) }
+  }
+  if (raw.type === 'institutions') {
+    const institutions = Array.isArray(raw.institutions)
+      ? raw.institutions.map((i) => String(i).slice(0, 60)).filter(Boolean).slice(0, 20)
+      : []
+    if (institutions.length === 0) return null
+    return { type: 'institutions', institutions }
+  }
+  if (raw.type === 'all') return { type: 'all' }
+  return null
+}
+
+async function readLinks(shareRef, db, uid) {
+  const doc = await shareRef.get()
+  const data = doc.exists ? doc.data() : {}
+  if (Array.isArray(data.links)) return data.links
+  // Migrate the legacy single token into the links list (scope: everything).
+  if (data.token) {
+    const links = [{ token: data.token, label: 'Portafolio completo', scope: { type: 'all' }, createdAt: data.createdAt || new Date().toISOString() }]
+    await shareRef.set({ links, uid, updatedAt: new Date().toISOString() })
+    return links
+  }
+  return []
+}
+
 export async function POST(request) {
   const { uid, error } = await verifyAuth(request)
   if (error) return error
@@ -19,42 +62,41 @@ export async function POST(request) {
   }
   const { action } = body
 
-  if (!action || !['enable', 'disable', 'regenerate'].includes(action)) {
+  if (!action || !['list', 'create', 'revoke'].includes(action)) {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   }
 
   try {
     const shareRef = db.collection('users').doc(uid).collection('settings').doc('share')
 
-    if (action === 'enable') {
-      const existing = await shareRef.get()
-      if (existing.exists && existing.data().token) {
-        return NextResponse.json({ token: existing.data().token, enabled: true })
-      }
-      const token = crypto.randomBytes(16).toString('hex')
-      await shareRef.set({ token, enabled: true, createdAt: new Date().toISOString(), uid })
-      await db.collection('shareTokens').doc(token).set({ uid, createdAt: new Date().toISOString() })
-      return NextResponse.json({ token, enabled: true })
+    if (action === 'list') {
+      const links = await readLinks(shareRef, db, uid)
+      return NextResponse.json({ links })
     }
 
-    if (action === 'disable') {
-      const existing = await shareRef.get()
-      if (existing.exists && existing.data().token) {
-        await db.collection('shareTokens').doc(existing.data().token).delete()
+    if (action === 'create') {
+      const scope = sanitizeScope(body.scope)
+      if (!scope) return NextResponse.json({ error: 'Invalid scope' }, { status: 400 })
+      const links = await readLinks(shareRef, db, uid)
+      if (links.length >= MAX_LINKS) {
+        return NextResponse.json({ error: `Max ${MAX_LINKS} links` }, { status: 400 })
       }
-      await shareRef.set({ token: null, enabled: false, updatedAt: new Date().toISOString() })
-      return NextResponse.json({ enabled: false })
+      const label = String(body.label || '').slice(0, 40).trim() || 'Portafolio'
+      const token = crypto.randomBytes(16).toString('hex')
+      const link = { token, label, scope, createdAt: new Date().toISOString() }
+      await db.collection('shareTokens').doc(token).set({ uid, createdAt: link.createdAt, scope, label })
+      await shareRef.set({ links: [...links, link], uid, updatedAt: new Date().toISOString() })
+      return NextResponse.json({ link })
     }
 
-    if (action === 'regenerate') {
-      const existing = await shareRef.get()
-      if (existing.exists && existing.data().token) {
-        await db.collection('shareTokens').doc(existing.data().token).delete()
-      }
-      const token = crypto.randomBytes(16).toString('hex')
-      await shareRef.set({ token, enabled: true, createdAt: new Date().toISOString(), uid })
-      await db.collection('shareTokens').doc(token).set({ uid, createdAt: new Date().toISOString() })
-      return NextResponse.json({ token, enabled: true })
+    if (action === 'revoke') {
+      const token = String(body.token || '')
+      if (!/^[a-f0-9]{32}$/.test(token)) return NextResponse.json({ error: 'Invalid token' }, { status: 400 })
+      const links = await readLinks(shareRef, db, uid)
+      if (!links.some((l) => l.token === token)) return NextResponse.json({ error: 'Unknown link' }, { status: 404 })
+      await db.collection('shareTokens').doc(token).delete()
+      await shareRef.set({ links: links.filter((l) => l.token !== token), uid, updatedAt: new Date().toISOString() })
+      return NextResponse.json({ ok: true })
     }
   } catch (err) {
     console.error('[api/share] POST error:', err.message)
@@ -90,9 +132,16 @@ export async function GET(request) {
     const { uid } = tokenData
     if (!uid) return NextResponse.json({ error: 'Invalid token data' }, { status: 404 })
 
+    // Legacy tokens carry no scope — they always meant "everything".
+    const scope = sanitizeScope(tokenData.scope) || { type: 'all' }
+
     const [itemsSnap, snapshotsSnap] = await Promise.all([
       db.collection('users').doc(uid).collection('items').get(),
-      db.collection('users').doc(uid).collection('snapshots').orderBy('date').get(),
+      // Snapshots are GLOBAL net worth; on a scoped link they'd expose (and
+      // mislabel) the whole portfolio's history, so only 'all' includes them.
+      scope.type === 'all'
+        ? db.collection('users').doc(uid).collection('snapshots').orderBy('date').get()
+        : Promise.resolve({ docs: [] }),
     ])
 
     const SHARE_FIELDS = new Set([
@@ -101,21 +150,28 @@ export async function GET(request) {
       'dividendYield', 'rateType', 'rateMin', 'rateMax', 'maturityDate', 'incomeMonths',
       'incomeAmount', 'subtype', 'isIlliquid', 'lastManualValuation',
     ])
-    const items = itemsSnap.docs.map((d) => {
-      const data = d.data()
-      const safe = { id: d.id }
-      for (const key of SHARE_FIELDS) {
-        if (data[key] !== undefined) safe[key] = data[key]
-      }
-      return safe
-    })
+    const inScope = (data) => {
+      if (scope.type === 'entity') return (data.entityId || 'default') === scope.entityId
+      if (scope.type === 'institutions') return scope.institutions.includes((data.institution || '').trim())
+      return true
+    }
+    const items = itemsSnap.docs
+      .map((d) => ({ id: d.id, data: d.data() }))
+      .filter(({ data }) => inScope(data))
+      .map(({ id, data }) => {
+        const safe = { id }
+        for (const key of SHARE_FIELDS) {
+          if (data[key] !== undefined) safe[key] = data[key]
+        }
+        return safe
+      })
 
     const snapshots = snapshotsSnap.docs.map((d) => ({ id: d.id, ...d.data() }))
 
     const prefsDoc = await db.collection('users').doc(uid).collection('settings').doc('preferences').get()
     const baseCurrency = prefsDoc.exists ? prefsDoc.data().baseCurrency || 'USD' : 'USD'
 
-    return NextResponse.json({ items, snapshots, baseCurrency })
+    return NextResponse.json({ items, snapshots, baseCurrency, label: tokenData.label || null })
   } catch (err) {
     console.error('[api/share] GET error:', err.message)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

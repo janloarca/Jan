@@ -26,30 +26,18 @@ const CURRENCIES = [
   { code: 'CNY', name: 'Chinese Yuan', symbol: '¥' },
 ]
 
-export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onExportBackup, onOpenConnections, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, beginnerMode = false, onToggleBeginner, lang = 'es', profile, onSaveProfile }) {
+export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onExportBackup, onOpenConnections, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, beginnerMode = false, onToggleBeginner, lang = 'es', portfolioItems = [] }) {
   const trapRef = useFocusTrap()
   const [baseCurrency, setBaseCurrency] = useState(settings?.baseCurrency || 'USD')
   const [benchmarkSymbol, setBenchmarkSymbol] = useState(settings?.benchmarkSymbol || '%5EGSPC')
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [tab, setTab] = useState('general')
-  const [profileForm, setProfileForm] = useState({
-    monthlyIncome: profile?.monthlyIncome || '',
-    monthlySavings: profile?.monthlySavings || '',
-    monthlyExpenses: profile?.monthlyExpenses || '',
-    age: profile?.age || '',
-    retirementAge: profile?.retirementAge || '',
-    riskTolerance: profile?.riskTolerance || 'moderate',
-    emergencyMonths: profile?.emergencyMonths || 6,
-    incomeGoal: profile?.incomeGoal || '',
-    portfolioGoal: profile?.portfolioGoal || '',
-    targetYear: profile?.targetYear || '',
-  })
-  const [profileSaving, setProfileSaving] = useState(false)
-  const [shareToken, setShareToken] = useState(null)
-  const [shareEnabled, setShareEnabled] = useState(false)
+  const [shareLinks, setShareLinks] = useState(null) // null = not loaded yet
   const [shareLoading, setShareLoading] = useState(false)
-  const [shareCopied, setShareCopied] = useState(false)
+  const [shareCopied, setShareCopied] = useState(null) // token just copied
+  const [shareCreating, setShareCreating] = useState(false)
+  const [shareForm, setShareForm] = useState({ label: '', scopeType: 'all', entityId: '', institutions: [] })
   const [saveStatus, setSaveStatus] = useState(null)
 
   const t = (es, en) => lang === 'es' ? es : en
@@ -90,56 +78,79 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
         // An emptied account must not keep live broker connections silently
         // re-importing positions — wipe every stored sync credential too.
         await disconnectAllSyncs(authFetch)
+        // The IBKR auto-sync gate reads these preference flags (useDashboardData);
+        // clearing only the server vault leaves the 30-min auto-sync alive and the
+        // "deleted" IBKR positions come back. This was a real user-reported bug.
+        await onSaveSettings({
+          ibkrToken: null, ibkrQueryId: null, _ibkrVaultMigrated: null,
+          _ibkrLastSync: null, _ibkrLastAutoSync: null, _ibkrLastAutoSyncAttempt: null,
+          _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null,
+        })
       }
     } catch (e) { flash('err', e.message || t('Error al borrar', 'Error deleting')) }
     setConfirmDelete(null)
     flash('ok', type === 'all' ? t('Datos y conexiones eliminados', 'Data and connections deleted') : t('Datos eliminados', 'Data deleted'))
   }
 
-  const handleShareAction = useCallback(async (action) => {
-    setShareLoading(true)
-    try {
-      const res = await authFetch('/api/share', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
-      })
-      if (res.ok) {
-        const data = await safeJson(res)
-        setShareToken(data.token || null)
-        setShareEnabled(data.enabled ?? false)
-      }
-    } catch {}
-    setShareLoading(false)
+  const shareApi = useCallback(async (payload) => {
+    const res = await authFetch('/api/share', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    const data = await safeJson(res)
+    if (!res.ok) throw new Error(data?.error || 'Error')
+    return data
   }, [])
 
-  const shareUrl = shareToken ? `${typeof window !== 'undefined' ? window.location.origin : ''}/shared/${shareToken}` : ''
+  useEffect(() => {
+    if (tab !== 'share' || shareLinks !== null) return
+    setShareLoading(true)
+    shareApi({ action: 'list' })
+      .then((d) => setShareLinks(d.links || []))
+      .catch(() => setShareLinks([]))
+      .finally(() => setShareLoading(false))
+  }, [tab, shareLinks, shareApi])
 
-  const copyShareLink = useCallback(() => {
-    navigator.clipboard.writeText(shareUrl)
-    setShareCopied(true)
-    setTimeout(() => setShareCopied(false), 2000)
-  }, [shareUrl])
+  const shareUrlFor = (token) => `${typeof window !== 'undefined' ? window.location.origin : ''}/shared/${token}`
 
-
-  const handleSaveProfile = async () => {
-    if (!onSaveProfile) return
-    setProfileSaving(true)
-    try {
-      const data = {}
-      Object.entries(profileForm).forEach(([k, v]) => {
-        if (k === 'riskTolerance') { data[k] = v; return }
-        if (v !== '' && v != null) data[k] = Number(v)
-      })
-      await onSaveProfile(data)
-      flash('ok', t('Perfil guardado', 'Profile saved'))
-    } catch (e) { flash('err', e.message || t('Error al guardar perfil', 'Error saving profile')) }
-    setProfileSaving(false)
+  const copyShareLink = (token) => {
+    navigator.clipboard.writeText(shareUrlFor(token))
+    setShareCopied(token)
+    setTimeout(() => setShareCopied(null), 2000)
   }
+
+  const handleCreateShare = async () => {
+    setShareLoading(true)
+    try {
+      const scope = shareForm.scopeType === 'entity'
+        ? { type: 'entity', entityId: shareForm.entityId, entityName: (entities || []).find((e) => e.id === shareForm.entityId)?.name || '' }
+        : shareForm.scopeType === 'institutions'
+          ? { type: 'institutions', institutions: shareForm.institutions }
+          : { type: 'all' }
+      const { link } = await shareApi({ action: 'create', label: shareForm.label, scope })
+      setShareLinks((prev) => [...(prev || []), link])
+      setShareCreating(false)
+      setShareForm({ label: '', scopeType: 'all', entityId: '', institutions: [] })
+      copyShareLink(link.token)
+      flash('ok', t('Link creado y copiado', 'Link created and copied'))
+    } catch (e) { flash('err', e.message) }
+    setShareLoading(false)
+  }
+
+  const handleRevokeShare = async (token) => {
+    setShareLoading(true)
+    try {
+      await shareApi({ action: 'revoke', token })
+      setShareLinks((prev) => (prev || []).filter((l) => l.token !== token))
+      flash('ok', t('Link revocado', 'Link revoked'))
+    } catch (e) { flash('err', e.message) }
+    setShareLoading(false)
+  }
+
 
   const tabs = [
     { key: 'general', label: t('General', 'General') },
-    { key: 'profile', label: t('Perfil', 'Profile') },
     { key: 'entities', label: t('Entidades', 'Entities') },
     { key: 'share', label: t('Compartir', 'Share') },
     { key: 'data', label: t('Datos', 'Data') },
@@ -245,56 +256,28 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                 </button>
               </div>
 
-              <div>
-                <label className="text-xs mb-2 block font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Moneda principal', 'Base currency')}</label>
-                <p className="text-xs text-slate-600 mb-3">{t('Todos los valores se mostrarán en esta moneda.', 'All values will be displayed in this currency.')}</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {CURRENCIES.map((c) => (
-                    <button key={c.code} onClick={() => setBaseCurrency(c.code)}
-                      className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-left transition-all ${
-                        baseCurrency === c.code
-                          ? 'border'
-                          : 'bg-theme-base border border-glass-border text-slate-300 hover:border-slate-500'
-                      }`}
-                      style={baseCurrency === c.code ? { color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' } : undefined}>
-                      <span className="text-sm font-bold w-8">{c.symbol}</span>
-                      <div className="min-w-0">
-                        <div className="text-xs font-medium">{c.code}</div>
-                        <div className="text-xs text-slate-500 truncate">{c.name}</div>
-                      </div>
-                      {baseCurrency === c.code && (
-                        <svg className="w-4 h-4 ml-auto shrink-0" style={{ color: 'var(--accent-blue)' }} fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                      )}
-                    </button>
-                  ))}
+              {/* Currency + benchmark as compact selects — the old 14-card grid
+                  made the tab feel endless for a choice made once. */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="settings-currency" className="text-xs mb-1.5 block font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Moneda principal', 'Base currency')}</label>
+                  <select id="settings-currency" value={baseCurrency} onChange={(e) => setBaseCurrency(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
+                    {CURRENCIES.map((c) => (
+                      <option key={c.code} value={c.code}>{c.symbol} {c.code} — {c.name}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-slate-600 mt-1">{t('Todos los valores se muestran en esta moneda.', 'All values are displayed in this currency.')}</p>
                 </div>
-              </div>
-
-              <div>
-                <label className="text-xs mb-2 block font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Benchmark', 'Benchmark')}</label>
-                <p className="text-xs text-slate-600 mb-3">{t('Índice de referencia para comparar tu portafolio.', 'Reference index to compare your portfolio against.')}</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {Object.entries(BENCHMARKS).map(([key, bm]) => (
-                    <button key={key} onClick={() => setBenchmarkSymbol(key)}
-                      className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-left transition-all ${
-                        benchmarkSymbol === key
-                          ? 'border'
-                          : 'bg-theme-base border border-glass-border text-slate-300 hover:border-slate-500'
-                      }`}
-                      style={benchmarkSymbol === key ? { color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' } : undefined}>
-                      <div className="min-w-0">
-                        <div className="text-xs font-medium">{bm.short}</div>
-                        <div className="text-xs text-slate-500 truncate">{bm.name}</div>
-                      </div>
-                      {benchmarkSymbol === key && (
-                        <svg className="w-4 h-4 ml-auto shrink-0" style={{ color: 'var(--accent-blue)' }} fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                      )}
-                    </button>
-                  ))}
+                <div>
+                  <label htmlFor="settings-benchmark" className="text-xs mb-1.5 block font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Benchmark', 'Benchmark')}</label>
+                  <select id="settings-benchmark" value={benchmarkSymbol} onChange={(e) => setBenchmarkSymbol(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
+                    {Object.entries(BENCHMARKS).map(([key, bm]) => (
+                      <option key={key} value={key}>{bm.short} — {bm.name}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-slate-600 mt-1">{t('Índice contra el que se compara tu portafolio.', 'Index your portfolio is compared against.')}</p>
                 </div>
               </div>
 
@@ -327,61 +310,6 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
             </div>
           )}
 
-          {tab === 'profile' && (
-            <div className="space-y-5">
-              <p className="text-xs text-slate-500">{t(
-                'Completa tu perfil financiero para recibir insights personalizados.',
-                'Complete your financial profile to get personalized insights.'
-              )}</p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {[
-                  { key: 'monthlyIncome', label: t('Ingreso mensual', 'Monthly income'), placeholder: '5000' },
-                  { key: 'monthlyExpenses', label: t('Gastos mensuales', 'Monthly expenses'), placeholder: '3000' },
-                  { key: 'monthlySavings', label: t('Ahorro mensual', 'Monthly savings'), placeholder: '1000' },
-                  { key: 'age', label: t('Edad', 'Age'), placeholder: '30' },
-                  { key: 'retirementAge', label: t('Edad de retiro', 'Retirement age'), placeholder: '60' },
-                  { key: 'emergencyMonths', label: t('Meses de emergencia', 'Emergency months'), placeholder: '6' },
-                  { key: 'incomeGoal', label: t('Meta ingreso pasivo/mes', 'Passive income goal/mo'), placeholder: '2000' },
-                  { key: 'portfolioGoal', label: t('Meta de portafolio', 'Portfolio goal'), placeholder: '500000' },
-                  { key: 'targetYear', label: t('Año objetivo', 'Target year'), placeholder: '2030' },
-                ].map((field) => (
-                  <div key={field.key}>
-                    <label className="text-xs text-slate-500 uppercase tracking-wider mb-1.5 block">{field.label}</label>
-                    <input type="number" value={profileForm[field.key]} onChange={(e) => setProfileForm((p) => ({ ...p, [field.key]: e.target.value }))}
-                      placeholder={field.placeholder}
-                      className="w-full px-4 py-2.5 bg-theme-base border border-glass-border/60 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-                  </div>
-                ))}
-              </div>
-
-              <div>
-                <label className="text-xs text-slate-500 uppercase tracking-wider mb-1.5 block">{t('Tolerancia al riesgo', 'Risk tolerance')}</label>
-                <div className="flex gap-2">
-                  {[
-                    { key: 'conservative', label: t('Conservador', 'Conservative') },
-                    { key: 'moderate', label: t('Moderado', 'Moderate') },
-                    { key: 'aggressive', label: t('Agresivo', 'Aggressive') },
-                  ].map((opt) => (
-                    <button key={opt.key} onClick={() => setProfileForm((p) => ({ ...p, riskTolerance: opt.key }))}
-                      className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                        profileForm.riskTolerance === opt.key
-                          ? 'border'
-                          : 'bg-theme-base border border-glass-border text-slate-300 hover:border-slate-500'
-                      }`}
-                      style={profileForm.riskTolerance === opt.key ? { color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' } : undefined}>
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <button onClick={handleSaveProfile} disabled={profileSaving}
-                className="w-full py-2.5 rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
-                {profileSaving ? '...' : t('Guardar perfil', 'Save profile')}
-              </button>
-            </div>
-          )}
 
           {tab === 'entities' && (
             <div className="space-y-4">
@@ -391,6 +319,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                   onAdd={onAddEntity}
                   onUpdate={onUpdateEntity}
                   onDelete={onDeleteEntity}
+                  items={portfolioItems}
                   lang={lang}
                 />
               ) : (
@@ -399,63 +328,133 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
             </div>
           )}
 
-          {tab === 'share' && (
-            <div className="space-y-5">
+
+          {tab === 'share' && (() => {
+            const institutionOptions = [...new Set(portfolioItems.map((it) => (it.institution || '').trim()).filter(Boolean))].sort()
+            const scopeChip = (scope) => {
+              if (scope?.type === 'entity') return `👥 ${scope.entityName || t('Entidad', 'Entity')}`
+              if (scope?.type === 'institutions') return `🏦 ${(scope.institutions || []).join(', ')}`
+              return `📊 ${t('Todo el portafolio', 'Whole portfolio')}`
+            }
+            const toggleInst = (inst) => setShareForm((p) => ({
+              ...p,
+              institutions: p.institutions.includes(inst) ? p.institutions.filter((i) => i !== inst) : [...p.institutions, inst],
+            }))
+            const canCreate = shareForm.scopeType === 'all'
+              || (shareForm.scopeType === 'entity' && shareForm.entityId)
+              || (shareForm.scopeType === 'institutions' && shareForm.institutions.length > 0)
+
+            return (
+            <div className="space-y-4">
               <div>
-                <h3 className="text-sm font-medium text-white mb-1">{t('Modo Asesor', 'Advisor Mode')}</h3>
-                <p className="text-xs text-slate-500 mb-4">{t(
-                  'Genera un link de solo lectura para compartir tu portafolio con asesores o contadores. No revela la institución de tus activos.',
-                  'Generate a read-only link to share your portfolio with advisors or accountants. Does not reveal your asset institutions.'
+                <h3 className="text-sm font-medium text-white mb-1">{t('Links de solo lectura', 'Read-only links')}</h3>
+                <p className="text-xs text-slate-500">{t(
+                  'Comparte tu portafolio completo con un asesor, o solo una parte — una entidad o cuentas específicas (ej. solo tu IBKR). Cada link es independiente y se puede revocar sin tocar los demás. Nunca revelan la institución de tus activos.',
+                  'Share your whole portfolio with an advisor, or just a slice — one entity or specific accounts (e.g. only your IBKR). Each link is independent and can be revoked without touching the others. They never reveal the institution behind your assets.'
                 )}</p>
               </div>
 
-              {!shareEnabled ? (
-                <button onClick={() => handleShareAction('enable')} disabled={shareLoading}
-                  className="w-full py-3 rounded-lg hover:bg-emerald-500 disabled:opacity-50 transition-colors text-sm font-medium flex items-center justify-center gap-2" style={{ color: '#ffffff', backgroundColor: 'var(--accent-green)' }}>
-                  {shareLoading ? '...' : (
-                    <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                      </svg>
-                      {t('Activar link compartido', 'Enable share link')}
-                    </>
-                  )}
-                </button>
+              {/* Existing links */}
+              {shareLinks === null || (shareLoading && !shareLinks?.length && !shareCreating) ? (
+                <p className="text-xs text-slate-500">…</p>
+              ) : shareLinks.length === 0 && !shareCreating ? (
+                <p className="text-xs text-slate-600">{t('Aún no has creado ningún link.', 'You haven\'t created any links yet.')}</p>
               ) : (
-                <div className="space-y-3">
-                  <div className="bg-theme-base border border-glass-border rounded-lg p-3">
-                    <label className="text-xs text-slate-500 block mb-1.5">{t('Link de solo lectura', 'Read-only link')}</label>
-                    <div className="flex items-center gap-2">
-                      <input type="text" readOnly value={shareUrl}
-                        className="flex-1 bg-transparent text-xs text-slate-300 outline-none truncate" />
-                      <button onClick={copyShareLink}
-                        className="shrink-0 px-3 py-1.5 text-xs rounded-lg hover:bg-blue-500 transition-colors" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
-                        {shareCopied ? t('Copiado!', 'Copied!') : t('Copiar', 'Copy')}
-                      </button>
+                <div className="space-y-1.5">
+                  {shareLinks.map((link) => (
+                    <div key={link.token} className="p-3 bg-theme-base border border-glass-border/60 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-white font-medium truncate">{link.label || t('Sin nombre', 'Untitled')}</p>
+                          <p className="text-xs text-slate-500 truncate">{scopeChip(link.scope)}</p>
+                        </div>
+                        <button onClick={() => copyShareLink(link.token)}
+                          className="shrink-0 px-2.5 py-1 text-xs font-medium rounded-md transition-colors" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
+                          {shareCopied === link.token ? t('¡Copiado!', 'Copied!') : t('Copiar', 'Copy')}
+                        </button>
+                        <button onClick={() => handleRevokeShare(link.token)} disabled={shareLoading} aria-label={t('Revocar', 'Revoke')}
+                          className="shrink-0 px-2 py-1 text-xs hover:opacity-100 transition-opacity" style={{ color: 'var(--text-negative)', opacity: 0.6 }}>
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Create flow */}
+              {shareCreating ? (
+                <div className="space-y-3 p-3 bg-theme-base border border-glass-border rounded-xl">
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1 block">{t('Nombre del link (para ti)', 'Link name (for you)')}</label>
+                    <input value={shareForm.label} onChange={(e) => setShareForm((p) => ({ ...p, label: e.target.value }))}
+                      placeholder={t('Ej: Para mi contador', 'E.g. For my accountant')} maxLength={40}
+                      className="w-full px-3 py-1.5 bg-theme-surface border border-glass-border/60 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1 block">{t('¿Qué compartes?', 'What are you sharing?')}</label>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {[
+                        { key: 'all', label: t('Todo', 'Everything') },
+                        ...(entities && entities.length > 1 ? [{ key: 'entity', label: t('Una entidad', 'One entity') }] : []),
+                        ...(institutionOptions.length > 0 ? [{ key: 'institutions', label: t('Cuentas específicas', 'Specific accounts') }] : []),
+                      ].map((opt) => (
+                        <button key={opt.key} onClick={() => setShareForm((p) => ({ ...p, scopeType: opt.key }))}
+                          className={`px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors ${shareForm.scopeType !== opt.key ? 'hover:text-white' : ''}`}
+                          style={shareForm.scopeType === opt.key
+                            ? { borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', color: 'var(--accent-blue)' }
+                            : { borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
+                          {opt.label}
+                        </button>
+                      ))}
                     </div>
                   </div>
 
-                  <div className="flex gap-2">
-                    <button onClick={() => handleShareAction('regenerate')} disabled={shareLoading}
-                      className="flex-1 py-2 border border-glass-border text-slate-300 rounded-lg hover:bg-slate-700/50 disabled:opacity-50 transition-colors text-xs">
-                      {t('Regenerar link', 'Regenerate link')}
-                    </button>
-                    <button onClick={() => handleShareAction('disable')} disabled={shareLoading}
-                      className="flex-1 py-2 border rounded-lg hover:bg-red-500/10 disabled:opacity-50 transition-colors text-xs" style={{ borderColor: 'var(--text-negative)', color: 'var(--text-negative)' }}>
-                      {t('Desactivar', 'Disable')}
-                    </button>
-                  </div>
+                  {shareForm.scopeType === 'entity' && (
+                    <select value={shareForm.entityId} onChange={(e) => setShareForm((p) => ({ ...p, entityId: e.target.value }))}
+                      className="w-full px-3 py-2 bg-theme-surface border border-glass-border/60 rounded-lg text-xs text-white focus:outline-none">
+                      <option value="">{t('— Elige la entidad —', '— Pick the entity —')}</option>
+                      {(entities || []).map((en) => (
+                        <option key={en.id} value={en.id}>{en.icon || '📁'} {en.name}</option>
+                      ))}
+                    </select>
+                  )}
 
-                  <div className="border rounded-lg p-3" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-orange) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-orange) 20%, transparent)' }}>
-                    <p className="text-xs" style={{ color: 'var(--accent-orange)' }}>{t(
-                      'Cualquier persona con este link puede ver tu portafolio (sin montos de instituciones). Regenera o desactiva el link en cualquier momento.',
-                      'Anyone with this link can view your portfolio (without institution details). Regenerate or disable the link at any time.'
-                    )}</p>
+                  {shareForm.scopeType === 'institutions' && (
+                    <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+                      <p className="text-xs text-slate-600">{t('Solo se compartirán las posiciones de lo que marques:', 'Only positions from what you check will be shared:')}</p>
+                      {institutionOptions.map((inst) => (
+                        <label key={inst} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-theme-elevated cursor-pointer">
+                          <input type="checkbox" checked={shareForm.institutions.includes(inst)} onChange={() => toggleInst(inst)} />
+                          <span className="text-xs text-white">{inst}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <button onClick={handleCreateShare} disabled={shareLoading || !canCreate}
+                      className="flex-1 py-2 rounded-lg hover:bg-emerald-500 disabled:opacity-50 text-xs font-medium" style={{ color: '#ffffff', backgroundColor: 'var(--accent-green)' }}>
+                      {shareLoading ? '...' : t('Crear y copiar link', 'Create & copy link')}
+                    </button>
+                    <button onClick={() => setShareCreating(false)}
+                      className="px-3 py-2 border border-glass-border text-xs rounded-lg hover:bg-theme-elevated transition-colors" style={{ color: 'var(--text-secondary)' }}>
+                      {t('Cancelar', 'Cancel')}
+                    </button>
                   </div>
                 </div>
+              ) : (
+                <button onClick={() => setShareCreating(true)}
+                  className="w-full px-3 py-2.5 text-xs font-medium text-slate-400 border border-dashed border-glass-border rounded-lg hover:text-blue-400 hover:border-blue-500/30 transition-colors">
+                  + {t('Crear link para compartir', 'Create share link')}
+                </button>
               )}
+
+              <p className="text-xs text-slate-600">{t('Los links expiran a los 90 días.', 'Links expire after 90 days.')}</p>
             </div>
-          )}
+            )
+          })()}
 
           {tab === 'data' && (
             <div className="space-y-4">
@@ -472,32 +471,52 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                 </div>
               )}
 
-              <p className="text-xs text-slate-500">{t('Administra los datos de tu portfolio. Estas acciones no se pueden deshacer.', 'Manage your portfolio data. These actions cannot be undone.')}</p>
-
-              {[
-                { key: 'items', label: t('Eliminar todas las cuentas', 'Delete all accounts'), desc: t('Borra todos los instrumentos y posiciones.', 'Deletes all instruments and positions.'), warn: t('Se borrarán cuentas, lots y transacciones asociadas.', 'This will delete accounts, lots, and associated transactions.') },
-                { key: 'snapshots', label: t('Eliminar snapshots', 'Delete snapshots'), desc: t('Borra el historial de snapshots del portfolio.', 'Deletes portfolio snapshot history.'), warn: t('El gráfico de crecimiento perderá datos históricos.', 'The growth chart will lose historical data.') },
-                { key: 'transactions', label: t('Eliminar transacciones', 'Delete transactions'), desc: t('Borra el historial de transacciones.', 'Deletes transaction history.'), warn: t('Los retornos YTD y Modified Dietz serán menos precisos.', 'YTD returns and Modified Dietz will be less accurate.') },
-                { key: 'financeTransactions', label: t('Eliminar finanzas', 'Delete finance data'), desc: t('Borra todos los ingresos y gastos.', 'Deletes all income and expense data.'), warn: t('Se perderá el historial de ingresos y gastos.', 'Income and expense history will be lost.') },
-                { key: 'all', label: t('Eliminar todo', 'Delete everything'), desc: t('Borra todos los datos del portfolio.', 'Deletes all portfolio data.'), warn: t('Se borrarán TODOS los datos (cuentas, historial, transacciones, finanzas) y se desconectarán todos los brokers vinculados.', 'ALL data will be deleted (accounts, history, transactions, finances) and every linked broker will be disconnected.') },
-              ].map((action) => (
-                <div key={action.key} className="flex items-center justify-between p-3 bg-theme-base border border-glass-border rounded-lg">
-                  <div>
-                    <div className="text-sm text-white font-medium">{action.label}</div>
-                    <div className="text-xs text-slate-500">{action.desc}</div>
-                    {confirmDelete === action.key && (
-                      <div className="text-xs mt-1 font-medium" style={{ color: 'var(--accent-orange)' }}>{action.warn}</div>
-                    )}
+              {/* One prominent nuclear action; the granular deletes live collapsed
+                  below — they're rarely needed and were drowning the tab. */}
+              {(() => {
+                const renderAction = (action) => (
+                  <div key={action.key} className="flex items-center justify-between p-3 bg-theme-base border border-glass-border rounded-lg">
+                    <div>
+                      <div className="text-sm text-white font-medium">{action.label}</div>
+                      <div className="text-xs text-slate-500">{action.desc}</div>
+                      {confirmDelete === action.key && (
+                        <div className="text-xs mt-1 font-medium" style={{ color: 'var(--accent-orange)' }}>{action.warn}</div>
+                      )}
+                    </div>
+                    <button onClick={() => handleDelete(action.key)}
+                      className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors shrink-0 ml-3 border"
+                      style={confirmDelete === action.key
+                        ? { backgroundColor: 'var(--text-negative)', color: '#ffffff', borderColor: 'var(--text-negative)' }
+                        : { color: 'var(--text-negative)', borderColor: 'rgba(239,68,68,0.3)' }}>
+                      {confirmDelete === action.key ? t('Confirmar', 'Confirm') : t('Eliminar', 'Delete')}
+                    </button>
                   </div>
-                  <button onClick={() => handleDelete(action.key)}
-                    className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors shrink-0 ml-3 border"
-                    style={confirmDelete === action.key
-                      ? { backgroundColor: 'var(--text-negative)', color: '#ffffff', borderColor: 'var(--text-negative)' }
-                      : { color: 'var(--text-negative)', borderColor: 'rgba(239,68,68,0.3)' }}>
-                    {confirmDelete === action.key ? t('Confirmar', 'Confirm') : t('Eliminar', 'Delete')}
-                  </button>
-                </div>
-              ))}
+                )
+                return (
+                  <>
+                    <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'rgba(239,68,68,0.25)' }}>
+                      <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-negative)' }}>{t('Empezar de cero', 'Start over')}</p>
+                      {renderAction({ key: 'all', label: t('Eliminar todo', 'Delete everything'), desc: t('Borra cuentas, historial, transacciones y finanzas, y desconecta todos los brokers vinculados.', 'Deletes accounts, history, transactions and finances, and disconnects every linked broker.'), warn: t('No se puede deshacer. Descarga un backup antes si tienes duda.', 'This cannot be undone. Download a backup first if in doubt.') })}
+                    </div>
+
+                    <details className="group">
+                      <summary className="flex items-center justify-between cursor-pointer py-1">
+                        <p className="text-xs text-slate-500 uppercase tracking-wider">{t('Borrado selectivo', 'Selective delete')}</p>
+                        <span className="text-xs text-slate-600 group-open:rotate-180 transition-transform">▼</span>
+                      </summary>
+                      <div className="mt-2 space-y-2">
+                        <p className="text-xs text-slate-600">{t('Para casos puntuales — normalmente no necesitas esto.', 'For edge cases — you normally don\'t need these.')}</p>
+                        {[
+                          { key: 'items', label: t('Eliminar todas las cuentas', 'Delete all accounts'), desc: t('Instrumentos y posiciones (con sus lots y transacciones).', 'Instruments and positions (with their lots and transactions).'), warn: t('Se borrarán cuentas, lots y transacciones asociadas.', 'This will delete accounts, lots, and associated transactions.') },
+                          { key: 'transactions', label: t('Eliminar transacciones', 'Delete transactions'), desc: t('Solo el historial de movimientos del portafolio.', 'Only the portfolio movement history.'), warn: t('Los retornos YTD y Modified Dietz serán menos precisos.', 'YTD returns and Modified Dietz will be less accurate.') },
+                          { key: 'financeTransactions', label: t('Eliminar finanzas', 'Delete finance data'), desc: t('Solo los ingresos y gastos personales.', 'Only personal income and expense data.'), warn: t('Se perderá el historial de ingresos y gastos.', 'Income and expense history will be lost.') },
+                          { key: 'snapshots', label: t('Eliminar snapshots', 'Delete snapshots'), desc: t('Solo el historial del gráfico de crecimiento.', 'Only the growth chart history.'), warn: t('El gráfico de crecimiento perderá datos históricos.', 'The growth chart will lose historical data.') },
+                        ].map(renderAction)}
+                      </div>
+                    </details>
+                  </>
+                )
+              })()}
             </div>
           )}
         </div>

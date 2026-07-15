@@ -16,6 +16,7 @@ import FinanceSummaryCards from '@/components/finance/FinanceSummaryCards'
 import CategoryBreakdown from '@/components/finance/CategoryBreakdown'
 import FinanceTransactionList from '@/components/finance/FinanceTransactionList'
 import FinanceInsights from '@/components/finance/FinanceInsights'
+import FinancialProfileCard from '@/components/finance/FinancialProfileCard'
 import AddFinanceTransactionModal from '@/components/finance/AddFinanceTransactionModal'
 import FileImportModal from '@/components/FileImportModal'
 import { SkeletonCard, SkeletonTable } from '@/components/dashboard/Skeleton'
@@ -75,6 +76,8 @@ export default function FinancesPage() {
     deleteFinanceTransaction,
     settings,
     saveSettings,
+    profile,
+    saveProfile,
     transactions: portfolioTransactions,
   } = useFirestoreItems()
 
@@ -297,6 +300,10 @@ export default function FinancesPage() {
             </div>
           </div>
         )}
+
+        {/* Moved here from Settings: nobody found it there, and this data is
+            time-sensitive — it belongs next to the money it describes. */}
+        <FinancialProfileCard profile={profile} onSaveProfile={saveProfile} analysis={analysis} lang={lang} />
       </main>
 
       {modal === 'add' && (
