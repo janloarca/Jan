@@ -92,11 +92,15 @@ export async function POST(request) {
       const all = sanitizeStatBlock(body.stats?.all)
       if (!all) return NextResponse.json({ error: 'Missing stats' }, { status: 400 })
       const ibkr = sanitizeStatBlock(body.stats?.ibkr)
+      const syncedPct = Math.max(0, Math.min(1, Number(body.syncedPct) || 0))
       const update = {
         uid,
         displayName: String(body.displayName || '').slice(0, 40) || 'Anónimo',
         avatar: String(body.avatar || '').slice(0, 8),
         stats: ibkr ? { all, ibkr } : { all },
+        // Soft trust signal: portfolio is mostly broker-synced (not hand-typed).
+        verified: !!body.verified,
+        syncedPct,
         updatedAt: new Date().toISOString(),
       }
       await profileRef.set(update, { merge: true })
@@ -119,6 +123,7 @@ export async function POST(request) {
             isYou: p.id === uid,
             displayName: prof.displayName || 'Anónimo',
             avatar: prof.avatar || '',
+            verified: !!prof.verified,
             ytd: st.ytd ?? null,
             day: st.day ?? null,
             movers: Array.isArray(st.movers) ? st.movers : [],
@@ -229,10 +234,10 @@ export async function POST(request) {
       const snap = await db.collection('friendProfiles').where('globalOptIn', '==', true).limit(GLOBAL_SCAN_CAP).get()
       const all = snap.docs.map((d) => {
         const p = d.data()
-        return { uid: d.id, pseudonym: p.pseudonym || 'Anónimo', ytd: statsForScope(p, 'all')?.ytd ?? null }
+        return { uid: d.id, pseudonym: p.pseudonym || 'Anónimo', verified: !!p.verified, ytd: statsForScope(p, 'all')?.ytd ?? null }
       }).filter((r) => r.ytd != null).sort((a, b) => b.ytd - a.ytd)
       const yourRank = all.findIndex((r) => r.uid === uid)
-      const top = all.slice(0, GLOBAL_TOP).map((r, i) => ({ rank: i + 1, pseudonym: r.pseudonym, ytd: r.ytd, isYou: r.uid === uid }))
+      const top = all.slice(0, GLOBAL_TOP).map((r, i) => ({ rank: i + 1, pseudonym: r.pseudonym, verified: r.verified, ytd: r.ytd, isYou: r.uid === uid }))
       return NextResponse.json({ top, yourRank: yourRank >= 0 ? yourRank + 1 : null, total: all.length })
     }
 

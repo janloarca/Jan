@@ -605,9 +605,11 @@ export default function DashboardPage() {
     // the user saw stale data with no hint that the last sync didn't run.
     if (ibkrSyncErrorCode) return 'ibkr-failed'
     if (pricesError || ratesError) return 'prices'
-    if (contributionWarning) return 'contribution'
+    // The contribution hint is NOT a top-of-page alarm — it lives as a quiet
+    // muted note inside NetWorthCard (a 40%-growth-with-few-deposits nudge is
+    // informational, not a warning that should shout in amber).
     return null
-  }, [staleCode, ibkrSyncErrorCode, pricesError, ratesError, contributionWarning])
+  }, [staleCode, ibkrSyncErrorCode, pricesError, ratesError])
 
   // Loading state — show the structural skeleton (same layout as the loaded page)
   // instead of a lone spinner, so first paint already looks like the dashboard.
@@ -745,25 +747,6 @@ export default function DashboardPage() {
               </button>
             </div>
           )}
-          {topBanner === 'contribution' && (
-            <div className="px-4 py-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}>
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" style={{ color: '#fbbf24' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <p className="text-sm font-medium" style={{ color: '#fcd34d' }}>
-                  {lang === 'es'
-                    ? 'Tus retornos pueden no ser precisos — registra tus depósitos y retiros'
-                    : 'Your returns may not be accurate — log your deposits and withdrawals'}
-                </p>
-              </div>
-              <button onClick={() => setModal('cashflow')}
-                className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
-                style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
-                {lang === 'es' ? 'Registrar' : 'Log now'}
-              </button>
-            </div>
-          )}
         </div>
       )}
 
@@ -787,23 +770,23 @@ export default function DashboardPage() {
             top — buried at page-bottom they were invisible on mobile. */}
         <NotificationCenter items={portfolioItems} transactions={transactions} lang={lang} />
         <div className="flex items-center gap-3 flex-wrap">
+          {/* Freshness dot: 1-day-old data is normal (snapshots are daily), so
+              1-13d stays neutral/muted — amber only kicks in at ≥14d. */}
           {dataAge === 0 ? (
             <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
-          ) : dataAge != null && dataAge >= 7 ? (
-            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#f87171' }} />
-          ) : dataAge != null && dataAge >= 1 ? (
+          ) : dataAge != null && dataAge >= 14 ? (
             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#fbbf24' }} />
           ) : (
-            <span className="w-2 h-2 rounded-full bg-slate-500" />
+            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--text-muted)' }} />
           )}
-          <span className="text-xs" style={{ color: dataAge >= 7 ? '#f87171' : dataAge >= 1 ? '#fbbf24' : '#7c8a9c' }}>
+          <span className="text-xs" style={{ color: dataAge != null && dataAge >= 14 ? '#fbbf24' : 'var(--text-muted)' }}>
             {dataAge === 0
               ? (lang === 'es' ? 'Datos al día' : 'Data up to date')
               : dataAge != null
                 ? (lang === 'es' ? `Actualizado hace ${dataAge}d` : `Updated ${dataAge}d ago`)
                 : (lang === 'es' ? 'Sin datos aún' : 'No data yet')}
           </span>
-          {dataAge != null && dataAge >= 7 && (
+          {dataAge != null && dataAge >= 14 && (
             <button onClick={handleRefresh} className="text-micro underline transition-colors" style={{ color: 'var(--accent-blue)' }}>
               {lang === 'es' ? 'Actualizar' : 'Refresh'}
             </button>
@@ -855,6 +838,7 @@ export default function DashboardPage() {
               returnSinceStart={returnSinceStart} sinceStartDate={sinceStartDate}
               yearlyChange={yearlyChange} dailyChange={dailyChange} convert={convert}
               lang={lang} netContributions={netContributions} cashTotal={cashTotal} snapshots={augmentedSnapshots} items={portfolioItems}
+              contributionWarning={contributionWarning} onLogFlow={() => setModal('cashflow')}
             />
             </CardBoundary>
           </div>

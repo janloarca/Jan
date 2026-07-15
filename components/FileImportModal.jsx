@@ -10,6 +10,16 @@ import { FINANCE_CATEGORIES, CATEGORY_COLORS } from '@/lib/financeCategories'
 import { matchStatement } from '@/lib/statementMatcher'
 import { validateItem, sanitizeImportItem, sanitizeCell } from '@/lib/validation'
 
+// Default institution stamped on imported items when the import was opened for a
+// specific broker (brokerHint) and the file itself has no institution column —
+// e.g. a Hapi statement, which has no API and no institution field of its own.
+const BROKER_HINT_INSTITUTION = {
+  ibkr: 'Interactive Brokers', alpaca: 'Alpaca Markets', schwab: 'Charles Schwab',
+  fidelity: 'Fidelity', vanguard: 'Vanguard', degiro: 'DEGIRO', trading212: 'Trading 212',
+  traderepublic: 'Trade Republic', etoro: 'eToro', webull: 'Webull', coinbase: 'Coinbase',
+  kraken: 'Kraken', binance: 'Binance', bitso: 'Bitso', hapi: 'Hapi',
+}
+
 const FIELD_MAP = {
   symbol: ['symbol', 'ticker', 'simbolo', 'código', 'codigo', 'sym', 'coin'],
   name: ['name', 'nombre', 'description', 'descripcion', 'instrument', 'instrumento', 'asset', 'financial instrument', 'asset name'],
@@ -446,7 +456,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         type: detectedBroker?.typeOverride || (mapping.type != null ? (row[mapping.type] || '').toString().trim() : inferType(row, mapping)),
         quantity: parseNumber(mapping.quantity != null ? row[mapping.quantity] : 0),
         purchasePrice: parseNumber(mapping.purchasePrice != null ? row[mapping.purchasePrice] : 0),
-        institution: mapping.institution != null ? (row[mapping.institution] || '').toString().trim() : (detectedBroker?.institution || ''),
+        institution: mapping.institution != null ? (row[mapping.institution] || '').toString().trim() : (detectedBroker?.institution || BROKER_HINT_INSTITUTION[brokerHint] || ''),
         currency: mapping.currency != null ? (row[mapping.currency] || 'USD').toString().trim() : 'USD',
       }
       if (mapping.currentPrice != null) {
@@ -485,7 +495,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
 
     setPreview(items)
     setStep('preview')
-  }, [rawData, mapping, detectedBroker])
+  }, [rawData, mapping, detectedBroker, brokerHint])
 
   const doImport = useCallback(async () => {
     setImporting(true)
@@ -717,6 +727,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     degiro: { name: 'DEGIRO', icon: '🇪🇺' },
     trading212: { name: 'Trading 212', icon: '📊' },
     traderepublic: { name: 'Trade Republic', icon: '🇩🇪' },
+    hapi: { name: 'Hapi', icon: '📲' },
     etoro: { name: 'eToro', icon: '📈' },
     webull: { name: 'Webull', icon: '📱' },
     coinbase: { name: 'Coinbase', icon: '🟠' },

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useDashboardData } from '@/hooks/useDashboardData'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { buildFriendStats } from '@/lib/friendsStats'
+import { getItemValue } from '@/components/dashboard/utils'
 import Header from '@/components/dashboard/Header'
 import MobileNav from '@/components/dashboard/MobileNav'
 import { SkeletonCard } from '@/components/dashboard/Skeleton'
@@ -78,6 +79,20 @@ export default function FriendsPage() {
 
   const hasIbkr = useMemo(() => (enrichedItems || []).some((it) => it._source === 'ibkr'), [enrichedItems])
 
+  // "Verified" = most of the portfolio value comes from a LIVE broker sync
+  // (ibkr/blockchain/ledger/API brokers), not hand-typed. Statement imports
+  // (Hapi) leave _source unset, so they honestly don't count as synced.
+  const { verified, syncedPct } = useMemo(() => {
+    const EXCLUDE = new Set(['demo', 'manual', 'hapi', 'import'])
+    let synced = 0
+    for (const it of enrichedItems || []) {
+      const v = getItemValue(it)
+      if (v > 0 && it._source && !EXCLUDE.has(it._source)) synced += v
+    }
+    const pct = totalAssets > 0 ? synced / totalAssets : 0
+    return { verified: pct >= 0.6, syncedPct: pct }
+  }, [enrichedItems, totalAssets])
+
   const myStats = useMemo(() => {
     const all = buildFriendStats({ enrichedItems, returnYTD, dailyChange, totalAssets })
     const out = { all }
@@ -120,10 +135,10 @@ export default function FriendsPage() {
   const doSync = useCallback(async () => {
     if (!myStats.all) return
     try {
-      await api({ action: 'sync', displayName, avatar, stats: myStats })
+      await api({ action: 'sync', displayName, avatar, stats: myStats, verified, syncedPct })
       await refresh()
     } catch (e) { flash(e.message) }
-  }, [api, myStats, displayName, avatar, refresh, flash])
+  }, [api, myStats, displayName, avatar, verified, syncedPct, refresh, flash])
 
   useEffect(() => {
     if (syncedRef.current) return
@@ -226,7 +241,10 @@ export default function FriendsPage() {
               {avatar}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold text-white truncate">{displayName}</div>
+              <div className="text-sm font-semibold text-white truncate flex items-center gap-1">
+                <span className="truncate">{displayName}</span>
+                {verified && <VerifiedBadge lang={lang} />}
+              </div>
               <div className="text-xs text-slate-500">{t('Tú', 'You')}</div>
             </div>
             <div className="text-right">
@@ -328,6 +346,17 @@ export default function FriendsPage() {
 
 const MEDALS = ['🥇', '🥈', '🥉']
 
+// Soft trust signal — portfolio is mostly broker-synced, not hand-typed.
+function VerifiedBadge({ lang }) {
+  return (
+    <span title={lang === 'es' ? 'Portafolio sincronizado con un broker' : 'Portfolio synced with a broker'}
+      className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-[9px] font-bold shrink-0"
+      style={{ backgroundColor: 'color-mix(in srgb, var(--accent-green) 22%, transparent)', color: 'var(--accent-green)' }}>
+      ✓
+    </span>
+  )
+}
+
 function GroupCard({ group, lang, t, expanded, setExpanded, onCopy, onLeave }) {
   const rows = group.rows || []
   return (
@@ -371,7 +400,11 @@ function GroupCard({ group, lang, t, expanded, setExpanded, onCopy, onLeave }) {
                   {(r.avatar || r.displayName || '?').charAt(0).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm text-white truncate">{r.displayName}{r.isYou && <span className="text-[10px] text-slate-500 ml-1">({t('tú', 'you')})</span>}</div>
+                  <div className="text-sm text-white truncate flex items-center gap-1">
+                    <span className="truncate">{r.displayName}</span>
+                    {r.verified && <VerifiedBadge lang={lang} />}
+                    {r.isYou && <span className="text-[10px] text-slate-500">({t('tú', 'you')})</span>}
+                  </div>
                   <div className="text-[10px] text-slate-600">{t('act.', 'upd.')} {timeAgo(r.updatedAt, lang)}</div>
                 </div>
                 <div className="text-right shrink-0">
@@ -445,7 +478,11 @@ function GlobalBoard({ global, lang, t, api, flash, onChanged }) {
             <div key={r.rank} className="flex items-center gap-3 px-4 py-2"
               style={r.isYou ? { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 8%, transparent)' } : undefined}>
               <span className="w-6 text-center text-sm shrink-0">{r.rank <= 3 ? MEDALS[r.rank - 1] : <span className="text-xs text-slate-500">{r.rank}</span>}</span>
-              <span className="flex-1 min-w-0 text-sm text-white truncate">{r.pseudonym}{r.isYou && <span className="text-[10px] text-slate-500 ml-1">({t('tú', 'you')})</span>}</span>
+              <span className="flex-1 min-w-0 text-sm text-white truncate flex items-center gap-1">
+                <span className="truncate">{r.pseudonym}</span>
+                {r.verified && <VerifiedBadge lang={lang} />}
+                {r.isYou && <span className="text-[10px] text-slate-500">({t('tú', 'you')})</span>}
+              </span>
               <span className="text-sm font-bold font-mono tabular-nums shrink-0" style={{ color: pctColor(r.ytd) }}>{fmtPct(r.ytd)}</span>
             </div>
           ))}

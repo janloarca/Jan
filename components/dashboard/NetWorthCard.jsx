@@ -78,7 +78,7 @@ function Sparkline({ snapshots, width = 60, height = 24 }) {
   )
 }
 
-export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, yearlyChange, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items }) {
+export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, yearlyChange, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, contributionWarning, onLogFlow }) {
   const hasYTD = returnYTD != null && isFinite(returnYTD)
   const displayReturn = hasYTD ? returnYTD : (returnSinceStart != null && isFinite(returnSinceStart) ? returnSinceStart : null)
   const hasReturn = displayReturn != null
@@ -238,6 +238,24 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
           </span>
         )}
       </div>
+
+      {/* Quiet, non-alarming nudge: big growth with few logged deposits may mean
+          unrecorded contributions. A muted tip, NOT an amber warning banner. */}
+      {contributionWarning && (
+        <div className="mt-2 flex items-start gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+          <span className="shrink-0">ⓘ</span>
+          <span>
+            {lang === 'es'
+              ? 'Para un retorno más preciso, agrega tus depósitos y retiros.'
+              : 'For a more accurate return, add your deposits and withdrawals.'}
+            {onLogFlow && (
+              <button onClick={onLogFlow} className="ml-1 underline transition-colors" style={{ color: 'var(--accent-blue)' }}>
+                {lang === 'es' ? 'Registrar' : 'Log'}
+              </button>
+            )}
+          </span>
+        </div>
+      )}
 
       {/* Composition — fills the card, shows where the net worth sits */}
       {allocation.length > 0 && (
