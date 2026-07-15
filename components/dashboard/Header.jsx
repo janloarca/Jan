@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Search, RefreshCw, Settings, LogOut, Plus, Upload, Zap } from 'lucide-react'
 
-export default function Header({ user, lang, setLang, onImport, onSignOut, onRefresh, onSettings, pricesLoading, onAddAccount, onCommandPalette, ibkrConnected, ibkrAutoSyncing, ibkrSyncStatus, onIBKR }) {
+export default function Header({ user, lang, setLang, onImport, onSignOut, onRefresh, onSettings, pricesLoading, onAddAccount, onCommandPalette, ibkrConnected, ibkrAutoSyncing, ibkrSyncStatus, onIBKR, friendsEnabled = true }) {
   // Short, human date: "21 jun 2026" / "Jun 21, 2026"
   const today = new Date().toLocaleDateString(lang === 'es' ? 'es-ES' : 'en-US', {
     day: 'numeric', month: 'short', year: 'numeric'
@@ -17,6 +17,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
     { href: '/dashboard', label: lang === 'es' ? 'Patrimonio' : 'Net Worth' },
     { href: '/finances', label: lang === 'es' ? 'Finanzas' : 'Finances' },
     { href: '/spreadsheet', label: lang === 'es' ? 'Hoja de Cálculo' : 'Spreadsheet' },
+    ...(friendsEnabled !== false ? [{ href: '/friends', label: lang === 'es' ? 'Amigos' : 'Friends' }] : []),
   ]
 
   // Shared icon-button style (settings, logout, refresh) — 36px, hairline border.

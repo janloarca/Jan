@@ -39,6 +39,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   const [shareCreating, setShareCreating] = useState(false)
   const [shareForm, setShareForm] = useState({ label: '', scopeType: 'all', entityId: '', institutions: [], display: 'both' })
   const [saveStatus, setSaveStatus] = useState(null)
+  const [friendsEnabled, setFriendsEnabled] = useState(settings?.friendsEnabled !== false)
 
   const t = (es, en) => lang === 'es' ? es : en
 
@@ -136,6 +137,24 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
       flash('ok', t('Link creado y copiado', 'Link created and copied'))
     } catch (e) { flash('err', e.message) }
     setShareLoading(false)
+  }
+
+  const toggleFriends = async () => {
+    const next = !friendsEnabled
+    setFriendsEnabled(next)
+    try {
+      await onSaveSettings({ friendsEnabled: next })
+      // Turning it off purges the public profile + removes you from every group.
+      if (!next) {
+        await authFetch('/api/friends', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'disable' }),
+        }).catch(() => {})
+      }
+      flash('ok', next ? t('Amigos activado', 'Friends enabled') : t('Amigos desactivado', 'Friends disabled'))
+    } catch (e) {
+      setFriendsEnabled(!next) // revert on failure
+      flash('err', e.message || t('Error al guardar', 'Error saving'))
+    }
   }
 
   const handleRevokeShare = async (token) => {
@@ -252,6 +271,30 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                     style={{ backgroundColor: beginnerMode ? 'var(--accent-blue)' : 'var(--bg-tertiary)' }}>
                     <span className="w-5 h-5 rounded-full bg-white transition-transform"
                       style={{ transform: beginnerMode ? 'translateX(16px)' : 'translateX(0)' }} />
+                  </span>
+                </button>
+              </div>
+
+              {/* Friends tab toggle — social leaderboard, off = hidden + profile purged */}
+              <div>
+                <label className="text-xs mb-2 block font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Amigos', 'Friends')}</label>
+                <button type="button" role="switch" aria-checked={friendsEnabled} onClick={toggleFriends}
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg border transition-all text-left"
+                  style={friendsEnabled
+                    ? { color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' }
+                    : { borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-input)' }}>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium" style={friendsEnabled ? undefined : { color: 'var(--text-primary)' }}>
+                      {t('Mostrar la pestaña Amigos', 'Show the Friends tab')}
+                    </div>
+                    <div className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+                      {t('Ranking de retorno con tus amigos. Solo se comparte tu % y símbolos, nunca montos. Al apagar se oculta la pestaña y se borra tu perfil público.', 'A return leaderboard with friends. Only your % and symbols are shared, never amounts. Turning it off hides the tab and deletes your public profile.')}
+                    </div>
+                  </div>
+                  <span className="shrink-0 w-10 h-6 rounded-full flex items-center transition-all px-0.5"
+                    style={{ backgroundColor: friendsEnabled ? 'var(--accent-blue)' : 'var(--bg-tertiary)' }}>
+                    <span className="w-5 h-5 rounded-full bg-white transition-transform"
+                      style={{ transform: friendsEnabled ? 'translateX(16px)' : 'translateX(0)' }} />
                   </span>
                 </button>
               </div>

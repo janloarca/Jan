@@ -634,6 +634,7 @@ export default function DashboardPage() {
         ibkrAutoSyncing={ibkrAutoSyncing}
         ibkrSyncStatus={ibkrSyncStatus}
         onIBKR={handleOpenIBKR}
+        friendsEnabled={settings?.friendsEnabled !== false}
       />
 
       {topBanner && (
@@ -1239,6 +1240,7 @@ export default function DashboardPage() {
         onAdd={handleOpenAccount} onImport={handleOpenImport}
         onExport={handleExport} onShare={handleShare}
         onSettings={handleOpenSettings} onSearch={handleOpenCmdPalette} lang={lang}
+        friendsEnabled={settings?.friendsEnabled !== false}
       />
 
       {showOnboarding && (

@@ -6,6 +6,31 @@
 - [ ] (usuario) Activar el recordatorio de finanzas: crear buzón `recordatorios@chispu.xyz` (Zoho Mail gratis: dominio + MX/SPF/DKIM + app password) y setear `SMTP_HOST/SMTP_USER/SMTP_PASS` + `CRON_SECRET` en Vercel. Pasos completos en `.env.local.example`.
 - [x] Intro interactiva para usuarios nuevos: hecha (Fase Q). `OnboardingTour` ofrece "Explorar con datos de ejemplo" → seed de `lib/demoData.js` vía bulkImport → walkthrough con spotlight sobre las cards reales (`data-card-id` / `data-tour`) → "Borrar demo y agregar lo mío". Mientras existan items `_source:'demo'`: banner de salida en el dashboard y VETO a saveSnapshot/saveItemSnapshots/processDividends (cero side-effects persistentes). Limpieza selectiva con `deleteDemoData()`.
 
+## Lecciones — Módulo Amigos / social (FASE X)
+
+- **Todo lo cross-user va por Admin SDK, nunca cliente Firestore.** `firestore.rules`
+  es default-deny salvo `users/{uid}/**`. Las colecciones sociales (`friendProfiles`,
+  `friendGroups`) son top-level → inalcanzables desde el navegador. Se acceden SOLO por
+  `app/api/friends/route.js` (Admin SDK + `verifyAuth`), patrón exacto de `shareTokens`.
+  No se tocan las rules. Sin este modelo, cualquier usuario leería el portafolio de otro.
+- **Privacidad: solo % y símbolos, JAMÁS montos.** `lib/friendsStats.js` (puro) publica
+  `{ ytd, day, movers[] }` donde movers = `{symbol, name, changePct, impactPct}` con
+  `impactPct = weight × change1d` (ratio, no monto). El server re-valida y re-clampa
+  todo lo que envía el cliente (untrusted): `sanitizeStatBlock` recorta movers, clampa
+  a [-200,200] y descarta cualquier campo. El ranking global es aún más estricto: solo
+  seudónimo + ytd (sin uid, sin movers, sin símbolos).
+- **El número ya está calculado.** `useDashboardData` expone `returnYTD` (Modified Dietz,
+  currency-independent) y `dailyChange` — el cliente los publica vía `sync`; no se
+  recomputa en el server (self-reported, suficiente entre amigos). Verificado por broker
+  = Fase 2.
+- **Grupos con `array-contains`.** `list` = `where('memberUids','array-contains',uid)`;
+  join usa `runTransaction` para respetar el cap de miembros atómicamente. Owner que sale
+  transfiere la propiedad al miembro más antiguo (o borra el grupo si queda vacío).
+- **Nav gated por preferencia.** `settings.friendsEnabled` (default true; ausente = true).
+  `Header`/`MobileNav` reciben prop `friendsEnabled`; apagarlo en Settings oculta la
+  pestaña Y llama `/api/friends {action:'disable'}` (borra el perfil público + saca de
+  todos los grupos). No hay precedente de nav gated por pref — se pasa la bool como prop.
+
 ## Lecciones — Módulo Finanzas (FASE R/S/T)
 
 ### Moneda del módulo (GTQ)

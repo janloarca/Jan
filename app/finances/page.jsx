@@ -220,6 +220,7 @@ export default function FinancesPage() {
         onSignOut={handleSignOut}
         onRefresh={() => {}}
         pricesLoading={false}
+        friendsEnabled={settings?.friendsEnabled !== false}
       />
 
       <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
@@ -332,6 +333,7 @@ export default function FinancesPage() {
         onExport={handleExportCsv}
         onSettings={() => router.push('/dashboard')}
         lang={lang}
+        friendsEnabled={settings?.friendsEnabled !== false}
       />
     </div>
   )

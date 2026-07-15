@@ -3,9 +3,9 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Calculator, Plus, Menu, Upload, Download, Share2, Settings, Table } from 'lucide-react'
+import { Home, Calculator, Plus, Menu, Upload, Download, Share2, Settings, Table, Users } from 'lucide-react'
 
-export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettings, onSearch, lang }) {
+export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettings, onSearch, lang, friendsEnabled = true }) {
   const [moreOpen, setMoreOpen] = useState(false)
   const t = (es, en) => lang === 'es' ? es : en
   const pathname = usePathname()
@@ -26,6 +26,12 @@ export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettin
             <Table size={20} />
             <span className="text-micro">{t('Hoja', 'Sheet')}</span>
           </Link>
+          {friendsEnabled !== false && (
+            <Link href="/friends" aria-label={t('Amigos', 'Friends')} className="flex flex-col items-center gap-0.5 transition-colors p-2.5 min-w-[44px] min-h-[44px] justify-center" style={{ color: pathname === '/friends' ? 'var(--accent-blue)' : '#94a3b8' }}>
+              <Users size={20} />
+              <span className="text-micro">{t('Amigos', 'Friends')}</span>
+            </Link>
+          )}
           <button onClick={onAdd} aria-label={t('Agregar', 'Add')} className="flex flex-col items-center gap-0.5 text-slate-400 hover:text-white transition-colors p-2.5 min-w-[44px] min-h-[44px] justify-center">
             <div className="w-10 h-10 -mt-5 rounded-full flex items-center justify-center text-white shadow-lg" style={{ backgroundColor: 'var(--accent-blue)', boxShadow: '0 8px 20px -3px rgba(108,122,255,0.4)' }}>
               <Plus size={22} />
