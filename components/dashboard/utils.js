@@ -251,6 +251,50 @@ export function findMonthStartAnchor(snapshots, year, month) {
   return best
 }
 
+// Modified-Dietz YTD / MTD / daily return for ONE source (e.g. 'ibkr') alone —
+// broker-scoped NAV snapshots + broker-scoped current value + broker-scoped
+// flows. Lets a "Solo IBKR" comparison reflect just that account, not the whole
+// portfolio. Snapshots must be the RAW per-source series (not augmented with
+// manual items). `nowTs` is injectable for deterministic tests.
+export function computeScopedReturns({ snapshots, items, transactions, source, convert, baseCurrency, nowTs }) {
+  const now = nowTs ? new Date(nowTs) : new Date()
+  const endTs = now.getTime()
+  const year = now.getUTCFullYear()
+  const month = now.getUTCMonth()
+  const cv = (usd) => (convert ? convert(usd, 'USD', baseCurrency || 'USD') : usd)
+
+  const snaps = (snapshots || []).filter((s) => s && s._source === source && s.date)
+  const scopedItems = (items || []).filter((it) => it._source === source && !isExcludedFromNetWorth(it))
+  let endValue = 0
+  scopedItems.forEach((it) => {
+    const v = getItemValue(it)
+    endValue += it.isDebt ? -Math.abs(v) : v
+  })
+  if (!(endValue > 0) || snaps.length === 0) return { ytd: null, mtd: null, day: null }
+
+  const flows = (transactions || []).filter((tx) => tx._source === source)
+  const at = (anchor, startTs) => {
+    if (!anchor) return null
+    const startVal = cv(anchor.netWorthUSD ?? anchor.totalActivosUSD ?? 0)
+    if (!(startVal > 0)) return null
+    const { pct } = computeModifiedDietz({ startValue: startVal, endValue, startTs, endTs, transactions: flows, convert, baseCurrency })
+    return Math.max(-200, Math.min(200, pct))
+  }
+  const ytd = at(findYearStartAnchor(snaps, year), Date.UTC(year, 0, 1))
+  const mtd = at(findMonthStartAnchor(snaps, year, month), Date.UTC(year, month, 1))
+
+  // Daily change: value now vs the last snapshot strictly before today.
+  const todayStr = now.toISOString().slice(0, 10)
+  const prior = snaps.filter((s) => s.date < todayStr).sort((a, b) => new Date(a.date) - new Date(b.date))
+  let day = null
+  const baseline = prior[prior.length - 1]
+  if (baseline) {
+    const prevVal = cv(baseline.netWorthUSD ?? baseline.totalActivosUSD ?? 0)
+    if (prevVal > 0) day = Math.max(-200, Math.min(200, ((endValue - prevVal) / prevVal) * 100))
+  }
+  return { ytd, mtd, day }
+}
+
 // Build the income-event payload for /api/prices/portfolio-history from DIVIDEND
 // transactions. Reinvested step-ups raise the linked asset's value; cash-destination
 // payments are excluded (their value already lives in the destination account).

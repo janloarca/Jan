@@ -66,7 +66,8 @@ export default function FriendsPage() {
   }, [router])
 
   const {
-    enrichedItems, returnYTD, returnMTD, dailyChange, totalAssets, baseCurrency, profile, settings, dataLoading,
+    enrichedItems, returnYTD, returnMTD, ibkrReturnYTD, ibkrReturnMTD, ibkrDayChange,
+    dailyChange, totalAssets, baseCurrency, profile, settings, dataLoading,
   } = useDashboardData({ user, lang, activePortfolio: '__all__' })
 
   const t = useCallback((es, en) => (lang === 'es' ? es : en), [lang])
@@ -96,9 +97,11 @@ export default function FriendsPage() {
   const myStats = useMemo(() => {
     const all = buildFriendStats({ enrichedItems, returnYTD, returnMTD, dailyChange, totalAssets })
     const out = { all }
-    if (hasIbkr) out.ibkr = buildFriendStats({ enrichedItems, returnYTD, returnMTD, dailyChange, totalAssets, scopeFilter: (it) => it._source === 'ibkr' })
+    // IBKR block uses IBKR-scoped returns (broker NAV + broker flows), not the
+    // whole-portfolio numbers — so "IBKR only" groups compare that account alone.
+    if (hasIbkr) out.ibkr = buildFriendStats({ enrichedItems, returnYTD: ibkrReturnYTD, returnMTD: ibkrReturnMTD, dailyChange: ibkrDayChange, scopeFilter: (it) => it._source === 'ibkr' })
     return out
-  }, [enrichedItems, returnYTD, returnMTD, dailyChange, totalAssets, hasIbkr])
+  }, [enrichedItems, returnYTD, returnMTD, ibkrReturnYTD, ibkrReturnMTD, ibkrDayChange, dailyChange, totalAssets, hasIbkr])
 
   const [groups, setGroups] = useState(null)
   const [global, setGlobal] = useState(null)

@@ -5,7 +5,7 @@ import { useExchangeRates } from './useExchangeRates'
 import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor } from '@/components/dashboard/utils'
+import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns } from '@/components/dashboard/utils'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
 
@@ -818,6 +818,14 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     return Math.max(-200, Math.min(200, pct))
   }, [netWorth, transactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot])
 
+  // IBKR-only returns (Modified Dietz over the raw broker NAV + broker flows) for
+  // the Friends "IBKR only" leaderboard scope. Uses RAW snapshots (not augmented,
+  // which mix in manual assets). Null until the user has IBKR snapshots + flows.
+  const ibkrReturns = useMemo(
+    () => computeScopedReturns({ snapshots, items: enrichedItems, transactions, source: 'ibkr', convert, baseCurrency, nowTs: Date.now() }),
+    [snapshots, enrichedItems, transactions, convert, baseCurrency]
+  )
+
   const annualDividends = useMemo(() => {
     // Trailing 12 months only — this figure is labeled "Dividendos/año" in the UI
     // and the PDF report, so a lifetime sum would overstate it more every year.
@@ -1000,6 +1008,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // Computed values
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
     returnYTD, ytdChange, returnSinceStart, sinceStartDate, returnMTD,
+    ibkrReturnYTD: ibkrReturns.ytd, ibkrReturnMTD: ibkrReturns.mtd, ibkrDayChange: ibkrReturns.day,
     annualDividends, estimatedAnnualIncome,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
 

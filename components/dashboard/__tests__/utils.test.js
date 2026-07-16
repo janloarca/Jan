@@ -12,6 +12,7 @@ import {
   augmentSnapshots,
   findYearStartAnchor,
   findMonthStartAnchor,
+  computeScopedReturns,
   effectiveAcqTs,
   formatMonth,
 } from '../utils'
@@ -461,5 +462,48 @@ describe('findMonthStartAnchor', () => {
   it('returns null for empty input', () => {
     expect(findMonthStartAnchor([], 2026, 6)).toBeNull()
     expect(findMonthStartAnchor(null, 2026, 6)).toBeNull()
+  })
+})
+
+describe('computeScopedReturns', () => {
+  const nowTs = Date.UTC(2026, 6, 15) // 2026-07-15
+  const snapshots = [
+    { date: '2026-01-01', netWorthUSD: 1000, _source: 'ibkr' },
+    { date: '2026-07-01', netWorthUSD: 1100, _source: 'ibkr' },
+    { date: '2026-07-14', netWorthUSD: 1180, _source: 'ibkr' },
+    { date: '2026-01-01', netWorthUSD: 9000, _source: 'daily' }, // whole-portfolio, ignored
+  ]
+  const items = [
+    { quantity: 1, currentPrice: 1200, _source: 'ibkr' },   // IBKR value now = 1200
+    { quantity: 1, currentPrice: 5000, _source: 'manual' }, // excluded from IBKR scope
+  ]
+  const transactions = [
+    { type: 'DEPOSIT', totalAmount: 100, currency: 'USD', date: '2026-03-01', _source: 'ibkr' },
+    { type: 'DEPOSIT', totalAmount: 2000, currency: 'USD', date: '2026-03-01', _source: 'manual' }, // excluded
+  ]
+  const args = { snapshots, items, transactions, source: 'ibkr', convert: (v) => v, baseCurrency: 'USD', nowTs }
+
+  it('computes IBKR-scoped YTD from broker NAV + broker flows only', () => {
+    const { ytd } = computeScopedReturns(args)
+    // gain = 1200 - 1000 - 100 = 100 over ~1069 weighted capital → ~9.3%.
+    // If the manual deposit (2000) or manual item (5000) leaked in, this would be
+    // negative or huge — so a small positive % proves the scoping.
+    expect(ytd).toBeGreaterThan(9)
+    expect(ytd).toBeLessThan(10)
+  })
+
+  it('computes MTD anchored to the month-start snapshot', () => {
+    // start 1100 (Jul 1), end 1200, no flows within July → 100/1100 ≈ 9.09%.
+    expect(computeScopedReturns(args).mtd).toBeCloseTo(9.09, 1)
+  })
+
+  it('computes daily change vs the last snapshot before today', () => {
+    // baseline 1180 (Jul 14) → (1200-1180)/1180 ≈ 1.69%.
+    expect(computeScopedReturns(args).day).toBeCloseTo(1.69, 1)
+  })
+
+  it('returns nulls when the source has no snapshots or no value', () => {
+    expect(computeScopedReturns({ ...args, source: 'alpaca' })).toEqual({ ytd: null, mtd: null, day: null })
+    expect(computeScopedReturns({ ...args, items: [] })).toEqual({ ytd: null, mtd: null, day: null })
   })
 })
