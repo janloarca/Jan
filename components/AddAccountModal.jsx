@@ -739,7 +739,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             {duplicateWarning && (
               <div className="p-3 rounded-lg space-y-2" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-orange) 10%, transparent)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'color-mix(in srgb, var(--accent-orange) 30%, transparent)' }}>
                 <p className="text-xs font-medium" style={{ color: 'var(--accent-orange)' }}>{t('Este activo ya existe en tu portafolio', 'This asset already exists in your portfolio')}</p>
-                <p className="text-xs text-[var(--text-secondary,#94a3b8)]">{duplicateWarning.name} ({duplicateWarning.institution || '—'}) — {duplicateWarning.quantity} @ {duplicateWarning.currency}</p>
+                <p className="text-xs text-[var(--text-secondary,#94a3b8)]">{duplicateWarning.name} ({duplicateWarning.institution || '-'}): {duplicateWarning.quantity} @ {duplicateWarning.currency}</p>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => { setStep(2) }}
                     className="flex-1 px-2 py-1.5 text-xs font-medium rounded" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-orange) 20%, transparent)', color: 'var(--accent-orange)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'color-mix(in srgb, var(--accent-orange) 40%, transparent)' }}>
@@ -952,32 +952,18 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               </div>
             )}
 
-            {/* Currency + Account Type */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label htmlFor="add-currency" className={labelCls}>
-                  {t('Moneda', 'Currency')} <span style={{ color: 'var(--text-negative)' }}>*</span>
-                </label>
-                <select id="add-currency" value={form.currency} onChange={e => set('currency', e.target.value)} className={inputCls}>
-                  {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-                {/* Below the field, not inside the <label> — inline it wrapped the
-                    label to two lines and misaligned the row */}
-                {detectedCurrency && form.currency === detectedCurrency && (
-                  <p className="text-xs mt-1" style={{ color: 'var(--accent-green)' }}>✓ {t('Detectada automáticamente', 'Auto-detected')}</p>
-                )}
-              </div>
-              <div>
-                <label htmlFor="add-accountType" className={labelCls}>{t('Tipo de cuenta', 'Account type')}</label>
-                <select id="add-accountType" value={form.accountType} onChange={e => set('accountType', e.target.value)} className={inputCls}>
-                  {ACCOUNT_TYPES.map(at => <option key={at.key} value={at.key}>{lang === 'es' ? at.es : at.en}</option>)}
-                </select>
-                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                  {form.accountType === 'taxable' ? t('Paga impuestos (ej. cuenta de bolsa normal)', 'Pays taxes (e.g. regular brokerage)') :
-                   form.accountType === 'retirement' ? t('Ahorro para retiro (ej. 401k, IRA, AFP)', 'Retirement savings (e.g. 401k, IRA)') :
-                   t('Exenta de impuestos (ej. Roth IRA)', 'Tax-exempt (e.g. Roth IRA)')}
-                </p>
-              </div>
+            {/* Currency (account type moved into Advanced: the taxable/retirement
+                distinction confused most users and 'taxable' is the right default) */}
+            <div>
+              <label htmlFor="add-currency" className={labelCls}>
+                {t('Moneda', 'Currency')} <span style={{ color: 'var(--text-negative)' }}>*</span>
+              </label>
+              <select id="add-currency" value={form.currency} onChange={e => set('currency', e.target.value)} className={inputCls}>
+                {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              {detectedCurrency && form.currency === detectedCurrency && (
+                <p className="text-xs mt-1" style={{ color: 'var(--accent-green)' }}>✓ {t('Detectada automáticamente', 'Auto-detected')}</p>
+              )}
             </div>
 
             {/* Acquisition date */}
@@ -997,8 +983,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   keeps the default, every history engine treats it as nonexistent
                   before today (flat/empty past + wrong returns). Nudge hard. */}
               <p className="text-xs mt-1" style={{ color: 'var(--accent-orange)' }}>
-                {t('Si ya lo tenías desde antes, usa la fecha REAL — el historial y los retornos arrancan en esta fecha.',
-                   'If you already held this, use the REAL date — history and returns start from this date.')}
+                {t('Si ya lo tenías desde antes, usa la fecha REAL: el historial y los retornos arrancan en esta fecha.',
+                   'If you already held this, use the REAL date: history and returns start from this date.')}
               </p>
             </div>
 
@@ -1112,7 +1098,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     </div>
                   </div>
                   {form.rateMin && !form.rateMax && (
-                    <p className="text-xs" style={{ color: 'var(--accent-orange)' }}>⚠ {t('Falta la tasa máxima — el ingreso se calculará como 0.', 'Missing max rate — income will be calculated as 0.')}</p>
+                    <p className="text-xs" style={{ color: 'var(--accent-orange)' }}>⚠ {t('Falta la tasa máxima: el ingreso se calculará como 0.', 'Missing max rate: income will be calculated as 0.')}</p>
                   )}
                   </>
                 ) : (
@@ -1235,6 +1221,19 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
             {showAdvanced && (
               <div className="space-y-3 pl-1 ml-1" style={{ borderLeft: '2px solid color-mix(in srgb, var(--accent-blue) 20%, transparent)' }}>
+                {/* Account tax treatment (moved out of the main flow) */}
+                <div>
+                  <label htmlFor="add-accountType" className={labelCls}>{t('Tipo de cuenta', 'Account type')}</label>
+                  <select id="add-accountType" value={form.accountType} onChange={e => set('accountType', e.target.value)} className={inputCls}>
+                    {ACCOUNT_TYPES.map(at => <option key={at.key} value={at.key}>{lang === 'es' ? at.es : at.en}</option>)}
+                  </select>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                    {form.accountType === 'taxable' ? t('Paga impuestos (ej. cuenta de bolsa normal)', 'Pays taxes (e.g. regular brokerage)') :
+                     form.accountType === 'retirement' ? t('Ahorro para retiro (ej. 401k, IRA, AFP)', 'Retirement savings (e.g. 401k, IRA)') :
+                     t('Exenta de impuestos (ej. Roth IRA)', 'Tax-exempt (e.g. Roth IRA)')}
+                  </p>
+                </div>
+
                 {/* Maturity date for bonds/alternatives */}
                 {(isBond || isAlternative) && (
                   <div className="grid grid-cols-2 gap-3">
@@ -1358,7 +1357,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               <div>
                 <span className="text-xs text-[var(--text-primary,white)] font-medium">{t('Es dinero nuevo para mi portafolio', 'This is new money for my portfolio')}</span>
                 <p className="text-xs text-[var(--text-muted,#475569)]">
-                  {isNewMoney ? t('Viene de fuera (salario, venta, etc.) — no es ganancia', 'Comes from outside (salary, sale, etc.) — not a gain') : t('Ya estaba en otra cuenta de mi portafolio', 'Was already in another account in my portfolio')}
+                  {isNewMoney ? t('Viene de fuera (salario, venta, etc.): no es ganancia', 'Comes from outside (salary, sale, etc.): not a gain') : t('Ya estaba en otra cuenta de mi portafolio', 'Was already in another account in my portfolio')}
                 </p>
               </div>
             </div>
@@ -1420,8 +1419,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   {valueTimeline === 'multi' && (
                     <>
                       <p className="text-xs text-[var(--text-muted,#475569)]">
-                        {t('Registra cada aporte con su fecha — así el historial muestra cómo creció desde el principio.',
-                           'Log each contribution with its date — history will show how it grew from the start.')}
+                        {t('Registra cada aporte con su fecha: así el historial muestra cómo creció desde el principio.',
+                           'Log each contribution with its date: history will show how it grew from the start.')}
                       </p>
                       <TimelineEditor rows={timelineRows} onChange={setTimelineRows}
                         total={tlTotal} currency={form.currency} requireExact={isMarketAsset} lang={lang} />
@@ -1439,8 +1438,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               const fmt = (v) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
               if (total > 0) {
                 const warnings = []
-                if (total > 10000000) warnings.push(t('⚠ Valor muy alto — verifica los datos', '⚠ Very high value — check your data'))
-                if (isMarketAsset && qty > 0 && price > 0 && qty === price) warnings.push(t('⚠ Cantidad y precio son iguales — ¿es correcto?', '⚠ Quantity and price are the same — is this correct?'))
+                if (total > 10000000) warnings.push(t('⚠ Valor muy alto: verifica los datos', '⚠ Very high value: check your data'))
+                if (isMarketAsset && qty > 0 && price > 0 && qty === price) warnings.push(t('⚠ Cantidad y precio son iguales: ¿es correcto?', '⚠ Quantity and price are the same: is this correct?'))
                 return (
                   <div className="p-3 rounded-lg border text-xs"
                     style={warnings.length > 0 ? { backgroundColor: 'color-mix(in srgb, var(--accent-orange) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-orange) 20%, transparent)' } : { backgroundColor: 'color-mix(in srgb, var(--accent-green) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-green) 20%, transparent)' }}>

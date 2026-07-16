@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { Zap, Plus, Wallet, Calendar, Globe, BarChart3 } from 'lucide-react'
 
 const ICON_MAP = { Zap, Plus, Wallet, Calendar, Globe, BarChart3 }
@@ -9,7 +10,7 @@ const ICON_MAP = { Zap, Plus, Wallet, Calendar, Globe, BarChart3 }
 const STEPS_ES = [
   {
     title: 'Bienvenido a Chispudo',
-    body: 'Tu plataforma de control financiero personal. Aquí puedes trackear tu portafolio completo — stocks, crypto, bonos, fondos, inmuebles y más.',
+    body: 'Tu plataforma de control financiero personal. Aquí puedes trackear tu portafolio completo: stocks, crypto, bonos, fondos, inmuebles y más.',
     icon: 'Zap',
     tip: 'Tip: Funciona offline como app instalable.',
   },
@@ -34,7 +35,7 @@ const STEPS_ES = [
   },
   {
     title: 'Multi-moneda',
-    body: 'Cambia tu moneda base en ajustes. Soportamos 14 monedas con tipo de cambio en tiempo real — perfecto para portafolios LatAm.',
+    body: 'Cambia tu moneda base en ajustes. Soportamos 14 monedas con tipo de cambio en tiempo real: perfecto para portafolios LatAm.',
     icon: 'Globe',
     tip: 'GTQ, MXN, COP, CLP, BRL, PEN, USD, EUR y más.',
   },
@@ -50,7 +51,7 @@ const STEPS_ES = [
 const STEPS_EN = [
   {
     title: 'Welcome to Chispudo',
-    body: 'Your personal financial control platform. Track your complete portfolio — stocks, crypto, bonds, funds, real estate and more.',
+    body: 'Your personal financial control platform. Track your complete portfolio: stocks, crypto, bonds, funds, real estate and more.',
     icon: 'Zap',
     tip: 'Tip: Works offline as an installable app.',
   },
@@ -75,7 +76,7 @@ const STEPS_EN = [
   },
   {
     title: 'Multi-currency',
-    body: 'Change your base currency in settings. We support 14 currencies with real-time exchange rates — perfect for LatAm portfolios.',
+    body: 'Change your base currency in settings. We support 14 currencies with real-time exchange rates: perfect for LatAm portfolios.',
     icon: 'Globe',
     tip: 'GTQ, MXN, COP, CLP, BRL, PEN, USD, EUR and more.',
   },
@@ -124,14 +125,14 @@ const DEMO_STEPS = (t) => [
   {
     anchor: '[data-card-id="INST-01"]',
     title: t('Rendimiento por institución', 'Performance by institution'),
-    body: t('Compara cómo le va a cada banco o broker donde tienes dinero — quién te está generando más.',
-            'Compare how each bank or broker you hold money with is doing — who is earning you more.'),
+    body: t('Compara cómo le va a cada banco o broker donde tienes dinero: quién te está generando más.',
+            'Compare how each bank or broker you hold money with is doing: who is earning you more.'),
   },
   {
     anchor: '[data-tour="header-new"]',
     title: t('Agrega en segundos', 'Add in seconds'),
-    body: t('El botón "Nuevo" abre el formulario rápido: stocks, cuentas de banco, bonos, inmuebles, deudas — todo cabe.',
-            'The "New" button opens the quick form: stocks, bank accounts, bonds, real estate, debts — everything fits.'),
+    body: t('El botón "Nuevo" abre el formulario rápido: stocks, cuentas de banco, bonos, inmuebles, deudas: todo cabe.',
+            'The "New" button opens the quick form: stocks, bank accounts, bonds, real estate, debts: everything fits.'),
   },
   {
     anchor: '[data-tour="header-import"]',
@@ -155,12 +156,23 @@ const DEMO_STEPS = (t) => [
 
 export default function OnboardingTour({ lang, onAction, onComplete, onSeedDemo, onClearDemo, demoActive = false }) {
   const t = (es, en) => lang === 'es' ? es : en
+  const router = useRouter()
   // mode: 'intro' (welcome + choice) | 'classic' (modal steps) | 'demo' (anchored)
   const [mode, setMode] = useState(demoActive ? 'demo' : 'intro')
   const [step, setStep] = useState(0)
   const [visible, setVisible] = useState(false)
   const [seeding, setSeeding] = useState(false)
-  const [finalStep, setFinalStep] = useState(false)
+  // Returning from the per-page tour chain (PageTour set 'chispudo-tour-final'):
+  // reopen straight on the closing card instead of restarting the walkthrough.
+  const [finalStep, setFinalStep] = useState(() => {
+    try {
+      if (sessionStorage.getItem('chispudo-tour-final') === '1') {
+        sessionStorage.removeItem('chispudo-tour-final')
+        return true
+      }
+    } catch {}
+    return false
+  })
   const [rect, setRect] = useState(null)
   const retryRef = useRef(0)
 
@@ -241,8 +253,18 @@ export default function OnboardingTour({ lang, onAction, onComplete, onSeedDemo,
   }, [currentDemo?.anchor, step, demoSteps.length])
 
   const handleDemoNext = () => {
-    if (step < demoSteps.length - 1) setStep(step + 1)
-    else { setRect(null); setFinalStep(true) }
+    if (step < demoSteps.length - 1) { setStep(step + 1); return }
+    // Dashboard leg done: hand off to the per-page chain (Finanzas → Hoja de
+    // Cálculo → Amigos, each explained by its own PageTour), which routes back
+    // here with 'chispudo-tour-final' for the closing card.
+    try {
+      sessionStorage.setItem('chispudo-tour-page', 'finances')
+      setRect(null)
+      router.push('/finances')
+    } catch {
+      setRect(null)
+      setFinalStep(true)
+    }
   }
 
   const handleStartDemo = async () => {
@@ -329,8 +351,8 @@ export default function OnboardingTour({ lang, onAction, onComplete, onSeedDemo,
             <div className="flex justify-center mb-4"><Zap size={40} style={{ color: 'var(--accent-blue)' }} /></div>
             <h2 className="text-xl font-bold text-white mb-3">{t('¿Listo para lo tuyo?', 'Ready for your own?')}</h2>
             <p className="text-slate-400 text-sm leading-relaxed">
-              {t('Puedes borrar los datos de ejemplo y agregar tu primer activo, o seguir explorando un rato — el banner de arriba siempre te deja salir del modo demo.',
-                 'You can delete the sample data and add your first asset, or keep exploring — the banner up top always lets you exit demo mode.')}
+              {t('Puedes borrar los datos de ejemplo y agregar tu primer activo, o seguir explorando un rato: el banner de arriba siempre te deja salir del modo demo.',
+                 'You can delete the sample data and add your first asset, or keep exploring: the banner up top always lets you exit demo mode.')}
             </p>
           </div>
           <div className="flex flex-col gap-2 px-6 pb-6">

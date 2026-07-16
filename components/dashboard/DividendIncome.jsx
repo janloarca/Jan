@@ -195,8 +195,8 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
           {t('INGRESOS PASIVOS', 'PASSIVE INCOME')}
         </h3>
         <p className="text-sm text-slate-500">
-          {t('Aún no hay ingresos que mostrar. Configura la tasa o el monto de ingreso de un activo (bono, cuenta, acción con dividendos) al editarlo, o registra un dividendo recibido — aquí verás la proyección anual, el calendario y el historial.',
-             'No income to show yet. Set an income rate or amount on an asset (bond, account, dividend stock) when editing it, or record a received dividend — you\'ll see the annual projection, calendar and history here.')}
+          {t('Aún no hay ingresos que mostrar. Configura la tasa o el monto de ingreso de un activo (bono, cuenta, acción con dividendos) al editarlo, o registra un dividendo recibido: aquí verás la proyección anual, el calendario y el historial.',
+             'No income to show yet. Set an income rate or amount on an asset (bond, account, dividend stock) when editing it, or record a received dividend: you\'ll see the annual projection, calendar and history here.')}
         </p>
       </div>
     )
@@ -378,7 +378,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
                   : { backgroundColor: 'transparent', borderStyle: 'dashed', borderColor: 'var(--card-border)' }}>
                   <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{monthName(m)}</span>
                   <span className="text-xs font-semibold" style={{ color: paid ? 'var(--accent-green)' : 'var(--text-muted)' }}>
-                    {paid ? formatCurrency(amt) : '—'}
+                    {paid ? formatCurrency(amt) : '-'}
                   </span>
                 </div>
               )

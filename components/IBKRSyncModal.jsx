@@ -77,8 +77,8 @@ function DoneStep({ result, onClose, t }) {
       )}
       {result.partial && (
         <p className="text-xs mt-2" style={{ color: 'var(--alert-warn-icon)' }}>
-          {t('Importación parcial — algunos registros no se guardaron. Sincroniza de nuevo para completar.',
-             'Partial import — some records were not saved. Sync again to complete.')}
+          {t('Importación parcial: algunos registros no se guardaron. Sincroniza de nuevo para completar.',
+             'Partial import: some records were not saved. Sync again to complete.')}
         </p>
       )}
       <p className="text-xs text-slate-600 mt-2">
@@ -689,20 +689,20 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                         This is the ONLY source of real historical portfolio value; without
                         it YTD/ALL and the value chart start from today (estimated, not real). */}
                     <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--accent-orange)' }}>
-                      {t('Incluye "Equity Summary" y pon el período del query amplio (ej. "Year to Date" o "Last 365 Days") — es lo que da tus retornos reales (YTD/ALL) y la gráfica de valor. Sin ella arrancan desde hoy.',
-                         'Include "Equity Summary" and set the query period wide (e.g. "Year to Date" or "Last 365 Days") — it powers your real returns (YTD/ALL) and the value chart. Without it they start from today.')}
+                      {t('Incluye "Equity Summary" y pon el período del query amplio (ej. "Year to Date" o "Last 365 Days"): es lo que da tus retornos reales (YTD/ALL) y la gráfica de valor. Sin ella arrancan desde hoy.',
+                         'Include "Equity Summary" and set the query period wide (e.g. "Year to Date" or "Last 365 Days"): it powers your real returns (YTD/ALL) and the value chart. Without it they start from today.')}
                     </p>
                     {/* Without Cash Transactions, deposits/withdrawals never import,
                         so Modified-Dietz returns are distorted by unaccounted flows. */}
                     <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--accent-orange)' }}>
-                      {t('Incluye "Cash Transactions" (Deposits/Withdrawals) — sin ella tus depósitos no se importan y tus retornos pueden salir inflados.',
-                         'Include "Cash Transactions" (Deposits/Withdrawals) — without it your deposits don\'t import and your returns may look inflated.')}
+                      {t('Incluye "Cash Transactions" (Deposits/Withdrawals): sin ella tus depósitos no se importan y tus retornos pueden salir inflados.',
+                         'Include "Cash Transactions" (Deposits/Withdrawals): without it your deposits don\'t import and your returns may look inflated.')}
                     </p>
                     {/* Without the Asset Class column everything imports as Stock —
                         bonds/cash then fetch quotes from unrelated real tickers. */}
                     <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--accent-orange)' }}>
-                      {t('Importante: incluye la columna "Asset Class" en Open Positions — sin ella, los bonos y el cash se importan como acciones.',
-                         'Important: include the "Asset Class" column in Open Positions — without it, bonds and cash import as stocks.')}
+                      {t('Importante: incluye la columna "Asset Class" en Open Positions: sin ella, los bonos y el cash se importan como acciones.',
+                         'Important: include the "Asset Class" column in Open Positions: without it, bonds and cash import as stocks.')}
                     </p>
                   </div>
                 </div>

@@ -886,7 +886,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       setSnapshotRows([{ date: '', value: '' }])
     } catch (err) {
       console.error('[chart] manual snapshot save failed:', err)
-      setFetchError(t('Error guardando — algunos valores pueden haberse guardado.', 'Save failed — some rows may have been saved.'))
+      setFetchError(t('Error guardando: algunos valores pueden haberse guardado.', 'Save failed: some rows may have been saved.'))
     } finally {
       // Without this, a mid-batch failure left the button stuck on "..."
       setSnapshotSaving(false)
@@ -941,7 +941,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         <div className="flex flex-col items-center justify-center min-h-[200px] gap-2 text-slate-500 text-sm">
           {period === 'DAY' ? (
             <>
-              <p>{t('Sin datos intradía — el mercado puede estar cerrado.', 'No intraday data — market may be closed.')}</p>
+              <p>{t('Sin datos intradía: el mercado puede estar cerrado.', 'No intraday data: market may be closed.')}</p>
               <button onClick={() => setPeriod('1W')} className="text-xs" style={{ color: 'var(--accent-blue)' }}>
                 {t('Ver última semana', 'View last week')}
               </button>
@@ -990,13 +990,13 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
               <button onClick={() => setReturnMode('twr')}
                 className="px-2 py-1 text-xs font-medium rounded-md transition-all"
                 style={returnMode === 'twr' ? { backgroundColor: 'var(--accent-blue)', color: '#fff' } : { color: 'var(--text-muted)' }}
-                title={t('Retorno ponderado por tiempo — mide el rendimiento del portafolio sin importar depósitos/retiros', 'Time-Weighted Return — measures portfolio performance regardless of deposits/withdrawals')}>
+                title={t('Retorno ponderado por tiempo: mide el rendimiento del portafolio sin importar depósitos/retiros', 'Time-Weighted Return: measures portfolio performance regardless of deposits/withdrawals')}>
                 TWR
               </button>
               <button onClick={() => setReturnMode('mwr')}
                 className="px-2 py-1 text-xs font-medium rounded-md transition-all"
                 style={returnMode === 'mwr' ? { backgroundColor: 'var(--accent-blue)', color: '#fff' } : { color: 'var(--text-muted)' }}
-                title={t('Retorno ponderado por dinero — refleja tu experiencia real como inversionista', 'Money-Weighted Return — reflects your actual experience as an investor')}>
+                title={t('Retorno ponderado por dinero: refleja tu experiencia real como inversionista', 'Money-Weighted Return: reflects your actual experience as an investor')}>
                 MWR
               </button>
             </div>

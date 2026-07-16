@@ -21,6 +21,7 @@ import AddFinanceTransactionModal from '@/components/finance/AddFinanceTransacti
 import FileImportModal from '@/components/FileImportModal'
 import { SkeletonCard, SkeletonTable } from '@/components/dashboard/Skeleton'
 import { computeMonthlyAnalysis, buildFinanceInsights, investmentIncomeOfMonth } from '@/lib/financeMonth'
+import PageTour from '@/components/dashboard/PageTour'
 import { INCOME_GROUPS } from '@/lib/financeCategories'
 
 export default function FinancesPage() {
@@ -222,6 +223,33 @@ export default function FinancesPage() {
         pricesLoading={false}
         friendsEnabled={settings?.friendsEnabled !== false}
       />
+      <PageTour pageKey="finances" nextRoute="/spreadsheet" nextFlag="spreadsheet" lang={lang} steps={[
+        {
+          tab: t('Finanzas', 'Finances'),
+          title: t('Tu mes en orden', 'Your month in order'),
+          body: t('Esta pestaña es para tu vida financiera personal: los ingresos y gastos de cada mes, separados de tus inversiones. Las tarjetas de arriba resumen cuánto entró, cuánto salió y cuánto ahorraste, con la comparación contra el mes anterior.',
+                  'This tab is for your personal financial life: each month\'s income and spending, separate from your investments. The cards up top summarize what came in, what went out and what you saved, compared against last month.'),
+        },
+        {
+          tab: t('Finanzas', 'Finances'),
+          title: t('Registra o importa movimientos', 'Log or import movements'),
+          body: t('Puedes anotar cada gasto a mano con el botón de agregar, o importar el estado de cuenta de tu banco (PDF o Excel). Chispudo detecta duplicados para que re-importar el mismo mes no duplique nada, y te deja categorizar cada movimiento.',
+                  'You can log each expense by hand with the add button, or import your bank statement (PDF or Excel). Chispudo detects duplicates so re-importing the same month never double-counts, and lets you categorize every movement.'),
+          tip: t('Los movimientos se agrupan en 6 categorías principales para que los reportes sean claros.', 'Movements group into 6 main categories so reports stay clear.'),
+        },
+        {
+          tab: t('Finanzas', 'Finances'),
+          title: t('Insights de tu gasto', 'Spending insights'),
+          body: t('Chispudo analiza tu mes: detecta gastos hormiga (esos pequeños que suman), calcula tu tasa de ahorro y te muestra cómo cambió cada categoría contra el mes pasado y contra el mismo mes del año anterior.',
+                  'Chispudo analyzes your month: it flags small recurring spends that add up, computes your savings rate, and shows how each category moved versus last month and the same month last year.'),
+        },
+        {
+          tab: t('Finanzas', 'Finances'),
+          title: t('Conectado con tu portafolio', 'Connected to your portfolio'),
+          body: t('Los dividendos e intereses que genera tu portafolio aparecen aquí automáticamente como ingreso de inversión. Así tu tasa de ahorro cuenta la historia completa. También puedes activar un recordatorio mensual por correo para no olvidar registrar tu mes.',
+                  'Dividends and interest from your portfolio show up here automatically as investment income, so your savings rate tells the full story. You can also enable a monthly email reminder so you never forget to log your month.'),
+        },
+      ]} />
 
       <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">

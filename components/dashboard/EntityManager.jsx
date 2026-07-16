@@ -39,8 +39,8 @@ export default function EntityManager({ entities, onAdd, onUpdate, onDelete, ite
       <div>
         <h3 className="text-sm font-semibold text-white">{t('Entidades', 'Entities')}</h3>
         <p className="text-xs text-slate-500 mt-0.5">{t(
-          'Separa tu dinero personal del de tu empresa o familia — cada entidad tiene su propio patrimonio.',
-          'Keep personal money apart from your business or family — each entity has its own net worth.'
+          'Separa tu dinero personal del de tu empresa o familia: cada entidad tiene su propio patrimonio.',
+          'Keep personal money apart from your business or family: each entity has its own net worth.'
         )}</p>
       </div>
 

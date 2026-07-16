@@ -67,8 +67,8 @@ export default function TimelineEditor({ rows, onChange, total, currency = 'USD'
             : { backgroundColor: 'var(--alert-info-bg)', border: '1px solid var(--alert-info-border)' }}>
           <p style={{ color: overshoot ? 'var(--alert-error-icon)' : 'var(--text-secondary)' }}>
             {t('Suman', 'They add up to')} {currency} {fmtNum(sum)} {t('de', 'of')} {currency} {fmtNum(totalNum)}
-            {short && <> — {t('faltan', 'missing')} {currency} {fmtNum(remainder)}</>}
-            {overshoot && <> — {t('se pasan por', 'over by')} {currency} {fmtNum(-remainder)}</>}
+            {short && <>: {t('faltan', 'missing')} {currency} {fmtNum(remainder)}</>}
+            {overshoot && <>: {t('se pasan por', 'over by')} {currency} {fmtNum(-remainder)}</>}
           </p>
           {short && (
             requireExact ? (

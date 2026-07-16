@@ -403,8 +403,8 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               <div>
                 <h3 className="text-sm font-medium text-white mb-1">{t('Links de solo lectura', 'Read-only links')}</h3>
                 <p className="text-xs text-slate-500">{t(
-                  'Comparte tu portafolio completo con un asesor, o solo una parte — una entidad o cuentas específicas (ej. solo tu IBKR). Cada link es independiente y se puede revocar sin tocar los demás. Nunca revelan la institución de tus activos.',
-                  'Share your whole portfolio with an advisor, or just a slice — one entity or specific accounts (e.g. only your IBKR). Each link is independent and can be revoked without touching the others. They never reveal the institution behind your assets.'
+                  'Comparte tu portafolio completo con un asesor, o solo una parte: una entidad o cuentas específicas (ej. solo tu IBKR). Cada link es independiente y se puede revocar sin tocar los demás. Nunca revelan la institución de tus activos.',
+                  'Share your whole portfolio with an advisor, or just a slice: one entity or specific accounts (e.g. only your IBKR). Each link is independent and can be revoked without touching the others. They never reveal the institution behind your assets.'
                 )}</p>
               </div>
 
@@ -490,7 +490,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                   {shareForm.scopeType === 'entity' && (
                     <select value={shareForm.entityId} onChange={(e) => setShareForm((p) => ({ ...p, entityId: e.target.value }))}
                       className="w-full px-3 py-2 bg-theme-surface border border-glass-border/60 rounded-lg text-xs text-white focus:outline-none">
-                      <option value="">{t('— Elige la entidad —', '— Pick the entity —')}</option>
+                      <option value="">{t('- Elige la entidad -', '- Pick the entity -')}</option>
                       {(entities || []).map((en) => (
                         <option key={en.id} value={en.id}>{en.icon || '📁'} {en.name}</option>
                       ))}
@@ -591,7 +591,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                         <span className="text-xs text-slate-600 group-open:rotate-180 transition-transform">▼</span>
                       </summary>
                       <div className="mt-2 space-y-2">
-                        <p className="text-xs text-slate-600">{t('Para casos puntuales — normalmente no necesitas esto.', 'For edge cases — you normally don\'t need these.')}</p>
+                        <p className="text-xs text-slate-600">{t('Para casos puntuales: normalmente no necesitas esto.', 'For edge cases: you normally don\'t need these.')}</p>
                         {[
                           { key: 'items', label: t('Eliminar todas las cuentas', 'Delete all accounts'), desc: t('Instrumentos y posiciones (con sus lots y transacciones).', 'Instruments and positions (with their lots and transactions).'), warn: t('Se borrarán cuentas, lots y transacciones asociadas.', 'This will delete accounts, lots, and associated transactions.') },
                           { key: 'transactions', label: t('Eliminar transacciones', 'Delete transactions'), desc: t('Solo el historial de movimientos del portafolio.', 'Only the portfolio movement history.'), warn: t('Los retornos YTD y Modified Dietz serán menos precisos.', 'YTD returns and Modified Dietz will be less accurate.') },

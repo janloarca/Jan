@@ -91,7 +91,7 @@ export default function FinancialProfileCard({ profile, onSaveProfile, analysis,
             {isEmpty
               ? t('Complétalo para recibir insights y proyecciones personalizadas.', 'Complete it to get personalized insights and projections.')
               : isStale
-                ? t(`⚠ ${age || 'sin fecha'} — dale una revisada, el mundo cambia.`, `⚠ ${age || 'no date'} — give it a review, things change.`)
+                ? t(`⚠ ${age || 'sin fecha'}: dale una revisada, el mundo cambia.`, `⚠ ${age || 'no date'}: give it a review, things change.`)
                 : age || t('Alimenta las proyecciones y los insights.', 'Feeds projections and insights.')}
           </p>
         </div>

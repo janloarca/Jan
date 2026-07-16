@@ -79,7 +79,7 @@ export default function TopMovers({ items, transactions, lang }) {
                     <div className="h-full rounded-full" style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: 'rgba(52,211,153,0.6)' }} />
                   </div>
                   <span className="text-xs font-medium" style={{ color: isPos ? 'var(--accent-green)' : 'var(--text-negative)' }}>
-                    <span className="font-mono tabular-nums">{isFinite(it.retPct) ? `${isPos ? '+' : ''}${it.retPct.toFixed(1)}%` : '—'}</span>
+                    <span className="font-mono tabular-nums">{isFinite(it.retPct) ? `${isPos ? '+' : ''}${it.retPct.toFixed(1)}%` : '-'}</span>
                   </span>
                 </div>
               </div>

@@ -67,7 +67,7 @@ function getOriginalValue(item) {
 }
 
 function formatNum(val) {
-  if (val == null || !isFinite(val)) return '—'
+  if (val == null || !isFinite(val)) return '-'
   return Math.abs(val).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
@@ -504,8 +504,8 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       )
       if (hasOpenLots) {
         setBlockMsg(lang === 'es'
-          ? `${item.symbol}: cantidad controlada por lots — edita desde el detalle del activo`
-          : `${item.symbol}: quantity managed by lots — edit from asset detail`)
+          ? `${item.symbol}: cantidad controlada por lots: edita desde el detalle del activo`
+          : `${item.symbol}: quantity managed by lots: edit from asset detail`)
         setTimeout(() => setBlockMsg(null), 4000)
         return
       }
@@ -515,8 +515,8 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       const price = item._originalPrice ?? item.currentPrice ?? item.purchasePrice ?? 0
       if (!(price > 0)) {
         setBlockMsg(lang === 'es'
-          ? `${item.symbol}: sin precio actual — no se puede derivar la cantidad`
-          : `${item.symbol}: no current price — cannot derive quantity`)
+          ? `${item.symbol}: sin precio actual: no se puede derivar la cantidad`
+          : `${item.symbol}: no current price: cannot derive quantity`)
         setTimeout(() => setBlockMsg(null), 4000)
         return
       }
@@ -602,7 +602,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     })])
     if ([...fallbackMonths].some((mk) => months.includes(mk))) {
       rows.push([])
-      rows.push([t('* Total del snapshot — sin desglose por categoría', '* Snapshot total — no per-category breakdown')])
+      rows.push([t('* Total del snapshot: sin desglose por categoría', '* Snapshot total: no per-category breakdown')])
     }
     const ws = XLSX.utils.aoa_to_sheet(rows)
     ws['!cols'] = [{ wch: 18 }, { wch: 22 }, ...months.map(() => ({ wch: 12 }))]
@@ -890,11 +890,11 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                                     {histVal != null ? (
                                       <>
                                         {isEst && (
-                                          <span title={t('Valor estimado — mantenido plano; sin precio histórico real', 'Estimated — held flat; no real historical price')} style={{ color: '#cbd5e1', marginRight: '1px' }}>~</span>
+                                          <span title={t('Valor estimado: mantenido plano; sin precio histórico real', 'Estimated: held flat; no real historical price')} style={{ color: '#cbd5e1', marginRight: '1px' }}>~</span>
                                         )}
                                         {formatNum(histVal)}
                                       </>
-                                    ) : '—'}
+                                    ) : '-'}
                                   </td>
                                 )
                               }
@@ -973,7 +973,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                     const val = ri.months[mk]
                     return (
                       <td key={mk} className="text-right py-2 px-2 tabular-nums font-mono text-sm" style={isCurrent ? { backgroundColor: '#eff6ff', color: '#cbd5e1' } : { color: val != null ? '#64748b' : '#cbd5e1' }}>
-                        {isCurrent ? '—' : val != null ? formatNum(val) : '—'}
+                        {isCurrent ? '-' : val != null ? formatNum(val) : '-'}
                       </td>
                     )
                   })}
@@ -1027,7 +1027,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                 return (
                   <td key={mk} className="text-right py-3.5 px-2 font-black tabular-nums font-mono text-base" style={isCurrent ? { backgroundColor: '#eff6ff', color: '#0f172a' } : { color: val ? '#475569' : '#cbd5e1' }}
                     title={isFallback ? t('Valor total del snapshot (sin desglose por categoría para este mes)', 'Snapshot total (no per-category breakdown for this month)') : undefined}>
-                    {val ? formatCurrency(val) : '—'}{isFallback ? <span style={{ color: '#94a3b8' }}>*</span> : null}
+                    {val ? formatCurrency(val) : '-'}{isFallback ? <span style={{ color: '#94a3b8' }}>*</span> : null}
                   </td>
                 )
               })}
@@ -1108,13 +1108,13 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         {months.some(mk => mk !== currentMonthKey && monthlyTotals[mk] != null && fallbackMonths.has(mk)) && (
           <p className="text-xs px-4 py-2" style={{ color: '#94a3b8' }}>
             * {t('Total del snapshot de ese mes — aún sin desglose por categoría (las filas muestran "—").',
-                 'Snapshot total for that month — no per-category breakdown yet (rows show "—").')}
+                 'Snapshot total for that month: no per-category breakdown yet (rows show "-").')}
           </p>
         )}
         {hasEstimated && (
           <p className="text-xs px-4 py-2" style={{ color: '#94a3b8' }}>
-            ~ {t('Valor estimado — reconstruido manteniendo el saldo/posición plano (sin precio histórico de mercado).',
-                 'Estimated — reconstructed by holding the balance/position flat (no historical market price).')}
+            ~ {t('Valor estimado: reconstruido manteniendo el saldo/posición plano (sin precio histórico de mercado).',
+                 'Estimated: reconstructed by holding the balance/position flat (no historical market price).')}
           </p>
         )}
       </div>

@@ -167,7 +167,7 @@ function SharedDashboard({ items, snapshots, baseCurrency, label, display }) {
             <>
               <span className="text-xs text-slate-500 block mb-1">All-time Return</span>
               <div className="text-3xl font-bold" style={{ color: growthPct == null ? 'var(--text-primary)' : growthPct >= 0 ? '#34d399' : '#f87171' }}>
-                {growthPct == null ? '—' : `${growthPct >= 0 ? '+' : ''}${growthPct.toFixed(1)}%`}
+                {growthPct == null ? '-' : `${growthPct >= 0 ? '+' : ''}${growthPct.toFixed(1)}%`}
               </div>
               <p className="text-xs text-slate-500 mt-1">Percentages-only view — amounts are hidden by the owner.</p>
             </>

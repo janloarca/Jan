@@ -549,7 +549,7 @@ export default function DashboardPage() {
       .map((it) => `  ${it.name}: ${formatCurrency(it.value)}`)
       .join('\n')
     const text = [
-      `⚡ ${t('Mi Portafolio', 'My Portfolio')} — Chispudo`,
+      `⚡ ${t('Mi Portafolio', 'My Portfolio')}: Chispudo`,
       '',
       `${t('Patrimonio Neto', 'Net Worth')}: ${formatCurrency(netWorth)}`,
       `${t('Activos', 'Assets')}: ${formatCurrency(totalAssets)}`,
@@ -612,6 +612,17 @@ export default function DashboardPage() {
       setShowOnboarding(true)
     }
   }, [dataLoading, enrichedItems.length])
+
+  // Returning from the per-page tour chain (PageTour routed back with the final
+  // flag): reopen the tour so it can show its closing card. The flag itself is
+  // consumed by OnboardingTour's finalStep initializer.
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && sessionStorage.getItem('chispudo-tour-final') === '1') {
+        setShowOnboarding(true)
+      }
+    } catch {}
+  }, [])
 
   const topBanner = useMemo(() => {
     if (staleCode) return 'stale'
@@ -682,7 +693,7 @@ export default function DashboardPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
                 <p className="text-sm font-medium" style={{ color: '#fcd34d' }}>
-                  {lang === 'es' ? 'Tu token de IBKR expiró — genera uno nuevo para mantener tu portafolio actualizado' : 'Your IBKR token has expired — generate a new one to keep your portfolio updated'}
+                  {lang === 'es' ? 'Tu token de IBKR expiró: genera uno nuevo para mantener tu portafolio actualizado' : 'Your IBKR token has expired: generate a new one to keep your portfolio updated'}
                 </p>
               </div>
               <button onClick={() => setModal('ibkr')}
@@ -699,7 +710,7 @@ export default function DashboardPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
                 <p className="text-sm font-medium" style={{ color: '#fcd34d' }}>
-                  {lang === 'es' ? 'Query ID de IBKR inválido — verifica tu Flex Query en IBKR' : 'Invalid IBKR Query ID — verify your Flex Query in IBKR'}
+                  {lang === 'es' ? 'Query ID de IBKR inválido: verifica tu Flex Query en IBKR' : 'Invalid IBKR Query ID: verify your Flex Query in IBKR'}
                 </p>
               </div>
               <button onClick={() => setModal('ibkr')}
@@ -716,7 +727,7 @@ export default function DashboardPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
                 <p className="text-sm font-medium" style={{ color: '#fca5a5' }}>
-                  {lang === 'es' ? 'IBKR bloqueó tu token — genera uno NUEVO en IBKR o importa un CSV mientras tanto' : 'IBKR locked your token — generate a NEW one in IBKR or import a CSV in the meantime'}
+                  {lang === 'es' ? 'IBKR bloqueó tu token: genera uno NUEVO en IBKR o importa un CSV mientras tanto' : 'IBKR locked your token: generate a NEW one in IBKR or import a CSV in the meantime'}
                 </p>
               </div>
               <button onClick={() => setModal('ibkr')}
@@ -733,7 +744,7 @@ export default function DashboardPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
                 <p className="text-sm font-medium" style={{ color: '#fcd34d' }}>
-                  {lang === 'es' ? 'La última sincronización con IBKR falló — tus datos pueden estar desactualizados' : 'The last IBKR sync failed — your data may be outdated'}
+                  {lang === 'es' ? 'La última sincronización con IBKR falló: tus datos pueden estar desactualizados' : 'The last IBKR sync failed: your data may be outdated'}
                 </p>
               </div>
               <button onClick={() => setModal('ibkr')}
@@ -751,9 +762,9 @@ export default function DashboardPage() {
                 </svg>
                 <p className="text-sm font-medium" style={{ color: '#fcd34d' }}>
                   {pricesError && ratesError
-                    ? (lang === 'es' ? 'Precios y tasas desactualizados — error de conexión' : 'Prices and rates outdated — connection error')
+                    ? (lang === 'es' ? 'Precios y tasas desactualizados: error de conexión' : 'Prices and rates outdated: connection error')
                     : pricesError
-                      ? (lang === 'es' ? 'Precios desactualizados — no se pudo conectar' : 'Prices outdated — could not connect')
+                      ? (lang === 'es' ? 'Precios desactualizados: no se pudo conectar' : 'Prices outdated: could not connect')
                       : (lang === 'es' ? 'Tasas de cambio desactualizadas' : 'Exchange rates outdated')}
                 </p>
               </div>
@@ -773,7 +784,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between gap-2 px-4 py-2 rounded-xl text-xs"
             style={{ backgroundColor: 'var(--alert-info-bg)', border: '1px solid var(--alert-info-border)' }}>
             <span style={{ color: 'var(--text-secondary)' }}>
-              {lang === 'es' ? 'Estás explorando con datos de ejemplo — nada de esto es tuyo todavía.' : 'You are exploring with sample data — none of this is yours yet.'}
+              {lang === 'es' ? 'Estás explorando con datos de ejemplo: nada de esto es tuyo todavía.' : 'You are exploring with sample data: none of this is yours yet.'}
             </span>
             <button onClick={handleClearDemo}
               className="shrink-0 px-2.5 py-1 rounded-lg font-medium"
@@ -822,7 +833,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <h1 className="sr-only">{lang === 'es' ? 'Patrimonio — Dashboard' : 'Net Worth — Dashboard'}</h1>
+        <h1 className="sr-only">{lang === 'es' ? 'Patrimonio: Dashboard' : 'Net Worth: Dashboard'}</h1>
 
 
         {/* One onboarding surface at a time — don't stack this under the tour modal */}
@@ -871,7 +882,7 @@ export default function DashboardPage() {
             Renders nothing until NEXT_PUBLIC_ADSENSE_SLOT_FOOTER is set. */}
         <div className="stagger-2"><AdBanner lang={lang} /></div>
 
-        {/* Insight cards feed removed at the user's request — the metrics it
+        {/* Insight cards feed removed at the user's request: the metrics it
             repeated (emergency fund, FIRE, savings rate, passive income) live in
             their dedicated cards, and the row left dead whitespace on tablets. */}
 
@@ -1166,7 +1177,7 @@ export default function DashboardPage() {
           onImport={handleOpenImport}
           onAddAccount={handleOpenAccount}
           onOpenBlockchain={handleOpenBlockchain}
-          onSaveCredentials={(creds) => { saveSettings({ ...creds, _ibkrLastSync: new Date().toISOString(), _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
+          onSaveCredentials={(creds) => { saveSettings({ ...creds, _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
           onSyncBroker={async (brokerId, data) => {
             const positions = data?.positions || data || []
             const posArray = Array.isArray(positions) ? positions : []

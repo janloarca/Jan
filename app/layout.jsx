@@ -3,19 +3,19 @@ import RootErrorBoundary from '@/components/RootErrorBoundary'
 import { ADSENSE_CLIENT } from '@/lib/adsense'
 
 export const metadata = {
-  title: 'Chispudo — Portfolio Tracker for Latin America',
+  title: 'Chispudo: Portfolio Tracker for Latin America',
   description: 'Track stocks, crypto, bonds, real estate, DeFi, SAFE notes and more. Built for LatAm. Free forever.',
   keywords: ['portfolio tracker', 'investment', 'LatAm', 'Guatemala', 'Mexico', 'Colombia', 'stocks', 'crypto', 'bonds', 'DeFi'],
   openGraph: {
-    title: 'Chispudo — Track Your Entire Portfolio',
-    description: 'Stocks, crypto, bonds, real estate, DeFi yield, SAFE notes — all in one place. Built for Latin America.',
+    title: 'Chispudo: Track Your Entire Portfolio',
+    description: 'Stocks, crypto, bonds, real estate, DeFi yield, SAFE notes: all in one place. Built for Latin America.',
     url: 'https://chispu.xyz',
     siteName: 'Chispudo',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Chispudo — Portfolio Tracker for Latin America',
+    title: 'Chispudo: Portfolio Tracker for Latin America',
     description: 'Track every asset type. Built for LatAm. Free forever.',
   },
   metadataBase: new URL('https://chispu.xyz'),

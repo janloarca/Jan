@@ -990,7 +990,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           {/* Section 3: Income/Dividends */}
           {isMarket && item.dividendYield > 0 && (
             <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'rgba(59,130,246,0.2)', backgroundColor: 'rgba(59,130,246,0.05)' }}>
-              <p className="text-xs font-medium" style={{ color: 'var(--accent-green)' }}>💰 {t('Dividendo', 'Dividend')} — {item.dividendYield}% {item.incomeFrequency || ''}</p>
+              <p className="text-xs font-medium" style={{ color: 'var(--accent-green)' }}>💰 {t('Dividendo', 'Dividend')}: {item.dividendYield}% {item.incomeFrequency || ''}</p>
               <div>
                 <p className="text-xs text-[var(--text-muted,#475569)] mb-1">{t('Acción con dividendos:', 'Dividend action:')}</p>
                 <div className="flex gap-2">

@@ -9,13 +9,14 @@ import { getItemValue } from '@/components/dashboard/utils'
 import Header from '@/components/dashboard/Header'
 import MobileNav from '@/components/dashboard/MobileNav'
 import { SkeletonCard } from '@/components/dashboard/Skeleton'
+import PageTour from '@/components/dashboard/PageTour'
 
 const GREEN = '#34d399'
 const RED = '#f87171'
 
 function pctColor(v) { return v == null ? 'var(--text-secondary)' : v >= 0 ? GREEN : RED }
 function fmtPct(v, decimals = 2) {
-  if (v == null || !isFinite(v)) return '—'
+  if (v == null || !isFinite(v)) return '-'
   return `${v >= 0 ? '+' : ''}${v.toFixed(decimals)}%`
 }
 function timeAgo(iso, lang) {
@@ -230,11 +231,31 @@ export default function FriendsPage() {
       <Header user={user} lang={lang} setLang={handleSetLang} friendsEnabled
         onImport={() => {}} onSettings={() => router.push('/dashboard')} onSignOut={handleSignOut}
         onRefresh={() => {}} pricesLoading={false} />
+      <PageTour pageKey="friends" nextRoute="/dashboard" nextFlag={null} lang={lang} steps={[
+        {
+          tab: t('Amigos', 'Friends'),
+          title: t('Compara sin revelar montos', 'Compare without revealing amounts'),
+          body: t('Aquí compites sanamente con tus amigos: se comparan PORCENTAJES de retorno (del año y del mes), nunca cuánto dinero tiene cada quien. Tus montos jamás salen de tu cuenta.',
+                  'Here you compete in a healthy way with friends: you compare return PERCENTAGES (yearly and monthly), never how much money anyone has. Your amounts never leave your account.'),
+        },
+        {
+          tab: t('Amigos', 'Friends'),
+          title: t('Grupos con código de invitación', 'Groups with invite codes'),
+          body: t('Crea un grupo, comparte el código con tus amigos y listo: ranking del grupo con corona para quien va ganando el mes. También hay un ranking global anónimo por seudónimo.',
+                  'Create a group, share the code with friends, done: a group ranking with a crown for whoever leads the month. There is also an anonymous global ranking by pseudonym.'),
+        },
+        {
+          tab: t('Amigos', 'Friends'),
+          title: t('Tú controlas tu privacidad', 'You control your privacy'),
+          body: t('Puedes apagar Amigos cuando quieras en Ajustes: se borra tu perfil público y sales de todos los grupos al instante. Nada queda publicado si no quieres.',
+                  'You can turn Friends off anytime in Settings: your public profile is deleted and you leave every group instantly. Nothing stays published unless you want it to.'),
+        },
+      ]} />
 
       <main id="main-content" className="max-w-3xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-5 pb-24">
         <div>
           <h1 className="text-lg font-bold text-white flex items-center gap-2">👥 {t('Amigos', 'Friends')}</h1>
-          <p className="text-xs text-slate-500">{t('Compara tu retorno con tus amigos — sin revelar montos.', 'Compare your return with friends — without revealing amounts.')}</p>
+          <p className="text-xs text-slate-500">{t('Compara tu retorno con tus amigos: sin revelar montos.', 'Compare your return with friends: without revealing amounts.')}</p>
         </div>
 
         {/* Your card */}
@@ -266,7 +287,7 @@ export default function FriendsPage() {
             </div>
           </div>
           <div className="flex items-center justify-between mt-3">
-            <p className="text-[10px] text-slate-600">🔒 {t('Solo se comparte tu % y tus símbolos — nunca montos.', 'Only your % and symbols are shared — never amounts.')}</p>
+            <p className="text-[10px] text-slate-600">🔒 {t('Solo se comparte tu % y tus símbolos: nunca montos.', 'Only your % and symbols are shared: never amounts.')}</p>
             <button onClick={handleUpdate} disabled={busy}
               className="shrink-0 px-2.5 py-1 text-xs font-medium rounded-md disabled:opacity-50" style={{ color: '#fff', backgroundColor: 'var(--accent-blue)' }}>
               {busy ? '…' : t('Actualizar', 'Update')}
@@ -495,7 +516,7 @@ function GlobalBoard({ global, lang, t, api, flash, onChanged }) {
       <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'var(--card-border)' }}>
         <div>
           <div className="text-sm font-semibold text-white">🌎 {t('Ranking global', 'Global ranking')}</div>
-          <div className="text-[10px] text-slate-500">{t('Anónimo — solo un seudónimo y tu % YTD.', 'Anonymous — just a pseudonym and your YTD %.')}</div>
+          <div className="text-[10px] text-slate-500">{t('Anónimo: solo un seudónimo y tu % YTD.', 'Anonymous: just a pseudonym and your YTD %.')}</div>
         </div>
         <button onClick={toggle} disabled={busy}
           className="px-2.5 py-1 text-xs font-medium rounded-md disabled:opacity-50 border"

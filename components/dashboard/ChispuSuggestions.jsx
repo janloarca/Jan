@@ -35,7 +35,7 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
     return (
       <div className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs"
         style={{ backgroundColor: 'var(--alert-success-bg)', border: '1px solid var(--alert-success-border)', color: 'var(--accent-green)' }}>
-        ✓ {t('Tus datos están completos — Chispu no encontró huecos.', 'Your data is complete — Chispu found no gaps.')}
+        ✓ {t('Tus datos están completos: Chispu no encontró huecos.', 'Your data is complete: Chispu found no gaps.')}
       </div>
     )
   }

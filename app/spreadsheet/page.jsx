@@ -7,6 +7,7 @@ import { useDashboardData } from '@/hooks/useDashboardData'
 import { useSpreadsheetContext } from '@/hooks/useSpreadsheetContext'
 import SheetTabs from '@/components/spreadsheet/SheetTabs'
 import { SkeletonTable } from '@/components/dashboard/Skeleton'
+import PageTour from '@/components/dashboard/PageTour'
 import { TEMPLATES } from '@/lib/spreadsheet/formulas'
 
 const SpreadsheetGrid = dynamic(() => import('@/components/spreadsheet/SpreadsheetGrid'), { ssr: false })
@@ -155,6 +156,27 @@ export default function SpreadsheetPage() {
 
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: view === 'custom' ? '#09090b' : '#f1f5f9' }}>
+      <PageTour pageKey="spreadsheet" nextRoute="/friends" nextFlag="friends" lang={lang} steps={[
+        {
+          tab: t('Hoja de Cálculo', 'Spreadsheet'),
+          title: t('Tu patrimonio mes a mes', 'Your net worth month by month'),
+          body: t('Esta es la matriz completa: cada fila es una cuenta o activo, cada columna un mes. Puedes ver cómo creció (o cayó) cada cosa que tienes a lo largo del tiempo, con totales por mes y retorno anual.',
+                  'This is the full matrix: each row is an account or asset, each column a month. You can see how everything you own grew (or fell) over time, with monthly totals and annual return.'),
+        },
+        {
+          tab: t('Hoja de Cálculo', 'Spreadsheet'),
+          title: t('Vistas y celdas editables', 'Views and editable cells'),
+          body: t('Arriba cambias de vista: Portfolio (inversiones), Deudas, Bienes (inmuebles y similares) y Hojas personalizadas. Los valores con "~" son estimados calculados con precios históricos; si conoces el valor real de un mes, haz clic en la celda y corrígelo.',
+                  'Switch views up top: Portfolio (investments), Debts, Estate (real estate and similar) and custom Sheets. Values marked "~" are estimates from historical prices; if you know a month\'s real value, click the cell and correct it.'),
+          tip: t('Tus correcciones manuales siempre ganan sobre los estimados.', 'Your manual corrections always win over estimates.'),
+        },
+        {
+          tab: t('Hoja de Cálculo', 'Spreadsheet'),
+          title: t('Exporta cuando quieras', 'Export anytime'),
+          body: t('Toda la matriz se puede descargar como Excel con un clic, lista para tu contador o tus propios análisis. Nada de tu información queda atrapada en la app.',
+                  'The whole matrix downloads as Excel in one click, ready for your accountant or your own analysis. None of your data is locked in the app.'),
+        },
+      ]} />
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b" style={view === 'custom' ? { backgroundColor: '#141416', borderColor: '#27272a' } : { backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
         <div className="flex items-center gap-3">

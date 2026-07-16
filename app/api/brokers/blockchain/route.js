@@ -82,7 +82,7 @@ function mapTrades(trades) {
     return {
       type: isBuy ? 'BUY' : 'SELL',
       symbol: symbol,
-      description: `${symbol} — ${isBuy ? 'Buy' : 'Sell'} ${qty} @ ${price}`,
+      description: `${symbol}: ${isBuy ? 'Buy' : 'Sell'} ${qty} @ ${price}`,
       date: t.timestamp ? new Date(t.timestamp).toISOString().split('T')[0] : '',
       quantity: Math.abs(qty),
       pricePerUnit: price,

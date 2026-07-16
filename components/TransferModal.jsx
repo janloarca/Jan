@@ -29,7 +29,7 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
   const sourceValue = fromItem ? getValue(fromItem) : 0
 
   const formatOption = (item) =>
-    `${item.name} (${item.institution || '—'}) - ${item.currency} ${getValue(item).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    `${item.name} (${item.institution || '-'}) - ${item.currency} ${getValue(item).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
   const handleSubmit = async (e) => {
     e.preventDefault()

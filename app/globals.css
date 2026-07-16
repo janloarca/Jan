@@ -13,8 +13,10 @@
   --border-primary: rgba(255, 255, 255, 0.08);
   --border-subtle: rgba(255, 255, 255, 0.04);
   --text-primary: #FFFFFF;
-  --text-secondary: rgba(235, 235, 245, 0.6);
-  --text-muted: rgba(235, 235, 245, 0.55);
+  /* Lifted from 0.60/0.55: secondary copy was falling under AA contrast on the
+     dark base and read washed-out on iPad. Hierarchy is kept by the delta. */
+  --text-secondary: rgba(235, 235, 245, 0.72);
+  --text-muted: rgba(235, 235, 245, 0.62);
   --accent-green: #34d399;
   --accent-red: #f87171;
   --text-negative: #f87171;
@@ -55,7 +57,9 @@
   --border-subtle: #F3F4F6;
   --text-primary: #111827;
   --text-secondary: #374151;
-  --text-muted: #6B7280;
+  /* gray-600 instead of gray-500: muted copy kept AA contrast on white but felt
+     faint next to the indigo accents; one step darker reads more professional. */
+  --text-muted: #4B5563;
   --accent-blue: #4F46E5;
   --accent-blue-strong: #4338CA;
   --accent-blue-soft: #6366F1;
@@ -210,6 +214,12 @@ textarea:focus-visible {
 .skip-link:focus {
   left: 0;
 }
+
+/* Dark mode — lift Tailwind slate grays that fall under AA contrast on the dark
+   base (slate-500 #64748B ≈ 3.9:1, slate-600 #475569 ≈ 2.4:1 for small text).
+   Mirrors the light-theme override block below; hierarchy is kept by the delta. */
+:root:not([data-theme="light"]) .text-slate-500 { color: #8A94A6; }
+:root:not([data-theme="light"]) .text-slate-600 { color: #707A8A; }
 
 /* Light mode — Tailwind class overrides for semantic colors */
 [data-theme="light"] .text-white { color: var(--text-primary) !important; }

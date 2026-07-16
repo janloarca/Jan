@@ -63,7 +63,7 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
         <div className="flex items-center gap-2">
           {usingDefaultTargets && (
             <span className="text-xs px-2 py-0.5 rounded-full" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-tertiary)' }}
-              title={t('Los % objetivo son los de fábrica (40/20/15/10/5…). El drift y las sugerencias se calculan contra ellos — edítalos para que reflejen TU plan.', 'Target % are factory defaults (40/20/15/10/5…). Drift and suggestions are computed against them — edit to reflect YOUR plan.')}>
+              title={t('Los % objetivo son los de fábrica (40/20/15/10/5…). El drift y las sugerencias se calculan contra ellos: edítalos para que reflejen TU plan.', 'Target % are factory defaults (40/20/15/10/5…). Drift and suggestions are computed against them: edit to reflect YOUR plan.')}>
               {t('Objetivo por defecto', 'Default target')}
             </span>
           )}

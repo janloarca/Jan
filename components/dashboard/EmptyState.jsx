@@ -18,12 +18,12 @@ export default function EmptyState({ onAdd, onImport, onTemplate, onDemo, onConn
     {
       key: 'connect', onClick: onConnect, Icon: Link2,
       title: t('Conectar tu broker', 'Connect your broker'),
-      desc: t('Sync automático — IBKR y más', 'Auto sync — IBKR and more'),
+      desc: t('Sync automático: IBKR y más', 'Auto sync: IBKR and more'),
     },
     {
       key: 'import', onClick: onImport, Icon: Upload,
       title: t('Importar archivo', 'Import a file'),
-      desc: t('Excel o CSV — detectamos el broker', 'Excel or CSV — broker auto-detected'),
+      desc: t('Excel o CSV: detectamos el broker', 'Excel or CSV: broker auto-detected'),
     },
     {
       key: 'template', onClick: onTemplate, Icon: Download,
@@ -60,8 +60,8 @@ export default function EmptyState({ onAdd, onImport, onTemplate, onDemo, onConn
       </h2>
       <p className="text-slate-400 mb-10 text-sm sm:text-base max-w-md mx-auto leading-relaxed">
         {t(
-          'Todo tu patrimonio en un solo lugar — stocks, crypto, bonos, inmuebles y más.',
-          'Your whole net worth in one place — stocks, crypto, bonds, real estate and more.'
+          'Todo tu patrimonio en un solo lugar: stocks, crypto, bonos, inmuebles y más.',
+          'Your whole net worth in one place: stocks, crypto, bonds, real estate and more.'
         )}
       </p>
 

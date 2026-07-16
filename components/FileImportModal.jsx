@@ -252,6 +252,8 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
   const [pasteText, setPasteText] = useState('')
+  const [aiOpen, setAiOpen] = useState(false)
+  const [aiCopied, setAiCopied] = useState(false)
   const fileRef = useRef(null)
   const [ibkrData, setIbkrData] = useState(null)
   const [ibkrImportMode, setIbkrImportMode] = useState('merge')
@@ -738,7 +740,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
 
   const brokerInfo = brokerHint ? BROKER_INSTRUCTIONS[brokerHint] : null
   const modalTitle = brokerInfo
-    ? t(`Importar CSV — ${brokerInfo.name}`, `Import CSV — ${brokerInfo.name}`)
+    ? t(`Importar CSV: ${brokerInfo.name}`, `Import CSV: ${brokerInfo.name}`)
     : t('Importar Portfolio', 'Import Portfolio')
 
   return (
@@ -806,6 +808,78 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
               <p className="mt-2 text-xs text-slate-500 text-center">
                 {t('Excel con 3 hojas: Activos, Historial anual, Transacciones + instrucciones', 'Excel with 3 sheets: Assets, Annual History, Transactions + instructions')}
               </p>
+
+              {/* AI-assisted file prep: the user pastes their statements into any AI
+                  (ChatGPT/Claude/Gemini) with a prompt that specifies our EXACT sheet
+                  and column layout, then uploads the file the AI produces. */}
+              <div className="mt-4 border rounded-xl overflow-hidden" style={{ borderColor: 'rgba(108,122,255,0.25)', backgroundColor: 'rgba(108,122,255,0.05)' }}>
+                <button onClick={() => setAiOpen(!aiOpen)}
+                  className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-left"
+                  style={{ color: 'var(--accent-blue)' }}>
+                  <span>🤖 {t('¿Tus datos están en PDFs o fotos? Pídele el archivo a una IA', 'Data stuck in PDFs or photos? Ask an AI to build the file')}</span>
+                  <span className={`transition-transform text-xs ${aiOpen ? 'rotate-180' : ''}`}>▾</span>
+                </button>
+                {aiOpen && (
+                  <div className="px-4 pb-4 space-y-3">
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      {t('Copia este prompt, pégalo en ChatGPT, Claude o Gemini junto con tus estados de cuenta (PDF, fotos o texto), y sube aquí el archivo que te genere.',
+                         'Copy this prompt, paste it into ChatGPT, Claude or Gemini along with your statements (PDFs, photos or text), and upload the file it produces here.')}
+                    </p>
+                    <button onClick={() => {
+                        const prompt = lang === 'es'
+                          ? `Ayúdame a preparar mi portafolio de inversiones para importarlo a una app. Te voy a pasar mis estados de cuenta (PDF, fotos o texto) de brokers, bancos y exchanges. Genera un archivo Excel (.xlsx) con estas hojas y columnas EXACTAS:
+
+Hoja "Activos" (una fila por posición; si compré en varias fechas, una fila por lote):
+Simbolo, Nombre, Tipo, Cantidad, Precio de Compra, Precio Actual, Moneda, Institucion, Fecha de Compra, Notas
+- Tipo debe ser uno de: Stock, Fund, Crypto, Bond, Bank, RealEstate, Alternative, Debt
+- Fechas en formato YYYY-MM-DD, usando la fecha REAL de compra de cada lote
+- Precios en la moneda original del activo (indica la moneda: USD, GTQ, MXN, EUR...)
+- En Notas incluye lo relevante: comisiones estimadas de compra, si es cuenta de ahorro su tasa, etc.
+
+Hoja "Transacciones" (todos los movimientos que encuentres):
+Fecha, Tipo, Simbolo, Descripcion, Monto, Moneda
+- Tipo debe ser uno de: BUY, SELL, DIVIDEND, DEPOSIT, WITHDRAWAL
+- Incluye compras y ventas con su fecha y monto total (con comisión incluida y anótala en Descripcion), dividendos e intereses cobrados, y mis depósitos y retiros de efectivo (importan para calcular mi retorno real)
+
+Hoja "Historial" (opcional, si mis documentos muestran valores históricos de la cuenta):
+Fecha, Total Activos (USD), Total Deudas (USD), Patrimonio Neto (USD), Notas
+- Un renglón por fecha (cierres de mes o de año)
+
+Reglas: no inventes ningún dato; si algo no aparece en mis documentos déjalo vacío y dime al final qué me faltó. Cuando termines, dame el archivo .xlsx listo para descargar.`
+                          : `Help me prepare my investment portfolio to import into an app. I will give you my statements (PDFs, photos or text) from brokers, banks and exchanges. Generate an Excel file (.xlsx) with these EXACT sheets and columns:
+
+Sheet "Activos" (one row per position; if I bought on several dates, one row per lot):
+Simbolo, Nombre, Tipo, Cantidad, Precio de Compra, Precio Actual, Moneda, Institucion, Fecha de Compra, Notas
+- Tipo must be one of: Stock, Fund, Crypto, Bond, Bank, RealEstate, Alternative, Debt
+- Dates in YYYY-MM-DD format, using each lot's REAL purchase date
+- Prices in each asset's original currency (state the currency: USD, GTQ, MXN, EUR...)
+- In Notas include anything relevant: estimated purchase commissions, savings account rates, etc.
+
+Sheet "Transacciones" (every movement you find):
+Fecha, Tipo, Simbolo, Descripcion, Monto, Moneda
+- Tipo must be one of: BUY, SELL, DIVIDEND, DEPOSIT, WITHDRAWAL
+- Include buys and sells with date and total amount (commission included, note it in Descripcion), dividends and interest received, and my cash deposits and withdrawals (they matter for computing my real return)
+
+Sheet "Historial" (optional, if my documents show historical account values):
+Fecha, Total Activos (USD), Total Deudas (USD), Patrimonio Neto (USD), Notas
+- One row per date (month-end or year-end closes)
+
+Rules: do not invent any data; if something is missing from my documents leave it blank and tell me at the end what was missing. When done, give me the .xlsx file ready to download.`
+                        navigator.clipboard.writeText(prompt)
+                        setAiCopied(true)
+                        setTimeout(() => setAiCopied(false), 2500)
+                      }}
+                      className="w-full py-2.5 rounded-lg text-sm font-medium transition-colors"
+                      style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
+                      {aiCopied ? t('✓ Prompt copiado, pégalo en tu IA', '✓ Prompt copied, paste it into your AI') : t('Copiar prompt para ChatGPT / Claude / Gemini', 'Copy prompt for ChatGPT / Claude / Gemini')}
+                    </button>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      {t('El prompt le pide: posiciones con fechas reales de compra por lote, compras y ventas con comisiones, dividendos, depósitos y retiros, y valores históricos. Todo en el formato exacto que Chispudo importa.',
+                         'The prompt asks for: positions with real per-lot purchase dates, buys and sells with commissions, dividends, deposits and withdrawals, and historical values. All in the exact format Chispudo imports.')}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -1005,8 +1079,8 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
               </div>
               <p className="text-slate-400 text-sm mb-3">
                 {t(`${biData.transactions.length} transacciones en el estado`, `${biData.transactions.length} transactions in the statement`)}
-                {biMatch && ` — ${biMatch.newTxs.length} ${t('nuevas', 'new')} · ${biMatch.exact.length} ${t('ya registradas', 'already recorded')}${biMatch.likely.length > 0 ? ` · ${biMatch.likely.length} ${t('a revisar', 'to review')}` : ''}`}
-                {biData.finalBalance > 0 && ` — ${t('Saldo final', 'Final balance')}: Q${biData.finalBalance.toLocaleString()}`}
+                {biMatch && `: ${biMatch.newTxs.length} ${t('nuevas', 'new')} · ${biMatch.exact.length} ${t('ya registradas', 'already recorded')}${biMatch.likely.length > 0 ? ` · ${biMatch.likely.length} ${t('a revisar', 'to review')}` : ''}`}
+                {biData.finalBalance > 0 && `: ${t('Saldo final', 'Final balance')}: Q${biData.finalBalance.toLocaleString()}`}
               </p>
 
               <div className="p-3 bg-theme-base border border-glass-border rounded-lg mb-3">
@@ -1025,7 +1099,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                   {biMatch.newTxs.length > 0 && (
                     <div>
                       <p className="text-xs font-semibold mb-1" style={{ color: 'var(--accent-green)' }}>
-                        ✓ {t(`Nuevas (${biMatch.newTxs.length}) — se agregarán`, `New (${biMatch.newTxs.length}) — will be added`)}
+                        ✓ {t(`Nuevas (${biMatch.newTxs.length}): se agregarán`, `New (${biMatch.newTxs.length}): will be added`)}
                       </p>
                       <div className="overflow-x-auto max-h-48 overflow-y-auto border border-glass-border/50 rounded-lg">
                         <table className="w-full text-xs">
@@ -1069,7 +1143,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                   {biMatch.likely.length > 0 && (
                     <div>
                       <p className="text-xs font-semibold mb-1" style={{ color: 'var(--alert-warn-icon)' }}>
-                        ⚠ {t(`Posibles duplicados (${biMatch.likely.length}) — marca solo las que SÍ falten`, `Possible duplicates (${biMatch.likely.length}) — check only the truly missing ones`)}
+                        ⚠ {t(`Posibles duplicados (${biMatch.likely.length}): marca solo las que SÍ falten`, `Possible duplicates (${biMatch.likely.length}): check only the truly missing ones`)}
                       </p>
                       <div className="overflow-x-auto max-h-40 overflow-y-auto border rounded-lg" style={{ borderColor: 'var(--alert-warn-border)' }}>
                         <table className="w-full text-xs">
@@ -1103,7 +1177,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                   {biMatch.exact.length > 0 && (
                     <details className="text-xs">
                       <summary className="cursor-pointer" style={{ color: 'var(--text-muted)' }}>
-                        ⏭ {t(`Ya registradas (${biMatch.exact.length}) — se omiten`, `Already recorded (${biMatch.exact.length}) — skipped`)}
+                        ⏭ {t(`Ya registradas (${biMatch.exact.length}): se omiten`, `Already recorded (${biMatch.exact.length}): skipped`)}
                       </summary>
                       <div className="mt-1 max-h-32 overflow-y-auto border border-glass-border/40 rounded-lg p-2 space-y-0.5">
                         {biMatch.exact.map(({ parsed }, i) => (
@@ -1185,7 +1259,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                           <td className="py-1.5 px-1.5 text-right text-slate-300">${item.currentPrice?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                           <td className="py-1.5 px-1.5 text-right text-white font-medium">${val.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</td>
                           <td className="py-1.5 px-1.5 text-right font-medium" style={{ color: gain > 0 ? '#34d399' : gain < 0 ? '#f87171' : '#64748b' }}>
-                            {cost > 0 ? `${gain >= 0 ? '+' : ''}${gain.toFixed(1)}%` : '—'}
+                            {cost > 0 ? `${gain >= 0 ? '+' : ''}${gain.toFixed(1)}%` : '-'}
                           </td>
                         </tr>
                       )

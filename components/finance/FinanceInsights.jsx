@@ -38,7 +38,7 @@ export default function FinanceInsights({
           {isCurrentMonth && analysis.status !== 'complete' && (
             <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
               {daysLeft === 0
-                ? t('Último día del mes — captura tus datos.', 'Last day of the month — log your data.')
+                ? t('Último día del mes: captura tus datos.', 'Last day of the month: log your data.')
                 : daysLeft === 1
                   ? t('Queda 1 día para cerrar el mes.', '1 day left to close the month.')
                   : t(`Quedan ${daysLeft} días para cerrar el mes.`, `${daysLeft} days left to close the month.`)}

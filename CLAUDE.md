@@ -56,6 +56,13 @@
 - Dedup mensual con `_lastFinanceReminder: 'YYYY-MM'` en preferences; solo se marca DESPUÉS de un envío exitoso
 - El cron usa fechas UTC y queries de Firestore por rango de string `'YYYY-MM-01'..'YYYY-MM-31'` (funciona para todos los meses por comparación lexicográfica)
 
+## Copy / texto visible — reglas del usuario
+
+- **PROHIBIDO el guión largo (—) en cualquier string visible de la UI** (decisión del usuario,
+  FASE AH). Usar `:`, coma o punto. En comentarios de código sí se permite. Al escribir copy
+  nuevo, revisar antes de commitear: `grep -rn "—"` sobre los strings tocados.
+- Sin em dashes tampoco en los prompts copiables (ej. el prompt de IA del FileImportModal).
+
 ## React/JSX — reglas duras (bugs encontrados 2+ veces)
 
 - **NUNCA `return null` antes de un hook.** Todos los gates de render van DESPUÉS del último hook del componente. Si el gate está entre hooks y los datos llegan async (items/snapshots cargando), el conteo de hooks cambia entre renders y React tumba el árbol entero ("Rendered more hooks than during the previous render"). Crashes reales: TopMovers, SnapshotComparison.
