@@ -467,8 +467,8 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
         )
       case 'EMPTY_REPORT':
         return t(
-          'Verifica que tu Flex Query incluya "Open Positions" y "Trades" en su configuración.',
-          'Verify your Flex Query includes "Open Positions" and "Trades" in its configuration.'
+          'Verifica que tu Flex Query incluya "Open Positions", "Trades" y "Cash Transactions" en su configuración.',
+          'Verify your Flex Query includes "Open Positions", "Trades" and "Cash Transactions" in its configuration.'
         )
       case 'LOCKED':
         return t(
@@ -665,7 +665,13 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   <div>
                     <p className="text-xs text-white font-medium">{t('Crear el Flex Query', 'Create the Flex Query')}</p>
                     <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                      <span className="text-[var(--accent-blue)] font-mono">interactivebrokers.com</span> → Performance & Reports → Flex Queries → {t('crear Activity Flex Query con', 'create Activity Flex Query with')} <span className="text-white">Open Positions</span> {t('y', 'and')} <span className="text-white">Trades</span>
+                      <span className="text-[var(--accent-blue)] font-mono">interactivebrokers.com</span> → Performance & Reports → Flex Queries → {t('crear Activity Flex Query con', 'create Activity Flex Query with')} <span className="text-white">Open Positions</span>, <span className="text-white">Trades</span> {t('y', 'and')} <span className="text-white">Cash Transactions</span>
+                    </p>
+                    {/* Without Cash Transactions, deposits/withdrawals never import,
+                        so Modified-Dietz returns are distorted by unaccounted flows. */}
+                    <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--accent-orange)' }}>
+                      {t('Incluye "Cash Transactions" (Deposits/Withdrawals) — sin ella tus depósitos no se importan y tus retornos pueden salir inflados.',
+                         'Include "Cash Transactions" (Deposits/Withdrawals) — without it your deposits don\'t import and your returns may look inflated.')}
                     </p>
                     {/* Without the Asset Class column everything imports as Stock —
                         bonds/cash then fetch quotes from unrelated real tickers. */}

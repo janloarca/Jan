@@ -752,7 +752,10 @@ export function useFirestoreItems() {
 
     for (const tx of (newTxs || [])) {
       const amt = Math.round((tx.totalAmount || tx.amount || 0) * 100)
-      const id = `${tx.date || 'nodate'}-${(tx.symbol || 'nosym').toUpperCase()}-${tx.type || 'tx'}-${amt}`
+      // Append a broker-provided transaction id when present (IBKR cash flows) so
+      // two same-day/same-amount deposits don't collapse into one doc.
+      const base = `${tx.date || 'nodate'}-${(tx.symbol || 'nosym').toUpperCase()}-${tx.type || 'tx'}-${amt}`
+      const id = tx._ibkrTxnId ? `${base}-${tx._ibkrTxnId}` : base
       ops.push({ type: 'set', ref: fs.doc(db, `users/${uid}/transactions`, id), data: strip({ ...tx, createdAt: now }) })
     }
 

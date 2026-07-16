@@ -101,6 +101,38 @@ function parseTrades(xml) {
   return trades
 }
 
+// External cash flows — deposits & withdrawals. These are what Modified Dietz
+// needs to strip contributions from performance; without them, an auto-synced
+// IBKR portfolio's YTD/MTD return is distorted by unaccounted deposits. IBKR
+// tags them type="Deposits/Withdrawals"; the sign of `amount` decides direction.
+function parseCashTransactions(xml) {
+  const txns = []
+  const regex = /<CashTransaction[^>]*\/>/g
+  let match
+  while ((match = regex.exec(xml)) !== null) {
+    const tag = match[0]
+    const attr = (name) => {
+      const m = tag.match(new RegExp(`${name}="([^"]*)"`, 'i'))
+      return m ? m[1] : ''
+    }
+    const type = attr('type')
+    if (!/deposit|withdrawal/i.test(type)) continue
+    const amount = parseFloat(attr('amount')) || 0
+    if (amount === 0) continue
+    const date = formatDate(attr('dateTime') || attr('reportDate') || attr('settleDate'))
+    if (!date) continue
+    txns.push({
+      amount,
+      currency: attr('currency') || 'USD',
+      date,
+      txnId: attr('transactionID') || '',
+      description: attr('description') || '',
+      accountId: attr('accountId') || '',
+    })
+  }
+  return txns
+}
+
 function parseCashPositions(xml) {
   const positions = []
   const cashRegex = /<CashReport[^>]*\/>/g
@@ -196,17 +228,19 @@ function parseXmlToData(xml) {
   const positions = parseFlexPositions(xml)
   const cash = parseCashPositions(xml)
   const trades = parseTrades(xml)
+  const cashTransactions = parseCashTransactions(xml)
   const baseCurrency = parseBaseCurrency(xml)
   const equityHistory = parseEquitySummary(xml).map((e) => ({ ...e, _equityCurrency: baseCurrency }))
   const all = [...positions, ...cash]
 
-  if (all.length === 0 && trades.length === 0) {
+  if (all.length === 0 && trades.length === 0 && cashTransactions.length === 0) {
     return { empty: true }
   }
 
   return {
     positions: all,
     trades,
+    cashTransactions,
     equityHistory,
     count: all.length,
     syncedAt: new Date().toISOString(),
