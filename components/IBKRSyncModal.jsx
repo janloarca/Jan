@@ -64,9 +64,15 @@ function DoneStep({ result, onClose, t }) {
         {result.transactions > 0 && <> · {result.transactions} {t('transacciones', 'trades')}</>}
         {result.accounts.length > 0 && <> · {result.accounts.join(', ')}</>}
       </p>
-      {result.equityHistory > 0 && (
+      {result.equityHistory > 1 && (
         <p className="text-[var(--accent-green)] opacity-80 text-xs mt-2">
           {result.equityHistory} {t('días de historial guardados', 'days of history saved')}
+        </p>
+      )}
+      {result.items > 0 && result.equityHistory <= 1 && (
+        <p className="text-xs mt-3 mx-auto max-w-xs leading-relaxed" style={{ color: 'var(--alert-warn-icon)' }}>
+          {t('Importamos tus posiciones, pero tu Flex Query no incluye "Equity Summary" (historial de valor). Por eso tus retornos y la gráfica arrancan desde hoy. Agrégala a tu Flex Query y vuelve a sincronizar.',
+             'We imported your positions, but your Flex Query has no "Equity Summary" (value history). That is why your returns and chart start from today. Add it to your Flex Query and sync again.')}
         </p>
       )}
       {result.partial && (
@@ -473,8 +479,8 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
         )
       case 'EMPTY_REPORT':
         return t(
-          'Verifica que tu Flex Query incluya "Open Positions", "Trades" y "Cash Transactions" en su configuración.',
-          'Verify your Flex Query includes "Open Positions", "Trades" and "Cash Transactions" in its configuration.'
+          'Verifica que tu Flex Query incluya "Open Positions", "Trades", "Cash Transactions" y "Equity Summary" en su configuración.',
+          'Verify your Flex Query includes "Open Positions", "Trades", "Cash Transactions" and "Equity Summary" in its configuration.'
         )
       case 'LOCKED':
         return t(
@@ -671,7 +677,14 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   <div>
                     <p className="text-xs text-white font-medium">{t('Crear el Flex Query', 'Create the Flex Query')}</p>
                     <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                      <span className="text-[var(--accent-blue)] font-mono">interactivebrokers.com</span> → Performance & Reports → Flex Queries → {t('crear Activity Flex Query con', 'create Activity Flex Query with')} <span className="text-white">Open Positions</span>, <span className="text-white">Trades</span> {t('y', 'and')} <span className="text-white">Cash Transactions</span>
+                      <span className="text-[var(--accent-blue)] font-mono">interactivebrokers.com</span> → Performance & Reports → Flex Queries → {t('crear Activity Flex Query con', 'create Activity Flex Query with')} <span className="text-white">Open Positions</span>, <span className="text-white">Trades</span>, <span className="text-white">Cash Transactions</span> {t('y', 'and')} <span className="text-white">Equity Summary</span>
+                    </p>
+                    {/* Equity Summary → <EquitySummaryByReportDateInBase> daily NAV rows.
+                        This is the ONLY source of real historical portfolio value; without
+                        it YTD/ALL and the value chart start from today (estimated, not real). */}
+                    <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--accent-orange)' }}>
+                      {t('Incluye "Equity Summary" y pon el período del query amplio (ej. "Year to Date" o "Last 365 Days") — es lo que da tus retornos reales (YTD/ALL) y la gráfica de valor. Sin ella arrancan desde hoy.',
+                         'Include "Equity Summary" and set the query period wide (e.g. "Year to Date" or "Last 365 Days") — it powers your real returns (YTD/ALL) and the value chart. Without it they start from today.')}
                     </p>
                     {/* Without Cash Transactions, deposits/withdrawals never import,
                         so Modified-Dietz returns are distorted by unaccounted flows. */}

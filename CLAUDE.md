@@ -145,6 +145,19 @@
   y periodos acotados; **ALL sigue limitado** porque el chart no antepone el API antes del primer
   snapshot en ALL (línea `period !== 'ALL'`). Para ALL real: ensanchar el Flex Query o valor de inicio manual.
 
+### Equity Summary = la ÚNICA fuente de NAV histórico real de IBKR (FASE AE)
+- El historial de valor diario del portafolio viene de la sección **"Equity Summary"** del Flex
+  Query → tag `<EquitySummaryByReportDateInBase>`. `lib/parsers/ibkrEquitySummary.js` lo parsea
+  (regex `\b[^>]*>` para self-closing Y pareado) y cada fila se escribe como `snapshots/{date}`
+  `_source:'ibkr'`. Con esos snapshots, YTD se ancla en enero (`findYearStartAnchor`) y ALL arranca
+  en el snapshot más viejo → retornos REALES (no el estimado hold-flat de AD).
+- **Trampa histórica:** las instrucciones del Flex Query pedían solo Open Positions/Trades/Cash
+  Transactions — NUNCA Equity Summary. Sin ella el import "tiene éxito" con cero historial en
+  SILENCIO (el gate `EMPTY_REPORT` no chequea `equityHistory`). Arreglado: instrucciones ahora
+  piden Equity Summary + período amplio, y `IBKRSyncModal` muestra un aviso ámbar tras el sync
+  cuando hay posiciones pero `equityHistory <= 1`.
+- El período del Flex Query (lado IBKR) gobierna el rango; la app importa TODO lo que reciba sin cap.
+
 ### Depósitos auto-importados de IBKR fuera del Dietz del dashboard (FASE AD)
 - Los cash-flows `_source:'ibkr'` (FASE AA, marcados `_ibkrTxnId`) existen SOLO para el retorno
   "scoped" de Amigos (`computeScopedReturns` los netea contra el NAV real del broker). Contra el

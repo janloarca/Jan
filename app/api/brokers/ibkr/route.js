@@ -4,6 +4,7 @@ import { rateLimit } from '@/lib/rateLimit'
 import { retryRequest } from '@/lib/fetchWithRetry'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { encryptToken, decryptToken } from '@/lib/crypto'
+import { parseEquitySummary } from '@/lib/parsers/ibkrEquitySummary'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -174,40 +175,6 @@ function mapAssetCategory(cat, putCall) {
   return c || 'Stock'
 }
 
-function parseEquitySummary(xml) {
-  const entries = []
-  const regex = /<EquitySummaryByReportDateInBase[^>]*\/>/g
-  let match
-  while ((match = regex.exec(xml)) !== null) {
-    const tag = match[0]
-    const attr = (name) => {
-      const m = tag.match(new RegExp(`${name}="([^"]*)"`, 'i'))
-      return m ? m[1] : ''
-    }
-    const reportDate = attr('reportDate')
-    const total = parseFloat(attr('total')) || 0
-    const totalLong = parseFloat(attr('totalLong')) || 0
-    const totalShort = parseFloat(attr('totalShort')) || 0
-    const cash = parseFloat(attr('cash')) || 0
-    if (!reportDate || total === 0) continue
-    const date = formatDate(reportDate)
-    if (!date) continue
-    entries.push({
-      date,
-      netWorthUSD: total,
-      totalActivosUSD: totalLong + cash,
-      totalDebtUSD: Math.abs(totalShort),
-      _source: 'ibkr',
-    })
-  }
-  const seen = new Set()
-  return entries.filter((e) => {
-    if (seen.has(e.date)) return false
-    seen.add(e.date)
-    return true
-  })
-}
-
 function formatDate(dt) {
   if (!dt) return undefined
   const clean = dt.replace(/[;,]/g, '').trim()
@@ -373,7 +340,7 @@ export async function POST(request) {
       if (data.empty) {
         return NextResponse.json({
           errorCode: 'EMPTY_REPORT',
-          error: 'El reporte no tiene posiciones ni trades. Verifica que tu Flex Query incluya Open Positions y Trades.',
+          error: 'El reporte no tiene posiciones ni trades. Verifica que tu Flex Query incluya Open Positions, Trades, Cash Transactions y Equity Summary.',
           status: 'error',
         }, { status: 200 })
       }
