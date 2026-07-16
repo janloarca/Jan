@@ -840,7 +840,7 @@ export default function DashboardPage() {
               await handleSeedDemo()
               setShowOnboarding(true)
             }}
-            onConnectIBKR={handleOpenIBKR}
+            onConnect={handleOpenConnections}
             lang={lang}
           />
         )}

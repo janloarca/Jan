@@ -121,6 +121,36 @@ const DEMO_STEPS = (t) => [
     body: t('Si a una cuenta le falta historia, fecha o moneda, aquí aparece la sugerencia con un botón para arreglarlo.',
             'If an account is missing history, a date, or a currency, the suggestion shows up here with a one-tap fix.'),
   },
+  {
+    anchor: '[data-card-id="INST-01"]',
+    title: t('Rendimiento por institución', 'Performance by institution'),
+    body: t('Compara cómo le va a cada banco o broker donde tienes dinero — quién te está generando más.',
+            'Compare how each bank or broker you hold money with is doing — who is earning you more.'),
+  },
+  {
+    anchor: '[data-tour="header-new"]',
+    title: t('Agrega en segundos', 'Add in seconds'),
+    body: t('El botón "Nuevo" abre el formulario rápido: stocks, cuentas de banco, bonos, inmuebles, deudas — todo cabe.',
+            'The "New" button opens the quick form: stocks, bank accounts, bonds, real estate, debts — everything fits.'),
+  },
+  {
+    anchor: '[data-tour="header-import"]',
+    title: t('¿Ya tienes broker?', 'Already have a broker?'),
+    body: t('Importa el archivo de tu broker (detectamos IBKR, Binance, Schwab, Fidelity) o conéctalo para sync automático.',
+            'Import your broker’s file (we detect IBKR, Binance, Schwab, Fidelity) or connect it for automatic sync.'),
+  },
+  {
+    anchor: '[data-tour="nav"]',
+    title: t('Hay más páginas', 'There’s more'),
+    body: t('Finanzas: tus gastos e ingresos del mes. Hoja de Cálculo: la matriz mensual de todo tu patrimonio. Amigos: compara tu % de retorno sin revelar montos.',
+            'Finances: your monthly spending and income. Spreadsheet: the month-by-month matrix of your net worth. Friends: compare return % without revealing amounts.'),
+  },
+  {
+    anchor: '[data-tour="header-settings"]',
+    title: t('Hazlo tuyo', 'Make it yours'),
+    body: t('En ajustes cambias tu moneda base (14 disponibles), el tema, compartes tu portafolio y manejas tus conexiones.',
+            'In settings you change your base currency (14 available), the theme, share your portfolio, and manage connections.'),
+  },
 ]
 
 export default function OnboardingTour({ lang, onAction, onComplete, onSeedDemo, onClearDemo, demoActive = false }) {
@@ -178,7 +208,9 @@ export default function OnboardingTour({ lang, onAction, onComplete, onSeedDemo,
       const el = document.querySelector(currentDemo.anchor)
       if (!el) {
         // Cards mount lazily right after the demo seed — retry briefly, then skip.
-        if (retryRef.current < 12) {
+        // 6×300ms: enough for a lazy mount, short enough that a permanently-absent
+        // anchor (e.g. the sm-only header nav on mobile) skips without a long stall.
+        if (retryRef.current < 6) {
           retryRef.current += 1
           setTimeout(locate, 300)
         } else if (step < demoSteps.length - 1) {

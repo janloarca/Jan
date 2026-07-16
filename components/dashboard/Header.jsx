@@ -39,7 +39,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
             {/* Navigation — segmented control */}
             <nav className="hidden sm:flex items-center gap-0.5 p-1 rounded-[10px]"
               style={{ backgroundColor: 'var(--bg-tertiary)' }}
-              aria-label="Main navigation">
+              aria-label="Main navigation" data-tour="nav">
               {navItems.map(item => {
                 const active = pathname === item.href
                 return (
@@ -107,20 +107,21 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
 
             {onAddAccount && (
               <button onClick={onAddAccount} aria-label={lang === 'es' ? 'Agregar activo' : 'Add asset'}
-                className="btn-primary text-body" style={{ borderRadius: '8px' }}>
+                className="btn-primary text-body" style={{ borderRadius: '8px' }} data-tour="header-new">
                 <Plus size={14} /> {lang === 'es' ? 'Nuevo' : 'New'}
               </button>
             )}
 
             <button onClick={onImport} aria-label={lang === 'es' ? 'Importar archivo' : 'Import file'}
               className="hidden sm:flex items-center gap-1 px-3 h-9 text-body font-medium rounded-lg border transition-colors hover:bg-theme-elevated"
-              style={{ color: 'var(--text-secondary)', borderColor: 'var(--card-border)' }}>
+              style={{ color: 'var(--text-secondary)', borderColor: 'var(--card-border)' }} data-tour="header-import">
               <Upload size={14} /> {lang === 'es' ? 'Importar' : 'Import'}
             </button>
 
             <button onClick={onSettings}
               className={`${iconBtn} hover:bg-theme-elevated`}
               style={iconBtnStyle}
+              data-tour="header-settings"
               aria-label={lang === 'es' ? 'Configuración' : 'Settings'}>
               <Settings size={16} />
             </button>
