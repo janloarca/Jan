@@ -478,6 +478,28 @@ export function getSectorFromItem(item) {
   return getSectorFromType(item.type) !== 'Unknown' ? getSectorFromType(item.type) : getSectorFromType(item.name || '')
 }
 
+// A position imported from IBKR carries an import-stamp acquisitionDate (the sync
+// date), not the real purchase date. Historical reconstruction must NOT zero it out
+// before that stamp — hold the current quantity flat back through the period instead.
+// Returns true only for IBKR items with NO genuine trade/lot history to reconstruct
+// from (a real recent buy would leave an in-window BUY trade or a multi-lot/closed
+// history). Mirrors the `dateUnreliable` logic in lib/historicalValues.js so the chart
+// API and the spreadsheet agree on which positions are date-unreliable.
+export function shouldHoldFlat(item, transactions, lots) {
+  if (!item || item._source !== 'ibkr') return false
+  const sym = (item.symbol || '').toUpperCase()
+  if (!sym) return false
+  const hasTrades = (transactions || []).some((tx) => {
+    const t = (tx.type || '').toUpperCase()
+    return (t === 'BUY' || t === 'SELL') && (tx.symbol || '').toUpperCase() === sym
+  })
+  if (hasTrades) return false
+  const symLots = (lots || []).filter((l) => (l.symbol || '').toUpperCase() === sym)
+  const hasRealLotHistory = symLots.length > 1 || symLots.some((l) => l.status === 'closed')
+  if (hasRealLotHistory) return false
+  return true
+}
+
 export function computeModifiedDietz({ startValue, endValue, startTs, endTs, transactions, convert, baseCurrency }) {
   const totalMs = endTs - startTs
   if (totalMs <= 0 || startValue <= 0) return { pct: 0, abs: 0 }

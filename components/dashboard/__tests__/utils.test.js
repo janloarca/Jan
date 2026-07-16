@@ -15,6 +15,7 @@ import {
   computeScopedReturns,
   effectiveAcqTs,
   formatMonth,
+  shouldHoldFlat,
 } from '../utils'
 
 describe('projectItemAnnualIncome', () => {
@@ -505,5 +506,41 @@ describe('computeScopedReturns', () => {
   it('returns nulls when the source has no snapshots or no value', () => {
     expect(computeScopedReturns({ ...args, source: 'alpaca' })).toEqual({ ytd: null, mtd: null, day: null })
     expect(computeScopedReturns({ ...args, items: [] })).toEqual({ ytd: null, mtd: null, day: null })
+  })
+})
+
+describe('shouldHoldFlat', () => {
+  const ibkr = { symbol: 'META', _source: 'ibkr' }
+
+  it('holds flat an IBKR position with no trade or lot history', () => {
+    expect(shouldHoldFlat(ibkr, [], [])).toBe(true)
+  })
+
+  it('does NOT hold flat non-IBKR positions', () => {
+    expect(shouldHoldFlat({ symbol: 'META', _source: 'manual' }, [], [])).toBe(false)
+    expect(shouldHoldFlat({ symbol: 'META' }, [], [])).toBe(false)
+  })
+
+  it('does NOT hold flat when a real BUY/SELL trade exists for the symbol', () => {
+    const trades = [{ type: 'BUY', symbol: 'META' }]
+    expect(shouldHoldFlat(ibkr, trades, [])).toBe(false)
+    expect(shouldHoldFlat(ibkr, [{ type: 'SELL', symbol: 'meta' }], [])).toBe(false)
+  })
+
+  it('ignores trades for a different symbol', () => {
+    expect(shouldHoldFlat(ibkr, [{ type: 'BUY', symbol: 'AAPL' }], [])).toBe(true)
+  })
+
+  it('does NOT hold flat with real multi-lot or closed-lot history', () => {
+    expect(shouldHoldFlat(ibkr, [], [{ symbol: 'META' }, { symbol: 'META' }])).toBe(false)
+    expect(shouldHoldFlat(ibkr, [], [{ symbol: 'META', status: 'closed' }])).toBe(false)
+  })
+
+  it('still holds flat with a single open import lot', () => {
+    expect(shouldHoldFlat(ibkr, [], [{ symbol: 'META', status: 'open' }])).toBe(true)
+  })
+
+  it('guards against missing symbol', () => {
+    expect(shouldHoldFlat({ _source: 'ibkr' }, [], [])).toBe(false)
   })
 })

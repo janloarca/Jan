@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { formatCurrency, formatCompact, formatAxisTick, formatDate, computeModifiedDietz, getItemValue, buildIncomeEvents, isExcludedFromNetWorth, findYearStartAnchor } from './utils'
+import { formatCurrency, formatCompact, formatAxisTick, formatDate, computeModifiedDietz, getItemValue, buildIncomeEvents, isExcludedFromNetWorth, findYearStartAnchor, shouldHoldFlat } from './utils'
 import { computeTWRSeries } from './analytics'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import ErrorState from '@/components/ui/ErrorState'
@@ -261,6 +261,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
               purchasePrice: toUSD(it._originalPurchasePrice ?? it.purchasePrice),
               currency: 'USD',
               acquisitionDate: it.acquisitionDate,
+              _holdFlat: shouldHoldFlat(it, scopedTransactions, lots),
             }
           }),
           lots: allLots.length > 0 ? allLots.map(l => ({
@@ -618,6 +619,15 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     return pts
   }, [dataPoints, snapshotData, currentTotal, period, staticPoints, selectedInst, manualAddedTs, snapshots, convert, baseCurrency])
 
+  // The money-weighted/time-weighted return overlays exclude the auto-imported IBKR
+  // cash flows (_source:'ibkr'): the chart baseline is a reconstructed/held-flat series,
+  // so netting broker deposits out of it double-counts and distorts the return line.
+  // Same rationale as the YTD/MTD badges in useDashboardData (dietzTransactions).
+  const dietzScopedTransactions = useMemo(
+    () => (scopedTransactions || []).filter((tx) => tx._source !== 'ibkr'),
+    [scopedTransactions]
+  )
+
   const mwrData = useMemo(() => {
     if (chartData.length < 2) return []
     const startTs = chartData[0].ts
@@ -629,19 +639,19 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         endValue: chartData[i].value,
         startTs,
         endTs: chartData[i].ts,
-        transactions: scopedTransactions, convert, baseCurrency,
+        transactions: dietzScopedTransactions, convert, baseCurrency,
       })
       // Same ±200% sanity clamp the YTD card applies — an unclamped Dietz point
       // from degenerate data would blow up the axis for the whole series.
       result.push(Math.max(-200, Math.min(200, pct)))
     }
     return result
-  }, [chartData, scopedTransactions, convert, baseCurrency])
+  }, [chartData, dietzScopedTransactions, convert, baseCurrency])
 
   const twrData = useMemo(() => {
     if (chartData.length < 2) return []
-    return computeTWRSeries(chartData, scopedTransactions, convert, baseCurrency)
-  }, [chartData, scopedTransactions, convert, baseCurrency])
+    return computeTWRSeries(chartData, dietzScopedTransactions, convert, baseCurrency)
+  }, [chartData, dietzScopedTransactions, convert, baseCurrency])
 
   const returnData = returnMode === 'twr' ? twrData : mwrData
 

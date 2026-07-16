@@ -182,6 +182,7 @@ export async function POST(request) {
             acquiredTs: it.acquisitionDate ? new Date(it.acquisitionDate).getTime() : 0,
             costBasis: (it.quantity || 0) * (it.purchasePrice || 0),
             lots: hasLots && lotsBySymbol[sym] ? lotsBySymbol[sym] : null,
+            holdFlat: !!it._holdFlat,
           }
         }
       }))
@@ -200,6 +201,7 @@ export async function POST(request) {
           acquiredTs: it.acquisitionDate ? new Date(it.acquisitionDate).getTime() : 0,
           costBasis: (it.quantity || 0) * (it.purchasePrice || 0),
           lots: hasLots && lotsBySymbol[sym] ? lotsBySymbol[sym] : null,
+          holdFlat: !!it._holdFlat,
         }
       }
     }))
@@ -286,7 +288,10 @@ export async function POST(request) {
 
       staticItems.forEach((it) => {
         const acqTs = it.acquisitionDate ? new Date(it.acquisitionDate).getTime() : 0
-        if (ts < acqTs) return
+        // Hold-flat items (IBKR import-date positions) keep their current value back
+        // through the whole period — their acquisitionDate is a sync stamp, not a
+        // real purchase date, so it must not zero out the past.
+        if (!it._holdFlat && ts < acqTs) return
         let v = (it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0)
         // The current value already includes interest/dividends paid INTO this
         // asset (a bond that reinvests, or a cash account credited by another
@@ -317,7 +322,13 @@ export async function POST(request) {
         }
         if (price == null && data.history.length > 0) price = data.history[0].close
 
-        if (data.lots) {
+        if (data.holdFlat) {
+          // IBKR import-date position: no reliable acquisition date and no genuine
+          // trade history, so hold the current quantity flat back through the period
+          // (Σ current qty × historical price) instead of zeroing it before the sync
+          // stamp. Mirrors the dateUnreliable path in lib/historicalValues.js.
+          total += (data.qty || 0) * (price || 0)
+        } else if (data.lots) {
           let qtyAtTime = 0
           for (const lot of data.lots) {
             if (ts >= lot.acquiredTs && (!lot.closedTs || ts < lot.closedTs)) {

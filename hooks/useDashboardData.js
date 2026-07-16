@@ -5,7 +5,7 @@ import { useExchangeRates } from './useExchangeRates'
 import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns } from '@/components/dashboard/utils'
+import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat } from '@/components/dashboard/utils'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
 
@@ -160,6 +160,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
                 currentPrice: toUSD(it._originalPrice ?? it.currentPrice),
                 purchasePrice: toUSD(it._originalPurchasePrice ?? it.purchasePrice),
                 currency: 'USD', acquisitionDate: it.acquisitionDate,
+                _holdFlat: shouldHoldFlat(it, transactions, lots),
               }
             }),
             lots: allLots.length > 0 ? allLots.map(l => ({
@@ -192,7 +193,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
     doBackfill()
     return () => { cancelled = true }
-  }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, snapshots, lots, saveSnapshot, convert])
+  }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, snapshots, lots, transactions, saveSnapshot, convert])
 
   // Dividend processing
   const dividendsProcessedRef = useRef(null)
@@ -730,6 +731,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
                 purchasePrice: toUSD(it._originalPurchasePrice ?? it.purchasePrice),
                 currency: 'USD',
                 acquisitionDate: it.acquisitionDate,
+                _holdFlat: shouldHoldFlat(it, transactions, lots),
               }
             }),
             lots: allLots.length > 0 ? allLots.map(l => ({
@@ -756,7 +758,18 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
     fetchJan1()
     return () => { cancelled = true }
-  }, [enrichedItems, lots, convert, baseCurrency])
+  }, [enrichedItems, lots, transactions, convert, baseCurrency])
+
+  // The dashboard's own YTD/MTD money-weighted return must ignore the cash flows we
+  // auto-import from IBKR (_source:'ibkr'). They exist so the Friends "scoped" IBKR
+  // return (computeScopedReturns) has real broker deposits to net out against the raw
+  // NAV snapshots — but against the RECONSTRUCTED/held-flat baseline the dashboard uses,
+  // subtracting them double-counts and drags the headline number down (the pre-FASE-AA
+  // behavior the user reported as "correct"). Manual deposits keep counting.
+  const dietzTransactions = useMemo(
+    () => (transactions || []).filter((tx) => tx._source !== 'ibkr'),
+    [transactions]
+  )
 
   const { returnYTD, ytdChange, returnSinceStart, sinceStartDate } = useMemo(() => {
     const year = new Date().getUTCFullYear()
@@ -786,7 +799,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           const { pct, abs } = computeModifiedDietz({
             startValue: firstVal, endValue: netWorth,
             startTs: firstTs, endTs: Date.now(),
-            transactions, convert, baseCurrency,
+            transactions: dietzTransactions, convert, baseCurrency,
           })
           returnSinceStart = Math.max(-200, Math.min(200, pct))
           sinceStartDate = first.date
@@ -801,11 +814,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const { pct, abs } = computeModifiedDietz({
       startValue: startVal, endValue: netWorth,
       startTs: yearStartTs, endTs: Date.now(),
-      transactions, convert, baseCurrency,
+      transactions: dietzTransactions, convert, baseCurrency,
     })
     const clampedPct = Math.max(-200, Math.min(200, pct))
     return { returnYTD: clampedPct, ytdChange: abs, returnSinceStart, sinceStartDate }
-  }, [jan1Value, netWorth, transactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot])
+  }, [jan1Value, netWorth, dietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot])
 
   // Month-to-date return (Modified Dietz) — the "how are we doing THIS month"
   // number for the Friends monthly leaderboard. Same shape as YTD, anchored to
@@ -821,10 +834,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const { pct } = computeModifiedDietz({
       startValue: startVal, endValue: netWorth,
       startTs: Date.UTC(year, month, 1), endTs: Date.now(),
-      transactions, convert, baseCurrency,
+      transactions: dietzTransactions, convert, baseCurrency,
     })
     return Math.max(-200, Math.min(200, pct))
-  }, [netWorth, transactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot])
+  }, [netWorth, dietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot])
 
   // IBKR-only returns (Modified Dietz over the raw broker NAV + broker flows) for
   // the Friends "IBKR only" leaderboard scope. Uses RAW snapshots (not augmented,

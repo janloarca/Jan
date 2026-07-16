@@ -132,6 +132,27 @@
 3. Calcular Modified Dietz: `(endValue - startValue - netDeposits) / startValue`
 4. Transactions de tipo DEPOSIT/WITHDRAWAL se restan del retorno (no son ganancia)
 
+### Fecha de adquisición NO confiable (import IBKR) — hold-flat (FASE AD)
+- Una posición importada de IBKR trae `acquisitionDate` = fecha del SYNC, no de la compra real.
+  Sin historia previa, el reconstructor ponía en CERO todo antes de ~junio → `jan1Value` = valor
+  de junio → YTD medía "desde junio" (~1% en vez de ~10%) y el chart YTD arrancaba en $0 → "+0.00%".
+- **Regla:** `shouldHoldFlat(item, transactions, lots)` (en `utils.js`) marca `_holdFlat` para
+  items `_source:'ibkr'` SIN historial real (sin BUY/SELL para el símbolo, sin multi-lot ni lot
+  closed). `/api/prices/portfolio-history` mantiene la cantidad ACTUAL plana hacia atrás
+  (`Σ qty × precio histórico`) en vez de gatear por `acquisitionDate`. Espeja `dateUnreliable`
+  de `lib/historicalValues.js` — ambos deben coincidir en qué posiciones son de fecha no confiable.
+- Es un ESTIMADO (asume cantidad constante — riesgo de inflar historia temprana). Arregla YTD/MTD
+  y periodos acotados; **ALL sigue limitado** porque el chart no antepone el API antes del primer
+  snapshot en ALL (línea `period !== 'ALL'`). Para ALL real: ensanchar el Flex Query o valor de inicio manual.
+
+### Depósitos auto-importados de IBKR fuera del Dietz del dashboard (FASE AD)
+- Los cash-flows `_source:'ibkr'` (FASE AA, marcados `_ibkrTxnId`) existen SOLO para el retorno
+  "scoped" de Amigos (`computeScopedReturns` los netea contra el NAV real del broker). Contra el
+  baseline reconstruido/held-flat del dashboard, restarlos DOBLE-cuenta y jala el número abajo.
+- **Regla:** el YTD/MTD del dashboard (`useDashboardData` → `dietzTransactions`) y el return series
+  del chart (`mwrData`/`twrData` → `dietzScopedTransactions`) filtran `tx._source !== 'ibkr'`.
+  Los depósitos MANUALES (sin `_source:'ibkr'`) SÍ cuentan. Amigos usa el `transactions` completo.
+
 ### Colores / CSS
 - **No usar Tailwind classes para colores dinámicos** — los JS chunks de Next.js se cachean agresivamente y cambios de classes como `text-blue-400` no se reflejan en producción
 - Usar inline styles con hex: `style={{ color: '#60a5fa' }}`
