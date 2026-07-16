@@ -656,6 +656,55 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     return () => { cancelled = true; clearInterval(interval) }
   }, [dataLoading, settings, user, handleIBKRSync, saveSettings])
 
+  // Manual, on-demand IBKR sync that runs in the BACKGROUND (no blocking modal). Same
+  // path as the auto-sync above (syncIBKR '__stored__' → handleIBKRSync('merge')) but
+  // forced now, ignoring the cadence gate. The header pill spins via ibkrAutoSyncing;
+  // the caller (page.jsx) toasts the outcome. Returns { ok, count } / { ok:false, error }.
+  const triggerIBKRSync = useCallback(async () => {
+    if ((!settings?.ibkrToken && !settings?._ibkrVaultMigrated) || !settings?.ibkrQueryId) {
+      return { ok: false, error: 'NOT_CONNECTED' }
+    }
+    if (!acquireLock('ibkr-sync')) return { ok: false, error: 'BUSY' }
+    setIbkrAutoSyncing(true)
+    try {
+      const { syncIBKR } = await import('@/lib/ibkrSync')
+      let token = '__stored__'
+      if (settings.ibkrToken) {
+        const { decryptToken } = await import('@/lib/crypto')
+        token = await decryptToken(settings.ibkrToken, user?.uid)
+        try {
+          await authFetch('/api/brokers/ibkr', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'save-credentials', token, queryId: settings.ibkrQueryId }),
+          })
+          saveSettings({ ibkrToken: null, _ibkrVaultMigrated: true })
+        } catch (e) { console.error('[ibkr] vault migration failed (manual sync):', e?.message) }
+      }
+      const data = await syncIBKR(token, settings.ibkrQueryId)
+      await handleIBKRSync(data, 'merge')
+      saveSettings({
+        _ibkrLastAutoSync: new Date().toISOString(),
+        _ibkrLastSync: new Date().toISOString(),
+        _ibkrAutoSyncStatus: 'ok',
+        _ibkrAutoSyncError: null,
+        _ibkrAutoSyncErrorCode: null,
+      })
+      return { ok: true, count: data?.items?.length || 0 }
+    } catch (err) {
+      const code = err.errorCode || 'UNKNOWN'
+      saveSettings({
+        _ibkrAutoSyncStatus: 'error',
+        _ibkrAutoSyncError: err.message,
+        _ibkrAutoSyncErrorCode: code,
+        _ibkrLastAutoSyncAttempt: new Date().toISOString(),
+      })
+      return { ok: false, error: err.message, errorCode: code }
+    } finally {
+      setIbkrAutoSyncing(false)
+      releaseLock('ibkr-sync')
+    }
+  }, [settings, user, authFetch, saveSettings, handleIBKRSync, acquireLock, releaseLock])
+
   // Derived values
   // IBKR-only snapshots omit manually-added assets; augment them with the held-flat
   // value of non-IBKR items so returns/changes below reflect the FULL portfolio.
@@ -1038,8 +1087,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
     // IBKR
     handleIBKRSync,
-    ibkrConnected: !!(settings?.ibkrToken && settings?.ibkrQueryId),
+    // Connected = a usable token (legacy client copy OR migrated to the server vault)
+    // AND a query id. Must mirror the auto-sync gate; without _ibkrVaultMigrated a
+    // vault-only connection reads as disconnected (no header pill, no auto-sync).
+    ibkrConnected: !!((settings?.ibkrToken || settings?._ibkrVaultMigrated) && settings?.ibkrQueryId),
     ibkrAutoSyncing,
+    triggerIBKRSync,
     ibkrSyncStatus: settings?._ibkrAutoSyncStatus || null,
     ibkrSyncError: settings?._ibkrAutoSyncError || null,
     ibkrSyncErrorCode: settings?._ibkrAutoSyncErrorCode || null,

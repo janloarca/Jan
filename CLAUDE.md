@@ -145,6 +145,26 @@
   y periodos acotados; **ALL sigue limitado** porque el chart no antepone el API antes del primer
   snapshot en ALL (línea `period !== 'ALL'`). Para ALL real: ensanchar el Flex Query o valor de inicio manual.
 
+### Credenciales IBKR: DOS almacenes que deben mantenerse sincronizados (FASE AF)
+- Hay dos almacenes: (a) el **vault del servidor** (`users/{uid}/settings/ibkr`, token encriptado)
+  vía `/api/brokers/ibkr` `save/get-credentials`; (b) el **doc `settings` del cliente**
+  (`ibkrToken/ibkrQueryId/_ibkrVaultMigrated`). TODO lo que decide "¿está conectado?" —
+  `ibkrConnected` (`useDashboardData`), el pill del header, el auto-sync y el estado `connected` de
+  `IBKRSyncModal` — lee el doc de `settings`. `ConnectionsModal` guardaba SOLO al vault → el resto
+  de la app creía IBKR desconectado y `IBKRSyncModal` re-pedía el token (doble entrada).
+- **Regla:** cualquier flujo que guarde credenciales IBKR debe escribir AMBOS: el vault Y
+  `onSaveCredentials({ ibkrToken:null, ibkrQueryId, _ibkrVaultMigrated:true })` en `settings`.
+  `ibkrConnected = (ibkrToken || _ibkrVaultMigrated) && ibkrQueryId` (incluir el flag de migración,
+  si no una conexión vault-only lee como desconectada).
+
+### Sync IBKR NO bloqueante (FASE AF)
+- El pill del header y el botón "Sync" de `ConnectionsModal` disparan `triggerIBKRSync()`
+  (`useDashboardData`) — mismo camino que el auto-sync (`syncIBKR('__stored__') → handleIBKRSync
+  ('merge')`) pero forzado; prende `ibkrAutoSyncing` (pill gira) + toast; el usuario sigue usando la
+  app. El `IBKRSyncModal` completo (bloqueante) queda solo para el PRIMER connect y "Replace".
+- Feedback de borrado en `SettingsModal`: la advertencia se revela con `max-height`/`opacity`
+  DEBAJO del row (no re-centra el botón) y el botón muestra spinner + `disabled` durante los awaits.
+
 ### Equity Summary = la ÚNICA fuente de NAV histórico real de IBKR (FASE AE)
 - El historial de valor diario del portafolio viene de la sección **"Equity Summary"** del Flex
   Query → tag `<EquitySummaryByReportDateInBase>`. `lib/parsers/ibkrEquitySummary.js` lo parsea

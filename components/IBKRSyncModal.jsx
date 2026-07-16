@@ -183,11 +183,17 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   // Auto-start sync when credentials already exist (only from config step, not connected)
   useEffect(() => {
     if (autoStartedRef.current) return
-    if ((token || hasVaultCreds) && savedQueryId && !decrypting && step === 'config' && !isConnected) {
+    // Gate on the LOCALLY-known queryId (prop OR the one loaded from the vault) so a
+    // vault-only connection auto-syncs with the stored token instead of stranding the
+    // user on the form. `hasVaultCreds` means the server holds the token → handleSync
+    // resolves it via '__stored__'.
+    const haveCreds = !!(token || hasVaultCreds)
+    const haveQuery = !!(savedQueryId || queryId)
+    if (haveCreds && haveQuery && !decrypting && step === 'config' && !isConnected) {
       autoStartedRef.current = true
       handleSync()
     }
-  }, [token, hasVaultCreds, savedQueryId, decrypting]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [token, hasVaultCreds, savedQueryId, queryId, decrypting]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const handleEsc = (e) => { if (e.key === 'Escape') onClose() }

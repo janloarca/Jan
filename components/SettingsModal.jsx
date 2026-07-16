@@ -32,6 +32,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   const [benchmarkSymbol, setBenchmarkSymbol] = useState(settings?.benchmarkSymbol || '%5EGSPC')
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(null)
+  const [deleting, setDeleting] = useState(null)
   const [tab, setTab] = useState('general')
   const [shareLinks, setShareLinks] = useState(null) // null = not loaded yet
   const [shareLoading, setShareLoading] = useState(false)
@@ -66,6 +67,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
       setConfirmDelete(type)
       return
     }
+    setDeleting(type)
     try {
       if (type === 'items') await onDeleteAllItems({ cascade: true })
       if (type === 'snapshots') await onDeleteAllSnapshots()
@@ -88,9 +90,13 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
           _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null,
         })
       }
-    } catch (e) { flash('err', e.message || t('Error al borrar', 'Error deleting')) }
-    setConfirmDelete(null)
-    flash('ok', type === 'all' ? t('Datos y conexiones eliminados', 'Data and connections deleted') : t('Datos eliminados', 'Data deleted'))
+      setConfirmDelete(null)
+      flash('ok', type === 'all' ? t('Datos y conexiones eliminados', 'Data and connections deleted') : t('Datos eliminados', 'Data deleted'))
+    } catch (e) {
+      flash('err', e.message || t('Error al borrar', 'Error deleting'))
+    } finally {
+      setDeleting(null)
+    }
   }
 
   const shareApi = useCallback(async (payload) => {
@@ -544,24 +550,34 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               {/* One prominent nuclear action; the granular deletes live collapsed
                   below — they're rarely needed and were drowning the tab. */}
               {(() => {
-                const renderAction = (action) => (
-                  <div key={action.key} className="flex items-center justify-between p-3 bg-theme-base border border-glass-border rounded-lg">
-                    <div>
-                      <div className="text-sm text-white font-medium">{action.label}</div>
-                      <div className="text-xs text-slate-500">{action.desc}</div>
-                      {confirmDelete === action.key && (
-                        <div className="text-xs mt-1 font-medium" style={{ color: 'var(--accent-orange)' }}>{action.warn}</div>
-                      )}
+                const renderAction = (action) => {
+                  const armed = confirmDelete === action.key
+                  const busy = deleting === action.key
+                  return (
+                  <div key={action.key} className="p-3 bg-theme-base border border-glass-border rounded-lg">
+                    {/* Label+desc and the button live in one centered row; the warning
+                        reveals BELOW it (animated max-height) so arming confirm never
+                        shifts the button's position ("la casilla se mueve"). */}
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm text-white font-medium">{action.label}</div>
+                        <div className="text-xs text-slate-500">{action.desc}</div>
+                      </div>
+                      <button onClick={() => handleDelete(action.key)} disabled={busy}
+                        className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors shrink-0 border inline-flex items-center gap-1.5 disabled:opacity-70"
+                        style={armed
+                          ? { backgroundColor: 'var(--text-negative)', color: '#ffffff', borderColor: 'var(--text-negative)' }
+                          : { color: 'var(--text-negative)', borderColor: 'rgba(239,68,68,0.3)' }}>
+                        {busy && <span className="inline-block w-3 h-3 rounded-full border-2 border-white/40 border-t-white animate-spin" />}
+                        {busy ? t('Borrando…', 'Deleting…') : armed ? t('Confirmar', 'Confirm') : t('Eliminar', 'Delete')}
+                      </button>
                     </div>
-                    <button onClick={() => handleDelete(action.key)}
-                      className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors shrink-0 ml-3 border"
-                      style={confirmDelete === action.key
-                        ? { backgroundColor: 'var(--text-negative)', color: '#ffffff', borderColor: 'var(--text-negative)' }
-                        : { color: 'var(--text-negative)', borderColor: 'rgba(239,68,68,0.3)' }}>
-                      {confirmDelete === action.key ? t('Confirmar', 'Confirm') : t('Eliminar', 'Delete')}
-                    </button>
+                    <div className="overflow-hidden transition-all duration-200 ease-out"
+                      style={{ maxHeight: armed ? 48 : 0, opacity: armed ? 1 : 0 }}>
+                      <div className="text-xs mt-2 font-medium" style={{ color: 'var(--accent-orange)' }}>{action.warn}</div>
+                    </div>
                   </div>
-                )
+                )}
                 return (
                   <>
                     <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'rgba(239,68,68,0.25)' }}>

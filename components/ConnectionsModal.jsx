@@ -11,7 +11,7 @@ import { RefreshCw } from 'lucide-react'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { getBrokerRegistry } from '@/lib/brokerRegistry'
 
-export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, onImport, onAddAccount, onOpenBlockchain, lang = 'es', lastSyncTime, portfolioItems = [] }) {
+export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, onBackgroundSync, onImport, onAddAccount, onOpenBlockchain, onSaveCredentials, lang = 'es', lastSyncTime, portfolioItems = [] }) {
   const trapRef = useFocusTrap()
   const t = (es, en) => lang === 'es' ? es : en
 
@@ -100,6 +100,12 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
       if (res.ok) {
         setIbkrConfigured(true)
         setIbkrToken('')
+        // Mirror the credentials into the client settings doc so the rest of the app
+        // (ibkrConnected → header pill, auto-sync, IBKRSyncModal "connected" state)
+        // sees the connection. The token stays server-side only (vault); we persist
+        // the queryId + a migration flag. Without this the vault holds creds but the
+        // app still thinks IBKR is unconnected and re-prompts for the token.
+        onSaveCredentials?.({ ibkrToken: null, ibkrQueryId: ibkrQueryId.trim(), _ibkrVaultMigrated: true })
       } else {
         const d = await safeJson(res) || {}
         setIbkrError(d.error || 'Error')
@@ -119,6 +125,8 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
       setIbkrConfigured(false)
       setIbkrToken('')
       setIbkrQueryId('')
+      // Clear the client settings mirror too, so ibkrConnected/auto-sync turn off.
+      onSaveCredentials?.({ ibkrToken: null, ibkrQueryId: null, _ibkrVaultMigrated: false })
       flash('ok', t('IBKR desvinculado', 'IBKR unlinked'))
     } catch (e) { flash('err', e.message || t('Error al desvincular', 'Error unlinking')) }
     setIbkrSaving(false)
@@ -351,9 +359,9 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     {ibkrConfigured ? (
-                      <button onClick={() => { onClose(); setTimeout(() => { if (onOpenIBKR) onOpenIBKR() }, 50) }}
+                      <button onClick={() => { onClose(); if (onBackgroundSync) onBackgroundSync(); else if (onOpenIBKR) setTimeout(() => onOpenIBKR(), 50) }}
                         className="px-2.5 py-1 text-xs font-medium rounded-md hover:bg-blue-500 transition-colors" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
-                        Sync
+                        {t('Sincronizar', 'Sync')}
                       </button>
                     ) : (
                       <button onClick={() => setShowConfig(true)}

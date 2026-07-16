@@ -2,7 +2,7 @@
 
 import { BarChart3, Plus, Upload, Download, TrendingUp, Bitcoin, Landmark, Briefcase, Home, Gem, Building2, CreditCard } from 'lucide-react'
 
-export default function EmptyState({ onAdd, onImport, onTemplate, onDemo, lang }) {
+export default function EmptyState({ onAdd, onImport, onTemplate, onDemo, onConnectIBKR, lang }) {
   const t = (es, en) => lang === 'es' ? es : en
 
   return (
@@ -83,6 +83,12 @@ export default function EmptyState({ onAdd, onImport, onTemplate, onDemo, lang }
       <p className="mt-6 text-xs text-slate-600">
         {t('Detectamos brokers automáticamente: IBKR, Binance, Schwab, Fidelity', 'Auto-detect brokers: IBKR, Binance, Schwab, Fidelity')}
       </p>
+      {onConnectIBKR && (
+        <button onClick={onConnectIBKR}
+          className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium underline underline-offset-2" style={{ color: 'var(--accent-blue)' }}>
+          🏦 {t('Conectar Interactive Brokers (sync automático)', 'Connect Interactive Brokers (auto sync)')}
+        </button>
+      )}
     </div>
   )
 }

@@ -268,7 +268,7 @@ export default function DashboardPage() {
     annualDividends, estimatedAnnualIncome,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
     benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName,
-    handleIBKRSync,
+    handleIBKRSync, triggerIBKRSync,
     ibkrConnected, ibkrAutoSyncing,
     ibkrSyncStatus, ibkrSyncErrorCode, ibkrLastSync,
   } = useDashboardData({ user, lang, activePortfolio, activeEntity })
@@ -284,6 +284,23 @@ export default function DashboardPage() {
   const handleOpenCashflow = useCallback(() => { setCashflowPrefill(null); setModal('cashflow') }, [])
   const handleOpenCashflowPrefilled = useCallback((prefill) => { setCashflowPrefill(prefill || null); setModal('cashflow') }, [])
   const handleOpenIBKR = useCallback(() => setModal('ibkr'), [])
+
+  // Header IBKR pill: when connected, sync in the BACKGROUND (no blocking modal) and
+  // let the user keep working — the pill spins (ibkrAutoSyncing) and a toast reports the
+  // outcome. Not connected → open the modal to enter credentials the first time.
+  const handleIBKRPillClick = useCallback(async () => {
+    if (!ibkrConnected) { setModal('ibkr'); return }
+    if (ibkrAutoSyncing) return
+    showToast(lang === 'es' ? 'Sincronizando IBKR… puedes seguir usando la app' : 'Syncing IBKR… you can keep using the app', 'info', 2500)
+    const res = await triggerIBKRSync()
+    if (res?.ok) {
+      showToast(lang === 'es' ? `IBKR: ${res.count} posiciones actualizadas` : `IBKR: ${res.count} positions updated`, 'success')
+    } else if (res?.error === 'BUSY') {
+      // a sync is already running; the spinning pill already communicates this
+    } else if (res?.error !== 'NOT_CONNECTED') {
+      showToast(lang === 'es' ? 'IBKR no se pudo actualizar. Revisa la conexión en Ajustes.' : 'IBKR sync failed. Check the connection in Settings.', 'error', 4000)
+    }
+  }, [ibkrConnected, ibkrAutoSyncing, triggerIBKRSync, lang])
   const handleOpenBlockchain = useCallback(() => setModal('blockchain'), [])
   const handleOpenPrint = useCallback(() => setModal('print'), [])
   const handleOpenReview = useCallback(() => setShowReview(true), [])
@@ -635,7 +652,7 @@ export default function DashboardPage() {
         ibkrConnected={ibkrConnected}
         ibkrAutoSyncing={ibkrAutoSyncing}
         ibkrSyncStatus={ibkrSyncStatus}
-        onIBKR={handleOpenIBKR}
+        onIBKR={handleIBKRPillClick}
         friendsEnabled={settings?.friendsEnabled !== false}
       />
 
@@ -823,6 +840,7 @@ export default function DashboardPage() {
               await handleSeedDemo()
               setShowOnboarding(true)
             }}
+            onConnectIBKR={handleOpenIBKR}
             lang={lang}
           />
         )}
@@ -1144,9 +1162,11 @@ export default function DashboardPage() {
           lastSyncTime={settings?._ibkrLastSync || settings?._ibkrLastAutoSync || null}
           portfolioItems={portfolioItems}
           onOpenIBKR={handleOpenIBKR}
+          onBackgroundSync={handleIBKRPillClick}
           onImport={handleOpenImport}
           onAddAccount={handleOpenAccount}
           onOpenBlockchain={handleOpenBlockchain}
+          onSaveCredentials={(creds) => { saveSettings({ ...creds, _ibkrLastSync: new Date().toISOString(), _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
           onSyncBroker={async (brokerId, data) => {
             const positions = data?.positions || data || []
             const posArray = Array.isArray(positions) ? positions : []

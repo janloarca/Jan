@@ -75,14 +75,19 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
             </button>
 
             {ibkrConnected && (
-              <button onClick={onIBKR}
-                aria-label="IBKR status"
-                className="px-2.5 h-9 text-xs font-medium rounded-full border transition-colors flex items-center gap-1.5"
+              <button onClick={onIBKR} disabled={ibkrAutoSyncing}
+                aria-label={ibkrAutoSyncing
+                  ? (lang === 'es' ? 'Sincronizando IBKR' : 'Syncing IBKR')
+                  : (lang === 'es' ? 'Sincronizar IBKR ahora' : 'Sync IBKR now')}
+                title={ibkrAutoSyncing
+                  ? (lang === 'es' ? 'Sincronizando IBKR…' : 'Syncing IBKR…')
+                  : (lang === 'es' ? 'Sincronizar IBKR ahora' : 'Sync IBKR now')}
+                className="px-2.5 h-9 text-xs font-medium rounded-full border transition-colors flex items-center gap-1.5 disabled:cursor-default"
                 style={ibkrAutoSyncing
                   ? { color: 'var(--accent-blue)', borderColor: 'rgba(79,70,229,0.3)', backgroundColor: 'rgba(79,70,229,0.08)' }
                   : ibkrSyncStatus === 'error'
                     ? { color: '#D97706', borderColor: '#FDE68A', backgroundColor: '#FFFBEB' }
-                    : { color: '#D97706', borderColor: '#FDE68A', backgroundColor: '#FFFBEB' }
+                    : { color: 'var(--text-secondary)', borderColor: 'var(--card-border)' }
                 }>
                 <span className="font-mono">IBKR</span>
                 {ibkrAutoSyncing
