@@ -86,7 +86,7 @@ function DoneStep({ result, onClose, t }) {
   )
 }
 
-export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, savedQueryId, onSaveCredentials, onDisconnect, lang = 'es', uid, lastSyncTime, existingItems = [], existingTransactions = [], existingSnapshots = [] }) {
+export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, savedQueryId, onSaveCredentials, onApiSyncSuccess, onDisconnect, lang = 'es', uid, lastSyncTime, existingItems = [], existingTransactions = [], existingSnapshots = [] }) {
   const trapRef = useFocusTrap()
   const isConnected = !!(savedToken && savedQueryId)
   const [token, setToken] = useState('')
@@ -248,6 +248,12 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
         } catch (e) { console.error('[ibkr] save-credentials failed (re-enter token to persist):', e?.message) }
       }
 
+      // The flex API returned data → the token works right now. Clear any stale
+      // error/LOCKED state so the red banner drops (a stored-token sync doesn't hit
+      // onSaveCredentials, so nothing else would clear it). File imports never reach
+      // here, so a CSV workaround correctly leaves a real LOCKED state in place.
+      onApiSyncSuccess?.()
+
       if (syncMode === 'merge' && onSyncComplete) {
         // Skip preview for merge mode — go straight to done
         setSyncStatus('importing')
@@ -284,7 +290,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       setPollProgress(null)
       abortRef.current = null
     }
-  }, [token, hasVaultCreds, queryId, onSaveCredentials, onSyncComplete, uid, syncMode, t, ibkrHistory.items.length, isConnected])
+  }, [token, hasVaultCreds, queryId, onSaveCredentials, onApiSyncSuccess, onSyncComplete, uid, syncMode, t, ibkrHistory.items.length, isConnected])
 
   const handleCancel = useCallback(() => {
     if (abortRef.current) {

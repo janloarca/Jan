@@ -574,9 +574,13 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }, onProgress)
   }, [items, snapshots, bulkImport, activePortfolio, activeEntity])
 
-  // LOCKED = IBKR temporarily blocked the token after failed attempts; retrying
-  // refreshes the lock, so it must halt auto-sync like the other fatal states.
-  const FATAL_ERROR_CODES = ['TOKEN_EXPIRED', 'INVALID_QUERY', 'LOCKED']
+  // TOKEN_EXPIRED / INVALID_QUERY need user action (regenerate token / fix query),
+  // so they permanently halt auto-sync. LOCKED is TEMPORARY — IBKR unlocks the token
+  // on its own after a cooldown — so it is NOT fatal; instead auto-sync retries it on
+  // a long cadence (below) and a success clears the banner. Treating LOCKED as fatal
+  // used to deadlock the sync: it could never self-heal and the red banner stuck over
+  // fresh data forever.
+  const FATAL_ERROR_CODES = ['TOKEN_EXPIRED', 'INVALID_QUERY']
 
   useEffect(() => {
     if (dataLoading) return
@@ -589,7 +593,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
     if (ibkrAutoSyncRef.current) return
     ibkrAutoSyncRef.current = true
-    const SYNC_INTERVAL = 30 * 60 * 1000
+    // After a LOCKED error, back off to a long cadence so we let IBKR's temporary
+    // lock expire (retrying too soon can refresh it) — but still retry, so a working
+    // token self-heals and the banner clears without manual action.
+    const isLocked = settings?._ibkrAutoSyncErrorCode === 'LOCKED'
+    const SYNC_INTERVAL = isLocked ? 12 * 60 * 60 * 1000 : 30 * 60 * 1000
     // Space attempts by the LAST ATTEMPT, not the last success — otherwise every
     // page load while in an error state fired another immediate try, hammering
     // IBKR with failed logins (which is what triggers its lockout).
