@@ -301,6 +301,13 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     return s
   }, [monthlyTotals, historicalItems])
 
+  // Any displayed historical cell reconstructed as a held-flat estimate → show the
+  // "~" legend so users know which numbers are inferred vs price/NAV-backed.
+  const hasEstimated = useMemo(() =>
+    months.some(mk => mk !== currentMonthKey && Object.values(historicalItems[mk] || {}).some(c => c?.estimated)),
+    [months, currentMonthKey, historicalItems]
+  )
+
   const itemSnapshotSavedRef = useRef(false)
   const lastFetchedYearRef = useRef(null)
 
@@ -875,10 +882,19 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                               const isCurrent = mk === currentMonthKey
                               if (!isCurrent) {
                                 const histMonth = historicalItems[mk]
-                                const histVal = histMonth && item.id ? histMonth[item.id]?.value : null
+                                const cell = histMonth && item.id ? histMonth[item.id] : null
+                                const histVal = cell?.value ?? null
+                                const isEst = histVal != null && cell?.estimated
                                 return (
                                   <td key={mk} className="text-right py-2.5 px-2 tabular-nums font-mono text-sm" style={{ color: histVal != null ? '#64748b' : '#cbd5e1' }}>
-                                    {histVal != null ? formatNum(histVal) : '—'}
+                                    {histVal != null ? (
+                                      <>
+                                        {isEst && (
+                                          <span title={t('Valor estimado — mantenido plano; sin precio histórico real', 'Estimated — held flat; no real historical price')} style={{ color: '#cbd5e1', marginRight: '1px' }}>~</span>
+                                        )}
+                                        {formatNum(histVal)}
+                                      </>
+                                    ) : '—'}
                                   </td>
                                 )
                               }
@@ -1093,6 +1109,12 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
           <p className="text-xs px-4 py-2" style={{ color: '#94a3b8' }}>
             * {t('Total del snapshot de ese mes — aún sin desglose por categoría (las filas muestran "—").',
                  'Snapshot total for that month — no per-category breakdown yet (rows show "—").')}
+          </p>
+        )}
+        {hasEstimated && (
+          <p className="text-xs px-4 py-2" style={{ color: '#94a3b8' }}>
+            ~ {t('Valor estimado — reconstruido manteniendo el saldo/posición plano (sin precio histórico de mercado).',
+                 'Estimated — reconstructed by holding the balance/position flat (no historical market price).')}
           </p>
         )}
       </div>

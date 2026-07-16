@@ -678,7 +678,7 @@ export function useFirestoreItems() {
   // v16: crypto historical prices now come from CoinGecko (not Yahoo, which
   // collided crypto tickers with unrelated equities) — invalidates docs that
   // cached garbage crypto values.
-  const SNAPSHOT_VERSION = 16
+  const SNAPSHOT_VERSION = 17
 
   const saveItemSnapshots = useCallback(async (monthKey, itemsData, currency) => {
     if (!uid || !monthKey || !itemsData) return
