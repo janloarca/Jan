@@ -470,6 +470,13 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     return pts
   }, [snapshots, period, convert, baseCurrency, customRange, currentTotal, selectedInst, scopedItems])
 
+  // First timestamp with REAL broker NAV (vs reconstructed estimates). Drives the
+  // performance-view rebase, the flow gating, and the short-history banner.
+  const firstRealTs = useMemo(() => {
+    const p = snapshotData.find((s) => ['ibkr', 'daily', 'manual'].includes(s?.src))
+    return p ? p.ts : null
+  }, [snapshotData])
+
   const chartData = useMemo(() => {
     // IBKR-sourced snapshots are the broker's account NAV only — they predate any
     // manually-added assets (a bond, a cash fund), so on the "Todas" (all) view
@@ -615,8 +622,20 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         pts[pts.length - 1] = { ts: now, date: new Date(), value: currentTotal }
       }
     }
+
+    // IBKR convention: the Performance view runs "from Jan 1 or the account open
+    // date, whichever is later". Our analog of "account open" is the first REAL
+    // broker datapoint: when everything earlier is only a reconstruction, a
+    // full-period TWR invents a number the broker never reported (user saw +0.32%
+    // vs IBKR's +9.98%). Rebase the performance view to the real region; the
+    // Value view keeps the (labeled) estimated history for wealth trajectory.
+    if (viewMode === 'performance' && firstRealTs != null && pts.length > 1
+      && pts[0].ts < firstRealTs - 3600000) {
+      const real = pts.filter((p) => p.ts >= firstRealTs - 3600000)
+      if (real.length >= 2) return real
+    }
     return pts
-  }, [dataPoints, snapshotData, currentTotal, period, staticPoints, selectedInst, manualAddedTs, snapshots, convert, baseCurrency])
+  }, [dataPoints, snapshotData, currentTotal, period, staticPoints, selectedInst, manualAddedTs, snapshots, convert, baseCurrency, viewMode, firstRealTs])
 
   // Whether the auto-imported IBKR cash flows (_source:'ibkr') enter the return math
   // depends on the SOURCE of the value series (lesson from the +1.98% vs IBKR's
@@ -635,15 +654,6 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     () => flowAware ? (scopedTransactions || []) : (scopedTransactions || []).filter((tx) => tx._source !== 'ibkr'),
     [flowAware, scopedTransactions]
   )
-  // First timestamp with REAL broker NAV. When the chart splices a reconstructed
-  // (hold-flat) prefix before it, flows inside that prefix are already implicit in
-  // the flat quantity: netting them again double-counted (a user with deposits from
-  // Jan-May but real NAV only from June saw TWR +1.98% vs the broker's +10.99%).
-  const firstRealTs = useMemo(() => {
-    const p = snapshotData.find((s) => ['ibkr', 'daily', 'manual'].includes(s?.src))
-    return p ? p.ts : null
-  }, [snapshotData])
-
   // Single return series: TWR with the broker's own methodology (chained
   // sub-period returns off the NAV series, external flows at the start of each
   // sub-period). The MWR alternative was dropped: two numbers for "my return"
@@ -654,6 +664,16 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     return computeTWRSeries(chartData, returnTransactions, convert, baseCurrency,
       hasReconstructedPrefix ? { flowFromTs: firstRealTs } : {})
   }, [chartData, returnTransactions, convert, baseCurrency, firstRealTs])
+
+  // Non-null when the performance view was rebased to the first real broker
+  // datapoint (IBKR's "Jan 1 or account open, whichever is later" convention).
+  // Drives the "Retorno desde {fecha}" label so the number is never presented
+  // as a full-year return it isn't.
+  const perfRebasedFrom = viewMode === 'performance' && firstRealTs != null
+    && (period === 'YTD' || period === 'ALL')
+    && firstRealTs > Date.UTC(new Date().getUTCFullYear(), 0, 1) + 45 * 86400000
+    && chartData.length > 0 && chartData[0].ts >= firstRealTs - 3600000
+    ? firstRealTs : null
 
   const sortedBenchmark = useMemo(() => {
     if (!benchmarkPts || benchmarkPts.length < 2) return null
@@ -1048,7 +1068,9 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           </p>
           <div className="flex items-center gap-3 mt-0.5">
             <span className="text-sm text-slate-400">
-              {period === 'YTD' ? t('Retorno total del año', 'Total return this year') : period === 'DAY' ? t('Retorno hoy', 'Return today') : `${t('Retorno', 'Return')} ${period}`}
+              {perfRebasedFrom
+                ? `${t('Retorno desde', 'Return since')} ${formatDate(new Date(perfRebasedFrom).toISOString())}`
+                : period === 'YTD' ? t('Retorno total del año', 'Total return this year') : period === 'DAY' ? t('Retorno hoy', 'Return today') : `${t('Retorno', 'Return')} ${period}`}
             </span>
             <span className="text-xs text-slate-600">
               {t('Sin efecto de tus depósitos, igual que tu broker', 'Without your deposits’ effect, same as your broker')}
@@ -1094,18 +1116,22 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         </div>
       )}
 
-      {/* Short-history notice: the YTD/ALL series has a reconstructed prefix because
-          the broker NAV snapshots start well after Jan 1. Actionable: widening the
-          Flex Query period and re-syncing replaces the estimate with real data. */}
+      {/* Short-history notice: real broker NAV starts well after Jan 1. The Value
+          view shows a labeled estimate before that date; the Performance view is
+          rebased to the real region (IBKR's own convention). Either way the fix is
+          the same: widen the Flex Query period and re-sync. */}
       {(period === 'YTD' || period === 'ALL') && firstRealTs != null && chartData.length > 1
         && firstRealTs > Date.UTC(new Date().getUTCFullYear(), 0, 1) + 45 * 86400000
-        && chartData[0].ts < firstRealTs - 3600000 && (
+        && (viewMode === 'performance' || chartData[0].ts < firstRealTs - 3600000) && (
         <div className="flex items-start gap-2 px-2.5 py-1.5 rounded-lg text-xs mb-3"
           style={{ backgroundColor: 'var(--alert-info-bg)', border: '1px solid var(--alert-info-border)', color: 'var(--alert-info-icon)' }}>
           <span>ℹ</span>
           <span>
-            {t(`Datos reales de tu broker desde ${formatDate(new Date(firstRealTs).toISOString())}; antes es un estimado. Para ver tu año completo igual que tu broker, pon el período de tu Flex Query en "Year to Date" y vuelve a sincronizar.`,
-               `Real broker data starts ${formatDate(new Date(firstRealTs).toISOString())}; earlier values are an estimate. To see your full year exactly like your broker, set your Flex Query period to "Year to Date" and sync again.`)}
+            {viewMode === 'performance'
+              ? t(`Tu retorno se mide desde ${formatDate(new Date(firstRealTs).toISOString())}, el primer día con datos reales de tu broker (igual que haría IBKR con una cuenta nueva). Para medir el año completo, pon el período de tu Flex Query en "Year to Date" y vuelve a sincronizar.`,
+                  `Your return is measured from ${formatDate(new Date(firstRealTs).toISOString())}, the first day with real broker data (just like IBKR would for a new account). To measure the full year, set your Flex Query period to "Year to Date" and sync again.`)
+              : t(`Datos reales de tu broker desde ${formatDate(new Date(firstRealTs).toISOString())}; antes es un estimado. Para ver tu año completo igual que tu broker, pon el período de tu Flex Query en "Year to Date" y vuelve a sincronizar.`,
+                  `Real broker data starts ${formatDate(new Date(firstRealTs).toISOString())}; earlier values are an estimate. To see your full year exactly like your broker, set your Flex Query period to "Year to Date" and sync again.`)}
           </span>
         </div>
       )}
