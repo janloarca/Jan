@@ -705,8 +705,8 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                         This is the ONLY source of real historical portfolio value; without
                         it YTD/ALL and the value chart start from today (estimated, not real). */}
                     <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--accent-orange)' }}>
-                      {t('Incluye "Equity Summary" y pon el período del query amplio (ej. "Year to Date" o "Last 365 Days"): es lo que da tus retornos reales (YTD/ALL) y la gráfica de valor. Sin ella arrancan desde hoy.',
-                         'Include "Equity Summary" and set the query period wide (e.g. "Year to Date" or "Last 365 Days"): it powers your real returns (YTD/ALL) and the value chart. Without it they start from today.')}
+                      {t('Incluye "Equity Summary" y pon el período del query en "Year to Date" o "Last 365 Days". El período manda: con "Last 30 Days" solo recibimos 30 días de historial, depósitos y trades, y tu retorno del año no puede cuadrar con IBKR.',
+                         'Include "Equity Summary" and set the query period to "Year to Date" or "Last 365 Days". The period rules everything: with "Last 30 Days" we only receive 30 days of history, deposits and trades, and your yearly return cannot match IBKR.')}
                     </p>
                     {/* Without Cash Transactions, deposits/withdrawals never import,
                         so Modified-Dietz returns are distorted by unaccounted flows. */}
