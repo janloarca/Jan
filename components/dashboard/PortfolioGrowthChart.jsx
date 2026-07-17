@@ -619,13 +619,22 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     return pts
   }, [dataPoints, snapshotData, currentTotal, period, staticPoints, selectedInst, manualAddedTs, snapshots, convert, baseCurrency])
 
-  // The money-weighted/time-weighted return overlays exclude the auto-imported IBKR
-  // cash flows (_source:'ibkr'): the chart baseline is a reconstructed/held-flat series,
-  // so netting broker deposits out of it double-counts and distorts the return line.
-  // Same rationale as the YTD/MTD badges in useDashboardData (dietzTransactions).
-  const dietzScopedTransactions = useMemo(
-    () => (scopedTransactions || []).filter((tx) => tx._source !== 'ibkr'),
-    [scopedTransactions]
+  // Whether the auto-imported IBKR cash flows (_source:'ibkr') enter the return math
+  // depends on the SOURCE of the value series (lesson from the +1.98% vs IBKR's
+  // +10.99% TWR bug):
+  // - Real broker NAV snapshots (ibkr/daily/manual) already contain the effect of
+  //   deposits/withdrawals, so a flow-blind TWR/MWR reads every withdrawal as a market
+  //   loss and every deposit as a gain. Flows MUST be included.
+  // - Reconstructed baselines (hold-flat Σqty×price, 'backfill' snapshots) pre-date
+  //   deposits implicitly (current qty held flat), so subtracting the flows again
+  //   double-counts. Flows must be excluded (the original AD2 rationale).
+  const flowAware = useMemo(
+    () => snapshotData.length >= 2 && ['ibkr', 'daily', 'manual'].includes(snapshotData[0]?.src),
+    [snapshotData]
+  )
+  const returnTransactions = useMemo(
+    () => flowAware ? (scopedTransactions || []) : (scopedTransactions || []).filter((tx) => tx._source !== 'ibkr'),
+    [flowAware, scopedTransactions]
   )
 
   const mwrData = useMemo(() => {
@@ -639,19 +648,19 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         endValue: chartData[i].value,
         startTs,
         endTs: chartData[i].ts,
-        transactions: dietzScopedTransactions, convert, baseCurrency,
+        transactions: returnTransactions, convert, baseCurrency,
       })
       // Same ±200% sanity clamp the YTD card applies — an unclamped Dietz point
       // from degenerate data would blow up the axis for the whole series.
       result.push(Math.max(-200, Math.min(200, pct)))
     }
     return result
-  }, [chartData, dietzScopedTransactions, convert, baseCurrency])
+  }, [chartData, returnTransactions, convert, baseCurrency])
 
   const twrData = useMemo(() => {
     if (chartData.length < 2) return []
-    return computeTWRSeries(chartData, dietzScopedTransactions, convert, baseCurrency)
-  }, [chartData, dietzScopedTransactions, convert, baseCurrency])
+    return computeTWRSeries(chartData, returnTransactions, convert, baseCurrency)
+  }, [chartData, returnTransactions, convert, baseCurrency])
 
   const returnData = returnMode === 'twr' ? twrData : mwrData
 

@@ -5,6 +5,7 @@ import { retryRequest } from '@/lib/fetchWithRetry'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { encryptToken, decryptToken } from '@/lib/crypto'
 import { parseEquitySummary } from '@/lib/parsers/ibkrEquitySummary'
+import { parseCashPositions } from '@/lib/parsers/ibkrCashReport'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -132,34 +133,6 @@ function parseCashTransactions(xml) {
     })
   }
   return txns
-}
-
-function parseCashPositions(xml) {
-  const positions = []
-  const cashRegex = /<CashReport[^>]*\/>/g
-  let match
-  while ((match = cashRegex.exec(xml)) !== null) {
-    const tag = match[0]
-    const attr = (name) => {
-      const m = tag.match(new RegExp(`${name}="([^"]*)"`, 'i'))
-      return m ? m[1] : ''
-    }
-    const currency = attr('currency')
-    const balance = parseFloat(attr('endingCash')) || parseFloat(attr('endingSettledCash')) || 0
-    if (!currency || currency === 'BASE_SUMMARY' || balance === 0) continue
-    positions.push({
-      symbol: `CASH-${currency}`,
-      name: `Cash (${currency})`,
-      quantity: 1,
-      purchasePrice: Math.abs(balance),
-      currentPrice: Math.abs(balance),
-      currency,
-      type: 'Bank',
-      institution: 'Interactive Brokers',
-      isDebt: balance < 0,
-    })
-  }
-  return positions
 }
 
 function mapAssetCategory(cat, putCall) {
@@ -340,7 +313,7 @@ export async function POST(request) {
       if (data.empty) {
         return NextResponse.json({
           errorCode: 'EMPTY_REPORT',
-          error: 'El reporte no tiene posiciones ni trades. Verifica que tu Flex Query incluya Open Positions, Trades, Cash Transactions y Equity Summary.',
+          error: 'El reporte no tiene posiciones ni trades. Verifica que tu Flex Query incluya Open Positions, Trades, Cash Transactions, Cash Report y Equity Summary.',
           status: 'error',
         }, { status: 200 })
       }

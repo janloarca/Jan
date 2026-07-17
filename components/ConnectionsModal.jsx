@@ -385,8 +385,8 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
               {!ibkrConfigured && showConfig && (
                 <div className="space-y-3 p-3 bg-theme-base border border-glass-border rounded-xl mt-2">
                   <p className="text-xs text-slate-600">
-                    {t('Ve a IBKR → Reports → Flex Queries → crear query con Open Positions + Trades + Cash Transactions + Equity Summary (esta última da tus retornos reales y la gráfica). Genera un Flex Token en Settings.',
-                       'Go to IBKR → Reports → Flex Queries → create query with Open Positions + Trades + Cash Transactions + Equity Summary (this last one powers your real returns and chart). Generate a Flex Token in Settings.')}
+                    {t('Ve a IBKR → Reports → Flex Queries → crear query con Open Positions + Trades + Cash Transactions + Cash Report + Equity Summary (las dos últimas dan tu cash y tus retornos reales). Genera un Flex Token en Settings.',
+                       'Go to IBKR → Reports → Flex Queries → create query with Open Positions + Trades + Cash Transactions + Cash Report + Equity Summary (the last two power your cash and real returns). Generate a Flex Token in Settings.')}
                   </p>
                   {ibkrError && <p className="text-xs" style={{ color: 'var(--text-negative)' }}>{ibkrError}</p>}
                   <div>

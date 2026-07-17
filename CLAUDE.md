@@ -185,13 +185,20 @@
   cuando hay posiciones pero `equityHistory <= 1`.
 - El período del Flex Query (lado IBKR) gobierna el rango; la app importa TODO lo que reciba sin cap.
 
-### Depósitos auto-importados de IBKR fuera del Dietz del dashboard (FASE AD)
-- Los cash-flows `_source:'ibkr'` (FASE AA, marcados `_ibkrTxnId`) existen SOLO para el retorno
-  "scoped" de Amigos (`computeScopedReturns` los netea contra el NAV real del broker). Contra el
-  baseline reconstruido/held-flat del dashboard, restarlos DOBLE-cuenta y jala el número abajo.
-- **Regla:** el YTD/MTD del dashboard (`useDashboardData` → `dietzTransactions`) y el return series
-  del chart (`mwrData`/`twrData` → `dietzScopedTransactions`) filtran `tx._source !== 'ibkr'`.
-  Los depósitos MANUALES (sin `_source:'ibkr'`) SÍ cuentan. Amigos usa el `transactions` completo.
+### Flujos IBKR en el Dietz/TWR: depende de la FUENTE de la serie (FASE AD, corregida en AI)
+- Los cash-flows `_source:'ibkr'` (FASE AA, `_ibkrTxnId`) entran o no al retorno según de dónde
+  viene la serie de valor:
+  - **Serie de NAV real** (snapshots `_source` 'ibkr'/'daily'/'manual'): el NAV YA contiene el
+    efecto de depósitos/retiros → los flujos DEBEN netearse. Un TWR/MWR ciego a flujos lee cada
+    retiro como pérdida de mercado (bug real: Chispudo +1.98% TWR vs IBKR +10.99%, drawdown -17%
+    vs -8%).
+  - **Baseline reconstruido** (hold-flat/`jan1Value` del API, snapshots 'backfill'): la cantidad
+    actual se mantiene plana hacia atrás, lo que pre-data los depósitos implícitamente → restar
+    los flujos DOBLE-cuenta. Ahí se excluyen (razón original de AD2).
+- **Implementación:** `useDashboardData` decide por anchor (`REAL_SNAPSHOT_SOURCES.includes(
+  anchor._source)` → `transactions` completo; si no → `dietzTransactions` filtrado); el chart
+  decide con `flowAware` (primer punto de `snapshotData` con `src` real). Los depósitos MANUALES
+  siempre cuentan. Amigos (`computeScopedReturns`) usa NAV crudo + flujos completos, sin cambio.
 
 ### Colores / CSS
 - **No usar Tailwind classes para colores dinámicos** — los JS chunks de Next.js se cachean agresivamente y cambios de classes como `text-blue-400` no se reflejan en producción

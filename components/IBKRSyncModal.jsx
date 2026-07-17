@@ -485,8 +485,8 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
         )
       case 'EMPTY_REPORT':
         return t(
-          'Verifica que tu Flex Query incluya "Open Positions", "Trades", "Cash Transactions" y "Equity Summary" en su configuración.',
-          'Verify your Flex Query includes "Open Positions", "Trades", "Cash Transactions" and "Equity Summary" in its configuration.'
+          'Verifica que tu Flex Query incluya "Open Positions", "Trades", "Cash Transactions", "Cash Report" y "Equity Summary" en su configuración.',
+          'Verify your Flex Query includes "Open Positions", "Trades", "Cash Transactions", "Cash Report" and "Equity Summary" in its configuration.'
         )
       case 'LOCKED':
         return t(
@@ -683,7 +683,13 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   <div>
                     <p className="text-xs text-white font-medium">{t('Crear el Flex Query', 'Create the Flex Query')}</p>
                     <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                      <span className="text-[var(--accent-blue)] font-mono">interactivebrokers.com</span> → Performance & Reports → Flex Queries → {t('crear Activity Flex Query con', 'create Activity Flex Query with')} <span className="text-white">Open Positions</span>, <span className="text-white">Trades</span>, <span className="text-white">Cash Transactions</span> {t('y', 'and')} <span className="text-white">Equity Summary</span>
+                      <span className="text-[var(--accent-blue)] font-mono">interactivebrokers.com</span> → Performance & Reports → Flex Queries → {t('crear Activity Flex Query con', 'create Activity Flex Query with')} <span className="text-white">Open Positions</span>, <span className="text-white">Trades</span>, <span className="text-white">Cash Transactions</span>, <span className="text-white">Cash Report</span> {t('y', 'and')} <span className="text-white">Equity Summary</span>
+                    </p>
+                    {/* Cash Report → <CashReportCurrency> balance rows. Without it the
+                        account's idle cash never appears as a position. */}
+                    <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--accent-orange)' }}>
+                      {t('Incluye "Cash Report": es la sección que trae el efectivo de tu cuenta. Sin ella tu cash no aparece en el portafolio.',
+                         'Include "Cash Report": it is the section that carries your account cash. Without it your cash never shows in the portfolio.')}
                     </p>
                     {/* Equity Summary → <EquitySummaryByReportDateInBase> daily NAV rows.
                         This is the ONLY source of real historical portfolio value; without

@@ -809,30 +809,36 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     return () => { cancelled = true }
   }, [enrichedItems, lots, transactions, convert, baseCurrency])
 
-  // The dashboard's own YTD/MTD money-weighted return must ignore the cash flows we
-  // auto-import from IBKR (_source:'ibkr'). They exist so the Friends "scoped" IBKR
-  // return (computeScopedReturns) has real broker deposits to net out against the raw
-  // NAV snapshots — but against the RECONSTRUCTED/held-flat baseline the dashboard uses,
-  // subtracting them double-counts and drags the headline number down (the pre-FASE-AA
-  // behavior the user reported as "correct"). Manual deposits keep counting.
+  // Whether the auto-imported IBKR cash flows (_source:'ibkr') enter the Dietz math
+  // depends on the SOURCE of the start anchor:
+  // - Real snapshot anchor (ibkr/daily/manual): the NAV already reflects deposits and
+  //   withdrawals, so the flows MUST be netted out or every withdrawal reads as a
+  //   market loss (bug: our TWR showed +1.98% vs IBKR's +10.99%).
+  // - Reconstructed baseline (jan1Value hold-flat, 'backfill' snapshots): the current
+  //   quantity is held flat backwards, which pre-dates deposits implicitly, so
+  //   subtracting the flows again double-counts. Exclude them there.
+  // Manual deposits (no _source:'ibkr') always count.
   const dietzTransactions = useMemo(
     () => (transactions || []).filter((tx) => tx._source !== 'ibkr'),
     [transactions]
   )
+  const REAL_SNAPSHOT_SOURCES = ['ibkr', 'daily', 'manual']
 
   const { returnYTD, ytdChange, returnSinceStart, sinceStartDate } = useMemo(() => {
     const year = new Date().getUTCFullYear()
     const yearStartTs = Date.UTC(year, 0, 1)
     let startVal = null
+    let flowAware = false
     if (augmentedSnapshots.length >= 2) {
       // Shared anchor (also used by the chart's YTD starting point) so the
       // Dietz badge and the chart never start the year from different values.
       const bestSnap = findYearStartAnchor(augmentedSnapshots, year)
       if (bestSnap) {
         startVal = convertSnapshot(bestSnap.netWorthUSD ?? bestSnap.totalActivosUSD ?? 0)
+        flowAware = REAL_SNAPSHOT_SOURCES.includes(bestSnap._source)
       }
     }
-    if (startVal == null || startVal <= 0) startVal = jan1Value
+    if (startVal == null || startVal <= 0) { startVal = jan1Value; flowAware = false }
 
     let returnSinceStart = null
     let sinceStartDate = null
@@ -848,12 +854,14 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           const { pct, abs } = computeModifiedDietz({
             startValue: firstVal, endValue: netWorth,
             startTs: firstTs, endTs: Date.now(),
-            transactions: dietzTransactions, convert, baseCurrency,
+            transactions: REAL_SNAPSHOT_SOURCES.includes(first._source) ? transactions : dietzTransactions,
+            convert, baseCurrency,
           })
           returnSinceStart = Math.max(-200, Math.min(200, pct))
           sinceStartDate = first.date
           if (startVal == null || startVal <= 0) {
             startVal = firstVal
+            flowAware = REAL_SNAPSHOT_SOURCES.includes(first._source)
           }
         }
       }
@@ -863,11 +871,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const { pct, abs } = computeModifiedDietz({
       startValue: startVal, endValue: netWorth,
       startTs: yearStartTs, endTs: Date.now(),
-      transactions: dietzTransactions, convert, baseCurrency,
+      transactions: flowAware ? transactions : dietzTransactions, convert, baseCurrency,
     })
     const clampedPct = Math.max(-200, Math.min(200, pct))
     return { returnYTD: clampedPct, ytdChange: abs, returnSinceStart, sinceStartDate }
-  }, [jan1Value, netWorth, dietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot])
+  }, [jan1Value, netWorth, transactions, dietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot])
 
   // Month-to-date return (Modified Dietz) — the "how are we doing THIS month"
   // number for the Friends monthly leaderboard. Same shape as YTD, anchored to
@@ -883,10 +891,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const { pct } = computeModifiedDietz({
       startValue: startVal, endValue: netWorth,
       startTs: Date.UTC(year, month, 1), endTs: Date.now(),
-      transactions: dietzTransactions, convert, baseCurrency,
+      transactions: REAL_SNAPSHOT_SOURCES.includes(anchor._source) ? transactions : dietzTransactions,
+      convert, baseCurrency,
     })
     return Math.max(-200, Math.min(200, pct))
-  }, [netWorth, dietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot])
+  }, [netWorth, transactions, dietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot])
 
   // IBKR-only returns (Modified Dietz over the raw broker NAV + broker flows) for
   // the Friends "IBKR only" leaderboard scope. Uses RAW snapshots (not augmented,
