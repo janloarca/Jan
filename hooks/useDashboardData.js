@@ -689,7 +689,13 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         _ibkrAutoSyncError: null,
         _ibkrAutoSyncErrorCode: null,
       })
-      return { ok: true, count: data?.items?.length || 0 }
+      // Surface how much VALUE HISTORY the Flex actually delivered: the whole
+      // "returns don't match the broker" class of bugs came down to a short query
+      // period, and the background toast was the only feedback channel that never
+      // said so.
+      const eq = data?.equityHistory || []
+      const equityOldest = eq.reduce((min, e) => (!min || (e.date && e.date < min)) ? e.date : min, null)
+      return { ok: true, count: data?.items?.length || 0, equityDays: eq.length, equityOldest }
     } catch (err) {
       const code = err.errorCode || 'UNKNOWN'
       saveSettings({

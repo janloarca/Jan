@@ -294,7 +294,24 @@ export default function DashboardPage() {
     showToast(lang === 'es' ? 'Sincronizando IBKR… puedes seguir usando la app' : 'Syncing IBKR… you can keep using the app', 'info', 2500)
     const res = await triggerIBKRSync()
     if (res?.ok) {
-      showToast(lang === 'es' ? `IBKR: ${res.count} posiciones actualizadas` : `IBKR: ${res.count} positions updated`, 'success')
+      // Tell the user how much HISTORY arrived, not just position count: a short
+      // Flex period silently truncates equity/deposits/trades, and this toast is
+      // the only feedback on the background path.
+      const shortHistory = res.equityDays > 1 && res.equityOldest
+        && new Date(res.equityOldest).getTime() > Date.UTC(new Date().getUTCFullYear(), 0, 1) + 45 * 86400000
+      if (res.equityDays <= 1) {
+        showToast(lang === 'es'
+          ? `IBKR: ${res.count} posiciones, pero SIN historial de valor. Agrega "Equity Summary" a tu Flex Query.`
+          : `IBKR: ${res.count} positions but NO value history. Add "Equity Summary" to your Flex Query.`, 'error', 6000)
+      } else if (shortHistory) {
+        showToast(lang === 'es'
+          ? `IBKR: ${res.count} posiciones · solo ${res.equityDays} días de historial (desde ${res.equityOldest}). El período del Flex Query sigue corto: ponlo en "Year to Date".`
+          : `IBKR: ${res.count} positions · only ${res.equityDays} days of history (since ${res.equityOldest}). Your Flex Query period is still short: set it to "Year to Date".`, 'error', 8000)
+      } else {
+        showToast(lang === 'es'
+          ? `IBKR: ${res.count} posiciones · ${res.equityDays} días de historial de valor`
+          : `IBKR: ${res.count} positions · ${res.equityDays} days of value history`, 'success', 5000)
+      }
     } else if (res?.error === 'BUSY') {
       // a sync is already running; the spinning pill already communicates this
     } else if (res?.error !== 'NOT_CONNECTED') {
