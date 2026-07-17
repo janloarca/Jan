@@ -75,6 +75,15 @@ function DoneStep({ result, onClose, t }) {
              'We imported your positions, but your Flex Query has no "Equity Summary" (value history). That is why your returns and chart start from today. Add it to your Flex Query and sync again.')}
         </p>
       )}
+      {/* History present but SHORT: the query period truncates it, so YTD can't
+          match the broker. Same actionable fix: widen the period, re-sync. */}
+      {result.items > 0 && result.equityHistory > 1 && result.equityOldest
+        && new Date(result.equityOldest).getTime() > Date.UTC(new Date().getUTCFullYear(), 0, 1) + 45 * 86400000 && (
+        <p className="text-xs mt-3 mx-auto max-w-xs leading-relaxed" style={{ color: 'var(--alert-warn-icon)' }}>
+          {t(`Tu historial de valor empieza el ${result.equityOldest}. Para que tu retorno del año cuadre con IBKR, pon el período de tu Flex Query en "Year to Date" (o "Last 365 Days") y vuelve a sincronizar.`,
+             `Your value history starts on ${result.equityOldest}. For your yearly return to match IBKR, set your Flex Query period to "Year to Date" (or "Last 365 Days") and sync again.`)}
+        </p>
+      )}
       {result.partial && (
         <p className="text-xs mt-2" style={{ color: 'var(--alert-warn-icon)' }}>
           {t('Importación parcial: algunos registros no se guardaron. Sincroniza de nuevo para completar.',
@@ -274,6 +283,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
           items: data.items.length,
           transactions: data.transactions.length,
           equityHistory: (data.equityHistory || []).length,
+          equityOldest: (data.equityHistory || []).reduce((min, e) => (!min || (e.date && e.date < min)) ? e.date : min, null),
           accounts: data.accounts || [],
           syncedAt: data.syncedAt,
           mode: 'merge',

@@ -535,12 +535,19 @@ export function computeInformationRatio(returns, benchmarkReturns) {
   return Math.round(clamp(ir) * 100) / 100
 }
 
-export function computeTWRSeries(chartData, transactions, convert, baseCurrency) {
+// opts.flowFromTs: ignore external flows BEFORE this timestamp. Used when the value
+// series has a reconstructed (hold-flat) prefix spliced before the first real broker
+// NAV snapshot: that prefix holds the current quantity flat, so deposits/withdrawals
+// are already implicitly pre-dated in it. Netting them again double-counts and reads
+// each early deposit as a fake gain or loss. Flows inside the real-NAV region still net.
+export function computeTWRSeries(chartData, transactions, convert, baseCurrency, opts = {}) {
   if (!chartData || chartData.length < 2) return []
 
+  const flowFromTs = opts.flowFromTs ?? null
   const flowTypes = { DEPOSIT: 1, WITHDRAWAL: -1 }
   const flows = (transactions || [])
     .filter((tx) => tx.date && flowTypes[(tx.type || '').toUpperCase()] != null)
+    .filter((tx) => flowFromTs == null || new Date(tx.date).getTime() >= flowFromTs)
     .map((tx) => {
       const sign = flowTypes[(tx.type || '').toUpperCase()]
       const amt = convert

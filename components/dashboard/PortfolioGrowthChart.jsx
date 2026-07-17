@@ -635,6 +635,14 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     () => flowAware ? (scopedTransactions || []) : (scopedTransactions || []).filter((tx) => tx._source !== 'ibkr'),
     [flowAware, scopedTransactions]
   )
+  // First timestamp with REAL broker NAV. When the chart splices a reconstructed
+  // (hold-flat) prefix before it, flows inside that prefix are already implicit in
+  // the flat quantity: netting them again double-counted (a user with deposits from
+  // Jan-May but real NAV only from June saw TWR +1.98% vs the broker's +10.99%).
+  const firstRealTs = useMemo(() => {
+    const p = snapshotData.find((s) => ['ibkr', 'daily', 'manual'].includes(s?.src))
+    return p ? p.ts : null
+  }, [snapshotData])
 
   // Single return series: TWR with the broker's own methodology (chained
   // sub-period returns off the NAV series, external flows at the start of each
@@ -642,8 +650,10 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   // that disagreed with the broker's app eroded trust; one number, one truth.
   const returnData = useMemo(() => {
     if (chartData.length < 2) return []
-    return computeTWRSeries(chartData, returnTransactions, convert, baseCurrency)
-  }, [chartData, returnTransactions, convert, baseCurrency])
+    const hasReconstructedPrefix = firstRealTs != null && chartData[0].ts < firstRealTs - 3600000
+    return computeTWRSeries(chartData, returnTransactions, convert, baseCurrency,
+      hasReconstructedPrefix ? { flowFromTs: firstRealTs } : {})
+  }, [chartData, returnTransactions, convert, baseCurrency, firstRealTs])
 
   const sortedBenchmark = useMemo(() => {
     if (!benchmarkPts || benchmarkPts.length < 2) return null
@@ -1080,6 +1090,22 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
             <span className="text-slate-500 ml-1">
               ({chartData[drawdown.start] && formatDate(chartData[drawdown.start].date.toISOString())} → {chartData[drawdown.end] && formatDate(chartData[drawdown.end].date.toISOString())})
             </span>
+          </span>
+        </div>
+      )}
+
+      {/* Short-history notice: the YTD/ALL series has a reconstructed prefix because
+          the broker NAV snapshots start well after Jan 1. Actionable: widening the
+          Flex Query period and re-syncing replaces the estimate with real data. */}
+      {(period === 'YTD' || period === 'ALL') && firstRealTs != null && chartData.length > 1
+        && firstRealTs > Date.UTC(new Date().getUTCFullYear(), 0, 1) + 45 * 86400000
+        && chartData[0].ts < firstRealTs - 3600000 && (
+        <div className="flex items-start gap-2 px-2.5 py-1.5 rounded-lg text-xs mb-3"
+          style={{ backgroundColor: 'var(--alert-info-bg)', border: '1px solid var(--alert-info-border)', color: 'var(--alert-info-icon)' }}>
+          <span>ℹ</span>
+          <span>
+            {t(`Datos reales de tu broker desde ${formatDate(new Date(firstRealTs).toISOString())}; antes es un estimado. Para ver tu año completo igual que tu broker, pon el período de tu Flex Query en "Year to Date" y vuelve a sincronizar.`,
+               `Real broker data starts ${formatDate(new Date(firstRealTs).toISOString())}; earlier values are an estimate. To see your full year exactly like your broker, set your Flex Query period to "Year to Date" and sync again.`)}
           </span>
         </div>
       )}

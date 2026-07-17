@@ -307,6 +307,30 @@ describe('computeTWRSeries', () => {
   test('null chart data returns empty', () => {
     expect(computeTWRSeries(null, [], null, 'USD')).toEqual([])
   })
+
+  test('flowFromTs ignores flows inside the reconstructed prefix but nets later ones', () => {
+    // Points 1-2 are a hold-flat prefix (flows implicitly pre-dated), point 3 is
+    // real NAV. The deposit at ts=1500 falls in the prefix and must NOT be netted;
+    // the deposit at ts=2500 falls in the real region and must be netted.
+    const chartData = [
+      { ts: 1000, value: 100 },
+      { ts: 2000, value: 110 },
+      { ts: 3000, value: 220 },
+    ]
+    const transactions = [
+      { date: new Date(1500).toISOString(), type: 'DEPOSIT', totalAmount: 50, currency: 'USD' },
+      { date: new Date(2500).toISOString(), type: 'DEPOSIT', totalAmount: 100, currency: 'USD' },
+    ]
+    const series = computeTWRSeries(chartData, transactions, null, 'USD', { flowFromTs: 2000 })
+    // Sub-period 1: 100 → 110 with the early deposit IGNORED → +10%.
+    expect(series[1]).toBeCloseTo(10, 0)
+    // Sub-period 2: (110 + 100 deposit) → 220 → +4.76%; chained ≈ +15.2%.
+    expect(series[2]).toBeCloseTo(15.2, 0)
+    // Without flowFromTs the early deposit would wrongly crush sub-period 1:
+    // (100+50) → 110 reads as -26.7%.
+    const blind = computeTWRSeries(chartData, transactions, null, 'USD')
+    expect(blind[1]).toBeLessThan(-20)
+  })
 })
 
 describe('computeAssetAttribution', () => {
