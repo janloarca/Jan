@@ -77,7 +77,7 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
         <div className="px-6 pt-5 pb-2">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs text-slate-400 font-medium">
-              {index + 1} / {totalCount} — {reviewedCount} {t('revisados', 'reviewed')}
+              {index + 1} / {totalCount} · {reviewedCount} {t('revisados', 'reviewed')}
             </span>
             <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none" aria-label="Close">&times;</button>
           </div>

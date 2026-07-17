@@ -194,7 +194,7 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
               <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
                 <p className="text-xs text-amber-400 font-medium mb-1">{t('Errores:', 'Errors:')}</p>
                 {results.errors.map((e, i) => (
-                  <p key={i} className="text-xs text-amber-300/70">{e.address?.slice(0, 12)}... — {e.error}</p>
+                  <p key={i} className="text-xs text-amber-300/70">{e.address?.slice(0, 12)}...: {e.error}</p>
                 ))}
               </div>
             )}

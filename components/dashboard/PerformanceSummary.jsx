@@ -171,7 +171,7 @@ export default function PerformanceSummary({ items, lots, transactions, convert,
                     </div>
                   </>
                 ) : (
-                  <div className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>—</div>
+                  <div className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>-</div>
                 )}
               </div>
             )

@@ -779,7 +779,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                     // historical values (e.g. cash balances have no price history).
                     return (
                       <td key={mk} className="text-right py-3 px-2 tabular-nums font-mono text-sm" style={{ color: '#cbd5e1' }}>
-                        —
+                        -
                       </td>
                     )
                   })}
@@ -1107,7 +1107,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         </div>
         {months.some(mk => mk !== currentMonthKey && monthlyTotals[mk] != null && fallbackMonths.has(mk)) && (
           <p className="text-xs px-4 py-2" style={{ color: '#94a3b8' }}>
-            * {t('Total del snapshot de ese mes — aún sin desglose por categoría (las filas muestran "—").',
+            * {t('Total del snapshot de ese mes: aún sin desglose por categoría (las filas muestran "-").',
                  'Snapshot total for that month: no per-category breakdown yet (rows show "-").')}
           </p>
         )}

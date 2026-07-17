@@ -246,7 +246,7 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
                               {gain >= 0 ? '+' : ''}{gainPct.toFixed(1)}%
                             </span>
                           ) : (
-                            <span className="text-slate-300">—</span>
+                            <span className="text-slate-300">-</span>
                           )}
                         </td>
                         <td className="px-3 py-2.5 text-right">

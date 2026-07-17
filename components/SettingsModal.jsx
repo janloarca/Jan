@@ -313,7 +313,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                   <select id="settings-currency" value={baseCurrency} onChange={(e) => setBaseCurrency(e.target.value)}
                     className="w-full px-3 py-2.5 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
                     {CURRENCIES.map((c) => (
-                      <option key={c.code} value={c.code}>{c.symbol} {c.code} — {c.name}</option>
+                      <option key={c.code} value={c.code}>{c.symbol} {c.code} · {c.name}</option>
                     ))}
                   </select>
                   <p className="text-xs text-slate-600 mt-1">{t('Todos los valores se muestran en esta moneda.', 'All values are displayed in this currency.')}</p>
@@ -323,7 +323,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                   <select id="settings-benchmark" value={benchmarkSymbol} onChange={(e) => setBenchmarkSymbol(e.target.value)}
                     className="w-full px-3 py-2.5 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
                     {Object.entries(BENCHMARKS).map(([key, bm]) => (
-                      <option key={key} value={key}>{bm.short} — {bm.name}</option>
+                      <option key={key} value={key}>{bm.short} · {bm.name}</option>
                     ))}
                   </select>
                   <p className="text-xs text-slate-600 mt-1">{t('Índice contra el que se compara tu portafolio.', 'Index your portfolio is compared against.')}</p>

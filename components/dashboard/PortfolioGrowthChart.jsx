@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { formatCurrency, formatCompact, formatAxisTick, formatDate, computeModifiedDietz, getItemValue, buildIncomeEvents, isExcludedFromNetWorth, findYearStartAnchor, shouldHoldFlat } from './utils'
+import { formatCurrency, formatCompact, formatAxisTick, formatDate, getItemValue, buildIncomeEvents, isExcludedFromNetWorth, findYearStartAnchor, shouldHoldFlat } from './utils'
 import { computeTWRSeries } from './analytics'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import ErrorState from '@/components/ui/ErrorState'
@@ -85,7 +85,6 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const [staticTotal, setStaticTotal] = useState(0)
   const [staticPoints, setStaticPoints] = useState([])
   const [viewMode, setViewMode] = useState('value')
-  const [returnMode, setReturnMode] = useState('twr')
   const [benchmarkPts, setBenchmarkPts] = useState(null)
   const [showContributions, setShowContributions] = useState(true)
   const [customRange, setCustomRange] = useState({ from: '', to: '' })
@@ -637,32 +636,14 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     [flowAware, scopedTransactions]
   )
 
-  const mwrData = useMemo(() => {
-    if (chartData.length < 2) return []
-    const startTs = chartData[0].ts
-    const startVal = chartData[0].value
-    const result = [0]
-    for (let i = 1; i < chartData.length; i++) {
-      const { pct } = computeModifiedDietz({
-        startValue: startVal,
-        endValue: chartData[i].value,
-        startTs,
-        endTs: chartData[i].ts,
-        transactions: returnTransactions, convert, baseCurrency,
-      })
-      // Same ±200% sanity clamp the YTD card applies — an unclamped Dietz point
-      // from degenerate data would blow up the axis for the whole series.
-      result.push(Math.max(-200, Math.min(200, pct)))
-    }
-    return result
-  }, [chartData, returnTransactions, convert, baseCurrency])
-
-  const twrData = useMemo(() => {
+  // Single return series: TWR with the broker's own methodology (chained
+  // sub-period returns off the NAV series, external flows at the start of each
+  // sub-period). The MWR alternative was dropped: two numbers for "my return"
+  // that disagreed with the broker's app eroded trust; one number, one truth.
+  const returnData = useMemo(() => {
     if (chartData.length < 2) return []
     return computeTWRSeries(chartData, returnTransactions, convert, baseCurrency)
   }, [chartData, returnTransactions, convert, baseCurrency])
-
-  const returnData = returnMode === 'twr' ? twrData : mwrData
 
   const sortedBenchmark = useMemo(() => {
     if (!benchmarkPts || benchmarkPts.length < 2) return null
@@ -994,22 +975,9 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
               {t('Invertido', 'Invested')}
             </button>
           )}
-          {viewMode === 'performance' && (
-            <div className="flex gap-0.5 bg-theme-base rounded-lg p-0.5">
-              <button onClick={() => setReturnMode('twr')}
-                className="px-2 py-1 text-xs font-medium rounded-md transition-all"
-                style={returnMode === 'twr' ? { backgroundColor: 'var(--accent-blue)', color: '#fff' } : { color: 'var(--text-muted)' }}
-                title={t('Retorno ponderado por tiempo: mide el rendimiento del portafolio sin importar depósitos/retiros', 'Time-Weighted Return: measures portfolio performance regardless of deposits/withdrawals')}>
-                TWR
-              </button>
-              <button onClick={() => setReturnMode('mwr')}
-                className="px-2 py-1 text-xs font-medium rounded-md transition-all"
-                style={returnMode === 'mwr' ? { backgroundColor: 'var(--accent-blue)', color: '#fff' } : { color: 'var(--text-muted)' }}
-                title={t('Retorno ponderado por dinero: refleja tu experiencia real como inversionista', 'Money-Weighted Return: reflects your actual experience as an investor')}>
-                MWR
-              </button>
-            </div>
-          )}
+          {/* Single return metric: TWR with IBKR's methodology (chained sub-period
+              returns, flows at start of period). The TWR/MWR toggle confused users
+              and the two numbers disagreed with the broker; one number, one truth. */}
         </div>
       </div>
 
@@ -1058,8 +1026,9 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
             {lastReturn >= 0 ? '+' : ''}{(hoverIdx != null && returnData[hoverIdx] != null ? returnData[hoverIdx] : lastReturn).toFixed(2)}%
             {/* Mode chip inline with the number — the tiny caption below was easy
                 to miss, and an unlabeled return % invites misreading. */}
-            <span className="text-xs font-sans font-semibold px-1.5 py-0.5 rounded" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-tertiary)' }}>
-              {returnMode.toUpperCase()}
+            <span className="text-xs font-sans font-semibold px-1.5 py-0.5 rounded" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-tertiary)' }}
+              title={t('Retorno ponderado por tiempo, el mismo método que usa tu broker', 'Time-weighted return, the same method your broker uses')}>
+              TWR
             </span>
             {annualizedReturn != null && hoverIdx == null && (
               <span className="text-xs font-sans font-normal text-slate-500 font-mono tabular-nums">
@@ -1071,11 +1040,8 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
             <span className="text-sm text-slate-400">
               {period === 'YTD' ? t('Retorno total del año', 'Total return this year') : period === 'DAY' ? t('Retorno hoy', 'Return today') : `${t('Retorno', 'Return')} ${period}`}
             </span>
-            {/* Parallel phrasing: both captions describe the deposit treatment */}
             <span className="text-xs text-slate-600">
-              {returnMode === 'twr'
-                ? t('Sin efecto de tus depósitos', 'Without your deposits’ effect')
-                : t('Con efecto de tus depósitos', 'With your deposits’ effect')}
+              {t('Sin efecto de tus depósitos, igual que tu broker', 'Without your deposits’ effect, same as your broker')}
             </span>
           </div>
         </div>
@@ -1367,7 +1333,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           <span className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: 'var(--accent-green)' }} />
             <span className="w-1.5 h-1.5 rounded-full inline-block -ml-1" style={{ backgroundColor: 'var(--text-negative)' }} />
-            {t('Tu portafolio', 'Your portfolio')} ({returnMode.toUpperCase()}) — {t('verde sobre 0%, rojo debajo', 'green above 0%, red below')}
+            {t('Tu portafolio (TWR): verde sobre 0%, rojo debajo', 'Your portfolio (TWR): green above 0%, red below')}
           </span>
           {benchmarkReturnSeries && (
             <span className="flex items-center gap-1.5">

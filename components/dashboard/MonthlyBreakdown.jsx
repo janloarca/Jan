@@ -188,7 +188,7 @@ export default function MonthlyBreakdown({ items, snapshots, lang, onUpdateItem,
                   <td className="text-right py-2 px-2 font-medium" style={{ color: 'var(--text-secondary)' }}>{group.pct.toFixed(1)}%</td>
                   <td className="text-right py-2 px-2" />
                   {monthlyTotals.map(m => (
-                    <td key={m.key} className="text-right py-2 px-2" style={{ color: 'var(--text-muted)' }}>—</td>
+                    <td key={m.key} className="text-right py-2 px-2" style={{ color: 'var(--text-muted)' }}>-</td>
                   ))}
                 </tr>
 
@@ -250,11 +250,11 @@ export default function MonthlyBreakdown({ items, snapshots, lang, onUpdateItem,
                             {retPct >= 0 ? '+' : ''}{retPct.toFixed(1)}%
                           </span>
                         ) : (
-                          <span style={{ color: 'var(--bg-card)' }}>—</span>
+                          <span style={{ color: 'var(--bg-card)' }}>-</span>
                         )}
                       </td>
                       {monthlyTotals.map(m => (
-                        <td key={m.key} className="text-right py-1.5 px-2" style={{ color: 'var(--text-muted)' }}>—</td>
+                        <td key={m.key} className="text-right py-1.5 px-2" style={{ color: 'var(--text-muted)' }}>-</td>
                       ))}
                     </tr>
                   )

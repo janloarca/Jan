@@ -375,14 +375,14 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                           )}
                         </div>
                       ) : (
-                        <span className="text-slate-600">—</span>
+                        <span className="text-slate-600">-</span>
                       )}
                     </td>
                     <td className="text-right py-3 hidden sm:table-cell">
                       {item.purchasePrice > 0 ? (
                         <span className="text-slate-400 text-xs font-mono tabular-nums">{formatCurrency(item.purchasePrice)}</span>
                       ) : (
-                        <span className="text-slate-600">—</span>
+                        <span className="text-slate-600">-</span>
                       )}
                     </td>
                     <td className="text-center py-3 hidden sm:table-cell">
@@ -396,7 +396,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                           </div>
                         </div>
                       ) : (
-                        <span className="text-slate-600">—</span>
+                        <span className="text-slate-600">-</span>
                       )}
                     </td>
                     <td className="text-right py-3">
@@ -410,7 +410,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                       {item.acquisitionDate ? (
                         <span className="text-slate-400 text-xs">{new Date(item.acquisitionDate).toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short', year: '2-digit' })}</span>
                       ) : (
-                        <span className="text-slate-700">—</span>
+                        <span className="text-slate-700">-</span>
                       )}
                     </td>
                     <td className="text-center py-3 hidden sm:table-cell">
@@ -422,7 +422,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                         return y != null ? (
                           <span className="text-xs" style={{ color: 'var(--accent-blue)' }}>{y.toFixed(1)}%</span>
                         ) : (
-                          <span className="text-slate-700">—</span>
+                          <span className="text-slate-700">-</span>
                         )
                       })()}
                     </td>
