@@ -77,7 +77,7 @@ function findClosestBenchmark(sorted, targetTs) {
   return sorted[lo]
 }
 
-export default function PortfolioGrowthChart({ items, lots, snapshots, transactions, lang, convert, baseCurrency, benchmarkSymbol, benchmarkName, onSaveSnapshot }) {
+export default function PortfolioGrowthChart({ items, lots, snapshots, transactions, lang, convert, baseCurrency, benchmarkSymbol, benchmarkName, onSaveSnapshot, ibkrSyncSummary = null }) {
   const [period, setPeriod] = useState('YTD')
   const [hoverIdx, setHoverIdx] = useState(null)
   const [dataPoints, setDataPoints] = useState([])
@@ -1155,6 +1155,17 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                   `Your return is measured from ${formatDate(new Date(firstRealTs).toISOString())}, the first day with real broker data (just like IBKR would for a new account). To measure the full year, set your Flex Query period to "Year to Date" and sync again.`)
               : t(`Datos reales de tu broker desde ${formatDate(new Date(firstRealTs).toISOString())}; antes es un estimado. Para ver tu año completo igual que tu broker, pon el período de tu Flex Query en "Year to Date" y vuelve a sincronizar.`,
                   `Real broker data starts ${formatDate(new Date(firstRealTs).toISOString())}; earlier values are an estimate. To see your full year exactly like your broker, set your Flex Query period to "Year to Date" and sync again.`)}
+            {/* Persistent forensic line: raw per-section counts from the last sync's
+                XML vs what got imported. Survives the transient toast so ANY
+                screenshot of this banner pins down where the data stops flowing. */}
+            {ibkrSyncSummary?.sections && (
+              <span className="block mt-1.5 font-mono text-[10px] opacity-80">
+                {t('Último sync', 'Last sync')} {ibkrSyncSummary.at ? formatDate(ibkrSyncSummary.at) : ''}: XML{' '}
+                {ibkrSyncSummary.sections.trades ?? 0} trades, {ibkrSyncSummary.sections.cashTransactions ?? 0} cash tx,{' '}
+                {ibkrSyncSummary.sections.equitySummary ?? 0} NAV, {ibkrSyncSummary.sections.cashReport ?? 0} cash rep ·{' '}
+                {t('importado', 'imported')}: {ibkrSyncSummary.trades ?? 0} trades, {(ibkrSyncSummary.flows ?? 0) + (ibkrSyncSummary.dividends ?? 0)} {t('flujos', 'flows')}, {ibkrSyncSummary.equityDays ?? 0} {t('días NAV', 'NAV days')}
+              </span>
+            )}
           </span>
         </div>
       )}

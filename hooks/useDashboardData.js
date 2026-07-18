@@ -631,11 +631,24 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         const data = await syncIBKR(token, settings.ibkrQueryId)
         if (cancelled) return
         await handleIBKRSync(data, 'merge')
+        const eq = data?.equityHistory || []
+        const txs = data?.transactions || []
+        const typeCount = (types) => txs.filter((t) => types.includes((t.type || '').toUpperCase())).length
         saveSettings({
           _ibkrLastAutoSync: new Date().toISOString(),
           _ibkrAutoSyncStatus: 'ok',
           _ibkrAutoSyncError: null,
           _ibkrAutoSyncErrorCode: null,
+          _ibkrLastSyncSummary: {
+            at: new Date().toISOString(),
+            items: data?.items?.length || 0,
+            equityDays: eq.length,
+            equityOldest: eq.reduce((min, e) => (!min || (e.date && e.date < min)) ? e.date : min, null),
+            trades: typeCount(['BUY', 'SELL']),
+            flows: typeCount(['DEPOSIT', 'WITHDRAWAL']),
+            dividends: typeCount(['DIVIDEND']),
+            sections: data?.sections || null,
+          },
         })
       } catch (err) {
         if (cancelled) return
@@ -698,15 +711,21 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       const equityOldest = eq.reduce((min, e) => (!min || (e.date && e.date < min)) ? e.date : min, null)
       const txs = data?.transactions || []
       const typeCount = (types) => txs.filter((t) => types.includes((t.type || '').toUpperCase())).length
-      return {
-        ok: true,
-        count: data?.items?.length || 0,
+      const summary = {
+        at: new Date().toISOString(),
+        items: data?.items?.length || 0,
         equityDays: eq.length,
-        equityOldest,
+        equityOldest: equityOldest || null,
         trades: typeCount(['BUY', 'SELL']),
         flows: typeCount(['DEPOSIT', 'WITHDRAWAL']),
         dividends: typeCount(['DIVIDEND']),
+        sections: data?.sections || null,
       }
+      // Persisted so the diagnosis survives the 7-second toast: the chart banner
+      // and the IBKR modal render this, and any screenshot then tells us whether
+      // the Flex XML carried each section and whether the import kept it.
+      saveSettings({ _ibkrLastSyncSummary: summary })
+      return { ok: true, count: summary.items, equityDays: summary.equityDays, equityOldest: summary.equityOldest, trades: summary.trades, flows: summary.flows, dividends: summary.dividends }
     } catch (err) {
       const code = err.errorCode || 'UNKNOWN'
       saveSettings({
@@ -1133,6 +1152,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     ibkrAutoSyncing,
     triggerIBKRSync,
     ibkrSyncStatus: settings?._ibkrAutoSyncStatus || null,
+    ibkrSyncSummary: settings?._ibkrLastSyncSummary || null,
     ibkrSyncError: settings?._ibkrAutoSyncError || null,
     ibkrSyncErrorCode: settings?._ibkrAutoSyncErrorCode || null,
     ibkrLastSync: settings?._ibkrLastAutoSync || settings?._ibkrLastSync || null,

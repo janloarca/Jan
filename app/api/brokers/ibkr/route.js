@@ -186,8 +186,21 @@ function parseXmlToData(xml) {
   const equityHistory = parseEquitySummary(xml).map((e) => ({ ...e, _equityCurrency: baseCurrency }))
   const all = [...positions, ...cash]
 
+  // RAW per-section tag counts, independent of what the parsers accepted. This is
+  // the forensic layer: it distinguishes "the Flex Query does not deliver this
+  // section" (count 0 → fix the query config) from "the section arrives but our
+  // pipeline drops it" (count > 0 with 0 imported → our bug).
+  const countTags = (name) => (xml.match(new RegExp(`<${name}\\b[^>]*>`, 'g')) || []).length
+  const sections = {
+    openPositions: countTags('OpenPosition'),
+    trades: countTags('Trade'),
+    cashTransactions: countTags('CashTransaction'),
+    equitySummary: countTags('EquitySummaryByReportDateInBase'),
+    cashReport: countTags('CashReportCurrency'),
+  }
+
   if (all.length === 0 && trades.length === 0 && cashTransactions.length === 0) {
-    return { empty: true }
+    return { empty: true, sections }
   }
 
   return {
@@ -195,6 +208,7 @@ function parseXmlToData(xml) {
     trades,
     cashTransactions,
     equityHistory,
+    sections,
     count: all.length,
     syncedAt: new Date().toISOString(),
   }

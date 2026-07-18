@@ -600,6 +600,10 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                         ].map(renderAction)}
                       </div>
                     </details>
+                    {/* Build id: lets anyone confirm at a glance whether this phone is
+                        running the latest deploy (Vercel free tier has silently stopped
+                        deploying before when the daily limit was hit). */}
+                    <BuildVersionFooter lang={lang} />
                   </>
                 )
               })()}
@@ -608,5 +612,22 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
         </div>
       </div>
     </div>
+  )
+}
+
+// Tiny build stamp so a screenshot of Settings proves which deploy the device runs.
+function BuildVersionFooter({ lang }) {
+  const [buildId, setBuildId] = useState(null)
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/version').then((r) => r.json()).then((d) => {
+      if (!cancelled) setBuildId(d?.buildId || '?')
+    }).catch(() => { if (!cancelled) setBuildId('?') })
+    return () => { cancelled = true }
+  }, [])
+  return (
+    <p className="text-[10px] font-mono text-center pt-2" style={{ color: 'var(--text-muted)' }}>
+      {lang === 'es' ? 'Versión' : 'Build'}: {buildId || '…'}
+    </p>
   )
 }
