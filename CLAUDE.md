@@ -139,6 +139,20 @@
 3. Calcular Modified Dietz: `(endValue - startValue - netDeposits) / startValue`
 4. Transactions de tipo DEPOSIT/WITHDRAWAL se restan del retorno (no son ganancia)
 
+### Reconstrucción transaccional: rebobinar, no aplanar (FASE AO)
+- La reconstrucción CORRECTA del pasado rebobina las transacciones importadas desde el estado
+  actual: `qty_t = qty_actual − compras_post_t + ventas_post_t` y `cash_t = cash_actual −
+  depósitos_post_t + retiros_post_t + costo_compras_post_t − procedido_ventas_post_t −
+  dividendos_post_t`. Motor puro en `lib/portfolioRewind.js` (buildTxEvents/buildCashFlows/
+  qtyAtTs/cashAtTs); `/api/prices/portfolio-history` acepta `txEvents` por item y `cashFlows`
+  en el item de cash, con prioridad sobre hold-flat/lots, y responde `transactional: true`.
+- Con serie transaccional los flujos SÍ se netean en TODO el rango del TWR/Dietz (la serie los
+  contiene), el rebase de AM no aplica y el banner de historial corto se apaga. El hold-flat de
+  AD queda como fallback cuando no hay transacciones.
+- El sync por API ahora también importa dividendos (`kind:'dividend'` en parseCashTransactions →
+  transacciones DIVIDEND). Tercera aparición del bug "regex solo self-closing" (`/>` en
+  CashTransaction): TODA regex de tags Flex debe ser `\b[^>]*>`.
+
 ### Fecha de adquisición NO confiable (import IBKR) — hold-flat (FASE AD)
 - Una posición importada de IBKR trae `acquisitionDate` = fecha del SYNC, no de la compra real.
   Sin historia previa, el reconstructor ponía en CERO todo antes de ~junio → `jan1Value` = valor

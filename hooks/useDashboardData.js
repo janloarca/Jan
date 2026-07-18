@@ -6,6 +6,7 @@ import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat } from '@/components/dashboard/utils'
+import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
 
@@ -767,12 +768,22 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   }, [augmentedSnapshots, netWorth, convertSnapshot])
 
   const [jan1Value, setJan1Value] = useState(null)
+  // True when jan1Value came from a TRANSACTIONAL reconstruction (rewound through
+  // imported deposits/buys/sells): that baseline reflects real flow timing, so the
+  // YTD Dietz must net the flows like it would against a real snapshot anchor.
+  const [jan1Transactional, setJan1Transactional] = useState(false)
   useEffect(() => {
     if (!enrichedItems || enrichedItems.length === 0) return
     let cancelled = false
     async function fetchJan1() {
       try {
         const allLots = (lots || []).filter(l => l.quantity > 0)
+        const txEventsBySym = buildTxEvents(transactions)
+        const accountCashFlows = buildCashFlows(transactions,
+          (amt, cur2) => convert ? convert(amt, cur2, 'USD') : amt)
+        const cashItem = accountCashFlows.length > 0
+          ? enrichedItems.find((it) => it._source === 'ibkr' && /^CASH-/i.test(it.symbol || ''))
+          : null
         const res = await authFetch('/api/prices/portfolio-history', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -787,6 +798,8 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
                 currency: 'USD',
                 acquisitionDate: it.acquisitionDate,
                 _holdFlat: shouldHoldFlat(it, transactions, lots),
+                txEvents: txEventsBySym[(it.symbol || '').toUpperCase()] || undefined,
+                ...(cashItem && it.id === cashItem.id ? { cashFlows: accountCashFlows } : {}),
               }
             }),
             lots: allLots.length > 0 ? allLots.map(l => ({
@@ -807,6 +820,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
               ? convert(firstReal.total, 'USD', baseCurrency)
               : firstReal.total
             setJan1Value(val)
+            setJan1Transactional(!!data.transactional)
           }
         }
       } catch {}
@@ -844,7 +858,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         flowAware = REAL_SNAPSHOT_SOURCES.includes(bestSnap._source)
       }
     }
-    if (startVal == null || startVal <= 0) { startVal = jan1Value; flowAware = false }
+    if (startVal == null || startVal <= 0) { startVal = jan1Value; flowAware = jan1Transactional }
 
     let returnSinceStart = null
     let sinceStartDate = null
@@ -881,7 +895,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     })
     const clampedPct = Math.max(-200, Math.min(200, pct))
     return { returnYTD: clampedPct, ytdChange: abs, returnSinceStart, sinceStartDate }
-  }, [jan1Value, netWorth, transactions, dietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot])
+  }, [jan1Value, jan1Transactional, netWorth, transactions, dietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot])
 
   // Month-to-date return (Modified Dietz) — the "how are we doing THIS month"
   // number for the Friends monthly leaderboard. Same shape as YTD, anchored to

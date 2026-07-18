@@ -3,6 +3,7 @@ import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
 import { fetchWithRetry } from '@/lib/fetchWithRetry'
 import { isMarketPriced } from '@/components/dashboard/utils'
+import { qtyAtTs, cashAtTs } from '@/lib/portfolioRewind'
 
 export const dynamic = 'force-dynamic'
 
@@ -133,6 +134,24 @@ export async function POST(request) {
     }
     const hasLots = Object.keys(lotsBySymbol).length > 0
 
+    // Transaction-rewind inputs (lib/portfolioRewind): per-item share deltas and
+    // signed cash flows, pre-converted to USD by the client. Sanitized hard
+    // (numbers only, bounded sizes) since they multiply into the per-ts loop.
+    // When present they reconstruct the TRUE past (deposits step in, buys move
+    // cash into shares) instead of holding today's state flat backwards.
+    const sanitizeEvents = (arr, maxLen, key) => {
+      if (!Array.isArray(arr)) return null
+      const out = []
+      for (const e of arr.slice(0, maxLen)) {
+        const ts = Number(e?.ts)
+        const val = Number(e?.[key])
+        if (!Number.isFinite(ts) || !Number.isFinite(val) || val === 0) continue
+        out.push(key === 'qtyDelta' ? { ts, qtyDelta: val } : { ts, amount: val })
+      }
+      return out.length > 0 ? out : null
+    }
+    let usedTransactional = false
+
     const per = period || 'YTD'
     if (!VALID_PERIODS.includes(per)) {
       return NextResponse.json({ error: 'Invalid period', errorCode: 'BAD_REQUEST' }, { status: 400 })
@@ -183,6 +202,7 @@ export async function POST(request) {
             costBasis: (it.quantity || 0) * (it.purchasePrice || 0),
             lots: hasLots && lotsBySymbol[sym] ? lotsBySymbol[sym] : null,
             holdFlat: !!it._holdFlat,
+            txEvents: sanitizeEvents(it.txEvents, 500, 'qtyDelta'),
           }
         }
       }))
@@ -202,6 +222,7 @@ export async function POST(request) {
           costBasis: (it.quantity || 0) * (it.purchasePrice || 0),
           lots: hasLots && lotsBySymbol[sym] ? lotsBySymbol[sym] : null,
           holdFlat: !!it._holdFlat,
+          txEvents: sanitizeEvents(it.txEvents, 500, 'qtyDelta'),
         }
       }
     }))
@@ -282,11 +303,28 @@ export async function POST(request) {
     }
 
     const staticPoints = []
+    // Cash accounts with an imported flow history get the TRUE rewind (deposits
+    // step the balance up, buys move cash into shares) instead of the flat value
+    // plus income-reversal heuristic. Sanitized once, outside the per-ts loop.
+    const staticCashFlows = new Map()
+    staticItems.forEach((it, si) => {
+      const flows = sanitizeEvents(it.cashFlows, 2000, 'amount')
+      if (flows) staticCashFlows.set(si, flows)
+    })
+
     const dataPoints = sortedTs.map((ts) => {
       let total = 0
       let staticSubtotal = 0
 
-      staticItems.forEach((it) => {
+      staticItems.forEach((it, si) => {
+        const flows = staticCashFlows.get(si)
+        if (flows) {
+          usedTransactional = true
+          const v = cashAtTs((it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0), flows, ts)
+          staticSubtotal += v
+          total += v
+          return
+        }
         const acqTs = it.acquisitionDate ? new Date(it.acquisitionDate).getTime() : 0
         // Hold-flat items (IBKR import-date positions) keep their current value back
         // through the whole period — their acquisitionDate is a sync stamp, not a
@@ -322,7 +360,13 @@ export async function POST(request) {
         }
         if (price == null && data.history.length > 0) price = data.history[0].close
 
-        if (data.holdFlat) {
+        if (data.txEvents) {
+          // TRUE reconstruction: rewind the current share count through the
+          // imported BUY/SELL history. Beats hold-flat and lots because it knows
+          // exactly when each share was bought or sold.
+          usedTransactional = true
+          total += qtyAtTs(data.qty || 0, data.txEvents, ts) * (price || 0)
+        } else if (data.holdFlat) {
           // IBKR import-date position: no reliable acquisition date and no genuine
           // trade history, so hold the current quantity flat back through the period
           // (Σ current qty × historical price) instead of zeroing it before the sync
@@ -349,7 +393,7 @@ export async function POST(request) {
       return s + (it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0)
     }, 0)
 
-    return NextResponse.json({ dataPoints, staticTotal, staticPoints })
+    return NextResponse.json({ dataPoints, staticTotal, staticPoints, transactional: usedTransactional })
   } catch (err) {
     console.error('portfolio-history error:', err)
     return NextResponse.json({ error: 'Internal server error', errorCode: 'INTERNAL', dataPoints: [] }, { status: 500 })

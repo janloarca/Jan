@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { formatCurrency, formatCompact, formatAxisTick, formatDate, getItemValue, buildIncomeEvents, isExcludedFromNetWorth, findYearStartAnchor, shouldHoldFlat } from './utils'
+import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { computeTWRSeries } from './analytics'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import ErrorState from '@/components/ui/ErrorState'
@@ -80,6 +81,11 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const [period, setPeriod] = useState('YTD')
   const [hoverIdx, setHoverIdx] = useState(null)
   const [dataPoints, setDataPoints] = useState([])
+  // True when the API rebuilt the past from imported transactions (deposits,
+  // buys, sells, dividends) rather than holding today's state flat: that series
+  // CONTAINS flow effects, so returns must net flows over the whole range and
+  // the estimated-prefix rebase/banner no longer apply.
+  const [apiTransactional, setApiTransactional] = useState(false)
   const [loading, setLoading] = useState(false)
   const [fetchError, setFetchError] = useState(null)
   const [staticTotal, setStaticTotal] = useState(0)
@@ -245,6 +251,17 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         && scopedSymbols.has((l.symbol || '').toUpperCase())
         && (!instFilter || normInst(l.institution) === instFilter)
       )
+      // Transaction rewind (lib/portfolioRewind): per-symbol BUY/SELL deltas and
+      // the account cash-flow ledger, so the API reconstructs the TRUE past
+      // (deposits step in, buys move cash into shares) like the broker's own chart,
+      // instead of holding today's positions flat backwards.
+      const txEventsBySym = buildTxEvents(scopedTransactions)
+      const accountCashFlows = buildCashFlows(scopedTransactions,
+        (amt, cur2) => convert ? convert(amt, cur2, 'USD') : amt)
+      // The whole account ledger attaches to ONE cash item (the broker's cash line).
+      const cashItem = accountCashFlows.length > 0
+        ? chartItems.find((it) => it._source === 'ibkr' && /^CASH-/i.test(it.symbol || ''))
+        : null
       const res = await authFetch('/api/prices/portfolio-history', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -261,6 +278,8 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
               currency: 'USD',
               acquisitionDate: it.acquisitionDate,
               _holdFlat: shouldHoldFlat(it, scopedTransactions, lots),
+              txEvents: txEventsBySym[(it.symbol || '').toUpperCase()] || undefined,
+              ...(cashItem && it.id === cashItem.id ? { cashFlows: accountCashFlows } : {}),
             }
           }),
           lots: allLots.length > 0 ? allLots.map(l => ({
@@ -302,6 +321,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           pts = pts.filter(dp => dp.ts >= dayStart)
         }
         setDataPoints(pts)
+        setApiTransactional(!!data.transactional)
         setStaticTotal(data.staticTotal != null
           ? (baseCurrency !== 'USD' && convert ? convert(data.staticTotal, 'USD', baseCurrency) : data.staticTotal)
           : 0)
@@ -629,13 +649,13 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     // full-period TWR invents a number the broker never reported (user saw +0.32%
     // vs IBKR's +9.98%). Rebase the performance view to the real region; the
     // Value view keeps the (labeled) estimated history for wealth trajectory.
-    if (viewMode === 'performance' && firstRealTs != null && pts.length > 1
+    if (viewMode === 'performance' && !apiTransactional && firstRealTs != null && pts.length > 1
       && pts[0].ts < firstRealTs - 3600000) {
       const real = pts.filter((p) => p.ts >= firstRealTs - 3600000)
       if (real.length >= 2) return real
     }
     return pts
-  }, [dataPoints, snapshotData, currentTotal, period, staticPoints, selectedInst, manualAddedTs, snapshots, convert, baseCurrency, viewMode, firstRealTs])
+  }, [dataPoints, snapshotData, currentTotal, period, staticPoints, selectedInst, manualAddedTs, snapshots, convert, baseCurrency, viewMode, firstRealTs, apiTransactional])
 
   // Whether the auto-imported IBKR cash flows (_source:'ibkr') enter the return math
   // depends on the SOURCE of the value series (lesson from the +1.98% vs IBKR's
@@ -651,8 +671,8 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     [snapshotData]
   )
   const returnTransactions = useMemo(
-    () => flowAware ? (scopedTransactions || []) : (scopedTransactions || []).filter((tx) => tx._source !== 'ibkr'),
-    [flowAware, scopedTransactions]
+    () => (flowAware || apiTransactional) ? (scopedTransactions || []) : (scopedTransactions || []).filter((tx) => tx._source !== 'ibkr'),
+    [flowAware, apiTransactional, scopedTransactions]
   )
   // Single return series: TWR with the broker's own methodology (chained
   // sub-period returns off the NAV series, external flows at the start of each
@@ -660,16 +680,19 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   // that disagreed with the broker's app eroded trust; one number, one truth.
   const returnData = useMemo(() => {
     if (chartData.length < 2) return []
-    const hasReconstructedPrefix = firstRealTs != null && chartData[0].ts < firstRealTs - 3600000
+    // Hold-flat prefixes pre-date flows implicitly, so flows inside them are
+    // ignored (flowFromTs). A TRANSACTIONAL prefix contains real flow effects,
+    // so every flow nets, exactly like a broker's full-year TWR.
+    const hasHoldFlatPrefix = !apiTransactional && firstRealTs != null && chartData[0].ts < firstRealTs - 3600000
     return computeTWRSeries(chartData, returnTransactions, convert, baseCurrency,
-      hasReconstructedPrefix ? { flowFromTs: firstRealTs } : {})
-  }, [chartData, returnTransactions, convert, baseCurrency, firstRealTs])
+      hasHoldFlatPrefix ? { flowFromTs: firstRealTs } : {})
+  }, [chartData, returnTransactions, convert, baseCurrency, firstRealTs, apiTransactional])
 
   // Non-null when the performance view was rebased to the first real broker
   // datapoint (IBKR's "Jan 1 or account open, whichever is later" convention).
   // Drives the "Retorno desde {fecha}" label so the number is never presented
   // as a full-year return it isn't.
-  const perfRebasedFrom = viewMode === 'performance' && firstRealTs != null
+  const perfRebasedFrom = viewMode === 'performance' && !apiTransactional && firstRealTs != null
     && (period === 'YTD' || period === 'ALL')
     && firstRealTs > Date.UTC(new Date().getUTCFullYear(), 0, 1) + 45 * 86400000
     && chartData.length > 0 && chartData[0].ts >= firstRealTs - 3600000
@@ -1120,7 +1143,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           view shows a labeled estimate before that date; the Performance view is
           rebased to the real region (IBKR's own convention). Either way the fix is
           the same: widen the Flex Query period and re-sync. */}
-      {(period === 'YTD' || period === 'ALL') && firstRealTs != null && chartData.length > 1
+      {(period === 'YTD' || period === 'ALL') && !apiTransactional && firstRealTs != null && chartData.length > 1
         && firstRealTs > Date.UTC(new Date().getUTCFullYear(), 0, 1) + 45 * 86400000
         && (viewMode === 'performance' || chartData[0].ts < firstRealTs - 3600000) && (
         <div className="flex items-start gap-2 px-2.5 py-1.5 rounded-lg text-xs mb-3"

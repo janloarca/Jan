@@ -109,7 +109,10 @@ function parseTrades(xml) {
 // tags them type="Deposits/Withdrawals"; the sign of `amount` decides direction.
 function parseCashTransactions(xml) {
   const txns = []
-  const regex = /<CashTransaction[^>]*\/>/g
+  // Self-closing AND paired tag shapes (same bug class fixed for EquitySummary
+  // and CashReport: a `/>`-only regex silently drops everything on reports that
+  // emit paired tags).
+  const regex = /<CashTransaction\b[^>]*>/g
   let match
   while ((match = regex.exec(xml)) !== null) {
     const tag = match[0]
@@ -118,7 +121,11 @@ function parseCashTransactions(xml) {
       return m ? m[1] : ''
     }
     const type = attr('type')
-    if (!/deposit|withdrawal/i.test(type)) continue
+    const isFlow = /deposit|withdrawal/i.test(type)
+    // "Dividends", "Payment In Lieu Of Dividends": cash income the account
+    // received. Needed for the transaction-rewind cash line and the income module.
+    const isDividend = /dividend/i.test(type)
+    if (!isFlow && !isDividend) continue
     const amount = parseFloat(attr('amount')) || 0
     if (amount === 0) continue
     const date = formatDate(attr('dateTime') || attr('reportDate') || attr('settleDate'))
@@ -130,6 +137,8 @@ function parseCashTransactions(xml) {
       txnId: attr('transactionID') || '',
       description: attr('description') || '',
       accountId: attr('accountId') || '',
+      kind: isDividend ? 'dividend' : 'flow',
+      symbol: (attr('symbol') || '').toUpperCase(),
     })
   }
   return txns
