@@ -43,7 +43,10 @@ function classifyError(errMsg) {
 
 function parseFlexPositions(xml) {
   const positions = []
-  const posRegex = /<OpenPosition[^>]*\/>/g
+  // \b[^>]*> matches self-closing AND paired tag shapes (rule from CLAUDE.md:
+  // a `/>`-only regex silently drops every row on reports that emit paired tags;
+  // the \b keeps the <OpenPositions> container from matching).
+  const posRegex = /<OpenPosition\b[^>]*>/g
   let match
   while ((match = posRegex.exec(xml)) !== null) {
     const tag = match[0]
@@ -74,7 +77,8 @@ function parseFlexPositions(xml) {
 
 function parseTrades(xml) {
   const trades = []
-  const tradeRegex = /<Trade[^>]*\/>/g
+  // Self-closing AND paired shapes; \b keeps the <Trades> container out.
+  const tradeRegex = /<Trade\b[^>]*>/g
   let match
   while ((match = tradeRegex.exec(xml)) !== null) {
     const tag = match[0]

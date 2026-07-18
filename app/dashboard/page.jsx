@@ -307,10 +307,17 @@ export default function DashboardPage() {
         showToast(lang === 'es'
           ? `IBKR: ${res.count} posiciones · solo ${res.equityDays} días de historial (desde ${res.equityOldest}). El período del Flex Query sigue corto: ponlo en "Year to Date".`
           : `IBKR: ${res.count} positions · only ${res.equityDays} days of history (since ${res.equityOldest}). Your Flex Query period is still short: set it to "Year to Date".`, 'error', 8000)
+      } else if ((res.trades || 0) + (res.flows || 0) === 0) {
+        // History arrived but zero trades/deposits: the query is missing the
+        // Trades / Cash Transactions sections, so the rewound value curve and
+        // deposit-aware returns cannot be built.
+        showToast(lang === 'es'
+          ? `IBKR: ${res.count} posiciones · ${res.equityDays} días de historial, pero 0 trades y 0 depósitos. Agrega "Trades" y "Cash Transactions" a tu Flex Query.`
+          : `IBKR: ${res.count} positions · ${res.equityDays} days of history but 0 trades and 0 deposits. Add "Trades" and "Cash Transactions" to your Flex Query.`, 'error', 8000)
       } else {
         showToast(lang === 'es'
-          ? `IBKR: ${res.count} posiciones · ${res.equityDays} días de historial de valor`
-          : `IBKR: ${res.count} positions · ${res.equityDays} days of value history`, 'success', 5000)
+          ? `IBKR: ${res.count} posiciones · ${res.equityDays} días de historial · ${res.trades || 0} trades · ${res.flows || 0} depósitos/retiros · ${res.dividends || 0} dividendos`
+          : `IBKR: ${res.count} positions · ${res.equityDays} days of history · ${res.trades || 0} trades · ${res.flows || 0} deposits/withdrawals · ${res.dividends || 0} dividends`, 'success', 7000)
       }
     } else if (res?.error === 'BUSY') {
       // a sync is already running; the spinning pill already communicates this

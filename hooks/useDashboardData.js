@@ -696,7 +696,17 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       // said so.
       const eq = data?.equityHistory || []
       const equityOldest = eq.reduce((min, e) => (!min || (e.date && e.date < min)) ? e.date : min, null)
-      return { ok: true, count: data?.items?.length || 0, equityDays: eq.length, equityOldest }
+      const txs = data?.transactions || []
+      const typeCount = (types) => txs.filter((t) => types.includes((t.type || '').toUpperCase())).length
+      return {
+        ok: true,
+        count: data?.items?.length || 0,
+        equityDays: eq.length,
+        equityOldest,
+        trades: typeCount(['BUY', 'SELL']),
+        flows: typeCount(['DEPOSIT', 'WITHDRAWAL']),
+        dividends: typeCount(['DIVIDEND']),
+      }
     } catch (err) {
       const code = err.errorCode || 'UNKNOWN'
       saveSettings({
