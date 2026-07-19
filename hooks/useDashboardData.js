@@ -574,7 +574,26 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       updateItems: updateOps,
       deleteIds,
     }, onProgress)
-  }, [items, snapshots, bulkImport, activePortfolio, activeEntity])
+
+    // Persist a forensic summary of THIS sync (any path: modal, header pill, auto).
+    // The chart banner and the sync card read it, so a single screenshot always
+    // shows what the Flex XML delivered vs what got imported.
+    try {
+      const eqH = data.equityHistory || []
+      const txAll = data.transactions || []
+      const tc = (types) => txAll.filter((t) => types.includes((t.type || '').toUpperCase())).length
+      saveSettings({ _ibkrLastSyncSummary: {
+        at: new Date().toISOString(),
+        items: (data.items || []).length,
+        equityDays: eqH.length,
+        equityOldest: eqH.reduce((min, e) => (!min || (e.date && e.date < min)) ? e.date : min, null),
+        trades: tc(['BUY', 'SELL']),
+        flows: tc(['DEPOSIT', 'WITHDRAWAL']),
+        dividends: tc(['DIVIDEND']),
+        sections: data.sections || null,
+      } })
+    } catch {}
+  }, [items, snapshots, bulkImport, activePortfolio, activeEntity, saveSettings])
 
   // TOKEN_EXPIRED / INVALID_QUERY need user action (regenerate token / fix query),
   // so they permanently halt auto-sync. LOCKED is TEMPORARY — IBKR unlocks the token

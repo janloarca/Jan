@@ -84,6 +84,19 @@ function DoneStep({ result, onClose, t }) {
              `Your value history starts on ${result.equityOldest}. For your yearly return to match IBKR, set your Flex Query period to "Year to Date" (or "Last 365 Days") and sync again.`)}
         </p>
       )}
+      {/* Forensic breakdown: what the Flex XML actually delivered per section vs
+          what we imported. One screenshot of this pins the failure: low XML counts
+          = the query period is short (fix in IBKR); high XML but low imported = our
+          pipeline bug. */}
+      {result.sections && (
+        <div className="text-[10px] font-mono mt-3 mx-auto max-w-xs leading-relaxed px-3 py-2 rounded-lg text-left"
+          style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>
+          <div>{t('Del XML de IBKR', 'From IBKR XML')}:</div>
+          <div>· {result.sections.openPositions ?? 0} {t('posiciones', 'positions')} · {result.sections.trades ?? 0} trades · {result.sections.cashTransactions ?? 0} cash tx</div>
+          <div>· {result.sections.equitySummary ?? 0} {t('filas NAV', 'NAV rows')} · {result.sections.cashReport ?? 0} cash report</div>
+          <div className="mt-1">{t('Importado', 'Imported')}: {result.impTrades ?? 0} trades · {result.impFlows ?? 0} {t('dep/ret', 'dep/wd')} · {result.impDividends ?? 0} div · {result.equityHistory ?? 0} {t('días NAV', 'NAV days')}</div>
+        </div>
+      )}
       {result.partial && (
         <p className="text-xs mt-2" style={{ color: 'var(--alert-warn-icon)' }}>
           {t('Importación parcial: algunos registros no se guardaron. Sincroniza de nuevo para completar.',
@@ -279,11 +292,17 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
         // Skip preview for merge mode — go straight to done
         setSyncStatus('importing')
         await onSyncComplete(data, 'merge')
+        const _tx = data.transactions || []
+        const _c = (types) => _tx.filter((t) => types.includes((t.type || '').toUpperCase())).length
         setResult({
           items: data.items.length,
           transactions: data.transactions.length,
           equityHistory: (data.equityHistory || []).length,
           equityOldest: (data.equityHistory || []).reduce((min, e) => (!min || (e.date && e.date < min)) ? e.date : min, null),
+          sections: data.sections || null,
+          impTrades: _c(['BUY', 'SELL']),
+          impFlows: _c(['DEPOSIT', 'WITHDRAWAL']),
+          impDividends: _c(['DIVIDEND']),
           accounts: data.accounts || [],
           syncedAt: data.syncedAt,
           mode: 'merge',
