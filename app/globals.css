@@ -183,12 +183,21 @@ body {
 }
 
 button:focus-visible,
-a:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
+a:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
+}
+
+/* Form controls get a cobalt border + soft ring instead of the default outline,
+   so every input/select/textarea focuses the SAME way across the app (replaces
+   the scattered focus:border-blue-500/50 mosaic). Checkbox/radio keep the outline
+   from the *:focus-visible rule above — a 3px ring around a tiny box reads wrong. */
+input:not([type="checkbox"]):not([type="radio"]):focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-blue) 18%, transparent);
 }
 
 /* iOS Safari zooms in when a focused input has font-size < 16px and never
@@ -541,13 +550,13 @@ html.theme-transitioning *::after {
   background: var(--accent-blue);
   color: #fff;
   border: none;
-  box-shadow: var(--glass-shine), 0 2px 8px rgba(108, 122, 255, 0.25);
+  box-shadow: var(--glass-shine), 0 2px 8px rgba(37, 99, 235, 0.25);
   transition: background-color 0.15s, box-shadow 0.15s, transform 0.1s;
   cursor: pointer;
 }
 .btn-primary:hover {
   background: var(--accent-blue-strong);
-  box-shadow: var(--glass-shine), 0 4px 16px rgba(108, 122, 255, 0.35);
+  box-shadow: var(--glass-shine), 0 4px 16px rgba(37, 99, 235, 0.35);
 }
 .btn-primary:active { transform: scale(0.97); }
 .btn-primary:disabled {
@@ -632,7 +641,7 @@ html.theme-transitioning *::after {
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   border: var(--glass-border);
-  box-shadow: 0 0 12px rgba(108, 122, 255, 0.2), var(--shadow-card);
+  box-shadow: 0 0 12px rgba(37, 99, 235, 0.2), var(--shadow-card);
 }
 
 /* WCAG AA: Tailwind text-slate-500 (#64748b) = 3.8:1 on dark bg — boost to ~5.6:1 */
@@ -684,7 +693,7 @@ button[aria-label="Close"] {
   --dsg-header-background-color: var(--bg-secondary);
   --dsg-header-text-color: var(--text-secondary);
   --dsg-cell-text-color: var(--text-primary);
-  --dsg-selection-background-color: rgba(108, 122, 255, 0.08);
+  --dsg-selection-background-color: rgba(37, 99, 235, 0.08);
   background: var(--bg-primary);
   font-size: 13px;
 }

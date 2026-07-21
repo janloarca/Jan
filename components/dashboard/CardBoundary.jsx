@@ -19,7 +19,7 @@ export default class CardBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div data-card-id={this.props.id} className="bg-red-500/5 border border-red-500/20 rounded-xl p-4 text-center">
+        <div data-card-id={this.props.id} className="bg-red-500/5 border border-red-500/20 rounded-2xl p-4 text-center">
           <p className="text-xs text-red-400/80">
             {this.props.id}
           </p>
