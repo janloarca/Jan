@@ -590,6 +590,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         trades: tc(['BUY', 'SELL']),
         flows: tc(['DEPOSIT', 'WITHDRAWAL']),
         dividends: tc(['DIVIDEND']),
+        fees: tc(['FEE', 'TAX', 'INTEREST']),
         sections: data.sections || null,
       } })
     } catch {}
@@ -666,6 +667,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             trades: typeCount(['BUY', 'SELL']),
             flows: typeCount(['DEPOSIT', 'WITHDRAWAL']),
             dividends: typeCount(['DIVIDEND']),
+            fees: typeCount(['FEE', 'TAX', 'INTEREST']),
             sections: data?.sections || null,
           },
         })
@@ -738,13 +740,14 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         trades: typeCount(['BUY', 'SELL']),
         flows: typeCount(['DEPOSIT', 'WITHDRAWAL']),
         dividends: typeCount(['DIVIDEND']),
+        fees: typeCount(['FEE', 'TAX', 'INTEREST']),
         sections: data?.sections || null,
       }
       // Persisted so the diagnosis survives the 7-second toast: the chart banner
       // and the IBKR modal render this, and any screenshot then tells us whether
       // the Flex XML carried each section and whether the import kept it.
       saveSettings({ _ibkrLastSyncSummary: summary })
-      return { ok: true, count: summary.items, equityDays: summary.equityDays, equityOldest: summary.equityOldest, trades: summary.trades, flows: summary.flows, dividends: summary.dividends }
+      return { ok: true, count: summary.items, equityDays: summary.equityDays, equityOldest: summary.equityOldest, trades: summary.trades, flows: summary.flows, dividends: summary.dividends, fees: summary.fees }
     } catch (err) {
       const code = err.errorCode || 'UNKNOWN'
       saveSettings({

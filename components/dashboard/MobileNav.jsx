@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Calculator, Plus, Menu, Upload, Download, Share2, Settings, Table, Users } from 'lucide-react'
+import { Home, Calculator, Plus, Menu, Upload, Download, Share2, Settings, Table, Users, Receipt } from 'lucide-react'
 
 export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettings, onSearch, lang, friendsEnabled = true }) {
   const [moreOpen, setMoreOpen] = useState(false)
@@ -48,6 +48,12 @@ export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettin
       {moreOpen && (
         <div className="fixed inset-0 z-50 sm:hidden" onClick={() => setMoreOpen(false)}>
           <div className="absolute bottom-14 left-0 right-0 bg-theme-card border-t border-glass-border rounded-t-2xl p-4 space-y-1" style={{ backdropFilter: 'var(--glass-blur-strong)', WebkitBackdropFilter: 'var(--glass-blur-strong)', boxShadow: 'var(--shadow-modal)' }} onClick={(e) => e.stopPropagation()}>
+            <Link href="/costs" onClick={() => setMoreOpen(false)}
+              className="w-full flex items-center gap-3 px-4 py-3 text-left text-white rounded-lg hover:bg-theme-elevated transition-colors"
+              style={{ color: pathname === '/costs' ? 'var(--accent-blue)' : undefined }}>
+              <Receipt size={18} className="text-slate-400" />
+              <span className="text-body">{t('Costos', 'Costs')}</span>
+            </Link>
             {[
               { action: onImport, icon: Upload, label: t('Importar archivo', 'Import file') },
               { action: onExport, icon: Download, label: t('Exportar Excel', 'Export Excel') },

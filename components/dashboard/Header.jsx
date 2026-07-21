@@ -17,6 +17,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
     { href: '/dashboard', label: lang === 'es' ? 'Patrimonio' : 'Net Worth' },
     { href: '/finances', label: lang === 'es' ? 'Finanzas' : 'Finances' },
     { href: '/spreadsheet', label: lang === 'es' ? 'Hoja de Cálculo' : 'Spreadsheet' },
+    { href: '/costs', label: lang === 'es' ? 'Costos' : 'Costs' },
     ...(friendsEnabled !== false ? [{ href: '/friends', label: lang === 'es' ? 'Amigos' : 'Friends' }] : []),
   ]
 

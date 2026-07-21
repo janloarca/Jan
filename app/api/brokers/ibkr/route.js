@@ -129,7 +129,20 @@ function parseCashTransactions(xml) {
     // "Dividends", "Payment In Lieu Of Dividends": cash income the account
     // received. Needed for the transaction-rewind cash line and the income module.
     const isDividend = /dividend/i.test(type)
-    if (!isFlow && !isDividend) continue
+    // Costs the account paid (or interest received). These used to be dropped in
+    // silence, so real fees/taxes never reached the app. Now captured for the
+    // Costs view. Order matters: dividend/flow are checked first so a
+    // "Payment In Lieu Of Dividends" never falls into the fee bucket.
+    const isTax = /tax|withholding/i.test(type)
+    const isInterest = /interest/i.test(type)
+    const isFee = /fee|commission/i.test(type)
+    let kind = null
+    if (isFlow) kind = 'flow'
+    else if (isDividend) kind = 'dividend'
+    else if (isTax) kind = 'tax'
+    else if (isInterest) kind = 'interest'
+    else if (isFee) kind = 'fee'
+    if (!kind) continue
     const amount = parseFloat(attr('amount')) || 0
     if (amount === 0) continue
     const date = formatDate(attr('dateTime') || attr('reportDate') || attr('settleDate'))
@@ -139,9 +152,9 @@ function parseCashTransactions(xml) {
       currency: attr('currency') || 'USD',
       date,
       txnId: attr('transactionID') || '',
-      description: attr('description') || '',
+      description: attr('description') || attr('type') || '',
       accountId: attr('accountId') || '',
-      kind: isDividend ? 'dividend' : 'flow',
+      kind,
       symbol: (attr('symbol') || '').toUpperCase(),
     })
   }

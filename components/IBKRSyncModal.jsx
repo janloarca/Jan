@@ -44,11 +44,15 @@ function SyncStepper({ syncStatus, pollProgress, t }) {
   )
 }
 
-function DoneStep({ result, onClose, t }) {
-  const [countdown, setCountdown] = useState(5)
+function DoneStep({ result, onClose, onComplementFile, t }) {
+  // When there is no value history, don't auto-close: the user needs time to read
+  // the warning and reach for the Activity Statement complement.
+  const needsHistory = result.items > 0 && result.equityHistory <= 1
+  const [countdown, setCountdown] = useState(needsHistory ? -1 : 5)
 
   useEffect(() => {
-    if (countdown <= 0) { onClose(); return }
+    if (countdown < 0) return
+    if (countdown === 0) { onClose(); return }
     const timer = setTimeout(() => setCountdown(c => c - 1), 1000)
     return () => clearTimeout(timer)
   }, [countdown, onClose])
@@ -70,10 +74,20 @@ function DoneStep({ result, onClose, t }) {
         </p>
       )}
       {result.items > 0 && result.equityHistory <= 1 && (
-        <p className="text-xs mt-3 mx-auto max-w-xs leading-relaxed" style={{ color: 'var(--alert-warn-icon)' }}>
-          {t('Importamos tus posiciones, pero tu Flex Query no incluye "Equity Summary" (historial de valor). Por eso tus retornos y la gráfica arrancan desde hoy. Agrégala a tu Flex Query y vuelve a sincronizar.',
-             'We imported your positions, but your Flex Query has no "Equity Summary" (value history). That is why your returns and chart start from today. Add it to your Flex Query and sync again.')}
-        </p>
+        <div className="mt-3 mx-auto max-w-xs">
+          <p className="text-xs leading-relaxed" style={{ color: 'var(--alert-warn-icon)' }}>
+            {t('Importamos tus posiciones, pero no llegó "Equity Summary" (historial de valor). Por eso tus retornos y la gráfica arrancan desde hoy. Si tu Flex Query no tiene esa opción, complétalo con tu Activity Statement (XLS): trae el historial de valor, tus operaciones con fecha, depósitos y comisiones.',
+               'We imported your positions, but no "Equity Summary" (value history) arrived. That is why your returns and chart start from today. If your Flex Query has no such option, complete it with your Activity Statement (XLS): it carries the value history, dated trades, deposits and commissions.')}
+          </p>
+          {onComplementFile && (
+            <button onClick={onComplementFile}
+              className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-colors"
+              style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
+              <Upload size={13} />
+              {t('Completar con Activity Statement (XLS)', 'Complete with Activity Statement (XLS)')}
+            </button>
+          )}
+        </div>
       )}
       {/* History present but SHORT: the query period truncates it, so YTD can't
           match the broker. Same actionable fix: widen the period, re-sync. */}
@@ -94,7 +108,7 @@ function DoneStep({ result, onClose, t }) {
           <div>{t('Del XML de IBKR', 'From IBKR XML')}:</div>
           <div>· {result.sections.openPositions ?? 0} {t('posiciones', 'positions')} · {result.sections.trades ?? 0} trades · {result.sections.cashTransactions ?? 0} cash tx</div>
           <div>· {result.sections.equitySummary ?? 0} {t('filas NAV', 'NAV rows')} · {result.sections.cashReport ?? 0} cash report</div>
-          <div className="mt-1">{t('Importado', 'Imported')}: {result.impTrades ?? 0} trades · {result.impFlows ?? 0} {t('dep/ret', 'dep/wd')} · {result.impDividends ?? 0} div · {result.equityHistory ?? 0} {t('días NAV', 'NAV days')}</div>
+          <div className="mt-1">{t('Importado', 'Imported')}: {result.impTrades ?? 0} trades · {result.impFlows ?? 0} {t('dep/ret', 'dep/wd')} · {result.impDividends ?? 0} div · {result.impFees ?? 0} {t('costos', 'costs')} · {result.equityHistory ?? 0} {t('días NAV', 'NAV days')}</div>
         </div>
       )}
       {result.partial && (
@@ -107,8 +121,11 @@ function DoneStep({ result, onClose, t }) {
         {new Date(result.syncedAt).toLocaleString()}
       </p>
       <button onClick={onClose}
-        className="mt-8 px-10 py-3 rounded-xl hover:opacity-90 transition-all text-sm font-medium" style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
-        {t('Cerrar', 'Close')} ({countdown}s)
+        className={`mt-8 px-10 py-3 rounded-xl hover:opacity-90 transition-all text-sm font-medium ${needsHistory ? 'border' : ''}`}
+        style={needsHistory
+          ? { backgroundColor: 'transparent', color: 'var(--text-secondary)', borderColor: 'var(--card-border)' }
+          : { backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
+        {t('Cerrar', 'Close')}{countdown >= 0 ? ` (${countdown}s)` : ''}
       </button>
     </div>
   )
@@ -319,6 +336,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
           impTrades: _c(['BUY', 'SELL']),
           impFlows: _c(['DEPOSIT', 'WITHDRAWAL']),
           impDividends: _c(['DIVIDEND']),
+          impFees: _c(['FEE', 'TAX', 'INTEREST']),
           accounts: data.accounts || [],
           syncedAt: data.syncedAt,
           mode: 'merge',
@@ -634,7 +652,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 {syncSummary && (
                   <div className="text-[10px] font-mono mt-1 px-3 py-2 rounded-lg text-left w-full max-w-xs"
                     style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>
-                    <div>{t('Datos guardados', 'Stored data')}: {syncSummary.equityDays ?? 0} {t('días NAV', 'NAV days')} · {syncSummary.trades ?? 0} trades · {(syncSummary.flows ?? 0) + (syncSummary.dividends ?? 0)} {t('flujos', 'flows')}</div>
+                    <div>{t('Datos guardados', 'Stored data')}: {syncSummary.equityDays ?? 0} {t('días NAV', 'NAV days')} · {syncSummary.trades ?? 0} trades · {(syncSummary.flows ?? 0) + (syncSummary.dividends ?? 0)} {t('flujos', 'flows')} · {syncSummary.fees ?? 0} {t('costos', 'costs')}</div>
                     {syncSummary.sections && (
                       <div className="mt-0.5 opacity-80">XML: {syncSummary.sections.trades ?? 0} trades · {syncSummary.sections.cashTransactions ?? 0} cash tx · {syncSummary.sections.equitySummary ?? 0} NAV</div>
                     )}
@@ -798,6 +816,10 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                       {t('Incluye "Equity Summary" y pon el período del query en "Year to Date" o "Last 365 Days". El período manda: con "Last 30 Days" solo recibimos 30 días de historial, depósitos y trades, y tu retorno del año no puede cuadrar con IBKR.',
                          'Include "Equity Summary" and set the query period to "Year to Date" or "Last 365 Days". The period rules everything: with "Last 30 Days" we only receive 30 days of history, deposits and trades, and your yearly return cannot match IBKR.')}
                     </p>
+                    <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                      {t('¿Tu Flex Query no tiene la opción "Equity Summary"? Usa la pestaña "Importar archivo" y sube tu Activity Statement (XLS): trae el historial de valor completo.',
+                         'Does your Flex Query have no "Equity Summary" option? Use the "Import file" tab and upload your Activity Statement (XLS): it brings the full value history.')}
+                    </p>
                     {/* Without Cash Transactions, deposits/withdrawals never import,
                         so Modified-Dietz returns are distorted by unaccounted flows. */}
                     <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--accent-orange)' }}>
@@ -941,27 +963,41 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   <div>
                     <p className="text-sm text-white font-medium mb-1">{t('Importar desde archivo', 'Import from file')}</p>
                     <p className="text-xs text-slate-500">
-                      {t('Sube un reporte CSV exportado de Portfolio Analyst de IBKR.',
-                         'Upload a CSV report exported from IBKR Portfolio Analyst.')}
+                      {t('Complementa tu sync con un archivo de IBKR: trae el historial de valor, tus operaciones con fecha, depósitos y comisiones que el Flex Query no dio.',
+                         'Complement your sync with an IBKR file: it brings the value history, dated trades, deposits and commissions your Flex Query did not deliver.')}
                     </p>
+                  </div>
+
+                  {/* Activity Statement is the recommended source: it carries the full
+                      NAV history + dated trades + deposits + fees, so it fixes the
+                      "returns start from today" case when the Flex Query lacks Equity
+                      Summary. */}
+                  <div className="px-3 py-2.5 rounded-lg text-xs leading-relaxed"
+                    style={{ backgroundColor: 'var(--alert-info-bg)', border: '1px solid var(--alert-info-border)', color: 'var(--text-secondary)' }}>
+                    <span className="font-semibold" style={{ color: 'var(--accent-blue)' }}>{t('Recomendado: Activity Statement.', 'Recommended: Activity Statement.')}</span>
+                    <span> {t('Es el que trae el historial de valor completo para que tus retornos midan todo el año.', 'It brings the full value history so your returns measure the whole year.')}</span>
                   </div>
 
                   <div className="space-y-5 pl-1">
                     <div className="flex gap-4">
                       <span className="text-xs text-slate-500 font-mono pt-0.5 shrink-0">1.</span>
                       <div>
-                        <p className="text-xs text-white font-medium">{t('Abrir Portfolio Analyst', 'Open Portfolio Analyst')}</p>
+                        <p className="text-xs text-white font-medium">{t('Abrir el Activity Statement', 'Open the Activity Statement')}</p>
                         <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                          <span className="text-[var(--accent-blue)] font-mono">interactivebrokers.com</span> → <span className="text-white">Performance & Reports</span> → <span className="text-white">PortfolioAnalyst</span>
+                          <span className="text-[var(--accent-blue)] font-mono">interactivebrokers.com</span> → <span className="text-white">Performance & Reports</span> → <span className="text-white">Statements</span> → <span className="text-white">Activity</span>
                         </p>
                       </div>
                     </div>
                     <div className="flex gap-4">
                       <span className="text-xs text-slate-500 font-mono pt-0.5 shrink-0">2.</span>
                       <div>
-                        <p className="text-xs text-white font-medium">{t('Descargar reporte', 'Download report')}</p>
+                        <p className="text-xs text-white font-medium">{t('Descargar el reporte', 'Download the report')}</p>
                         <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                          {t('Ve a la pestaña', 'Go to the')} <span className="text-white">Reports</span> → {t('elige un periodo (ej: Year to Date) y haz clic en el ícono de CSV', 'choose a period (e.g. Year to Date) and click the CSV icon')} <span className="text-white">📄</span>
+                          {t('Período', 'Period')} <span className="text-white">Year to Date</span> {t('(o el rango que quieras), formato', '(or any range you want), format')} <span className="text-white">Excel (XLS)</span> {t('o CSV, y descarga.', 'or CSV, then download.')}
+                        </p>
+                        <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
+                          {t('También sirve un CSV de Portfolio Analyst (Reports), pero el Activity Statement trae más historial.',
+                             'A Portfolio Analyst CSV (Reports) also works, but the Activity Statement carries more history.')}
                         </p>
                       </div>
                     </div>
@@ -1251,7 +1287,8 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
           })()}
 
           {step === 'done' && result && (
-            <DoneStep result={result} onClose={onClose} t={t} />
+            <DoneStep result={result} onClose={onClose} t={t}
+              onComplementFile={() => { setResult(null); setImportMode('file'); setShowConfig(true); setStep('config'); setError(''); setErrorCode('') }} />
           )}
         </div>
       </div>

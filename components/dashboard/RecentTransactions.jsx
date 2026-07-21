@@ -13,8 +13,13 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, it
   const [typeFilter, setTypeFilter] = useState('ALL')
   const [dateRange, setDateRange] = useState('all')
 
+  // Cost-type rows (fees/taxes/interest) live in the Costs tab, not here — keep
+  // Movimientos about trades, flows and dividends so it isn't flooded by hundreds
+  // of small broker fee entries.
+  const COST_TYPES = new Set(['FEE', 'TAX', 'INTEREST'])
+
   const all = useMemo(() => {
-    let reversed = [...(transactions || [])].reverse()
+    let reversed = [...(transactions || [])].filter((tx) => !COST_TYPES.has((tx.type || '').toUpperCase())).reverse()
 
     if (dateRange !== 'all') {
       const now = new Date()
