@@ -150,7 +150,7 @@ function LoginForm() {
 
   if (checkingAuth) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-theme-base" style={{ background: 'radial-gradient(ellipse at 20% 50%, rgba(108,122,255,0.08) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(139,92,246,0.06) 0%, transparent 50%), var(--bg-primary)' }}>
+      <div className="flex items-center justify-center min-h-screen bg-theme-base" style={{ background: 'radial-gradient(ellipse at 20% 50%, rgba(37,99,235,0.08) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(37,99,235,0.06) 0%, transparent 50%), var(--bg-primary)' }}>
         <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
           <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--text-secondary)', borderTopColor: 'transparent' }} />
           Verificando sesión...
@@ -160,7 +160,7 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-theme-base" style={{ background: 'radial-gradient(ellipse at 20% 50%, rgba(108,122,255,0.08) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(139,92,246,0.06) 0%, transparent 50%), var(--bg-primary)' }}>
+    <div className="flex items-center justify-center min-h-screen bg-theme-base" style={{ background: 'radial-gradient(ellipse at 20% 50%, rgba(37,99,235,0.08) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(37,99,235,0.06) 0%, transparent 50%), var(--bg-primary)' }}>
       <div className="w-full max-w-md px-6">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-2">
@@ -297,7 +297,7 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <div className="flex items-center justify-center min-h-screen bg-theme-base" style={{ background: 'radial-gradient(ellipse at 20% 50%, rgba(108,122,255,0.08) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(139,92,246,0.06) 0%, transparent 50%), var(--bg-primary)' }}>
+      <div className="flex items-center justify-center min-h-screen bg-theme-base" style={{ background: 'radial-gradient(ellipse at 20% 50%, rgba(37,99,235,0.08) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(37,99,235,0.06) 0%, transparent 50%), var(--bg-primary)' }}>
         <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
           <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--text-secondary)', borderTopColor: 'transparent' }} />
         </div>

@@ -48,9 +48,9 @@ export default function EmptyState({ onAdd, onImport, onTemplate, onDemo, onConn
       {/* Hero */}
       <div className="mb-6 flex justify-center">
         <div className="rounded-2xl p-4" style={{
-          background: 'linear-gradient(135deg, rgba(108,122,255,0.16), rgba(108,122,255,0.05))',
-          border: '1px solid rgba(108,122,255,0.22)',
-          boxShadow: '0 8px 32px rgba(108,122,255,0.12)',
+          background: 'linear-gradient(135deg, rgba(37,99,235,0.16), rgba(37,99,235,0.05))',
+          border: '1px solid rgba(37,99,235,0.22)',
+          boxShadow: '0 8px 32px rgba(37,99,235,0.12)',
         }}>
           <BarChart3 size={44} style={{ color: 'var(--accent-blue)' }} />
         </div>
@@ -73,12 +73,12 @@ export default function EmptyState({ onAdd, onImport, onTemplate, onDemo, onConn
               ? 'text-white'
               : 'bg-theme-card hover:bg-theme-elevated border border-glass-border text-white'}`}
             style={primary
-              ? { backgroundColor: 'var(--accent-blue)', boxShadow: '0 8px 24px rgba(108,122,255,0.35)' }
+              ? { backgroundColor: 'var(--accent-blue)', boxShadow: '0 8px 24px rgba(37,99,235,0.35)' }
               : { backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)', boxShadow: 'var(--shadow-card)' }}>
             <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${primary ? '' : ''}`}
               style={primary
                 ? { backgroundColor: 'rgba(255,255,255,0.18)' }
-                : { backgroundColor: 'rgba(108,122,255,0.10)', border: '1px solid rgba(108,122,255,0.18)' }}>
+                : { backgroundColor: 'rgba(37,99,235,0.10)', border: '1px solid rgba(37,99,235,0.18)' }}>
               <Icon size={18} style={primary ? { color: '#fff' } : { color: 'var(--accent-blue)' }} />
             </div>
             <div className="font-semibold text-sm mb-1">{title}</div>
@@ -91,7 +91,7 @@ export default function EmptyState({ onAdd, onImport, onTemplate, onDemo, onConn
       {onDemo && (
         <button onClick={onDemo}
           className="inline-flex items-center gap-2 px-5 py-2.5 mb-10 rounded-full text-sm font-medium border transition-colors hover:bg-theme-elevated"
-          style={{ color: 'var(--accent-blue)', borderColor: 'rgba(108,122,255,0.35)', backgroundColor: 'rgba(108,122,255,0.06)' }}>
+          style={{ color: 'var(--accent-blue)', borderColor: 'rgba(37,99,235,0.35)', backgroundColor: 'rgba(37,99,235,0.06)' }}>
           <Sparkles size={15} />
           {t('Explorar primero con datos de ejemplo', 'Explore with sample data first')}
         </button>

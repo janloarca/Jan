@@ -69,7 +69,7 @@ export default function PageTour({ pageKey, steps, nextRoute, nextFlag, lang = '
           <h2 className="text-lg font-bold text-white mb-2">{current.title}</h2>
           <p className="text-slate-400 text-sm leading-relaxed">{current.body}</p>
           {current.tip && (
-            <div className="mt-3 px-3 py-2 rounded-lg" style={{ backgroundColor: 'rgba(108,122,255,0.1)', border: '1px solid rgba(108,122,255,0.2)' }}>
+            <div className="mt-3 px-3 py-2 rounded-lg" style={{ backgroundColor: 'rgba(37,99,235,0.1)', border: '1px solid rgba(37,99,235,0.2)' }}>
               <p className="text-xs" style={{ color: 'var(--accent-blue)' }}>{current.tip}</p>
             </div>
           )}

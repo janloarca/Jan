@@ -66,9 +66,9 @@ export default function PortfolioSelector({ portfolios, activePortfolio, onSelec
                 activePortfolio !== '__all__' ? 'hover:bg-theme-elevated' : ''
               }`}
               style={{
-                ...(focusIdx === 0 ? { boxShadow: 'inset 0 0 0 1px rgba(108,122,255,0.5)' } : {}),
+                ...(focusIdx === 0 ? { boxShadow: 'inset 0 0 0 1px rgba(37,99,235,0.5)' } : {}),
                 ...(activePortfolio === '__all__'
-                  ? { backgroundColor: 'rgba(108,122,255,0.1)', color: 'var(--accent-blue)' }
+                  ? { backgroundColor: 'rgba(37,99,235,0.1)', color: 'var(--accent-blue)' }
                   : { color: '#cbd5e1' }
                 ),
               }}>
@@ -84,9 +84,9 @@ export default function PortfolioSelector({ portfolios, activePortfolio, onSelec
                     activePortfolio !== p.id ? 'hover:bg-theme-elevated' : ''
                   }`}
                   style={{
-                    ...(focusIdx === i + 1 ? { boxShadow: 'inset 0 0 0 1px rgba(108,122,255,0.5)' } : {}),
+                    ...(focusIdx === i + 1 ? { boxShadow: 'inset 0 0 0 1px rgba(37,99,235,0.5)' } : {}),
                     ...(activePortfolio === p.id
-                      ? { backgroundColor: 'rgba(108,122,255,0.1)', color: 'var(--accent-blue)' }
+                      ? { backgroundColor: 'rgba(37,99,235,0.1)', color: 'var(--accent-blue)' }
                       : { color: '#cbd5e1' }
                     ),
                   }}>

@@ -194,7 +194,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
                 {QUICK_CURRENCIES.map((c) => (
                   <button key={c} onClick={() => { setTempCurrency(c === baseCur ? null : c); setShowPicker(false) }}
                     className="block w-full text-left px-3 py-1.5 text-xs rounded transition-colors"
-                    style={displayCur === c ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(108,122,255,0.1)' } : { color: 'var(--text-secondary)' }}>
+                    style={displayCur === c ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.1)' } : { color: 'var(--text-secondary)' }}>
                     {c}
                   </button>
                 ))}

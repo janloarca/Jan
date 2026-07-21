@@ -47,7 +47,7 @@ export default function InstallPrompt({ lang }) {
 
   return (
     <div className="rounded-xl p-4 flex items-center justify-between gap-3 border"
-      style={{ backgroundColor: 'rgba(108,122,255,0.1)', borderColor: 'rgba(108,122,255,0.2)' }}>
+      style={{ backgroundColor: 'rgba(37,99,235,0.1)', borderColor: 'rgba(37,99,235,0.2)' }}>
       <div className="min-w-0">
         <p className="text-sm font-medium text-white">
           {t('Instala Chispudo', 'Install Chispudo')}

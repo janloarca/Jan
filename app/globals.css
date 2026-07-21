@@ -21,13 +21,13 @@
   --accent-red: #f87171;
   --text-negative: #f87171;
   --accent-orange: #FF9F0A;
-  --accent-blue: #6C7AFF;
-  --accent-blue-strong: #5B68E8;
-  --accent-blue-soft: #8B96FF;
+  --accent-blue: #2563EB;
+  --accent-blue-strong: #1D4ED8;
+  --accent-blue-soft: #60A5FA;
   --accent-purple: #BF5AF2;
   --accent-pink: #F472B6;
   --accent-cyan: #64D2FF;
-  --focus-ring: #6C7AFF;
+  --focus-ring: #2563EB;
   --fill-primary: rgba(120, 120, 128, 0.36);
   --fill-secondary: rgba(120, 120, 128, 0.32);
   --card-bg: rgba(25, 25, 40, 0.6);
@@ -60,9 +60,9 @@
   /* gray-600 instead of gray-500: muted copy kept AA contrast on white but felt
      faint next to the indigo accents; one step darker reads more professional. */
   --text-muted: #4B5563;
-  --accent-blue: #4F46E5;
-  --accent-blue-strong: #4338CA;
-  --accent-blue-soft: #6366F1;
+  --accent-blue: #2563EB;
+  --accent-blue-strong: #1D4ED8;
+  --accent-blue-soft: #3B82F6;
   --accent-green: #059669;
   --accent-red: #DC2626;
   --text-negative: #DC2626;
@@ -70,7 +70,7 @@
   --accent-purple: #7C3AED;
   --accent-pink: #DB2777;
   --accent-cyan: #0891B2;
-  --focus-ring: #4F46E5;
+  --focus-ring: #2563EB;
   --fill-primary: rgba(120, 120, 128, 0.15);
   --fill-secondary: rgba(120, 120, 128, 0.1);
   --card-bg: #FFFFFF;
@@ -92,13 +92,13 @@
 :root {
   /* Info uses the BRAND indigo (not a stray sky-blue) so notices read as part of
      the same product, not a second accent. */
-  --alert-info-bg: rgba(108, 122, 255, 0.10); --alert-info-border: rgba(108, 122, 255, 0.30); --alert-info-icon: #8B96FF;
+  --alert-info-bg: rgba(37, 99, 235, 0.10); --alert-info-border: rgba(37, 99, 235, 0.30); --alert-info-icon: #60A5FA;
   --alert-warn-bg: rgba(245, 158, 11, 0.10);   --alert-warn-border: rgba(245, 158, 11, 0.30);   --alert-warn-icon: #fbbf24;
   --alert-error-bg: rgba(248, 113, 113, 0.10); --alert-error-border: rgba(248, 113, 113, 0.30); --alert-error-icon: #f87171;
   --alert-success-bg: rgba(52, 211, 153, 0.10);--alert-success-border: rgba(52, 211, 153, 0.30);--alert-success-icon: #34d399;
 }
 [data-theme="light"] {
-  --alert-info-bg: #EEF0FF;    --alert-info-border: #C7CCFF;    --alert-info-icon: #4F46E5;
+  --alert-info-bg: #EFF4FF;    --alert-info-border: #BFD3FF;    --alert-info-icon: #2563EB;
   --alert-warn-bg: #FFFBEB;    --alert-warn-border: #FDE68A;    --alert-warn-icon: #D97706;
   --alert-error-bg: #FEF2F2;   --alert-error-border: #FECACA;   --alert-error-icon: #DC2626;
   --alert-success-bg: #ECFDF5; --alert-success-border: #A7F3D0; --alert-success-icon: #059669;

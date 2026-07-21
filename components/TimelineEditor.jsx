@@ -56,7 +56,7 @@ export default function TimelineEditor({ rows, onChange, total, currency = 'USD'
 
       <button type="button" onClick={addRow}
         className="w-full px-3 py-2 rounded-lg text-xs font-medium border border-dashed transition-colors"
-        style={{ color: 'var(--accent-blue)', borderColor: 'rgba(108,122,255,0.35)' }}>
+        style={{ color: 'var(--accent-blue)', borderColor: 'rgba(37,99,235,0.35)' }}>
         + {t('Agregar aporte', 'Add contribution')}
       </button>
 

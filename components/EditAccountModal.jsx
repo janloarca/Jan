@@ -458,7 +458,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           {/* Sector badge */}
           {item.sector && (
             <div className="flex gap-2 flex-wrap">
-              <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'rgba(108,122,255,0.1)', color: 'var(--accent-blue)' }}>{item.sector}</span>
+              <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'rgba(37,99,235,0.1)', color: 'var(--accent-blue)' }}>{item.sector}</span>
               {item.industry && <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'rgba(168,85,247,0.1)', color: 'var(--accent-purple)' }}>{item.industry}</span>}
               {item.exchangeName && <span className="text-xs bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] px-2 py-0.5 rounded">{item.exchangeName}</span>}
             </div>
@@ -989,7 +989,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
           {/* Section 3: Income/Dividends */}
           {isMarket && item.dividendYield > 0 && (
-            <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'rgba(108,122,255,0.2)', backgroundColor: 'rgba(108,122,255,0.05)' }}>
+            <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'rgba(37,99,235,0.2)', backgroundColor: 'rgba(37,99,235,0.05)' }}>
               <p className="text-xs font-medium" style={{ color: 'var(--accent-green)' }}>💰 {t('Dividendo', 'Dividend')}: {item.dividendYield}% {item.incomeFrequency || ''}</p>
               <div>
                 <p className="text-xs text-[var(--text-muted,#475569)] mb-1">{t('Acción con dividendos:', 'Dividend action:')}</p>
@@ -1001,7 +1001,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   </button>
                   <button type="button" onClick={() => set('dividendAction', 'reinvest')}
                     className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                    style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(108,122,255,0.2)', borderColor: 'rgba(108,122,255,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                    style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                     🔄 {t('Reinvertir', 'Reinvest')}
                   </button>
                 </div>
@@ -1044,7 +1044,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   {[{ key: 'fixed', es: 'Fija', en: 'Fixed' }, { key: 'variable', es: 'Variable', en: 'Variable' }, { key: 'continuous', es: 'Continua', en: 'Continuous' }].map(rt => (
                     <button key={rt.key} type="button" onClick={() => set('rateType', rt.key)}
                       className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                      style={form.rateType === rt.key ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(108,122,255,0.2)', borderColor: 'rgba(108,122,255,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                      style={form.rateType === rt.key ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                       {lang === 'es' ? rt.es : rt.en}
                     </button>
                   ))}
@@ -1055,12 +1055,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               <div className="flex gap-1">
                 <button type="button" onClick={() => set('incomeMode', 'fixed')}
                   className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                  style={form.incomeMode === 'fixed' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(108,122,255,0.2)', borderColor: 'rgba(108,122,255,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                  style={form.incomeMode === 'fixed' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                   {t('Monto fijo', 'Fixed amount')}
                 </button>
                 <button type="button" onClick={() => set('incomeMode', 'percent')}
                   className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                  style={form.incomeMode === 'percent' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(108,122,255,0.2)', borderColor: 'rgba(108,122,255,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                  style={form.incomeMode === 'percent' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                   {t('% del saldo', '% of balance')}
                 </button>
               </div>
@@ -1130,7 +1130,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                         <button key={i} type="button"
                           onClick={() => set('incomeMonths', active ? form.incomeMonths.filter(x => x !== i) : [...form.incomeMonths, i].sort((a, b) => a - b))}
                           className="px-2 py-1 text-xs font-medium rounded transition-all border"
-                          style={active ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(108,122,255,0.25)', borderColor: 'rgba(108,122,255,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                          style={active ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.25)', borderColor: 'rgba(37,99,235,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                           {label}
                         </button>
                       )
@@ -1152,7 +1152,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   </button>
                   <button type="button" onClick={() => set('dividendAction', 'reinvest')}
                     className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                    style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(108,122,255,0.2)', borderColor: 'rgba(108,122,255,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                    style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                     🔄 {t('Se reinvierten', 'They reinvest')}
                   </button>
                 </div>

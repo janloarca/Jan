@@ -812,7 +812,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
               {/* AI-assisted file prep: the user pastes their statements into any AI
                   (ChatGPT/Claude/Gemini) with a prompt that specifies our EXACT sheet
                   and column layout, then uploads the file the AI produces. */}
-              <div className="mt-4 border rounded-xl overflow-hidden" style={{ borderColor: 'rgba(108,122,255,0.25)', backgroundColor: 'rgba(108,122,255,0.05)' }}>
+              <div className="mt-4 border rounded-xl overflow-hidden" style={{ borderColor: 'rgba(37,99,235,0.25)', backgroundColor: 'rgba(37,99,235,0.05)' }}>
                 <button onClick={() => setAiOpen(!aiOpen)}
                   className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-left"
                   style={{ color: 'var(--accent-blue)' }}>
@@ -1274,7 +1274,7 @@ Rules: do not invent any data; if something is missing from my documents leave i
                 <div className="flex gap-2">
                   <button onClick={() => setIbkrImportMode('merge')}
                     className="flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-colors border"
-                    style={ibkrImportMode === 'merge' ? { backgroundColor: 'rgba(108,122,255,0.2)', borderColor: 'rgba(108,122,255,0.4)', color: 'var(--accent-blue)' } : { borderColor: '#38383A', color: '#94a3b8' }}>
+                    style={ibkrImportMode === 'merge' ? { backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.4)', color: 'var(--accent-blue)' } : { borderColor: '#38383A', color: '#94a3b8' }}>
                     {t('Agregar junto a existentes', 'Add alongside existing')}
                   </button>
                   <button onClick={() => setIbkrImportMode('replace')}

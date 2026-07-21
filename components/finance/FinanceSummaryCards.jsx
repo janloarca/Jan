@@ -51,7 +51,7 @@ export default function FinanceSummaryCards({ income, expenses, investmentIncome
           Q{fmt(savings)}
         </p>
         {totalIncome > 0 && (
-          <p className="text-xs font-mono tabular-nums mt-0.5" style={{ color: savingsRate >= 0 ? 'rgba(108,122,255,0.7)' : 'rgba(248,113,113,0.7)' }}>
+          <p className="text-xs font-mono tabular-nums mt-0.5" style={{ color: savingsRate >= 0 ? 'rgba(37,99,235,0.7)' : 'rgba(248,113,113,0.7)' }}>
             {savingsRate >= 0 ? '+' : ''}{savingsRate.toFixed(1)}%
           </p>
         )}

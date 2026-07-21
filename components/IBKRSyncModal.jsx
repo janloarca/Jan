@@ -24,7 +24,7 @@ function SyncStepper({ syncStatus, pollProgress, t }) {
             <div className="flex flex-col items-center gap-1">
               <div className="w-2 h-2 rounded-full" style={{
                 backgroundColor: i < activeIdx ? 'var(--accent-green)' : i === activeIdx ? 'var(--accent-blue)' : 'rgba(100,116,139,0.4)',
-                ...(i === activeIdx ? { boxShadow: '0 0 0 3px rgba(108,122,255,0.2)' } : {}),
+                ...(i === activeIdx ? { boxShadow: '0 0 0 3px rgba(37,99,235,0.2)' } : {}),
               }} />
               <span className="text-[10px]" style={{ color: i === activeIdx ? 'var(--accent-blue)' : 'var(--text-muted)' }}>{p.label}</span>
             </div>
@@ -707,7 +707,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
           {step === 'config' && showExplainer && !syncing && !decrypting && (
             <div className="space-y-4">
               <div className="text-center">
-                <div className="w-11 h-11 rounded-full flex items-center justify-center mx-auto mb-2" style={{ backgroundColor: 'rgba(108,122,255,0.12)' }}>
+                <div className="w-11 h-11 rounded-full flex items-center justify-center mx-auto mb-2" style={{ backgroundColor: 'rgba(37,99,235,0.12)' }}>
                   <RefreshCw size={20} style={{ color: 'var(--accent-blue)' }} />
                 </div>
                 <p className="text-base font-semibold text-white">{t('Cómo funciona la conexión con IBKR', 'How the IBKR connection works')}</p>

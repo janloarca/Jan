@@ -291,7 +291,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
         {isExpanded && broker.hasApi && !broker.authType && (
           <div className="px-3 pb-3 pt-1 border-t border-glass-border/30 space-y-2">
             {/* What happens / why it's safe, BEFORE the credential fields. */}
-            <p className="text-xs px-2.5 py-1.5 rounded-lg" style={{ backgroundColor: 'rgba(108,122,255,0.06)', color: 'var(--accent-blue)' }}>
+            <p className="text-xs px-2.5 py-1.5 rounded-lg" style={{ backgroundColor: 'rgba(37,99,235,0.06)', color: 'var(--accent-blue)' }}>
               🔒 {connectorExplainer(broker, t)}
             </p>
             {broker.instructions && (

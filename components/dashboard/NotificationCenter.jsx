@@ -113,14 +113,14 @@ export default function NotificationCenter({ items, transactions, lang }) {
     urgent: { bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.2)', color: 'var(--text-negative)' },
     warning: { bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.2)', color: '#fbbf24' },
     positive: { bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)', color: 'var(--accent-green)' },
-    info: { bg: 'rgba(108,122,255,0.08)', border: 'rgba(108,122,255,0.2)', color: 'var(--accent-blue)' },
+    info: { bg: 'rgba(37,99,235,0.08)', border: 'rgba(37,99,235,0.2)', color: 'var(--accent-blue)' },
   }
 
   return (
     <div className="space-y-1.5">
       {isNotificationSupported() && pushPermission === 'default' && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg border text-xs"
-          style={{ backgroundColor: 'rgba(108,122,255,0.08)', borderColor: 'rgba(108,122,255,0.2)', color: 'var(--accent-blue)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+          style={{ backgroundColor: 'rgba(37,99,235,0.08)', borderColor: 'rgba(37,99,235,0.2)', color: 'var(--accent-blue)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
           <span>🔔</span>
           <span className="flex-1">{t('Activa notificaciones para alertas de pagos y vencimientos', 'Enable notifications for payment and maturity alerts')}</span>
           <button onClick={handleEnablePush} className="px-2 py-1 rounded text-xs font-medium transition-colors hover:opacity-90"

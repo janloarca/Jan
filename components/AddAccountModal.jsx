@@ -1172,7 +1172,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     </button>
                     <button type="button" onClick={() => set('dividendAction', 'reinvest')}
                       className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                      style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(108,122,255,0.2)', borderColor: 'rgba(108,122,255,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                      style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                       🔄 {t('Se reinvierten', 'They reinvest')}
                     </button>
                   </div>
@@ -1410,7 +1410,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                         }}
                         className="flex-1 px-2 py-2 text-xs font-medium leading-tight rounded-lg border transition-colors"
                         style={valueTimeline === o.key
-                          ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(108,122,255,0.15)', borderColor: 'rgba(108,122,255,0.5)' }
+                          ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.15)', borderColor: 'rgba(37,99,235,0.5)' }
                           : { color: 'var(--text-secondary)', borderColor: 'rgba(71,85,105,0.5)' }}>
                         {o.label}
                       </button>

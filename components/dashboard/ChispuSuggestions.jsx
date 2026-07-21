@@ -108,7 +108,7 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
             <div className="flex items-center gap-1 shrink-0">
               <button onClick={() => runAction(f)}
                 className="text-xs px-2 py-1 rounded-lg font-medium whitespace-nowrap"
-                style={{ color: 'var(--accent-blue)', border: '1px solid rgba(108,122,255,0.35)' }}>
+                style={{ color: 'var(--accent-blue)', border: '1px solid rgba(37,99,235,0.35)' }}>
                 {actionLabel(f)}
               </button>
               <button onClick={() => dismiss(f.id)} aria-label={t('Descartar sugerencia', 'Dismiss suggestion')}

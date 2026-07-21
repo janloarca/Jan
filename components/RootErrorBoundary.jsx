@@ -57,14 +57,14 @@ export default class RootErrorBoundary extends Component {
               onClick={() => window.location.reload()}
               style={{
                 padding: '0.625rem 1.5rem',
-                backgroundColor: 'var(--accent-blue, #6C7AFF)',
+                backgroundColor: 'var(--accent-blue, #2563EB)',
                 color: '#fff',
                 border: 'none',
                 borderRadius: '12px',
                 fontSize: '0.875rem',
                 fontWeight: 600,
                 cursor: 'pointer',
-                boxShadow: '0 2px 8px rgba(108,122,255,0.25)',
+                boxShadow: '0 2px 8px rgba(37,99,235,0.25)',
               }}
             >
               Reload

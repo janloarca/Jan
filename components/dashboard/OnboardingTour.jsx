@@ -386,7 +386,7 @@ export default function OnboardingTour({ lang, onAction, onComplete, onSeedDemo,
           <h2 className="text-xl font-bold text-white mb-3">{current.title}</h2>
           <p className="text-slate-400 text-sm leading-relaxed mb-4">{current.body}</p>
           {current.tip && (
-            <div className="inline-block px-3 py-1.5 rounded-lg" style={{ backgroundColor: 'rgba(108,122,255,0.1)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(108,122,255,0.2)' }}>
+            <div className="inline-block px-3 py-1.5 rounded-lg" style={{ backgroundColor: 'rgba(37,99,235,0.1)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(37,99,235,0.2)' }}>
               <p className="text-xs" style={{ color: 'var(--accent-blue)' }}>{current.tip}</p>
             </div>
           )}
@@ -403,7 +403,7 @@ export default function OnboardingTour({ lang, onAction, onComplete, onSeedDemo,
             )}
             <button onClick={() => { handleFinish(); setTimeout(() => onAction?.('add'), 300) }}
               className="w-full px-4 py-2.5 rounded-lg text-sm font-medium border"
-              style={{ color: 'var(--accent-blue)', borderColor: 'rgba(108,122,255,0.35)' }}>
+              style={{ color: 'var(--accent-blue)', borderColor: 'rgba(37,99,235,0.35)' }}>
               {t('Agregar mi primer activo', 'Add my first asset')}
             </button>
             <div className="flex items-center justify-between pt-1">
@@ -425,7 +425,7 @@ export default function OnboardingTour({ lang, onAction, onComplete, onSeedDemo,
                   className="h-2 rounded-full transition-all"
                   style={{
                     width: i === step ? '1.5rem' : '0.5rem',
-                    backgroundColor: i === step ? 'var(--accent-blue-soft)' : i < step ? 'rgba(108,122,255,0.4)' : '#475569'
+                    backgroundColor: i === step ? 'var(--accent-blue-soft)' : i < step ? 'rgba(37,99,235,0.4)' : '#475569'
                   }} />
               ))}
             </div>
