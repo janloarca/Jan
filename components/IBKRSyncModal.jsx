@@ -658,6 +658,20 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                     )}
                   </div>
                 )}
+                {/* Auto-detected changes since the previous sync: the platform reads
+                    every new movement on its own, this makes it visible. */}
+                {syncSummary?.changes && (
+                  <div className="text-xs px-3 py-2 rounded-lg text-left w-full max-w-xs"
+                    style={{ backgroundColor: 'var(--alert-success-bg)', border: '1px solid var(--alert-success-border)', color: 'var(--accent-green)' }}>
+                    <span className="font-semibold">{t('Detectado en el último sync', 'Detected in the last sync')}:</span>{' '}
+                    {[
+                      syncSummary.changes.trades ? `+${syncSummary.changes.trades} ${t('operaciones', 'trades')}` : null,
+                      syncSummary.changes.flows ? `+${syncSummary.changes.flows} ${t('dep/ret', 'dep/wd')}` : null,
+                      syncSummary.changes.dividends ? `+${syncSummary.changes.dividends} ${t('dividendos', 'dividends')}` : null,
+                      syncSummary.changes.fees ? `+${syncSummary.changes.fees} ${t('costos', 'costs')}` : null,
+                    ].filter(Boolean).join(' · ')}
+                  </div>
+                )}
               </div>
 
               <button onClick={handleSync}

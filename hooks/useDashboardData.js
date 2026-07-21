@@ -10,6 +10,19 @@ import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
 
+// What changed since the previous sync. Because a wide Flex Query (Year to Date)
+// re-delivers the whole year every run and dedup collapses what we already have,
+// the growth of each total IS the new activity: new trades, new deposits/withdrawals,
+// new dividends, new costs. This is the auto-detection the sync already does, made
+// visible. Returns null on the first sync (no baseline) or when nothing is new.
+export function ibkrSyncChanges(prev, next) {
+  if (!prev || !next) return null
+  const d = (k) => Math.max(0, (next[k] || 0) - (prev[k] || 0))
+  const changes = { trades: d('trades'), flows: d('flows'), dividends: d('dividends'), fees: d('fees'), equityDays: d('equityDays') }
+  const any = changes.trades || changes.flows || changes.dividends || changes.fees || changes.equityDays
+  return any ? changes : null
+}
+
 export function useDashboardData({ user, lang, activePortfolio, activeEntity = '__all__' }) {
   const firestoreData = useFirestoreItems()
   const {
@@ -582,7 +595,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       const eqH = data.equityHistory || []
       const txAll = data.transactions || []
       const tc = (types) => txAll.filter((t) => types.includes((t.type || '').toUpperCase())).length
-      saveSettings({ _ibkrLastSyncSummary: {
+      const nextSummary = {
         at: new Date().toISOString(),
         items: (data.items || []).length,
         equityDays: eqH.length,
@@ -592,7 +605,8 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         dividends: tc(['DIVIDEND']),
         fees: tc(['FEE', 'TAX', 'INTEREST']),
         sections: data.sections || null,
-      } })
+      }
+      saveSettings({ _ibkrLastSyncSummary: { ...nextSummary, changes: ibkrSyncChanges(settings?._ibkrLastSyncSummary, nextSummary) } })
     } catch {}
   }, [items, snapshots, bulkImport, activePortfolio, activeEntity, saveSettings])
 
@@ -654,22 +668,23 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         const eq = data?.equityHistory || []
         const txs = data?.transactions || []
         const typeCount = (types) => txs.filter((t) => types.includes((t.type || '').toUpperCase())).length
+        const autoSummary = {
+          at: new Date().toISOString(),
+          items: data?.items?.length || 0,
+          equityDays: eq.length,
+          equityOldest: eq.reduce((min, e) => (!min || (e.date && e.date < min)) ? e.date : min, null),
+          trades: typeCount(['BUY', 'SELL']),
+          flows: typeCount(['DEPOSIT', 'WITHDRAWAL']),
+          dividends: typeCount(['DIVIDEND']),
+          fees: typeCount(['FEE', 'TAX', 'INTEREST']),
+          sections: data?.sections || null,
+        }
         saveSettings({
           _ibkrLastAutoSync: new Date().toISOString(),
           _ibkrAutoSyncStatus: 'ok',
           _ibkrAutoSyncError: null,
           _ibkrAutoSyncErrorCode: null,
-          _ibkrLastSyncSummary: {
-            at: new Date().toISOString(),
-            items: data?.items?.length || 0,
-            equityDays: eq.length,
-            equityOldest: eq.reduce((min, e) => (!min || (e.date && e.date < min)) ? e.date : min, null),
-            trades: typeCount(['BUY', 'SELL']),
-            flows: typeCount(['DEPOSIT', 'WITHDRAWAL']),
-            dividends: typeCount(['DIVIDEND']),
-            fees: typeCount(['FEE', 'TAX', 'INTEREST']),
-            sections: data?.sections || null,
-          },
+          _ibkrLastSyncSummary: { ...autoSummary, changes: ibkrSyncChanges(settings?._ibkrLastSyncSummary, autoSummary) },
         })
       } catch (err) {
         if (cancelled) return
@@ -746,8 +761,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       // Persisted so the diagnosis survives the 7-second toast: the chart banner
       // and the IBKR modal render this, and any screenshot then tells us whether
       // the Flex XML carried each section and whether the import kept it.
-      saveSettings({ _ibkrLastSyncSummary: summary })
-      return { ok: true, count: summary.items, equityDays: summary.equityDays, equityOldest: summary.equityOldest, trades: summary.trades, flows: summary.flows, dividends: summary.dividends, fees: summary.fees }
+      const changes = ibkrSyncChanges(settings?._ibkrLastSyncSummary, summary)
+      saveSettings({ _ibkrLastSyncSummary: { ...summary, changes } })
+      return { ok: true, count: summary.items, equityDays: summary.equityDays, equityOldest: summary.equityOldest, trades: summary.trades, flows: summary.flows, dividends: summary.dividends, fees: summary.fees, changes }
     } catch (err) {
       const code = err.errorCode || 'UNKNOWN'
       saveSettings({
