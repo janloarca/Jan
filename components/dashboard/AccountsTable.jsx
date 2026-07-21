@@ -113,7 +113,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                 : 'hover:bg-theme-elevated'
             }`}
             style={filter === tab.key
-              ? { backgroundColor: 'rgba(59,130,246,0.2)', color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.3)' }
+              ? { backgroundColor: 'rgba(108,122,255,0.2)', color: 'var(--accent-blue)', borderColor: 'rgba(108,122,255,0.3)' }
               : { color: 'var(--text-secondary)', borderColor: 'rgba(71,85,105,0.5)' }
             }>
             {tab.icon} {tab.label}
@@ -136,7 +136,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
 
       {/* Bulk actions */}
       {selected.size > 0 && (
-        <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-lg" style={{ backgroundColor: 'rgba(59,130,246,0.1)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(59,130,246,0.2)' }}>
+        <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-lg" style={{ backgroundColor: 'rgba(108,122,255,0.1)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(108,122,255,0.2)' }}>
           <span className="text-xs font-medium" style={{ color: 'var(--accent-blue)' }}>{selected.size} {t('seleccionado(s)', 'selected')}</span>
           <div className="flex-1" />
           <button onClick={() => {
@@ -154,7 +154,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
             a.click()
           }}
             className="text-xs px-2 py-1 rounded border hover:opacity-80"
-            style={{ color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.3)' }}>
+            style={{ color: 'var(--accent-blue)', borderColor: 'rgba(108,122,255,0.3)' }}>
             {t('Exportar CSV', 'Export CSV')}
           </button>
           <button onClick={async () => {
@@ -269,7 +269,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                 const retAbs = hasReturn ? (item.currentPrice - item.purchasePrice) * (item.quantity || 0) : null
 
                 return (
-                  <tr key={item.id || item.symbol} style={{ contentVisibility: 'auto', containIntrinsicSize: '0 60px', ...(selected.has(item.id) ? { backgroundColor: 'rgba(59,130,246,0.05)' } : {}) }} className="border-b border-glass-border/30 hover:bg-theme-elevated/50 transition-colors group">
+                  <tr key={item.id || item.symbol} style={{ contentVisibility: 'auto', containIntrinsicSize: '0 60px', ...(selected.has(item.id) ? { backgroundColor: 'rgba(108,122,255,0.05)' } : {}) }} className="border-b border-glass-border/30 hover:bg-theme-elevated/50 transition-colors group">
                     <td className="py-4 w-8">
                       <input type="checkbox"
                         checked={selected.has(item.id)}
@@ -334,12 +334,12 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                               return <span className="text-xs px-1.5 py-0.5 rounded" style={matStyle}>{mat.expired ? '⚠' : '⏱'} {mat.label}</span>
                             })()}
                             {item.rateType === 'variable' && item.rateMin > 0 && (
-                              <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)' }}>
+                              <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(108,122,255,0.1)', color: 'var(--accent-blue)' }}>
                                 {item.rateMin}-{item.rateMax}%
                               </span>
                             )}
                             {item.dividendAction === 'reinvest' ? (
-                              <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: 'rgba(96,165,250,0.8)' }} title={t('Los pagos se reinvierten en este activo', 'Payments reinvest into this asset')}>
+                              <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(108,122,255,0.1)', color: 'rgba(139,150,255,0.8)' }} title={t('Los pagos se reinvierten en este activo', 'Payments reinvest into this asset')}>
                                 🔄 {t('Reinvierte', 'Reinvests')}
                               </span>
                             ) : item.incomeDestination ? (
@@ -431,7 +431,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                         {onQuickBuy && (
                           <button onClick={() => onQuickBuy(item)}
                             className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-sm font-bold transition-colors hover:opacity-80"
-                            style={{ color: 'rgba(59,130,246,0.6)' }}
+                            style={{ color: 'rgba(108,122,255,0.6)' }}
                             title={t('Comprar más', 'Buy more')} aria-label={t('Comprar más', 'Buy more')}>
                             +
                           </button>

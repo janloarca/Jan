@@ -194,7 +194,7 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
       ]
 
   const chipStyle = (active) => active
-    ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.15)', borderColor: 'rgba(59,130,246,0.5)' }
+    ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(108,122,255,0.15)', borderColor: 'rgba(108,122,255,0.5)' }
     : { color: 'var(--text-secondary)', borderColor: 'rgba(71,85,105,0.5)' }
 
   const linkedLabel = isYield

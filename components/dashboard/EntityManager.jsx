@@ -66,7 +66,7 @@ export default function EntityManager({ entities, onAdd, onUpdate, onDelete, ite
                       type="text" value={editName} onChange={(e) => setEditName(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') handleRename(entity.id); if (e.key === 'Escape') setEditId(null) }}
                       autoFocus className="flex-1 px-2 py-0.5 text-xs bg-theme-card border rounded text-white focus:outline-none"
-                      style={{ borderColor: 'rgba(59,130,246,0.5)' }}
+                      style={{ borderColor: 'rgba(108,122,255,0.5)' }}
                     />
                     <button onClick={() => handleRename(entity.id)} aria-label={t('Guardar', 'Save')} className="hover:opacity-80" style={{ color: 'var(--accent-green)' }}><Check size={14} /></button>
                     <button onClick={() => setEditId(null)} aria-label={t('Cancelar', 'Cancel')} className="text-slate-400 hover:text-slate-300"><X size={14} /></button>
@@ -126,7 +126,7 @@ export default function EntityManager({ entities, onAdd, onUpdate, onDelete, ite
                   newType !== et.key ? 'hover:text-white' : ''
                 }`}
                 style={newType === et.key
-                  ? { borderColor: 'rgba(59,130,246,0.5)', backgroundColor: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)' }
+                  ? { borderColor: 'rgba(108,122,255,0.5)', backgroundColor: 'rgba(108,122,255,0.1)', color: 'var(--accent-blue)' }
                   : { borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }
                 }>
                 {et.icon} {lang === 'es' ? et.es : et.en}

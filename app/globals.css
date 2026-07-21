@@ -90,13 +90,15 @@
 /* Semantic alert tints (info / warning / error / success) — theme-aware so the
    same component reads correct colors in both light and dark. */
 :root {
-  --alert-info-bg: rgba(59, 130, 246, 0.10);   --alert-info-border: rgba(59, 130, 246, 0.30);   --alert-info-icon: #60a5fa;
+  /* Info uses the BRAND indigo (not a stray sky-blue) so notices read as part of
+     the same product, not a second accent. */
+  --alert-info-bg: rgba(108, 122, 255, 0.10); --alert-info-border: rgba(108, 122, 255, 0.30); --alert-info-icon: #8B96FF;
   --alert-warn-bg: rgba(245, 158, 11, 0.10);   --alert-warn-border: rgba(245, 158, 11, 0.30);   --alert-warn-icon: #fbbf24;
   --alert-error-bg: rgba(248, 113, 113, 0.10); --alert-error-border: rgba(248, 113, 113, 0.30); --alert-error-icon: #f87171;
   --alert-success-bg: rgba(52, 211, 153, 0.10);--alert-success-border: rgba(52, 211, 153, 0.30);--alert-success-icon: #34d399;
 }
 [data-theme="light"] {
-  --alert-info-bg: #EFF6FF;    --alert-info-border: #BFDBFE;    --alert-info-icon: #3B82F6;
+  --alert-info-bg: #EEF0FF;    --alert-info-border: #C7CCFF;    --alert-info-icon: #4F46E5;
   --alert-warn-bg: #FFFBEB;    --alert-warn-border: #FDE68A;    --alert-warn-icon: #D97706;
   --alert-error-bg: #FEF2F2;   --alert-error-border: #FECACA;   --alert-error-icon: #DC2626;
   --alert-success-bg: #ECFDF5; --alert-success-border: #A7F3D0; --alert-success-icon: #059669;
@@ -220,6 +222,25 @@ textarea:focus-visible {
    Mirrors the light-theme override block below; hierarchy is kept by the delta. */
 :root:not([data-theme="light"]) .text-slate-500 { color: #8A94A6; }
 :root:not([data-theme="light"]) .text-slate-600 { color: #707A8A; }
+
+/* ONE brand blue. Tailwind's blue-500 family (#3b82f6) drifted in as a second
+   accent competing with the brand indigo (--accent-blue). Collapse every blue
+   utility onto the token (theme-aware) so the whole app reads as one brand. The
+   light block below already remaps these; these unprefixed rules cover dark. */
+.text-blue-300, .text-blue-400, .text-blue-500, .text-blue-600 { color: var(--accent-blue); }
+.bg-blue-500, .bg-blue-600 { background-color: var(--accent-blue); }
+.hover\:bg-blue-500:hover, .hover\:bg-blue-600:hover { background-color: var(--accent-blue-strong); }
+.bg-blue-500\/10 { background-color: color-mix(in srgb, var(--accent-blue) 12%, transparent); }
+.bg-blue-500\/20 { background-color: color-mix(in srgb, var(--accent-blue) 20%, transparent); }
+.border-blue-400, .border-blue-500 { border-color: var(--accent-blue); }
+.border-blue-500\/50 { border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent); }
+.hover\:border-blue-500\/50:hover { border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent); }
+.focus\:border-blue-500\/50:focus { border-color: color-mix(in srgb, var(--accent-blue) 55%, transparent); }
+/* The raw #3b82f6 arbitrary utilities (FileImportModal inputs, etc.) */
+.border-\[\#3b82f6\]\/50 { border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent); }
+.hover\:border-\[\#3b82f6\]\/50:hover { border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent); }
+.hover\:bg-\[\#3b82f6\]\/5:hover { background-color: color-mix(in srgb, var(--accent-blue) 6%, transparent); }
+.focus\:border-\[\#3b82f6\]\/50:focus { border-color: color-mix(in srgb, var(--accent-blue) 55%, transparent); }
 
 /* Light mode — Tailwind class overrides for semantic colors */
 [data-theme="light"] .text-white { color: var(--text-primary) !important; }

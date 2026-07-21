@@ -271,7 +271,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
                   ].map((suggestion, i) => (
                     <button key={i} onClick={() => { setInput(suggestion) }}
                       className="block w-full text-left px-3 py-2 text-xs rounded-lg transition-colors"
-                      style={{ color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.1)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(59,130,246,0.2)' }}>
+                      style={{ color: 'var(--accent-blue)', backgroundColor: 'rgba(108,122,255,0.1)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(108,122,255,0.2)' }}>
                       {suggestion}
                     </button>
                   ))}

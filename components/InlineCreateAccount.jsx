@@ -52,7 +52,7 @@ export default function InlineCreateAccount({ onCreate, onCancel, onCreated, lan
 
   return (
     <div className="mt-2 p-3 rounded-lg border space-y-2"
-      style={{ borderColor: 'rgba(59,130,246,0.4)', backgroundColor: 'rgba(59,130,246,0.06)' }}>
+      style={{ borderColor: 'rgba(108,122,255,0.4)', backgroundColor: 'rgba(108,122,255,0.06)' }}>
       <p className="text-xs font-medium" style={{ color: 'var(--accent-blue-soft, #60a5fa)' }}>
         {t('Nueva cuenta destino', 'New destination account')}
       </p>

@@ -20,7 +20,7 @@ const CATEGORY_LABELS = {
 const CATEGORY_ACCENT = {
   banks: '#94a3b8',
   funds: '#818cf8',
-  stocks: '#3b82f6',
+  stocks: 'var(--accent-blue)',
   crypto: '#f97316',
   alternatives: '#a78bfa',
   bonds: '#f59e0b',
@@ -865,7 +865,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                                 {qtyLabel && (
                                   <span className="text-slate-400 text-xs shrink-0">{qtyLabel}</span>
                                 )}
-                                <span className="text-xs font-semibold shrink-0" style={{ color: isEditing ? '#3b82f6' : '#94a3b8' }}>{cur}</span>
+                                <span className="text-xs font-semibold shrink-0" style={{ color: isEditing ? 'var(--accent-blue)' : '#94a3b8' }}>{cur}</span>
                                 {item.rewardType && REWARD_ICONS[item.rewardType] && (
                                   <span className="text-xs bg-cyan-50 text-cyan-600 px-1 rounded shrink-0" title={item.rewardType}>
                                     {REWARD_ICONS[item.rewardType]}
@@ -877,7 +877,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                               </div>
                             </td>
                             <td />
-                            {showOriginal && <td className="text-center py-2.5 px-1 text-xs" style={{ color: isEditing ? '#3b82f6' : '#94a3b8', fontWeight: isEditing ? 600 : undefined }}>{cur}</td>}
+                            {showOriginal && <td className="text-center py-2.5 px-1 text-xs" style={{ color: isEditing ? 'var(--accent-blue)' : '#94a3b8', fontWeight: isEditing ? 600 : undefined }}>{cur}</td>}
                             {months.map(mk => {
                               const isCurrent = mk === currentMonthKey
                               if (!isCurrent) {

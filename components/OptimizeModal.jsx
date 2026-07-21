@@ -254,13 +254,13 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
         <div className="p-6 space-y-4">
           <div className="w-full h-1 bg-[#38383A] rounded-full overflow-hidden">
             <div className="h-full transition-all duration-300 rounded-full"
-              style={{ backgroundColor: '#3b82f6', width: `${((step + 1) / questions.length) * 100}%` }} />
+              style={{ backgroundColor: 'var(--accent-blue)', width: `${((step + 1) / questions.length) * 100}%` }} />
           </div>
 
           {/* Asset card */}
           <div className="bg-theme-base rounded-lg p-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg flex items-center justify-center text-lg" style={{ backgroundColor: 'rgba(59,130,246,0.1)' }}>
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center text-lg" style={{ backgroundColor: 'rgba(108,122,255,0.1)' }}>
                 {TYPE_ICONS[q.item.type] || '💼'}
               </div>
               <div className="flex-1 min-w-0">
@@ -303,7 +303,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
                 <button type="button" onClick={() => set('currency', q.suggestedCurrency)}
                   className="flex-1 px-3 py-3 rounded-lg border text-sm font-medium transition-all"
                   style={currentForm.currency === q.suggestedCurrency
-                    ? { backgroundColor: 'rgba(59,130,246,0.2)', color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.4)' }
+                    ? { backgroundColor: 'rgba(108,122,255,0.2)', color: 'var(--accent-blue)', borderColor: 'rgba(108,122,255,0.4)' }
                     : { backgroundColor: 'var(--bg-input)', color: 'var(--text-secondary)', borderColor: 'var(--border-color)' }
                   }>
                   {q.suggestedCurrency}
@@ -312,7 +312,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
                 <button type="button" onClick={() => set('currency', q.item.currency || 'USD')}
                   className="flex-1 px-3 py-3 rounded-lg border text-sm font-medium transition-all"
                   style={currentForm.currency === (q.item.currency || 'USD')
-                    ? { backgroundColor: 'rgba(59,130,246,0.2)', color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.4)' }
+                    ? { backgroundColor: 'rgba(108,122,255,0.2)', color: 'var(--accent-blue)', borderColor: 'rgba(108,122,255,0.4)' }
                     : { backgroundColor: 'var(--bg-input)', color: 'var(--text-secondary)', borderColor: 'var(--border-color)' }
                   }>
                   {q.item.currency || 'USD'}
@@ -414,11 +414,11 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
               <div className="flex gap-1 mb-1">
                 <button type="button" onClick={() => set('incomeMode', 'fixed')}
                   className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                  style={currentForm.incomeMode === 'fixed' ? { backgroundColor: 'rgba(59,130,246,0.2)', color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: 'var(--bg-input)', color: 'var(--text-muted)', borderColor: 'var(--border-color)' }}
+                  style={currentForm.incomeMode === 'fixed' ? { backgroundColor: 'rgba(108,122,255,0.2)', color: 'var(--accent-blue)', borderColor: 'rgba(108,122,255,0.4)' } : { backgroundColor: 'var(--bg-input)', color: 'var(--text-muted)', borderColor: 'var(--border-color)' }}
                   >{t('Monto fijo', 'Fixed amount')}</button>
                 <button type="button" onClick={() => set('incomeMode', 'percent')}
                   className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                  style={currentForm.incomeMode === 'percent' ? { backgroundColor: 'rgba(59,130,246,0.2)', color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: 'var(--bg-input)', color: 'var(--text-muted)', borderColor: 'var(--border-color)' }}
+                  style={currentForm.incomeMode === 'percent' ? { backgroundColor: 'rgba(108,122,255,0.2)', color: 'var(--accent-blue)', borderColor: 'rgba(108,122,255,0.4)' } : { backgroundColor: 'var(--bg-input)', color: 'var(--text-muted)', borderColor: 'var(--border-color)' }}
                   >{t('% anual', '% annual')}</button>
               </div>
               {currentForm.incomeMode === 'fixed' ? (

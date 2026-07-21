@@ -83,7 +83,7 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
           </div>
           <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
             <div className="h-full rounded-full transition-all duration-300"
-              style={{ backgroundColor: '#3b82f6', width: `${((index + 1) / totalCount) * 100}%` }} />
+              style={{ backgroundColor: 'var(--accent-blue)', width: `${((index + 1) / totalCount) * 100}%` }} />
           </div>
 
           <div className="mt-2 flex items-center justify-between px-2 py-1.5 rounded-lg text-xs"

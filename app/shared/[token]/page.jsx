@@ -110,7 +110,7 @@ function SharedDashboard({ items, snapshots, baseCurrency, label, display }) {
   )
 
   const catColors = {
-    stocks: '#3b82f6', crypto: '#f59e0b', funds: '#34d399', bonds: '#8b5cf6',
+    stocks: 'var(--accent-blue)', crypto: '#f59e0b', funds: '#34d399', bonds: '#8b5cf6',
     banks: '#06b6d4', realestate: '#ec4899', alternatives: '#f97316', debts: '#ef4444', other: '#64748b',
   }
 
@@ -307,11 +307,11 @@ function GrowthChart({ snapshots, showAmounts = true }) {
     <div>
       <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-32" preserveAspectRatio="none">
         <polygon points={areaPoints} fill="url(#grad)" />
-        <polyline points={points.join(' ')} fill="none" stroke="#3b82f6" strokeWidth="0.5" />
+        <polyline points={points.join(' ')} fill="none" stroke="var(--accent-blue)" strokeWidth="0.5" />
         <defs>
           <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.2" />
-            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+            <stop offset="0%" stopColor="var(--accent-blue)" stopOpacity="0.2" />
+            <stop offset="100%" stopColor="var(--accent-blue)" stopOpacity="0" />
           </linearGradient>
         </defs>
       </svg>

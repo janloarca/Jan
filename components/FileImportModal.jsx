@@ -1274,7 +1274,7 @@ Rules: do not invent any data; if something is missing from my documents leave i
                 <div className="flex gap-2">
                   <button onClick={() => setIbkrImportMode('merge')}
                     className="flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-colors border"
-                    style={ibkrImportMode === 'merge' ? { backgroundColor: 'rgba(108,122,255,0.2)', borderColor: 'rgba(59,130,246,0.4)', color: 'var(--accent-blue)' } : { borderColor: '#38383A', color: '#94a3b8' }}>
+                    style={ibkrImportMode === 'merge' ? { backgroundColor: 'rgba(108,122,255,0.2)', borderColor: 'rgba(108,122,255,0.4)', color: 'var(--accent-blue)' } : { borderColor: '#38383A', color: '#94a3b8' }}>
                     {t('Agregar junto a existentes', 'Add alongside existing')}
                   </button>
                   <button onClick={() => setIbkrImportMode('replace')}
@@ -1313,7 +1313,7 @@ Rules: do not invent any data; if something is missing from my documents leave i
                 </button>
                 {importing && importProgress.total > 0 && (
                   <div className="mt-2 h-1.5 bg-slate-700/30 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full transition-all" style={{ backgroundColor: '#3b82f6', width: `${Math.round((importProgress.done / importProgress.total) * 100)}%` }} />
+                    <div className="h-full rounded-full transition-all" style={{ backgroundColor: 'var(--accent-blue)', width: `${Math.round((importProgress.done / importProgress.total) * 100)}%` }} />
                   </div>
                 )}
               </div>

@@ -24,7 +24,7 @@ function SyncStepper({ syncStatus, pollProgress, t }) {
             <div className="flex flex-col items-center gap-1">
               <div className="w-2 h-2 rounded-full" style={{
                 backgroundColor: i < activeIdx ? 'var(--accent-green)' : i === activeIdx ? 'var(--accent-blue)' : 'rgba(100,116,139,0.4)',
-                ...(i === activeIdx ? { boxShadow: '0 0 0 3px rgba(59,130,246,0.2)' } : {}),
+                ...(i === activeIdx ? { boxShadow: '0 0 0 3px rgba(108,122,255,0.2)' } : {}),
               }} />
               <span className="text-[10px]" style={{ color: i === activeIdx ? 'var(--accent-blue)' : 'var(--text-muted)' }}>{p.label}</span>
             </div>
