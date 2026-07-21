@@ -9,7 +9,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { RefreshCw } from 'lucide-react'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { getBrokerRegistry } from '@/lib/brokerRegistry'
+import { getBrokerRegistry, connectorExplainer } from '@/lib/brokerRegistry'
 
 export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, onBackgroundSync, onImport, onAddAccount, onOpenBlockchain, onSaveCredentials, lang = 'es', lastSyncTime, portfolioItems = [] }) {
   const trapRef = useFocusTrap()
@@ -290,6 +290,10 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
         </div>
         {isExpanded && broker.hasApi && !broker.authType && (
           <div className="px-3 pb-3 pt-1 border-t border-glass-border/30 space-y-2">
+            {/* What happens / why it's safe, BEFORE the credential fields. */}
+            <p className="text-xs px-2.5 py-1.5 rounded-lg" style={{ backgroundColor: 'rgba(108,122,255,0.06)', color: 'var(--accent-blue)' }}>
+              🔒 {connectorExplainer(broker, t)}
+            </p>
             {broker.instructions && (
               <p className="text-xs text-slate-600">{broker.instructions[lang] || broker.instructions.en}</p>
             )}

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Search, RefreshCw, Settings, LogOut, Plus, Upload, Zap } from 'lucide-react'
 
-export default function Header({ user, lang, setLang, onImport, onSignOut, onRefresh, onSettings, pricesLoading, onAddAccount, onCommandPalette, ibkrConnected, ibkrAutoSyncing, ibkrSyncStatus, onIBKR, friendsEnabled = true }) {
+export default function Header({ user, lang, setLang, onImport, onSignOut, onRefresh, onSettings, pricesLoading, onAddAccount, onCommandPalette, ibkrConnected, ibkrAutoSyncing, ibkrSyncStatus, ibkrSyncSummary, onIBKR, friendsEnabled = true }) {
   // Short, human date: "21 jun 2026" / "Jun 21, 2026"
   const today = new Date().toLocaleDateString(lang === 'es' ? 'es-ES' : 'en-US', {
     day: 'numeric', month: 'short', year: 'numeric'
@@ -81,7 +81,11 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
                   : (lang === 'es' ? 'Sincronizar IBKR ahora' : 'Sync IBKR now')}
                 title={ibkrAutoSyncing
                   ? (lang === 'es' ? 'Sincronizando IBKR…' : 'Syncing IBKR…')
-                  : (lang === 'es' ? 'Sincronizar IBKR ahora' : 'Sync IBKR now')}
+                  : ibkrSyncSummary
+                    ? (lang === 'es'
+                        ? `IBKR conectado · ${ibkrSyncSummary.items ?? 0} posiciones · toca para sincronizar`
+                        : `IBKR connected · ${ibkrSyncSummary.items ?? 0} positions · tap to sync`)
+                    : (lang === 'es' ? 'Sincronizar IBKR ahora' : 'Sync IBKR now')}
                 className="px-2.5 h-9 text-xs font-medium rounded-full border transition-colors flex items-center gap-1.5 disabled:cursor-default"
                 style={ibkrAutoSyncing
                   ? { color: 'var(--accent-blue)', borderColor: 'rgba(79,70,229,0.3)', backgroundColor: 'rgba(79,70,229,0.08)' }

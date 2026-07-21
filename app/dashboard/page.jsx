@@ -686,6 +686,7 @@ export default function DashboardPage() {
         onCommandPalette={handleOpenCmdPalette}
         ibkrConnected={ibkrConnected}
         ibkrAutoSyncing={ibkrAutoSyncing}
+        ibkrSyncSummary={ibkrSyncSummary}
         ibkrSyncStatus={ibkrSyncStatus}
         onIBKR={handleIBKRPillClick}
         friendsEnabled={settings?.friendsEnabled !== false}
@@ -1070,6 +1071,7 @@ export default function DashboardPage() {
             showToast(lang === 'es' ? `IBKR: ${data.items?.length || 0} posiciones sincronizadas` : `IBKR: ${data.items?.length || 0} positions synced`)
           }}
           savedToken={settings?.ibkrToken || ''} savedQueryId={settings?.ibkrQueryId || ''}
+          vaultMigrated={!!settings?._ibkrVaultMigrated} syncSummary={ibkrSyncSummary}
           onSaveCredentials={(creds) => { saveSettings({ ...creds, _ibkrLastSync: new Date().toISOString(), _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
           onApiSyncSuccess={() => { saveSettings({ _ibkrLastSync: new Date().toISOString(), _ibkrAutoSyncStatus: 'ok', _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
           onDisconnect={() => {

@@ -114,9 +114,13 @@ function DoneStep({ result, onClose, t }) {
   )
 }
 
-export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, savedQueryId, onSaveCredentials, onApiSyncSuccess, onDisconnect, lang = 'es', uid, lastSyncTime, existingItems = [], existingTransactions = [], existingSnapshots = [] }) {
+export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, savedQueryId, vaultMigrated = false, syncSummary = null, onSaveCredentials, onApiSyncSuccess, onDisconnect, lang = 'es', uid, lastSyncTime, existingItems = [], existingTransactions = [], existingSnapshots = [] }) {
   const trapRef = useFocusTrap()
-  const isConnected = !!(savedToken && savedQueryId)
+  // Connected = a usable token (legacy client copy OR migrated to the server
+  // vault) AND a query id. Mirrors ibkrConnected in useDashboardData: judging by
+  // savedToken alone made every vault-migrated connection open as "not connected"
+  // even while auto-sync worked (the user saw a credentials form over live data).
+  const isConnected = !!((savedToken || vaultMigrated) && savedQueryId)
   const [token, setToken] = useState('')
   const [queryId, setQueryId] = useState(savedQueryId || '')
   const [step, setStep] = useState(isConnected ? 'connected' : 'config')
@@ -131,6 +135,18 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   // sync can run with '__stored__' without the client ever handling the token.
   const [hasVaultCreds, setHasVaultCreds] = useState(false)
   const [showConfig, setShowConfig] = useState(!isConnected)
+  // First-time explainer: BEFORE asking for any credentials, tell the user how
+  // the connection actually works (IBKR only shares what their Flex Query is
+  // configured to share, and its period rules everything). Seen once, then a
+  // "¿Cómo funciona?" link brings it back.
+  const [showExplainer, setShowExplainer] = useState(() => {
+    if (isConnected) return false
+    try { return !localStorage.getItem('chispudo-ibkr-explained') } catch { return true }
+  })
+  const dismissExplainer = () => {
+    try { localStorage.setItem('chispudo-ibkr-explained', '1') } catch {}
+    setShowExplainer(false)
+  }
   const [showHistory, setShowHistory] = useState(false)
   const [syncStatus, setSyncStatus] = useState('')
   const [pollProgress, setPollProgress] = useState(null)
@@ -596,6 +612,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 {lastSyncLabel && (
                   <p className="text-xs text-slate-500">
                     {t('Última sync:', 'Last sync:')} {lastSyncLabel}
+                    {syncSummary?.equityDays > 0 && <> · {syncSummary.equityDays} {t('días de historial', 'days of history')}</>}
                   </p>
                 )}
                 {hasData && (
@@ -610,6 +627,17 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                     {ibkrHistory.accounts.map((acc) => (
                       <span key={acc} className="text-[11px] font-mono px-1.5 py-0.5 rounded border" style={{ color: 'var(--text-secondary)', borderColor: 'rgba(71,85,105,0.5)' }}>{acc}</span>
                     ))}
+                  </div>
+                )}
+                {/* Persistent last-sync breakdown: opening this connected view must
+                    SAY what data the connection holds, without forcing a re-sync. */}
+                {syncSummary && (
+                  <div className="text-[10px] font-mono mt-1 px-3 py-2 rounded-lg text-left w-full max-w-xs"
+                    style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>
+                    <div>{t('Datos guardados', 'Stored data')}: {syncSummary.equityDays ?? 0} {t('días NAV', 'NAV days')} · {syncSummary.trades ?? 0} trades · {(syncSummary.flows ?? 0) + (syncSummary.dividends ?? 0)} {t('flujos', 'flows')}</div>
+                    {syncSummary.sections && (
+                      <div className="mt-0.5 opacity-80">XML: {syncSummary.sections.trades ?? 0} trades · {syncSummary.sections.cashTransactions ?? 0} cash tx · {syncSummary.sections.equitySummary ?? 0} NAV</div>
+                    )}
                   </div>
                 )}
               </div>
@@ -676,8 +704,51 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
             </div>
           )}
 
-          {step === 'config' && (showConfig || (!syncing && !decrypting && !preview)) && (
+          {step === 'config' && showExplainer && !syncing && !decrypting && (
+            <div className="space-y-4">
+              <div className="text-center">
+                <div className="w-11 h-11 rounded-full flex items-center justify-center mx-auto mb-2" style={{ backgroundColor: 'rgba(108,122,255,0.12)' }}>
+                  <RefreshCw size={20} style={{ color: 'var(--accent-blue)' }} />
+                </div>
+                <p className="text-base font-semibold text-white">{t('Cómo funciona la conexión con IBKR', 'How the IBKR connection works')}</p>
+                <p className="text-xs text-slate-500 mt-1">{t('Antes de pegar tus datos, lo importante en 30 segundos.', 'Before you paste anything, the key points in 30 seconds.')}</p>
+              </div>
+              <div className="space-y-3 text-xs leading-relaxed text-slate-300">
+                <div className="flex gap-2.5">
+                  <span>🔒</span>
+                  <p>{t('Es SOLO LECTURA y cifrado. Usamos un "Flex Query" (un reporte de tu cuenta): nunca podemos operar ni mover tu dinero, solo leer lo que tú configures.',
+                        'It is READ-ONLY and encrypted. We use a "Flex Query" (a report of your account): we can never trade or move your money, only read what you configure.')}</p>
+                </div>
+                <div className="flex gap-2.5">
+                  <span>🧩</span>
+                  <div>
+                    <p>{t('Solo recibimos las secciones que actives en el Flex Query. Cada una desbloquea algo:', 'We only receive the sections you enable in the Flex Query. Each unlocks something:')}</p>
+                    <ul className="mt-1.5 space-y-1" style={{ color: 'var(--text-muted)' }}>
+                      <li>· <span className="text-white">Open Positions</span> + <span className="text-white">Cash Report</span>: {t('tus activos y efectivo de hoy', "today's assets and cash")}</li>
+                      <li>· <span className="text-white">Trades</span> + <span className="text-white">Cash Transactions</span>: {t('tus compras/ventas y depósitos (para el retorno real)', 'your buys/sells and deposits (for real return)')}</li>
+                      <li>· <span className="text-white">Equity Summary</span>: {t('el valor diario de tu cuenta (la gráfica histórica)', "your account's daily value (the historical chart)")}</li>
+                    </ul>
+                  </div>
+                </div>
+                <div className="flex gap-2.5">
+                  <span>📅</span>
+                  <p>{t('El PERÍODO del Flex Query manda: ponlo en "Year to Date" o "Last 365 Days". Con un período corto solo recibimos unos días y tu retorno no cuadra con IBKR.',
+                        'The Flex Query PERIOD rules everything: set it to "Year to Date" or "Last 365 Days". A short period sends only a few days and your return will not match IBKR.')}</p>
+                </div>
+              </div>
+              <button onClick={dismissExplainer}
+                className="w-full py-3 rounded-xl text-sm font-medium" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
+                {t('Entendido, continuar', 'Got it, continue')}
+              </button>
+            </div>
+          )}
+
+          {step === 'config' && !showExplainer && (showConfig || (!syncing && !decrypting && !preview)) && (
             <div className="space-y-6">
+              <button onClick={() => setShowExplainer(true)}
+                className="text-xs underline underline-offset-2" style={{ color: 'var(--accent-blue)' }}>
+                {t('¿Cómo funciona?', 'How does it work?')}
+              </button>
               {/* Mode tabs: API Sync vs File Import */}
               <div className="flex bg-theme-base rounded-lg border border-glass-border p-0.5">
                 <button onClick={() => { setImportMode('api'); setError(''); setErrorCode('') }}
