@@ -22,7 +22,19 @@ const POLL_TIMEOUT_MS = 10000
 const LEGACY_POLL_ATTEMPTS = 8
 const LEGACY_POLL_DELAY_MS = 3000
 
-function classifyError(errMsg) {
+function classifyError(errMsg, errCode) {
+  // IBKR's documented numeric Flex codes are far more stable than its English
+  // phrasing — map them first so a reworded message never degrades to UNKNOWN.
+  const code = String(errCode || '').trim()
+  if (code) {
+    // 1019/1018: statement generation in progress → retryable.
+    if (code === '1019' || code === '1018') return { errorCode: 'RATE_LIMITED', error: 'IBKR está generando el reporte. Reintentando...' }
+    // 1020 invalid request · 1021 invalid reference code.
+    if (code === '1020' || code === '1021') return { errorCode: 'RATE_LIMITED', error: 'IBKR pidió reintentar la solicitud. Reintentando...' }
+    // 1003/1004/1005 statement/token/query problems.
+    if (code === '1003') return { errorCode: 'INVALID_QUERY', error: 'El Query ID no existe o el reporte no está disponible. Verifica en IBKR → Flex Queries.' }
+    if (code === '1015' || code === '1016' || code === '1017') return { errorCode: 'TOKEN_EXPIRED', error: 'Tu Flex Token expiró o es inválido. Genera uno nuevo en IBKR.' }
+  }
   const msg = (errMsg || '').toLowerCase()
   // IBKR lockout after repeated failed logins ("Too many failed attempts. Please
   // review your configuration."). MUST be fatal: every retry counts as another
@@ -212,7 +224,9 @@ function parseXmlToData(xml) {
     cashReport: countTags('CashReportCurrency'),
   }
 
-  if (all.length === 0 && trades.length === 0 && cashTransactions.length === 0) {
+  // equityHistory counts too: a valid history-only / fully-liquidated query that
+  // returns just the NAV series must NOT be discarded as EMPTY_REPORT.
+  if (all.length === 0 && trades.length === 0 && cashTransactions.length === 0 && equityHistory.length === 0) {
     return { empty: true, sections }
   }
 
@@ -250,8 +264,9 @@ async function requestFlexReference(token, queryId) {
     }
 
     const errMatch = requestXml.match(/<ErrorMessage>([^<]+)<\/ErrorMessage>/)
+    const codeMatch = requestXml.match(/<ErrorCode>(\d+)<\/ErrorCode>/)
     const errMsg = errMatch ? errMatch[1] : ''
-    const classified = classifyError(errMsg)
+    const classified = classifyError(errMsg, codeMatch ? codeMatch[1] : '')
 
     if (classified.errorCode === 'RATE_LIMITED') {
       if (attempt === REQUEST_ATTEMPTS - 1) return { error: classified }
@@ -277,7 +292,13 @@ async function resolveCredentials(body, uid) {
     if (!doc.exists || !doc.data().flexToken) {
       return { error: NextResponse.json({ error: 'No stored token found. Enter your Flex Token.' }, { status: 400 }) }
     }
-    token = await decryptToken(doc.data().flexToken, uid)
+    try {
+      token = await decryptToken(doc.data().flexToken, uid)
+    } catch {
+      // A corrupt/undecryptable vault token must read as TOKEN_EXPIRED (re-save),
+      // not a raw 500 the UI can't explain.
+      return { error: NextResponse.json({ error: 'Tu Flex Token guardado no se pudo leer. Vuelve a guardarlo.', errorCode: 'TOKEN_EXPIRED' }, { status: 400 }) }
+    }
     if (!queryId) queryId = doc.data().flexQueryId
   }
 

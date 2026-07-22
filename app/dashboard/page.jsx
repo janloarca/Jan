@@ -1079,8 +1079,16 @@ export default function DashboardPage() {
           vaultMigrated={!!settings?._ibkrVaultMigrated} syncSummary={ibkrSyncSummary}
           onSaveCredentials={(creds) => { saveSettings({ ...creds, _ibkrLastSync: new Date().toISOString(), _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
           onApiSyncSuccess={() => { saveSettings({ _ibkrLastSync: new Date().toISOString(), _ibkrAutoSyncStatus: 'ok', _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
-          onDisconnect={() => {
-            saveSettings({ ibkrToken: null, ibkrQueryId: null, _ibkrLastSync: null, _ibkrLastAutoSync: null, _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null })
+          onDisconnect={async () => {
+            saveSettings({ ibkrToken: null, ibkrQueryId: null, _ibkrVaultMigrated: null, _ibkrLastSync: null, _ibkrLastAutoSync: null, _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null })
+            // Also wipe the SERVER vault — clearing only the client doc left the
+            // encrypted token alive, so the connection resurfaced and auto-synced.
+            try {
+              await authFetch('/api/brokers/ibkr', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'save-credentials', token: '', queryId: '' }),
+              })
+            } catch (e) { console.error('[ibkr] vault clear on disconnect failed:', e?.message) }
             showToast(lang === 'es' ? 'IBKR desconectado' : 'IBKR disconnected')
           }}
           uid={user?.uid} lang={lang}
