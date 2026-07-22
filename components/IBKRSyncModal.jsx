@@ -87,6 +87,10 @@ function DoneStep({ result, onClose, onComplementFile, t }) {
               {t('Completar con Activity Statement (XLS)', 'Complete with Activity Statement (XLS)')}
             </button>
           )}
+          <p className="text-[11px] leading-relaxed mt-2" style={{ color: 'var(--text-muted)' }}>
+            {t('Es de una sola vez: el historial de posiciones que abriste antes de tu query necesita el Excel. De ahí en adelante, cada nuevo depósito, retiro, operación o costo se detecta solo en cada sync.',
+               'It is one time only: the history of positions you opened before your query needs the Excel. From then on, every new deposit, withdrawal, trade or cost is detected automatically on each sync.')}
+          </p>
         </div>
       )}
       {/* History present but SHORT: the query period truncates it, so YTD can't

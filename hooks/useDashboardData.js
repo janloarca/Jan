@@ -848,8 +848,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         const txEventsBySym = buildTxEvents(transactions)
         const accountCashFlows = buildCashFlows(transactions,
           (amt, cur2) => convert ? convert(amt, cur2, 'USD') : amt)
+        // Prefer the CASH-{ccy} holding; fall back to any single IBKR bank-type item
+        // so the ledger still rebuilds cash when the symbol isn't exactly CASH-*.
         const cashItem = accountCashFlows.length > 0
-          ? enrichedItems.find((it) => it._source === 'ibkr' && /^CASH-/i.test(it.symbol || ''))
+          ? (enrichedItems.find((it) => it._source === 'ibkr' && /^CASH-/i.test(it.symbol || ''))
+             || enrichedItems.find((it) => it._source === 'ibkr' && /bank|cash/i.test(it.type || '')))
           : null
         const res = await authFetch('/api/prices/portfolio-history', {
           method: 'POST',

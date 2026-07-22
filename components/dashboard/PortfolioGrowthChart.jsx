@@ -138,10 +138,16 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     if (!transactions || selectedInst === 'ALL') return transactions
     const scopedIds = new Set(scopedItems.map((it) => it.id).filter(Boolean))
     const scopedSyms = new Set(scopedItems.map((it) => (it.symbol || '').toUpperCase()).filter(Boolean))
-    return transactions.filter((tx) =>
-      (tx._linkedItemId && scopedIds.has(tx._linkedItemId)) ||
-      (tx.symbol && scopedSyms.has((tx.symbol || '').toUpperCase()))
-    )
+    // IBKR deposit/withdrawal flows carry symbol 'CASH', but the cash HOLDING is
+    // 'CASH-USD' etc — a plain symbol match drops every flow in the scoped view. If
+    // this scope holds a cash/bank position, include the bare-CASH flows too.
+    const scopedHasCash = scopedItems.some((it) => /^CASH/i.test(it.symbol || ''))
+    return transactions.filter((tx) => {
+      const sym = (tx.symbol || '').toUpperCase()
+      return (tx._linkedItemId && scopedIds.has(tx._linkedItemId)) ||
+        (tx.symbol && scopedSyms.has(sym)) ||
+        (scopedHasCash && sym.startsWith('CASH'))
+    })
   }, [transactions, scopedItems, selectedInst])
 
   // When the manually-added (non-IBKR) assets were first created. Daily snapshots
@@ -259,8 +265,11 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       const accountCashFlows = buildCashFlows(scopedTransactions,
         (amt, cur2) => convert ? convert(amt, cur2, 'USD') : amt)
       // The whole account ledger attaches to ONE cash item (the broker's cash line).
+      // Prefer the CASH-{ccy} holding; fall back to any single IBKR bank-type item so
+      // the flows still rebuild the cash line when the symbol isn't exactly CASH-*.
       const cashItem = accountCashFlows.length > 0
-        ? chartItems.find((it) => it._source === 'ibkr' && /^CASH-/i.test(it.symbol || ''))
+        ? (chartItems.find((it) => it._source === 'ibkr' && /^CASH-/i.test(it.symbol || ''))
+           || chartItems.find((it) => it._source === 'ibkr' && /bank|cash/i.test(it.type || '')))
         : null
       const res = await authFetch('/api/prices/portfolio-history', {
         method: 'POST',
