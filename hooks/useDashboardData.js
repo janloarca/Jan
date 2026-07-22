@@ -855,9 +855,15 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         // collapsing jan1Value while netWorth excluded it → the YTD Dietz exploded
         // (start and end measuring different portfolios).
         const jan1Items = enrichedItems.filter((it) => !it.isDebt && !isExcludedFromNetWorth(it))
+        // Only rewind the cash line when there is a REAL external flow
+        // (deposit/withdrawal). With hold-flat stocks, rewinding cash by BUY/SELL
+        // double-counts (the flat holding already implies the shares were owned), which
+        // collapses the January baseline and blows up the YTD Dietz. Without deposits,
+        // leave cash flat.
+        const hasExternalFlow = (transactions || []).some((t) => /^(DEPOSIT|WITHDRAWAL)$/i.test(t.type || ''))
         // Prefer the CASH-{ccy} holding; fall back to any single IBKR bank-type item
         // so the ledger still rebuilds cash when the symbol isn't exactly CASH-*.
-        const cashItem = accountCashFlows.length > 0
+        const cashItem = (accountCashFlows.length > 0 && hasExternalFlow)
           ? (jan1Items.find((it) => it._source === 'ibkr' && /^CASH-/i.test(it.symbol || ''))
              || jan1Items.find((it) => it._source === 'ibkr' && /bank|cash/i.test(it.type || '')))
           : null

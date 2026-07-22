@@ -265,9 +265,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       const accountCashFlows = buildCashFlows(scopedTransactions,
         (amt, cur2) => convert ? convert(amt, cur2, 'USD') : amt)
       // The whole account ledger attaches to ONE cash item (the broker's cash line).
+      // Only rewind cash when there's a REAL external flow (deposit/withdrawal): with
+      // hold-flat stocks, rewinding by BUY/SELL double-counts and wrecks the baseline.
+      const hasExternalFlow = (scopedTransactions || []).some((t) => /^(DEPOSIT|WITHDRAWAL)$/i.test(t.type || ''))
       // Prefer the CASH-{ccy} holding; fall back to any single IBKR bank-type item so
       // the flows still rebuild the cash line when the symbol isn't exactly CASH-*.
-      const cashItem = accountCashFlows.length > 0
+      const cashItem = (accountCashFlows.length > 0 && hasExternalFlow)
         ? (chartItems.find((it) => it._source === 'ibkr' && /^CASH-/i.test(it.symbol || ''))
            || chartItems.find((it) => it._source === 'ibkr' && /bank|cash/i.test(it.type || '')))
         : null
