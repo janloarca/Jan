@@ -389,8 +389,8 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
               {!ibkrConfigured && showConfig && (
                 <div className="space-y-3 p-3 bg-theme-base border border-glass-border rounded-xl mt-2">
                   <p className="text-xs text-slate-600">
-                    {t('Ve a IBKR → Reports → Flex Queries → crear query con Open Positions + Trades + Cash Transactions + Cash Report + Equity Summary (las dos últimas dan tu cash y tus retornos reales). Genera un Flex Token en Settings.',
-                       'Go to IBKR → Reports → Flex Queries → create query with Open Positions + Trades + Cash Transactions + Cash Report + Equity Summary (the last two power your cash and real returns). Generate a Flex Token in Settings.')}
+                    {t('Ve a IBKR → Performance & Reports → Flex Queries → crea un Activity Flex Query con Open Positions, Trades, Cash Transactions, Cash Report y "Net Asset Value (NAV) in Base" (el historial de valor), período "Year to Date". El Token se genera en la MISMA página: engranaje ⚙ junto a "Flex Web Service". El Query ID es el número junto a tu query en la lista.',
+                       'Go to IBKR → Performance & Reports → Flex Queries → create an Activity Flex Query with Open Positions, Trades, Cash Transactions, Cash Report and "Net Asset Value (NAV) in Base" (the value history), period "Year to Date". The Token is generated on the SAME page: gear ⚙ next to "Flex Web Service". The Query ID is the number next to your query in the list.')}
                   </p>
                   {ibkrError && <p className="text-xs" style={{ color: 'var(--text-negative)' }}>{ibkrError}</p>}
                   <div>

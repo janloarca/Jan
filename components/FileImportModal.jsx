@@ -5,7 +5,7 @@ import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { detectBI, parseBI } from '@/lib/parsers/biParser'
 import { detectCoinbase, parseCoinbase } from '@/lib/parsers/coinbaseParser'
 import { detectKraken, parseKraken } from '@/lib/parsers/krakenParser'
-import { isIBKRSectionedFormat, parseIBKRFile, formatIBKRFileResult } from '@/lib/parsers/ibkrFileParser'
+import { isIBKRSectionedFormat, parseIBKRFile, formatIBKRFileResult, detectIBKRFileKind, pickSectionedCsvFromWorkbook } from '@/lib/parsers/ibkrFileParser'
 import { FINANCE_CATEGORIES, CATEGORY_COLORS } from '@/lib/financeCategories'
 import { matchStatement } from '@/lib/statementMatcher'
 import { validateItem, sanitizeImportItem, sanitizeCell } from '@/lib/validation'
@@ -306,27 +306,32 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       return
     }
 
+    const ibkrEmptyError = () => setError(lang === 'es'
+      ? 'No se encontraron posiciones. Exporta el Activity Statement desde IBKR (Performance & Reports → Statements → Activity) en CSV o Excel, con Open Positions, Trades y NAV.'
+      : 'No positions found. Export the Activity Statement from IBKR (Performance & Reports → Statements → Activity) as CSV or Excel, with Open Positions, Trades and NAV.')
+    const acceptIBKR = (rawTextOrCsv) => {
+      const parsed = parseIBKRFile(rawTextOrCsv)
+      if (parsed._isPerformanceReport || (parsed.positions.length === 0 && parsed.cashPositions.length === 0)) { ibkrEmptyError(); return true }
+      setIbkrData(formatIBKRFileResult(parsed)); setStep('ibkr-preview'); return true
+    }
+
     try {
       if (ext === 'csv') {
         const rawText = await file.text()
-        if (isIBKRSectionedFormat(rawText)) {
-          const parsed = parseIBKRFile(rawText)
-          if (parsed._isPerformanceReport || (parsed.positions.length === 0 && parsed.cashPositions.length === 0)) {
-            setError(lang === 'es'
-              ? 'No se encontraron posiciones en este archivo. Exporta un Activity Statement desde IBKR → Reports → Statements → Activity.'
-              : 'No positions found in this file. Export an Activity Statement from IBKR → Reports → Statements → Activity.')
-            return
-          }
-          const formatted = formatIBKRFileResult(parsed)
-          setIbkrData(formatted)
-          setStep('ibkr-preview')
-          return
-        }
+        const kind = detectIBKRFileKind(rawText)
+        if (kind === 'pdf') { setError(lang === 'es' ? 'Esto es un PDF. Vuelve a exportar el Activity Statement en CSV o Excel.' : 'This is a PDF. Re-export the Activity Statement as CSV or Excel.'); return }
+        if (kind === 'xml') { setError(lang === 'es' ? 'Esto es un XML de Flex Query. Para importar por archivo, exporta el Activity Statement en CSV o Excel.' : 'This is a Flex Query XML. For file import, export the Activity Statement as CSV or Excel.'); return }
+        if (isIBKRSectionedFormat(rawText)) { acceptIBKR(rawText); return }
       }
 
       const XLSX = await import('xlsx')
       const data = await file.arrayBuffer()
       const wb = XLSX.read(data, { type: 'array' })
+
+      // XLSX that carries the IBKR sectioned layout on ANY sheet is an Activity
+      // Statement — parse it as IBKR instead of the generic table mapper.
+      const sectionedCsv = pickSectionedCsvFromWorkbook(XLSX, wb)
+      if (sectionedCsv) { acceptIBKR(sectionedCsv); return }
 
       const sheetNames = wb.SheetNames.map((n) => n.toLowerCase())
       const assetsIdx = sheetNames.findIndex((n) => /activos|assets|portfolio|holdings/i.test(n))

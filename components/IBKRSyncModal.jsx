@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { CheckCircle, Lock, ChevronDown, ChevronUp, Upload, RefreshCw } from 'lucide-react'
-import { parseIBKRFile, formatIBKRFileResult } from '@/lib/parsers/ibkrFileParser'
+import { parseIBKRFile, formatIBKRFileResult, detectIBKRFileKind, pickSectionedCsvFromWorkbook } from '@/lib/parsers/ibkrFileParser'
 import { authFetch } from '@/lib/authFetch'
 
 // Real-phase stepper: shows which of the 4 sync phases is running instead of a
@@ -76,8 +76,8 @@ function DoneStep({ result, onClose, onComplementFile, t }) {
       {result.items > 0 && result.equityHistory <= 1 && (
         <div className="mt-3 mx-auto max-w-xs">
           <p className="text-xs leading-relaxed" style={{ color: 'var(--alert-warn-icon)' }}>
-            {t('Importamos tus posiciones, pero no llegó "Equity Summary" (historial de valor). Por eso tus retornos y la gráfica arrancan desde hoy. Si tu Flex Query no tiene esa opción, complétalo con tu Activity Statement (XLS): trae el historial de valor, tus operaciones con fecha, depósitos y comisiones.',
-               'We imported your positions, but no "Equity Summary" (value history) arrived. That is why your returns and chart start from today. If your Flex Query has no such option, complete it with your Activity Statement (XLS): it carries the value history, dated trades, deposits and commissions.')}
+            {t('Importamos tus posiciones, pero no llegó el historial de valor (la sección "Net Asset Value (NAV) in Base"). Por eso tus retornos y la gráfica arrancan desde hoy. Agrega esa sección al Flex Query, o complétalo con tu Activity Statement (XLS): trae el historial de valor, tus operaciones con fecha, depósitos y comisiones.',
+               'We imported your positions, but the value history did not arrive (the "Net Asset Value (NAV) in Base" section). That is why your returns and chart start from today. Add that section to your Flex Query, or complete it with your Activity Statement (XLS): it carries the value history, dated trades, deposits and commissions.')}
           </p>
           {onComplementFile && (
             <button onClick={onComplementFile}
@@ -390,18 +390,24 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
 
         if (isCSV) {
           const text = await file.text()
+          // Specific errors beat the generic "no data" so the user knows what to fix.
+          const kind = detectIBKRFileKind(text)
+          if (kind === 'pdf') throw new Error(t('Esto es un PDF. Vuelve a exportar el Activity Statement en formato CSV o Excel (XLS).', 'This is a PDF. Re-export the Activity Statement as CSV or Excel (XLS).'))
+          if (kind === 'xml') throw new Error(t('Esto es un archivo XML de Flex Query. Para importar por archivo, exporta el Activity Statement en CSV o Excel; el XML se usa solo por el sync automático (API).', 'This is a Flex Query XML file. For file import, export the Activity Statement as CSV or Excel; XML is only used by the automatic sync (API).'))
           parsed = parseIBKRFile(text)
         } else {
           const XLSX = (await import('xlsx')).default || await import('xlsx')
           const buf = await file.arrayBuffer()
           const wb = XLSX.read(buf, { type: 'array' })
-          const sheet = wb.Sheets[wb.SheetNames[0]]
-          const csv = XLSX.utils.sheet_to_csv(sheet)
-          if (csv && (/,Header,/.test(csv) || /,Data,/.test(csv))) {
+          // Scan ALL sheets for the sectioned layout — IBKR workbooks often put a
+          // cover sheet first and the real data on a later sheet.
+          const csv = pickSectionedCsvFromWorkbook(XLSX, wb)
+          if (csv) {
             parsed = parseIBKRFile(csv)
           } else {
+            const sheet = wb.Sheets[wb.SheetNames[0]]
             const json = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
-            if (json.length < 2) throw new Error(t('Archivo vacío o sin datos', 'File is empty or has no data'))
+            if (json.length < 2) throw new Error(t('El archivo no tiene datos legibles. Exporta el Activity Statement (Performance & Reports → Statements → Activity) en CSV o Excel.', 'The file has no readable data. Export the Activity Statement (Performance & Reports → Statements → Activity) as CSV or Excel.'))
             const headers = json[0].map(h => (h || '').toString().trim())
             const rows = json.slice(1).filter(r => r.some(c => c !== ''))
             parsed = parseIBKRFile(rows, headers)
@@ -417,9 +423,12 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       const data = await Promise.race([parsePromise, timeout])
 
       if (data.items.length === 0 && data.transactions.length === 0 && (data.equityHistory || []).length === 0) {
+        const found = (data._sectionNames || []).slice(0, 6).join(', ')
+        const foundEs = found ? ` Encontramos: ${found}, pero ninguna posición ni operación.` : ''
+        const foundEn = found ? ` We found: ${found}, but no positions or trades.` : ''
         throw new Error(t(
-          'No se encontraron datos en el archivo. Descarga un reporte de Portfolio Analyst desde IBKR (Performance & Reports → PortfolioAnalyst → Reports → CSV).',
-          'No data found in the file. Download a Portfolio Analyst report from IBKR (Performance & Reports → PortfolioAnalyst → Reports → CSV).'
+          `No se encontraron datos de tu cuenta.${foundEs} Exporta el Activity Statement en IBKR (Performance & Reports → Statements → Activity) en CSV o Excel, con Open Positions, Trades y NAV.`,
+          `No account data found.${foundEn} Export the Activity Statement in IBKR (Performance & Reports → Statements → Activity) as CSV or Excel, with Open Positions, Trades and NAV.`
         ))
       }
 
@@ -532,8 +541,8 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
     switch (errorCode) {
       case 'TOKEN_EXPIRED':
         return t(
-          'Ve a IBKR → Settings → API → Flex Web Service y genera un nuevo Token.',
-          'Go to IBKR → Settings → API → Flex Web Service and generate a new Token.'
+          'Ve a IBKR → Performance & Reports → Flex Queries, toca el engranaje ⚙ junto a "Flex Web Service" y genera un nuevo Token.',
+          'Go to IBKR → Performance & Reports → Flex Queries, click the gear ⚙ next to "Flex Web Service" and generate a new Token.'
         )
       case 'INVALID_QUERY':
         return t(
@@ -552,13 +561,13 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
         )
       case 'EMPTY_REPORT':
         return t(
-          'Verifica que tu Flex Query incluya "Open Positions", "Trades", "Cash Transactions", "Cash Report" y "Equity Summary" en su configuración.',
-          'Verify your Flex Query includes "Open Positions", "Trades", "Cash Transactions", "Cash Report" and "Equity Summary" in its configuration.'
+          'Verifica que tu Flex Query incluya "Open Positions", "Trades", "Cash Transactions", "Cash Report" y "Net Asset Value (NAV) in Base", y que el período sea "Year to Date".',
+          'Verify your Flex Query includes "Open Positions", "Trades", "Cash Transactions", "Cash Report" and "Net Asset Value (NAV) in Base", and that the period is "Year to Date".'
         )
       case 'LOCKED':
         return t(
-          'IBKR bloqueó el token por demasiados intentos. Genera un token NUEVO en IBKR → Settings → API → Flex Web Service, o importa un archivo CSV mientras tanto.',
-          'IBKR locked the token after too many attempts. Generate a NEW token at IBKR → Settings → API → Flex Web Service, or import a CSV file in the meantime.'
+          'IBKR bloqueó el token por demasiados intentos. Genera un token NUEVO en IBKR → Performance & Reports → Flex Queries → ⚙ Flex Web Service, o importa un archivo mientras tanto.',
+          'IBKR locked the token after too many attempts. Generate a NEW token at IBKR → Performance & Reports → Flex Queries → ⚙ Flex Web Service, or import a file in the meantime.'
         )
       default:
         return null
@@ -762,7 +771,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                     <ul className="mt-1.5 space-y-1" style={{ color: 'var(--text-muted)' }}>
                       <li>· <span className="text-white">Open Positions</span> + <span className="text-white">Cash Report</span>: {t('tus activos y efectivo de hoy', "today's assets and cash")}</li>
                       <li>· <span className="text-white">Trades</span> + <span className="text-white">Cash Transactions</span>: {t('tus compras/ventas y depósitos (para el retorno real)', 'your buys/sells and deposits (for real return)')}</li>
-                      <li>· <span className="text-white">Equity Summary</span>: {t('el valor diario de tu cuenta (la gráfica histórica)', "your account's daily value (the historical chart)")}</li>
+                      <li>· <span className="text-white">Net Asset Value (NAV) in Base</span>: {t('el valor diario de tu cuenta (la gráfica histórica)', "your account's daily value (the historical chart)")}</li>
                     </ul>
                   </div>
                 </div>
@@ -819,7 +828,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   <div>
                     <p className="text-xs text-white font-medium">{t('Crear el Flex Query', 'Create the Flex Query')}</p>
                     <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                      <span className="text-[var(--accent-blue)] font-mono">interactivebrokers.com</span> → Performance & Reports → Flex Queries → {t('crear Activity Flex Query con', 'create Activity Flex Query with')} <span className="text-white">Open Positions</span>, <span className="text-white">Trades</span>, <span className="text-white">Cash Transactions</span>, <span className="text-white">Cash Report</span> {t('y', 'and')} <span className="text-white">Equity Summary</span>
+                      <span className="text-[var(--accent-blue)] font-mono">interactivebrokers.com</span> → Performance & Reports → Flex Queries → {t('crear Activity Flex Query con', 'create Activity Flex Query with')} <span className="text-white">Open Positions</span>, <span className="text-white">Trades</span>, <span className="text-white">Cash Transactions</span>, <span className="text-white">Cash Report</span> {t('y', 'and')} <span className="text-white">Net Asset Value (NAV) in Base</span>
                     </p>
                     {/* Cash Report → <CashReportCurrency> balance rows. Without it the
                         account's idle cash never appears as a position. */}
@@ -831,12 +840,12 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                         This is the ONLY source of real historical portfolio value; without
                         it YTD/ALL and the value chart start from today (estimated, not real). */}
                     <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--accent-orange)' }}>
-                      {t('Incluye "Equity Summary" y pon el período del query en "Year to Date" o "Last 365 Days". El período manda: con "Last 30 Days" solo recibimos 30 días de historial, depósitos y trades, y tu retorno del año no puede cuadrar con IBKR.',
-                         'Include "Equity Summary" and set the query period to "Year to Date" or "Last 365 Days". The period rules everything: with "Last 30 Days" we only receive 30 days of history, deposits and trades, and your yearly return cannot match IBKR.')}
+                      {t('Incluye "Net Asset Value (NAV) in Base" (el historial de valor) y pon el período del query en "Year to Date" o "Last 365 Days". El período manda: con "Last 30 Days" solo recibimos 30 días de historial, depósitos y trades, y tu retorno del año no puede cuadrar con IBKR.',
+                         'Include "Net Asset Value (NAV) in Base" (the value history) and set the query period to "Year to Date" or "Last 365 Days". The period rules everything: with "Last 30 Days" we only receive 30 days of history, deposits and trades, and your yearly return cannot match IBKR.')}
                     </p>
                     <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-                      {t('¿Tu Flex Query no tiene la opción "Equity Summary"? Usa la pestaña "Importar archivo" y sube tu Activity Statement (XLS): trae el historial de valor completo.',
-                         'Does your Flex Query have no "Equity Summary" option? Use the "Import file" tab and upload your Activity Statement (XLS): it brings the full value history.')}
+                      {t('¿No encuentras la sección de NAV? Usa la pestaña "Importar archivo" y sube tu Activity Statement (XLS): trae el historial de valor completo.',
+                         'Can\'t find the NAV section? Use the "Import file" tab and upload your Activity Statement (XLS): it brings the full value history.')}
                     </p>
                     {/* Without Cash Transactions, deposits/withdrawals never import,
                         so Modified-Dietz returns are distorted by unaccounted flows. */}
@@ -858,14 +867,24 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   <div>
                     <p className="text-xs text-white font-medium">{t('Generar el Token', 'Generate the Token')}</p>
                     <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                      Settings → Account Settings → API → Flex Web Service → Create Token
+                      {t('En la MISMA página de Flex Queries, junto a ', 'On the SAME Flex Queries page, next to ')}
+                      <span className="text-white">Flex Web Service</span>
+                      {t(' toca el engranaje ⚙, actívalo y toca ', ' click the gear ⚙, enable it, then ')}
+                      <span className="text-white">Generate a New Token</span>.
+                      {t(' Cópialo de inmediato (no se vuelve a mostrar). El token NO está en Settings.', ' Copy it immediately (it will not show again). The token is NOT under Settings.')}
                     </p>
                   </div>
                 </div>
 
                 <div className="flex gap-4">
                   <span className="text-xs text-slate-500 font-mono pt-0.5 shrink-0">3.</span>
-                  <p className="text-xs text-white font-medium">{t('Pega ambos valores abajo', 'Paste both values below')}</p>
+                  <div>
+                    <p className="text-xs text-white font-medium">{t('Copia el Query ID y pega ambos abajo', 'Copy the Query ID and paste both below')}</p>
+                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                      {t('El Query ID es el número junto a tu query guardado en la lista de Flex Queries. El token y el Query ID son dos cosas distintas.',
+                         'The Query ID is the number next to your saved query in the Flex Queries list. The token and the Query ID are two different things.')}
+                    </p>
+                  </div>
                 </div>
               </div>
 
