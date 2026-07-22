@@ -848,17 +848,24 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         const txEventsBySym = buildTxEvents(transactions)
         const accountCashFlows = buildCashFlows(transactions,
           (amt, cur2) => convert ? convert(amt, cur2, 'USD') : amt)
+        // Reconstruct the SAME portfolio that netWorth (endValue) measures — same
+        // predicate as the chart (PortfolioGrowthChart) and the netWorth loop. Sending
+        // raw enrichedItems here included excluded/debt items (e.g. an IBKR bank line)
+        // that received the whole BUY/SELL ledger and got rewound strongly negative,
+        // collapsing jan1Value while netWorth excluded it → the YTD Dietz exploded
+        // (start and end measuring different portfolios).
+        const jan1Items = enrichedItems.filter((it) => !it.isDebt && !isExcludedFromNetWorth(it))
         // Prefer the CASH-{ccy} holding; fall back to any single IBKR bank-type item
         // so the ledger still rebuilds cash when the symbol isn't exactly CASH-*.
         const cashItem = accountCashFlows.length > 0
-          ? (enrichedItems.find((it) => it._source === 'ibkr' && /^CASH-/i.test(it.symbol || ''))
-             || enrichedItems.find((it) => it._source === 'ibkr' && /bank|cash/i.test(it.type || '')))
+          ? (jan1Items.find((it) => it._source === 'ibkr' && /^CASH-/i.test(it.symbol || ''))
+             || jan1Items.find((it) => it._source === 'ibkr' && /bank|cash/i.test(it.type || '')))
           : null
         const res = await authFetch('/api/prices/portfolio-history', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            items: enrichedItems.map((it) => {
+            items: jan1Items.map((it) => {
               const cur = it._originalCurrency || it.currency || 'USD'
               const toUSD = (p) => convert ? convert(p || 0, cur, 'USD') : (p || 0)
               return {
