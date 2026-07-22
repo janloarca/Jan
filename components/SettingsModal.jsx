@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { Settings, Building2, Users } from 'lucide-react'
 import EntityManager from '@/components/dashboard/EntityManager'
@@ -26,7 +26,7 @@ const CURRENCIES = [
   { code: 'CNY', name: 'Chinese Yuan', symbol: '¥' },
 ]
 
-export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onExportBackup, onOpenConnections, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, beginnerMode = false, onToggleBeginner, lang = 'es', portfolioItems = [] }) {
+export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onDeleteItemGroup, onExportBackup, onOpenConnections, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, beginnerMode = false, onToggleBeginner, lang = 'es', portfolioItems = [] }) {
   const trapRef = useFocusTrap()
   const [baseCurrency, setBaseCurrency] = useState(settings?.baseCurrency || 'USD')
   const [benchmarkSymbol, setBenchmarkSymbol] = useState(settings?.benchmarkSymbol || '%5EGSPC')
@@ -43,6 +43,27 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   const [friendsEnabled, setFriendsEnabled] = useState(settings?.friendsEnabled !== false)
 
   const t = (es, en) => lang === 'es' ? es : en
+
+  // Group holdings by origin (source + institution) so the user can wipe one account
+  // — e.g. "Interactive Brokers · IBKR API" — without touching another (their manual
+  // "IDC"). Same batch-delete engine (deleteItemGroup) that respects shared symbols.
+  const sourceLabel = (s) => {
+    const m = { ibkr: 'IBKR API', blockchain: t('Wallet', 'Wallet'), ledger: 'Ledger', hapi: 'Hapi', demo: 'Demo' }
+    if (m[s]) return m[s]
+    if (!s || String(s).startsWith('manual')) return t('Manual', 'Manual')
+    return String(s)
+  }
+  const accountGroups = useMemo(() => {
+    const map = new Map()
+    for (const it of portfolioItems || []) {
+      const source = it._source || 'manual'
+      const institution = (it.institution || '').trim()
+      const key = `${source}|${institution}`
+      if (!map.has(key)) map.set(key, { key, source, institution, ids: [], count: 0 })
+      const g = map.get(key); g.ids.push(it.id); g.count++
+    }
+    return [...map.values()].sort((a, b) => b.count - a.count)
+  }, [portfolioItems])
 
   const flash = (type, msg) => { setSaveStatus({ type, msg }); setTimeout(() => setSaveStatus(null), 3000) }
 
@@ -69,6 +90,10 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
     }
     setDeleting(type)
     try {
+      if (type.startsWith('group:') && onDeleteItemGroup) {
+        const g = accountGroups.find((x) => `group:${x.key}` === type)
+        if (g) await onDeleteItemGroup(g.ids)
+      }
       if (type === 'items') await onDeleteAllItems({ cascade: true })
       if (type === 'snapshots') await onDeleteAllSnapshots()
       if (type === 'transactions') await onDeleteAllTransactions()
@@ -598,6 +623,22 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                           { key: 'financeTransactions', label: t('Eliminar finanzas', 'Delete finance data'), desc: t('Solo los ingresos y gastos personales.', 'Only personal income and expense data.'), warn: t('Se perderá el historial de ingresos y gastos.', 'Income and expense history will be lost.') },
                           { key: 'snapshots', label: t('Eliminar snapshots', 'Delete snapshots'), desc: t('Solo el historial del gráfico de crecimiento.', 'Only the growth chart history.'), warn: t('El gráfico de crecimiento perderá datos históricos.', 'The growth chart will lose historical data.') },
                         ].map(renderAction)}
+
+                        {/* Per-account delete: wipe one origin (e.g. IBKR API) without
+                            touching another (manual IDC). Only when >1 account exists. */}
+                        {onDeleteItemGroup && accountGroups.length > 1 && (
+                          <div className="pt-1">
+                            <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">{t('Por cuenta', 'By account')}</p>
+                            <div className="space-y-2">
+                              {accountGroups.map((g) => renderAction({
+                                key: `group:${g.key}`,
+                                label: g.institution || t('Sin institución', 'No institution'),
+                                desc: `${g.count} ${g.count === 1 ? t('posición', 'position') : t('posiciones', 'positions')} · ${sourceLabel(g.source)}`,
+                                warn: t('Se borra solo esta cuenta (posiciones, lots y transacciones); las demás no se tocan.', 'Deletes only this account (positions, lots and transactions); the others are untouched.'),
+                              }))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </details>
                     {/* Build id: lets anyone confirm at a glance whether this phone is

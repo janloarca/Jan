@@ -324,6 +324,38 @@ export function useFirestoreItems() {
     }
   }, [uid, items, lots, transactions])
 
+  // Delete a specific set of items (by id) plus their lots and transactions — the
+  // engine behind the per-account "selective delete" in Settings. The caller (the UI)
+  // owns the grouping (by source/institution); this stays generic. Lots/transactions
+  // are only removed for symbols NO surviving item still holds, so deleting one account
+  // never strips history a sibling account shares.
+  const deleteItemGroup = useCallback(async (itemIds) => {
+    if (!uid || !itemIds?.length) return 0
+    const idSet = new Set(itemIds)
+    const groupItems = items.filter((i) => idSet.has(i.id))
+    if (groupItems.length === 0) return 0
+    const { db, fs } = await getFirebase()
+    const groupSyms = new Set(groupItems.map((i) => (i.symbol || '').toUpperCase()).filter(Boolean))
+    const survivingSyms = new Set(items.filter((i) => !idSet.has(i.id)).map((i) => (i.symbol || '').toUpperCase()))
+    const symDeletable = (s) => !!s && groupSyms.has(s) && !survivingSyms.has(s)
+    const refs = [
+      ...groupItems.map((i) => fs.doc(db, `users/${uid}/items`, i.id)),
+      ...lots.filter((l) => symDeletable((l.symbol || '').toUpperCase())).map((l) => fs.doc(db, `users/${uid}/lots`, l.id)),
+      ...transactions.filter((t) =>
+        idSet.has(t._linkedItemId) || idSet.has(t._destinationItemId) || idSet.has(t._originItemId)
+        || symDeletable((t.symbol || '').toUpperCase())
+      ).map((t) => fs.doc(db, `users/${uid}/transactions`, t.id)),
+    ]
+    const CHUNK = 30
+    for (let i = 0; i < refs.length; i += CHUNK) {
+      const batch = fs.writeBatch(db)
+      for (const ref of refs.slice(i, i + CHUNK)) batch.delete(ref)
+      await batch.commit()
+    }
+    setItems((cur) => cur.filter((it) => !idSet.has(it.id)))
+    return groupItems.length
+  }, [uid, items, lots, transactions])
+
   const addTransaction = useCallback(async (transaction) => {
     if (!uid) return
     const { db, fs } = await getFirebase()
@@ -806,7 +838,7 @@ export function useFirestoreItems() {
 
   return {
     items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, loading,
-    addItem, updateItem, deleteItem, deleteAllItems,
+    addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
     saveSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, deleteTransaction, deleteAllTransactions,
     addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,

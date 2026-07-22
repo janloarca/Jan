@@ -63,6 +63,7 @@ const RebalanceSuggestions = dynamic(() => import('@/components/dashboard/Rebala
 
 import RecentTransactions from '@/components/dashboard/RecentTransactions'
 import ChispuSuggestions from '@/components/dashboard/ChispuSuggestions'
+import CostsCard from '@/components/dashboard/CostsCard'
 import { analyzeDataCompleteness } from '@/lib/dataCompleteness'
 import { DEMO_ITEMS, DEMO_LOTS, DEMO_TRANSACTIONS, isDemoItem } from '@/lib/demoData'
 import AssetAllocation from '@/components/dashboard/AssetAllocation'
@@ -249,7 +250,7 @@ export default function DashboardPage() {
   const {
     items, snapshots, augmentedSnapshots, transactions, goals, settings, profile, effectiveProfile, alerts, lots, portfolios, financeTransactions,
     dataLoading,
-    addItem, updateItem, deleteItem, deleteAllItems,
+    addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
     saveSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, deleteAllTransactions,
     addAlert, deleteAlert,
@@ -959,6 +960,10 @@ export default function DashboardPage() {
           </ErrorBoundary>
         </SectionCollapse></div>
 
+        <div className="stagger-4">
+          <CardBoundary id="COST-01"><CostsCard transactions={transactions} convert={convert} baseCurrency={baseCurrency} lang={lang} /></CardBoundary>
+        </div>
+
         {/* ═══ ACTIVIDAD RECIENTE ═══ */}
         <div className="stagger-5"><SectionCollapse title={lang === 'es' ? 'Actividad Reciente' : 'Recent Activity'} id="activity" defaultOpen={false}>
           <ErrorBoundary lang={lang}>
@@ -1168,6 +1173,7 @@ export default function DashboardPage() {
           onDeleteAllItems={deleteAllItems} onDeleteAllSnapshots={deleteAllSnapshots}
           onDeleteAllTransactions={deleteAllTransactions}
           onDeleteAllFinanceTransactions={deleteAllFinanceTransactions}
+          onDeleteItemGroup={deleteItemGroup}
           entities={entities}
           onAddEntity={addEntity}
           onUpdateEntity={updateEntityData}
