@@ -7,6 +7,7 @@ import { detectCoinbase, parseCoinbase } from '@/lib/parsers/coinbaseParser'
 import { detectKraken, parseKraken } from '@/lib/parsers/krakenParser'
 import { isIBKRSectionedFormat, parseIBKRFile, formatIBKRFileResult, detectIBKRFileKind, pickSectionedCsvFromWorkbook } from '@/lib/parsers/ibkrFileParser'
 import { parseAmount, parseImportDate } from '@/lib/numberParse'
+import { FIELD_MAP, BROKER_PRESETS, guessMapping } from '@/lib/importMapping'
 import { FINANCE_CATEGORIES, CATEGORY_COLORS } from '@/lib/financeCategories'
 import { matchStatement } from '@/lib/statementMatcher'
 import { validateItem, sanitizeImportItem, sanitizeCell } from '@/lib/validation'
@@ -19,160 +20,6 @@ const BROKER_HINT_INSTITUTION = {
   fidelity: 'Fidelity', vanguard: 'Vanguard', degiro: 'DEGIRO', trading212: 'Trading 212',
   traderepublic: 'Trade Republic', etoro: 'eToro', webull: 'Webull', coinbase: 'Coinbase',
   kraken: 'Kraken', binance: 'Binance', bitso: 'Bitso', hapi: 'Hapi',
-}
-
-const FIELD_MAP = {
-  symbol: ['symbol', 'ticker', 'simbolo', 'código', 'codigo', 'sym', 'coin'],
-  name: ['name', 'nombre', 'description', 'descripcion', 'instrument', 'instrumento', 'asset', 'financial instrument', 'asset name'],
-  type: ['type', 'tipo', 'category', 'categoria', 'asset_type', 'asset type', 'asset class'],
-  subtype: ['subtype', 'subtipo', 'sub_type', 'sub type'],
-  quantity: ['quantity', 'cantidad', 'qty', 'shares', 'acciones', 'units', 'unidades', 'position', 'total', 'balance', 'amount'],
-  purchasePrice: ['precio de compra', 'purchase_price', 'purchaseprice', 'cost', 'costo', 'unit_price', 'avg_price', 'average price', 'precio promedio', 'precio compra', 'cost basis', 'cost price', 'avg cost'],
-  currentPrice: ['precio actual', 'current_price', 'currentprice', 'market_price', 'valor actual', 'price', 'precio', 'close price', 'mark price', 'last price', 'market value'],
-  institution: ['institution', 'institucion', 'broker', 'exchange', 'platform', 'plataforma', 'cuenta', 'account'],
-  currency: ['currency', 'moneda', 'ccy'],
-  acquisitionDate: ['fecha', 'fecha de compra', 'date', 'acquisition_date', 'purchase_date', 'fecha compra', 'fecha adquisicion', 'open date'],
-  maturityDate: ['maturity', 'vencimiento', 'maturity_date', 'fecha vencimiento', 'expiry', 'expiration'],
-  incomeRate: ['rate', 'tasa', 'yield', 'rendimiento', 'income_rate', 'interest_rate', 'tasa anual', 'annual_rate', 'apy', 'apr'],
-  taxJurisdiction: ['jurisdiction', 'jurisdiccion', 'tax_jurisdiction', 'pais', 'country'],
-  notes: ['notes', 'notas', 'comments', 'comentarios', 'memo'],
-}
-
-const BROKER_PRESETS = {
-  ibkr: {
-    detect: (h) => h.some((c) => /financial instrument/i.test(c)) || h.some((c) => /mark.?to.?market/i.test(c)),
-    institution: 'Interactive Brokers',
-    instructions: { es: 'IBKR → Performance & Reports → Flex Queries → Exportar CSV', en: 'IBKR → Performance & Reports → Flex Queries → Export CSV' },
-  },
-  degiro: {
-    detect: (h) => h.some((c) => /product/i.test(c)) && h.some((c) => /isin/i.test(c)) && h.some((c) => /local value/i.test(c)),
-    institution: 'DEGIRO',
-    instructions: { es: 'DEGIRO → Actividad → Portafolio → Exportar', en: 'DEGIRO → Activity → Portfolio → Export' },
-  },
-  trading212: {
-    detect: (h) => h.some((c) => /ticker.*isin/i.test(c)) || (h.some((c) => /^action$/i.test(c)) && h.some((c) => /price.*share/i.test(c))),
-    institution: 'Trading 212',
-    instructions: { es: 'Trading 212 → Menú → Historial → Exportar CSV', en: 'Trading 212 → Menu → History → Export CSV' },
-  },
-  tradeRepublic: {
-    detect: (h) => h.some((c) => /isin/i.test(c)) && h.some((c) => /^shares$/i.test(c)) && h.length <= 10,
-    institution: 'Trade Republic',
-    instructions: { es: 'Trade Republic → Perfil → Actividad → Exportar', en: 'Trade Republic → Profile → Activity → Export' },
-  },
-  lightyear: {
-    detect: (h) => h.some((c) => /ticker/i.test(c)) && h.some((c) => /average.*price/i.test(c)),
-    institution: 'Lightyear',
-    instructions: { es: 'Lightyear → Portfolio → Exportar posiciones', en: 'Lightyear → Portfolio → Export positions' },
-  },
-  saxoBank: {
-    detect: (h) => h.some((c) => /instrument/i.test(c)) && h.some((c) => /exposure/i.test(c)),
-    institution: 'Saxo Bank',
-    instructions: { es: 'Saxo → Account → Reports → Portfolio → Export', en: 'Saxo → Account → Reports → Portfolio → Export' },
-  },
-  schwab: {
-    detect: (h) => h.some((c) => /^symbol$/i.test(c)) && h.some((c) => /market value/i.test(c)) && h.some((c) => /security type/i.test(c)),
-    institution: 'Charles Schwab',
-    instructions: { es: 'Schwab → Positions → Export', en: 'Schwab → Positions → Export' },
-  },
-  fidelity: {
-    detect: (h) => h.some((c) => /^symbol$/i.test(c)) && h.some((c) => /last price/i.test(c)) && h.some((c) => /current value/i.test(c)),
-    institution: 'Fidelity',
-    instructions: { es: 'Fidelity → Positions → Download', en: 'Fidelity → Positions → Download' },
-  },
-  vanguard: {
-    detect: (h) => h.some((c) => /investment.*name/i.test(c)) && h.some((c) => /^symbol$/i.test(c)) && h.some((c) => /^shares$/i.test(c)),
-    institution: 'Vanguard',
-    instructions: { es: 'Vanguard → My Accounts → Download holdings', en: 'Vanguard → My Accounts → Download holdings' },
-  },
-  etoro: {
-    detect: (h) => h.some((c) => /position.*id/i.test(c)) || (h.some((c) => /open.*rate/i.test(c)) && h.some((c) => /close.*rate/i.test(c))),
-    institution: 'eToro',
-    instructions: { es: 'eToro → Portfolio → Configuración → Descargar datos', en: 'eToro → Portfolio → Settings → Download data' },
-  },
-  webull: {
-    detect: (h) => h.some((c) => /ticker/i.test(c)) && h.some((c) => /avg.*cost/i.test(c)) && h.some((c) => /market.*value/i.test(c)),
-    institution: 'Webull',
-    instructions: { es: 'Webull → Positions → Export CSV', en: 'Webull → Positions → Export CSV' },
-  },
-  tradeStation: {
-    detect: (h) => h.some((c) => /^symbol$/i.test(c)) && h.some((c) => /^last$/i.test(c)) && h.some((c) => /^qty$/i.test(c)),
-    institution: 'TradeStation',
-    instructions: { es: 'TradeStation → Portfolio → Exportar posiciones', en: 'TradeStation → Portfolio → Export positions' },
-  },
-  tastytrade: {
-    detect: (h) => h.some((c) => /^symbol$/i.test(c)) && h.some((c) => /instrument.*type/i.test(c)) && h.some((c) => /trade.*price/i.test(c)),
-    institution: 'Tastytrade',
-    instructions: { es: 'Tastytrade → Positions → Export', en: 'Tastytrade → Positions → Export' },
-  },
-  ig: {
-    detect: (h) => h.some((c) => /^market$/i.test(c)) && h.some((c) => /^direction$/i.test(c)) && h.some((c) => /^size$/i.test(c)),
-    institution: 'IG',
-    instructions: { es: 'IG → My IG → Reports → Download', en: 'IG → My IG → Reports → Download' },
-  },
-  dukascopy: {
-    detect: (h) => h.some((c) => /dukascopy/i.test(c)) || (h.some((c) => /^instrument$/i.test(c)) && h.some((c) => /^p.?l$/i.test(c))),
-    institution: 'Dukascopy',
-    instructions: { es: 'Dukascopy → Reports → Statement → Export', en: 'Dukascopy → Reports → Statement → Export' },
-  },
-  alpaca: {
-    detect: (h) => h.some((c) => /^symbol$/i.test(c)) && h.some((c) => /avg.*entry.*price/i.test(c)),
-    institution: 'Alpaca Markets',
-    instructions: { es: 'Alpaca → Dashboard → Portfolio → Export', en: 'Alpaca → Dashboard → Portfolio → Export' },
-  },
-  ppiGlobal: {
-    detect: (h) => h.some((c) => /especie/i.test(c)) || h.some((c) => /^ppi$/i.test(c)),
-    institution: 'PPI Global',
-    instructions: { es: 'PPI → Mi Portafolio → Exportar', en: 'PPI → My Portfolio → Export' },
-  },
-  tdAmeritrade: {
-    detect: (h) => h.some((c) => /account.*number/i.test(c)) && h.some((c) => /^security$/i.test(c)) && h.some((c) => /^description$/i.test(c)),
-    institution: 'TD Ameritrade',
-    instructions: { es: 'thinkorswim → Monitor → Activity → Export', en: 'thinkorswim → Monitor → Activity → Export' },
-  },
-  m1Finance: {
-    detect: (h) => h.some((c) => /^m1$/i.test(c)) || (h.some((c) => /^symbol$/i.test(c)) && h.some((c) => /target.*allocation/i.test(c))),
-    institution: 'M1 Finance',
-    instructions: { es: 'M1 → Research → Holdings → Export', en: 'M1 → Research → Holdings → Export' },
-  },
-  revolut: {
-    detect: (h) => h.some((c) => /^symbol$/i.test(c)) && h.some((c) => /^quantity$/i.test(c)) && h.some((c) => /price.*per.*share/i.test(c)),
-    institution: 'Revolut Investments',
-    instructions: { es: 'Revolut → Inversiones → Exportar estado de cuenta', en: 'Revolut → Investments → Export statement' },
-  },
-  myInvestor: {
-    detect: (h) => h.some((c) => /isin/i.test(c)) && h.some((c) => /participaciones/i.test(c)),
-    institution: 'MyInvestor',
-    instructions: { es: 'MyInvestor → Mi Cartera → Descargar posiciones', en: 'MyInvestor → My Portfolio → Download positions' },
-  },
-  coinbase: {
-    detect: (h) => detectCoinbase(h.map(c => (c || '').toString().trim())),
-    institution: 'Coinbase',
-    typeOverride: 'Crypto',
-    instructions: { es: 'Coinbase → Configuración → Reportes → Generar reporte', en: 'Coinbase → Settings → Reports → Generate report' },
-  },
-  kraken: {
-    detect: (h) => detectKraken(h.map(c => (c || '').toString().trim())),
-    institution: 'Kraken',
-    typeOverride: 'Crypto',
-    instructions: { es: 'Kraken → History → Export', en: 'Kraken → History → Export' },
-  },
-  binance: {
-    detect: (h) => h.some((c) => /^coin$/i.test(c)) && h.some((c) => /^total$/i.test(c)),
-    institution: 'Binance',
-    typeOverride: 'Crypto',
-    instructions: { es: 'Binance → Wallet → Spot → Export', en: 'Binance → Wallet → Spot → Export' },
-  },
-}
-
-function guessMapping(headers) {
-  const mapping = {}
-  const lowerHeaders = headers.map((h) => (h || '').toString().toLowerCase().trim())
-
-  for (const [field, aliases] of Object.entries(FIELD_MAP)) {
-    const idx = lowerHeaders.findIndex((h) => aliases.some((a) => h === a || h.includes(a)))
-    if (idx !== -1) mapping[field] = idx
-  }
-  return mapping
 }
 
 function inferType(row, mapping) {
@@ -485,7 +332,10 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         if (cp > 0) item.currentPrice = cp
       }
       if (mapping.acquisitionDate != null) {
-        const d = (row[mapping.acquisitionDate] || '').toString().trim()
+        // Normalize Excel serials (44576) and dd/mm/yyyy. Passing them through raw
+        // produced dates like the year 45000, which validation then rejected — the
+        // whole file came back "0 imported" with no reason shown.
+        const d = parseImportDate(row[mapping.acquisitionDate])
         if (d) item.acquisitionDate = d
       }
       if (mapping.subtype != null) {
@@ -493,7 +343,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         if (st) item.subtype = st
       }
       if (mapping.maturityDate != null) {
-        const md = (row[mapping.maturityDate] || '').toString().trim()
+        const md = parseImportDate(row[mapping.maturityDate])
         if (md) item.maturityDate = md
       }
       if (mapping.incomeRate != null) {
@@ -526,11 +376,15 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     let snapCount = 0
     let txCount = 0
 
+    // Reasons, not just a count: a rejected file used to report "0 imported /
+    // N failed" with nothing explaining why.
+    const failReasons = []
     for (const item of preview) {
       try {
         const errors = validateItem(item)
         if (errors.length > 0) {
           failed++
+          if (failReasons.length < 5) failReasons.push(`${item.symbol || item.name || '?'}: ${errors[0]}`)
           continue
         }
         if (activePortfolio && activePortfolio !== '__all__') {
@@ -565,8 +419,9 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
           }
         }
         success++
-      } catch {
+      } catch (e) {
         failed++
+        if (failReasons.length < 5) failReasons.push(`${item.symbol || item.name || '?'}: ${e?.message || 'error'}`)
       }
     }
 
@@ -588,7 +443,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       }
     }
 
-    setResult({ success, failed, total: preview.length, snapCount, txCount })
+    setResult({ success, failed, total: preview.length, snapCount, txCount, failReasons })
     setStep('done')
     setImporting(false)
   }, [preview, onImportItems, onImportSnapshot, onImportTransaction, onAddLot, activePortfolio, extraSheets])
@@ -1342,11 +1197,15 @@ Rules: do not invent any data; if something is missing from my documents leave i
           {/* Done step */}
           {step === 'done' && result && (
             <div className="text-center py-6">
-              <div className="text-5xl mb-4">{result.failed === 0 ? '🎉' : '⚠️'}</div>
+              {/* success === 0 is a FAILURE, not a success: a completely misread file
+                  used to show the celebration screen with "0 assets imported". */}
+              <div className="text-5xl mb-4">{result.failed === 0 && result.success > 0 ? '🎉' : '⚠️'}</div>
               <p className="text-white font-semibold text-lg mb-2">
-                {result.failed === 0
-                  ? t('Importación exitosa', 'Import successful')
-                  : t('Importación parcial', 'Partial import')}
+                {result.success === 0
+                  ? t('No se importó nada', 'Nothing was imported')
+                  : result.failed === 0
+                    ? t('Importación exitosa', 'Import successful')
+                    : t('Importación parcial', 'Partial import')}
               </p>
               <p className="text-slate-400 text-sm">
                 {result.success} {result.isBI ? t('transacciones importadas', 'transactions imported') : t('activos importados', 'assets imported')}
@@ -1363,6 +1222,22 @@ Rules: do not invent any data; if something is missing from my documents leave i
               )}
               {result.errorMsg && (
                 <p className="text-[#f87171] text-xs mt-2">{result.errorMsg}</p>
+              )}
+              {result.failReasons?.length > 0 && (
+                <div className="mt-3 mx-auto max-w-sm text-left px-3 py-2 rounded-lg"
+                  style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)' }}>
+                  <p className="text-[11px] font-semibold mb-1" style={{ color: 'var(--alert-warn-icon)' }}>
+                    {t('Por qué fallaron:', 'Why they failed:')}
+                  </p>
+                  {result.failReasons.map((r, i) => (
+                    <p key={i} className="text-[11px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>· {r}</p>
+                  ))}
+                  {result.failed > result.failReasons.length && (
+                    <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                      {t(`y ${result.failed - result.failReasons.length} más`, `and ${result.failed - result.failReasons.length} more`)}
+                    </p>
+                  )}
+                </div>
               )}
               <button onClick={onClose}
                 className="mt-6 px-8 py-2.5 rounded-lg hover:opacity-90 transition-colors text-sm font-medium" style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
