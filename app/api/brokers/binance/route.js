@@ -159,8 +159,15 @@ export async function POST(request) {
         return NextResponse.json({ error: 'No stored credentials. Enter your Binance API key and secret.' }, { status: 400 })
       }
       const data = doc.data()
-      apiKey = await decryptToken(data.apiKey, uid)
-      apiSecret = await decryptToken(data.apiSecret, uid)
+      // An undecryptable vault credential must read as a friendly re-save prompt,
+      // not an unhandled 500 (which Next renders as HTML that the client's
+      // safeJson then chokes on).
+      try {
+        apiKey = await decryptToken(data.apiKey, uid)
+        apiSecret = await decryptToken(data.apiSecret, uid)
+      } catch {
+        return NextResponse.json({ error: 'No pudimos leer tus credenciales guardadas. Vuelve a ingresarlas.', errorCode: 'CREDENTIALS_UNREADABLE' }, { status: 400 })
+      }
     }
 
     if (!apiKey || !apiSecret) {

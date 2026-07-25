@@ -155,7 +155,14 @@ export async function POST(request) {
       if (!doc.exists || !doc.data().apiKey) {
         return NextResponse.json({ error: 'No stored API key. Enter your Blockchain.com API key.' }, { status: 400 })
       }
-      apiKey = await decryptToken(doc.data().apiKey, uid)
+      // An undecryptable vault credential must read as a friendly re-save prompt,
+      // not an unhandled 500 (which Next renders as HTML that the client's
+      // safeJson then chokes on).
+      try {
+        apiKey = await decryptToken(doc.data().apiKey, uid)
+      } catch {
+        return NextResponse.json({ error: 'No pudimos leer tus credenciales guardadas. Vuelve a ingresarlas.', errorCode: 'CREDENTIALS_UNREADABLE' }, { status: 400 })
+      }
     }
 
     try {

@@ -41,28 +41,35 @@ function getCryptoName(symbol) {
   return CRYPTO_NAMES[symbol] || symbol
 }
 
+// Coinbase's legacy v2 API (the CB-ACCESS-KEY / CB-VERSION headers below) signs with
+// the secret as a PLAIN UTF-8 string and a hex digest. Base64-decoding the secret is
+// the Coinbase Pro/Exchange convention, and that one wants a base64 digest — this
+// function used to mix the two, so it matched NEITHER. Buffer.from(x,'base64') never
+// throws on non-base64 input, it just yields garbage bytes, so every request 401'd and
+// the UI told the user their brand-new, correct key was "invalid".
 function signRequest(timestamp, method, requestPath, body, secretKey) {
   const message = timestamp + method.toUpperCase() + requestPath + (body || '')
-  const key = Buffer.from(secretKey, 'base64')
-  return createHmac('sha256', key).update(message).digest('hex')
+  return createHmac('sha256', secretKey).update(message).digest('hex')
 }
 
 async function coinbaseFetch(path, apiKey, apiSecret) {
-  const timestamp = Math.floor(Date.now() / 1000).toString()
-  const method = 'GET'
-  const signature = signRequest(timestamp, method, path, '', apiSecret)
-
   const url = `${BASE_URL}${path}`
-  const res = await retryRequest(() => fetch(url, {
-    headers: {
-      'CB-ACCESS-KEY': apiKey,
-      'CB-ACCESS-SIGN': signature,
-      'CB-ACCESS-TIMESTAMP': timestamp,
-      'CB-VERSION': API_VERSION,
-      'Content-Type': 'application/json',
-    },
-    signal: AbortSignal.timeout(15000),
-  }))
+  // Timestamp and signature are built INSIDE the attempt factory: Coinbase rejects
+  // stale timestamps, so a retry must re-sign rather than replay the first stamp.
+  const res = await retryRequest(() => {
+    const timestamp = Math.floor(Date.now() / 1000).toString()
+    const signature = signRequest(timestamp, 'GET', path, '', apiSecret)
+    return fetch(url, {
+      headers: {
+        'CB-ACCESS-KEY': apiKey,
+        'CB-ACCESS-SIGN': signature,
+        'CB-ACCESS-TIMESTAMP': timestamp,
+        'CB-VERSION': API_VERSION,
+        'Content-Type': 'application/json',
+      },
+      signal: AbortSignal.timeout(15000),
+    })
+  })
 
   if (!res.ok) {
     const body = await res.text().catch(() => '')
@@ -156,8 +163,15 @@ export async function POST(request) {
         return NextResponse.json({ error: 'No stored credentials. Enter your Coinbase API key and secret.' }, { status: 400 })
       }
       const data = doc.data()
-      apiKey = await decryptToken(data.apiKey, uid)
-      apiSecret = await decryptToken(data.apiSecret, uid)
+      // An undecryptable vault credential must read as a friendly re-save prompt,
+      // not an unhandled 500 (which Next renders as HTML that the client's
+      // safeJson then chokes on).
+      try {
+        apiKey = await decryptToken(data.apiKey, uid)
+        apiSecret = await decryptToken(data.apiSecret, uid)
+      } catch {
+        return NextResponse.json({ error: 'No pudimos leer tus credenciales guardadas. Vuelve a ingresarlas.', errorCode: 'CREDENTIALS_UNREADABLE' }, { status: 400 })
+      }
     }
 
     if (!apiKey || !apiSecret) {

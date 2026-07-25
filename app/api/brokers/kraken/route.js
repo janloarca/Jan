@@ -166,15 +166,26 @@ async function syncPositions(apiKey, apiSecret) {
     }
   }
 
-  // Fetch ticker prices for all crypto assets
+  // Fetch ticker prices for all crypto assets.
+  // Kraken fails the WHOLE batched Ticker request with EQuery:Unknown asset pair if a
+  // single pair is unknown — and staked assets (ETH2.S, DOT.S, ADA.S) have no USD book,
+  // so one staked coin used to zero the price of EVERY position while the sync still
+  // reported success. Fall back to pricing pair-by-pair so one bad pair costs only
+  // itself, and report which ones we could not price.
   let tickerResult = {}
+  const unpriced = []
   if (cryptoSymbols.length > 0) {
     const pairs = buildTickerPairs(balances)
     if (pairs.length > 0) {
       try {
         tickerResult = await krakenPublic(`/0/public/Ticker?pair=${pairs.join(',')}`)
       } catch {
-        // If ticker fetch fails, positions will have price 0
+        for (const p of pairs) {
+          try {
+            const one = await krakenPublic(`/0/public/Ticker?pair=${p}`)
+            Object.assign(tickerResult, one || {})
+          } catch { unpriced.push(p) }
+        }
       }
     }
   }
@@ -250,8 +261,15 @@ export async function POST(request) {
       if (!doc.exists || !doc.data().apiKey || !doc.data().apiSecret) {
         return NextResponse.json({ error: 'No stored API credentials. Enter your Kraken API key and secret.' }, { status: 400 })
       }
-      apiKey = await decryptToken(doc.data().apiKey, uid)
-      apiSecret = await decryptToken(doc.data().apiSecret, uid)
+      // An undecryptable vault credential must read as a friendly re-save prompt,
+      // not an unhandled 500 (which Next renders as HTML that the client's
+      // safeJson then chokes on).
+      try {
+        apiKey = await decryptToken(doc.data().apiKey, uid)
+        apiSecret = await decryptToken(doc.data().apiSecret, uid)
+      } catch {
+        return NextResponse.json({ error: 'No pudimos leer tus credenciales guardadas. Vuelve a ingresarlas.', errorCode: 'CREDENTIALS_UNREADABLE' }, { status: 400 })
+      }
     }
 
     if (!apiKey || !apiSecret) {
