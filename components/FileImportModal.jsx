@@ -6,6 +6,7 @@ import { detectBI, parseBI } from '@/lib/parsers/biParser'
 import { detectCoinbase, parseCoinbase } from '@/lib/parsers/coinbaseParser'
 import { detectKraken, parseKraken } from '@/lib/parsers/krakenParser'
 import { isIBKRSectionedFormat, parseIBKRFile, formatIBKRFileResult, detectIBKRFileKind, pickSectionedCsvFromWorkbook } from '@/lib/parsers/ibkrFileParser'
+import { parseAmount, parseImportDate } from '@/lib/numberParse'
 import { FINANCE_CATEGORIES, CATEGORY_COLORS } from '@/lib/financeCategories'
 import { matchStatement } from '@/lib/statementMatcher'
 import { validateItem, sanitizeImportItem, sanitizeCell } from '@/lib/validation'
@@ -210,34 +211,11 @@ function parseCSVLine(line, sep) {
   return fields
 }
 
-function parseEuropeanOrUS(str) {
-  if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(str)) {
-    return parseFloat(str.replace(/\./g, '').replace(',', '.'))
-  }
-  if (/^-?\d+,\d{1,2}$/.test(str)) {
-    return parseFloat(str.replace(',', '.'))
-  }
-  return parseFloat(str.replace(/,/g, ''))
-}
-
+// Number parsing is delegated to the shared LatAm-aware parser (lib/numberParse):
+// the old local implementation turned "150,25" into 15025 and "1.234,56" into
+// 1.23456, silently corrupting every decimal-comma import.
 function parseNumber(val) {
-  if (val == null) return 0
-  if (typeof val === 'number') return isFinite(val) ? val : 0
-  let str = val.toString().trim()
-  str = str.replace(/[$€£¥₡₿Q₱₨]/g, '')
-  const neg = str.match(/^\((.+)\)$/)
-  if (neg) str = '-' + neg[1]
-  str = str.replace(/[\s ]/g, '')
-  str = str.replace(/%$/, '')
-  const shorthand = str.match(/^(-?[\d.,]+)([KkMmBb])$/)
-  if (shorthand) {
-    const mult = { k: 1e3, K: 1e3, m: 1e6, M: 1e6, b: 1e9, B: 1e9 }
-    const base = parseEuropeanOrUS(shorthand[1])
-    const result = base * (mult[shorthand[2]] || 1)
-    return isFinite(result) ? result : 0
-  }
-  const num = parseEuropeanOrUS(str)
-  return isFinite(num) ? num : 0
+  return parseAmount(val)
 }
 
 export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateItem, onDeleteItem, onBulkImport, existingItems, existingLots = [], existingFinanceTransactions = [], activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null }) {
@@ -316,17 +294,29 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     }
 
     try {
-      if (ext === 'csv') {
-        const rawText = await file.text()
-        const kind = detectIBKRFileKind(rawText)
-        if (kind === 'pdf') { setError(lang === 'es' ? 'Esto es un PDF. Vuelve a exportar el Activity Statement en CSV o Excel.' : 'This is a PDF. Re-export the Activity Statement as CSV or Excel.'); return }
-        if (kind === 'xml') { setError(lang === 'es' ? 'Esto es un XML de Flex Query. Para importar por archivo, exporta el Activity Statement en CSV o Excel.' : 'This is a Flex Query XML. For file import, export the Activity Statement as CSV or Excel.'); return }
-        if (isIBKRSectionedFormat(rawText)) { acceptIBKR(rawText); return }
-      }
-
       const XLSX = await import('xlsx')
-      const data = await file.arrayBuffer()
-      const wb = XLSX.read(data, { type: 'array' })
+      let wb
+      let csvText = null
+
+      if (ext === 'csv') {
+        // file.text() decodes UTF-8 correctly; letting SheetJS read the raw bytes
+        // decoded them as CP1252 and turned "Débito" into "DÃ©bito", which broke
+        // Spanish header detection (Banco Industrial statements fell through to the
+        // stock mapper).
+        csvText = await file.text()
+        const kind = detectIBKRFileKind(csvText)
+        if (kind === 'pdf') { setError(lang === 'es' ? 'Esto es un PDF, no una hoja de cálculo. Expórtalo de nuevo en CSV o Excel, o usa el asistente de IA de abajo para convertirlo.' : 'This is a PDF, not a spreadsheet. Re-export it as CSV or Excel, or use the AI helper below to convert it.'); return }
+        if (kind === 'xml') { setError(lang === 'es' ? 'Esto es un archivo XML. Expórtalo en CSV o Excel.' : 'This is an XML file. Export it as CSV or Excel.'); return }
+        if (isIBKRSectionedFormat(csvText)) { acceptIBKR(csvText); return }
+        // raw:true stops SheetJS from coercing "150,25" to the number 15025 and
+        // "1.234,56" to 1.23456 — the values reach parseAmount as written.
+        wb = XLSX.read(csvText, { type: 'string', raw: true })
+      } else {
+        const data = await file.arrayBuffer()
+        // cellDates keeps real date cells as Dates instead of serial numbers like
+        // 44576, which used to be read as the year 45000 and rejected every row.
+        wb = XLSX.read(data, { type: 'array', cellDates: true })
+      }
 
       // XLSX that carries the IBKR sectioned layout on ANY sheet is an Activity
       // Statement — parse it as IBKR instead of the generic table mapper.
@@ -334,12 +324,36 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       if (sectionedCsv) { acceptIBKR(sectionedCsv); return }
 
       const sheetNames = wb.SheetNames.map((n) => n.toLowerCase())
-      const assetsIdx = sheetNames.findIndex((n) => /activos|assets|portfolio|holdings/i.test(n))
+      // Spanish names were missing, so "Portafolio"/"Posiciones"/"Cartera" workbooks
+      // silently fell back to sheet 0 (usually a cover page).
+      const assetsIdx = sheetNames.findIndex((n) => /activos|assets|portafolio|portfolio|holdings|posiciones|tenencias|cartera|inversiones|saldos/i.test(n))
       const histIdx = sheetNames.findIndex((n) => /historial|history|snapshots/i.test(n))
-      const txIdx = sheetNames.findIndex((n) => /transacciones|transactions/i.test(n))
+      const txIdx = sheetNames.findIndex((n) => /transacciones|transactions|movimientos/i.test(n))
 
-      const mainSheet = wb.Sheets[wb.SheetNames[assetsIdx >= 0 ? assetsIdx : 0]]
+      // Pick the named sheet; otherwise the sheet with the most usable rows rather
+      // than blindly sheet 0.
+      let mainIdx = assetsIdx
+      if (mainIdx < 0) {
+        let best = 0, bestRows = -1
+        wb.SheetNames.forEach((nm, i) => {
+          if (i === histIdx || i === txIdx) return
+          const rows = XLSX.utils.sheet_to_json(wb.Sheets[nm], { header: 1, defval: '' })
+            .filter((r) => r.filter((c) => c !== '').length >= 2).length
+          if (rows > bestRows) { bestRows = rows; best = i }
+        })
+        mainIdx = best
+      }
+      const mainSheet = wb.Sheets[wb.SheetNames[mainIdx]]
       const json = XLSX.utils.sheet_to_json(mainSheet, { header: 1, defval: '' })
+
+      // A PDF saved with an .xls name parses into junk rows instead of throwing.
+      const looksPdf = json.length > 0 && /^%PDF/.test((json[0] || []).join(''))
+      if (looksPdf) {
+        setError(lang === 'es'
+          ? 'Esto es un PDF, no una hoja de cálculo. Expórtalo de nuevo en CSV o Excel, o usa el asistente de IA de abajo para convertirlo.'
+          : 'This is a PDF, not a spreadsheet. Re-export it as CSV or Excel, or use the AI helper below to convert it.')
+        return
+      }
 
       if (json.length < 2) {
         setError(lang === 'es' ? 'El archivo no tiene datos suficientes.' : 'File has insufficient data.')
