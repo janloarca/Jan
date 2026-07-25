@@ -188,10 +188,17 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
       })
       if (res.ok) {
         const data = await safeJson(res)
-        if (data.positions && onSyncBroker) {
-          onSyncBroker(broker.id, data)
+        // A 200 can still carry an error body (EMPTY_PORTFOLIO and friends) — the old
+        // code ignored it and flashed a green "0 positions synced", so an expired
+        // token or a swallowed per-account failure looked like a success.
+        const n = (data.positions || []).length || data.count || 0
+        if (data.error || n === 0) {
+          setBrokerError(data.error || t('No se recibió ninguna posición. Revisa que la conexión siga activa.',
+                                         'No positions received. Check that the connection is still active.'))
+        } else {
+          if (data.positions && onSyncBroker) await onSyncBroker(broker.id, data)
+          flash('ok', `${broker.name}: ${n} ${t('posiciones sincronizadas', 'positions synced')}`)
         }
-        flash('ok', `${broker.name}: ${data.count || 0} ${t('posiciones sincronizadas', 'positions synced')}`)
       } else {
         const d = await safeJson(res) || {}
         setBrokerError(d.error || 'Sync failed')
@@ -203,11 +210,17 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
   const handleBrokerDisconnect = async (broker) => {
     setBrokerSyncing(broker.id)
     try {
-      await authFetch(`/api/brokers/${broker.id}`, {
+      const res = await authFetch(`/api/brokers/${broker.id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'save-credentials' }),
       })
+      // Without this check a server-side failure still cleared the card and said
+      // "unlinked" while the encrypted credential stayed in the vault.
+      if (!res.ok) {
+        const d = await safeJson(res) || {}
+        throw new Error(d.error || t('No se pudo desvincular. Intenta de nuevo.', 'Could not unlink. Try again.'))
+      }
       setBrokerConnections(prev => { const n = { ...prev }; delete n[broker.id]; return n })
       flash('ok', `${broker.name} ${t('desvinculado', 'unlinked')}`)
     } catch (e) { flash('err', e.message) }

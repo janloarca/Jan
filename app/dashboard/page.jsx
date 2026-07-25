@@ -64,6 +64,7 @@ const RebalanceSuggestions = dynamic(() => import('@/components/dashboard/Rebala
 import RecentTransactions from '@/components/dashboard/RecentTransactions'
 import ChispuSuggestions from '@/components/dashboard/ChispuSuggestions'
 import CostsCard from '@/components/dashboard/CostsCard'
+import { reconcileBrokerPositions } from '@/lib/brokerReconcile'
 import { analyzeDataCompleteness } from '@/lib/dataCompleteness'
 import { DEMO_ITEMS, DEMO_LOTS, DEMO_TRANSACTIONS, isDemoItem } from '@/lib/demoData'
 import AssetAllocation from '@/components/dashboard/AssetAllocation'
@@ -1221,20 +1222,42 @@ export default function DashboardPage() {
           onSyncBroker={async (brokerId, data) => {
             const positions = data?.positions || data || []
             const posArray = Array.isArray(positions) ? positions : []
+            const source = brokerId || 'broker'
             const mapped = posArray.filter(p => p.quantity !== 0).map(p => ({
               symbol: (p.symbol || '').toUpperCase(), name: p.name || p.symbol,
               type: p.type || 'Stock', quantity: Math.abs(p.quantity || 0),
               purchasePrice: p.purchasePrice || 0, currentPrice: p.currentPrice || 0,
               institution: p.institution || brokerId || 'Unknown', currency: p.currency || 'USD',
               acquisitionDate: p.acquisitionDate,
-              _source: brokerId || 'broker',
+              // Preserve the short/long side: the old mapper dropped isDebt and
+              // Math.abs'd the quantity, so a hedged book imported as 100% long.
+              isDebt: !!p.isDebt || (p.quantity || 0) < 0,
+              conid: p.conid, accountId: p.accountId || p._ibkrAccountId,
+              _source: source,
             }))
-            if (mapped.length > 0) {
-              await bulkImport({ items: mapped }, (done, total) => {
-                showToast(`Sync ${brokerId}: ${done}/${total}`, 'info', 2000)
-              })
-              showToast(`${brokerId}: ${mapped.length} positions synced`, 'success')
+            if (mapped.length === 0) {
+              showToast(lang === 'es'
+                ? `${brokerId}: no se recibieron posiciones. Revisa la conexión.`
+                : `${brokerId}: no positions received. Check the connection.`, 'error')
+              return
             }
+            // Reconcile instead of blind-inserting: bulkImport mints a new id per
+            // item, so the old path duplicated the whole portfolio on every sync.
+            const tag = {}
+            if (activePortfolio && activePortfolio !== '__all__') tag.portfolioId = activePortfolio
+            if (activeEntity && activeEntity !== '__all__' && activeEntity !== 'default') tag.entityId = activeEntity
+            const { newItems, updateItems, deleteIds } = reconcileBrokerPositions({
+              incoming: mapped, existing: items, source, tag,
+            })
+            await bulkImport({ items: newItems, updateItems, deleteIds }, (done, total) => {
+              showToast(`Sync ${brokerId}: ${done}/${total}`, 'info', 2000)
+            })
+            const parts = [
+              `${mapped.length} ${lang === 'es' ? 'posiciones' : 'positions'}`,
+              newItems.length ? `+${newItems.length}` : null,
+              deleteIds.length ? `-${deleteIds.length}` : null,
+            ].filter(Boolean)
+            showToast(`${brokerId}: ${parts.join(' · ')}`, 'success')
           }}
         />
       )}
