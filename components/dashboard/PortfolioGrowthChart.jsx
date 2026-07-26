@@ -765,16 +765,27 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
   const drawdown = useMemo(() => {
     if (chartData.length < 3) return null
-    let peak = chartData[0].value, peakIdx = 0
+    // A drawdown measured across the RECONSTRUCTED prefix is fiction: holding today's
+    // positions flat backwards replays this year's market swings on shares the user may
+    // not have owned, which produced a scary "-20.1%" that never happened to them.
+    // Only measure once real broker data starts.
+    const realStart = (!apiTransactional && firstRealTs != null)
+      ? chartData.findIndex((p) => p.ts >= firstRealTs - 3600000)
+      : 0
+    if (realStart < 0) return null
+    const series = realStart > 0 ? chartData.slice(realStart) : chartData
+    if (series.length < 3) return null
+    let peak = series[0].value, peakIdx = 0
     let maxDd = 0, ddStart = 0, ddEnd = 0
-    for (let i = 1; i < chartData.length; i++) {
-      if (chartData[i].value > peak) { peak = chartData[i].value; peakIdx = i }
-      const dd = peak > 0 ? (peak - chartData[i].value) / peak : 0
+    for (let i = 1; i < series.length; i++) {
+      if (series[i].value > peak) { peak = series[i].value; peakIdx = i }
+      const dd = peak > 0 ? (peak - series[i].value) / peak : 0
       if (dd > maxDd) { maxDd = dd; ddStart = peakIdx; ddEnd = i }
     }
     if (maxDd < 0.01) return null
-    return { start: ddStart, end: ddEnd, pct: maxDd * 100 }
-  }, [chartData])
+    // Indices are consumed against chartData (banner labels + the SVG shading rect).
+    return { start: ddStart + realStart, end: ddEnd + realStart, pct: maxDd * 100 }
+  }, [chartData, apiTransactional, firstRealTs])
 
   const txMarkers = useMemo(() => {
     if (!scopedTransactions || chartData.length < 2) return []
@@ -880,8 +891,19 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     }))
   }, [geo, benchmarkReturnSeries, viewMode, chartHeight, pad])
 
-  const firstVal = chartData.length > 0 ? chartData[0].value : 0
-  const lastVal = chartData.length > 0 ? chartData[chartData.length - 1].value : 0
+  // The value headline must never be computed against a RECONSTRUCTED start. With only
+  // a few days of real broker data, the hold-flat prefix projects today's positions back
+  // to January prices, and comparing today against that invented January produced a
+  // confident, wrong number (a real case showed "-4.86% este año" for an account that
+  // was actually up ~10%). Measure from the first REAL point instead, and say since when.
+  const valueRebasedFrom = !apiTransactional && firstRealTs != null && chartData.length > 1
+    && chartData[0].ts < firstRealTs - 3600000
+    ? firstRealTs : null
+  const measuredData = valueRebasedFrom
+    ? chartData.filter((p) => p.ts >= valueRebasedFrom - 3600000)
+    : chartData
+  const firstVal = measuredData.length > 0 ? measuredData[0].value : 0
+  const lastVal = measuredData.length > 0 ? measuredData[measuredData.length - 1].value : 0
   const growthAbs = lastVal - firstVal
   const growthPct = firstVal > 0 ? (growthAbs / firstVal) * 100 : 0
   const lastReturn = returnData.length > 0 ? returnData[returnData.length - 1] : 0
@@ -1076,7 +1098,13 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           <p className="text-3xl font-bold text-white font-mono tabular-nums">{formatCurrency(hd ? hd.value : currentTotal)}</p>
           <p className="text-sm mt-0.5" style={{ color: growthAbs >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
             <span className="font-mono tabular-nums">{growthAbs >= 0 ? '+' : ''}{formatCurrency(growthAbs)} ({growthAbs >= 0 ? '+' : ''}{growthPct.toFixed(2)}%)</span>
-            <span className="text-slate-500 ml-1">{period === 'YTD' ? t('este año', 'this year') : period === 'DAY' ? t('hoy', 'today') : period === 'CUSTOM' ? t('rango', 'range') : period}</span>
+            {/* Never claim "this year" when the measured window starts at the first
+                real data point instead of January. */}
+            <span className="text-slate-500 ml-1">
+              {valueRebasedFrom
+                ? `${t('desde', 'since')} ${formatDate(new Date(valueRebasedFrom).toISOString())}`
+                : period === 'YTD' ? t('este año', 'this year') : period === 'DAY' ? t('hoy', 'today') : period === 'CUSTOM' ? t('rango', 'range') : period}
+            </span>
             {/* Raw NAV delta — deposits count as "growth" here. The deposit-adjusted
                 return lives in the YTD badge (Dietz) and the Performance tab. */}
             <span className="text-xs text-slate-600 ml-1.5">{t('· incluye depósitos', '· includes deposits')}</span>
@@ -1249,11 +1277,28 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                     fill="var(--text-negative)" opacity="0.06" rx="2" />
                 )}
 
-                {/* Main value area + line */}
+                {/* Main value area + line. When part of the curve is a reconstruction
+                    (today's positions projected backwards), that stretch is drawn dashed
+                    and faded so it reads as an estimate rather than as recorded history. */}
                 <path
                   d={`${polyline(geo.points)} L ${geo.points[geo.points.length - 1].x} ${geo.baselineY} L ${geo.points[0].x} ${geo.baselineY} Z`}
                   fill="url(#grad-value)" />
-                <path d={polyline(geo.points)} fill="none" stroke="var(--accent-blue)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                {(() => {
+                  const splitIdx = valueRebasedFrom != null
+                    ? chartData.findIndex((p) => p.ts >= valueRebasedFrom - 3600000)
+                    : -1
+                  if (splitIdx <= 0 || splitIdx >= geo.points.length) {
+                    return <path d={polyline(geo.points)} fill="none" stroke="var(--accent-blue)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  }
+                  return (
+                    <>
+                      <path d={polyline(geo.points.slice(0, splitIdx + 1))} fill="none" stroke="var(--accent-blue)" strokeWidth="1.5"
+                        strokeLinecap="round" strokeLinejoin="round" strokeDasharray="5 4" strokeOpacity="0.45" />
+                      <path d={polyline(geo.points.slice(splitIdx))} fill="none" stroke="var(--accent-blue)" strokeWidth="2"
+                        strokeLinecap="round" strokeLinejoin="round" />
+                    </>
+                  )
+                })()}
 
                 {/* Contributions line (invested capital) */}
                 {contributionGeoPoints && contributionGeoPoints.length >= 2 && showContributions && (
