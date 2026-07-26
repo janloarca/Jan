@@ -6,15 +6,15 @@ import { useDashboardData } from '@/hooks/useDashboardData'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { buildFriendStats } from '@/lib/friendsStats'
 import { getItemValue } from '@/components/dashboard/utils'
-import Header from '@/components/dashboard/Header'
-import MobileNav from '@/components/dashboard/MobileNav'
+import PageShell, { PageTitle } from '@/components/PageShell'
+import { Users } from 'lucide-react'
 import { SkeletonCard } from '@/components/dashboard/Skeleton'
 import PageTour from '@/components/dashboard/PageTour'
 
-const GREEN = '#34d399'
-const RED = '#f87171'
-
-function pctColor(v) { return v == null ? 'var(--text-secondary)' : v >= 0 ? GREEN : RED }
+// Tokens, not literals: these used to be the DARK-theme hex values hardcoded, so in
+// light theme every percentage on this page rendered as pale pastel on white while
+// the other tabs shifted correctly.
+function pctColor(v) { return v == null ? 'var(--text-secondary)' : v >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }
 function fmtPct(v, decimals = 2) {
   if (v == null || !isFinite(v)) return '-'
   return `${v >= 0 ? '+' : ''}${v.toFixed(decimals)}%`
@@ -216,8 +216,10 @@ export default function FriendsPage() {
   // ---- render gates live BELOW every hook ----------------------------------
   if (authLoading || (user && dataLoading)) {
     return (
-      <div className="min-h-screen bg-theme-base p-4 sm:p-6 max-w-3xl mx-auto space-y-4">
-        <SkeletonCard /><SkeletonCard />
+      <div className="min-h-screen bg-theme-base">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-5">
+          <SkeletonCard /><SkeletonCard />
+        </div>
       </div>
     )
   }
@@ -226,11 +228,7 @@ export default function FriendsPage() {
   const my = myStats.all || { ytd: null, day: null }
 
   return (
-    <div className="min-h-screen bg-theme-base">
-      <a href="#main-content" className="skip-link">{t('Ir al contenido', 'Skip to content')}</a>
-      <Header user={user} lang={lang} setLang={handleSetLang} friendsEnabled
-        onImport={() => {}} onSettings={() => router.push('/dashboard')} onSignOut={handleSignOut}
-        onRefresh={() => {}} pricesLoading={false} />
+    <PageShell user={user} lang={lang} setLang={handleSetLang} settings={settings} width="narrow">
       <PageTour pageKey="friends" nextRoute="/dashboard" nextFlag={null} lang={lang} steps={[
         {
           tab: t('Amigos', 'Friends'),
@@ -252,11 +250,9 @@ export default function FriendsPage() {
         },
       ]} />
 
-      <main id="main-content" className="max-w-3xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-5 pb-24">
-        <div>
-          <h1 className="text-lg font-bold text-white flex items-center gap-2">👥 {t('Amigos', 'Friends')}</h1>
-          <p className="text-xs text-slate-500">{t('Compara tu retorno con tus amigos: sin revelar montos.', 'Compare your return with friends: without revealing amounts.')}</p>
-        </div>
+      <PageTitle icon={Users}
+        title={t('Amigos', 'Friends')}
+        subtitle={t('Compara tu retorno con tus amigos: sin revelar montos.', 'Compare your return with friends: without revealing amounts.')} />
 
         {/* Your card */}
         <div className="rounded-xl p-4 border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--card-border)' }}>
@@ -379,17 +375,14 @@ export default function FriendsPage() {
         {/* Global anonymous leaderboard */}
         <GlobalBoard global={global} lang={lang} t={t} api={api} flash={flash} onChanged={refresh} />
 
-        <div className="text-center text-[10px] text-slate-600 pt-2">Chispudo · chispu.xyz</div>
-      </main>
+        <div className="text-center text-micro pt-2" style={{ color: 'var(--text-muted)' }}>Chispudo · chispu.xyz</div>
 
       {toast && (
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg text-xs text-white shadow-lg" style={{ backgroundColor: 'var(--accent-blue)' }}>
           {toast}
         </div>
       )}
-
-      <MobileNav lang={lang} friendsEnabled onAdd={() => router.push('/dashboard')} onImport={() => {}} onExport={() => {}} onShare={() => {}} onSettings={() => router.push('/dashboard')} />
-    </div>
+    </PageShell>
   )
 }
 

@@ -8,6 +8,8 @@ import { useSpreadsheetContext } from '@/hooks/useSpreadsheetContext'
 import SheetTabs from '@/components/spreadsheet/SheetTabs'
 import { SkeletonTable } from '@/components/dashboard/Skeleton'
 import PageTour from '@/components/dashboard/PageTour'
+import Header from '@/components/dashboard/Header'
+import MobileNav from '@/components/dashboard/MobileNav'
 import { TEMPLATES } from '@/lib/spreadsheet/formulas'
 
 const SpreadsheetGrid = dynamic(() => import('@/components/spreadsheet/SpreadsheetGrid'), { ssr: false })
@@ -36,6 +38,20 @@ export default function SpreadsheetPage() {
     }
   }, [])
 
+  const handleSetLang = useCallback(() => {
+    const next = lang === 'en' ? 'es' : 'en'
+    setLang(next)
+    if (typeof window !== 'undefined') localStorage.setItem('chispudo-lang', next)
+  }, [lang])
+
+  const handleSignOut = useCallback(async () => {
+    const { auth } = await import('@/lib/firebase')
+    const { signOut } = await import('firebase/auth')
+    document.cookie = '__session=; path=/; max-age=0'
+    if (auth) await signOut(auth)
+    router.push('/login')
+  }, [router])
+
   useEffect(() => {
     async function initAuth() {
       const { auth } = await import('@/lib/firebase')
@@ -55,7 +71,7 @@ export default function SpreadsheetPage() {
     items, enrichedItems, netWorth, transactions, financeTransactions, returnYTD,
     snapshots, addItem, updateItem, deleteItem, portfolioItems, convert, rates,
     baseCurrency, saveItemSnapshots, loadItemSnapshots, lots,
-    addTransaction, addLot, closeLotsFIFO, executeContribution, dataLoading,
+    addTransaction, addLot, closeLotsFIFO, executeContribution, dataLoading, settings,
   } = useDashboardData({ user, lang, activePortfolio: '__all__' })
 
   const [editItem, setEditItem] = useState(null)
@@ -146,8 +162,10 @@ export default function SpreadsheetPage() {
   // Block on data too — otherwise the grids mount empty and the content pops in.
   if (authLoading || (user && dataLoading)) {
     return (
-      <div className="min-h-screen bg-theme-base p-6 space-y-4">
-        <SkeletonTable />
+      <div className="min-h-screen bg-theme-base">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4">
+          <SkeletonTable />
+        </div>
       </div>
     )
   }
@@ -155,7 +173,12 @@ export default function SpreadsheetPage() {
   if (!user) return null
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: view === 'custom' ? '#09090b' : '#f1f5f9' }}>
+    <div className="min-h-screen flex flex-col bg-theme-base">
+      <a href="#main-content" className="skip-link">{t('Ir al contenido', 'Skip to content')}</a>
+      <Header user={user} lang={lang} setLang={handleSetLang}
+        friendsEnabled={settings?.friendsEnabled !== false}
+        onImport={() => router.push('/dashboard')} onSettings={() => router.push('/dashboard')}
+        onSignOut={handleSignOut} onRefresh={() => {}} pricesLoading={false} />
       <PageTour pageKey="spreadsheet" nextRoute="/friends" nextFlag="friends" lang={lang} steps={[
         {
           tab: t('Hoja de Cálculo', 'Spreadsheet'),
@@ -177,19 +200,12 @@ export default function SpreadsheetPage() {
                   'The whole matrix downloads as Excel in one click, ready for your accountant or your own analysis. None of your data is locked in the app.'),
         },
       ]} />
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b" style={view === 'custom' ? { backgroundColor: '#141416', borderColor: '#27272a' } : { backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
-        <div className="flex items-center gap-3">
-          <button onClick={() => router.push('/dashboard')} className="transition-colors" style={{ color: '#94a3b8' }}>
-            ← {t('Dashboard', 'Dashboard')}
-          </button>
-          <div className="w-px h-5" style={{ backgroundColor: view === 'custom' ? '#27272a' : '#e2e8f0' }} />
-          <h1 className="text-sm font-semibold flex items-center gap-2" style={{ color: view === 'custom' ? '#ffffff' : '#0f172a' }}>
-            Spreadsheet
-          </h1>
-        </div>
+      {/* View switcher. The global Header above owns navigation now; this bar only
+          carries the view tabs and view-specific actions, in theme tokens. */}
+      <div id="main-content" className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 flex items-center justify-between gap-3 flex-wrap">
+        <h1 className="text-h1 font-bold text-white">{t('Hoja de Cálculo', 'Spreadsheet')}</h1>
         <div className="flex items-center gap-2">
-          <div className="flex rounded-lg border p-0.5" style={view === 'custom' ? { backgroundColor: '#09090b', borderColor: '#27272a' } : { backgroundColor: '#f1f5f9', borderColor: '#e2e8f0' }}>
+          <div className="flex rounded-lg border p-0.5" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--card-border)' }}>
             {[
               { key: 'portfolio', label: 'Portfolio' },
               { key: 'debts', label: t('Deudas', 'Debts') },
@@ -202,20 +218,22 @@ export default function SpreadsheetPage() {
             ].map(tab => (
               <button key={tab.key} onClick={() => setView(tab.key)}
                 className="px-3 py-1 text-xs rounded-md transition-colors"
-                style={view === tab.key ? { backgroundColor: 'var(--accent-blue)', color: '#ffffff' } : { color: '#94a3b8' }}>
+                style={view === tab.key ? { backgroundColor: 'var(--accent-blue)', color: '#ffffff' } : { color: 'var(--text-muted)' }}>
                 {tab.label}
               </button>
             ))}
           </div>
           {['portfolio', 'debts', 'patrimonio'].includes(view) && (portfolioItems || enrichedItems)?.length > 0 && (
             <button onClick={() => setShowReview(true)}
-              className="px-3 py-1.5 text-xs text-slate-600 border border-slate-300 rounded hover:text-slate-900 hover:border-slate-400 hover:bg-slate-50 transition-colors">
+              className="px-3 py-1.5 text-xs rounded-lg border transition-colors hover:bg-theme-elevated"
+              style={{ color: 'var(--text-secondary)', borderColor: 'var(--card-border)' }}>
               {t('Revisar todas', 'Review all')}
             </button>
           )}
           {view === 'custom' && (
             <button onClick={() => setShowTemplates(!showTemplates)}
-              className="px-3 py-1.5 text-xs text-slate-400 border border-slate-600 rounded hover:text-white hover:border-slate-500 transition-colors">
+              className="px-3 py-1.5 text-xs rounded-lg border transition-colors hover:bg-theme-elevated"
+              style={{ color: 'var(--text-secondary)', borderColor: 'var(--card-border)' }}>
               {t('Plantillas', 'Templates')}
             </button>
           )}
@@ -352,6 +370,11 @@ export default function SpreadsheetPage() {
 
       <ChatWidget user={user} items={portfolioItems || enrichedItems} netWorth={netWorth}
         returnYTD={returnYTD} baseCurrency={baseCurrency} lang={lang} onUpdateItem={updateItem} />
+
+      <MobileNav lang={lang} friendsEnabled={settings?.friendsEnabled !== false}
+        onAdd={() => router.push('/dashboard')} onImport={() => router.push('/dashboard')}
+        onExport={() => router.push('/dashboard')} onShare={() => router.push('/dashboard')}
+        onSettings={() => router.push('/dashboard')} />
     </div>
   )
 }

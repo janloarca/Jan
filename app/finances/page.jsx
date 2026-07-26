@@ -22,6 +22,7 @@ import FileImportModal from '@/components/FileImportModal'
 import { SkeletonCard, SkeletonTable } from '@/components/dashboard/Skeleton'
 import { computeMonthlyAnalysis, buildFinanceInsights, investmentIncomeOfMonth } from '@/lib/financeMonth'
 import PageTour from '@/components/dashboard/PageTour'
+import { Wallet } from 'lucide-react'
 import { INCOME_GROUPS } from '@/lib/financeCategories'
 
 export default function FinancesPage() {
@@ -190,11 +191,13 @@ export default function FinancesPage() {
     // Structural skeleton instead of a bare spinner — same treatment the
     // dashboard and spreadsheet already get.
     return (
-      <div className="min-h-screen bg-theme-base p-4 sm:p-6 max-w-7xl mx-auto space-y-4">
+      <div className="min-h-screen bg-theme-base">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-5">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <SkeletonCard /><SkeletonCard /><SkeletonCard />
         </div>
         <SkeletonTable />
+        </div>
       </div>
     )
   }
@@ -251,11 +254,13 @@ export default function FinancesPage() {
         },
       ]} />
 
-      <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
+      <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-5">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-lg font-bold text-white">{t('Finanzas Personales', 'Personal Finances')}</h1>
-            <p className="text-xs text-slate-500">{t('Ingresos y gastos', 'Income & expenses')}</p>
+            <h1 className="text-h1 font-bold text-white flex items-center gap-2">
+              <Wallet size={18} style={{ color: 'var(--accent-blue)' }} /> {t('Finanzas Personales', 'Personal Finances')}
+            </h1>
+            <p className="text-caption mt-0.5" style={{ color: 'var(--text-muted)' }}>{t('Ingresos y gastos', 'Income & expenses')}</p>
           </div>
           <div className="flex items-center gap-3">
             <MonthSelector month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y) }} lang={lang} />
@@ -319,7 +324,7 @@ export default function FinancesPage() {
             </p>
             <div className="flex items-center justify-center gap-3">
               <button onClick={() => setModal('import')}
-                className="px-4 py-2 bg-emerald-600 rounded-lg hover:bg-emerald-500 transition-colors text-sm font-medium" style={{ color: '#ffffff' }}>
+                className="px-4 py-2 rounded-lg hover:opacity-90 transition-colors text-sm font-medium" style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}>
                 {t('Importar Estado de Cuenta', 'Import Bank Statement')}
               </button>
               <button onClick={() => setModal('add')}

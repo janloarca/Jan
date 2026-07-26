@@ -4,8 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useDashboardData } from '@/hooks/useDashboardData'
 import { computeCosts } from '@/lib/costsSummary'
-import Header from '@/components/dashboard/Header'
-import MobileNav from '@/components/dashboard/MobileNav'
+import PageShell, { PageTitle } from '@/components/PageShell'
 import { SkeletonCard } from '@/components/dashboard/Skeleton'
 import { Receipt, TrendingDown, Landmark, Percent, ArrowDownRight } from 'lucide-react'
 
@@ -82,8 +81,10 @@ export default function CostsPage() {
   // ---- render gates below every hook --------------------------------------
   if (authLoading || (user && dataLoading)) {
     return (
-      <div className="min-h-screen bg-theme-base p-4 sm:p-6 max-w-3xl mx-auto space-y-4">
-        <SkeletonCard /><SkeletonCard />
+      <div className="min-h-screen bg-theme-base">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-5">
+          <SkeletonCard /><SkeletonCard />
+        </div>
       </div>
     )
   }
@@ -99,32 +100,12 @@ export default function CostsPage() {
   const maxMonth = Math.max(1, ...costs.months.map((m) => costs.byMonth[m].total))
 
   return (
-    <div className="min-h-screen bg-theme-base">
-      <a href="#main-content" className="skip-link">{t('Ir al contenido', 'Skip to content')}</a>
-      <Header user={user} lang={lang} setLang={handleSetLang}
-        friendsEnabled={settings?.friendsEnabled !== false}
-        onImport={() => router.push('/dashboard')} onSettings={() => router.push('/dashboard')}
-        onSignOut={async () => {
-          const { auth } = await import('@/lib/firebase')
-          const { signOut } = await import('firebase/auth')
-          document.cookie = '__session=; path=/; max-age=0'
-          if (auth) await signOut(auth)
-          router.push('/login')
-        }}
-        onRefresh={() => {}} pricesLoading={false} />
-
-      <main id="main-content" className="max-w-3xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-5 pb-24">
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div>
-            <h1 className="text-lg font-bold text-white flex items-center gap-2">
-              <Receipt size={18} style={{ color: 'var(--accent-blue)' }} /> {t('Costos', 'Costs')}
-            </h1>
-            <p className="text-xs text-slate-500">
-              {t('Lo que pagas por invertir: comisiones, cargos, impuestos e intereses.',
-                 'What you pay to invest: commissions, fees, taxes and interest.')}
-            </p>
-          </div>
-          {years.length > 0 && (
+    <PageShell user={user} lang={lang} setLang={handleSetLang} settings={settings} width="narrow">
+        <PageTitle icon={Receipt}
+          title={t('Costos', 'Costs')}
+          subtitle={t('Lo que pagas por invertir: comisiones, cargos, impuestos e intereses.',
+                      'What you pay to invest: commissions, fees, taxes and interest.')}
+          actions={years.length > 0 && (
             <div className="flex items-center gap-1 p-1 rounded-lg overflow-x-auto max-w-full" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
               {['all', ...years].map((y) => (
                 <button key={y} onClick={() => setYear(y)}
@@ -136,8 +117,7 @@ export default function CostsPage() {
                 </button>
               ))}
             </div>
-          )}
-        </div>
+          )} />
 
         {!costs.hasData ? (
           <div className="rounded-2xl p-8 text-center border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--card-border)' }}>
@@ -219,12 +199,6 @@ export default function CostsPage() {
             )}
           </>
         )}
-      </main>
-
-      <MobileNav onAdd={() => router.push('/dashboard')} onImport={() => router.push('/dashboard')}
-        onExport={() => router.push('/dashboard')} onShare={() => router.push('/dashboard')}
-        onSettings={() => router.push('/dashboard')} lang={lang}
-        friendsEnabled={settings?.friendsEnabled !== false} />
-    </div>
+    </PageShell>
   )
 }
