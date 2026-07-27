@@ -594,22 +594,33 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
 
   const t = (es, en) => lang === 'es' ? es : en
 
+  // How to get the file, shown BEFORE upload (not just after a failed parse).
+  // ibkr uses its own text: this modal's IBKR path parses the sectioned "Activity
+  // Statement" (Performance & Reports → Statements → Activity), not a Flex Query
+  // CSV like BROKER_PRESETS.ibkr.instructions (that one is for the generic
+  // column-mapped importer when IBKR is auto-detected without a brokerHint).
   const BROKER_INSTRUCTIONS = {
-    ibkr: { name: 'Interactive Brokers', icon: '🏦' },
-    alpaca: { name: 'Alpaca Markets', icon: '🦙' },
-    schwab: { name: 'Charles Schwab', icon: '🇺🇸' },
-    fidelity: { name: 'Fidelity', icon: '🇺🇸' },
-    vanguard: { name: 'Vanguard', icon: '🇺🇸' },
-    degiro: { name: 'DEGIRO', icon: '🇪🇺' },
-    trading212: { name: 'Trading 212', icon: '📊' },
-    traderepublic: { name: 'Trade Republic', icon: '🇩🇪' },
-    hapi: { name: 'Hapi', icon: '📲' },
-    etoro: { name: 'eToro', icon: '📈' },
-    webull: { name: 'Webull', icon: '📱' },
-    coinbase: { name: 'Coinbase', icon: '🟠' },
-    kraken: { name: 'Kraken', icon: '🦑' },
-    binance: { name: 'Binance', icon: '🟡' },
-    bitso: { name: 'Bitso', icon: '🟢' },
+    ibkr: { name: 'Interactive Brokers', icon: '🏦', instructions: {
+      es: 'IBKR → Performance & Reports → Statements → Activity → exporta el Activity Statement en CSV o Excel (incluye Open Positions, Trades y NAV).',
+      en: 'IBKR → Performance & Reports → Statements → Activity → export the Activity Statement as CSV or Excel (include Open Positions, Trades and NAV).' } },
+    alpaca: { name: 'Alpaca Markets', icon: '🦙', instructions: BROKER_PRESETS.alpaca?.instructions },
+    schwab: { name: 'Charles Schwab', icon: '🇺🇸', instructions: BROKER_PRESETS.schwab?.instructions },
+    fidelity: { name: 'Fidelity', icon: '🇺🇸', instructions: BROKER_PRESETS.fidelity?.instructions },
+    vanguard: { name: 'Vanguard', icon: '🇺🇸', instructions: BROKER_PRESETS.vanguard?.instructions },
+    degiro: { name: 'DEGIRO', icon: '🇪🇺', instructions: BROKER_PRESETS.degiro?.instructions },
+    trading212: { name: 'Trading 212', icon: '📊', instructions: BROKER_PRESETS.trading212?.instructions },
+    traderepublic: { name: 'Trade Republic', icon: '🇩🇪', instructions: BROKER_PRESETS.tradeRepublic?.instructions },
+    hapi: { name: 'Hapi', icon: '📲', instructions: {
+      es: 'Hapi no tiene API. Descarga tu estado de cuenta en la app (Banca → Reportes). Si puedes exportarlo en CSV/Excel, impórtalo aquí; si solo es PDF, agrega tus posiciones manualmente.',
+      en: 'Hapi has no API. Download your statement in the app (Banking → Reports). If you can export it as CSV/Excel, import it here; if it\'s only PDF, add your positions manually.' } },
+    etoro: { name: 'eToro', icon: '📈', instructions: BROKER_PRESETS.etoro?.instructions },
+    webull: { name: 'Webull', icon: '📱', instructions: BROKER_PRESETS.webull?.instructions },
+    coinbase: { name: 'Coinbase', icon: '🟠', instructions: BROKER_PRESETS.coinbase?.instructions },
+    kraken: { name: 'Kraken', icon: '🦑', instructions: BROKER_PRESETS.kraken?.instructions },
+    binance: { name: 'Binance', icon: '🟡', instructions: BROKER_PRESETS.binance?.instructions },
+    bitso: { name: 'Bitso', icon: '🟢', instructions: {
+      es: 'Bitso → Cuenta → Operaciones → descarga tu estado de cuenta en CSV.',
+      en: 'Bitso → Account → Transactions → download your statement as CSV.' } },
   }
 
   const brokerInfo = brokerHint ? BROKER_INSTRUCTIONS[brokerHint] : null
@@ -653,6 +664,16 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
           {/* Upload step */}
           {step === 'upload' && mode === 'file' && (
             <div>
+              {brokerInfo?.instructions && (
+                <div className="mb-4 px-3 py-2 bg-[#60a5fa]/10 border border-[#60a5fa]/20 rounded-lg">
+                  <span className="text-[#60a5fa] text-xs font-medium">
+                    {t('Cómo obtener el archivo', 'How to get the file')}
+                  </span>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {brokerInfo.instructions[lang] || brokerInfo.instructions.en}
+                  </p>
+                </div>
+              )}
               <div
                 onDrop={handleDrop}
                 onDragOver={(e) => e.preventDefault()}
