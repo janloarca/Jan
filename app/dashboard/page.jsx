@@ -651,6 +651,10 @@ export default function DashboardPage() {
   }, [])
 
   const topBanner = useMemo(() => {
+    // Nothing to be stale ABOUT on an empty account: a brand-new user opening the app
+    // was greeted by an amber "exchange rates outdated" warning above the welcome
+    // screen, which reads as "this is broken" before they've added anything.
+    if (portfolioItems.length === 0) return null
     if (staleCode) return 'stale'
     if (ibkrSyncErrorCode === 'TOKEN_EXPIRED') return 'ibkr-expired'
     if (ibkrSyncErrorCode === 'INVALID_QUERY') return 'ibkr-query'
@@ -663,7 +667,7 @@ export default function DashboardPage() {
     // muted note inside NetWorthCard (a 40%-growth-with-few-deposits nudge is
     // informational, not a warning that should shout in amber).
     return null
-  }, [staleCode, ibkrSyncErrorCode, pricesError, ratesError])
+  }, [staleCode, ibkrSyncErrorCode, pricesError, ratesError, portfolioItems.length])
 
   // Loading state — show the structural skeleton (same layout as the loaded page)
   // instead of a lone spinner, so first paint already looks like the dashboard.

@@ -358,9 +358,15 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
 
         <div className="flex-1 overflow-y-auto p-6">
           <div className="space-y-5">
-            {/* ── IBKR (API + CSV) ── */}
+            {/* IBKR keeps a dedicated block because its setup (Flex Query + token) needs
+                more UI than a registry card. But the heading used to read "Interactive
+                Brokers" at the very top, so a NEW user opened the panel and saw one
+                broker privileged above all others for no reason. Now it is labelled by
+                ROLE: your live connection when configured, "quick connect" when not. */}
             <div>
-              <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Interactive Brokers</p>
+              <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">
+                {ibkrConfigured ? t('Conectado', 'Connected') : t('Conexión rápida', 'Quick connect')}
+              </p>
               <div className="p-3 bg-theme-base border border-glass-border rounded-xl">
                 <div className="flex items-center gap-3">
                   <div className="relative shrink-0">
