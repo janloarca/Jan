@@ -47,19 +47,24 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   // Group holdings by origin (source + institution) so the user can wipe one account
   // — e.g. "Interactive Brokers · IBKR API" — without touching another (their manual
   // "IDC"). Same batch-delete engine (deleteItemGroup) that respects shared symbols.
-  const sourceLabel = (s) => {
-    const m = { ibkr: 'IBKR API', blockchain: t('Wallet', 'Wallet'), ledger: 'Ledger', hapi: 'Hapi', demo: 'Demo' }
-    if (m[s]) return m[s]
-    if (!s || String(s).startsWith('manual')) return t('Manual', 'Manual')
-    return String(s)
+  // `_origin` separates an API sync from an uploaded statement for the SAME broker
+  // (both carry _source:'ibkr'); items saved before it existed have none and simply
+  // group by source+institution, so nothing needs migrating.
+  const sourceLabel = (s, origin) => {
+    const m = { ibkr: 'IBKR', blockchain: t('Wallet', 'Wallet'), ledger: 'Ledger', hapi: 'Hapi', demo: 'Demo' }
+    const base = m[s] || ((!s || String(s).startsWith('manual')) ? t('Manual', 'Manual') : String(s))
+    if (origin === 'api') return `${base} API`
+    if (origin === 'file') return `${base} ${t('archivo', 'file')}`
+    return base
   }
   const accountGroups = useMemo(() => {
     const map = new Map()
     for (const it of portfolioItems || []) {
       const source = it._source || 'manual'
       const institution = (it.institution || '').trim()
-      const key = `${source}|${institution}`
-      if (!map.has(key)) map.set(key, { key, source, institution, ids: [], count: 0 })
+      const origin = it._origin || ''
+      const key = `${source}|${institution}|${origin}`
+      if (!map.has(key)) map.set(key, { key, source, institution, origin, ids: [], count: 0 })
       const g = map.get(key); g.ids.push(it.id); g.count++
     }
     return [...map.values()].sort((a, b) => b.count - a.count)
@@ -626,14 +631,18 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
 
                         {/* Per-account delete: wipe one origin (e.g. IBKR API) without
                             touching another (manual IDC). Only when >1 account exists. */}
-                        {onDeleteItemGroup && accountGroups.length > 1 && (
+                        {/* Shown from ONE account up: the guard used to require >1, which
+                            hid the section from exactly the users who most need it (a
+                            single connected broker they want to wipe without touching
+                            their manual holdings). It also makes the accounts visible. */}
+                        {onDeleteItemGroup && accountGroups.length > 0 && (
                           <div className="pt-1">
                             <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">{t('Por cuenta', 'By account')}</p>
                             <div className="space-y-2">
                               {accountGroups.map((g) => renderAction({
                                 key: `group:${g.key}`,
                                 label: g.institution || t('Sin institución', 'No institution'),
-                                desc: `${g.count} ${g.count === 1 ? t('posición', 'position') : t('posiciones', 'positions')} · ${sourceLabel(g.source)}`,
+                                desc: `${g.count} ${g.count === 1 ? t('posición', 'position') : t('posiciones', 'positions')} · ${sourceLabel(g.source, g.origin)}`,
                                 warn: t('Se borra solo esta cuenta (posiciones, lots y transacciones); las demás no se tocan.', 'Deletes only this account (positions, lots and transactions); the others are untouched.'),
                               }))}
                             </div>
