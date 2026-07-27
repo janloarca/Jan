@@ -26,7 +26,7 @@ const CURRENCIES = [
   { code: 'CNY', name: 'Chinese Yuan', symbol: '¥' },
 ]
 
-export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onDeleteItemGroup, onExportBackup, onOpenConnections, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, beginnerMode = false, onToggleBeginner, lang = 'es', portfolioItems = [] }) {
+export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onDeleteItemGroup, onExportBackup, onOpenConnections, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, beginnerMode = false, onToggleBeginner, lang = 'es', onSetLang, portfolioItems = [] }) {
   const trapRef = useFocusTrap()
   const [baseCurrency, setBaseCurrency] = useState(settings?.baseCurrency || 'USD')
   const [benchmarkSymbol, setBenchmarkSymbol] = useState(settings?.benchmarkSymbol || '%5EGSPC')
@@ -282,6 +282,28 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                   ))}
                 </div>
               </div>
+
+              {/* Language. Moved here from the header: it's a preference you set once,
+                  not a control worth permanent space in the top bar. */}
+              {onSetLang && (
+                <div>
+                  <label className="text-xs mb-2 block font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Idioma', 'Language')}</label>
+                  <div className="flex gap-2">
+                    {[
+                      { key: 'es', label: 'Español' },
+                      { key: 'en', label: 'English' },
+                    ].map((opt) => (
+                      <button key={opt.key} onClick={() => { if (lang !== opt.key) onSetLang() }}
+                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg transition-all ${
+                          lang === opt.key ? 'border' : 'bg-theme-base border border-glass-border text-slate-300 hover:border-slate-500'
+                        }`}
+                        style={lang === opt.key ? { color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' } : undefined}>
+                        <span className="text-sm font-medium">{opt.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Beginner mode toggle */}
               <div>

@@ -129,16 +129,12 @@ const DEMO_STEPS = (t) => [
             'Compare how each bank or broker you hold money with is doing: who is earning you more.'),
   },
   {
+    // One step, because "Nuevo" is now the single door for adding data: manual,
+    // broker connection and file import all live in its menu.
     anchor: '[data-tour="header-new"]',
-    title: t('Agrega en segundos', 'Add in seconds'),
-    body: t('El botón "Nuevo" abre el formulario rápido: stocks, cuentas de banco, bonos, inmuebles, deudas: todo cabe.',
-            'The "New" button opens the quick form: stocks, bank accounts, bonds, real estate, debts: everything fits.'),
-  },
-  {
-    anchor: '[data-tour="header-import"]',
-    title: t('¿Ya tienes broker?', 'Already have a broker?'),
-    body: t('Importa el archivo de tu broker (detectamos IBKR, Binance, Schwab, Fidelity) o conéctalo para sync automático.',
-            'Import your broker’s file (we detect IBKR, Binance, Schwab, Fidelity) or connect it for automatic sync.'),
+    title: t('Todo entra por "Nuevo"', 'Everything starts at "New"'),
+    body: t('Ese botón abre las tres formas de meter tu dinero: agregarlo a mano, conectar tu broker para sync automático, o importar un archivo (detectamos IBKR, Binance, Schwab, Fidelity).',
+            'That button opens the three ways to get your money in: add it by hand, connect your broker for automatic sync, or import a file (we detect IBKR, Binance, Schwab, Fidelity).'),
   },
   {
     anchor: '[data-tour="nav"]',

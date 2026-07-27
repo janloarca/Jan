@@ -690,6 +690,7 @@ export default function DashboardPage() {
         pricesLoading={pricesLoading || ratesLoading}
         onAddAccount={handleOpenAccount}
         onCommandPalette={handleOpenCmdPalette}
+        onOpenConnections={handleOpenConnections}
         ibkrConnected={ibkrConnected}
         ibkrAutoSyncing={ibkrAutoSyncing}
         ibkrSyncSummary={ibkrSyncSummary}
@@ -1187,6 +1188,7 @@ export default function DashboardPage() {
           onDeleteAllTransactions={deleteAllTransactions}
           onDeleteAllFinanceTransactions={deleteAllFinanceTransactions}
           onDeleteItemGroup={deleteItemGroup}
+          onSetLang={() => handleSetLang('toggle')}
           entities={entities}
           onAddEntity={addEntity}
           onUpdateEntity={updateEntityData}
