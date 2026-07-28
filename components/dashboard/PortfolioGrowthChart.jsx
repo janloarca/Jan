@@ -526,6 +526,27 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     return entries[0][0]
   }, [scopedItems])
 
+  // WHICH account the notice is talking about. "Datos reales de tu broker" is
+  // ambiguous the moment the portfolio holds more than one thing: this chart is
+  // meant to carry many assets across IBKR + banks + exchanges at once, and only
+  // the account that supplied the real NAV history is the one whose sync window
+  // needs widening. Name the institution, plus the broker's own account id when
+  // we have it (IBKR stamps _ibkrAccountId on every position), so the user knows
+  // exactly which query to go fix instead of guessing among their accounts.
+  const estimateScopeLabel = useMemo(() => {
+    const fromBroker = (scopedItems || []).filter((it) => primaryBrokerId && it._source === primaryBrokerId)
+    const base = fromBroker.length > 0 ? fromBroker : (scopedItems || [])
+    const names = [...new Set(base.map((it) => (it.institution || '').trim()).filter(Boolean))]
+    if (names.length === 0) return null
+    const accounts = [...new Set(base.map((it) => (it._ibkrAccountId || '').trim()).filter(Boolean))]
+    let label = names.length <= 2 ? names.join(' + ') : `${names[0]} +${names.length - 1}`
+    if (accounts.length > 0) {
+      const shown = accounts.slice(0, 3).join(', ')
+      label += ` (${shown}${accounts.length > 3 ? `, +${accounts.length - 3}` : ''})`
+    }
+    return label
+  }, [scopedItems, primaryBrokerId])
+
   // Dismiss the short-history notice, but only until the situation it describes
   // actually changes: keyed by broker + the real-data anchor date, so re-syncing
   // with a wider window (more real history) un-dismisses it instead of hiding a
@@ -1239,11 +1260,15 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           style={{ backgroundColor: 'var(--alert-info-bg)', border: '1px solid var(--alert-info-border)', color: 'var(--alert-info-icon)' }}>
           <span>ℹ</span>
           <span>
+            {/* The account is named FIRST and in bold: with many assets on this
+                chart, "which of my accounts is this about?" is the question the
+                notice has to answer before anything else. */}
+            <span className="font-semibold">{estimateScopeLabel || t('Tu broker', 'Your broker')}: </span>
             {viewMode === 'performance'
-              ? t(`Tu retorno se mide desde ${formatDate(new Date(firstRealTs).toISOString())}, el primer día con datos reales de tu broker (igual que haría IBKR con una cuenta nueva).`,
-                  `Your return is measured from ${formatDate(new Date(firstRealTs).toISOString())}, the first day with real broker data (just like IBKR would for a new account).`)
-              : t(`Datos reales de tu broker desde ${formatDate(new Date(firstRealTs).toISOString())}; antes es un estimado.`,
-                  `Real broker data starts ${formatDate(new Date(firstRealTs).toISOString())}; earlier values are an estimate.`)}
+              ? t(`el retorno se mide desde ${formatDate(new Date(firstRealTs).toISOString())}, el primer día con datos reales de esta cuenta (igual que haría IBKR con una cuenta nueva).`,
+                  `return is measured from ${formatDate(new Date(firstRealTs).toISOString())}, the first day with real data for this account (just like IBKR would for a new account).`)
+              : t(`datos reales desde ${formatDate(new Date(firstRealTs).toISOString())}; antes es un estimado.`,
+                  `real data starts ${formatDate(new Date(firstRealTs).toISOString())}; earlier values are an estimate.`)}
             {' '}
             {primaryBrokerId === 'ibkr' || primaryBrokerId == null
               ? t('En IBKR: Flex Queries → tu query → Period → "Last 365 Calendar Days", y vuelve a sincronizar.',
