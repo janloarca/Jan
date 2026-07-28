@@ -11,6 +11,8 @@ import { FIELD_MAP, BROKER_PRESETS, guessMapping } from '@/lib/importMapping'
 import { FINANCE_CATEGORIES, CATEGORY_COLORS } from '@/lib/financeCategories'
 import { matchStatement } from '@/lib/statementMatcher'
 import { validateItem, sanitizeImportItem, sanitizeCell } from '@/lib/validation'
+import { getBrokerHowTo } from '@/lib/brokerHowTo'
+import BrokerSteps from '@/components/ui/BrokerSteps'
 
 // Default institution stamped on imported items when the import was opened for a
 // specific broker (brokerHint) and the file itself has no institution column —
@@ -599,31 +601,10 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   // Statement" (Performance & Reports → Statements → Activity), not a Flex Query
   // CSV like BROKER_PRESETS.ibkr.instructions (that one is for the generic
   // column-mapped importer when IBKR is auto-detected without a brokerHint).
-  const BROKER_INSTRUCTIONS = {
-    ibkr: { name: 'Interactive Brokers', icon: '🏦', instructions: {
-      es: 'IBKR → Performance & Reports → Statements → Activity → exporta el Activity Statement en CSV o Excel (incluye Open Positions, Trades y NAV).',
-      en: 'IBKR → Performance & Reports → Statements → Activity → export the Activity Statement as CSV or Excel (include Open Positions, Trades and NAV).' } },
-    alpaca: { name: 'Alpaca Markets', icon: '🦙', instructions: BROKER_PRESETS.alpaca?.instructions },
-    schwab: { name: 'Charles Schwab', icon: '🇺🇸', instructions: BROKER_PRESETS.schwab?.instructions },
-    fidelity: { name: 'Fidelity', icon: '🇺🇸', instructions: BROKER_PRESETS.fidelity?.instructions },
-    vanguard: { name: 'Vanguard', icon: '🇺🇸', instructions: BROKER_PRESETS.vanguard?.instructions },
-    degiro: { name: 'DEGIRO', icon: '🇪🇺', instructions: BROKER_PRESETS.degiro?.instructions },
-    trading212: { name: 'Trading 212', icon: '📊', instructions: BROKER_PRESETS.trading212?.instructions },
-    traderepublic: { name: 'Trade Republic', icon: '🇩🇪', instructions: BROKER_PRESETS.tradeRepublic?.instructions },
-    hapi: { name: 'Hapi', icon: '📲', instructions: {
-      es: 'Hapi no tiene API. Descarga tu estado de cuenta en la app (Banca → Reportes). Si puedes exportarlo en CSV/Excel, impórtalo aquí; si solo es PDF, agrega tus posiciones manualmente.',
-      en: 'Hapi has no API. Download your statement in the app (Banking → Reports). If you can export it as CSV/Excel, import it here; if it\'s only PDF, add your positions manually.' } },
-    etoro: { name: 'eToro', icon: '📈', instructions: BROKER_PRESETS.etoro?.instructions },
-    webull: { name: 'Webull', icon: '📱', instructions: BROKER_PRESETS.webull?.instructions },
-    coinbase: { name: 'Coinbase', icon: '🟠', instructions: BROKER_PRESETS.coinbase?.instructions },
-    kraken: { name: 'Kraken', icon: '🦑', instructions: BROKER_PRESETS.kraken?.instructions },
-    binance: { name: 'Binance', icon: '🟡', instructions: BROKER_PRESETS.binance?.instructions },
-    bitso: { name: 'Bitso', icon: '🟢', instructions: {
-      es: 'Bitso → Cuenta → Operaciones → descarga tu estado de cuenta en CSV.',
-      en: 'Bitso → Account → Transactions → download your statement as CSV.' } },
-  }
-
-  const brokerInfo = brokerHint ? BROKER_INSTRUCTIONS[brokerHint] : null
+  // The researched, multi-step "how do I get this" facts live in
+  // lib/brokerHowTo.js (shared with ConnectionsModal's API flow) — this modal
+  // only needs the broker's display name/icon plus its csv.steps/csv.note.
+  const brokerInfo = brokerHint ? getBrokerHowTo(brokerHint) : null
   const modalTitle = brokerInfo
     ? t(`Importar CSV: ${brokerInfo.name}`, `Import CSV: ${brokerInfo.name}`)
     : t('Importar Portfolio', 'Import Portfolio')
@@ -664,14 +645,9 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
           {/* Upload step */}
           {step === 'upload' && mode === 'file' && (
             <div>
-              {brokerInfo?.instructions && (
-                <div className="mb-4 px-3 py-2 bg-[#60a5fa]/10 border border-[#60a5fa]/20 rounded-lg">
-                  <span className="text-[#60a5fa] text-xs font-medium">
-                    {t('Cómo obtener el archivo', 'How to get the file')}
-                  </span>
-                  <p className="text-xs text-slate-400 mt-1">
-                    {brokerInfo.instructions[lang] || brokerInfo.instructions.en}
-                  </p>
+              {brokerInfo?.csv?.steps && (
+                <div className="mb-4">
+                  <BrokerSteps steps={brokerInfo.csv.steps} note={brokerInfo.csv.note} variant="csv" lang={lang} />
                 </div>
               )}
               <div

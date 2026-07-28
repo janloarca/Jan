@@ -10,6 +10,8 @@ import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { RefreshCw } from 'lucide-react'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { getBrokerRegistry, connectorExplainer } from '@/lib/brokerRegistry'
+import { getBrokerHowTo } from '@/lib/brokerHowTo'
+import BrokerSteps from '@/components/ui/BrokerSteps'
 
 export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, onBackgroundSync, onImport, onAddAccount, onOpenBlockchain, onSaveCredentials, lang = 'es', lastSyncTime, portfolioItems = [] }) {
   const trapRef = useFocusTrap()
@@ -252,6 +254,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
     const conn = brokerConnections[broker.id]
     const isExpanded = expandedBroker === broker.id
     const isSyncing = brokerSyncing === broker.id
+    const howTo = getBrokerHowTo(broker.id)
     return (
       <div key={broker.id} className="bg-theme-base border border-glass-border/60 rounded-lg overflow-hidden">
         <div className="flex items-center gap-3 px-3 py-2">
@@ -295,6 +298,17 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                 {broker.apiNote}
               </span>
             ) : null}
+            {/* Brokers with no API (Hapi, DEGIRO, Trade Republic...) only get the
+                CSV path — but "click CSV, figure it out yourself" was the whole
+                gap being fixed here. A "Pasos" toggle previews the researched
+                steps inline, same data BrokerSteps renders inside the import
+                modal, before the user commits to leaving this modal at all. */}
+            {!broker.hasApi && howTo?.csv?.steps && (
+              <button onClick={() => setExpandedBroker(isExpanded ? null : broker.id)}
+                className="px-2.5 py-1 border text-xs font-medium rounded-md hover:bg-theme-elevated transition-colors" style={{ borderColor: 'var(--glass-border)', color: 'var(--text-secondary)' }}>
+                {isExpanded ? t('Ocultar', 'Hide') : t('Pasos', 'Steps')}
+              </button>
+            )}
             <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport(broker.id) }, 50) }}
               className="px-2.5 py-1 border border-glass-border text-xs font-medium rounded-md hover:bg-theme-elevated transition-colors" style={{ color: 'var(--text-secondary)' }}>
               CSV
@@ -307,7 +321,9 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
             <p className="text-xs px-2.5 py-1.5 rounded-lg" style={{ backgroundColor: 'rgba(37,99,235,0.06)', color: 'var(--accent-blue)' }}>
               🔒 {connectorExplainer(broker, t)}
             </p>
-            {broker.instructions && (
+            {howTo?.api?.steps ? (
+              <BrokerSteps steps={howTo.api.steps} note={howTo.api.note} variant="api" lang={lang} />
+            ) : broker.instructions && (
               <p className="text-xs text-slate-600">{broker.instructions[lang] || broker.instructions.en}</p>
             )}
             {brokerError && expandedBroker === broker.id && (
@@ -327,6 +343,11 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
               className="w-full py-2 rounded-lg hover:bg-blue-500 disabled:opacity-50 text-xs font-medium" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
               {isSyncing ? '...' : t('Conectar', 'Connect')}
             </button>
+          </div>
+        )}
+        {isExpanded && !broker.hasApi && howTo?.csv?.steps && (
+          <div className="px-3 pb-3 pt-1 border-t border-glass-border/30">
+            <BrokerSteps steps={howTo.csv.steps} note={howTo.csv.note} variant="csv" lang={lang} />
           </div>
         )}
       </div>
