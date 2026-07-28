@@ -1284,6 +1284,17 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                 {t('Subir historial completo (archivo)', 'Upload full history (file)')}
               </button>
             )}
+            {/* The escape hatch for history that exists only as an image. IBKR's
+                PortfolioAnalyst is the one view that reaches account inception and
+                its dashboard offers no download, so for many users a screenshot is
+                genuinely all there is. The import modal carries a prompt that turns
+                that picture into the history sheet we can read. */}
+            {onImportBroker && (
+              <span className="block mt-1 text-[10px] opacity-80">
+                {t('¿Tu historial solo existe como captura (ej. PortfolioAnalyst)? Ahí mismo hay un prompt para convertirla en archivo.',
+                   'History only exists as a screenshot (e.g. PortfolioAnalyst)? There is a prompt in there to turn it into a file.')}
+              </span>
+            )}
             {/* Persistent forensic line: raw per-section counts from the last sync's
                 XML vs what got imported. Survives the transient toast so ANY
                 screenshot of this banner pins down where the data stops flowing.

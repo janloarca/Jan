@@ -82,6 +82,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   const [pasteText, setPasteText] = useState('')
   const [aiOpen, setAiOpen] = useState(false)
   const [aiCopied, setAiCopied] = useState(false)
+  const [histCopied, setHistCopied] = useState(false)
   const fileRef = useRef(null)
   const [ibkrData, setIbkrData] = useState(null)
   const [ibkrImportMode, setIbkrImportMode] = useState('merge')
@@ -818,6 +819,63 @@ Rules: do not invent any data; if something is missing from my documents leave i
                       {t('El prompt le pide: posiciones con fechas reales de compra por lote, compras y ventas con comisiones, dividendos, depósitos y retiros, y valores históricos. Todo en el formato exacto que Chispudo importa.',
                          'The prompt asks for: positions with real per-lot purchase dates, buys and sells with commissions, dividends, deposits and withdrawals, and historical values. All in the exact format Chispudo imports.')}
                     </p>
+
+                    {/* Second, narrower prompt. The big one above is shaped around
+                        POSITIONS, so someone whose only artifact is a screenshot of
+                        a performance chart (PortfolioAnalyst is the sole IBKR view
+                        that reaches account inception, and its dashboard has no
+                        export) gets an AI answer full of empty position columns.
+                        This one asks for the value history ALONE, which is exactly
+                        what the chart needs to stop estimating the past. */}
+                    <div className="pt-3 mt-1 border-t" style={{ borderColor: 'rgba(37,99,235,0.2)' }}>
+                      <p className="text-xs font-medium mb-1" style={{ color: 'var(--accent-blue)' }}>
+                        {t('¿Solo tienes una captura del valor de tu cuenta en el tiempo?', 'Only have a screenshot of your account value over time?')}
+                      </p>
+                      <p className="text-[11px] text-slate-500 leading-relaxed mb-2">
+                        {t('Por ejemplo la gráfica de PortfolioAnalyst en IBKR (Holdings, período INCEPTION). Este prompt le pide a la IA solo el historial de valor, que es lo que hace que tu gráfico deje de estimar el pasado.',
+                           'For example the PortfolioAnalyst chart in IBKR (Holdings, INCEPTION period). This prompt asks the AI for the value history alone, which is what makes your chart stop estimating the past.')}
+                      </p>
+                      <button onClick={() => {
+                          const prompt = lang === 'es'
+                            ? `Te voy a pasar una o varias capturas de pantalla (o PDFs) del historial de valor de mi cuenta de inversión. Puede ser una gráfica de barras por trimestre o por mes, una tabla, o ambas.
+
+Genera un archivo Excel (.xlsx) con UNA sola hoja llamada exactamente "Historial", con estas columnas EXACTAS en este orden:
+Fecha, Total Activos (USD), Total Deudas (USD), Patrimonio Neto (USD), Notas
+
+Reglas:
+- Una fila por cada punto de tiempo que se vea en la imagen (cada barra, cada punto, cada fila de la tabla)
+- Fecha en formato YYYY-MM-DD. Si el punto es un trimestre, usa el ÚLTIMO día de ese trimestre (Q1 2025 = 2025-03-31, Q2 = 2025-06-30, Q3 = 2025-09-30, Q4 = 2025-12-31). Si es un mes, usa el último día del mes
+- "Total Activos (USD)" y "Patrimonio Neto (USD)" son el valor de la cuenta (NAV) en esa fecha. Si no tengo deudas, pon 0 en "Total Deudas (USD)" y repite el mismo número en las otras dos
+- Solo números, sin símbolo de moneda ni separadores de miles
+- Ordena de la fecha más antigua a la más reciente
+
+MUY IMPORTANTE: no inventes ni interpoles valores. Si una barra no tiene su número escrito y no puedes leerlo con certeza, omite esa fila y dime al final cuáles omitiste. Es preferible tener menos puntos correctos que muchos inventados.
+
+Cuando termines, dame el archivo .xlsx listo para descargar.`
+                            : `I will give you one or more screenshots (or PDFs) of my investment account's value history. It may be a bar chart by quarter or month, a table, or both.
+
+Generate an Excel file (.xlsx) with ONE sheet named exactly "Historial", with these EXACT columns in this order:
+Fecha, Total Activos (USD), Total Deudas (USD), Patrimonio Neto (USD), Notas
+
+Rules:
+- One row per time point visible in the image (each bar, each point, each table row)
+- Date in YYYY-MM-DD format. If the point is a quarter, use the LAST day of that quarter (Q1 2025 = 2025-03-31, Q2 = 2025-06-30, Q3 = 2025-09-30, Q4 = 2025-12-31). If it's a month, use the last day of the month
+- "Total Activos (USD)" and "Patrimonio Neto (USD)" are the account value (NAV) on that date. If I have no debt, put 0 in "Total Deudas (USD)" and repeat the same number in the other two
+- Numbers only, no currency symbol and no thousands separators
+- Sort from oldest date to newest
+
+VERY IMPORTANT: do not invent or interpolate values. If a bar has no number written on it and you cannot read it with certainty, skip that row and tell me at the end which ones you skipped. Fewer correct points beat many invented ones.
+
+When done, give me the .xlsx file ready to download.`
+                          navigator.clipboard.writeText(prompt)
+                          setHistCopied(true)
+                          setTimeout(() => setHistCopied(false), 2500)
+                        }}
+                        className="w-full py-2.5 rounded-lg text-sm font-medium transition-colors border"
+                        style={{ color: 'var(--accent-blue)', borderColor: 'rgba(37,99,235,0.4)' }}>
+                        {histCopied ? t('✓ Copiado, pégalo con tu captura', '✓ Copied, paste it with your screenshot') : t('Copiar prompt para historial de valor', 'Copy prompt for value history')}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
