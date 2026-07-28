@@ -13,6 +13,7 @@ import { matchStatement } from '@/lib/statementMatcher'
 import { validateItem, sanitizeImportItem, sanitizeCell } from '@/lib/validation'
 import { getBrokerHowTo } from '@/lib/brokerHowTo'
 import BrokerSteps from '@/components/ui/BrokerSteps'
+import { reconcileBrokerPositions } from '@/lib/brokerReconcile'
 
 // Default institution stamped on imported items when the import was opened for a
 // specific broker (brokerHint) and the file itself has no institution column —
@@ -536,36 +537,68 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     setError('')
     setImportProgress({ done: 0, total: 0 })
 
+    const tagged = (obj) => ({
+      ...obj,
+      ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
+      ...(activeEntity && activeEntity !== 'default' ? { entityId: activeEntity } : {}),
+    })
+
     const deleteIds = []
     if (ibkrImportMode === 'replace' && existingItems) {
       const ibkrItems = existingItems.filter(it => it.institution === 'Interactive Brokers' || it._source === 'ibkr')
       for (const it of ibkrItems) deleteIds.push(it.id)
     }
 
+    // ENRICH: the statement is history for holdings we ALREADY have, so every
+    // position it repeats must be matched, not re-created. Creating them again is
+    // what "Agregar" does, and on an account already synced by API that silently
+    // doubles the portfolio. Only the gaps (real trade dates, cost basis, conid)
+    // get written; quantity/price stay as the live sync left them.
+    let enrichUpdates = []
+    let incomingItems = ibkrData.items
+    if (ibkrImportMode === 'enrich') {
+      const rec = reconcileBrokerPositions({
+        incoming: ibkrData.items,
+        existing: existingItems || [],
+        source: 'ibkr',
+        mode: 'enrich',
+        tag: tagged({}),
+      })
+      enrichUpdates = rec.updateItems
+      incomingItems = rec.newItems
+    }
+
     const validItems = []
     const validLots = []
-    for (const item of ibkrData.items) {
-      const clean = sanitizeImportItem(item)
-      if (activePortfolio && activePortfolio !== '__all__') clean.portfolioId = activePortfolio
-      if (activeEntity && activeEntity !== 'default') clean.entityId = activeEntity
+    for (const item of incomingItems) {
+      const clean = tagged(sanitizeImportItem(item))
       validItems.push(clean)
       if (clean.symbol && clean.quantity > 0 && clean.purchasePrice > 0 && !/debt|deuda/i.test(clean.type || '')) {
-        validLots.push({
+        validLots.push(tagged({
           symbol: (clean.symbol || '').toUpperCase(),
           quantity: clean.quantity,
           costBasis: clean.purchasePrice,
           currency: clean.currency || 'USD',
           acquisitionDate: clean.acquisitionDate || new Date().toISOString().split('T')[0],
-          ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
-          ...(activeEntity && activeEntity !== 'default' ? { entityId: activeEntity } : {}),
-        })
+        }))
       }
     }
 
     let lastDone = 0
+    const summary = {
+      success: validItems.length,
+      failed: 0,
+      total: ibkrData.items.length,
+      replaced: deleteIds.length,
+      enriched: enrichUpdates.length,
+      matched: ibkrImportMode === 'enrich' ? ibkrData.items.length - validItems.length : 0,
+      history: (ibkrData.transactions || []).length,
+      navDays: (ibkrData.equityHistory || []).length,
+    }
     try {
       await onBulkImport({
         items: validItems,
+        updateItems: enrichUpdates,
         lots: validLots,
         transactions: ibkrData.transactions || [],
         snapshots: ibkrData.equityHistory || [],
@@ -574,19 +607,51 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         lastDone = done
         setImportProgress({ done, total })
       })
-      setResult({ success: validItems.length, failed: 0, total: ibkrData.items.length, replaced: deleteIds.length })
+      setResult(summary)
     } catch (err) {
       console.error('[IBKR Import]', err)
       if (lastDone > 0) {
-        setResult({ success: validItems.length, failed: 0, total: ibkrData.items.length, replaced: deleteIds.length })
+        setResult(summary)
       } else {
-        setResult({ success: 0, failed: validItems.length, total: ibkrData.items.length, replaced: 0, errorMsg: err.message })
+        setResult({ ...summary, success: 0, failed: validItems.length, replaced: 0, errorMsg: err.message })
       }
     } finally {
       setStep('done')
       setImporting(false)
     }
   }, [ibkrData, onBulkImport, existingItems, activePortfolio, activeEntity, ibkrImportMode])
+
+  // Dry run of the enrich match, so the preview can promise a concrete outcome
+  // ("21 se enlazan, 0 se duplican") instead of making the user guess which mode
+  // is safe. Pure + no writes: same function the import itself runs.
+  const ibkrEnrichPreview = useMemo(() => {
+    if (!ibkrData?.items?.length) return null
+    const rec = reconcileBrokerPositions({
+      incoming: ibkrData.items,
+      existing: existingItems || [],
+      source: 'ibkr',
+      mode: 'enrich',
+    })
+    return { matched: rec.matched, enriched: rec.enriched, created: rec.newItems.length }
+  }, [ibkrData, existingItems])
+
+  // A statement uploaded onto an account that already has these holdings is
+  // almost always "add the history", never "add them again", so enrich is the
+  // default the moment anything matches. With no matches there is nothing to
+  // enrich and plain add is correct.
+  useEffect(() => {
+    if (!ibkrEnrichPreview) return
+    setIbkrImportMode(ibkrEnrichPreview.matched > 0 ? 'enrich' : 'merge')
+  }, [ibkrEnrichPreview])
+
+  // Positions but no trades and no NAV: the statement was exported without the
+  // history sections, which is exactly the case that leaves the chart estimating
+  // and the purchase dates unknown. This used to pass silently as a plain
+  // "N posiciones" preview, so the user only found out weeks later from a chart
+  // that started at the import date.
+  const ibkrMissingHistory = !!ibkrData
+    && (ibkrData.transactions || []).length === 0
+    && (ibkrData.equityHistory || []).length === 0
 
   const handleDrop = useCallback((e) => {
     e.preventDefault()
@@ -1139,21 +1204,54 @@ Rules: do not invent any data; if something is missing from my documents leave i
                 </table>
               </div>
 
-              {/* Merge vs Replace */}
+              {/* The statement carried no history: say so BEFORE the import, with
+                  the exact sections to re-export, since this is the file that was
+                  supposed to fix the estimated chart. */}
+              {ibkrMissingHistory && (
+                <div className="mt-3 px-3 py-2 rounded-lg text-xs" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', color: '#fcd34d' }}>
+                  <p className="font-medium">{t('Este archivo trae posiciones, pero no historial.', 'This file has positions, but no history.')}</p>
+                  <p className="mt-1" style={{ color: 'var(--text-muted)' }}>
+                    {t('Sin la sección Trades no hay fechas de compra ni de venta, así que el gráfico va a seguir estimando el pasado. Vuelve a exportar el Activity Statement marcando Trades y "Net Asset Value (NAV)", con el período completo que quieras cargar.',
+                       'Without the Trades section there are no purchase or sale dates, so the chart will keep estimating the past. Re-export the Activity Statement ticking Trades and "Net Asset Value (NAV)", covering the full period you want to load.')}
+                  </p>
+                </div>
+              )}
+
+              {/* Enrich vs Add vs Replace */}
               <div className="mt-4 p-3 bg-theme-base border border-glass-border rounded-lg">
                 <p className="text-xs text-slate-400 mb-2">{t('Modo de importación:', 'Import mode:')}</p>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={() => setIbkrImportMode('enrich')}
+                    className="flex-1 min-w-[130px] py-2 px-3 rounded-lg text-xs font-medium transition-colors border"
+                    style={ibkrImportMode === 'enrich' ? { backgroundColor: 'rgba(52,211,153,0.18)', borderColor: 'rgba(52,211,153,0.45)', color: 'var(--accent-green)' } : { borderColor: '#38383A', color: '#94a3b8' }}>
+                    {t('Enriquecer con historial', 'Enrich with history')}
+                  </button>
                   <button onClick={() => setIbkrImportMode('merge')}
-                    className="flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-colors border"
+                    className="flex-1 min-w-[130px] py-2 px-3 rounded-lg text-xs font-medium transition-colors border"
                     style={ibkrImportMode === 'merge' ? { backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.4)', color: 'var(--accent-blue)' } : { borderColor: '#38383A', color: '#94a3b8' }}>
                     {t('Agregar junto a existentes', 'Add alongside existing')}
                   </button>
                   <button onClick={() => setIbkrImportMode('replace')}
-                    className="flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-colors border"
+                    className="flex-1 min-w-[130px] py-2 px-3 rounded-lg text-xs font-medium transition-colors border"
                     style={ibkrImportMode === 'replace' ? { backgroundColor: 'rgba(234,88,12,0.2)', borderColor: 'rgba(249,115,22,0.4)', color: '#fb923c' } : { borderColor: '#38383A', color: '#94a3b8' }}>
                     {t('Reemplazar posiciones IBKR', 'Replace IBKR positions')}
                   </button>
                 </div>
+                {ibkrImportMode === 'enrich' && ibkrEnrichPreview && (
+                  <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
+                    {ibkrEnrichPreview.matched > 0
+                      ? t(`${ibkrEnrichPreview.matched} posiciones se enlazan con las que ya tienes (no se duplican): se completan fechas de compra, costo e identificadores faltantes. ${ibkrEnrichPreview.created > 0 ? `${ibkrEnrichPreview.created} nuevas se agregan. ` : ''}Tu cantidad y precio actuales no se tocan, y no se borra nada.`,
+                          `${ibkrEnrichPreview.matched} positions link up with the ones you already have (no duplicates): missing purchase dates, cost basis and identifiers get filled in. ${ibkrEnrichPreview.created > 0 ? `${ibkrEnrichPreview.created} new ones are added. ` : ''}Your current quantity and price are left alone, and nothing is deleted.`)
+                      : t('Ninguna posición del archivo coincide con las que ya tienes: todas se agregarán como nuevas.',
+                          'No position in the file matches what you already have: all of them will be added as new.')}
+                  </p>
+                )}
+                {ibkrImportMode === 'merge' && ibkrEnrichPreview?.matched > 0 && (
+                  <p className="text-xs mt-2" style={{ color: 'rgba(251,146,60,0.8)' }}>
+                    {t(`Cuidado: ${ibkrEnrichPreview.matched} de estas posiciones ya existen y se van a duplicar. Si lo que quieres es cargar el historial, usa "Enriquecer".`,
+                       `Careful: ${ibkrEnrichPreview.matched} of these positions already exist and will be duplicated. If what you want is to load the history, use "Enrich".`)}
+                  </p>
+                )}
                 {ibkrImportMode === 'replace' && existingItems && (
                   <p className="text-xs mt-2" style={{ color: 'rgba(251,146,60,0.7)' }}>
                     {(() => {
@@ -1173,14 +1271,16 @@ Rules: do not invent any data; if something is missing from my documents leave i
                 </button>
                 <button onClick={doIBKRImport} disabled={importing}
                   className="flex-1 py-2.5 text-white rounded-lg disabled:opacity-50 hover:opacity-90 transition-colors text-sm font-medium"
-                  style={{ backgroundColor: ibkrImportMode === 'replace' ? '#ea580c' : 'var(--accent-blue)' }}>
+                  style={{ backgroundColor: ibkrImportMode === 'replace' ? '#ea580c' : ibkrImportMode === 'enrich' ? 'var(--accent-green)' : 'var(--accent-blue)' }}>
                   {importing
                     ? importProgress.total > 0
                       ? t(`Importando ${importProgress.done}/${importProgress.total}`, `Importing ${importProgress.done}/${importProgress.total}`)
                       : t('Preparando...', 'Preparing...')
                     : ibkrImportMode === 'replace'
                       ? t(`Reemplazar con ${ibkrData.items.length} posiciones`, `Replace with ${ibkrData.items.length} positions`)
-                      : t(`Importar ${ibkrData.items.length} posiciones`, `Import ${ibkrData.items.length} positions`)}
+                      : ibkrImportMode === 'enrich'
+                        ? t('Enriquecer mi portafolio', 'Enrich my portfolio')
+                        : t(`Importar ${ibkrData.items.length} posiciones`, `Import ${ibkrData.items.length} positions`)}
                 </button>
                 {importing && importProgress.total > 0 && (
                   <div className="mt-2 h-1.5 bg-slate-700/30 rounded-full overflow-hidden">
@@ -1195,19 +1295,40 @@ Rules: do not invent any data; if something is missing from my documents leave i
           {step === 'done' && result && (
             <div className="text-center py-6">
               {/* success === 0 is a FAILURE, not a success: a completely misread file
-                  used to show the celebration screen with "0 assets imported". */}
-              <div className="text-5xl mb-4">{result.failed === 0 && result.success > 0 ? '🎉' : '⚠️'}</div>
-              <p className="text-white font-semibold text-lg mb-2">
-                {result.success === 0
-                  ? t('No se importó nada', 'Nothing was imported')
-                  : result.failed === 0
-                    ? t('Importación exitosa', 'Import successful')
-                    : t('Importación parcial', 'Partial import')}
-              </p>
-              <p className="text-slate-400 text-sm">
-                {result.success} {result.isBI ? t('transacciones importadas', 'transactions imported') : t('activos importados', 'assets imported')}
-                {result.failed > 0 && <>, {result.failed} {t('fallidos', 'failed')}</>}
-              </p>
+                  used to show the celebration screen with "0 assets imported".
+                  EXCEPT under enrich, where creating zero items is the ideal result:
+                  every position matched an existing one and only history was added. */}
+              {(() => {
+                const enrichWorked = (result.matched || 0) > 0 || (result.enriched || 0) > 0
+                  || (result.history || 0) > 0 || (result.navDays || 0) > 0
+                const ok = result.failed === 0 && (result.success > 0 || enrichWorked)
+                return (
+                  <>
+                    <div className="text-5xl mb-4">{ok ? '🎉' : '⚠️'}</div>
+                    <p className="text-white font-semibold text-lg mb-2">
+                      {!ok && result.success === 0
+                        ? t('No se importó nada', 'Nothing was imported')
+                        : result.failed === 0
+                          ? t('Importación exitosa', 'Import successful')
+                          : t('Importación parcial', 'Partial import')}
+                    </p>
+                    <p className="text-slate-400 text-sm">
+                      {result.success > 0
+                        ? <>{result.success} {result.isBI ? t('transacciones importadas', 'transactions imported') : t('activos importados', 'assets imported')}</>
+                        : enrichWorked
+                          ? t('No se creó ninguna posición duplicada', 'No duplicate position was created')
+                          : <>{result.success} {result.isBI ? t('transacciones importadas', 'transactions imported') : t('activos importados', 'assets imported')}</>}
+                      {result.failed > 0 && <>, {result.failed} {t('fallidos', 'failed')}</>}
+                    </p>
+                  </>
+                )
+              })()}
+              {result.matched > 0 && (
+                <p className="text-xs mt-1" style={{ color: 'var(--accent-green)' }}>
+                  🔗 {t(`${result.matched} posiciones enlazadas con las que ya tenías`, `${result.matched} positions linked to the ones you already had`)}
+                  {result.enriched > 0 && t(`, ${result.enriched} completadas con datos faltantes`, `, ${result.enriched} filled in with missing data`)}
+                </p>
+              )}
               {result.replaced > 0 && (
                 <p className="text-xs mt-1" style={{ color: '#fb923c' }}>{t(`${result.replaced} posiciones anteriores reemplazadas`, `${result.replaced} previous positions replaced`)}</p>
               )}
