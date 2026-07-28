@@ -659,15 +659,23 @@ export default function DashboardPage() {
     if (ibkrSyncErrorCode === 'TOKEN_EXPIRED') return 'ibkr-expired'
     if (ibkrSyncErrorCode === 'INVALID_QUERY') return 'ibkr-query'
     if (ibkrSyncErrorCode === 'LOCKED') return 'ibkr-locked'
-    // Any other auto-sync failure (RATE_LIMITED/TIMEOUT/UNKNOWN) was invisible:
-    // the user saw stale data with no hint that the last sync didn't run.
-    if (ibkrSyncErrorCode) return 'ibkr-failed'
+    // Any other auto-sync failure (RATE_LIMITED/TIMEOUT/UNKNOWN) self-heals: the
+    // sync just retries on its own cadence (30min, see useDashboardData), so ONE
+    // failed attempt is not alarming by itself — it used to fire this banner even
+    // when the last SUCCESSFUL sync was a few hours old, which read as "broken"
+    // over data that was actually fine. Only surface it once real staleness has
+    // built up: the last successful sync is 7+ days old.
+    if (ibkrSyncErrorCode) {
+      const lastOk = settings?._ibkrLastSync || settings?._ibkrLastAutoSync
+      const daysSinceOk = lastOk ? (Date.now() - new Date(lastOk).getTime()) / 86400000 : Infinity
+      if (daysSinceOk >= 7) return 'ibkr-failed'
+    }
     if (pricesError || ratesError) return 'prices'
     // The contribution hint is NOT a top-of-page alarm — it lives as a quiet
     // muted note inside NetWorthCard (a 40%-growth-with-few-deposits nudge is
     // informational, not a warning that should shout in amber).
     return null
-  }, [staleCode, ibkrSyncErrorCode, pricesError, ratesError, portfolioItems.length])
+  }, [staleCode, ibkrSyncErrorCode, pricesError, ratesError, portfolioItems.length, settings?._ibkrLastSync, settings?._ibkrLastAutoSync])
 
   // Loading state — show the structural skeleton (same layout as the loaded page)
   // instead of a lone spinner, so first paint already looks like the dashboard.
