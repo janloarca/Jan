@@ -77,7 +77,7 @@ function findClosestBenchmark(sorted, targetTs) {
   return sorted[lo]
 }
 
-export default function PortfolioGrowthChart({ items, lots, snapshots, transactions, lang, convert, baseCurrency, benchmarkSymbol, benchmarkName, onSaveSnapshot, ibkrSyncSummary = null }) {
+export default function PortfolioGrowthChart({ items, lots, snapshots, transactions, lang, convert, baseCurrency, benchmarkSymbol, benchmarkName, onSaveSnapshot, ibkrSyncSummary = null, onImportBroker = null }) {
   const [period, setPeriod] = useState('YTD')
   const [hoverIdx, setHoverIdx] = useState(null)
   const [dataPoints, setDataPoints] = useState([])
@@ -508,6 +508,38 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     const p = snapshotData.find((s) => ['ibkr', 'daily', 'manual'].includes(s?.src))
     return p ? p.ts : null
   }, [snapshotData])
+
+  // Which broker the hold-flat estimate belongs to, so the short-history notice
+  // points at the RIGHT place to fix it (only IBKR has a Flex Query "period" to
+  // widen; every other synced broker's only real fix is uploading a file with
+  // the full history). Majority vote over the scoped items' _source.
+  const primaryBrokerId = useMemo(() => {
+    const counts = {}
+    for (const it of scopedItems || []) {
+      const src = it._source
+      if (!src || src === 'manual' || src === 'demo') continue
+      counts[src] = (counts[src] || 0) + 1
+    }
+    const entries = Object.entries(counts)
+    if (entries.length === 0) return null
+    entries.sort((a, b) => b[1] - a[1])
+    return entries[0][0]
+  }, [scopedItems])
+
+  // Dismiss the short-history notice, but only until the situation it describes
+  // actually changes: keyed by broker + the real-data anchor date, so re-syncing
+  // with a wider window (more real history) un-dismisses it instead of hiding a
+  // NEW, more actionable version of the same message forever.
+  const estimateNoticeKey = firstRealTs != null ? `chispudo-estimate-notice-dismissed:${primaryBrokerId || 'ibkr'}:${firstRealTs}` : null
+  const [estimateNoticeDismissed, setEstimateNoticeDismissed] = useState(false)
+  useEffect(() => {
+    if (!estimateNoticeKey) return
+    try { setEstimateNoticeDismissed(localStorage.getItem(estimateNoticeKey) === '1') } catch { setEstimateNoticeDismissed(false) }
+  }, [estimateNoticeKey])
+  const dismissEstimateNotice = useCallback(() => {
+    if (estimateNoticeKey) { try { localStorage.setItem(estimateNoticeKey, '1') } catch {} }
+    setEstimateNoticeDismissed(true)
+  }, [estimateNoticeKey])
 
   const chartData = useMemo(() => {
     // IBKR-sourced snapshots are the broker's account NAV only — they predate any
@@ -1192,24 +1224,47 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
       {/* Short-history notice: real broker NAV starts well after Jan 1. The Value
           view shows a labeled estimate before that date; the Performance view is
-          rebased to the real region (IBKR's own convention). Either way the fix is
-          the same: widen the Flex Query period and re-sync. */}
+          rebased to the real region (IBKR's own convention). Two remedies, not
+          one: widen the sync window (IBKR only — other brokers have no history
+          API at all) for the API-synced estimate, or upload a file with the full
+          history for whatever the sync can't reach (multi-year "ALL" in
+          particular, which 365 days never covers). Dismissible per (broker,
+          anchor date): re-syncing with MORE real history changes the anchor and
+          un-dismisses it, instead of hiding a newer, more actionable message. */}
       {(period === 'YTD' || period === 'ALL') && !apiTransactional && firstRealTs != null && chartData.length > 1
+        && !estimateNoticeDismissed
         && firstRealTs > Date.UTC(new Date().getUTCFullYear(), 0, 1) + 45 * 86400000
         && (viewMode === 'performance' || chartData[0].ts < firstRealTs - 3600000) && (
-        <div className="flex items-start gap-2 px-2.5 py-1.5 rounded-lg text-xs mb-3"
+        <div className="relative flex items-start gap-2 px-2.5 py-1.5 pr-7 rounded-lg text-xs mb-3"
           style={{ backgroundColor: 'var(--alert-info-bg)', border: '1px solid var(--alert-info-border)', color: 'var(--alert-info-icon)' }}>
           <span>ℹ</span>
           <span>
             {viewMode === 'performance'
-              ? t(`Tu retorno se mide desde ${formatDate(new Date(firstRealTs).toISOString())}, el primer día con datos reales de tu broker (igual que haría IBKR con una cuenta nueva). Para medir el año completo, pon el período de tu Flex Query en "Year to Date" y vuelve a sincronizar.`,
-                  `Your return is measured from ${formatDate(new Date(firstRealTs).toISOString())}, the first day with real broker data (just like IBKR would for a new account). To measure the full year, set your Flex Query period to "Year to Date" and sync again.`)
-              : t(`Datos reales de tu broker desde ${formatDate(new Date(firstRealTs).toISOString())}; antes es un estimado. Para ver tu año completo igual que tu broker, pon el período de tu Flex Query en "Year to Date" y vuelve a sincronizar.`,
-                  `Real broker data starts ${formatDate(new Date(firstRealTs).toISOString())}; earlier values are an estimate. To see your full year exactly like your broker, set your Flex Query period to "Year to Date" and sync again.`)}
+              ? t(`Tu retorno se mide desde ${formatDate(new Date(firstRealTs).toISOString())}, el primer día con datos reales de tu broker (igual que haría IBKR con una cuenta nueva).`,
+                  `Your return is measured from ${formatDate(new Date(firstRealTs).toISOString())}, the first day with real broker data (just like IBKR would for a new account).`)
+              : t(`Datos reales de tu broker desde ${formatDate(new Date(firstRealTs).toISOString())}; antes es un estimado.`,
+                  `Real broker data starts ${formatDate(new Date(firstRealTs).toISOString())}; earlier values are an estimate.`)}
+            {' '}
+            {primaryBrokerId === 'ibkr' || primaryBrokerId == null
+              ? t('En IBKR: Flex Queries → tu query → Period → "Last 365 Calendar Days", y vuelve a sincronizar.',
+                  'In IBKR: Flex Queries → your query → Period → "Last 365 Calendar Days", then sync again.')
+              : t('Este broker no sincroniza historial por API: la única forma de tener el año completo es subir tu archivo.',
+                  'This broker doesn\'t sync history via API: uploading your file is the only way to get the full year.')}
+            {' '}
+            {t('¿Querés tu historial COMPLETO ya, sin depender de eso?', 'Want your FULL history right now, without depending on that?')}
+            {onImportBroker && (
+              <button onClick={() => onImportBroker(primaryBrokerId || 'ibkr')}
+                className="block mt-1.5 px-2 py-1 rounded-md text-[11px] font-medium"
+                style={{ backgroundColor: 'var(--alert-info-icon)', color: 'var(--bg-card)' }}>
+                {t('Subir historial completo (archivo)', 'Upload full history (file)')}
+              </button>
+            )}
             {/* Persistent forensic line: raw per-section counts from the last sync's
                 XML vs what got imported. Survives the transient toast so ANY
-                screenshot of this banner pins down where the data stops flowing. */}
-            {ibkrSyncSummary?.sections && (
+                screenshot of this banner pins down where the data stops flowing.
+                IBKR-only (Flex Query XML sections) — showing it under a different
+                broker's notice would reference sections that broker doesn't have. */}
+            {(primaryBrokerId === 'ibkr' || primaryBrokerId == null) && ibkrSyncSummary?.sections && (
               <span className="block mt-1.5 font-mono text-[10px] opacity-80">
                 {t('Último sync', 'Last sync')} {ibkrSyncSummary.at ? formatDate(ibkrSyncSummary.at) : ''}: XML{' '}
                 {ibkrSyncSummary.sections.trades ?? 0} trades, {ibkrSyncSummary.sections.cashTransactions ?? 0} cash tx,{' '}
@@ -1218,6 +1273,11 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
               </span>
             )}
           </span>
+          <button onClick={dismissEstimateNotice} aria-label={t('Cerrar aviso', 'Close notice')}
+            className="absolute top-1.5 right-1.5 w-5 h-5 flex items-center justify-center rounded-md opacity-60 hover:opacity-100 transition-opacity"
+            style={{ color: 'var(--alert-info-icon)' }}>
+            &times;
+          </button>
         </div>
       )}
 
