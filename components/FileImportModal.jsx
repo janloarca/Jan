@@ -653,6 +653,11 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     && (ibkrData.transactions || []).length === 0
     && (ibkrData.equityHistory || []).length === 0
 
+  // Holdings the statement can't date because they were bought before its start.
+  // Worth its own notice: the file looks complete (it HAS trades), so nothing
+  // else would hint that some positions are still missing their real start date.
+  const ibkrOlderThanFile = (ibkrData?.items || []).filter(i => i._historyIncomplete).length
+
   const handleDrop = useCallback((e) => {
     e.preventDefault()
     const file = e.dataTransfer.files[0]
@@ -1225,6 +1230,23 @@ Rules: do not invent any data; if something is missing from my documents leave i
                           'That is why it has no purchases or history: nothing happened that day. Generate it again at IBKR and under "Period" pick a long range (the full year, or since you opened the account). You can still import this one, but your chart will keep estimating the past.')
                       : t('No trae las fechas en que compraste ni vendiste, así que tu gráfico va a seguir mostrando el pasado como estimado. Puedes importarlo igual. Para incluir tu historia real, vuelve a descargar el archivo en IBKR eligiendo un rango de fechas largo.',
                           'It has no purchase or sale dates, so your chart will keep showing the past as an estimate. You can still import it. To include your real history, download the file again at IBKR choosing a long date range.')}
+                  </p>
+                </div>
+              )}
+
+              {/* Some holdings are older than the statement window. Say it plainly
+                  and point at the ONE setting that solves it regardless of period
+                  (lot open dates), because widening the statement only helps as
+                  far back as IBKR keeps statements. */}
+              {!ibkrMissingHistory && ibkrOlderThanFile > 0 && (
+                <div className="mt-3 px-3 py-2.5 rounded-lg text-xs" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)' }}>
+                  <p className="font-medium" style={{ color: '#fcd34d' }}>
+                    {t(`${ibkrOlderThanFile} de estas posiciones ya las tenías antes de que empiece este archivo.`,
+                       `${ibkrOlderThanFile} of these positions were already yours before this file starts.`)}
+                  </p>
+                  <p className="mt-1" style={{ color: 'var(--text-muted)' }}>
+                    {t('Para esas no ponemos fecha de compra, porque la primera que aparece aquí no es la real. Si quieres sus fechas verdaderas: en IBKR crea un Flex Query, y en "Open Positions" pon "Level of Detail: Lots" y marca "Open Date Time". Eso trae la fecha de cada compra por vieja que sea. La otra opción es bajar un statement por cada año anterior.',
+                       'We leave those without a purchase date, because the first one showing up here is not the real one. To get their true dates: in IBKR create a Flex Query, and under "Open Positions" set "Level of Detail: Lots" and tick "Open Date Time". That brings each purchase date no matter how old. The other option is downloading one statement per earlier year.')}
                   </p>
                 </div>
               )}
