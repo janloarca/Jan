@@ -2,15 +2,17 @@
 
 import { Upload, Plus, ArrowLeftRight, Share2, Download, RefreshCw, ClipboardCheck, DollarSign } from 'lucide-react'
 
-export default function ActionButtons({ onImport, onAddAccount, onTransfer, onCashFlow, onExport, onShare, onIBKR, onBlockchain, onLedger, onIntegrations, onReview, itemCount, lang, ibkrSyncStatus, ibkrLastSync }) {
+// ibkrNeedsAttention gates the red dot for the same reason the header pill uses
+// it: one retryable sync failure isn't worth an alarm. Rule lives in the dashboard.
+export default function ActionButtons({ onImport, onAddAccount, onTransfer, onCashFlow, onExport, onShare, onIBKR, onBlockchain, onLedger, onIntegrations, onReview, itemCount, lang, ibkrSyncStatus, ibkrLastSync, ibkrNeedsAttention = false }) {
   // Uniform outline-secondary bar (matches the header's outline buttons).
   const btnBase = 'px-2.5 sm:px-4 py-2 text-body font-medium rounded-lg border transition-colors flex items-center gap-1.5 hover:bg-theme-elevated'
   const btnSecondary = btnBase
   const btnMuted = btnBase
   const outlineStyle = { backgroundColor: 'var(--bg-card)', borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }
 
-  const hasSyncIndicator = ibkrSyncStatus === 'error' || (ibkrSyncStatus === 'ok' && ibkrLastSync)
-  const syncDotColor = ibkrSyncStatus === 'error' ? 'var(--text-negative)'
+  const hasSyncIndicator = ibkrNeedsAttention || (ibkrSyncStatus === 'ok' && ibkrLastSync)
+  const syncDotColor = ibkrNeedsAttention ? 'var(--text-negative)'
     : ibkrSyncStatus === 'ok' && ibkrLastSync && !isNaN(new Date(ibkrLastSync).getTime()) && Date.now() - new Date(ibkrLastSync).getTime() < 2 * 60 * 60 * 1000 ? 'var(--accent-green)'
     : ibkrSyncStatus === 'ok' ? 'var(--accent-orange)' : null
 

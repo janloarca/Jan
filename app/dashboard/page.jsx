@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useDashboardData } from '@/hooks/useDashboardData'
-import { getItemValue, formatCurrency, getTypeCategory } from '@/components/dashboard/utils'
+import { getItemValue, formatCurrency, getTypeCategory, businessDaysSince } from '@/components/dashboard/utils'
 import Header from '@/components/dashboard/Header'
 import AdBanner from '@/components/AdBanner'
 import DashboardLoading from './loading'
@@ -650,6 +650,23 @@ export default function DashboardPage() {
     } catch {}
   }, [])
 
+  // ONE rule for "is the IBKR connection actually in trouble?", shared by the top
+  // banner, the header pill and the ActionButtons dot. They each used to decide on
+  // their own (`ibkrSyncStatus === 'error'`), so a single transient failure lit up
+  // a warning triangle over data synced hours ago. Split by whether the failure
+  // can heal itself:
+  //   - TOKEN_EXPIRED / INVALID_QUERY / LOCKED need the USER to act, so they warn
+  //     immediately (auto-sync is halted or backed off for these).
+  //   - Everything else (RATE_LIMITED/TIMEOUT/UNKNOWN) retries on its own every
+  //     30min, so it only becomes news once the data is genuinely stale: 5 BUSINESS
+  //     days without a successful sync. Business days because the market is shut on
+  //     weekends and a Friday sync has nothing to add on Sunday.
+  const ibkrNeedsAttention = useMemo(() => {
+    if (!ibkrSyncErrorCode) return false
+    if (['TOKEN_EXPIRED', 'INVALID_QUERY', 'LOCKED'].includes(ibkrSyncErrorCode)) return true
+    return businessDaysSince(settings?._ibkrLastSync || settings?._ibkrLastAutoSync) >= 5
+  }, [ibkrSyncErrorCode, settings?._ibkrLastSync, settings?._ibkrLastAutoSync])
+
   const topBanner = useMemo(() => {
     // Nothing to be stale ABOUT on an empty account: a brand-new user opening the app
     // was greeted by an amber "exchange rates outdated" warning above the welcome
@@ -659,23 +676,15 @@ export default function DashboardPage() {
     if (ibkrSyncErrorCode === 'TOKEN_EXPIRED') return 'ibkr-expired'
     if (ibkrSyncErrorCode === 'INVALID_QUERY') return 'ibkr-query'
     if (ibkrSyncErrorCode === 'LOCKED') return 'ibkr-locked'
-    // Any other auto-sync failure (RATE_LIMITED/TIMEOUT/UNKNOWN) self-heals: the
-    // sync just retries on its own cadence (30min, see useDashboardData), so ONE
-    // failed attempt is not alarming by itself — it used to fire this banner even
-    // when the last SUCCESSFUL sync was a few hours old, which read as "broken"
-    // over data that was actually fine. Only surface it once real staleness has
-    // built up: the last successful sync is 7+ days old.
-    if (ibkrSyncErrorCode) {
-      const lastOk = settings?._ibkrLastSync || settings?._ibkrLastAutoSync
-      const daysSinceOk = lastOk ? (Date.now() - new Date(lastOk).getTime()) / 86400000 : Infinity
-      if (daysSinceOk >= 7) return 'ibkr-failed'
-    }
+    // Any other auto-sync failure self-heals; ibkrNeedsAttention holds the shared
+    // staleness rule so this banner can never disagree with the header pill.
+    if (ibkrNeedsAttention) return 'ibkr-failed'
     if (pricesError || ratesError) return 'prices'
     // The contribution hint is NOT a top-of-page alarm — it lives as a quiet
     // muted note inside NetWorthCard (a 40%-growth-with-few-deposits nudge is
     // informational, not a warning that should shout in amber).
     return null
-  }, [staleCode, ibkrSyncErrorCode, pricesError, ratesError, portfolioItems.length, settings?._ibkrLastSync, settings?._ibkrLastAutoSync])
+  }, [staleCode, ibkrSyncErrorCode, ibkrNeedsAttention, pricesError, ratesError, portfolioItems.length])
 
   // Loading state — show the structural skeleton (same layout as the loaded page)
   // instead of a lone spinner, so first paint already looks like the dashboard.
@@ -703,6 +712,7 @@ export default function DashboardPage() {
         ibkrAutoSyncing={ibkrAutoSyncing}
         ibkrSyncSummary={ibkrSyncSummary}
         ibkrSyncStatus={ibkrSyncStatus}
+        ibkrNeedsAttention={ibkrNeedsAttention}
         onIBKR={handleIBKRPillClick}
         friendsEnabled={settings?.friendsEnabled !== false}
       />
@@ -959,7 +969,7 @@ export default function DashboardPage() {
                 onTransfer={handleOpenTransfer} onCashFlow={handleOpenCashflow} onExport={handleExport}
                 onShare={handleShare} onIntegrations={handleOpenConnections}
                 onReview={handleOpenReview} itemCount={enrichedItems.length} lang={lang}
-                ibkrSyncStatus={ibkrSyncStatus} ibkrLastSync={ibkrLastSync}
+                ibkrSyncStatus={ibkrSyncStatus} ibkrLastSync={ibkrLastSync} ibkrNeedsAttention={ibkrNeedsAttention}
               />
 
               {!hasHigh && suggestionsCard}

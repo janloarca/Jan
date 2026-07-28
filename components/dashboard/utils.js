@@ -591,3 +591,30 @@ export function getMaturityInfo(item) {
   else { color = 'emerald'; label = years > 0 ? `${years}a ${months % 12}m` : `${months}m` }
   return { expired: false, days, months, years, label, color }
 }
+
+// Weekdays elapsed since `since`. Broker staleness must be measured in BUSINESS
+// days: markets are closed on weekends, so a sync that last succeeded Friday has
+// nothing new to fetch on Sunday — counting calendar days raises the alarm a full
+// weekend early. Returns Infinity when there is no valid `since` (never synced),
+// and caps the walk so a garbage/ancient date can't spin the loop.
+export function businessDaysSince(since, now = Date.now()) {
+  if (!since) return Infinity
+  const start = new Date(since).getTime()
+  if (!isFinite(start)) return Infinity
+  if (now <= start) return 0
+
+  const cursor = new Date(start)
+  cursor.setHours(0, 0, 0, 0)
+  const end = new Date(now)
+  end.setHours(0, 0, 0, 0)
+
+  let count = 0
+  let guard = 0
+  while (cursor < end && guard < 400) {
+    cursor.setDate(cursor.getDate() + 1)
+    const dow = cursor.getDay()
+    if (dow !== 0 && dow !== 6) count++
+    guard++
+  }
+  return guard >= 400 ? Infinity : count
+}

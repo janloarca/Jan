@@ -5,7 +5,11 @@ import { usePathname } from 'next/navigation'
 import { useState, useEffect, useRef } from 'react'
 import { Search, RefreshCw, Settings, LogOut, Plus, Upload, Zap, ChevronDown, Link2 } from 'lucide-react'
 
-export default function Header({ user, lang, setLang, onImport, onSignOut, onRefresh, onSettings, pricesLoading, onAddAccount, onCommandPalette, onOpenConnections, ibkrConnected, ibkrAutoSyncing, ibkrSyncStatus, ibkrSyncSummary, onIBKR, friendsEnabled = true }) {
+// ibkrNeedsAttention (not a raw `ibkrSyncStatus === 'error'`) drives the warning
+// triangle: a single transient sync failure is not news while auto-sync is still
+// retrying every 30min. The dashboard owns that rule so the pill, the top banner
+// and the ActionButtons dot always agree. See app/dashboard/page.jsx.
+export default function Header({ user, lang, setLang, onImport, onSignOut, onRefresh, onSettings, pricesLoading, onAddAccount, onCommandPalette, onOpenConnections, ibkrConnected, ibkrAutoSyncing, ibkrSyncStatus, ibkrNeedsAttention = false, ibkrSyncSummary, onIBKR, friendsEnabled = true }) {
   const [newMenuOpen, setNewMenuOpen] = useState(false)
   const newMenuRef = useRef(null)
 
@@ -100,14 +104,14 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
                 className="px-2.5 h-9 text-xs font-medium rounded-full border transition-colors flex items-center gap-1.5 disabled:cursor-default"
                 style={ibkrAutoSyncing
                   ? { color: 'var(--accent-blue)', borderColor: 'rgba(79,70,229,0.3)', backgroundColor: 'rgba(79,70,229,0.08)' }
-                  : ibkrSyncStatus === 'error'
+                  : ibkrNeedsAttention
                     ? { color: '#D97706', borderColor: '#FDE68A', backgroundColor: '#FFFBEB' }
                     : { color: 'var(--text-secondary)', borderColor: 'var(--card-border)' }
                 }>
                 <span className="font-mono">IBKR</span>
                 {ibkrAutoSyncing
                   ? <RefreshCw size={10} className="animate-spin" />
-                  : ibkrSyncStatus === 'error'
+                  : ibkrNeedsAttention
                     ? <span>⚠</span>
                     : <span style={{ color: 'var(--accent-green)' }}>●</span>
                 }

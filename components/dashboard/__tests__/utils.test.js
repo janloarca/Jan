@@ -1,4 +1,5 @@
 import {
+  businessDaysSince,
   computeModifiedDietz,
   getItemValue,
   getItemPrice,
@@ -542,5 +543,43 @@ describe('shouldHoldFlat', () => {
 
   it('guards against missing symbol', () => {
     expect(shouldHoldFlat({ _source: 'ibkr' }, [], [])).toBe(false)
+  })
+})
+
+describe('businessDaysSince', () => {
+  // Fixed reference points so the assertions don't drift with the real clock.
+  // 2026-07-28 is a Tuesday.
+  const tue = new Date('2026-07-28T12:00:00Z').getTime()
+
+  it('returns 0 for a sync that happened today', () => {
+    expect(businessDaysSince(new Date(tue).toISOString(), tue)).toBe(0)
+  })
+
+  it('does not count the weekend: Friday -> Monday is 1 business day', () => {
+    const fri = new Date('2026-07-24T12:00:00Z').getTime()
+    const mon = new Date('2026-07-27T12:00:00Z').getTime()
+    expect(businessDaysSince(new Date(fri).toISOString(), mon)).toBe(1)
+  })
+
+  it('a sync last Friday is still under the 5-day alarm on the next Thursday', () => {
+    const fri = new Date('2026-07-24T12:00:00Z').getTime()
+    const thu = new Date('2026-07-30T12:00:00Z').getTime()
+    expect(businessDaysSince(new Date(fri).toISOString(), thu)).toBe(4)
+  })
+
+  it('reaches 5 business days only on the following Friday', () => {
+    const fri = new Date('2026-07-24T12:00:00Z').getTime()
+    const nextFri = new Date('2026-07-31T12:00:00Z').getTime()
+    expect(businessDaysSince(new Date(fri).toISOString(), nextFri)).toBe(5)
+  })
+
+  it('treats a missing or invalid date as infinitely stale', () => {
+    expect(businessDaysSince(null, tue)).toBe(Infinity)
+    expect(businessDaysSince('not-a-date', tue)).toBe(Infinity)
+  })
+
+  it('never returns negative for a future date', () => {
+    const future = new Date('2026-08-05T12:00:00Z').toISOString()
+    expect(businessDaysSince(future, tue)).toBe(0)
   })
 })
