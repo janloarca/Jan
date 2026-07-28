@@ -127,9 +127,14 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, it
     return null
   }
 
+  // "Todos" must count what this card will actually LIST. It counted the raw
+  // array instead, so a portfolio with broker fees advertised "Todos 200" and
+  // then showed "Ver todas (125)": the 75 cost rows live in the Costs tab, and
+  // the mismatch reads as 75 missing movements.
   const txCount = (key) => {
-    if (key === 'ALL') return transactions?.length || 0
-    return (transactions || []).filter((tx) => (tx.type || '').toUpperCase() === key).length
+    const visible = (transactions || []).filter((tx) => !COST_TYPES.has((tx.type || '').toUpperCase()))
+    if (key === 'ALL') return visible.length
+    return visible.filter((tx) => (tx.type || '').toUpperCase() === key).length
   }
 
   return (
