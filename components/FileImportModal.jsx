@@ -1204,64 +1204,104 @@ Rules: do not invent any data; if something is missing from my documents leave i
                 </table>
               </div>
 
-              {/* The statement carried no history: say so BEFORE the import, with
-                  the exact sections to re-export, since this is the file that was
-                  supposed to fix the estimated chart. */}
+              {/* The statement carried no history: say so BEFORE the import, in
+                  terms of what the user LOSES, not which report section is absent.
+                  Naming the two checkboxes is enough to act on; the jargon
+                  ("Activity Statement", "Trades section") stays out of the way. */}
               {ibkrMissingHistory && (
-                <div className="mt-3 px-3 py-2 rounded-lg text-xs" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', color: '#fcd34d' }}>
-                  <p className="font-medium">{t('Este archivo trae posiciones, pero no historial.', 'This file has positions, but no history.')}</p>
+                <div className="mt-3 px-3 py-2.5 rounded-lg text-xs" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)' }}>
+                  <p className="font-medium" style={{ color: '#fcd34d' }}>
+                    {t('Este archivo tiene lo que tienes hoy, pero no cómo llegaste ahí.', 'This file has what you hold today, but not how you got there.')}
+                  </p>
                   <p className="mt-1" style={{ color: 'var(--text-muted)' }}>
-                    {t('Sin la sección Trades no hay fechas de compra ni de venta, así que el gráfico va a seguir estimando el pasado. Vuelve a exportar el Activity Statement marcando Trades y "Net Asset Value (NAV)", con el período completo que quieras cargar.',
-                       'Without the Trades section there are no purchase or sale dates, so the chart will keep estimating the past. Re-export the Activity Statement ticking Trades and "Net Asset Value (NAV)", covering the full period you want to load.')}
+                    {t('No trae las fechas en que compraste ni vendiste, así que tu gráfico va a seguir mostrando el pasado como estimado. Puedes importarlo igual. Para incluir tu historia real, vuelve a descargar el archivo en IBKR y marca las casillas "Trades" y "NAV".',
+                       'It has no purchase or sale dates, so your chart will keep showing the past as an estimate. You can still import it. To include your real history, download the file again at IBKR and tick the "Trades" and "NAV" boxes.')}
                   </p>
                 </div>
               )}
 
-              {/* Enrich vs Add vs Replace */}
-              <div className="mt-4 p-3 bg-theme-base border border-glass-border rounded-lg">
-                <p className="text-xs text-slate-400 mb-2">{t('Modo de importación:', 'Import mode:')}</p>
-                <div className="flex flex-wrap gap-2">
-                  <button onClick={() => setIbkrImportMode('enrich')}
-                    className="flex-1 min-w-[130px] py-2 px-3 rounded-lg text-xs font-medium transition-colors border"
-                    style={ibkrImportMode === 'enrich' ? { backgroundColor: 'rgba(52,211,153,0.18)', borderColor: 'rgba(52,211,153,0.45)', color: 'var(--accent-green)' } : { borderColor: '#38383A', color: '#94a3b8' }}>
-                    {t('Enriquecer con historial', 'Enrich with history')}
-                  </button>
-                  <button onClick={() => setIbkrImportMode('merge')}
-                    className="flex-1 min-w-[130px] py-2 px-3 rounded-lg text-xs font-medium transition-colors border"
-                    style={ibkrImportMode === 'merge' ? { backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.4)', color: 'var(--accent-blue)' } : { borderColor: '#38383A', color: '#94a3b8' }}>
-                    {t('Agregar junto a existentes', 'Add alongside existing')}
-                  </button>
-                  <button onClick={() => setIbkrImportMode('replace')}
-                    className="flex-1 min-w-[130px] py-2 px-3 rounded-lg text-xs font-medium transition-colors border"
-                    style={ibkrImportMode === 'replace' ? { backgroundColor: 'rgba(234,88,12,0.2)', borderColor: 'rgba(249,115,22,0.4)', color: '#fb923c' } : { borderColor: '#38383A', color: '#94a3b8' }}>
-                    {t('Reemplazar posiciones IBKR', 'Replace IBKR positions')}
-                  </button>
+              {/* One decision, three plain-language outcomes. The old row of three
+                  jargon buttons ("Enriquecer", "Agregar junto a existentes",
+                  "Reemplazar posiciones IBKR") asked the user to understand our
+                  data model before they could pick safely, and cramped onto two
+                  lines on a phone. Now each option says what happens to THEIR data,
+                  the safe one carries the recommendation, and the risky one spells
+                  out the loss. */}
+              <div className="mt-4">
+                <p className="text-xs text-slate-400 mb-2">{t('¿Qué hacemos con este archivo?', 'What should we do with this file?')}</p>
+                <div className="space-y-2">
+                  {(() => {
+                    const matched = ibkrEnrichPreview?.matched || 0
+                    const created = ibkrEnrichPreview?.created || 0
+                    const ibkrCount = (existingItems || []).filter(it => it.institution === 'Interactive Brokers' || it._source === 'ibkr').length
+                    const options = [
+                      {
+                        key: 'enrich',
+                        accent: 'var(--accent-green)',
+                        title: matched > 0
+                          ? t('Completar lo que ya tengo', 'Fill in what I already have')
+                          : t('Completar mi portafolio', 'Fill in my portfolio'),
+                        desc: matched > 0
+                          ? t(`Encontramos ${matched} de estas posiciones en tu portafolio. Les agregamos las fechas y movimientos que falten${created > 0 ? `, y sumamos las ${created} que no tenías` : ''}. No se duplica ni se borra nada, y tu saldo de hoy queda igual.`,
+                              `We found ${matched} of these positions in your portfolio. We add the missing dates and movements${created > 0 ? `, and add the ${created} you didn't have` : ''}. Nothing is duplicated or deleted, and today's balance stays the same.`)
+                          : t('Ninguna de estas posiciones está todavía en tu portafolio, así que se agregarán todas.',
+                              'None of these positions are in your portfolio yet, so all of them will be added.'),
+                      },
+                      {
+                        key: 'merge',
+                        accent: 'var(--accent-blue)',
+                        title: t('Agregar todo como nuevo', 'Add everything as new'),
+                        desc: matched > 0
+                          ? t(`Ojo: ${matched} posiciones que ya tienes aparecerían dos veces y tu patrimonio se vería inflado.`,
+                              `Careful: ${matched} positions you already have would show up twice and your net worth would look inflated.`)
+                          : t('Úsalo si este archivo es de una cuenta que todavía no está aquí.',
+                              'Use this if the file is from an account that isn\'t here yet.'),
+                        warn: matched > 0,
+                      },
+                      {
+                        key: 'replace',
+                        accent: '#fb923c',
+                        title: t('Borrar y empezar de nuevo', 'Delete and start over'),
+                        desc: ibkrCount > 0
+                          ? t(`Elimina tus ${ibkrCount} posiciones de IBKR y las vuelve a crear desde este archivo.`,
+                              `Deletes your ${ibkrCount} IBKR positions and recreates them from this file.`)
+                          : t('No tienes posiciones de IBKR que borrar.', 'You have no IBKR positions to delete.'),
+                        warn: ibkrCount > 0,
+                      },
+                    ]
+                    return options.map((opt) => {
+                      const active = ibkrImportMode === opt.key
+                      const recommended = opt.key === (matched > 0 ? 'enrich' : 'merge')
+                      return (
+                        <button key={opt.key} onClick={() => setIbkrImportMode(opt.key)}
+                          className="w-full text-left p-3 rounded-lg border transition-colors flex items-start gap-2.5"
+                          style={active
+                            ? { borderColor: opt.accent, backgroundColor: `${opt.accent}14` }
+                            : { borderColor: 'var(--card-border)', backgroundColor: 'var(--bg-card)' }}>
+                          <span className="shrink-0 mt-0.5 w-4 h-4 rounded-full border flex items-center justify-center"
+                            style={{ borderColor: active ? opt.accent : 'var(--card-border)' }}>
+                            {active && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: opt.accent }} />}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-medium" style={{ color: active ? opt.accent : 'var(--text-primary)' }}>{opt.title}</span>
+                              {recommended && (
+                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                                  style={{ color: 'var(--accent-green)', backgroundColor: 'rgba(52,211,153,0.15)' }}>
+                                  {t('Recomendado', 'Recommended')}
+                                </span>
+                              )}
+                            </span>
+                            <span className="block text-xs mt-0.5 leading-relaxed"
+                              style={{ color: opt.warn ? 'rgba(251,146,60,0.9)' : 'var(--text-muted)' }}>
+                              {opt.desc}
+                            </span>
+                          </span>
+                        </button>
+                      )
+                    })
+                  })()}
                 </div>
-                {ibkrImportMode === 'enrich' && ibkrEnrichPreview && (
-                  <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
-                    {ibkrEnrichPreview.matched > 0
-                      ? t(`${ibkrEnrichPreview.matched} posiciones se enlazan con las que ya tienes (no se duplican): se completan fechas de compra, costo e identificadores faltantes. ${ibkrEnrichPreview.created > 0 ? `${ibkrEnrichPreview.created} nuevas se agregan. ` : ''}Tu cantidad y precio actuales no se tocan, y no se borra nada.`,
-                          `${ibkrEnrichPreview.matched} positions link up with the ones you already have (no duplicates): missing purchase dates, cost basis and identifiers get filled in. ${ibkrEnrichPreview.created > 0 ? `${ibkrEnrichPreview.created} new ones are added. ` : ''}Your current quantity and price are left alone, and nothing is deleted.`)
-                      : t('Ninguna posición del archivo coincide con las que ya tienes: todas se agregarán como nuevas.',
-                          'No position in the file matches what you already have: all of them will be added as new.')}
-                  </p>
-                )}
-                {ibkrImportMode === 'merge' && ibkrEnrichPreview?.matched > 0 && (
-                  <p className="text-xs mt-2" style={{ color: 'rgba(251,146,60,0.8)' }}>
-                    {t(`Cuidado: ${ibkrEnrichPreview.matched} de estas posiciones ya existen y se van a duplicar. Si lo que quieres es cargar el historial, usa "Enriquecer".`,
-                       `Careful: ${ibkrEnrichPreview.matched} of these positions already exist and will be duplicated. If what you want is to load the history, use "Enrich".`)}
-                  </p>
-                )}
-                {ibkrImportMode === 'replace' && existingItems && (
-                  <p className="text-xs mt-2" style={{ color: 'rgba(251,146,60,0.7)' }}>
-                    {(() => {
-                      const ibkrCount = existingItems.filter(it => it.institution === 'Interactive Brokers' || it._source === 'ibkr').length
-                      return ibkrCount > 0
-                        ? t(`Se eliminarán ${ibkrCount} posiciones IBKR existentes antes de importar`, `${ibkrCount} existing IBKR positions will be deleted before import`)
-                        : t('No hay posiciones IBKR existentes', 'No existing IBKR positions')
-                    })()}
-                  </p>
-                )}
               </div>
 
               <div className="flex gap-3 mt-4">
@@ -1277,10 +1317,10 @@ Rules: do not invent any data; if something is missing from my documents leave i
                       ? t(`Importando ${importProgress.done}/${importProgress.total}`, `Importing ${importProgress.done}/${importProgress.total}`)
                       : t('Preparando...', 'Preparing...')
                     : ibkrImportMode === 'replace'
-                      ? t(`Reemplazar con ${ibkrData.items.length} posiciones`, `Replace with ${ibkrData.items.length} positions`)
+                      ? t(`Borrar y usar estas ${ibkrData.items.length}`, `Delete and use these ${ibkrData.items.length}`)
                       : ibkrImportMode === 'enrich'
-                        ? t('Enriquecer mi portafolio', 'Enrich my portfolio')
-                        : t(`Importar ${ibkrData.items.length} posiciones`, `Import ${ibkrData.items.length} positions`)}
+                        ? t('Completar mi portafolio', 'Fill in my portfolio')
+                        : t(`Agregar ${ibkrData.items.length} posiciones`, `Add ${ibkrData.items.length} positions`)}
                 </button>
                 {importing && importProgress.total > 0 && (
                   <div className="mt-2 h-1.5 bg-slate-700/30 rounded-full overflow-hidden">
@@ -1316,7 +1356,7 @@ Rules: do not invent any data; if something is missing from my documents leave i
                       {result.success > 0
                         ? <>{result.success} {result.isBI ? t('transacciones importadas', 'transactions imported') : t('activos importados', 'assets imported')}</>
                         : enrichWorked
-                          ? t('No se creó ninguna posición duplicada', 'No duplicate position was created')
+                          ? t('Tu portafolio quedó igual de tamaño: no se duplicó nada.', 'Your portfolio is the same size: nothing was duplicated.')
                           : <>{result.success} {result.isBI ? t('transacciones importadas', 'transactions imported') : t('activos importados', 'assets imported')}</>}
                       {result.failed > 0 && <>, {result.failed} {t('fallidos', 'failed')}</>}
                     </p>
@@ -1325,8 +1365,9 @@ Rules: do not invent any data; if something is missing from my documents leave i
               })()}
               {result.matched > 0 && (
                 <p className="text-xs mt-1" style={{ color: 'var(--accent-green)' }}>
-                  🔗 {t(`${result.matched} posiciones enlazadas con las que ya tenías`, `${result.matched} positions linked to the ones you already had`)}
-                  {result.enriched > 0 && t(`, ${result.enriched} completadas con datos faltantes`, `, ${result.enriched} filled in with missing data`)}
+                  {result.enriched > 0
+                    ? t(`Se completaron ${result.enriched} posiciones que ya tenías con sus fechas y datos faltantes.`, `${result.enriched} positions you already had were filled in with their missing dates and data.`)
+                    : t(`Reconocimos tus ${result.matched} posiciones: ya estaban completas.`, `We recognized your ${result.matched} positions: they were already complete.`)}
                 </p>
               )}
               {result.replaced > 0 && (
