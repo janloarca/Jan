@@ -899,6 +899,17 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const valueRebasedFrom = !apiTransactional && firstRealTs != null && chartData.length > 1
     && chartData[0].ts < firstRealTs - 3600000
     ? firstRealTs : null
+
+  // Pixel split between the estimated (hold-flat) prefix and real broker data, shared
+  // by the area fill, the line stroke and the legend so the three never disagree. The
+  // dashed line alone was too subtle to read as "not real" (blue-on-blue at low zoom),
+  // so the fill gets a visibly different color for the estimated stretch too.
+  const splitIdx = valueRebasedFrom != null && geo
+    ? (() => {
+        const idx = chartData.findIndex((p) => p.ts >= valueRebasedFrom - 3600000)
+        return idx > 0 && idx < geo.points.length ? idx : -1
+      })()
+    : -1
   const measuredData = valueRebasedFrom
     ? chartData.filter((p) => p.ts >= valueRebasedFrom - 3600000)
     : chartData
@@ -1265,6 +1276,16 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                     <stop offset="0%" stopColor="var(--accent-blue)" stopOpacity="0.25" />
                     <stop offset="100%" stopColor="var(--accent-blue)" stopOpacity="0.02" />
                   </linearGradient>
+                  {splitIdx > 0 && (
+                    <>
+                      <clipPath id="clip-estimate-value">
+                        <rect x={pad.left} y={pad.top} width={Math.max(0, geo.points[splitIdx].x - pad.left)} height={chartHeight - pad.top - pad.bottom} />
+                      </clipPath>
+                      <clipPath id="clip-real-value">
+                        <rect x={geo.points[splitIdx].x} y={pad.top} width={Math.max(0, width - pad.right - geo.points[splitIdx].x)} height={chartHeight - pad.top - pad.bottom} />
+                      </clipPath>
+                    </>
+                  )}
                 </defs>
 
                 {/* Drawdown shaded zone */}
@@ -1278,22 +1299,36 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                 )}
 
                 {/* Main value area + line. When part of the curve is a reconstruction
-                    (today's positions projected backwards), that stretch is drawn dashed
-                    and faded so it reads as an estimate rather than as recorded history. */}
-                <path
-                  d={`${polyline(geo.points)} L ${geo.points[geo.points.length - 1].x} ${geo.baselineY} L ${geo.points[0].x} ${geo.baselineY} Z`}
-                  fill="url(#grad-value)" />
+                    (today's positions projected backwards), that stretch gets a flat
+                    muted-grey fill (not the blue "real value" gradient) plus a dashed
+                    grey line, so it reads as an estimate rather than as recorded
+                    history even at a glance / small zoom — a blue-on-blue dashed line
+                    alone was too subtle to notice. */}
                 {(() => {
-                  const splitIdx = valueRebasedFrom != null
-                    ? chartData.findIndex((p) => p.ts >= valueRebasedFrom - 3600000)
-                    : -1
+                  const areaPath = `${polyline(geo.points)} L ${geo.points[geo.points.length - 1].x} ${geo.baselineY} L ${geo.points[0].x} ${geo.baselineY} Z`
                   if (splitIdx <= 0 || splitIdx >= geo.points.length) {
-                    return <path d={polyline(geo.points)} fill="none" stroke="var(--accent-blue)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    return (
+                      <>
+                        <path d={areaPath} fill="url(#grad-value)" />
+                        <path d={polyline(geo.points)} fill="none" stroke="var(--accent-blue)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      </>
+                    )
                   }
+                  const splitX = geo.points[splitIdx].x
+                  // Flip the label to the left of the divider when there isn't room on
+                  // the right (a case just like this one: only the last day or two is
+                  // real, so the "real data" side of the split is a thin sliver).
+                  const labelOnLeft = (width - pad.right - splitX) < 70
                   return (
                     <>
-                      <path d={polyline(geo.points.slice(0, splitIdx + 1))} fill="none" stroke="var(--accent-blue)" strokeWidth="1.5"
-                        strokeLinecap="round" strokeLinejoin="round" strokeDasharray="5 4" strokeOpacity="0.45" />
+                      <path d={areaPath} fill="var(--text-muted)" opacity="0.1" clipPath="url(#clip-estimate-value)" />
+                      <path d={areaPath} fill="url(#grad-value)" clipPath="url(#clip-real-value)" />
+                      <line x1={splitX} y1={pad.top} x2={splitX} y2={chartHeight - pad.bottom} stroke="var(--text-muted)" strokeWidth="1" strokeDasharray="3 3" strokeOpacity="0.6" />
+                      <text x={splitX + (labelOnLeft ? -4 : 4)} y={pad.top + 10} textAnchor={labelOnLeft ? 'end' : 'start'} fill="var(--text-muted)" fontSize="9" fontFamily="system-ui">
+                        {t('datos reales →', 'real data →')}
+                      </text>
+                      <path d={polyline(geo.points.slice(0, splitIdx + 1))} fill="none" stroke="var(--text-muted)" strokeWidth="1.5"
+                        strokeLinecap="round" strokeLinejoin="round" strokeDasharray="5 4" strokeOpacity="0.7" />
                       <path d={polyline(geo.points.slice(splitIdx))} fill="none" stroke="var(--accent-blue)" strokeWidth="2"
                         strokeLinecap="round" strokeLinejoin="round" />
                     </>
@@ -1455,6 +1490,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
             <span className="w-3 h-0.5 rounded-full inline-block" style={{ backgroundColor: 'var(--accent-blue)' }} />
             {t('Valor actual', 'Current value')}
           </span>
+          {splitIdx > 0 && (
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-0.5 rounded-full inline-block opacity-70" style={{ backgroundColor: 'var(--text-muted)', borderBottom: '1px dashed' }} />
+              {t('Estimado (posición actual proyectada hacia atrás)', 'Estimate (current position projected backward)')}
+            </span>
+          )}
           {showContributions && contributionLine && (
             <span className="flex items-center gap-1.5">
               <span className="w-3 h-0.5 rounded-full inline-block opacity-50" style={{ backgroundColor: 'var(--text-muted)', borderBottom: '1px dashed' }} />
