@@ -62,6 +62,7 @@ const InstitutionPerformance = dynamic(() => import('@/components/dashboard/Inst
 const RebalanceSuggestions = dynamic(() => import('@/components/dashboard/RebalanceSuggestions'), { loading: () => <SkeletonCard /> })
 
 import RecentTransactions from '@/components/dashboard/RecentTransactions'
+import DataQualityCard from '@/components/dashboard/DataQualityCard'
 import ChispuSuggestions from '@/components/dashboard/ChispuSuggestions'
 import CostsCard from '@/components/dashboard/CostsCard'
 import { reconcileBrokerPositions } from '@/lib/brokerReconcile'
@@ -1010,6 +1011,7 @@ export default function DashboardPage() {
               </div>
             )}
             <CardBoundary id="HO-02"><RecentTransactions transactions={transactions} items={items} lang={lang} onExportCSV={handleExportTransactionsCSV} /></CardBoundary>
+            <CardBoundary id="HO-03"><DataQualityCard items={portfolioItems} transactions={transactions} snapshots={snapshots} convert={convert} baseCurrency={baseCurrency} lang={lang} onConnect={handleOpenConnections} onImportBroker={handleOpenImport} /></CardBoundary>
           </ErrorBoundary>
         </SectionCollapse></div>
 

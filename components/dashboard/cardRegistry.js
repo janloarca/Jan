@@ -35,6 +35,7 @@ export const CARD_REGISTRY = {
 
   'HO-01': { component: 'AccountsTable', section: 'holdings', label: 'Holdings Table' },
   'HO-02': { component: 'RecentTransactions', section: 'holdings', label: 'Recent Transactions' },
+  'HO-03': { component: 'DataQualityCard', section: 'holdings', label: 'Data Quality' },
 }
 
 export const SECTIONS = {
