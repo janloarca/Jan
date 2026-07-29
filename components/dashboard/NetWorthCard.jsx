@@ -55,7 +55,7 @@ function Sparkline({ snapshots, width = 60, height = 24 }) {
   const gradientId = `spark-${trending ? 'up' : 'down'}`
 
   return (
-    <svg width={width} height={height} className="inline-block ml-2 align-middle" aria-hidden="true">
+    <svg width={width} height={height} className="block" aria-hidden="true">
       <defs>
         <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={color} stopOpacity="0.3" />
@@ -179,7 +179,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
             <span className="text-xs font-medium px-2 py-0.5 rounded-full"
               style={milestone.positive
                 ? { backgroundColor: 'rgba(52,211,153,0.1)', color: 'var(--accent-green)' }
-                : { backgroundColor: 'var(--alert-warn-bg)', color: 'var(--accent-orange)' }
+                : { backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }
               }>{milestone.text}</span>
           )}
           <div className="relative" ref={pickerRef}>
@@ -204,10 +204,13 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
         </div>
       </div>
 
-      {/* KPI: Main value — Level 1 typography */}
-      <div className="flex items-baseline gap-2 mb-0.5">
-        <p className="text-[2.25rem] sm:text-[3rem] leading-none text-white tracking-tight font-bold font-mono tabular-nums drop-shadow-sm">{formatCurrency(displayValue, displayCur)}</p>
-        <Sparkline snapshots={snapshots} />
+      {/* KPI: Main value — Level 1 typography. Sparkline goes to the far right in
+          its own shrink-0 box so it can never collide with the big number. */}
+      <div className="flex items-center justify-between gap-3 mb-0.5">
+        <p className="min-w-0 text-[2.25rem] sm:text-[3rem] leading-none text-white tracking-tight font-bold font-mono tabular-nums drop-shadow-sm">{formatCurrency(displayValue, displayCur)}</p>
+        <div className="shrink-0">
+          <Sparkline snapshots={snapshots} />
+        </div>
       </div>
 
       {/* Sub-KPI: Daily change — Level 2 typography */}
