@@ -1,12 +1,20 @@
 import { authFetch } from '@/lib/authFetch'
 import { useState, useEffect, useCallback, useRef } from 'react'
 
+// Caché en memoria a nivel de módulo: al volver a una sección el hook arranca
+// con las últimas tasas conocidas y revalida en background con la misma
+// frecuencia de siempre (fetch al montar + cada 15 min). Si ya hay datos en
+// pantalla no se muestra estado de carga.
+let _cachedRates = null
+let _cachedLastUpdate = null
+let _cachedStale = false
+
 export function useExchangeRates(baseCurrency) {
-  const [rates, setRates] = useState(null)
+  const [rates, setRates] = useState(_cachedRates)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [stale, setStale] = useState(false)
-  const [lastUpdate, setLastUpdate] = useState(null)
+  const [stale, setStale] = useState(_cachedStale)
+  const [lastUpdate, setLastUpdate] = useState(_cachedLastUpdate)
 
   const ratesRef = useRef(null)
   const baseRef = useRef(baseCurrency)
@@ -15,7 +23,7 @@ export function useExchangeRates(baseCurrency) {
   baseRef.current = baseCurrency
 
   const fetchRates = useCallback(async () => {
-    setLoading(true)
+    if (!ratesRef.current) setLoading(true)
     setError(null)
     try {
       const res = await authFetch('/api/exchange-rates')
@@ -28,6 +36,9 @@ export function useExchangeRates(baseCurrency) {
           Object.entries(raw).filter(([, v]) => typeof v === 'number' && v > 0 && isFinite(v))
         )
         if (Object.keys(valid).length > 0) {
+          _cachedRates = valid
+          _cachedLastUpdate = data.timestamp
+          _cachedStale = !!data.stale
           setRates(valid)
           setLastUpdate(data.timestamp)
           setStale(!!data.stale)
