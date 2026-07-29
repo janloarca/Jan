@@ -1,9 +1,9 @@
 'use client'
 
 import { useMemo } from 'react'
-import { formatCurrency, getTypeCategory } from './utils'
+import { formatCurrency, getTypeCategory, projectItemAnnualIncome } from './utils'
 
-export default function DividendIncome({ transactions, items, convert, baseCurrency, lang, netWorth }) {
+export default function DividendIncome({ transactions, items, convert, baseCurrency, lang, totalAssets }) {
   const t = (es, en) => lang === 'es' ? es : en
 
   const projected = useMemo(() => {
@@ -19,24 +19,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       const qty = it.quantity || 1
       const price = it._originalPrice || it.currentPrice || it.purchasePrice || 0
       const balance = qty * price
-      let annual = 0
-
-      if (it.rateType === 'variable' && it.rateMin > 0 && it.rateMax > 0) {
-        const midRate = (it.rateMin + it.rateMax) / 2
-        annual = balance * (midRate / 100)
-      } else if (it.rateType === 'continuous' && it.incomeRate > 0) {
-        annual = balance * (Math.exp(it.incomeRate / 100) - 1)
-      } else if (it.incomeAmount > 0 && it.incomeMonths) {
-        const payCount = Array.isArray(it.incomeMonths) ? it.incomeMonths.length : 12
-        annual = it.incomeAmount * payCount
-      } else if (it.incomeMode === 'percent' && it.incomeRate > 0) {
-        annual = balance * (it.incomeRate / 100)
-      } else if (it.dividendYield > 0) {
-        annual = balance * (it.dividendYield / 100)
-      } else {
-        return
-      }
-
+      const annual = projectItemAnnualIncome(it, balance)
       if (annual <= 0) return
 
       const converted = convert ? convert(annual, cur, baseCurrency || 'USD') : annual
@@ -66,7 +49,9 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
   }, [items, convert, baseCurrency])
 
   const stats = useMemo(() => {
-    const divs = (transactions || []).filter((tx) => (tx.type || '').toUpperCase() === 'DIVIDEND')
+    // Exclude reinvested dividends — same filter as the dashboard's annualDividends,
+    // so "YTD recibido" here matches the headline figure.
+    const divs = (transactions || []).filter((tx) => (tx.type || '').toUpperCase() === 'DIVIDEND' && !tx._reinvested)
 
     const now = new Date()
     const thisYear = now.getFullYear()
@@ -96,7 +81,15 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
     })
 
     const monthKeys = Object.keys(byMonth).sort()
-    const avgMonthly = monthKeys.length > 0 ? totalAll / monthKeys.length : 0
+    // Average over elapsed calendar months since the first payment, not over the
+    // count of months that happened to have a payment — otherwise one dividend in
+    // one month projects a full year of income (avgMonthly × 12).
+    let avgMonthly = 0
+    if (monthKeys.length > 0) {
+      const [fy, fm] = monthKeys[0].split('-').map(Number)
+      const elapsedMonths = (thisYear - fy) * 12 + (thisMonth - fm) + 1
+      avgMonthly = totalAll / Math.max(elapsedMonths, monthKeys.length)
+    }
     let daySpan = 30
     if (divs.length > 1) {
       const first = new Date(divs[0].date).getTime()
@@ -108,6 +101,16 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
     const last6 = monthKeys.slice(-6)
     const maxBar = Math.max(...last6.map((k) => byMonth[k]), 1)
 
+    // Trailing 12 months (oldest → newest) for the history bar chart. Months
+    // with no payment stay at 0 so they render as a flat gray bar.
+    const monthly12 = []
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(thisYear, thisMonth - i, 1)
+      const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, '0')}`
+      monthly12.push({ key, month: d.getMonth(), value: byMonth[key] || 0 })
+    }
+    const maxBar12 = Math.max(...monthly12.map((b) => b.value), 1)
+
     const topPayers = Object.entries(bySymbol)
       .map(([symbol, total]) => ({ symbol, total }))
       .sort((a, b) => b.total - a.total)
@@ -115,16 +118,18 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
 
     return {
       totalAll, totalYTD, totalThisMonth, avgMonthly, dailyAvg,
-      divCount: divs.length, byMonth, last6, maxBar, topPayers,
+      divCount: divs.length, byMonth, last6, maxBar, topPayers, monthly12, maxBar12,
     }
   }, [transactions, convert, baseCurrency])
 
   const estAnnual = projected.annualTotal > 0 ? projected.annualTotal : (stats.avgMonthly * 12)
-  const portfolioYield = netWorth > 0 && estAnnual > 0 ? (estAnnual / netWorth) * 100 : 0
+  // Yield over total assets — dividing by net worth (assets − debt) would inflate
+  // the yield for anyone with debt.
+  const portfolioYield = totalAssets > 0 && estAnnual > 0 ? (estAnnual / totalAssets) * 100 : 0
 
   const yoyComparison = useMemo(() => {
     if (!transactions || transactions.length === 0) return null
-    const divs = transactions.filter(tx => (tx.type || '').toUpperCase() === 'DIVIDEND')
+    const divs = transactions.filter(tx => (tx.type || '').toUpperCase() === 'DIVIDEND' && !tx._reinvested)
     if (divs.length === 0) return null
     const now = new Date()
     const thisYear = now.getFullYear()
@@ -180,7 +185,22 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
   }, [projected.sources])
 
   const hasData = stats.divCount > 0 || projected.annualTotal > 0
-  if (!hasData) return null
+  // This card lives inside the collapsible "Ingresos" section — returning null
+  // left an expandable header that opened to nothing. Show guidance instead.
+  if (!hasData) {
+    return (
+      <div className="bg-theme-surface/80 rounded-xl border border-glass-border/50 p-4">
+        <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-3">
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
+          {t('INGRESOS PASIVOS', 'PASSIVE INCOME')}
+        </h3>
+        <p className="text-sm text-slate-500">
+          {t('Aún no hay ingresos que mostrar. Configura la tasa o el monto de ingreso de un activo (bono, cuenta, acción con dividendos) al editarlo, o registra un dividendo recibido: aquí verás la proyección anual, el calendario y el historial.',
+             'No income to show yet. Set an income rate or amount on an asset (bond, account, dividend stock) when editing it, or record a received dividend: you\'ll see the annual projection, calendar and history here.')}
+        </p>
+      </div>
+    )
+  }
 
   const monthName = (m) => new Date(2024, m).toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short' })
   const calendarMax = Math.max(...incomeCalendar, 1)
@@ -199,7 +219,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
         </div>
         <div className="text-center">
           <span className="text-xs text-slate-500 block">{t('Rendimiento', 'Yield')}</span>
-          <span className="text-lg font-bold text-slate-200 font-mono tabular-nums">{portfolioYield.toFixed(2)}%</span>
+          <span className="text-lg font-bold font-mono tabular-nums" style={{ color: 'var(--text-muted)' }}>{portfolioYield.toFixed(2)}%</span>
         </div>
         <div className="text-right">
           <span className="text-xs text-slate-500 block">YTD {t('recibido', 'received')}</span>
@@ -207,25 +227,36 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
         </div>
       </div>
 
-      {yoyComparison && yoyComparison.lastYear > 0 && (
-        <div className="flex items-center gap-3 mb-4 p-2.5 bg-theme-base rounded-lg border border-glass-border/50">
-          <div className="flex-1">
-            <span className="text-xs text-slate-500 block">{new Date().getFullYear() - 1}</span>
-            <span className="text-sm font-medium text-slate-400">{formatCurrency(yoyComparison.lastYear)}</span>
+      {yoyComparison && yoyComparison.lastYear > 0 && (() => {
+        const ly = yoyComparison.lastYear
+        const ty = yoyComparison.thisYear
+        const total = ly + ty
+        const leftPct = total > 0 ? (ly / total) * 100 : 50
+        const rightPct = total > 0 ? (ty / total) * 100 : 50
+        const up = (yoyComparison.growth ?? 0) >= 0
+        return (
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs text-slate-500">{new Date().getFullYear() - 1}</span>
+              <span className="text-xs text-slate-500">{new Date().getFullYear()} YTD</span>
+            </div>
+            <div className="relative flex items-center w-full rounded-full overflow-hidden" style={{ height: '24px' }}>
+              <div className="h-full flex items-center px-2.5" style={{ width: `${leftPct}%`, backgroundColor: 'var(--bg-tertiary)' }}>
+                <span className="text-xs font-medium font-mono tabular-nums truncate" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(ly)}</span>
+              </div>
+              <div className="h-full flex items-center justify-end px-2.5" style={{ width: `${rightPct}%`, backgroundColor: 'var(--accent-green)' }}>
+                <span className="text-xs font-semibold font-mono tabular-nums truncate text-white">{formatCurrency(ty)}</span>
+              </div>
+              {yoyComparison.growth != null && (
+                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-xs font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
+                  style={{ color: up ? 'var(--alert-success-icon)' : 'var(--alert-error-icon)', backgroundColor: up ? 'var(--alert-success-bg)' : 'var(--alert-error-bg)', border: '1px solid var(--card-border)' }}>
+                  {up ? '▲' : '▼'} {up ? '+' : ''}{yoyComparison.growth.toFixed(0)}% YoY
+                </span>
+              )}
+            </div>
           </div>
-          <div className="text-center">
-            {yoyComparison.growth != null && (
-              <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ color: yoyComparison.growth >= 0 ? 'var(--alert-success-icon)' : 'var(--alert-error-icon)', backgroundColor: yoyComparison.growth >= 0 ? 'var(--alert-success-bg)' : 'var(--alert-error-bg)' }}>
-                {yoyComparison.growth >= 0 ? '+' : ''}{yoyComparison.growth.toFixed(0)}% YoY
-              </span>
-            )}
-          </div>
-          <div className="flex-1 text-right">
-            <span className="text-xs text-slate-500 block">{new Date().getFullYear()} YTD</span>
-            <span className="text-sm font-medium text-white">{formatCurrency(yoyComparison.thisYear)}</span>
-          </div>
-        </div>
-      )}
+        )
+      })()}
 
       {incomeByType.length > 1 && (
         <div className="flex items-center gap-2 mb-3">
@@ -288,21 +319,24 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
         </div>
       )}
 
-      {/* Mini bar chart - last 6 months */}
-      {stats.last6.length > 0 && (
+      {/* Mini bar chart - trailing 12 months */}
+      {stats.divCount > 0 && (
         <div className="mb-4">
-          <span className="text-xs text-slate-500 mb-2 block">{t('Historial reciente', 'Recent history')}</span>
-          <div className="flex items-end gap-1.5 h-16">
-            {stats.last6.map((key) => {
-              const val = stats.byMonth[key]
-              const h = (val / stats.maxBar) * 100
-              const [y, m] = key.split('-')
-              const monthLabel = new Date(parseInt(y), parseInt(m)).toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short' })
+          <span className="text-xs text-slate-500 mb-2 block">{t('Historial (12 meses)', 'History (12 months)')}</span>
+          <div className="flex items-end gap-1 h-16">
+            {stats.monthly12.map((b) => {
+              const paid = b.value > 0
+              const h = paid ? (b.value / stats.maxBar12) * 100 : 0
               return (
-                <div key={key} className="flex-1 flex flex-col items-center gap-1">
-                  <span className="text-xs" style={{ color: 'var(--accent-green)' }}>{formatCurrency(val)}</span>
-                  <div className="w-full rounded-t" style={{ height: `${Math.max(h, 8)}%`, backgroundColor: 'var(--accent-green)' }} />
-                  <span className="text-xs text-slate-500">{monthLabel}</span>
+                <div key={b.key} className="flex-1 flex flex-col items-center justify-end h-full group relative">
+                  {paid && (
+                    <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 -translate-y-full opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 px-2 py-1 rounded text-xs font-mono tabular-nums whitespace-nowrap"
+                      style={{ backgroundColor: 'var(--text-primary)', color: 'var(--bg-primary)' }}>
+                      {formatCurrency(b.value)}
+                    </div>
+                  )}
+                  <div className="w-full rounded-t" style={{ height: paid ? `${Math.max(h, 6)}%` : '4px', backgroundColor: paid ? 'var(--accent-green)' : 'var(--bg-tertiary)' }} />
+                  <span className="text-[10px] text-slate-500 mt-1">{monthName(b.month)}</span>
                 </div>
               )
             })}
@@ -344,7 +378,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
                   : { backgroundColor: 'transparent', borderStyle: 'dashed', borderColor: 'var(--card-border)' }}>
                   <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{monthName(m)}</span>
                   <span className="text-xs font-semibold" style={{ color: paid ? 'var(--accent-green)' : 'var(--text-muted)' }}>
-                    {paid ? formatCurrency(amt) : '—'}
+                    {paid ? formatCurrency(amt) : '-'}
                   </span>
                 </div>
               )

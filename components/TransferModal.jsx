@@ -29,7 +29,7 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
   const sourceValue = fromItem ? getValue(fromItem) : 0
 
   const formatOption = (item) =>
-    `${item.name} (${item.institution || '—'}) - ${item.currency} ${getValue(item).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    `${item.name} (${item.institution || '-'}) - ${item.currency} ${getValue(item).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -146,7 +146,7 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
               {t('Cancelar', 'Cancel')}
             </button>
             <button type="submit" disabled={saving}
-              className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium">
+              className="flex-1 py-2.5 bg-blue-600 rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium" style={{ color: '#ffffff' }}>
               {saving ? '...' : t('Transferir', 'Transfer')}
             </button>
           </div>

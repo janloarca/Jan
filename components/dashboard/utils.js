@@ -67,7 +67,11 @@ export function formatDate(dateStr) {
   try {
     const d = coerceDate(dateStr)
     if (!d || isNaN(d.getTime())) return typeof dateStr === 'string' ? dateStr : '-'
-    return d.toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' })
+    // Date-only strings ("2026-06-26") parse as UTC midnight; formatting them in
+    // the local timezone shifts the shown day back one for any user behind UTC
+    // (all of LatAm). Format calendar dates in UTC so Jun 26 stays Jun 26.
+    const isUtcMidnight = d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0
+    return d.toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric', ...(isUtcMidnight ? { timeZone: 'UTC' } : {}) })
   } catch { return typeof dateStr === 'string' ? dateStr : '-' }
 }
 
@@ -78,6 +82,37 @@ export function formatShortDate(dateStr) {
     if (!d || isNaN(d.getTime())) return typeof dateStr === 'string' ? dateStr : ''
     return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
   } catch { return typeof dateStr === 'string' ? dateStr : '' }
+}
+
+// Human-readable month label from a "YYYY-MM" key, e.g. "2026-06" -> "Jun 26".
+// Localized via the module `_lang`. Never render the raw key to users.
+export function formatMonth(monthKey) {
+  if (!monthKey || typeof monthKey !== 'string') return monthKey || ''
+  const [y, m] = monthKey.split('-')
+  if (!y || !m) return monthKey
+  const locale = _lang === 'es' ? 'es' : 'en'
+  const d = new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1)
+  if (isNaN(d.getTime())) return monthKey
+  const label = d.toLocaleDateString(locale, { month: 'short', year: '2-digit' })
+  return label.charAt(0).toUpperCase() + label.slice(1)
+}
+
+// Single source of truth for "should this item get live market quotes?".
+// This MUST be a default-deny whitelist: the old per-consumer blacklists let
+// cash/bond items with short symbols ("USD", "TE", "BOT") fetch UNRELATED Yahoo
+// tickers ("USD" is a real 2× leveraged ETF), silently replacing the stored
+// balance with an equity price — corrupting net worth, movers and snapshots.
+// Worst case under default-deny is a legit asset showing its manual price.
+const NON_MARKET_TYPE_RE = /inmueble|bank|banco|real.?estate|property|alternative|bond|bono|debt|deuda|pasivo|cash|saving|checking|cuenta|ahorro|efectivo|deposito|depósito|certificado|cdt|plazo|letra|pagar|tesoro|treasury|renta.?fija|fixed.?income|receivable|inversion|inversión/i
+const MARKET_TYPE_RE = /stock|accion|acción|equity|share|reit|etf|fund|crypto|cripto|blockchain|token|index|mutual/i
+export function isMarketPriced(item) {
+  if (!item || !item.symbol) return false
+  if (item.isIlliquid || item.isDebt || item.isReceivable) return false
+  const t = item.type || ''
+  if (NON_MARKET_TYPE_RE.test(t)) return false
+  if (MARKET_TYPE_RE.test(t)) return true
+  const cat = getTypeCategory(item)
+  return cat === 'stocks' || cat === 'crypto' || cat === 'funds'
 }
 
 export function getTypeCategory(itemOrType) {
@@ -119,6 +154,145 @@ export function getItemValue(item) {
 
 export function isExcludedFromNetWorth(item) {
   return !!(item.isReceivable && !item.countInNetWorth)
+}
+
+// Effective acquisition timestamp for an item: the real acquisitionDate, else the
+// start of the year it was added to the app (createdAt), else null (no gate).
+// Mirrors effectiveAcqDate in lib/historicalValues.js.
+export function effectiveAcqTs(it) {
+  if (it.acquisitionDate) {
+    const t = Date.parse(it.acquisitionDate)
+    if (!isNaN(t)) return t
+  }
+  if (it.createdAt) {
+    const c = new Date(it.createdAt)
+    if (!isNaN(c.getTime())) return Date.UTC(c.getUTCFullYear(), 0, 1)
+  }
+  return null
+}
+
+// Held-flat USD value of a single item (mirrors the daily-snapshot computation in
+// useDashboardData): qty × original price in the item's original currency → USD.
+function itemValueUSD(it, convert) {
+  const origPrice = it._originalPrice ?? it.currentPrice ?? it.purchasePrice ?? 0
+  const origCur = it._originalCurrency || it.currency || 'USD'
+  let v = (Number(it.quantity) || 0) * (origPrice || 0)
+  if (!isFinite(v)) return 0
+  if (convert && origCur !== 'USD') v = convert(v, origCur, 'USD')
+  return it.isDebt ? -Math.abs(v) : v
+}
+
+// IBKR equityHistory snapshots (_source:'ibkr') store only the broker NAV and omit
+// manually-added assets (bonds, crypto, cash). For consumers that want the FULL
+// portfolio NAV (returns, drawdown, sparkline…), augment ONLY those entries with the
+// held-flat USD value of non-IBKR items that already existed at the snapshot date.
+// Daily/backfill snapshots already include everything, so they are left untouched
+// (no double-counting). Returns a new array; the originals are never mutated.
+export function augmentSnapshots(snapshots, items, convert) {
+  if (!Array.isArray(snapshots) || snapshots.length === 0) return snapshots
+  const nonIbkr = (items || [])
+    .filter(it => it._source !== 'ibkr' && !isExcludedFromNetWorth(it))
+    .map(it => ({ usd: itemValueUSD(it, convert), acqTs: effectiveAcqTs(it) }))
+    .filter(x => x.usd)
+  if (nonIbkr.length === 0) return snapshots
+  const manualAt = (ts) => {
+    let sum = 0
+    for (const x of nonIbkr) if (x.acqTs == null || x.acqTs <= ts) sum += x.usd
+    return sum
+  }
+  return snapshots.map(s => {
+    if (!s || s._source !== 'ibkr' || !s.date) return s
+    const ts = new Date(s.date).getTime()
+    if (isNaN(ts)) return s
+    const add = manualAt(ts)
+    if (!add) return s
+    const nav = s.netWorthUSD ?? s.totalActivosUSD ?? 0
+    return { ...s, netWorthUSD: nav + add, totalActivosUSD: (s.totalActivosUSD ?? nav) + add }
+  })
+}
+
+// The single source of truth for "what was the portfolio worth at year start":
+// the snapshot dated in January of `year`, else late December of `year - 1`,
+// accepted only within 15 days of Jan 1. Used by BOTH the YTD Dietz badge
+// (useDashboardData) and the chart's YTD starting point so they never anchor
+// on different values. Returns the snapshot doc or null.
+export function findYearStartAnchor(snapshots, year) {
+  if (!Array.isArray(snapshots) || snapshots.length === 0) return null
+  const sorted = snapshots.filter((s) => s && s.date).sort((a, b) => new Date(a.date) - new Date(b.date))
+  let best = sorted.find((s) => {
+    const d = new Date(s.date)
+    return d.getFullYear() === year && d.getMonth() === 0
+  })
+  if (!best) {
+    best = [...sorted].reverse().find((s) => {
+      const d = new Date(s.date)
+      return d.getFullYear() === year - 1 && d.getMonth() === 11
+    })
+  }
+  if (!best) return null
+  const diff = Math.abs(new Date(best.date).getTime() - Date.UTC(year, 0, 1))
+  return diff <= 15 * 86400000 ? best : null
+}
+
+// Month-start anchor for a month-to-date (MTD) return: the snapshot closest to
+// the 1st of the month (either just before — last day of prior month — or just
+// after), within a ~5-day window. `month` is 0-indexed (0 = January).
+export function findMonthStartAnchor(snapshots, year, month) {
+  if (!Array.isArray(snapshots) || snapshots.length === 0) return null
+  const monthStart = Date.UTC(year, month, 1)
+  const window = 5 * 86400000
+  let best = null
+  let bestDiff = Infinity
+  for (const s of snapshots) {
+    if (!s || !s.date) continue
+    const diff = Math.abs(new Date(s.date).getTime() - monthStart)
+    if (diff <= window && diff < bestDiff) { best = s; bestDiff = diff }
+  }
+  return best
+}
+
+// Modified-Dietz YTD / MTD / daily return for ONE source (e.g. 'ibkr') alone —
+// broker-scoped NAV snapshots + broker-scoped current value + broker-scoped
+// flows. Lets a "Solo IBKR" comparison reflect just that account, not the whole
+// portfolio. Snapshots must be the RAW per-source series (not augmented with
+// manual items). `nowTs` is injectable for deterministic tests.
+export function computeScopedReturns({ snapshots, items, transactions, source, convert, baseCurrency, nowTs }) {
+  const now = nowTs ? new Date(nowTs) : new Date()
+  const endTs = now.getTime()
+  const year = now.getUTCFullYear()
+  const month = now.getUTCMonth()
+  const cv = (usd) => (convert ? convert(usd, 'USD', baseCurrency || 'USD') : usd)
+
+  const snaps = (snapshots || []).filter((s) => s && s._source === source && s.date)
+  const scopedItems = (items || []).filter((it) => it._source === source && !isExcludedFromNetWorth(it))
+  let endValue = 0
+  scopedItems.forEach((it) => {
+    const v = getItemValue(it)
+    endValue += it.isDebt ? -Math.abs(v) : v
+  })
+  if (!(endValue > 0) || snaps.length === 0) return { ytd: null, mtd: null, day: null }
+
+  const flows = (transactions || []).filter((tx) => tx._source === source)
+  const at = (anchor, startTs) => {
+    if (!anchor) return null
+    const startVal = cv(anchor.netWorthUSD ?? anchor.totalActivosUSD ?? 0)
+    if (!(startVal > 0)) return null
+    const { pct } = computeModifiedDietz({ startValue: startVal, endValue, startTs, endTs, transactions: flows, convert, baseCurrency })
+    return Math.max(-200, Math.min(200, pct))
+  }
+  const ytd = at(findYearStartAnchor(snaps, year), Date.UTC(year, 0, 1))
+  const mtd = at(findMonthStartAnchor(snaps, year, month), Date.UTC(year, month, 1))
+
+  // Daily change: value now vs the last snapshot strictly before today.
+  const todayStr = now.toISOString().slice(0, 10)
+  const prior = snaps.filter((s) => s.date < todayStr).sort((a, b) => new Date(a.date) - new Date(b.date))
+  let day = null
+  const baseline = prior[prior.length - 1]
+  if (baseline) {
+    const prevVal = cv(baseline.netWorthUSD ?? baseline.totalActivosUSD ?? 0)
+    if (prevVal > 0) day = Math.max(-200, Math.min(200, ((endValue - prevVal) / prevVal) * 100))
+  }
+  return { ytd, mtd, day }
 }
 
 // Build the income-event payload for /api/prices/portfolio-history from DIVIDEND
@@ -304,6 +478,28 @@ export function getSectorFromItem(item) {
   return getSectorFromType(item.type) !== 'Unknown' ? getSectorFromType(item.type) : getSectorFromType(item.name || '')
 }
 
+// A position imported from IBKR carries an import-stamp acquisitionDate (the sync
+// date), not the real purchase date. Historical reconstruction must NOT zero it out
+// before that stamp — hold the current quantity flat back through the period instead.
+// Returns true only for IBKR items with NO genuine trade/lot history to reconstruct
+// from (a real recent buy would leave an in-window BUY trade or a multi-lot/closed
+// history). Mirrors the `dateUnreliable` logic in lib/historicalValues.js so the chart
+// API and the spreadsheet agree on which positions are date-unreliable.
+export function shouldHoldFlat(item, transactions, lots) {
+  if (!item || item._source !== 'ibkr') return false
+  const sym = (item.symbol || '').toUpperCase()
+  if (!sym) return false
+  const hasTrades = (transactions || []).some((tx) => {
+    const t = (tx.type || '').toUpperCase()
+    return (t === 'BUY' || t === 'SELL') && (tx.symbol || '').toUpperCase() === sym
+  })
+  if (hasTrades) return false
+  const symLots = (lots || []).filter((l) => (l.symbol || '').toUpperCase() === sym)
+  const hasRealLotHistory = symLots.length > 1 || symLots.some((l) => l.status === 'closed')
+  if (hasRealLotHistory) return false
+  return true
+}
+
 export function computeModifiedDietz({ startValue, endValue, startTs, endTs, transactions, convert, baseCurrency }) {
   const totalMs = endTs - startTs
   if (totalMs <= 0 || startValue <= 0) return { pct: 0, abs: 0 }
@@ -337,6 +533,31 @@ export function computeModifiedDietz({ startValue, endValue, startTs, endTs, tra
   const pct = Math.abs(weightedCapital) > 0.01 ? (gain / weightedCapital) * 100 : 0
   if (!isFinite(pct)) return { pct: 0, abs: gain }
   return { pct, abs: gain }
+}
+
+// Single source of truth for an item's projected annual income, in the item's own
+// currency. `balance` is qty × price (also in the item's currency). Both the
+// Ingresos card and estimatedAnnualIncome (InsightCards/GoalTracker) must use this —
+// they previously implemented different subsets and disagreed on rate-based items.
+export function projectItemAnnualIncome(item, balance) {
+  if (item.rateType === 'variable' && item.rateMin > 0 && item.rateMax > 0) {
+    const midRate = (item.rateMin + item.rateMax) / 2
+    return balance * (midRate / 100)
+  }
+  if (item.rateType === 'continuous' && item.incomeRate > 0) {
+    return balance * (Math.exp(item.incomeRate / 100) - 1)
+  }
+  if (item.incomeAmount > 0 && item.incomeMonths) {
+    const payCount = Array.isArray(item.incomeMonths) ? item.incomeMonths.length : 12
+    return item.incomeAmount * payCount
+  }
+  if (item.incomeMode === 'percent' && item.incomeRate > 0) {
+    return balance * (item.incomeRate / 100)
+  }
+  if (item.dividendYield > 0) {
+    return balance * (item.dividendYield / 100)
+  }
+  return 0
 }
 
 export function getEffectiveYield(item) {

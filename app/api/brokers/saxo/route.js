@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
+import { retryRequest } from '@/lib/fetchWithRetry'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { encryptToken, decryptToken } from '@/lib/crypto'
 import { generateOAuthState, makeStateCookie } from '@/lib/oauthState'
@@ -34,7 +35,7 @@ function getAppCredentials() {
 }
 
 async function exchangeCodeForTokens(code, app) {
-  const res = await fetch(app.tokenUrl, {
+  const res = await retryRequest(() => fetch(app.tokenUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -45,7 +46,7 @@ async function exchangeCodeForTokens(code, app) {
       redirect_uri: app.redirectUri,
     }),
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  })
+  }))
   if (!res.ok) {
     const text = await res.text().catch(() => '')
     throw new Error(`Token exchange failed: ${res.status} ${text}`)
@@ -54,7 +55,7 @@ async function exchangeCodeForTokens(code, app) {
 }
 
 async function refreshAccessToken(refreshToken, app) {
-  const res = await fetch(app.tokenUrl, {
+  const res = await retryRequest(() => fetch(app.tokenUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -64,7 +65,7 @@ async function refreshAccessToken(refreshToken, app) {
       client_secret: app.clientSecret,
     }),
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  })
+  }))
   if (!res.ok) {
     const text = await res.text().catch(() => '')
     throw new Error(`Token refresh failed: ${res.status} ${text}`)
@@ -73,13 +74,13 @@ async function refreshAccessToken(refreshToken, app) {
 }
 
 async function saxoFetch(endpoint, accessToken, apiBase) {
-  const res = await fetch(`${apiBase}${endpoint}`, {
+  const res = await retryRequest(() => fetch(`${apiBase}${endpoint}`, {
     headers: {
       'Authorization': `Bearer ${accessToken}`,
       'Accept': 'application/json',
     },
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  })
+  }))
   if (!res.ok) {
     const text = await res.text().catch(() => '')
     throw new Error(`Saxo API ${res.status}: ${text}`)
@@ -129,7 +130,7 @@ function parsePositions(data) {
 }
 
 export async function POST(request) {
-  const { limited } = rateLimit(request, { maxRequests: 20 })
+  const { limited } = await rateLimit(request, { maxRequests: 20 })
   if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 
   const { uid, error } = await verifyAuth(request)

@@ -1,20 +1,21 @@
 import './globals.css'
 import RootErrorBoundary from '@/components/RootErrorBoundary'
+import { ADSENSE_CLIENT } from '@/lib/adsense'
 
 export const metadata = {
-  title: 'Chispudo — Portfolio Tracker for Latin America',
+  title: 'Chispudo: Portfolio Tracker for Latin America',
   description: 'Track stocks, crypto, bonds, real estate, DeFi, SAFE notes and more. Built for LatAm. Free forever.',
   keywords: ['portfolio tracker', 'investment', 'LatAm', 'Guatemala', 'Mexico', 'Colombia', 'stocks', 'crypto', 'bonds', 'DeFi'],
   openGraph: {
-    title: 'Chispudo — Track Your Entire Portfolio',
-    description: 'Stocks, crypto, bonds, real estate, DeFi yield, SAFE notes — all in one place. Built for Latin America.',
+    title: 'Chispudo: Track Your Entire Portfolio',
+    description: 'Stocks, crypto, bonds, real estate, DeFi yield, SAFE notes: all in one place. Built for Latin America.',
     url: 'https://chispu.xyz',
     siteName: 'Chispudo',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Chispudo — Portfolio Tracker for Latin America',
+    title: 'Chispudo: Portfolio Tracker for Latin America',
     description: 'Track every asset type. Built for LatAm. Free forever.',
   },
   metadataBase: new URL('https://chispu.xyz'),
@@ -43,9 +44,11 @@ export default function RootLayout({ children }) {
     (function() {
       try {
         var saved = localStorage.getItem('chispudo-theme');
-        var theme = 'light';
-        if (saved === 'dark') {
-          theme = 'dark';
+        // Default matches the dashboard's default ('dark') — a different default here
+        // made /finances and /spreadsheet load light while the dashboard loaded dark.
+        var theme = 'dark';
+        if (saved === 'light') {
+          theme = 'light';
         } else if (saved === 'system') {
           theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         }
@@ -78,12 +81,18 @@ export default function RootLayout({ children }) {
   `
 
   return (
-    <html lang="en" data-theme="light" suppressHydrationWarning>
+    <html lang="en" data-theme="dark" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        {/* AdSense loader + site-verification snippet. Site-wide so Google's crawler
+            can verify on public pages (the dashboard is behind auth). With Auto Ads
+            off, no ad renders anywhere except our manual unit (AdBanner). */}
+        {ADSENSE_CLIENT && (
+          <script async src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`} crossOrigin="anonymous" />
+        )}
       </head>
       <body className="font-sans"><RootErrorBoundary>{children}</RootErrorBoundary></body>
     </html>

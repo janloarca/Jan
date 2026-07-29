@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
+import { authFetch } from '@/lib/authFetch'
 
 export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCredentials, lang = 'es', uid }) {
   const trapRef = useFocusTrap()
@@ -33,10 +34,16 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
       setPreview(data)
       setStep('preview')
 
-      if (onSaveCredentials && uid) {
-        const { encryptToken } = await import('@/lib/crypto')
-        const encrypted = await encryptToken(apiKey.trim(), uid)
-        onSaveCredentials({ blockchainApiKey: encrypted })
+      // Store the API key in the server-side vault (encrypted with the master key)
+      // and drop any legacy client-encrypted copy.
+      if (uid) {
+        try {
+          await authFetch('/api/brokers/blockchain', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'save-credentials', apiKey: apiKey.trim() }),
+          })
+          onSaveCredentials?.({ blockchainApiKey: null })
+        } catch (e) { console.error('[blockchain] save-credentials failed (re-enter key to persist):', e?.message) }
       }
     } catch (err) {
       setError(err.message || t('Error conectando con Blockchain.com', 'Error connecting to Blockchain.com'))
@@ -70,7 +77,7 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
 
         {step === 'config' && (
           <div className="p-6 space-y-4">
-            <div className="border rounded-lg p-3" style={{ backgroundColor: 'rgba(59,130,246,0.1)', borderColor: 'rgba(59,130,246,0.2)' }}>
+            <div className="border rounded-lg p-3" style={{ backgroundColor: 'rgba(37,99,235,0.1)', borderColor: 'rgba(37,99,235,0.2)' }}>
               <p className="text-xs font-medium mb-1" style={{ color: 'var(--accent-blue)' }}>{t('Cómo obtener tu API key:', 'How to get your API key:')}</p>
               <ol className="text-xs space-y-0.5 list-decimal list-inside" style={{ color: 'rgba(147,197,253,0.8)' }}>
                 <li>{t('Ve a Blockchain.com Exchange', 'Go to Blockchain.com Exchange')}</li>
@@ -141,7 +148,7 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
               <div className="flex gap-2">
                 <button onClick={() => setSyncMode('merge')}
                   className="flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors border"
-                  style={syncMode === 'merge' ? { backgroundColor: 'rgba(59,130,246,0.2)', color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: 'var(--bg-input)', color: 'var(--text-secondary)', borderColor: 'var(--border-color)' }}>
+                  style={syncMode === 'merge' ? { backgroundColor: 'rgba(37,99,235,0.2)', color: 'var(--accent-blue)', borderColor: 'rgba(37,99,235,0.4)' } : { backgroundColor: 'var(--bg-input)', color: 'var(--text-secondary)', borderColor: 'var(--border-color)' }}>
                   {t('Fusionar', 'Merge')}
                   <span className="block text-xs mt-0.5 opacity-60">{t('Actualiza existentes, agrega nuevos', 'Update existing, add new')}</span>
                 </button>

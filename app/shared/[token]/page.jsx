@@ -45,10 +45,14 @@ export default function SharedPortfolioPage() {
     )
   }
 
-  return <SharedDashboard items={data.items} snapshots={data.snapshots} baseCurrency={data.baseCurrency} />
+  return <SharedDashboard items={data.items} snapshots={data.snapshots} baseCurrency={data.baseCurrency} label={data.label} display={data.display} />
 }
 
-function SharedDashboard({ items, snapshots, baseCurrency }) {
+function SharedDashboard({ items, snapshots, baseCurrency, label, display }) {
+  // Per-link display mode: 'both' (default) | 'amounts' (hide gain/loss %) |
+  // 'percent' (hide money — the API already masks amounts server-side).
+  const showAmounts = display !== 'percent'
+  const showPerf = display !== 'amounts'
   const [theme, setTheme] = useState('dark')
 
   const toggleTheme = useCallback(() => {
@@ -106,7 +110,7 @@ function SharedDashboard({ items, snapshots, baseCurrency }) {
   )
 
   const catColors = {
-    stocks: '#3b82f6', crypto: '#f59e0b', funds: '#34d399', bonds: '#8b5cf6',
+    stocks: 'var(--accent-blue)', crypto: '#f59e0b', funds: '#34d399', bonds: '#8b5cf6',
     banks: '#06b6d4', realestate: '#ec4899', alternatives: '#f97316', debts: '#ef4444', other: '#64748b',
   }
 
@@ -117,14 +121,21 @@ function SharedDashboard({ items, snapshots, baseCurrency }) {
           <div className="flex items-center gap-3">
             <span className="font-bold text-lg" style={{ color: 'var(--accent-green)' }}>Chispudo</span>
             <span className="text-xs text-slate-500 bg-slate-800 px-2 py-0.5 rounded">Read-only</span>
+            {label && <span className="text-xs text-slate-400 truncate max-w-[160px]" title={label}>· {label}</span>}
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => {
-              const rows = [['Name', 'Symbol', 'Type', 'Qty', 'Price', 'Value', 'Allocation'].join(',')]
+              const header = showAmounts
+                ? ['Name', 'Symbol', 'Type', 'Qty', 'Price', 'Value', 'Allocation']
+                : ['Name', 'Symbol', 'Type', 'Allocation']
+              const rows = [header.join(',')]
               items.filter((it) => !it.isDebt).forEach((it) => {
                 const val = (it.quantity || 0) * getItemPrice(it)
                 const pct = totalAssets > 0 ? (val / totalAssets * 100).toFixed(2) : '0'
-                rows.push([it.name || '', it.symbol || '', it.type || '', it.quantity || 0, getItemPrice(it).toFixed(2), val.toFixed(2), pct + '%'].join(','))
+                const row = showAmounts
+                  ? [it.name || '', it.symbol || '', it.type || '', it.quantity || 0, getItemPrice(it).toFixed(2), val.toFixed(2), pct + '%']
+                  : [it.name || '', it.symbol || '', it.type || '', pct + '%']
+                rows.push(row.join(','))
               })
               const blob = new Blob([rows.join('\n')], { type: 'text/csv' })
               const a = document.createElement('a')
@@ -147,20 +158,34 @@ function SharedDashboard({ items, snapshots, baseCurrency }) {
       <main className="max-w-5xl mx-auto px-4 py-8 space-y-6">
         {/* Net Worth */}
         <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-6">
-          <span className="text-xs text-slate-500 block mb-1">Net Worth</span>
-          <div className="text-3xl font-bold text-white">{formatCurrency(netWorth)}</div>
+          {showAmounts ? (
+            <>
+              <span className="text-xs text-slate-500 block mb-1">Net Worth</span>
+              <div className="text-3xl font-bold text-white">{formatCurrency(netWorth)}</div>
+            </>
+          ) : (
+            <>
+              <span className="text-xs text-slate-500 block mb-1">All-time Return</span>
+              <div className="text-3xl font-bold" style={{ color: growthPct == null ? 'var(--text-primary)' : growthPct >= 0 ? '#34d399' : '#f87171' }}>
+                {growthPct == null ? '-' : `${growthPct >= 0 ? '+' : ''}${growthPct.toFixed(1)}%`}
+              </div>
+              <p className="text-xs text-slate-500 mt-1">Percentages-only view: amounts are hidden by the owner.</p>
+            </>
+          )}
           <div className="flex gap-6 mt-3 text-sm">
-            <div>
-              <span className="text-slate-500">Assets: </span>
-              <span className="font-medium" style={{ color: 'var(--accent-green)' }}>{formatCurrency(totalAssets)}</span>
-            </div>
-            {totalDebts > 0 && (
+            {showAmounts && (
+              <div>
+                <span className="text-slate-500">Assets: </span>
+                <span className="font-medium" style={{ color: 'var(--accent-green)' }}>{formatCurrency(totalAssets)}</span>
+              </div>
+            )}
+            {showAmounts && totalDebts > 0 && (
               <div>
                 <span className="text-slate-500">Debts: </span>
                 <span className="font-medium" style={{ color: 'var(--text-negative)' }}>-{formatCurrency(totalDebts)}</span>
               </div>
             )}
-            {growthPct != null && (
+            {showAmounts && showPerf && growthPct != null && (
               <div>
                 <span className="text-slate-500">All-time: </span>
                 <span className="font-medium" style={{ color: growthPct >= 0 ? '#34d399' : '#f87171' }}>
@@ -185,7 +210,7 @@ function SharedDashboard({ items, snapshots, baseCurrency }) {
                         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: catColors[cat] || catColors.other }} />
                         {cat}
                       </span>
-                      <span className="text-slate-400">{pct.toFixed(1)}% · {formatCurrency(val)}</span>
+                      <span className="text-slate-400">{pct.toFixed(1)}%{showAmounts ? ` · ${formatCurrency(val)}` : ''}</span>
                     </div>
                     <div className="h-1.5 bg-slate-700/50 rounded-full overflow-hidden">
                       <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: catColors[cat] || catColors.other }} />
@@ -206,6 +231,10 @@ function SharedDashboard({ items, snapshots, baseCurrency }) {
               {topHoldings.map((it) => {
                 const pct = totalAssets > 0 ? (it.value / totalAssets) * 100 : 0
                 const cat = getTypeCategory(it)
+                // Gain % survives the percent-mode masking (it's a price ratio).
+                const gainPct = showPerf && it.purchasePrice > 0 && it.currentPrice > 0
+                  ? ((it.currentPrice - it.purchasePrice) / it.purchasePrice) * 100
+                  : null
                 return (
                   <div key={it.id} className="flex items-center justify-between py-1.5">
                     <div className="flex items-center gap-2 min-w-0">
@@ -214,8 +243,13 @@ function SharedDashboard({ items, snapshots, baseCurrency }) {
                       {it.symbol && <span className="text-xs text-slate-500">{it.symbol}</span>}
                     </div>
                     <div className="text-right shrink-0 ml-3">
-                      <span className="text-sm text-white font-medium">{formatCurrency(it.value)}</span>
+                      {showAmounts && <span className="text-sm text-white font-medium">{formatCurrency(it.value)}</span>}
                       <span className="text-xs text-slate-500 ml-2">{pct.toFixed(1)}%</span>
+                      {gainPct != null && (
+                        <span className="text-xs font-medium ml-2" style={{ color: gainPct >= 0 ? '#34d399' : '#f87171' }}>
+                          {gainPct >= 0 ? '+' : ''}{gainPct.toFixed(1)}%
+                        </span>
+                      )}
                     </div>
                   </div>
                 )
@@ -228,7 +262,7 @@ function SharedDashboard({ items, snapshots, baseCurrency }) {
         {snapshots.length >= 2 && (
           <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-5">
             <h3 className="text-sm font-medium text-slate-400 mb-4">Portfolio Growth</h3>
-            <GrowthChart snapshots={snapshots} />
+            <GrowthChart snapshots={snapshots} showAmounts={showAmounts} />
           </div>
         )}
 
@@ -236,7 +270,7 @@ function SharedDashboard({ items, snapshots, baseCurrency }) {
         <RiskOverview items={items} totalAssets={totalAssets} byCategory={byCategory} />
 
         {/* Income & Maturity Summary */}
-        <IncomeMaturitySummary items={items} />
+        <IncomeMaturitySummary items={items} showAmounts={showAmounts} />
 
         <div className="text-center text-xs text-slate-600 pt-4">
           Shared via <span style={{ color: 'rgba(52,211,153,0.6)' }}>Chispudo</span> · chispu.xyz
@@ -246,7 +280,7 @@ function SharedDashboard({ items, snapshots, baseCurrency }) {
   )
 }
 
-function GrowthChart({ snapshots }) {
+function GrowthChart({ snapshots, showAmounts = true }) {
   const sorted = useMemo(() =>
     [...snapshots].sort((a, b) => new Date(a.date) - new Date(b.date)),
     [snapshots]
@@ -273,24 +307,31 @@ function GrowthChart({ snapshots }) {
     <div>
       <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-32" preserveAspectRatio="none">
         <polygon points={areaPoints} fill="url(#grad)" />
-        <polyline points={points.join(' ')} fill="none" stroke="#3b82f6" strokeWidth="0.5" />
+        <polyline points={points.join(' ')} fill="none" stroke="var(--accent-blue)" strokeWidth="0.5" />
         <defs>
           <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.2" />
-            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+            <stop offset="0%" stopColor="var(--accent-blue)" stopOpacity="0.2" />
+            <stop offset="100%" stopColor="var(--accent-blue)" stopOpacity="0" />
           </linearGradient>
         </defs>
       </svg>
       <div className="flex justify-between text-xs text-slate-500 mt-2">
         <span>{sorted[0].date?.slice(0, 10)}</span>
-        <span>{formatCurrency(values[values.length - 1])}</span>
+        <span>
+          {showAmounts
+            ? formatCurrency(values[values.length - 1])
+            : (() => {
+                const cum = values[0] > 0 ? ((values[values.length - 1] - values[0]) / values[0]) * 100 : 0
+                return `${cum >= 0 ? '+' : ''}${cum.toFixed(1)}%`
+              })()}
+        </span>
         <span>{sorted[sorted.length - 1].date?.slice(0, 10)}</span>
       </div>
     </div>
   )
 }
 
-function IncomeMaturitySummary({ items }) {
+function IncomeMaturitySummary({ items, showAmounts = true }) {
   const incomeItems = useMemo(() =>
     items.filter((it) => !it.isDebt && (it.incomeRate > 0 || it.dividendYield > 0 || (it.rateType === 'variable' && it.rateMin > 0))),
     [items]
@@ -320,7 +361,7 @@ function IncomeMaturitySummary({ items }) {
       {incomeItems.length > 0 && (
         <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-5">
           <h3 className="text-sm font-medium text-slate-400 mb-3">Estimated Annual Income</h3>
-          <div className="text-2xl font-bold mb-3" style={{ color: 'var(--accent-green)' }}>{formatCurrency(totalEstIncome)}</div>
+          {showAmounts && <div className="text-2xl font-bold mb-3" style={{ color: 'var(--accent-green)' }}>{formatCurrency(totalEstIncome)}</div>}
           <div className="space-y-1.5">
             {incomeItems.slice(0, 6).map((it) => {
               const rate = it.rateType === 'variable' ? `${it.rateMin}-${it.rateMax}%` : `${it.incomeRate || it.dividendYield}%`
@@ -351,7 +392,7 @@ function IncomeMaturitySummary({ items }) {
                       {days <= 30 ? `${days}d` : days <= 365 ? `${Math.round(days / 30)}mo` : `${(days / 365).toFixed(1)}yr`}
                     </span>
                   </div>
-                  <span className="text-white font-medium">{formatCurrency(val)}</span>
+                  {showAmounts && <span className="text-white font-medium">{formatCurrency(val)}</span>}
                 </div>
               )
             })}

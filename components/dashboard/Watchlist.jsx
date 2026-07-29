@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { formatCurrency } from './utils'
-import { safeJson } from '@/lib/authFetch'
+import { authFetch, safeJson } from '@/lib/authFetch'
 
 export default function Watchlist({ lang }) {
   const t = (es, en) => lang === 'es' ? es : en
@@ -35,7 +35,7 @@ export default function Watchlist({ lang }) {
       setSearching(true)
       setSearchError(null)
       try {
-        const res = await fetch(`/api/prices/search?q=${encodeURIComponent(q)}`)
+        const res = await authFetch(`/api/prices/search?q=${encodeURIComponent(q)}`)
         if (res.ok) {
           const data = await safeJson(res) || {}
           setResults((data.results || []).slice(0, 6))
@@ -66,7 +66,7 @@ export default function Watchlist({ lang }) {
     if (items.length === 0) return
     const symbols = items.map((it) => ({ symbol: it.symbol, type: '' }))
     setPriceError(false)
-    fetch('/api/prices', {
+    authFetch('/api/prices', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: symbols }),

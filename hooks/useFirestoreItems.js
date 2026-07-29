@@ -134,13 +134,16 @@ export function useFirestoreItems() {
       )
 
       try {
-        const goalsDoc = await fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'goals'))
+        // Independent docs — fetch in parallel instead of three round-trips in series.
+        const [goalsDoc, prefsDoc, profileDoc] = await Promise.all([
+          fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'goals')),
+          fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'preferences')),
+          fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'profile')),
+        ])
         if (!cancelled && goalsDoc.exists()) setGoals(sanitizeDoc(goalsDoc.data()))
-        const prefsDoc = await fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'preferences'))
         if (!cancelled && prefsDoc.exists()) setSettings(sanitizeDoc(prefsDoc.data()))
-        const profileDoc = await fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'profile'))
         if (!cancelled && profileDoc.exists()) setProfile(sanitizeDoc(profileDoc.data()))
-      } catch {}
+      } catch (e) { console.error('[firestore] settings load failed:', e?.message) }
 
       if (!cancelled) setLoading(false)
 
@@ -206,12 +209,24 @@ export function useFirestoreItems() {
     setItems((cur) => cur.filter((it) => it.id !== itemId))
     try {
       const { db, fs } = await getFirebase()
+      const sym = (deletedItem?.symbol || '').toUpperCase()
+      const needLotCleanup = !!sym && !items.some(it => it.id !== itemId && (it.symbol || '').toUpperCase() === sym)
+
+      // The four cleanup reads are independent — fetch them in one round-trip
+      // instead of four in series (deleting an item used to take 4× the latency).
+      // Writes below keep their original order (item first, then references).
+      const [itemsSnap, txSnap, lotSnap, isSnap] = await Promise.all([
+        skipRefCleanup ? null : fs.getDocs(fs.collection(db, `users/${uid}/items`)),
+        fs.getDocs(fs.collection(db, `users/${uid}/transactions`)),
+        needLotCleanup ? fs.getDocs(fs.collection(db, `users/${uid}/lots`)) : null,
+        fs.getDocs(fs.collection(db, `users/${uid}/itemSnapshots`)),
+      ])
+
       if (skipRefCleanup) {
         await fs.deleteDoc(fs.doc(db, `users/${uid}/items`, itemId))
       } else {
-        const snap = await fs.getDocs(fs.collection(db, `users/${uid}/items`))
         const batch = fs.writeBatch(db)
-        snap.docs.forEach((d) => {
+        itemsSnap.docs.forEach((d) => {
           if (d.id === itemId) return
           const data = d.data()
           const updates = {}
@@ -222,7 +237,7 @@ export function useFirestoreItems() {
         batch.delete(fs.doc(db, `users/${uid}/items`, itemId))
         await batch.commit()
       }
-      const txSnap = await fs.getDocs(fs.collection(db, `users/${uid}/transactions`))
+
       const txBatch = fs.writeBatch(db)
       let txCount = 0
       txSnap.docs.forEach(d => {
@@ -230,21 +245,15 @@ export function useFirestoreItems() {
       })
       if (txCount > 0) await txBatch.commit()
 
-      if (deletedItem?.symbol) {
-        const sym = (deletedItem.symbol || '').toUpperCase()
-        const hasOtherItemWithSymbol = items.some(it => it.id !== itemId && (it.symbol || '').toUpperCase() === sym)
-        if (!hasOtherItemWithSymbol) {
-          const lotSnap = await fs.getDocs(fs.collection(db, `users/${uid}/lots`))
-          const lotBatch = fs.writeBatch(db)
-          let lotCount = 0
-          lotSnap.docs.forEach(d => {
-            if ((d.data().symbol || '').toUpperCase() === sym) { lotBatch.delete(d.ref); lotCount++ }
-          })
-          if (lotCount > 0) await lotBatch.commit()
-        }
+      if (lotSnap) {
+        const lotBatch = fs.writeBatch(db)
+        let lotCount = 0
+        lotSnap.docs.forEach(d => {
+          if ((d.data().symbol || '').toUpperCase() === sym) { lotBatch.delete(d.ref); lotCount++ }
+        })
+        if (lotCount > 0) await lotBatch.commit()
       }
 
-      const isSnap = await fs.getDocs(fs.collection(db, `users/${uid}/itemSnapshots`))
       const isBatch = fs.writeBatch(db)
       let isCount = 0
       isSnap.docs.forEach(d => {
@@ -277,12 +286,16 @@ export function useFirestoreItems() {
 
   const saveSnapshot = useCallback(async (snapshot) => {
     if (!uid) return
+    // Demo mode (onboarding sample data) must not leave real history behind —
+    // snapshots written while demo items exist would pollute the NAV chart
+    // after the demo is deleted.
+    if (items.some((i) => i._source === 'demo')) return
     const { db, fs } = await getFirebase()
     const dateStr = snapshot.date || new Date().toISOString().split('T')[0]
     const id = dateStr
     const clean = Object.fromEntries(Object.entries({ ...snapshot, createdAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
     await fs.setDoc(fs.doc(db, `users/${uid}/snapshots`, id), clean, { merge: true })
-  }, [uid])
+  }, [uid, items])
 
   const deleteAllSnapshots = useCallback(async () => {
     if (!uid) return
@@ -290,6 +303,58 @@ export function useFirestoreItems() {
     const snap = await fs.getDocs(fs.collection(db, `users/${uid}/snapshots`))
     await Promise.all(snap.docs.map((d) => fs.deleteDoc(d.ref)))
   }, [uid])
+
+  // Selective cleanup for the onboarding demo: removes every doc flagged
+  // _source:'demo' (items + lots + transactions) and nothing else. Snapshots
+  // never carry demo data (saveSnapshot/saveItemSnapshots are vetoed while
+  // demo items exist), so they need no sweep here.
+  const deleteDemoData = useCallback(async () => {
+    if (!uid) return
+    const { db, fs } = await getFirebase()
+    const refs = [
+      ...items.filter((i) => i._source === 'demo').map((i) => fs.doc(db, `users/${uid}/items`, i.id)),
+      ...lots.filter((l) => l._source === 'demo').map((l) => fs.doc(db, `users/${uid}/lots`, l.id)),
+      ...transactions.filter((t) => t._source === 'demo').map((t) => fs.doc(db, `users/${uid}/transactions`, t.id)),
+    ]
+    const CHUNK = 30
+    for (let i = 0; i < refs.length; i += CHUNK) {
+      const batch = fs.writeBatch(db)
+      for (const ref of refs.slice(i, i + CHUNK)) batch.delete(ref)
+      await batch.commit()
+    }
+  }, [uid, items, lots, transactions])
+
+  // Delete a specific set of items (by id) plus their lots and transactions — the
+  // engine behind the per-account "selective delete" in Settings. The caller (the UI)
+  // owns the grouping (by source/institution); this stays generic. Lots/transactions
+  // are only removed for symbols NO surviving item still holds, so deleting one account
+  // never strips history a sibling account shares.
+  const deleteItemGroup = useCallback(async (itemIds) => {
+    if (!uid || !itemIds?.length) return 0
+    const idSet = new Set(itemIds)
+    const groupItems = items.filter((i) => idSet.has(i.id))
+    if (groupItems.length === 0) return 0
+    const { db, fs } = await getFirebase()
+    const groupSyms = new Set(groupItems.map((i) => (i.symbol || '').toUpperCase()).filter(Boolean))
+    const survivingSyms = new Set(items.filter((i) => !idSet.has(i.id)).map((i) => (i.symbol || '').toUpperCase()))
+    const symDeletable = (s) => !!s && groupSyms.has(s) && !survivingSyms.has(s)
+    const refs = [
+      ...groupItems.map((i) => fs.doc(db, `users/${uid}/items`, i.id)),
+      ...lots.filter((l) => symDeletable((l.symbol || '').toUpperCase())).map((l) => fs.doc(db, `users/${uid}/lots`, l.id)),
+      ...transactions.filter((t) =>
+        idSet.has(t._linkedItemId) || idSet.has(t._destinationItemId) || idSet.has(t._originItemId)
+        || symDeletable((t.symbol || '').toUpperCase())
+      ).map((t) => fs.doc(db, `users/${uid}/transactions`, t.id)),
+    ]
+    const CHUNK = 30
+    for (let i = 0; i < refs.length; i += CHUNK) {
+      const batch = fs.writeBatch(db)
+      for (const ref of refs.slice(i, i + CHUNK)) batch.delete(ref)
+      await batch.commit()
+    }
+    setItems((cur) => cur.filter((it) => !idSet.has(it.id)))
+    return groupItems.length
+  }, [uid, items, lots, transactions])
 
   const addTransaction = useCallback(async (transaction) => {
     if (!uid) return
@@ -642,10 +707,15 @@ export function useFirestoreItems() {
   // v4: market-asset past-month share counts are reconstructed from real trade
   // history (transactions), not import-stamped lots — invalidates docs that
   // cached zeroed/understated stock values before the import date.
-  const SNAPSHOT_VERSION = 15
+  // v16: crypto historical prices now come from CoinGecko (not Yahoo, which
+  // collided crypto tickers with unrelated equities) — invalidates docs that
+  // cached garbage crypto values.
+  const SNAPSHOT_VERSION = 17
 
   const saveItemSnapshots = useCallback(async (monthKey, itemsData, currency) => {
     if (!uid || !monthKey || !itemsData) return
+    // Same demo-mode veto as saveSnapshot: no persistent history from sample data.
+    if (items.some((i) => i._source === 'demo')) return
     const { db, fs } = await getFirebase()
     const ref = fs.doc(db, `users/${uid}/itemSnapshots`, monthKey)
     const existing = await fs.getDoc(ref)
@@ -658,7 +728,7 @@ export function useFirestoreItems() {
       ...(currency ? { _currency: currency } : {}),
     }).filter(([, v]) => v !== undefined))
     await fs.setDoc(ref, snapData, { merge: true })
-  }, [uid])
+  }, [uid, items])
 
   const loadItemSnapshots = useCallback(async (monthKeys) => {
     if (!uid || !monthKeys || monthKeys.length === 0) return {}
@@ -714,7 +784,10 @@ export function useFirestoreItems() {
 
     for (const tx of (newTxs || [])) {
       const amt = Math.round((tx.totalAmount || tx.amount || 0) * 100)
-      const id = `${tx.date || 'nodate'}-${(tx.symbol || 'nosym').toUpperCase()}-${tx.type || 'tx'}-${amt}`
+      // Append a broker-provided transaction id when present (IBKR cash flows) so
+      // two same-day/same-amount deposits don't collapse into one doc.
+      const base = `${tx.date || 'nodate'}-${(tx.symbol || 'nosym').toUpperCase()}-${tx.type || 'tx'}-${amt}`
+      const id = tx._ibkrTxnId ? `${base}-${tx._ibkrTxnId}` : base
       ops.push({ type: 'set', ref: fs.doc(db, `users/${uid}/transactions`, id), data: strip({ ...tx, createdAt: now }) })
     }
 
@@ -765,8 +838,8 @@ export function useFirestoreItems() {
 
   return {
     items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, loading,
-    addItem, updateItem, deleteItem, deleteAllItems,
-    saveSnapshot, deleteAllSnapshots,
+    addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
+    saveSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, deleteTransaction, deleteAllTransactions,
     addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     addAlert, deleteAlert, updateAlert,

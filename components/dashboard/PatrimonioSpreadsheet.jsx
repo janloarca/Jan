@@ -93,7 +93,8 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
 
   const commitEditValue = useCallback((item) => {
     const num = parseFloat(editDraft.replace(/[^0-9.\-]/g, ''))
-    if (!isNaN(num) && num >= 0 && onUpdateItem) {
+    // Same ceiling as file imports (lib/validation MAX_PRICE).
+    if (!isNaN(num) && num >= 0 && num <= 10_000_000 && onUpdateItem) {
       onUpdateItem(item.id, { currentPrice: num, quantity: 1 })
     }
     setEditingValue(null)
@@ -184,7 +185,7 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
                     <td className="px-3 py-2 text-right font-mono text-sm font-bold text-slate-700">${fmt(group.total)}</td>
                     <td></td>
                     <td className="px-3 py-2 text-right font-mono text-xs text-slate-400">
-                      {grandTotal > 0 ? ((group.total / grandTotal) * 100).toFixed(1) + '%' : '—'}
+                      {grandTotal > 0 ? ((group.total / grandTotal) * 100).toFixed(1) + '%' : '-'}
                     </td>
                   </tr>
                   {expanded[group.key] !== false && group.items.map((item, i) => {
@@ -214,10 +215,10 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
                           <span className="text-xs text-slate-500">{item.subtype || item.type}</span>
                         </td>
                         <td className="px-3 py-2.5">
-                          <span className="text-xs text-slate-500 max-w-[200px] truncate block">{location || '—'}</span>
+                          <span className="text-xs text-slate-500 max-w-[200px] truncate block">{location || '-'}</span>
                         </td>
                         <td className="px-3 py-2.5 text-right">
-                          <span className="font-mono text-sm text-slate-500">{cost > 0 ? `$${fmt(cost)}` : '—'}</span>
+                          <span className="font-mono text-sm text-slate-500">{cost > 0 ? `$${fmt(cost)}` : '-'}</span>
                         </td>
                         <td className="px-3 py-2.5 text-right">
                           {isEditing ? (
@@ -245,7 +246,7 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
                               {gain >= 0 ? '+' : ''}{gainPct.toFixed(1)}%
                             </span>
                           ) : (
-                            <span className="text-slate-300">—</span>
+                            <span className="text-slate-300">-</span>
                           )}
                         </td>
                         <td className="px-3 py-2.5 text-right">

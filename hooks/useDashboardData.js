@@ -5,16 +5,30 @@ import { useExchangeRates } from './useExchangeRates'
 import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth } from '@/components/dashboard/utils'
-import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution } from '@/components/dashboard/analytics'
+import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat } from '@/components/dashboard/utils'
+import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
+import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
+
+// What changed since the previous sync. Because a wide Flex Query (Year to Date)
+// re-delivers the whole year every run and dedup collapses what we already have,
+// the growth of each total IS the new activity: new trades, new deposits/withdrawals,
+// new dividends, new costs. This is the auto-detection the sync already does, made
+// visible. Returns null on the first sync (no baseline) or when nothing is new.
+export function ibkrSyncChanges(prev, next) {
+  if (!prev || !next) return null
+  const d = (k) => Math.max(0, (next[k] || 0) - (prev[k] || 0))
+  const changes = { trades: d('trades'), flows: d('flows'), dividends: d('dividends'), fees: d('fees'), equityDays: d('equityDays') }
+  const any = changes.trades || changes.flows || changes.dividends || changes.fees || changes.equityDays
+  return any ? changes : null
+}
 
 export function useDashboardData({ user, lang, activePortfolio, activeEntity = '__all__' }) {
   const firestoreData = useFirestoreItems()
   const {
     items, snapshots, transactions, goals, settings, profile,
     loading: dataLoading, addItem, updateItem, deleteItem,
-    deleteAllItems, saveSnapshot, deleteAllSnapshots,
+    deleteAllItems, deleteItemGroup, saveSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, deleteTransaction, deleteAllTransactions,
     alerts, addAlert, deleteAlert, updateAlert,
     lots, addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution, bulkImport,
@@ -94,6 +108,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     let totalAssetsUSD = 0
     let totalDebtUSD = 0
     enrichedItems.forEach((it) => {
+      // Keep the snapshot baseline consistent with the live netWorth, which drops
+      // receivables the user excluded from net worth (otherwise daily change / returns
+      // would compare against a baseline that counts assets the headline does not).
+      if (isExcludedFromNetWorth(it)) return
       const origPrice = it._originalPrice ?? it.currentPrice ?? it.purchasePrice ?? 0
       const origCurrency = it._originalCurrency ?? baseCurrency ?? 'USD'
       let value = (it.quantity || 0) * origPrice
@@ -104,7 +122,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const netWorthUSD = totalAssetsUSD - totalDebtUSD
     if (totalAssetsUSD > 0 || totalDebtUSD > 0) {
       const { netContributions: totalContributedUSD } = computeNetContributions(transactions, convert, 'USD')
-      saveSnapshot({ date: todayStr, totalActivosUSD: totalAssetsUSD, totalDebtUSD, netWorthUSD, totalContributedUSD, rates: rates || {}, baseCurrency })
+      // _source:'daily' marks this as a FULL-portfolio snapshot (all enriched
+      // items) so other writers (IBKR sync = broker-only NAV) know not to
+      // overwrite it with a poorer value for the same date.
+      saveSnapshot({ date: todayStr, totalActivosUSD: totalAssetsUSD, totalDebtUSD, netWorthUSD, totalContributedUSD, rates: rates || {}, baseCurrency, _source: 'daily' })
       snapshotSavedRef.current = todayStr
     }
   }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, snapshots, saveSnapshot, convert, baseCurrency, transactions])
@@ -132,11 +153,20 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       try {
         if (cancelled) return
         const allLots = (lots || []).filter(l => l.quantity > 0)
+        // Only ASSETS go to portfolio-history (it has no isDebt notion, so a debt
+        // would be summed as a positive asset). Debt is held flat and subtracted below.
+        const assetItems = enrichedItems.filter(it => !it.isDebt && !isExcludedFromNetWorth(it))
+        const currentDebtUSD = enrichedItems.reduce((s, it) => {
+          if (!it.isDebt) return s
+          const cur = it._originalCurrency || it.currency || 'USD'
+          const v = (it.quantity || 0) * (it._originalPrice ?? it.currentPrice ?? it.purchasePrice ?? 0)
+          return s + Math.abs(convert ? convert(v, cur, 'USD') : v)
+        }, 0)
         const res = await authFetch('/api/prices/portfolio-history', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            items: enrichedItems.map((it) => {
+            items: assetItems.map((it) => {
               const cur = it._originalCurrency || it.currency || 'USD'
               const toUSD = (p) => convert ? convert(p || 0, cur, 'USD') : (p || 0)
               return {
@@ -144,6 +174,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
                 currentPrice: toUSD(it._originalPrice ?? it.currentPrice),
                 purchasePrice: toUSD(it._originalPurchasePrice ?? it.purchasePrice),
                 currency: 'USD', acquisitionDate: it.acquisitionDate,
+                _holdFlat: shouldHoldFlat(it, transactions, lots),
               }
             }),
             lots: allLots.length > 0 ? allLots.map(l => ({
@@ -164,9 +195,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           gapSet.delete(dateStr)
           await saveSnapshot({
             date: dateStr,
-            netWorthUSD: pt.total,
+            netWorthUSD: pt.total - currentDebtUSD,
             totalActivosUSD: pt.total,
-            totalDebtUSD: 0,
+            totalDebtUSD: currentDebtUSD,
             _source: 'backfill',
           })
         }
@@ -176,7 +207,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
     doBackfill()
     return () => { cancelled = true }
-  }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, snapshots, lots, saveSnapshot, convert])
+  }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, snapshots, lots, transactions, saveSnapshot, convert])
 
   // Dividend processing
   const dividendsProcessedRef = useRef(null)
@@ -186,6 +217,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     if (dividendsProcessedRef.current === todayKey) return
     if (!user || dataLoading || pricesLoading || ratesLoading) return
     if (enrichedItems.length === 0) return
+    // Demo mode: never auto-generate real dividend transactions or credit
+    // balances from sample data (snapshot writers are vetoed at the data layer).
+    if (enrichedItems.some((it) => it._source === 'demo')) return
     let cancelled = false
 
     const scheduled = enrichedItems.filter((it) =>
@@ -493,22 +527,37 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
 
     // Let a fresh IBKR equity entry overwrite a stale snapshot for the same date
-    // (a wrong value written once must be correctable by a later sync). Only skip
-    // when an existing IBKR snapshot already holds the same value.
+    // (a wrong value written once must be correctable by a later sync). But NEVER
+    // downgrade a FULL-portfolio snapshot (daily writer, sums all assets) to
+    // broker-only NAV — that same-date tug-of-war alternated the chart between
+    // ~broker-NAV and ~full-NAV days (the twin-spike artifact).
     const byDate = new Map(snapshots.map(s => [s.date, s]))
     const newSnaps = (data.equityHistory || [])
       .filter(entry => {
         const prev = byDate.get(entry.date)
+        if (!prev) return true
         const nav = entry.netWorthUSD || 0
-        return !prev || prev._source !== 'ibkr' || (prev.netWorthUSD ?? 0) !== nav
+        const prevVal = prev.netWorthUSD ?? 0
+        if (prev._source === 'ibkr') return prevVal !== nav
+        // Full/daily snapshot exists: only overwrite if the broker NAV is HIGHER
+        // (then the stored one was the poorer value).
+        return nav > prevVal
       })
-      .map(entry => ({
-        date: entry.date,
-        totalActivosUSD: entry.totalActivosUSD || entry.netWorthUSD || 0,
-        totalDebtUSD: entry.totalDebtUSD || 0,
-        netWorthUSD: entry.netWorthUSD || 0,
-        _source: 'ibkr',
-      }))
+      .map(entry => {
+        // IBKR equity is in the account's base currency. Convert to USD when it
+        // isn't already (uses the current FX rate — no historical FX available — so
+        // it's an approximation, but far better than treating EUR/etc. as USD). No-op
+        // for USD-base accounts (the common case).
+        const cur = entry._equityCurrency || 'USD'
+        const toUSD = (v) => (cur !== 'USD' && convert ? convert(v || 0, cur, 'USD') : (v || 0))
+        return {
+          date: entry.date,
+          totalActivosUSD: toUSD(entry.totalActivosUSD || entry.netWorthUSD || 0),
+          totalDebtUSD: toUSD(entry.totalDebtUSD || 0),
+          netWorthUSD: toUSD(entry.netWorthUSD || 0),
+          _source: 'ibkr',
+        }
+      })
 
     const incomingSymbols = new Set(data.items.filter(it => it.symbol).map(it => it.symbol.toUpperCase()))
     items.forEach(it => {
@@ -538,22 +587,59 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       updateItems: updateOps,
       deleteIds,
     }, onProgress)
-  }, [items, snapshots, bulkImport, activePortfolio, activeEntity])
 
+    // Persist a forensic summary of THIS sync (any path: modal, header pill, auto).
+    // The chart banner and the sync card read it, so a single screenshot always
+    // shows what the Flex XML delivered vs what got imported.
+    try {
+      const eqH = data.equityHistory || []
+      const txAll = data.transactions || []
+      const tc = (types) => txAll.filter((t) => types.includes((t.type || '').toUpperCase())).length
+      const nextSummary = {
+        at: new Date().toISOString(),
+        items: (data.items || []).length,
+        equityDays: eqH.length,
+        equityOldest: eqH.reduce((min, e) => (!min || (e.date && e.date < min)) ? e.date : min, null),
+        trades: tc(['BUY', 'SELL']),
+        flows: tc(['DEPOSIT', 'WITHDRAWAL']),
+        dividends: tc(['DIVIDEND']),
+        fees: tc(['FEE', 'TAX', 'INTEREST']),
+        sections: data.sections || null,
+      }
+      saveSettings({ _ibkrLastSyncSummary: { ...nextSummary, changes: ibkrSyncChanges(settings?._ibkrLastSyncSummary, nextSummary) } })
+    } catch {}
+  }, [items, snapshots, bulkImport, activePortfolio, activeEntity, saveSettings])
+
+  // TOKEN_EXPIRED / INVALID_QUERY need user action (regenerate token / fix query),
+  // so they permanently halt auto-sync. LOCKED is TEMPORARY — IBKR unlocks the token
+  // on its own after a cooldown — so it is NOT fatal; instead auto-sync retries it on
+  // a long cadence (below) and a success clears the banner. Treating LOCKED as fatal
+  // used to deadlock the sync: it could never self-heal and the red banner stuck over
+  // fresh data forever.
   const FATAL_ERROR_CODES = ['TOKEN_EXPIRED', 'INVALID_QUERY']
 
   useEffect(() => {
     if (dataLoading) return
-    if (!settings?.ibkrToken || !settings?.ibkrQueryId) return
+    // Proceed if there's a legacy client-stored token OR creds already migrated to
+    // the server vault (_ibkrVaultMigrated), as long as a query id exists.
+    if ((!settings?.ibkrToken && !settings?._ibkrVaultMigrated) || !settings?.ibkrQueryId) return
     if (FATAL_ERROR_CODES.includes(settings?._ibkrAutoSyncErrorCode)) {
       ibkrAutoSyncRef.current = false
       return
     }
     if (ibkrAutoSyncRef.current) return
     ibkrAutoSyncRef.current = true
-    const SYNC_INTERVAL = 30 * 60 * 1000
+    // After a LOCKED error, back off to a long cadence so we let IBKR's temporary
+    // lock expire (retrying too soon can refresh it) — but still retry, so a working
+    // token self-heals and the banner clears without manual action.
+    const isLocked = settings?._ibkrAutoSyncErrorCode === 'LOCKED'
+    const SYNC_INTERVAL = isLocked ? 12 * 60 * 60 * 1000 : 30 * 60 * 1000
+    // Space attempts by the LAST ATTEMPT, not the last success — otherwise every
+    // page load while in an error state fired another immediate try, hammering
+    // IBKR with failed logins (which is what triggers its lockout).
     const lastSync = settings._ibkrLastAutoSync ? new Date(settings._ibkrLastAutoSync).getTime() : 0
-    const shouldSync = Date.now() - lastSync > SYNC_INTERVAL
+    const lastAttempt = settings._ibkrLastAutoSyncAttempt ? new Date(settings._ibkrLastAutoSyncAttempt).getTime() : 0
+    const shouldSync = Date.now() - Math.max(lastSync, lastAttempt) > SYNC_INTERVAL
 
     let cancelled = false
     const doAutoSync = async () => {
@@ -561,16 +647,44 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       setIbkrAutoSyncing(true)
       try {
         const { syncIBKR } = await import('@/lib/ibkrSync')
-        const { decryptToken } = await import('@/lib/crypto')
-        const plain = await decryptToken(settings.ibkrToken, user?.uid)
-        const data = await syncIBKR(plain, settings.ibkrQueryId)
+        let token = '__stored__'
+        if (settings.ibkrToken) {
+          // Legacy client-encrypted token: decrypt it for this run AND migrate it
+          // into the server vault (encrypted server-side with the master key), then
+          // drop the weak client copy. Best-effort — sync still runs if migration fails.
+          const { decryptToken } = await import('@/lib/crypto')
+          token = await decryptToken(settings.ibkrToken, user?.uid)
+          try {
+            await authFetch('/api/brokers/ibkr', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'save-credentials', token, queryId: settings.ibkrQueryId }),
+            })
+            saveSettings({ ibkrToken: null, _ibkrVaultMigrated: true })
+          } catch (e) { console.error('[ibkr] vault migration failed (will retry next sync):', e?.message) }
+        }
+        const data = await syncIBKR(token, settings.ibkrQueryId)
         if (cancelled) return
         await handleIBKRSync(data, 'merge')
+        const eq = data?.equityHistory || []
+        const txs = data?.transactions || []
+        const typeCount = (types) => txs.filter((t) => types.includes((t.type || '').toUpperCase())).length
+        const autoSummary = {
+          at: new Date().toISOString(),
+          items: data?.items?.length || 0,
+          equityDays: eq.length,
+          equityOldest: eq.reduce((min, e) => (!min || (e.date && e.date < min)) ? e.date : min, null),
+          trades: typeCount(['BUY', 'SELL']),
+          flows: typeCount(['DEPOSIT', 'WITHDRAWAL']),
+          dividends: typeCount(['DIVIDEND']),
+          fees: typeCount(['FEE', 'TAX', 'INTEREST']),
+          sections: data?.sections || null,
+        }
         saveSettings({
           _ibkrLastAutoSync: new Date().toISOString(),
           _ibkrAutoSyncStatus: 'ok',
           _ibkrAutoSyncError: null,
           _ibkrAutoSyncErrorCode: null,
+          _ibkrLastSyncSummary: { ...autoSummary, changes: ibkrSyncChanges(settings?._ibkrLastSyncSummary, autoSummary) },
         })
       } catch (err) {
         if (cancelled) return
@@ -579,6 +693,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           _ibkrAutoSyncStatus: 'error',
           _ibkrAutoSyncError: err.message,
           _ibkrAutoSyncErrorCode: code,
+          _ibkrLastAutoSyncAttempt: new Date().toISOString(),
         })
       } finally {
         if (!cancelled) setIbkrAutoSyncing(false)
@@ -591,9 +706,89 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     return () => { cancelled = true; clearInterval(interval) }
   }, [dataLoading, settings, user, handleIBKRSync, saveSettings])
 
+  // Manual, on-demand IBKR sync that runs in the BACKGROUND (no blocking modal). Same
+  // path as the auto-sync above (syncIBKR '__stored__' → handleIBKRSync('merge')) but
+  // forced now, ignoring the cadence gate. The header pill spins via ibkrAutoSyncing;
+  // the caller (page.jsx) toasts the outcome. Returns { ok, count } / { ok:false, error }.
+  const triggerIBKRSync = useCallback(async () => {
+    if ((!settings?.ibkrToken && !settings?._ibkrVaultMigrated) || !settings?.ibkrQueryId) {
+      return { ok: false, error: 'NOT_CONNECTED' }
+    }
+    if (!acquireLock('ibkr-sync')) return { ok: false, error: 'BUSY' }
+    setIbkrAutoSyncing(true)
+    try {
+      const { syncIBKR } = await import('@/lib/ibkrSync')
+      let token = '__stored__'
+      if (settings.ibkrToken) {
+        const { decryptToken } = await import('@/lib/crypto')
+        token = await decryptToken(settings.ibkrToken, user?.uid)
+        try {
+          await authFetch('/api/brokers/ibkr', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'save-credentials', token, queryId: settings.ibkrQueryId }),
+          })
+          saveSettings({ ibkrToken: null, _ibkrVaultMigrated: true })
+        } catch (e) { console.error('[ibkr] vault migration failed (manual sync):', e?.message) }
+      }
+      const data = await syncIBKR(token, settings.ibkrQueryId)
+      await handleIBKRSync(data, 'merge')
+      saveSettings({
+        _ibkrLastAutoSync: new Date().toISOString(),
+        _ibkrLastSync: new Date().toISOString(),
+        _ibkrAutoSyncStatus: 'ok',
+        _ibkrAutoSyncError: null,
+        _ibkrAutoSyncErrorCode: null,
+      })
+      // Surface how much VALUE HISTORY the Flex actually delivered: the whole
+      // "returns don't match the broker" class of bugs came down to a short query
+      // period, and the background toast was the only feedback channel that never
+      // said so.
+      const eq = data?.equityHistory || []
+      const equityOldest = eq.reduce((min, e) => (!min || (e.date && e.date < min)) ? e.date : min, null)
+      const txs = data?.transactions || []
+      const typeCount = (types) => txs.filter((t) => types.includes((t.type || '').toUpperCase())).length
+      const summary = {
+        at: new Date().toISOString(),
+        items: data?.items?.length || 0,
+        equityDays: eq.length,
+        equityOldest: equityOldest || null,
+        trades: typeCount(['BUY', 'SELL']),
+        flows: typeCount(['DEPOSIT', 'WITHDRAWAL']),
+        dividends: typeCount(['DIVIDEND']),
+        fees: typeCount(['FEE', 'TAX', 'INTEREST']),
+        sections: data?.sections || null,
+      }
+      // Persisted so the diagnosis survives the 7-second toast: the chart banner
+      // and the IBKR modal render this, and any screenshot then tells us whether
+      // the Flex XML carried each section and whether the import kept it.
+      const changes = ibkrSyncChanges(settings?._ibkrLastSyncSummary, summary)
+      saveSettings({ _ibkrLastSyncSummary: { ...summary, changes } })
+      return { ok: true, count: summary.items, equityDays: summary.equityDays, equityOldest: summary.equityOldest, trades: summary.trades, flows: summary.flows, dividends: summary.dividends, fees: summary.fees, changes }
+    } catch (err) {
+      const code = err.errorCode || 'UNKNOWN'
+      saveSettings({
+        _ibkrAutoSyncStatus: 'error',
+        _ibkrAutoSyncError: err.message,
+        _ibkrAutoSyncErrorCode: code,
+        _ibkrLastAutoSyncAttempt: new Date().toISOString(),
+      })
+      return { ok: false, error: err.message, errorCode: code }
+    } finally {
+      setIbkrAutoSyncing(false)
+      releaseLock('ibkr-sync')
+    }
+  }, [settings, user, authFetch, saveSettings, handleIBKRSync, acquireLock, releaseLock])
+
   // Derived values
-  const latestSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null
-  const prevSnapshot = snapshots.length > 1 ? snapshots[snapshots.length - 2] : null
+  // IBKR-only snapshots omit manually-added assets; augment them with the held-flat
+  // value of non-IBKR items so returns/changes below reflect the FULL portfolio.
+  // (The growth chart and spreadsheet get the raw snapshots and do their own thing.)
+  const augmentedSnapshots = useMemo(
+    () => augmentSnapshots(snapshots, portfolioItems, convert),
+    [snapshots, portfolioItems, convert]
+  )
+  const latestSnapshot = augmentedSnapshots.length > 0 ? augmentedSnapshots[augmentedSnapshots.length - 1] : null
+  const prevSnapshot = augmentedSnapshots.length > 1 ? augmentedSnapshots[augmentedSnapshots.length - 2] : null
 
   const { totalFromItems, totalDebt: liveDebt } = useMemo(() => {
     let assets = 0, debt = 0
@@ -626,31 +821,57 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   }, [prevSnapshot, netWorth, convertSnapshot])
 
   const yearlyChange = useMemo(() => {
-    if (snapshots.length < 2) return null
+    if (augmentedSnapshots.length < 2) return null
     const oneYearAgo = new Date()
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
     let yearAgoSnapshot = null
-    for (let i = snapshots.length - 1; i >= 0; i--) {
-      if (snapshots[i].date && new Date(snapshots[i].date) <= oneYearAgo) { yearAgoSnapshot = snapshots[i]; break }
+    for (let i = augmentedSnapshots.length - 1; i >= 0; i--) {
+      if (augmentedSnapshots[i].date && new Date(augmentedSnapshots[i].date) <= oneYearAgo) { yearAgoSnapshot = augmentedSnapshots[i]; break }
     }
     if (!yearAgoSnapshot) return null
     const prev = convertSnapshot(yearAgoSnapshot.netWorthUSD ?? yearAgoSnapshot.totalActivosUSD ?? 0)
     if (prev === 0) return null
     return ((netWorth - prev) / prev) * 100
-  }, [snapshots, netWorth, convertSnapshot])
+  }, [augmentedSnapshots, netWorth, convertSnapshot])
 
   const [jan1Value, setJan1Value] = useState(null)
+  // True when jan1Value came from a TRANSACTIONAL reconstruction (rewound through
+  // imported deposits/buys/sells): that baseline reflects real flow timing, so the
+  // YTD Dietz must net the flows like it would against a real snapshot anchor.
+  const [jan1Transactional, setJan1Transactional] = useState(false)
   useEffect(() => {
     if (!enrichedItems || enrichedItems.length === 0) return
     let cancelled = false
     async function fetchJan1() {
       try {
         const allLots = (lots || []).filter(l => l.quantity > 0)
+        const txEventsBySym = buildTxEvents(transactions)
+        const accountCashFlows = buildCashFlows(transactions,
+          (amt, cur2) => convert ? convert(amt, cur2, 'USD') : amt)
+        // Reconstruct the SAME portfolio that netWorth (endValue) measures — same
+        // predicate as the chart (PortfolioGrowthChart) and the netWorth loop. Sending
+        // raw enrichedItems here included excluded/debt items (e.g. an IBKR bank line)
+        // that received the whole BUY/SELL ledger and got rewound strongly negative,
+        // collapsing jan1Value while netWorth excluded it → the YTD Dietz exploded
+        // (start and end measuring different portfolios).
+        const jan1Items = enrichedItems.filter((it) => !it.isDebt && !isExcludedFromNetWorth(it))
+        // Only rewind the cash line when there is a REAL external flow
+        // (deposit/withdrawal). With hold-flat stocks, rewinding cash by BUY/SELL
+        // double-counts (the flat holding already implies the shares were owned), which
+        // collapses the January baseline and blows up the YTD Dietz. Without deposits,
+        // leave cash flat.
+        const hasExternalFlow = (transactions || []).some((t) => /^(DEPOSIT|WITHDRAWAL)$/i.test(t.type || ''))
+        // Prefer the CASH-{ccy} holding; fall back to any single IBKR bank-type item
+        // so the ledger still rebuilds cash when the symbol isn't exactly CASH-*.
+        const cashItem = (accountCashFlows.length > 0 && hasExternalFlow)
+          ? (jan1Items.find((it) => it._source === 'ibkr' && /^CASH-/i.test(it.symbol || ''))
+             || jan1Items.find((it) => it._source === 'ibkr' && /bank|cash/i.test(it.type || '')))
+          : null
         const res = await authFetch('/api/prices/portfolio-history', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            items: enrichedItems.map((it) => {
+            items: jan1Items.map((it) => {
               const cur = it._originalCurrency || it.currency || 'USD'
               const toUSD = (p) => convert ? convert(p || 0, cur, 'USD') : (p || 0)
               return {
@@ -659,6 +880,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
                 purchasePrice: toUSD(it._originalPurchasePrice ?? it.purchasePrice),
                 currency: 'USD',
                 acquisitionDate: it.acquisitionDate,
+                _holdFlat: shouldHoldFlat(it, transactions, lots),
+                txEvents: txEventsBySym[(it.symbol || '').toUpperCase()] || undefined,
+                ...(cashItem && it.id === cashItem.id ? { cashFlows: accountCashFlows } : {}),
               }
             }),
             lots: allLots.length > 0 ? allLots.map(l => ({
@@ -679,43 +903,50 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
               ? convert(firstReal.total, 'USD', baseCurrency)
               : firstReal.total
             setJan1Value(val)
+            setJan1Transactional(!!data.transactional)
           }
         }
       } catch {}
     }
     fetchJan1()
     return () => { cancelled = true }
-  }, [enrichedItems, lots, convert, baseCurrency])
+  }, [enrichedItems, lots, transactions, convert, baseCurrency])
+
+  // Whether the auto-imported IBKR cash flows (_source:'ibkr') enter the Dietz math
+  // depends on the SOURCE of the start anchor:
+  // - Real snapshot anchor (ibkr/daily/manual): the NAV already reflects deposits and
+  //   withdrawals, so the flows MUST be netted out or every withdrawal reads as a
+  //   market loss (bug: our TWR showed +1.98% vs IBKR's +10.99%).
+  // - Reconstructed baseline (jan1Value hold-flat, 'backfill' snapshots): the current
+  //   quantity is held flat backwards, which pre-dates deposits implicitly, so
+  //   subtracting the flows again double-counts. Exclude them there.
+  // Manual deposits (no _source:'ibkr') always count.
+  const dietzTransactions = useMemo(
+    () => (transactions || []).filter((tx) => tx._source !== 'ibkr'),
+    [transactions]
+  )
+  const REAL_SNAPSHOT_SOURCES = ['ibkr', 'daily', 'manual']
 
   const { returnYTD, ytdChange, returnSinceStart, sinceStartDate } = useMemo(() => {
     const year = new Date().getUTCFullYear()
     const yearStartTs = Date.UTC(year, 0, 1)
     let startVal = null
-    if (snapshots.length >= 2) {
-      const sorted = [...snapshots].filter(s => s.date).sort((a, b) => new Date(a.date) - new Date(b.date))
-      let bestSnap = sorted.find(s => {
-        const d = new Date(s.date)
-        return d.getFullYear() === year && d.getMonth() === 0
-      })
-      if (!bestSnap) {
-        bestSnap = [...sorted].reverse().find(s => {
-          const d = new Date(s.date)
-          return d.getFullYear() === year - 1 && d.getMonth() === 11
-        })
-      }
+    let flowAware = false
+    if (augmentedSnapshots.length >= 2) {
+      // Shared anchor (also used by the chart's YTD starting point) so the
+      // Dietz badge and the chart never start the year from different values.
+      const bestSnap = findYearStartAnchor(augmentedSnapshots, year)
       if (bestSnap) {
-        const diff = Math.abs(new Date(bestSnap.date).getTime() - yearStartTs)
-        if (diff <= 15 * 86400000) {
-          startVal = convertSnapshot(bestSnap.netWorthUSD ?? bestSnap.totalActivosUSD ?? 0)
-        }
+        startVal = convertSnapshot(bestSnap.netWorthUSD ?? bestSnap.totalActivosUSD ?? 0)
+        flowAware = REAL_SNAPSHOT_SOURCES.includes(bestSnap._source)
       }
     }
-    if (startVal == null || startVal <= 0) startVal = jan1Value
+    if (startVal == null || startVal <= 0) { startVal = jan1Value; flowAware = jan1Transactional }
 
     let returnSinceStart = null
     let sinceStartDate = null
-    if ((startVal == null || startVal <= 0) && snapshots.length >= 2) {
-      const sorted = [...snapshots]
+    if ((startVal == null || startVal <= 0) && augmentedSnapshots.length >= 2) {
+      const sorted = [...augmentedSnapshots]
         .filter(s => s.date)
         .sort((a, b) => new Date(a.date) - new Date(b.date))
       const first = sorted.find(s => (s.netWorthUSD ?? s.totalActivosUSD ?? 0) > 0)
@@ -726,12 +957,14 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           const { pct, abs } = computeModifiedDietz({
             startValue: firstVal, endValue: netWorth,
             startTs: firstTs, endTs: Date.now(),
-            transactions, convert, baseCurrency,
+            transactions: REAL_SNAPSHOT_SOURCES.includes(first._source) ? transactions : dietzTransactions,
+            convert, baseCurrency,
           })
           returnSinceStart = Math.max(-200, Math.min(200, pct))
           sinceStartDate = first.date
           if (startVal == null || startVal <= 0) {
             startVal = firstVal
+            flowAware = REAL_SNAPSHOT_SOURCES.includes(first._source)
           }
         }
       }
@@ -741,14 +974,50 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const { pct, abs } = computeModifiedDietz({
       startValue: startVal, endValue: netWorth,
       startTs: yearStartTs, endTs: Date.now(),
-      transactions, convert, baseCurrency,
+      transactions: flowAware ? transactions : dietzTransactions, convert, baseCurrency,
     })
     const clampedPct = Math.max(-200, Math.min(200, pct))
     return { returnYTD: clampedPct, ytdChange: abs, returnSinceStart, sinceStartDate }
-  }, [jan1Value, netWorth, transactions, convert, baseCurrency, snapshots, convertSnapshot])
+  }, [jan1Value, jan1Transactional, netWorth, transactions, dietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot])
+
+  // Month-to-date return (Modified Dietz) — the "how are we doing THIS month"
+  // number for the Friends monthly leaderboard. Same shape as YTD, anchored to
+  // the prior month-end snapshot; null when there's no reliable month anchor.
+  const returnMTD = useMemo(() => {
+    const now = new Date()
+    const year = now.getUTCFullYear()
+    const month = now.getUTCMonth()
+    if (netWorth <= 0) return null
+    const anchor = findMonthStartAnchor(augmentedSnapshots, year, month)
+    let startVal = anchor ? convertSnapshot(anchor.netWorthUSD ?? anchor.totalActivosUSD ?? 0) : null
+    if (startVal == null || startVal <= 0) return null
+    const { pct } = computeModifiedDietz({
+      startValue: startVal, endValue: netWorth,
+      startTs: Date.UTC(year, month, 1), endTs: Date.now(),
+      transactions: REAL_SNAPSHOT_SOURCES.includes(anchor._source) ? transactions : dietzTransactions,
+      convert, baseCurrency,
+    })
+    return Math.max(-200, Math.min(200, pct))
+  }, [netWorth, transactions, dietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot])
+
+  // IBKR-only returns (Modified Dietz over the raw broker NAV + broker flows) for
+  // the Friends "IBKR only" leaderboard scope. Uses RAW snapshots (not augmented,
+  // which mix in manual assets). Null until the user has IBKR snapshots + flows.
+  const ibkrReturns = useMemo(
+    () => computeScopedReturns({ snapshots, items: enrichedItems, transactions, source: 'ibkr', convert, baseCurrency, nowTs: Date.now() }),
+    [snapshots, enrichedItems, transactions, convert, baseCurrency]
+  )
 
   const annualDividends = useMemo(() => {
-    const divs = (transactions || []).filter((tx) => (tx.type || '').toUpperCase() === 'DIVIDEND' && !tx._reinvested)
+    // Trailing 12 months only — this figure is labeled "Dividendos/año" in the UI
+    // and the PDF report, so a lifetime sum would overstate it more every year.
+    // Undated dividends can't be placed in time and are excluded.
+    const cutoff = Date.now() - 365 * 86400000
+    const divs = (transactions || []).filter((tx) => {
+      if ((tx.type || '').toUpperCase() !== 'DIVIDEND' || tx._reinvested) return false
+      const ts = tx.date ? new Date(tx.date).getTime() : NaN
+      return !isNaN(ts) && ts >= cutoff
+    })
     return divs.reduce((s, tx) => {
       const amt = tx.totalAmount ?? 0
       return s + convert(amt, tx.currency || 'USD', baseCurrency)
@@ -765,15 +1034,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       const price = hasOriginal ? origPrice : (it.currentPrice || it.purchasePrice || 0)
       const priceCur = hasOriginal ? itemCur : baseCurrency
       const balance = qty * price
-      let annual = 0
-      if (it.incomeAmount > 0 && it.incomeMonths) {
-        const payCount = Array.isArray(it.incomeMonths) ? it.incomeMonths.length : 12
-        annual = it.incomeAmount * payCount
-      } else if (it.incomeMode === 'percent' && it.incomeRate > 0) {
-        annual = balance * (it.incomeRate / 100)
-      } else if (it.dividendYield > 0) {
-        annual = balance * (it.dividendYield / 100)
-      }
+      const annual = projectItemAnnualIncome(it, balance)
       if (annual > 0) {
         const cur = hasOriginal ? itemCur : priceCur
         total += convert(annual, cur, baseCurrency)
@@ -785,9 +1046,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   const benchmarkSymbol = settings?.benchmarkSymbol || '%5EGSPC'
   const { benchmarkData, benchmarkReturn, benchmarkName, loading: benchmarkLoading, error: benchmarkError } = useBenchmark('YTD', benchmarkSymbol)
 
-  const netContributions = useMemo(() => {
-    return computeNetContributions(transactions, convert, baseCurrency).netContributions
+  // Full summary (gross in / gross out / net) — the UI used to surface only the
+  // net, leaving no way to see how much was actually deposited vs withdrawn.
+  const contributionsSummary = useMemo(() => {
+    return computeNetContributions(transactions, convert, baseCurrency)
   }, [transactions, convert, baseCurrency])
+  const netContributions = contributionsSummary.netContributions
 
   const cashTotal = useMemo(() => {
     return portfolioItems
@@ -797,19 +1061,22 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
   const riskMetrics = useMemo(() => {
     const returns = computePeriodicReturns(snapshots, transactions, convert, baseCurrency)
-    const sharpeResult = computeSharpeRatio({ returns })
-    const vol = computeVolatility({ returns })
+    const ppy = inferPeriodsPerYear(snapshots)
+    const sharpeResult = computeSharpeRatio({ returns, periodsPerYear: ppy })
+    const vol = computeVolatility({ returns, periodsPerYear: ppy })
     const valueSeries = (snapshots || [])
       .map((s) => ({ ts: new Date(s.date).getTime(), value: s.netWorthUSD ?? s.totalActivosUSD ?? 0 }))
       .filter((p) => !isNaN(p.ts) && p.value > 0)
       .sort((a, b) => a.ts - b.ts)
-    const drawdown = computeMaxDrawdown(valueSeries)
+    const drawdown = computeMaxDrawdown(filterValueSpikes(valueSeries))
     return { sharpe: sharpeResult.sharpe, volatility: vol, maxDrawdown: drawdown.maxDrawdownPct }
   }, [snapshots, transactions, convert, baseCurrency])
 
   const insights = useMemo(() => {
     const hhiResult = computeHHI(portfolioItems.map((it) => ({ value: getItemValue(it) })))
-    const incomeYield = netWorth > 0 && annualDividends > 0 ? (annualDividends / netWorth) * 100 : 0
+    // Yield over total assets, not net worth — dividing by (assets − debt) would
+    // inflate the yield for leveraged portfolios.
+    const incomeYield = totalAssets > 0 && annualDividends > 0 ? (annualDividends / totalAssets) * 100 : 0
     const attribution = computeAssetAttribution(portfolioItems)
     const topContributor = attribution.length > 0 ? attribution[0] : null
     const topDrag = attribution.length > 0 ? attribution[attribution.length - 1] : null
@@ -841,7 +1108,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       topContributor, topDrag, maturingSoon, debtRatio, investmentClassPcts,
       netContributions, depositCount,
     })
-  }, [netWorth, benchmarkReturn, returnYTD, riskMetrics, portfolioItems, annualDividends, goals, transactions, netContributions])
+  }, [netWorth, totalAssets, benchmarkReturn, returnYTD, riskMetrics, portfolioItems, annualDividends, goals, transactions, netContributions])
 
   const contributionWarning = useMemo(() => {
     if (netWorth <= 0 || !snapshots || snapshots.length < 2) return false
@@ -859,15 +1126,51 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
   const dataAge = latestSnapshot ? Math.round((Date.now() - new Date(latestSnapshot.date).getTime()) / 86400000) : null
 
+  // Profile figures for insights. The user types monthlyIncome/monthlyExpenses by
+  // hand in Settings, but also records the real thing as finance transactions —
+  // two entries of the same money that silently diverge. When a manual figure is
+  // missing, derive it from the last 3 closed months of finance transactions
+  // (manual values always win; the current partial month is excluded).
+  const effectiveProfile = useMemo(() => {
+    const p = profile || {}
+    if (p.monthlyIncome > 0 && p.monthlyExpenses > 0) return p
+    const txs = entityFinanceTransactions || []
+    if (txs.length === 0) return p
+    const now = new Date()
+    const start = new Date(now.getFullYear(), now.getMonth() - 3, 1).getTime()
+    const end = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
+    let income = 0, expenses = 0
+    const monthsSeen = new Set()
+    txs.forEach(tx => {
+      const ts = tx.date ? new Date(tx.date).getTime() : NaN
+      if (isNaN(ts) || ts < start || ts >= end) return
+      const type = (tx.type || '').toUpperCase()
+      if (type !== 'INCOME' && type !== 'EXPENSE') return
+      const amt = convert(Math.abs(tx.amount || 0), tx.currency || baseCurrency, baseCurrency)
+      if (type === 'INCOME') income += amt
+      else expenses += amt
+      const d = new Date(tx.date)
+      monthsSeen.add(`${d.getFullYear()}-${d.getMonth()}`)
+    })
+    const n = monthsSeen.size
+    if (n === 0) return p
+    return {
+      ...p,
+      monthlyIncome: p.monthlyIncome > 0 ? p.monthlyIncome : income / n,
+      monthlyExpenses: p.monthlyExpenses > 0 ? p.monthlyExpenses : expenses / n,
+      _derivedFromFinances: true,
+    }
+  }, [profile, entityFinanceTransactions, convert, baseCurrency])
+
   return {
     // Raw Firestore data
-    items, snapshots, transactions, goals, settings, profile, alerts, lots, portfolios, financeTransactions,
+    items, snapshots, augmentedSnapshots, transactions, goals, settings, profile, effectiveProfile, alerts, lots, portfolios, financeTransactions,
     entityTransactions, entityFinanceTransactions,
     dataLoading,
 
     // Firestore actions
-    addItem, updateItem, deleteItem, deleteAllItems,
-    saveSnapshot, deleteAllSnapshots,
+    addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
+    saveSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, deleteTransaction, deleteAllTransactions,
     addAlert, deleteAlert, updateAlert,
     addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution,
@@ -886,18 +1189,24 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
     // Computed values
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
-    returnYTD, ytdChange, returnSinceStart, sinceStartDate,
+    returnYTD, ytdChange, returnSinceStart, sinceStartDate, returnMTD,
+    ibkrReturnYTD: ibkrReturns.ytd, ibkrReturnMTD: ibkrReturns.mtd, ibkrDayChange: ibkrReturns.day,
     annualDividends, estimatedAnnualIncome,
-    netContributions, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
+    netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
 
     // Benchmark
     benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName, benchmarkLoading,
 
     // IBKR
     handleIBKRSync,
-    ibkrConnected: !!(settings?.ibkrToken && settings?.ibkrQueryId),
+    // Connected = a usable token (legacy client copy OR migrated to the server vault)
+    // AND a query id. Must mirror the auto-sync gate; without _ibkrVaultMigrated a
+    // vault-only connection reads as disconnected (no header pill, no auto-sync).
+    ibkrConnected: !!((settings?.ibkrToken || settings?._ibkrVaultMigrated) && settings?.ibkrQueryId),
     ibkrAutoSyncing,
+    triggerIBKRSync,
     ibkrSyncStatus: settings?._ibkrAutoSyncStatus || null,
+    ibkrSyncSummary: settings?._ibkrLastSyncSummary || null,
     ibkrSyncError: settings?._ibkrAutoSyncError || null,
     ibkrSyncErrorCode: settings?._ibkrAutoSyncErrorCode || null,
     ibkrLastSync: settings?._ibkrLastAutoSync || settings?._ibkrLastSync || null,

@@ -2,11 +2,13 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
-import { formatCurrency, formatDate, getItemPrice } from './utils'
-import { safeJson } from '@/lib/authFetch'
+import { formatCurrency, formatDate, getItemPrice, isMarketPriced } from './utils'
+import { authFetch, safeJson } from '@/lib/authFetch'
 import DocumentVault from './DocumentVault'
 
-const STATIC_TYPES = /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo|bond|bono|instrumento|inversion|inversión|cdt|plazo|treasury|letra|pagare|deposito|certificado|inmueble|real.?estate|property/i
+// Unified with the app-wide market whitelist (isMarketPriced) — the old local
+// blacklist disagreed with the movers/quotes filter, so the same asset could
+// show "no market data" here while plunging -9.66% in the movers list.
 
 export default function AssetDetailModal({ item, onClose, lang = 'es', uid, transactions = [], convert, baseCurrency = 'USD' }) {
   const trapRef = useFocusTrap()
@@ -18,7 +20,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
 
   const t = (es, en) => lang === 'es' ? es : en
   const ranges = ['1W', '1M', '3M', '6M', '1Y', 'ALL']
-  const isStatic = STATIC_TYPES.test(item.type || '')
+  const isStatic = !isMarketPriced(item)
 
   // Reinvested interest/dividends paid by THIS asset, as step-ups (in base currency).
   // For market assets reinvested shares already raise qty; for bonds the interest
@@ -53,7 +55,8 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
         const sym = encodeURIComponent(item.symbol)
         const interval = range === '1W' ? '15m' : range === '1M' ? '1d' : '1wk'
         const r = rangeMap[range]
-        const res = await fetch(`/api/prices/chart?symbol=${sym}&range=${r}&interval=${interval}`)
+        const isCrypto = /crypto|cripto/i.test(item.type || '') || item._source === 'ledger' || item._source === 'blockchain'
+        const res = await authFetch(`/api/prices/chart?symbol=${sym}&range=${r}&interval=${interval}${isCrypto ? '&type=crypto' : ''}`)
         if (!res.ok) throw new Error('fetch failed')
         const data = await safeJson(res)
         if (!cancelled) setChartData(data)
@@ -73,8 +76,11 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
   const pnlPct = cost > 0 ? (pnl / cost) * 100 : 0
 
   // Project an array of {ts, value, date} onto the SVG canvas.
-  function project(series) {
-    if (!series || series.length < 2) return null
+  function project(rawSeries) {
+    // A missing FX rate (convert → NaN) or a null close mid-series would put
+    // NaN into min/max and break every path coordinate (CLAUDE.md rule).
+    const series = (rawSeries || []).filter((s) => isFinite(s.value))
+    if (series.length < 2) return null
     const min = Math.min(...series.map((s) => s.value)) * 0.98
     const max = Math.max(...series.map((s) => s.value)) * 1.02
     const rng = max - min || 1
@@ -166,11 +172,13 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
           <div className="grid grid-cols-3 gap-3">
             <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50">
               <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{t('Precio actual', 'Current price')}</span>
-              <span className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{formatCurrency(currentPrice)}</span>
+              {/* Values here are base-converted — say so, or a EUR asset reads as
+                  an unlabeled dollar figure */}
+              <span className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{formatCurrency(currentPrice)}<span className="text-xs font-normal ml-1" style={{ color: 'var(--text-muted)' }}>{baseCurrency}</span></span>
             </div>
             <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50">
               <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{t('Valor total', 'Total value')}</span>
-              <span className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{formatCurrency(totalValue)}</span>
+              <span className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{formatCurrency(totalValue)}<span className="text-xs font-normal ml-1" style={{ color: 'var(--text-muted)' }}>{baseCurrency}</span></span>
             </div>
             <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50">
               <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>P&L</span>
@@ -279,10 +287,31 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
                   <path d={`${(isStatic ? linePath : smoothPath)(renderPts)} L ${renderPts[renderPts.length-1].x} 192 L ${renderPts[0].x} 192 Z`}
                     fill="url(#assetGrad)" />
                   <path d={(isStatic ? linePath : smoothPath)(renderPts)} fill="none" stroke={lineColor} strokeWidth="2" strokeLinecap="round" />
+                  {/* Cost / break-even reference line — gain/loss visible on the
+                      chart itself, not only in the tiles. The value→y mapping is
+                      derived from two rendered points (project() doesn't expose
+                      its scale); skipped when it falls outside the plot. */}
+                  {(() => {
+                    if (cost <= 0 || renderPts.length < 2) return null
+                    const a = renderPts[0]
+                    const b = renderPts.find((p) => p.close !== a.close)
+                    if (!b) return null
+                    const costY = a.y + (cost - a.close) * ((b.y - a.y) / (b.close - a.close))
+                    if (!isFinite(costY) || costY < 16 || costY > 192) return null
+                    return (
+                      <g>
+                        <line x1={renderPts[0].x} y1={costY} x2={renderPts[renderPts.length - 1].x} y2={costY}
+                          stroke="var(--text-muted)" strokeWidth="1" strokeDasharray="5 4" opacity="0.6" />
+                        <text x={renderPts[renderPts.length - 1].x} y={costY - 4} textAnchor="end" fill="var(--text-muted)" fontSize="9" fontFamily="system-ui">
+                          {t('Costo', 'Cost')}
+                        </text>
+                      </g>
+                    )
+                  })()}
                   {hp && (
                     <g>
                       <line x1={hp.x} y1={16} x2={hp.x} y2={192} stroke="#475569" strokeDasharray="4 3" />
-                      <circle cx={hp.x} cy={hp.y} r="4" fill={lineColor} stroke="#000000" strokeWidth="2" />
+                      <circle cx={hp.x} cy={hp.y} r="4" fill={lineColor} stroke="var(--bg-card)" strokeWidth="2" />
                     </g>
                   )}
                 </svg>

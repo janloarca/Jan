@@ -55,7 +55,7 @@ export default function Home() {
             Track your entire portfolio.<br />Not just stocks.
           </h1>
           <p className="text-lg text-slate-400 max-w-2xl mx-auto mb-8">
-            Bonds, real estate, DeFi, SAFE notes, private equity, bank accounts — all in one place.
+            Bonds, real estate, DeFi, SAFE notes, private equity, bank accounts, all in one place.
             Built for Latin America. Works everywhere.
           </p>
           <div className="flex items-center justify-center gap-4">

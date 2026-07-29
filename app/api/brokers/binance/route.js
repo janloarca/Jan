@@ -4,6 +4,7 @@ import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { encryptToken, decryptToken } from '@/lib/crypto'
+import { fetchWithRetry, retryRequest } from '@/lib/fetchWithRetry'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,16 +47,17 @@ function signQuery(queryString, secretKey) {
 }
 
 async function binanceFetch(path, apiKey, apiSecret, params = {}) {
-  const timestamp = Date.now()
-  const searchParams = new URLSearchParams({ ...params, timestamp: String(timestamp) })
-  const queryString = searchParams.toString()
-  const signature = signQuery(queryString, apiSecret)
-  searchParams.set('signature', signature)
-
-  const url = `${BASE_URL}${path}?${searchParams.toString()}`
-  const res = await fetch(url, {
-    headers: { 'X-MBX-APIKEY': apiKey },
-    signal: AbortSignal.timeout(15000),
+  // Timestamp + signature regenerate per attempt so a retried request never
+  // falls outside Binance's recvWindow with a stale signature.
+  const res = await retryRequest(() => {
+    const timestamp = Date.now()
+    const searchParams = new URLSearchParams({ ...params, timestamp: String(timestamp) })
+    const signature = signQuery(searchParams.toString(), apiSecret)
+    searchParams.set('signature', signature)
+    return fetch(`${BASE_URL}${path}?${searchParams.toString()}`, {
+      headers: { 'X-MBX-APIKEY': apiKey },
+      signal: AbortSignal.timeout(15000),
+    })
   })
 
   if (!res.ok) {
@@ -70,9 +72,10 @@ async function binanceFetch(path, apiKey, apiSecret, params = {}) {
 }
 
 async function fetchTickerPrices() {
-  const res = await fetch(`${BASE_URL}/api/v3/ticker/price`, {
-    signal: AbortSignal.timeout(10000),
-  })
+  // Public, unsigned endpoint → fetchWithRetry is safe here (its URL-keyed GET
+  // dedup is even a win: everyone shares the same ticker snapshot). The SIGNED
+  // call above uses retryRequest with a per-attempt signature instead.
+  const res = await fetchWithRetry(`${BASE_URL}/api/v3/ticker/price`)
   if (!res.ok) {
     throw new Error(`Failed to fetch ticker prices: ${res.status}`)
   }
@@ -126,7 +129,7 @@ function mapPositions(balances, priceMap) {
 }
 
 export async function POST(request) {
-  const { limited } = rateLimit(request, { maxRequests: 20 })
+  const { limited } = await rateLimit(request, { maxRequests: 20 })
   if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 
   const { uid, error } = await verifyAuth(request)
@@ -156,8 +159,15 @@ export async function POST(request) {
         return NextResponse.json({ error: 'No stored credentials. Enter your Binance API key and secret.' }, { status: 400 })
       }
       const data = doc.data()
-      apiKey = await decryptToken(data.apiKey, uid)
-      apiSecret = await decryptToken(data.apiSecret, uid)
+      // An undecryptable vault credential must read as a friendly re-save prompt,
+      // not an unhandled 500 (which Next renders as HTML that the client's
+      // safeJson then chokes on).
+      try {
+        apiKey = await decryptToken(data.apiKey, uid)
+        apiSecret = await decryptToken(data.apiSecret, uid)
+      } catch {
+        return NextResponse.json({ error: 'No pudimos leer tus credenciales guardadas. Vuelve a ingresarlas.', errorCode: 'CREDENTIALS_UNREADABLE' }, { status: 400 })
+      }
     }
 
     if (!apiKey || !apiSecret) {

@@ -3,12 +3,118 @@ import {
   getItemValue,
   getItemPrice,
   getEffectiveYield,
+  projectItemAnnualIncome,
   formatCurrency,
   formatPercent,
   getTypeCategory,
   getGeographyFromSymbol,
   getMaturityInfo,
+  augmentSnapshots,
+  findYearStartAnchor,
+  findMonthStartAnchor,
+  computeScopedReturns,
+  effectiveAcqTs,
+  formatMonth,
+  shouldHoldFlat,
 } from '../utils'
+
+describe('projectItemAnnualIncome', () => {
+  test('variable rate uses the midpoint of min/max', () => {
+    const item = { rateType: 'variable', rateMin: 4, rateMax: 6 }
+    expect(projectItemAnnualIncome(item, 10000)).toBeCloseTo(500) // 5% of 10k
+  })
+
+  test('continuous rate compounds with exp', () => {
+    const item = { rateType: 'continuous', incomeRate: 5 }
+    expect(projectItemAnnualIncome(item, 10000)).toBeCloseTo(10000 * (Math.exp(0.05) - 1))
+  })
+
+  test('fixed incomeAmount multiplies by payment count', () => {
+    const item = { incomeAmount: 100, incomeMonths: [0, 3, 6, 9] }
+    expect(projectItemAnnualIncome(item, 0)).toBe(400)
+  })
+
+  test('percent mode applies incomeRate to balance', () => {
+    const item = { incomeMode: 'percent', incomeRate: 3 }
+    expect(projectItemAnnualIncome(item, 20000)).toBeCloseTo(600)
+  })
+
+  test('dividendYield applies to balance', () => {
+    const item = { dividendYield: 2.5 }
+    expect(projectItemAnnualIncome(item, 8000)).toBeCloseTo(200)
+  })
+
+  test('variable rate takes priority over dividendYield', () => {
+    const item = { rateType: 'variable', rateMin: 2, rateMax: 4, dividendYield: 10 }
+    expect(projectItemAnnualIncome(item, 10000)).toBeCloseTo(300) // 3%, not 10%
+  })
+
+  test('incomeAmount takes priority over percent/dividendYield', () => {
+    const item = { incomeAmount: 50, incomeMonths: [0, 6], incomeMode: 'percent', incomeRate: 9, dividendYield: 9 }
+    expect(projectItemAnnualIncome(item, 100000)).toBe(100)
+  })
+
+  test('returns 0 when no income config applies', () => {
+    expect(projectItemAnnualIncome({}, 10000)).toBe(0)
+    expect(projectItemAnnualIncome({ dividendYield: 0 }, 10000)).toBe(0)
+  })
+})
+
+describe('augmentSnapshots', () => {
+  const idConvert = (v) => v // USD passthrough
+  const ibkrSnap = { date: '2026-03-31', _source: 'ibkr', netWorthUSD: 1000, totalActivosUSD: 1000 }
+  const dailySnap = { date: '2026-03-31', netWorthUSD: 5000, totalActivosUSD: 5000 }
+  const bond = { id: 'b1', symbol: 'BND', quantity: 1, currentPrice: 300, _originalPrice: 300, _originalCurrency: 'USD', acquisitionDate: '2025-01-01' }
+
+  test('augments only IBKR entries with non-IBKR held-flat value', () => {
+    const out = augmentSnapshots([ibkrSnap], [bond], idConvert)
+    expect(out[0].netWorthUSD).toBe(1300)
+    expect(out[0].totalActivosUSD).toBe(1300)
+  })
+
+  test('leaves non-IBKR (daily) snapshots untouched', () => {
+    const out = augmentSnapshots([dailySnap], [bond], idConvert)
+    expect(out[0].netWorthUSD).toBe(5000)
+  })
+
+  test('gates by acquisition date (asset bought after the snapshot is not added)', () => {
+    const future = { ...bond, acquisitionDate: '2026-06-01' }
+    const out = augmentSnapshots([ibkrSnap], [future], idConvert)
+    expect(out[0].netWorthUSD).toBe(1000)
+  })
+
+  test('no non-IBKR items → original array, snapshots not mutated', () => {
+    const snaps = [{ ...ibkrSnap }]
+    const out = augmentSnapshots(snaps, [{ id: 'x', _source: 'ibkr', quantity: 1, currentPrice: 10 }], idConvert)
+    expect(out).toBe(snaps)
+    expect(snaps[0].netWorthUSD).toBe(1000)
+  })
+})
+
+describe('effectiveAcqTs', () => {
+  test('uses acquisitionDate when present', () => {
+    expect(effectiveAcqTs({ acquisitionDate: '2024-05-10' })).toBe(Date.parse('2024-05-10'))
+  })
+
+  test('falls back to Jan 1 of createdAt year', () => {
+    expect(effectiveAcqTs({ createdAt: '2023-07-15T12:00:00Z' })).toBe(Date.UTC(2023, 0, 1))
+  })
+
+  test('null when neither is present', () => {
+    expect(effectiveAcqTs({})).toBeNull()
+  })
+})
+
+describe('formatMonth', () => {
+  test('YYYY-MM → short month + 2-digit year', () => {
+    expect(formatMonth('2026-06')).toBe('Jun 26')
+  })
+
+  test('non-string / invalid input is returned as-is', () => {
+    expect(formatMonth(null)).toBe('')
+    expect(formatMonth('garbage')).toBe('garbage')
+  })
+})
 
 describe('computeModifiedDietz', () => {
   const day = 86400000
@@ -275,5 +381,166 @@ describe('getMaturityInfo', () => {
     expect(result.expired).toBe(false)
     expect(result.color).toBe('red')
     expect(result.days).toBeLessThanOrEqual(31)
+  })
+})
+
+describe('findYearStartAnchor', () => {
+  const year = 2026
+
+  it('prefers a January snapshot of the target year', () => {
+    const snaps = [
+      { date: '2025-12-28', netWorthUSD: 90 },
+      { date: '2026-01-05', netWorthUSD: 100 },
+      { date: '2026-03-01', netWorthUSD: 120 },
+    ]
+    expect(findYearStartAnchor(snaps, year).date).toBe('2026-01-05')
+  })
+
+  it('falls back to late December of the prior year', () => {
+    const snaps = [
+      { date: '2025-12-29', netWorthUSD: 90 },
+      { date: '2026-04-01', netWorthUSD: 120 },
+    ]
+    expect(findYearStartAnchor(snaps, year).date).toBe('2025-12-29')
+  })
+
+  it('rejects anchors outside the 15-day window of Jan 1', () => {
+    const snaps = [
+      { date: '2026-01-25', netWorthUSD: 100 },
+      { date: '2026-06-01', netWorthUSD: 130 },
+    ]
+    expect(findYearStartAnchor(snaps, year)).toBeNull()
+  })
+
+  it('picks the LAST December snapshot when several exist', () => {
+    const snaps = [
+      { date: '2025-12-20', netWorthUSD: 80 },
+      { date: '2025-12-30', netWorthUSD: 95 },
+    ]
+    expect(findYearStartAnchor(snaps, year).date).toBe('2025-12-30')
+  })
+
+  it('returns null for empty or dateless input', () => {
+    expect(findYearStartAnchor([], year)).toBeNull()
+    expect(findYearStartAnchor([{ netWorthUSD: 1 }], year)).toBeNull()
+    expect(findYearStartAnchor(null, year)).toBeNull()
+  })
+})
+
+describe('findMonthStartAnchor', () => {
+  it('prefers the first snapshot of the target month', () => {
+    const snaps = [
+      { date: '2026-06-28', netWorthUSD: 90 },
+      { date: '2026-07-02', netWorthUSD: 100 },
+      { date: '2026-07-20', netWorthUSD: 120 },
+    ]
+    expect(findMonthStartAnchor(snaps, 2026, 6).date).toBe('2026-07-02') // month 6 = July
+  })
+
+  it('falls back to the last snapshot of the prior month (within 5 days)', () => {
+    const snaps = [
+      { date: '2026-06-29', netWorthUSD: 90 },
+      { date: '2026-07-15', netWorthUSD: 120 },
+    ]
+    expect(findMonthStartAnchor(snaps, 2026, 6).date).toBe('2026-06-29')
+  })
+
+  it('handles the January boundary (prior month = prior year December)', () => {
+    const snaps = [
+      { date: '2025-12-30', netWorthUSD: 80 },
+      { date: '2026-02-01', netWorthUSD: 95 },
+    ]
+    expect(findMonthStartAnchor(snaps, 2026, 0).date).toBe('2025-12-30')
+  })
+
+  it('rejects anchors outside the 5-day window of the 1st', () => {
+    const snaps = [
+      { date: '2026-07-09', netWorthUSD: 100 },
+    ]
+    expect(findMonthStartAnchor(snaps, 2026, 6)).toBeNull()
+  })
+
+  it('returns null for empty input', () => {
+    expect(findMonthStartAnchor([], 2026, 6)).toBeNull()
+    expect(findMonthStartAnchor(null, 2026, 6)).toBeNull()
+  })
+})
+
+describe('computeScopedReturns', () => {
+  const nowTs = Date.UTC(2026, 6, 15) // 2026-07-15
+  const snapshots = [
+    { date: '2026-01-01', netWorthUSD: 1000, _source: 'ibkr' },
+    { date: '2026-07-01', netWorthUSD: 1100, _source: 'ibkr' },
+    { date: '2026-07-14', netWorthUSD: 1180, _source: 'ibkr' },
+    { date: '2026-01-01', netWorthUSD: 9000, _source: 'daily' }, // whole-portfolio, ignored
+  ]
+  const items = [
+    { quantity: 1, currentPrice: 1200, _source: 'ibkr' },   // IBKR value now = 1200
+    { quantity: 1, currentPrice: 5000, _source: 'manual' }, // excluded from IBKR scope
+  ]
+  const transactions = [
+    { type: 'DEPOSIT', totalAmount: 100, currency: 'USD', date: '2026-03-01', _source: 'ibkr' },
+    { type: 'DEPOSIT', totalAmount: 2000, currency: 'USD', date: '2026-03-01', _source: 'manual' }, // excluded
+  ]
+  const args = { snapshots, items, transactions, source: 'ibkr', convert: (v) => v, baseCurrency: 'USD', nowTs }
+
+  it('computes IBKR-scoped YTD from broker NAV + broker flows only', () => {
+    const { ytd } = computeScopedReturns(args)
+    // gain = 1200 - 1000 - 100 = 100 over ~1069 weighted capital → ~9.3%.
+    // If the manual deposit (2000) or manual item (5000) leaked in, this would be
+    // negative or huge — so a small positive % proves the scoping.
+    expect(ytd).toBeGreaterThan(9)
+    expect(ytd).toBeLessThan(10)
+  })
+
+  it('computes MTD anchored to the month-start snapshot', () => {
+    // start 1100 (Jul 1), end 1200, no flows within July → 100/1100 ≈ 9.09%.
+    expect(computeScopedReturns(args).mtd).toBeCloseTo(9.09, 1)
+  })
+
+  it('computes daily change vs the last snapshot before today', () => {
+    // baseline 1180 (Jul 14) → (1200-1180)/1180 ≈ 1.69%.
+    expect(computeScopedReturns(args).day).toBeCloseTo(1.69, 1)
+  })
+
+  it('returns nulls when the source has no snapshots or no value', () => {
+    expect(computeScopedReturns({ ...args, source: 'alpaca' })).toEqual({ ytd: null, mtd: null, day: null })
+    expect(computeScopedReturns({ ...args, items: [] })).toEqual({ ytd: null, mtd: null, day: null })
+  })
+})
+
+describe('shouldHoldFlat', () => {
+  const ibkr = { symbol: 'META', _source: 'ibkr' }
+
+  it('holds flat an IBKR position with no trade or lot history', () => {
+    expect(shouldHoldFlat(ibkr, [], [])).toBe(true)
+  })
+
+  it('does NOT hold flat non-IBKR positions', () => {
+    expect(shouldHoldFlat({ symbol: 'META', _source: 'manual' }, [], [])).toBe(false)
+    expect(shouldHoldFlat({ symbol: 'META' }, [], [])).toBe(false)
+  })
+
+  it('does NOT hold flat when a real BUY/SELL trade exists for the symbol', () => {
+    const trades = [{ type: 'BUY', symbol: 'META' }]
+    expect(shouldHoldFlat(ibkr, trades, [])).toBe(false)
+    expect(shouldHoldFlat(ibkr, [{ type: 'SELL', symbol: 'meta' }], [])).toBe(false)
+  })
+
+  it('ignores trades for a different symbol', () => {
+    expect(shouldHoldFlat(ibkr, [{ type: 'BUY', symbol: 'AAPL' }], [])).toBe(true)
+  })
+
+  it('does NOT hold flat with real multi-lot or closed-lot history', () => {
+    expect(shouldHoldFlat(ibkr, [], [{ symbol: 'META' }, { symbol: 'META' }])).toBe(false)
+    expect(shouldHoldFlat(ibkr, [], [{ symbol: 'META', status: 'closed' }])).toBe(false)
+  })
+
+  it('still holds flat with a single open import lot', () => {
+    expect(shouldHoldFlat(ibkr, [], [{ symbol: 'META', status: 'open' }])).toBe(true)
+  })
+
+  it('guards against missing symbol', () => {
+    expect(shouldHoldFlat({ _source: 'ibkr' }, [], [])).toBe(false)
   })
 })

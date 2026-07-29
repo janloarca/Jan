@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useCallback } from 'react'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { getItemValue, getTypeCategory, formatCurrency } from './utils'
 
 const CATEGORY_LABELS = {
@@ -15,8 +16,9 @@ const CATEGORY_LABELS = {
   other: { es: 'Otro', en: 'Other' },
 }
 
-export default function AccountReviewModal({ items, onClose, onEditItem, lang, transactions }) {
+export default function AccountReviewModal({ items, onClose, onEditItem, lang, transactions, findings = [] }) {
   const t = (es, en) => lang === 'es' ? es : en
+  const trapRef = useFocusTrap()
   const [index, setIndex] = useState(0)
   const [reviewed, setReviewed] = useState({})
 
@@ -25,19 +27,25 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
     [items]
   )
 
+  // Findings come from the shared data-completeness engine (lib/dataCompleteness)
+  // so this wizard and the "Chispu te sugiere" card always agree.
+  const findingsByItem = useMemo(() => {
+    const m = new Map()
+    for (const f of findings) {
+      if (!f.itemId) continue
+      if (!m.has(f.itemId)) m.set(f.itemId, [])
+      m.get(f.itemId).push(f)
+    }
+    return m
+  }, [findings])
+
+  // Count-based (N of M items without findings) so both numbers in the strip
+  // agree — the value-weighted globalScore lives in the dashboard card.
   const dataQuality = useMemo(() => {
-    let complete = 0
-    const issues = []
-    sorted.forEach(it => {
-      const missing = []
-      if (!it.purchasePrice && !it.currentPrice) missing.push('price')
-      if (!it.acquisitionDate) missing.push('date')
-      if (!it.institution) missing.push('institution')
-      if (missing.length === 0) complete++
-      else issues.push({ id: it.id, name: it.name || it.symbol, missing })
-    })
-    return { complete, total: sorted.length, pct: sorted.length > 0 ? Math.round((complete / sorted.length) * 100) : 100, issues }
-  }, [sorted])
+    const total = sorted.length
+    const complete = sorted.filter(it => !(findingsByItem.get(it.id)?.length)).length
+    return { complete, total, pct: total > 0 ? Math.round((complete / total) * 100) : 100 }
+  }, [sorted, findingsByItem])
 
   const item = sorted[index]
   if (!item) return null
@@ -60,25 +68,22 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
     if (onEditItem) onEditItem(item)
   }
 
-  const missingFields = []
-  if (!item.acquisitionDate) missingFields.push(t('Fecha de compra', 'Purchase date'))
-  if (!item.institution) missingFields.push(t('Institución', 'Institution'))
-  if (!item.purchasePrice && !item.currentPrice) missingFields.push(t('Precio', 'Price'))
+  const itemFindings = findingsByItem.get(item.id) || []
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <div ref={trapRef} className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         {/* Progress bar */}
         <div className="px-6 pt-5 pb-2">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs text-slate-400 font-medium">
-              {index + 1} / {totalCount} — {reviewedCount} {t('revisados', 'reviewed')}
+              {index + 1} / {totalCount} · {reviewedCount} {t('revisados', 'reviewed')}
             </span>
             <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none" aria-label="Close">&times;</button>
           </div>
           <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-            <div className="h-full rounded-full transition-all duration-300" style={{ backgroundColor: '#3b82f6' }}
-              style={{ width: `${((index + 1) / totalCount) * 100}%` }} />
+            <div className="h-full rounded-full transition-all duration-300"
+              style={{ backgroundColor: 'var(--accent-blue)', width: `${((index + 1) / totalCount) * 100}%` }} />
           </div>
 
           <div className="mt-2 flex items-center justify-between px-2 py-1.5 rounded-lg text-xs"
@@ -89,7 +94,7 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
                 : { backgroundColor: '#fef2f2', color: '#dc2626' }
             }>
             <span>{dataQuality.complete}/{dataQuality.total} {t('completos', 'complete')}</span>
-            <span className="font-semibold">{dataQuality.pct}% {t('calidad', 'quality')}</span>
+            <span className="font-semibold">{dataQuality.pct}% {t('completos', 'complete')}</span>
           </div>
         </div>
 
@@ -121,8 +126,8 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
             <DetailRow label={t('Precio actual', 'Current price')} value={item.currentPrice ? `$${item.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'} />
             <DetailRow label={t('Fecha compra', 'Buy date')} value={item.acquisitionDate || '-'} />
             {item.maturityDate && <DetailRow label={t('Vencimiento', 'Maturity')} value={item.maturityDate} />}
-            {item.incomeRate && <DetailRow label={t('Rendimiento', 'Yield')} value={`${item.incomeRate}%`} />}
-            {item.managementFee && <DetailRow label={t('Mgmt fee', 'Mgmt fee')} value={`${item.managementFee}%`} />}
+            {item.incomeRate && <DetailRow label={t('Tasa de interés', 'Interest rate')} value={`${item.incomeRate}%`} />}
+            {item.managementFee && <DetailRow label={t('Comisión gestión', 'Mgmt fee')} value={`${item.managementFee}%`} />}
             {item.entryFee && <DetailRow label={t('Costo entrada', 'Entry fee')} value={`$${item.entryFee}`} />}
           </div>
 
@@ -179,11 +184,17 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
             </div>
           )}
 
-          {/* Missing fields warning */}
-          {missingFields.length > 0 && (
+          {/* Data-gap findings for this item (shared engine) */}
+          {itemFindings.length > 0 && (
             <div className="rounded-lg p-3 mb-4" style={{ backgroundColor: '#fffbeb', borderWidth: '1px', borderStyle: 'solid', borderColor: '#fde68a' }}>
-              <p className="text-xs font-medium" style={{ color: '#b45309' }}>{t('Datos faltantes:', 'Missing data:')}</p>
-              <p className="text-xs mt-0.5" style={{ color: '#d97706' }}>{missingFields.join(', ')}</p>
+              <p className="text-xs font-medium" style={{ color: '#b45309' }}>{t('Chispu detectó:', 'Chispu detected:')}</p>
+              <ul className="mt-1 space-y-1">
+                {itemFindings.map(f => (
+                  <li key={f.id} className="text-xs" style={{ color: '#d97706' }}>
+                    · {lang === 'es' ? f.textEs : f.textEn}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 
@@ -198,7 +209,7 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
 
         {/* Actions */}
         <div className="px-6 pb-5 flex items-center gap-2">
-          <button onClick={goPrev} disabled={index === 0}
+          <button onClick={goPrev} disabled={index === 0} aria-label={t('Anterior', 'Previous')}
             className="px-4 py-2.5 text-sm font-medium text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
             &#8592;
           </button>

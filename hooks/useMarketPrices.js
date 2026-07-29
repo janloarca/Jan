@@ -1,3 +1,5 @@
+import { authFetch } from '@/lib/authFetch'
+import { isMarketPriced } from '@/components/dashboard/utils'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 
 export function useMarketPrices(items) {
@@ -10,9 +12,10 @@ export function useMarketPrices(items) {
 
   const fetchPrices = useCallback(async () => {
     if (!items || items.length === 0) return
-    const skipTypes = /inmueble|bank|banco|inversion|real.?estate|property|alternative|bond|bono|debt|deuda|pasivo/i
+    // Whitelist, not blacklist — see isMarketPriced. A cash bucket named "USD"
+    // must never be quoted as the "USD" ETF.
     const symbols = items
-      .filter((it) => it.symbol && !it.isIlliquid && !skipTypes.test(it.type || ''))
+      .filter((it) => isMarketPriced(it))
       .map((it) => ({ symbol: it.symbol, type: it.type }))
     if (symbols.length === 0) return
 
@@ -26,14 +29,14 @@ export function useMarketPrices(items) {
       const stockSyms = symbols.filter((s) => !/crypto|cripto|blockchain/i.test(s.type || ''))
 
       const [priceRes, divRes] = await Promise.all([
-        fetch('/api/prices', {
+        authFetch('/api/prices', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ items: symbols }),
           signal,
         }),
         stockSyms.length > 0
-          ? fetch('/api/prices/dividends', {
+          ? authFetch('/api/prices/dividends', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ symbols: stockSyms }),
@@ -65,7 +68,10 @@ export function useMarketPrices(items) {
   useEffect(() => {
     if (items && items.length > 0) {
       fetchPrices()
-      const interval = setInterval(fetchPrices, 60000)
+      // 5 min, not 1 — the dashboard shows daily change, not a trading terminal;
+      // 60s polling multiplied Yahoo/CoinGecko quota use 5× for no visible gain
+      // and churned every downstream memo (enrichedItems identity) each tick.
+      const interval = setInterval(fetchPrices, 300000)
       return () => { clearInterval(interval); abortRef.current?.abort() }
     }
     return () => abortRef.current?.abort()
@@ -78,9 +84,13 @@ export function useMarketPrices(items) {
       const divData = dividends[sym]
       const enriched = { ...it }
 
-      if (priceData) {
+      // Defense in depth: even if a quote sneaks into the map (stale cache, a
+      // symbol shared with a market item), never overwrite a non-market item's
+      // stored balance/price with it.
+      if (priceData && isMarketPriced(it)) {
         enriched.currentPrice = priceData.price
         enriched.change7d = priceData.change7d
+        enriched.change1d = priceData.change1d
         enriched.marketCurrency = priceData.currency
       }
 

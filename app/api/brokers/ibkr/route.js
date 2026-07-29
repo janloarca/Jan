@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
+import { retryRequest } from '@/lib/fetchWithRetry'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { encryptToken, decryptToken } from '@/lib/crypto'
+// Pure parse/classify helpers live in lib so they are unit-testable (a Next.js
+// route file can only export HTTP handlers, so nothing defined here can be imported
+// by jest). See lib/parsers/ibkrFlex.js.
+import { classifyError, parseXmlToData } from '@/lib/parsers/ibkrFlex'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -18,184 +23,6 @@ const POLL_TIMEOUT_MS = 10000
 // Legacy sync constants (kept for backward compat)
 const LEGACY_POLL_ATTEMPTS = 8
 const LEGACY_POLL_DELAY_MS = 3000
-
-function classifyError(errMsg) {
-  const msg = (errMsg || '').toLowerCase()
-  if (msg.includes('invalid token') || msg.includes('token is not valid') || msg.includes('not authenticated'))
-    return { errorCode: 'TOKEN_EXPIRED', error: 'Tu Flex Token expiró o es inválido. Genera uno nuevo en IBKR.' }
-  if (msg.includes('invalid query') || msg.includes('no matching flex') || msg.includes('query id'))
-    return { errorCode: 'INVALID_QUERY', error: 'El Query ID no existe o no está activo. Verifica en IBKR → Flex Queries.' }
-  if (msg.includes('try again') || msg.includes('could not be generated') || msg.includes('please try'))
-    return { errorCode: 'RATE_LIMITED', error: 'IBKR está ocupado generando el reporte. Reintentando...' }
-  if (msg.includes('timeout') || msg.includes('timed out') || msg.includes('abort'))
-    return { errorCode: 'TIMEOUT', error: 'IBKR no respondió a tiempo. Intenta de nuevo en unos minutos.' }
-  return { errorCode: 'UNKNOWN', error: errMsg || 'Error desconocido de IBKR.' }
-}
-
-function parseFlexPositions(xml) {
-  const positions = []
-  const posRegex = /<OpenPosition[^>]*\/>/g
-  let match
-  while ((match = posRegex.exec(xml)) !== null) {
-    const tag = match[0]
-    const attr = (name) => {
-      const m = tag.match(new RegExp(`${name}="([^"]*)"`, 'i'))
-      return m ? m[1] : ''
-    }
-    const symbol = attr('symbol')
-    const qty = parseFloat(attr('position')) || 0
-    if (!symbol || qty === 0) continue
-    positions.push({
-      symbol: symbol.toUpperCase(),
-      name: attr('description') || symbol,
-      quantity: Math.abs(qty),
-      purchasePrice: parseFloat(attr('costBasisPrice')) || 0,
-      currentPrice: parseFloat(attr('markPrice')) || parseFloat(attr('closePrice')) || 0,
-      currency: attr('currency') || 'USD',
-      type: mapAssetCategory(attr('assetCategory'), attr('putCall')),
-      institution: 'Interactive Brokers',
-      acquisitionDate: formatDate(attr('openDateTime')) || undefined,
-      isDebt: qty < 0,
-      _ibkrAccountId: attr('accountId'),
-      _ibkrConId: attr('conid'),
-    })
-  }
-  return positions
-}
-
-function parseTrades(xml) {
-  const trades = []
-  const tradeRegex = /<Trade[^>]*\/>/g
-  let match
-  while ((match = tradeRegex.exec(xml)) !== null) {
-    const tag = match[0]
-    const attr = (name) => {
-      const m = tag.match(new RegExp(`${name}="([^"]*)"`, 'i'))
-      return m ? m[1] : ''
-    }
-    const symbol = attr('symbol')
-    if (!symbol) continue
-    trades.push({
-      symbol: symbol.toUpperCase(),
-      description: attr('description') || symbol,
-      buySell: attr('buySell'),
-      quantity: parseFloat(attr('quantity')) || 0,
-      tradePrice: parseFloat(attr('tradePrice')) || 0,
-      proceeds: parseFloat(attr('proceeds')) || 0,
-      commission: parseFloat(attr('ibCommission') || attr('commission')) || 0,
-      currency: attr('currency') || 'USD',
-      tradeDate: attr('tradeDate') || attr('dateTime'),
-      accountId: attr('accountId'),
-      assetCategory: attr('assetCategory'),
-      costBasis: parseFloat(attr('cost')) || 0,
-      realizedPL: parseFloat(attr('fifoPnlRealized') || attr('realizedPL')) || 0,
-    })
-  }
-  return trades
-}
-
-function parseCashPositions(xml) {
-  const positions = []
-  const cashRegex = /<CashReport[^>]*\/>/g
-  let match
-  while ((match = cashRegex.exec(xml)) !== null) {
-    const tag = match[0]
-    const attr = (name) => {
-      const m = tag.match(new RegExp(`${name}="([^"]*)"`, 'i'))
-      return m ? m[1] : ''
-    }
-    const currency = attr('currency')
-    const balance = parseFloat(attr('endingCash')) || parseFloat(attr('endingSettledCash')) || 0
-    if (!currency || currency === 'BASE_SUMMARY' || balance === 0) continue
-    positions.push({
-      symbol: `CASH-${currency}`,
-      name: `Cash (${currency})`,
-      quantity: 1,
-      purchasePrice: Math.abs(balance),
-      currentPrice: Math.abs(balance),
-      currency,
-      type: 'Bank',
-      institution: 'Interactive Brokers',
-      isDebt: balance < 0,
-    })
-  }
-  return positions
-}
-
-function mapAssetCategory(cat, putCall) {
-  const c = (cat || '').toUpperCase()
-  if (c === 'STK' || c === 'STOCK') return 'Stock'
-  if (c === 'BOND' || c === 'BILL') return 'Bond'
-  if (c === 'FUND' || c === 'ETF') return 'ETF'
-  if (c === 'CASH') return 'Bank'
-  if (c === 'OPT' || c === 'FOP') return putCall ? `Option (${putCall})` : 'Option'
-  if (c === 'FUT') return 'Futures'
-  if (c === 'CRYPTO') return 'Crypto'
-  if (c === 'WAR') return 'Warrant'
-  return c || 'Stock'
-}
-
-function parseEquitySummary(xml) {
-  const entries = []
-  const regex = /<EquitySummaryByReportDateInBase[^>]*\/>/g
-  let match
-  while ((match = regex.exec(xml)) !== null) {
-    const tag = match[0]
-    const attr = (name) => {
-      const m = tag.match(new RegExp(`${name}="([^"]*)"`, 'i'))
-      return m ? m[1] : ''
-    }
-    const reportDate = attr('reportDate')
-    const total = parseFloat(attr('total')) || 0
-    const totalLong = parseFloat(attr('totalLong')) || 0
-    const totalShort = parseFloat(attr('totalShort')) || 0
-    const cash = parseFloat(attr('cash')) || 0
-    if (!reportDate || total === 0) continue
-    const date = formatDate(reportDate)
-    if (!date) continue
-    entries.push({
-      date,
-      netWorthUSD: total,
-      totalActivosUSD: totalLong + cash,
-      totalDebtUSD: Math.abs(totalShort),
-      _source: 'ibkr',
-    })
-  }
-  const seen = new Set()
-  return entries.filter((e) => {
-    if (seen.has(e.date)) return false
-    seen.add(e.date)
-    return true
-  })
-}
-
-function formatDate(dt) {
-  if (!dt) return undefined
-  const clean = dt.replace(/[;,]/g, '').trim()
-  if (/^\d{8}$/.test(clean)) return `${clean.slice(0, 4)}-${clean.slice(4, 6)}-${clean.slice(6, 8)}`
-  if (/^\d{4}-\d{2}-\d{2}/.test(clean)) return clean.slice(0, 10)
-  return undefined
-}
-
-function parseXmlToData(xml) {
-  const positions = parseFlexPositions(xml)
-  const cash = parseCashPositions(xml)
-  const trades = parseTrades(xml)
-  const equityHistory = parseEquitySummary(xml)
-  const all = [...positions, ...cash]
-
-  if (all.length === 0 && trades.length === 0) {
-    return { empty: true }
-  }
-
-  return {
-    positions: all,
-    trades,
-    equityHistory,
-    count: all.length,
-    syncedAt: new Date().toISOString(),
-  }
-}
 
 async function requestFlexReference(token, queryId) {
   const requestUrl = `${FLEX_REQUEST_URL}?t=${encodeURIComponent(token)}&q=${encodeURIComponent(queryId)}&v=3`
@@ -220,8 +47,9 @@ async function requestFlexReference(token, queryId) {
     }
 
     const errMatch = requestXml.match(/<ErrorMessage>([^<]+)<\/ErrorMessage>/)
+    const codeMatch = requestXml.match(/<ErrorCode>(\d+)<\/ErrorCode>/)
     const errMsg = errMatch ? errMatch[1] : ''
-    const classified = classifyError(errMsg)
+    const classified = classifyError(errMsg, codeMatch ? codeMatch[1] : '')
 
     if (classified.errorCode === 'RATE_LIMITED') {
       if (attempt === REQUEST_ATTEMPTS - 1) return { error: classified }
@@ -247,7 +75,13 @@ async function resolveCredentials(body, uid) {
     if (!doc.exists || !doc.data().flexToken) {
       return { error: NextResponse.json({ error: 'No stored token found. Enter your Flex Token.' }, { status: 400 }) }
     }
-    token = await decryptToken(doc.data().flexToken, uid)
+    try {
+      token = await decryptToken(doc.data().flexToken, uid)
+    } catch {
+      // A corrupt/undecryptable vault token must read as TOKEN_EXPIRED (re-save),
+      // not a raw 500 the UI can't explain.
+      return { error: NextResponse.json({ error: 'Tu Flex Token guardado no se pudo leer. Vuelve a guardarlo.', errorCode: 'TOKEN_EXPIRED' }, { status: 400 }) }
+    }
     if (!queryId) queryId = doc.data().flexQueryId
   }
 
@@ -263,7 +97,7 @@ async function resolveCredentials(body, uid) {
 }
 
 export async function POST(request) {
-  const { limited } = rateLimit(request, { maxRequests: 40 })
+  const { limited } = await rateLimit(request, { maxRequests: 40 })
   if (limited) return NextResponse.json({ error: 'Too many requests', errorCode: 'RATE_LIMITED' }, { status: 429 })
 
   const { uid, error } = await verifyAuth(request)
@@ -309,7 +143,9 @@ export async function POST(request) {
 
     let fetchXml
     try {
-      const fetchRes = await fetch(fetchUrl, { signal: AbortSignal.timeout(POLL_TIMEOUT_MS) })
+      // A transient blip here used to fail the whole sync after the statement
+      // was already generated — retry the download before giving up.
+      const fetchRes = await retryRequest(() => fetch(fetchUrl, { signal: AbortSignal.timeout(POLL_TIMEOUT_MS) }))
       fetchXml = await fetchRes.text()
     } catch (err) {
       const classified = classifyError(err.name === 'TimeoutError' ? 'timed out' : err.message)
@@ -321,7 +157,7 @@ export async function POST(request) {
       if (data.empty) {
         return NextResponse.json({
           errorCode: 'EMPTY_REPORT',
-          error: 'El reporte no tiene posiciones ni trades. Verifica que tu Flex Query incluya Open Positions y Trades.',
+          error: 'El reporte no tiene posiciones ni trades. Verifica que tu Flex Query incluya Open Positions, Trades, Cash Transactions, Cash Report y Equity Summary.',
           status: 'error',
         }, { status: 200 })
       }

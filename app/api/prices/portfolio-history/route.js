@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
 import { fetchWithRetry } from '@/lib/fetchWithRetry'
+import { isMarketPriced } from '@/components/dashboard/utils'
+import { qtyAtTs, cashAtTs } from '@/lib/portfolioRewind'
 
 export const dynamic = 'force-dynamic'
 
@@ -84,8 +86,8 @@ function getCryptoDays(period) {
 }
 
 export async function POST(request) {
-  const { limited } = rateLimit(request, { maxRequests: 30 })
-  if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  const { limited } = await rateLimit(request, { maxRequests: 30 })
+  if (limited) return NextResponse.json({ error: 'Too many requests', errorCode: 'RATE_LIMITED' }, { status: 429 })
 
   const auth = await verifyAuth(request)
   if (auth.error) return auth.error
@@ -93,10 +95,10 @@ export async function POST(request) {
   try {
     const { items, lots, period, income } = await request.json()
     if (!items || !Array.isArray(items) || items.length > 100) {
-      return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid request', errorCode: 'BAD_REQUEST' }, { status: 400 })
     }
     if (income && (!Array.isArray(income) || income.length > 2000)) {
-      return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid request', errorCode: 'BAD_REQUEST' }, { status: 400 })
     }
 
     // Reinvested income events raise the value of their linked asset as a
@@ -132,21 +134,38 @@ export async function POST(request) {
     }
     const hasLots = Object.keys(lotsBySymbol).length > 0
 
+    // Transaction-rewind inputs (lib/portfolioRewind): per-item share deltas and
+    // signed cash flows, pre-converted to USD by the client. Sanitized hard
+    // (numbers only, bounded sizes) since they multiply into the per-ts loop.
+    // When present they reconstruct the TRUE past (deposits step in, buys move
+    // cash into shares) instead of holding today's state flat backwards.
+    const sanitizeEvents = (arr, maxLen, key) => {
+      if (!Array.isArray(arr)) return null
+      const out = []
+      for (const e of arr.slice(0, maxLen)) {
+        const ts = Number(e?.ts)
+        const val = Number(e?.[key])
+        if (!Number.isFinite(ts) || !Number.isFinite(val) || val === 0) continue
+        out.push(key === 'qtyDelta' ? { ts, qtyDelta: val } : { ts, amount: val })
+      }
+      return out.length > 0 ? out : null
+    }
+    let usedTransactional = false
+
     const per = period || 'YTD'
     if (!VALID_PERIODS.includes(per)) {
-      return NextResponse.json({ error: 'Invalid period' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid period', errorCode: 'BAD_REQUEST' }, { status: 400 })
     }
 
     for (const it of items) {
       const sym = (it.symbol || '').trim()
       if (sym && !SYMBOL_RE.test(sym)) {
-        return NextResponse.json({ error: 'Invalid symbol' }, { status: 400 })
+        return NextResponse.json({ error: 'Invalid symbol', errorCode: 'BAD_REQUEST' }, { status: 400 })
       }
     }
 
     const { range, interval } = RANGE_MAP[per] || RANGE_MAP.YTD
 
-    const skipTypes = /inmueble|bank|banco|real.?estate|property|inversion|inversión|bono|bond|deposito|certificado/i
     const marketItems = []
     const cryptoItems = []
     const staticItems = []
@@ -155,7 +174,10 @@ export async function POST(request) {
       const sym = (it.symbol || '').toUpperCase().trim()
       if (!sym) return
       const type = (it.type || '').toLowerCase()
-      if (skipTypes.test(type)) {
+      // Same whitelist as live quotes (isMarketPriced): anything not clearly a
+      // market instrument is reconstructed held-flat instead of being priced by
+      // whatever Yahoo ticker its symbol happens to match.
+      if (!isMarketPriced(it)) {
         staticItems.push(it)
       } else if (/crypto|cripto|blockchain/i.test(type) || CRYPTO_MAP[sym]) {
         cryptoItems.push(it)
@@ -179,6 +201,8 @@ export async function POST(request) {
             acquiredTs: it.acquisitionDate ? new Date(it.acquisitionDate).getTime() : 0,
             costBasis: (it.quantity || 0) * (it.purchasePrice || 0),
             lots: hasLots && lotsBySymbol[sym] ? lotsBySymbol[sym] : null,
+            holdFlat: !!it._holdFlat,
+            txEvents: sanitizeEvents(it.txEvents, 500, 'qtyDelta'),
           }
         }
       }))
@@ -197,6 +221,8 @@ export async function POST(request) {
           acquiredTs: it.acquisitionDate ? new Date(it.acquisitionDate).getTime() : 0,
           costBasis: (it.quantity || 0) * (it.purchasePrice || 0),
           lots: hasLots && lotsBySymbol[sym] ? lotsBySymbol[sym] : null,
+          holdFlat: !!it._holdFlat,
+          txEvents: sanitizeEvents(it.txEvents, 500, 'qtyDelta'),
         }
       }
     }))
@@ -254,21 +280,56 @@ export async function POST(request) {
       else if (per === 'ALL') start = acqs.length > 0 ? Math.min(...acqs) : now - 365 * 86400000
       else start = now - (SPAN[per] || 365) * 86400000
       if (acqs.length > 0) start = Math.min(start, ...acqs)
+      // Floor the synthesized range: a far-past acquisitionDate (attacker-controlled)
+      // could otherwise generate thousands of weekly points and blow up the income-
+      // reversal inner loop below (|ts| × |staticItems| × |income|).
+      const FLOOR = now - 12 * 365.25 * 86400000
+      if (start < FLOOR) start = FLOOR
       const step = per === 'DAY' || per === '1W' ? 86400000 : 7 * 86400000
       for (let t = start; t < now; t += step) allTs.add(t)
       allTs.add(now)
     }
 
-    const sortedTs = [...allTs].sort((a, b) => a - b)
+    let sortedTs = [...allTs].sort((a, b) => a - b)
+    // Hard cap on the number of timestamps to bound per-request CPU regardless of
+    // input source; downsample evenly (keeping the last point) if exceeded.
+    const MAX_TS = 800
+    if (sortedTs.length > MAX_TS) {
+      const stride = sortedTs.length / MAX_TS
+      const sampled = []
+      for (let i = 0; i < MAX_TS - 1; i++) sampled.push(sortedTs[Math.floor(i * stride)])
+      sampled.push(sortedTs[sortedTs.length - 1])
+      sortedTs = sampled
+    }
 
     const staticPoints = []
+    // Cash accounts with an imported flow history get the TRUE rewind (deposits
+    // step the balance up, buys move cash into shares) instead of the flat value
+    // plus income-reversal heuristic. Sanitized once, outside the per-ts loop.
+    const staticCashFlows = new Map()
+    staticItems.forEach((it, si) => {
+      const flows = sanitizeEvents(it.cashFlows, 2000, 'amount')
+      if (flows) staticCashFlows.set(si, flows)
+    })
+
     const dataPoints = sortedTs.map((ts) => {
       let total = 0
       let staticSubtotal = 0
 
-      staticItems.forEach((it) => {
+      staticItems.forEach((it, si) => {
+        const flows = staticCashFlows.get(si)
+        if (flows) {
+          usedTransactional = true
+          const v = cashAtTs((it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0), flows, ts)
+          staticSubtotal += v
+          total += v
+          return
+        }
         const acqTs = it.acquisitionDate ? new Date(it.acquisitionDate).getTime() : 0
-        if (ts < acqTs) return
+        // Hold-flat items (IBKR import-date positions) keep their current value back
+        // through the whole period — their acquisitionDate is a sync stamp, not a
+        // real purchase date, so it must not zero out the past.
+        if (!it._holdFlat && ts < acqTs) return
         let v = (it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0)
         // The current value already includes interest/dividends paid INTO this
         // asset (a bond that reinvests, or a cash account credited by another
@@ -299,7 +360,19 @@ export async function POST(request) {
         }
         if (price == null && data.history.length > 0) price = data.history[0].close
 
-        if (data.lots) {
+        if (data.txEvents) {
+          // TRUE reconstruction: rewind the current share count through the
+          // imported BUY/SELL history. Beats hold-flat and lots because it knows
+          // exactly when each share was bought or sold.
+          usedTransactional = true
+          total += qtyAtTs(data.qty || 0, data.txEvents, ts) * (price || 0)
+        } else if (data.holdFlat) {
+          // IBKR import-date position: no reliable acquisition date and no genuine
+          // trade history, so hold the current quantity flat back through the period
+          // (Σ current qty × historical price) instead of zeroing it before the sync
+          // stamp. Mirrors the dateUnreliable path in lib/historicalValues.js.
+          total += (data.qty || 0) * (price || 0)
+        } else if (data.lots) {
           let qtyAtTime = 0
           for (const lot of data.lots) {
             if (ts >= lot.acquiredTs && (!lot.closedTs || ts < lot.closedTs)) {
@@ -320,9 +393,9 @@ export async function POST(request) {
       return s + (it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0)
     }, 0)
 
-    return NextResponse.json({ dataPoints, staticTotal, staticPoints })
+    return NextResponse.json({ dataPoints, staticTotal, staticPoints, transactional: usedTransactional })
   } catch (err) {
     console.error('portfolio-history error:', err)
-    return NextResponse.json({ error: 'Internal server error', dataPoints: [] }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error', errorCode: 'INTERNAL', dataPoints: [] }, { status: 500 })
   }
 }

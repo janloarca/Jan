@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
+import { retryRequest } from '@/lib/fetchWithRetry'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { encryptToken, decryptToken } from '@/lib/crypto'
 
@@ -13,9 +14,10 @@ async function bcFetch(path, apiKey, params = {}) {
   Object.entries(params).forEach(([k, v]) => {
     if (v != null) url.searchParams.set(k, v)
   })
-  const res = await fetch(url.toString(), {
+  const res = await retryRequest(() => fetch(url.toString(), {
     headers: { 'X-API-Token': apiKey },
-  })
+    signal: AbortSignal.timeout(15000),
+  }))
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     if (res.status === 401) throw new Error('Invalid API key')
@@ -80,7 +82,7 @@ function mapTrades(trades) {
     return {
       type: isBuy ? 'BUY' : 'SELL',
       symbol: symbol,
-      description: `${symbol} — ${isBuy ? 'Buy' : 'Sell'} ${qty} @ ${price}`,
+      description: `${symbol}: ${isBuy ? 'Buy' : 'Sell'} ${qty} @ ${price}`,
       date: t.timestamp ? new Date(t.timestamp).toISOString().split('T')[0] : '',
       quantity: Math.abs(qty),
       pricePerUnit: price,
@@ -124,7 +126,7 @@ function mapWithdrawals(withdrawals) {
 }
 
 export async function POST(request) {
-  const { limited } = rateLimit(request, { maxRequests: 10 })
+  const { limited } = await rateLimit(request, { maxRequests: 10 })
   if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 
   const { uid, error } = await verifyAuth(request)
@@ -153,7 +155,14 @@ export async function POST(request) {
       if (!doc.exists || !doc.data().apiKey) {
         return NextResponse.json({ error: 'No stored API key. Enter your Blockchain.com API key.' }, { status: 400 })
       }
-      apiKey = await decryptToken(doc.data().apiKey, uid)
+      // An undecryptable vault credential must read as a friendly re-save prompt,
+      // not an unhandled 500 (which Next renders as HTML that the client's
+      // safeJson then chokes on).
+      try {
+        apiKey = await decryptToken(doc.data().apiKey, uid)
+      } catch {
+        return NextResponse.json({ error: 'No pudimos leer tus credenciales guardadas. Vuelve a ingresarlas.', errorCode: 'CREDENTIALS_UNREADABLE' }, { status: 400 })
+      }
     }
 
     try {

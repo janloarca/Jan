@@ -5,162 +5,21 @@ import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { detectBI, parseBI } from '@/lib/parsers/biParser'
 import { detectCoinbase, parseCoinbase } from '@/lib/parsers/coinbaseParser'
 import { detectKraken, parseKraken } from '@/lib/parsers/krakenParser'
-import { isIBKRSectionedFormat, parseIBKRFile, formatIBKRFileResult } from '@/lib/parsers/ibkrFileParser'
+import { isIBKRSectionedFormat, parseIBKRFile, formatIBKRFileResult, detectIBKRFileKind, pickSectionedCsvFromWorkbook } from '@/lib/parsers/ibkrFileParser'
+import { parseAmount, parseImportDate } from '@/lib/numberParse'
+import { FIELD_MAP, BROKER_PRESETS, guessMapping } from '@/lib/importMapping'
 import { FINANCE_CATEGORIES, CATEGORY_COLORS } from '@/lib/financeCategories'
+import { matchStatement } from '@/lib/statementMatcher'
 import { validateItem, sanitizeImportItem, sanitizeCell } from '@/lib/validation'
 
-const FIELD_MAP = {
-  symbol: ['symbol', 'ticker', 'simbolo', 'código', 'codigo', 'sym', 'coin'],
-  name: ['name', 'nombre', 'description', 'descripcion', 'instrument', 'instrumento', 'asset', 'financial instrument', 'asset name'],
-  type: ['type', 'tipo', 'category', 'categoria', 'asset_type', 'asset type', 'asset class'],
-  subtype: ['subtype', 'subtipo', 'sub_type', 'sub type'],
-  quantity: ['quantity', 'cantidad', 'qty', 'shares', 'acciones', 'units', 'unidades', 'position', 'total', 'balance', 'amount'],
-  purchasePrice: ['precio de compra', 'purchase_price', 'purchaseprice', 'cost', 'costo', 'unit_price', 'avg_price', 'average price', 'precio promedio', 'precio compra', 'cost basis', 'cost price', 'avg cost'],
-  currentPrice: ['precio actual', 'current_price', 'currentprice', 'market_price', 'valor actual', 'price', 'precio', 'close price', 'mark price', 'last price', 'market value'],
-  institution: ['institution', 'institucion', 'broker', 'exchange', 'platform', 'plataforma', 'cuenta', 'account'],
-  currency: ['currency', 'moneda', 'ccy'],
-  acquisitionDate: ['fecha', 'fecha de compra', 'date', 'acquisition_date', 'purchase_date', 'fecha compra', 'fecha adquisicion', 'open date'],
-  maturityDate: ['maturity', 'vencimiento', 'maturity_date', 'fecha vencimiento', 'expiry', 'expiration'],
-  incomeRate: ['rate', 'tasa', 'yield', 'rendimiento', 'income_rate', 'interest_rate', 'tasa anual', 'annual_rate', 'apy', 'apr'],
-  taxJurisdiction: ['jurisdiction', 'jurisdiccion', 'tax_jurisdiction', 'pais', 'country'],
-  notes: ['notes', 'notas', 'comments', 'comentarios', 'memo'],
-}
-
-const BROKER_PRESETS = {
-  ibkr: {
-    detect: (h) => h.some((c) => /financial instrument/i.test(c)) || h.some((c) => /mark.?to.?market/i.test(c)),
-    institution: 'Interactive Brokers',
-    instructions: { es: 'IBKR → Performance & Reports → Flex Queries → Exportar CSV', en: 'IBKR → Performance & Reports → Flex Queries → Export CSV' },
-  },
-  degiro: {
-    detect: (h) => h.some((c) => /product/i.test(c)) && h.some((c) => /isin/i.test(c)) && h.some((c) => /local value/i.test(c)),
-    institution: 'DEGIRO',
-    instructions: { es: 'DEGIRO → Actividad → Portafolio → Exportar', en: 'DEGIRO → Activity → Portfolio → Export' },
-  },
-  trading212: {
-    detect: (h) => h.some((c) => /ticker.*isin/i.test(c)) || (h.some((c) => /^action$/i.test(c)) && h.some((c) => /price.*share/i.test(c))),
-    institution: 'Trading 212',
-    instructions: { es: 'Trading 212 → Menú → Historial → Exportar CSV', en: 'Trading 212 → Menu → History → Export CSV' },
-  },
-  tradeRepublic: {
-    detect: (h) => h.some((c) => /isin/i.test(c)) && h.some((c) => /^shares$/i.test(c)) && h.length <= 10,
-    institution: 'Trade Republic',
-    instructions: { es: 'Trade Republic → Perfil → Actividad → Exportar', en: 'Trade Republic → Profile → Activity → Export' },
-  },
-  lightyear: {
-    detect: (h) => h.some((c) => /ticker/i.test(c)) && h.some((c) => /average.*price/i.test(c)),
-    institution: 'Lightyear',
-    instructions: { es: 'Lightyear → Portfolio → Exportar posiciones', en: 'Lightyear → Portfolio → Export positions' },
-  },
-  saxoBank: {
-    detect: (h) => h.some((c) => /instrument/i.test(c)) && h.some((c) => /exposure/i.test(c)),
-    institution: 'Saxo Bank',
-    instructions: { es: 'Saxo → Account → Reports → Portfolio → Export', en: 'Saxo → Account → Reports → Portfolio → Export' },
-  },
-  schwab: {
-    detect: (h) => h.some((c) => /^symbol$/i.test(c)) && h.some((c) => /market value/i.test(c)) && h.some((c) => /security type/i.test(c)),
-    institution: 'Charles Schwab',
-    instructions: { es: 'Schwab → Positions → Export', en: 'Schwab → Positions → Export' },
-  },
-  fidelity: {
-    detect: (h) => h.some((c) => /^symbol$/i.test(c)) && h.some((c) => /last price/i.test(c)) && h.some((c) => /current value/i.test(c)),
-    institution: 'Fidelity',
-    instructions: { es: 'Fidelity → Positions → Download', en: 'Fidelity → Positions → Download' },
-  },
-  vanguard: {
-    detect: (h) => h.some((c) => /investment.*name/i.test(c)) && h.some((c) => /^symbol$/i.test(c)) && h.some((c) => /^shares$/i.test(c)),
-    institution: 'Vanguard',
-    instructions: { es: 'Vanguard → My Accounts → Download holdings', en: 'Vanguard → My Accounts → Download holdings' },
-  },
-  etoro: {
-    detect: (h) => h.some((c) => /position.*id/i.test(c)) || (h.some((c) => /open.*rate/i.test(c)) && h.some((c) => /close.*rate/i.test(c))),
-    institution: 'eToro',
-    instructions: { es: 'eToro → Portfolio → Configuración → Descargar datos', en: 'eToro → Portfolio → Settings → Download data' },
-  },
-  webull: {
-    detect: (h) => h.some((c) => /ticker/i.test(c)) && h.some((c) => /avg.*cost/i.test(c)) && h.some((c) => /market.*value/i.test(c)),
-    institution: 'Webull',
-    instructions: { es: 'Webull → Positions → Export CSV', en: 'Webull → Positions → Export CSV' },
-  },
-  tradeStation: {
-    detect: (h) => h.some((c) => /^symbol$/i.test(c)) && h.some((c) => /^last$/i.test(c)) && h.some((c) => /^qty$/i.test(c)),
-    institution: 'TradeStation',
-    instructions: { es: 'TradeStation → Portfolio → Exportar posiciones', en: 'TradeStation → Portfolio → Export positions' },
-  },
-  tastytrade: {
-    detect: (h) => h.some((c) => /^symbol$/i.test(c)) && h.some((c) => /instrument.*type/i.test(c)) && h.some((c) => /trade.*price/i.test(c)),
-    institution: 'Tastytrade',
-    instructions: { es: 'Tastytrade → Positions → Export', en: 'Tastytrade → Positions → Export' },
-  },
-  ig: {
-    detect: (h) => h.some((c) => /^market$/i.test(c)) && h.some((c) => /^direction$/i.test(c)) && h.some((c) => /^size$/i.test(c)),
-    institution: 'IG',
-    instructions: { es: 'IG → My IG → Reports → Download', en: 'IG → My IG → Reports → Download' },
-  },
-  dukascopy: {
-    detect: (h) => h.some((c) => /dukascopy/i.test(c)) || (h.some((c) => /^instrument$/i.test(c)) && h.some((c) => /^p.?l$/i.test(c))),
-    institution: 'Dukascopy',
-    instructions: { es: 'Dukascopy → Reports → Statement → Export', en: 'Dukascopy → Reports → Statement → Export' },
-  },
-  alpaca: {
-    detect: (h) => h.some((c) => /^symbol$/i.test(c)) && h.some((c) => /avg.*entry.*price/i.test(c)),
-    institution: 'Alpaca Markets',
-    instructions: { es: 'Alpaca → Dashboard → Portfolio → Export', en: 'Alpaca → Dashboard → Portfolio → Export' },
-  },
-  ppiGlobal: {
-    detect: (h) => h.some((c) => /especie/i.test(c)) || h.some((c) => /^ppi$/i.test(c)),
-    institution: 'PPI Global',
-    instructions: { es: 'PPI → Mi Portafolio → Exportar', en: 'PPI → My Portfolio → Export' },
-  },
-  tdAmeritrade: {
-    detect: (h) => h.some((c) => /account.*number/i.test(c)) && h.some((c) => /^security$/i.test(c)) && h.some((c) => /^description$/i.test(c)),
-    institution: 'TD Ameritrade',
-    instructions: { es: 'thinkorswim → Monitor → Activity → Export', en: 'thinkorswim → Monitor → Activity → Export' },
-  },
-  m1Finance: {
-    detect: (h) => h.some((c) => /^m1$/i.test(c)) || (h.some((c) => /^symbol$/i.test(c)) && h.some((c) => /target.*allocation/i.test(c))),
-    institution: 'M1 Finance',
-    instructions: { es: 'M1 → Research → Holdings → Export', en: 'M1 → Research → Holdings → Export' },
-  },
-  revolut: {
-    detect: (h) => h.some((c) => /^symbol$/i.test(c)) && h.some((c) => /^quantity$/i.test(c)) && h.some((c) => /price.*per.*share/i.test(c)),
-    institution: 'Revolut Investments',
-    instructions: { es: 'Revolut → Inversiones → Exportar estado de cuenta', en: 'Revolut → Investments → Export statement' },
-  },
-  myInvestor: {
-    detect: (h) => h.some((c) => /isin/i.test(c)) && h.some((c) => /participaciones/i.test(c)),
-    institution: 'MyInvestor',
-    instructions: { es: 'MyInvestor → Mi Cartera → Descargar posiciones', en: 'MyInvestor → My Portfolio → Download positions' },
-  },
-  coinbase: {
-    detect: (h) => detectCoinbase(h.map(c => (c || '').toString().trim())),
-    institution: 'Coinbase',
-    typeOverride: 'Crypto',
-    instructions: { es: 'Coinbase → Configuración → Reportes → Generar reporte', en: 'Coinbase → Settings → Reports → Generate report' },
-  },
-  kraken: {
-    detect: (h) => detectKraken(h.map(c => (c || '').toString().trim())),
-    institution: 'Kraken',
-    typeOverride: 'Crypto',
-    instructions: { es: 'Kraken → History → Export', en: 'Kraken → History → Export' },
-  },
-  binance: {
-    detect: (h) => h.some((c) => /^coin$/i.test(c)) && h.some((c) => /^total$/i.test(c)),
-    institution: 'Binance',
-    typeOverride: 'Crypto',
-    instructions: { es: 'Binance → Wallet → Spot → Export', en: 'Binance → Wallet → Spot → Export' },
-  },
-}
-
-function guessMapping(headers) {
-  const mapping = {}
-  const lowerHeaders = headers.map((h) => (h || '').toString().toLowerCase().trim())
-
-  for (const [field, aliases] of Object.entries(FIELD_MAP)) {
-    const idx = lowerHeaders.findIndex((h) => aliases.some((a) => h === a || h.includes(a)))
-    if (idx !== -1) mapping[field] = idx
-  }
-  return mapping
+// Default institution stamped on imported items when the import was opened for a
+// specific broker (brokerHint) and the file itself has no institution column —
+// e.g. a Hapi statement, which has no API and no institution field of its own.
+const BROKER_HINT_INSTITUTION = {
+  ibkr: 'Interactive Brokers', alpaca: 'Alpaca Markets', schwab: 'Charles Schwab',
+  fidelity: 'Fidelity', vanguard: 'Vanguard', degiro: 'DEGIRO', trading212: 'Trading 212',
+  traderepublic: 'Trade Republic', etoro: 'eToro', webull: 'Webull', coinbase: 'Coinbase',
+  kraken: 'Kraken', binance: 'Binance', bitso: 'Bitso', hapi: 'Hapi',
 }
 
 function inferType(row, mapping) {
@@ -199,37 +58,14 @@ function parseCSVLine(line, sep) {
   return fields
 }
 
-function parseEuropeanOrUS(str) {
-  if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(str)) {
-    return parseFloat(str.replace(/\./g, '').replace(',', '.'))
-  }
-  if (/^-?\d+,\d{1,2}$/.test(str)) {
-    return parseFloat(str.replace(',', '.'))
-  }
-  return parseFloat(str.replace(/,/g, ''))
-}
-
+// Number parsing is delegated to the shared LatAm-aware parser (lib/numberParse):
+// the old local implementation turned "150,25" into 15025 and "1.234,56" into
+// 1.23456, silently corrupting every decimal-comma import.
 function parseNumber(val) {
-  if (val == null) return 0
-  if (typeof val === 'number') return isFinite(val) ? val : 0
-  let str = val.toString().trim()
-  str = str.replace(/[$€£¥₡₿Q₱₨]/g, '')
-  const neg = str.match(/^\((.+)\)$/)
-  if (neg) str = '-' + neg[1]
-  str = str.replace(/[\s ]/g, '')
-  str = str.replace(/%$/, '')
-  const shorthand = str.match(/^(-?[\d.,]+)([KkMmBb])$/)
-  if (shorthand) {
-    const mult = { k: 1e3, K: 1e3, m: 1e6, M: 1e6, b: 1e9, B: 1e9 }
-    const base = parseEuropeanOrUS(shorthand[1])
-    const result = base * (mult[shorthand[2]] || 1)
-    return isFinite(result) ? result : 0
-  }
-  const num = parseEuropeanOrUS(str)
-  return isFinite(num) ? num : 0
+  return parseAmount(val)
 }
 
-export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateItem, onDeleteItem, onBulkImport, existingItems, existingLots = [], activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null }) {
+export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateItem, onDeleteItem, onBulkImport, existingItems, existingLots = [], existingFinanceTransactions = [], activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null }) {
   const trapRef = useFocusTrap()
   const [mode, setMode] = useState('file')
   const [step, setStep] = useState('upload')
@@ -241,6 +77,8 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
   const [pasteText, setPasteText] = useState('')
+  const [aiOpen, setAiOpen] = useState(false)
+  const [aiCopied, setAiCopied] = useState(false)
   const fileRef = useRef(null)
   const [ibkrData, setIbkrData] = useState(null)
   const [ibkrImportMode, setIbkrImportMode] = useState('merge')
@@ -254,6 +92,11 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   const [extraSheets, setExtraSheets] = useState({ snapshots: [], transactions: [] })
   const [biData, setBiData] = useState(null)
   const [selectedBankAccount, setSelectedBankAccount] = useState('')
+  // Statement reconciliation: buckets from lib/statementMatcher + which rows the
+  // user checked for import (new rows pre-checked, likely-duplicates unchecked).
+  const [biMatch, setBiMatch] = useState(null)
+  const [biSelected, setBiSelected] = useState(new Set())
+  const [stmtAccount, setStmtAccount] = useState('')
 
   useEffect(() => {
     const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
@@ -288,35 +131,76 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       return
     }
 
+    const ibkrEmptyError = () => setError(lang === 'es'
+      ? 'No se encontraron posiciones. Exporta el Activity Statement desde IBKR (Performance & Reports → Statements → Activity) en CSV o Excel, con Open Positions, Trades y NAV.'
+      : 'No positions found. Export the Activity Statement from IBKR (Performance & Reports → Statements → Activity) as CSV or Excel, with Open Positions, Trades and NAV.')
+    const acceptIBKR = (rawTextOrCsv) => {
+      const parsed = parseIBKRFile(rawTextOrCsv)
+      if (parsed._isPerformanceReport || (parsed.positions.length === 0 && parsed.cashPositions.length === 0)) { ibkrEmptyError(); return true }
+      setIbkrData(formatIBKRFileResult(parsed)); setStep('ibkr-preview'); return true
+    }
+
     try {
+      const XLSX = await import('xlsx')
+      let wb
+      let csvText = null
+
       if (ext === 'csv') {
-        const rawText = await file.text()
-        if (isIBKRSectionedFormat(rawText)) {
-          const parsed = parseIBKRFile(rawText)
-          if (parsed._isPerformanceReport || (parsed.positions.length === 0 && parsed.cashPositions.length === 0)) {
-            setError(lang === 'es'
-              ? 'No se encontraron posiciones en este archivo. Exporta un Activity Statement desde IBKR → Reports → Statements → Activity.'
-              : 'No positions found in this file. Export an Activity Statement from IBKR → Reports → Statements → Activity.')
-            return
-          }
-          const formatted = formatIBKRFileResult(parsed)
-          setIbkrData(formatted)
-          setStep('ibkr-preview')
-          return
-        }
+        // file.text() decodes UTF-8 correctly; letting SheetJS read the raw bytes
+        // decoded them as CP1252 and turned "Débito" into "DÃ©bito", which broke
+        // Spanish header detection (Banco Industrial statements fell through to the
+        // stock mapper).
+        csvText = await file.text()
+        const kind = detectIBKRFileKind(csvText)
+        if (kind === 'pdf') { setError(lang === 'es' ? 'Esto es un PDF, no una hoja de cálculo. Expórtalo de nuevo en CSV o Excel, o usa el asistente de IA de abajo para convertirlo.' : 'This is a PDF, not a spreadsheet. Re-export it as CSV or Excel, or use the AI helper below to convert it.'); return }
+        if (kind === 'xml') { setError(lang === 'es' ? 'Esto es un archivo XML. Expórtalo en CSV o Excel.' : 'This is an XML file. Export it as CSV or Excel.'); return }
+        if (isIBKRSectionedFormat(csvText)) { acceptIBKR(csvText); return }
+        // raw:true stops SheetJS from coercing "150,25" to the number 15025 and
+        // "1.234,56" to 1.23456 — the values reach parseAmount as written.
+        wb = XLSX.read(csvText, { type: 'string', raw: true })
+      } else {
+        const data = await file.arrayBuffer()
+        // cellDates keeps real date cells as Dates instead of serial numbers like
+        // 44576, which used to be read as the year 45000 and rejected every row.
+        wb = XLSX.read(data, { type: 'array', cellDates: true })
       }
 
-      const XLSX = await import('xlsx')
-      const data = await file.arrayBuffer()
-      const wb = XLSX.read(data, { type: 'array' })
+      // XLSX that carries the IBKR sectioned layout on ANY sheet is an Activity
+      // Statement — parse it as IBKR instead of the generic table mapper.
+      const sectionedCsv = pickSectionedCsvFromWorkbook(XLSX, wb)
+      if (sectionedCsv) { acceptIBKR(sectionedCsv); return }
 
       const sheetNames = wb.SheetNames.map((n) => n.toLowerCase())
-      const assetsIdx = sheetNames.findIndex((n) => /activos|assets|portfolio|holdings/i.test(n))
+      // Spanish names were missing, so "Portafolio"/"Posiciones"/"Cartera" workbooks
+      // silently fell back to sheet 0 (usually a cover page).
+      const assetsIdx = sheetNames.findIndex((n) => /activos|assets|portafolio|portfolio|holdings|posiciones|tenencias|cartera|inversiones|saldos/i.test(n))
       const histIdx = sheetNames.findIndex((n) => /historial|history|snapshots/i.test(n))
-      const txIdx = sheetNames.findIndex((n) => /transacciones|transactions/i.test(n))
+      const txIdx = sheetNames.findIndex((n) => /transacciones|transactions|movimientos/i.test(n))
 
-      const mainSheet = wb.Sheets[wb.SheetNames[assetsIdx >= 0 ? assetsIdx : 0]]
+      // Pick the named sheet; otherwise the sheet with the most usable rows rather
+      // than blindly sheet 0.
+      let mainIdx = assetsIdx
+      if (mainIdx < 0) {
+        let best = 0, bestRows = -1
+        wb.SheetNames.forEach((nm, i) => {
+          if (i === histIdx || i === txIdx) return
+          const rows = XLSX.utils.sheet_to_json(wb.Sheets[nm], { header: 1, defval: '' })
+            .filter((r) => r.filter((c) => c !== '').length >= 2).length
+          if (rows > bestRows) { bestRows = rows; best = i }
+        })
+        mainIdx = best
+      }
+      const mainSheet = wb.Sheets[wb.SheetNames[mainIdx]]
       const json = XLSX.utils.sheet_to_json(mainSheet, { header: 1, defval: '' })
+
+      // A PDF saved with an .xls name parses into junk rows instead of throwing.
+      const looksPdf = json.length > 0 && /^%PDF/.test((json[0] || []).join(''))
+      if (looksPdf) {
+        setError(lang === 'es'
+          ? 'Esto es un PDF, no una hoja de cálculo. Expórtalo de nuevo en CSV o Excel, o usa el asistente de IA de abajo para convertirlo.'
+          : 'This is a PDF, not a spreadsheet. Re-export it as CSV or Excel, or use the AI helper below to convert it.')
+        return
+      }
 
       if (json.length < 2) {
         setError(lang === 'es' ? 'El archivo no tiene datos suficientes.' : 'File has insufficient data.')
@@ -382,7 +266,18 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         setStep('map')
       } else if (detectBI(hdrs)) {
         const parsed = parseBI(rows, hdrs)
+        // Reconcile against what's already recorded: only truly-new rows get
+        // imported; re-uploading the same statement yields zero additions.
+        const match = matchStatement(parsed.transactions, existingFinanceTransactions)
         setBiData(parsed)
+        setBiMatch(match)
+        setBiSelected(new Set(match.newTxs.map((_, i) => `n${i}`)))
+        // Preselect the BI account the balance update belongs to — the "create
+        // new" default used to mint a duplicate "BI Monetaria" on every re-import.
+        const bankAccounts = (existingItems || []).filter((it) => /bank|banco/i.test(it.type || ''))
+        const biAccount = bankAccounts.find((a) => (a.symbol || '').toUpperCase() === 'BI-MONETARIA')
+          || bankAccounts.find((a) => /banco industrial/i.test(a.institution || ''))
+        setSelectedBankAccount(biAccount ? biAccount.id : '')
         setStep('bi-preview')
       } else {
         setHeaders(hdrs)
@@ -393,7 +288,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     } catch (err) {
       setError(lang === 'es' ? `Error leyendo archivo: ${err.message}` : `Error reading file: ${err.message}`)
     }
-  }, [lang])
+  }, [lang, existingFinanceTransactions, existingItems])
 
   const handlePaste = useCallback(() => {
     if (!pasteText.trim()) return
@@ -429,7 +324,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         type: detectedBroker?.typeOverride || (mapping.type != null ? (row[mapping.type] || '').toString().trim() : inferType(row, mapping)),
         quantity: parseNumber(mapping.quantity != null ? row[mapping.quantity] : 0),
         purchasePrice: parseNumber(mapping.purchasePrice != null ? row[mapping.purchasePrice] : 0),
-        institution: mapping.institution != null ? (row[mapping.institution] || '').toString().trim() : (detectedBroker?.institution || ''),
+        institution: mapping.institution != null ? (row[mapping.institution] || '').toString().trim() : (detectedBroker?.institution || BROKER_HINT_INSTITUTION[brokerHint] || ''),
         currency: mapping.currency != null ? (row[mapping.currency] || 'USD').toString().trim() : 'USD',
       }
       if (mapping.currentPrice != null) {
@@ -437,7 +332,10 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         if (cp > 0) item.currentPrice = cp
       }
       if (mapping.acquisitionDate != null) {
-        const d = (row[mapping.acquisitionDate] || '').toString().trim()
+        // Normalize Excel serials (44576) and dd/mm/yyyy. Passing them through raw
+        // produced dates like the year 45000, which validation then rejected — the
+        // whole file came back "0 imported" with no reason shown.
+        const d = parseImportDate(row[mapping.acquisitionDate])
         if (d) item.acquisitionDate = d
       }
       if (mapping.subtype != null) {
@@ -445,7 +343,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         if (st) item.subtype = st
       }
       if (mapping.maturityDate != null) {
-        const md = (row[mapping.maturityDate] || '').toString().trim()
+        const md = parseImportDate(row[mapping.maturityDate])
         if (md) item.maturityDate = md
       }
       if (mapping.incomeRate != null) {
@@ -468,7 +366,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
 
     setPreview(items)
     setStep('preview')
-  }, [rawData, mapping, detectedBroker])
+  }, [rawData, mapping, detectedBroker, brokerHint])
 
   const doImport = useCallback(async () => {
     setImporting(true)
@@ -478,11 +376,15 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     let snapCount = 0
     let txCount = 0
 
+    // Reasons, not just a count: a rejected file used to report "0 imported /
+    // N failed" with nothing explaining why.
+    const failReasons = []
     for (const item of preview) {
       try {
         const errors = validateItem(item)
         if (errors.length > 0) {
           failed++
+          if (failReasons.length < 5) failReasons.push(`${item.symbol || item.name || '?'}: ${errors[0]}`)
           continue
         }
         if (activePortfolio && activePortfolio !== '__all__') {
@@ -517,8 +419,9 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
           }
         }
         success++
-      } catch {
+      } catch (e) {
         failed++
+        if (failReasons.length < 5) failReasons.push(`${item.symbol || item.name || '?'}: ${e?.message || 'error'}`)
       }
     }
 
@@ -540,7 +443,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       }
     }
 
-    setResult({ success, failed, total: preview.length, snapCount, txCount })
+    setResult({ success, failed, total: preview.length, snapCount, txCount, failReasons })
     setStep('done')
     setImporting(false)
   }, [preview, onImportItems, onImportSnapshot, onImportTransaction, onAddLot, activePortfolio, extraSheets])
@@ -573,22 +476,34 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   }, [manual, onImportItems, lang])
 
   const doBIImport = useCallback(async () => {
-    if (!biData || !onAddFinanceTransaction) return
+    if (!biData || !biMatch || !onAddFinanceTransaction) return
     setImporting(true)
     setError('')
     let success = 0
     let failed = 0
 
-    for (const tx of biData.transactions) {
+    // Only the rows the user left checked: new rows (pre-checked) plus any
+    // likely-duplicates they explicitly confirmed. Exact matches never import.
+    const toImport = [
+      ...biMatch.newTxs.filter((_, i) => biSelected.has(`n${i}`)),
+      ...biMatch.likely.filter((_, i) => biSelected.has(`l${i}`)).map((x) => x.parsed),
+    ]
+
+    for (const tx of toImport) {
       try {
-        await onAddFinanceTransaction(tx)
+        await onAddFinanceTransaction({
+          ...tx,
+          description: sanitizeCell(String(tx.description || '')).slice(0, 200),
+          ...(tx.reference ? { reference: sanitizeCell(String(tx.reference)).slice(0, 60) } : {}),
+          ...(stmtAccount.trim() ? { account: sanitizeCell(stmtAccount.trim()).slice(0, 40) } : {}),
+        })
         success++
       } catch {
         failed++
       }
     }
 
-    if (biData.finalBalance > 0) {
+    if (biData.finalBalance > 0 && selectedBankAccount !== 'skip') {
       const bankAccounts = (existingItems || []).filter(it => /bank|banco/i.test(it.type || ''))
       const target = selectedBankAccount ? bankAccounts.find(a => a.id === selectedBankAccount) : null
 
@@ -608,10 +523,10 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       }
     }
 
-    setResult({ success, failed, total: biData.transactions.length, isBI: true })
+    setResult({ success, failed, total: biData.transactions.length, skipped: biMatch.exact.length, isBI: true })
     setStep('done')
     setImporting(false)
-  }, [biData, onAddFinanceTransaction, onImportItems, onUpdateItem, existingItems, selectedBankAccount])
+  }, [biData, biMatch, biSelected, stmtAccount, onAddFinanceTransaction, onImportItems, onUpdateItem, existingItems, selectedBankAccount])
 
   const doIBKRImport = useCallback(async () => {
     if (!ibkrData || !ibkrData.items || ibkrData.items.length === 0) return
@@ -688,6 +603,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     degiro: { name: 'DEGIRO', icon: '🇪🇺' },
     trading212: { name: 'Trading 212', icon: '📊' },
     traderepublic: { name: 'Trade Republic', icon: '🇩🇪' },
+    hapi: { name: 'Hapi', icon: '📲' },
     etoro: { name: 'eToro', icon: '📈' },
     webull: { name: 'Webull', icon: '📱' },
     coinbase: { name: 'Coinbase', icon: '🟠' },
@@ -698,7 +614,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
 
   const brokerInfo = brokerHint ? BROKER_INSTRUCTIONS[brokerHint] : null
   const modalTitle = brokerInfo
-    ? t(`Importar CSV — ${brokerInfo.name}`, `Import CSV — ${brokerInfo.name}`)
+    ? t(`Importar CSV: ${brokerInfo.name}`, `Import CSV: ${brokerInfo.name}`)
     : t('Importar Portfolio', 'Import Portfolio')
 
   return (
@@ -766,6 +682,78 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
               <p className="mt-2 text-xs text-slate-500 text-center">
                 {t('Excel con 3 hojas: Activos, Historial anual, Transacciones + instrucciones', 'Excel with 3 sheets: Assets, Annual History, Transactions + instructions')}
               </p>
+
+              {/* AI-assisted file prep: the user pastes their statements into any AI
+                  (ChatGPT/Claude/Gemini) with a prompt that specifies our EXACT sheet
+                  and column layout, then uploads the file the AI produces. */}
+              <div className="mt-4 border rounded-xl overflow-hidden" style={{ borderColor: 'rgba(37,99,235,0.25)', backgroundColor: 'rgba(37,99,235,0.05)' }}>
+                <button onClick={() => setAiOpen(!aiOpen)}
+                  className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-left"
+                  style={{ color: 'var(--accent-blue)' }}>
+                  <span>🤖 {t('¿Tus datos están en PDFs o fotos? Pídele el archivo a una IA', 'Data stuck in PDFs or photos? Ask an AI to build the file')}</span>
+                  <span className={`transition-transform text-xs ${aiOpen ? 'rotate-180' : ''}`}>▾</span>
+                </button>
+                {aiOpen && (
+                  <div className="px-4 pb-4 space-y-3">
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      {t('Copia este prompt, pégalo en ChatGPT, Claude o Gemini junto con tus estados de cuenta (PDF, fotos o texto), y sube aquí el archivo que te genere.',
+                         'Copy this prompt, paste it into ChatGPT, Claude or Gemini along with your statements (PDFs, photos or text), and upload the file it produces here.')}
+                    </p>
+                    <button onClick={() => {
+                        const prompt = lang === 'es'
+                          ? `Ayúdame a preparar mi portafolio de inversiones para importarlo a una app. Te voy a pasar mis estados de cuenta (PDF, fotos o texto) de brokers, bancos y exchanges. Genera un archivo Excel (.xlsx) con estas hojas y columnas EXACTAS:
+
+Hoja "Activos" (una fila por posición; si compré en varias fechas, una fila por lote):
+Simbolo, Nombre, Tipo, Cantidad, Precio de Compra, Precio Actual, Moneda, Institucion, Fecha de Compra, Notas
+- Tipo debe ser uno de: Stock, Fund, Crypto, Bond, Bank, RealEstate, Alternative, Debt
+- Fechas en formato YYYY-MM-DD, usando la fecha REAL de compra de cada lote
+- Precios en la moneda original del activo (indica la moneda: USD, GTQ, MXN, EUR...)
+- En Notas incluye lo relevante: comisiones estimadas de compra, si es cuenta de ahorro su tasa, etc.
+
+Hoja "Transacciones" (todos los movimientos que encuentres):
+Fecha, Tipo, Simbolo, Descripcion, Monto, Moneda
+- Tipo debe ser uno de: BUY, SELL, DIVIDEND, DEPOSIT, WITHDRAWAL
+- Incluye compras y ventas con su fecha y monto total (con comisión incluida y anótala en Descripcion), dividendos e intereses cobrados, y mis depósitos y retiros de efectivo (importan para calcular mi retorno real)
+
+Hoja "Historial" (opcional, si mis documentos muestran valores históricos de la cuenta):
+Fecha, Total Activos (USD), Total Deudas (USD), Patrimonio Neto (USD), Notas
+- Un renglón por fecha (cierres de mes o de año)
+
+Reglas: no inventes ningún dato; si algo no aparece en mis documentos déjalo vacío y dime al final qué me faltó. Cuando termines, dame el archivo .xlsx listo para descargar.`
+                          : `Help me prepare my investment portfolio to import into an app. I will give you my statements (PDFs, photos or text) from brokers, banks and exchanges. Generate an Excel file (.xlsx) with these EXACT sheets and columns:
+
+Sheet "Activos" (one row per position; if I bought on several dates, one row per lot):
+Simbolo, Nombre, Tipo, Cantidad, Precio de Compra, Precio Actual, Moneda, Institucion, Fecha de Compra, Notas
+- Tipo must be one of: Stock, Fund, Crypto, Bond, Bank, RealEstate, Alternative, Debt
+- Dates in YYYY-MM-DD format, using each lot's REAL purchase date
+- Prices in each asset's original currency (state the currency: USD, GTQ, MXN, EUR...)
+- In Notas include anything relevant: estimated purchase commissions, savings account rates, etc.
+
+Sheet "Transacciones" (every movement you find):
+Fecha, Tipo, Simbolo, Descripcion, Monto, Moneda
+- Tipo must be one of: BUY, SELL, DIVIDEND, DEPOSIT, WITHDRAWAL
+- Include buys and sells with date and total amount (commission included, note it in Descripcion), dividends and interest received, and my cash deposits and withdrawals (they matter for computing my real return)
+
+Sheet "Historial" (optional, if my documents show historical account values):
+Fecha, Total Activos (USD), Total Deudas (USD), Patrimonio Neto (USD), Notas
+- One row per date (month-end or year-end closes)
+
+Rules: do not invent any data; if something is missing from my documents leave it blank and tell me at the end what was missing. When done, give me the .xlsx file ready to download.`
+                        navigator.clipboard.writeText(prompt)
+                        setAiCopied(true)
+                        setTimeout(() => setAiCopied(false), 2500)
+                      }}
+                      className="w-full py-2.5 rounded-lg text-sm font-medium transition-colors"
+                      style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
+                      {aiCopied ? t('✓ Prompt copiado, pégalo en tu IA', '✓ Prompt copied, paste it into your AI') : t('Copiar prompt para ChatGPT / Claude / Gemini', 'Copy prompt for ChatGPT / Claude / Gemini')}
+                    </button>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      {t('El prompt le pide: posiciones con fechas reales de compra por lote, compras y ventas con comisiones, dividendos, depósitos y retiros, y valores históricos. Todo en el formato exacto que Chispudo importa.',
+                         'The prompt asks for: positions with real per-lot purchase dates, buys and sells with commissions, dividends, deposits and withdrawals, and historical values. All in the exact format Chispudo imports.')}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -964,71 +952,139 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                 </span>
               </div>
               <p className="text-slate-400 text-sm mb-3">
-                {t(`${biData.transactions.length} transacciones encontradas`, `${biData.transactions.length} transactions found`)}
-                {biData.finalBalance > 0 && ` — ${t('Saldo final', 'Final balance')}: Q${biData.finalBalance.toLocaleString()}`}
+                {t(`${biData.transactions.length} transacciones en el estado`, `${biData.transactions.length} transactions in the statement`)}
+                {biMatch && `: ${biMatch.newTxs.length} ${t('nuevas', 'new')} · ${biMatch.exact.length} ${t('ya registradas', 'already recorded')}${biMatch.likely.length > 0 ? ` · ${biMatch.likely.length} ${t('a revisar', 'to review')}` : ''}`}
+                {biData.finalBalance > 0 && `: ${t('Saldo final', 'Final balance')}: Q${biData.finalBalance.toLocaleString()}`}
               </p>
 
-              <div className="overflow-x-auto max-h-60 overflow-y-auto mb-4">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="text-slate-500 border-b border-glass-border sticky top-0 bg-theme-card">
-                      <th className="text-left py-2 px-2">{t('Fecha', 'Date')}</th>
-                      <th className="text-left py-2 px-2">{t('Descripción', 'Description')}</th>
-                      <th className="text-left py-2 px-2">{t('Categoría', 'Category')}</th>
-                      <th className="text-right py-2 px-2">{t('Monto', 'Amount')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {biData.transactions.map((tx, i) => (
-                      <tr key={i} className="border-b border-glass-border/50 hover:bg-theme-elevated">
-                        <td className="py-2 px-2 text-slate-400 whitespace-nowrap">{tx.date}</td>
-                        <td className="py-2 px-2 text-white max-w-[180px] truncate">{tx.description}</td>
-                        <td className="py-2 px-2">
-                          <select
-                            value={tx.category}
-                            onChange={(e) => {
-                              const updated = { ...biData }
-                              updated.transactions = [...updated.transactions]
-                              updated.transactions[i] = { ...updated.transactions[i], category: e.target.value }
-                              setBiData(updated)
-                            }}
-                            className="bg-theme-base border border-glass-border rounded text-xs text-slate-300 px-1 py-0.5 focus:outline-none"
-                          >
-                            {(tx.type === 'INCOME' ? FINANCE_CATEGORIES.INCOME : FINANCE_CATEGORIES.EXPENSE).map(c => (
-                              <option key={c} value={c}>{c}</option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="py-2 px-2 text-right font-medium whitespace-nowrap" style={{ color: tx.type === 'INCOME' ? '#34d399' : '#f87171' }}>
-                          {tx.type === 'INCOME' ? '+' : '-'}Q{tx.amount.toLocaleString()}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="p-3 bg-theme-base border border-glass-border rounded-lg mb-3">
+                <label className="text-xs text-slate-400 mb-1 block">{t('¿De qué cuenta o tarjeta es este estado? (opcional)', 'Which account or card is this statement from? (optional)')}</label>
+                <input value={stmtAccount} onChange={(e) => setStmtAccount(e.target.value)} list="stmt-accounts"
+                  placeholder={t('Ej: Visa BI, Mastercard G&T…', 'E.g. Visa BI, Mastercard…')}
+                  className="w-full px-3 py-2 bg-theme-card border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-[#3b82f6]/50" />
+                <datalist id="stmt-accounts">
+                  {[...new Set((existingFinanceTransactions || []).map((x) => x.account).filter(Boolean))].map((a) => <option key={a} value={a} />)}
+                </datalist>
               </div>
+
+              {biMatch && (
+                <div className="space-y-3 mb-4">
+                  {/* NEW — pre-checked, will import */}
+                  {biMatch.newTxs.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold mb-1" style={{ color: 'var(--accent-green)' }}>
+                        ✓ {t(`Nuevas (${biMatch.newTxs.length}): se agregarán`, `New (${biMatch.newTxs.length}): will be added`)}
+                      </p>
+                      <div className="overflow-x-auto max-h-48 overflow-y-auto border border-glass-border/50 rounded-lg">
+                        <table className="w-full text-xs">
+                          <tbody>
+                            {biMatch.newTxs.map((tx, i) => (
+                              <tr key={`n${i}`} className="border-b border-glass-border/50 hover:bg-theme-elevated">
+                                <td className="py-1.5 px-2">
+                                  <input type="checkbox" checked={biSelected.has(`n${i}`)} onChange={(e) => {
+                                    const next = new Set(biSelected)
+                                    e.target.checked ? next.add(`n${i}`) : next.delete(`n${i}`)
+                                    setBiSelected(next)
+                                  }} />
+                                </td>
+                                <td className="py-1.5 px-2 text-slate-400 whitespace-nowrap">{tx.date}</td>
+                                <td className="py-1.5 px-2 text-white max-w-[160px] truncate">{tx.description}</td>
+                                <td className="py-1.5 px-2">
+                                  <select value={tx.category}
+                                    onChange={(e) => {
+                                      const next = { ...biMatch, newTxs: [...biMatch.newTxs] }
+                                      next.newTxs[i] = { ...next.newTxs[i], category: e.target.value }
+                                      setBiMatch(next)
+                                    }}
+                                    className="bg-theme-base border border-glass-border rounded text-xs text-slate-300 px-1 py-0.5 focus:outline-none">
+                                    {(tx.type === 'INCOME' ? FINANCE_CATEGORIES.INCOME : FINANCE_CATEGORIES.EXPENSE).map(c => (
+                                      <option key={c} value={c}>{c}</option>
+                                    ))}
+                                  </select>
+                                </td>
+                                <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap" style={{ color: tx.type === 'INCOME' ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+                                  {tx.type === 'INCOME' ? '+' : '-'}Q{tx.amount.toLocaleString()}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* LIKELY DUPLICATES — default unchecked, user decides */}
+                  {biMatch.likely.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold mb-1" style={{ color: 'var(--alert-warn-icon)' }}>
+                        ⚠ {t(`Posibles duplicados (${biMatch.likely.length}): marca solo las que SÍ falten`, `Possible duplicates (${biMatch.likely.length}): check only the truly missing ones`)}
+                      </p>
+                      <div className="overflow-x-auto max-h-40 overflow-y-auto border rounded-lg" style={{ borderColor: 'var(--alert-warn-border)' }}>
+                        <table className="w-full text-xs">
+                          <tbody>
+                            {biMatch.likely.map(({ parsed, match }, i) => (
+                              <tr key={`l${i}`} className="border-b border-glass-border/50">
+                                <td className="py-1.5 px-2">
+                                  <input type="checkbox" checked={biSelected.has(`l${i}`)} onChange={(e) => {
+                                    const next = new Set(biSelected)
+                                    e.target.checked ? next.add(`l${i}`) : next.delete(`l${i}`)
+                                    setBiSelected(next)
+                                  }} />
+                                </td>
+                                <td className="py-1.5 px-2 text-slate-400 whitespace-nowrap">{parsed.date}</td>
+                                <td className="py-1.5 px-2 text-white max-w-[150px] truncate">{parsed.description}</td>
+                                <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap" style={{ color: parsed.type === 'INCOME' ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+                                  {parsed.type === 'INCOME' ? '+' : '-'}Q{parsed.amount.toLocaleString()}
+                                </td>
+                                <td className="py-1.5 px-2 text-slate-500 max-w-[150px] truncate">
+                                  ≈ {match.date} · {match.description}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* EXACT — skipped, collapsed */}
+                  {biMatch.exact.length > 0 && (
+                    <details className="text-xs">
+                      <summary className="cursor-pointer" style={{ color: 'var(--text-muted)' }}>
+                        ⏭ {t(`Ya registradas (${biMatch.exact.length}): se omiten`, `Already recorded (${biMatch.exact.length}): skipped`)}
+                      </summary>
+                      <div className="mt-1 max-h-32 overflow-y-auto border border-glass-border/40 rounded-lg p-2 space-y-0.5">
+                        {biMatch.exact.map(({ parsed }, i) => (
+                          <p key={i} className="text-slate-500 truncate">{parsed.date} · {parsed.description} · Q{parsed.amount.toLocaleString()}</p>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+                </div>
+              )}
 
               {biData.finalBalance > 0 && (
                 <div className="p-3 bg-theme-base border border-glass-border rounded-lg mb-4">
                   <p className="text-xs text-slate-400 mb-2">{t('Actualizar cuenta bancaria:', 'Update bank account:')}</p>
                   <select value={selectedBankAccount} onChange={e => setSelectedBankAccount(e.target.value)}
                     className="w-full px-3 py-2 bg-theme-card border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-[#3b82f6]/50">
-                    <option value="">{t('Crear nueva cuenta', 'Create new account')}</option>
                     {(existingItems || []).filter(it => /bank|banco/i.test(it.type || '')).map(item => (
                       <option key={item.id} value={item.id}>{item.name || item.symbol}</option>
                     ))}
+                    <option value="">{t('Crear nueva cuenta', 'Create new account')}</option>
+                    <option value="skip">{t('No actualizar ninguna cuenta', 'Don\'t update any account')}</option>
                   </select>
                 </div>
               )}
 
               <div className="flex gap-3">
-                <button onClick={() => { setBiData(null); setStep('upload') }}
+                <button onClick={() => { setBiData(null); setBiMatch(null); setBiSelected(new Set()); setStep('upload') }}
                   className="flex-1 py-2.5 border border-glass-border text-slate-300 rounded-lg hover:bg-theme-elevated transition-colors text-sm">
                   {t('Atrás', 'Back')}
                 </button>
                 <button onClick={doBIImport} disabled={importing}
                   className="flex-1 py-2.5 rounded-lg disabled:opacity-50 hover:opacity-90 transition-colors text-sm font-medium" style={{ backgroundColor: '#059669', color: '#fff' }}>
-                  {importing ? t('Importando...', 'Importing...') : t(`Importar ${biData.transactions.length} transacciones`, `Import ${biData.transactions.length} transactions`)}
+                  {importing ? t('Importando...', 'Importing...') : t(`Importar ${biSelected.size} transacciones`, `Import ${biSelected.size} transactions`)}
                 </button>
               </div>
             </div>
@@ -1077,7 +1133,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                           <td className="py-1.5 px-1.5 text-right text-slate-300">${item.currentPrice?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                           <td className="py-1.5 px-1.5 text-right text-white font-medium">${val.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</td>
                           <td className="py-1.5 px-1.5 text-right font-medium" style={{ color: gain > 0 ? '#34d399' : gain < 0 ? '#f87171' : '#64748b' }}>
-                            {cost > 0 ? `${gain >= 0 ? '+' : ''}${gain.toFixed(1)}%` : '—'}
+                            {cost > 0 ? `${gain >= 0 ? '+' : ''}${gain.toFixed(1)}%` : '-'}
                           </td>
                         </tr>
                       )
@@ -1092,7 +1148,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                 <div className="flex gap-2">
                   <button onClick={() => setIbkrImportMode('merge')}
                     className="flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-colors border"
-                    style={ibkrImportMode === 'merge' ? { backgroundColor: 'rgba(108,122,255,0.2)', borderColor: 'rgba(59,130,246,0.4)', color: 'var(--accent-blue)' } : { borderColor: '#38383A', color: '#94a3b8' }}>
+                    style={ibkrImportMode === 'merge' ? { backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.4)', color: 'var(--accent-blue)' } : { borderColor: '#38383A', color: '#94a3b8' }}>
                     {t('Agregar junto a existentes', 'Add alongside existing')}
                   </button>
                   <button onClick={() => setIbkrImportMode('replace')}
@@ -1131,7 +1187,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                 </button>
                 {importing && importProgress.total > 0 && (
                   <div className="mt-2 h-1.5 bg-slate-700/30 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full transition-all" style={{ backgroundColor: '#3b82f6' }} style={{ width: `${Math.round((importProgress.done / importProgress.total) * 100)}%` }} />
+                    <div className="h-full rounded-full transition-all" style={{ backgroundColor: 'var(--accent-blue)', width: `${Math.round((importProgress.done / importProgress.total) * 100)}%` }} />
                   </div>
                 )}
               </div>
@@ -1141,11 +1197,15 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
           {/* Done step */}
           {step === 'done' && result && (
             <div className="text-center py-6">
-              <div className="text-5xl mb-4">{result.failed === 0 ? '🎉' : '⚠️'}</div>
+              {/* success === 0 is a FAILURE, not a success: a completely misread file
+                  used to show the celebration screen with "0 assets imported". */}
+              <div className="text-5xl mb-4">{result.failed === 0 && result.success > 0 ? '🎉' : '⚠️'}</div>
               <p className="text-white font-semibold text-lg mb-2">
-                {result.failed === 0
-                  ? t('Importación exitosa', 'Import successful')
-                  : t('Importación parcial', 'Partial import')}
+                {result.success === 0
+                  ? t('No se importó nada', 'Nothing was imported')
+                  : result.failed === 0
+                    ? t('Importación exitosa', 'Import successful')
+                    : t('Importación parcial', 'Partial import')}
               </p>
               <p className="text-slate-400 text-sm">
                 {result.success} {result.isBI ? t('transacciones importadas', 'transactions imported') : t('activos importados', 'assets imported')}
@@ -1162,6 +1222,22 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
               )}
               {result.errorMsg && (
                 <p className="text-[#f87171] text-xs mt-2">{result.errorMsg}</p>
+              )}
+              {result.failReasons?.length > 0 && (
+                <div className="mt-3 mx-auto max-w-sm text-left px-3 py-2 rounded-lg"
+                  style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)' }}>
+                  <p className="text-[11px] font-semibold mb-1" style={{ color: 'var(--alert-warn-icon)' }}>
+                    {t('Por qué fallaron:', 'Why they failed:')}
+                  </p>
+                  {result.failReasons.map((r, i) => (
+                    <p key={i} className="text-[11px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>· {r}</p>
+                  ))}
+                  {result.failed > result.failReasons.length && (
+                    <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                      {t(`y ${result.failed - result.failReasons.length} más`, `and ${result.failed - result.failReasons.length} more`)}
+                    </p>
+                  )}
+                </div>
               )}
               <button onClick={onClose}
                 className="mt-6 px-8 py-2.5 rounded-lg hover:opacity-90 transition-colors text-sm font-medium" style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>

@@ -1,3 +1,4 @@
+import { authFetch } from '@/lib/authFetch'
 import { useState, useEffect, useCallback, useRef } from 'react'
 
 export function useExchangeRates(baseCurrency) {
@@ -17,7 +18,7 @@ export function useExchangeRates(baseCurrency) {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/exchange-rates')
+      const res = await authFetch('/api/exchange-rates')
       if (!mountedRef.current) return
       if (res.ok) {
         const data = await res.json()

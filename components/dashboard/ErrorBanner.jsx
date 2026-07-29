@@ -21,9 +21,9 @@ export default function ErrorBanner({ pricesError, ratesError, lang }) {
         </svg>
         <span>
           {pricesError && ratesError
-            ? t('Precios y tasas desactualizados — Error de conexión', 'Prices and rates outdated — Connection error')
+            ? t('Precios y tasas desactualizados: Error de conexión', 'Prices and rates outdated: Connection error')
             : pricesError
-              ? t('Precios desactualizados — No se pudo conectar', 'Prices outdated — Could not connect')
+              ? t('Precios desactualizados: No se pudo conectar', 'Prices outdated: Could not connect')
               : t('Tasas de cambio desactualizadas', 'Exchange rates outdated')}
         </span>
       </div>

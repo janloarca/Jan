@@ -96,6 +96,18 @@ export function useEntities() {
     if (!uid || entityId === 'default') return
     const { db } = await import('@/lib/firebase')
     const fs = await import('firebase/firestore')
+    // Re-home everything tagged with this entity back to Personal (default)
+    // BEFORE dropping the entity doc — otherwise those docs keep a dead
+    // entityId and vanish from every per-entity view.
+    for (const coll of ['items', 'transactions', 'financeTransactions']) {
+      const snap = await fs.getDocs(fs.query(fs.collection(db, `users/${uid}/${coll}`), fs.where('entityId', '==', entityId)))
+      const CHUNK = 30
+      for (let i = 0; i < snap.docs.length; i += CHUNK) {
+        const batch = fs.writeBatch(db)
+        for (const d of snap.docs.slice(i, i + CHUNK)) batch.update(d.ref, { entityId: fs.deleteField() })
+        await batch.commit()
+      }
+    }
     await fs.deleteDoc(fs.doc(db, `users/${uid}/entities`, entityId))
   }, [uid])
 

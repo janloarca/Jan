@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
+import { validateItem } from '@/lib/validation'
+import { buildContributionFields } from '@/lib/contributions'
 import InlineCreateAccount from './InlineCreateAccount'
 
 const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
@@ -41,7 +43,7 @@ function InfoTip({ text }) {
   )
 }
 
-export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es', allItems, onNavigate, onAddTransaction, transactions, onExecuteContribution, onCreateDestination, baseCurrency }) {
+export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es', allItems, onNavigate, onAddTransaction, transactions, onExecuteContribution, onCreateDestination, baseCurrency, entities = [] }) {
   const trapRef = useFocusTrap()
   const [creatingDest, setCreatingDest] = useState(false)
   const [extraItems, setExtraItems] = useState([])
@@ -55,6 +57,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     purchasePrice: (item._originalPurchasePrice ?? item.purchasePrice)?.toString() || '',
     currentPrice: (item._originalPrice ?? item.currentPrice)?.toString() || '',
     institution: item.institution || '',
+    entityId: item.entityId || 'default',
     currency: item._originalCurrency || item.currency || 'USD',
     acquisitionDate: item.acquisitionDate || '',
     accountType: item.accountType || 'taxable',
@@ -106,6 +109,11 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
+  // Direct balance/quantity edits change NAV without a cash-flow transaction, which
+  // the return math (Modified Dietz) would read as pure gain. When a save changes the
+  // item's value we ask whether it's new money (→ DEPOSIT/WITHDRAWAL) or a value
+  // adjustment, instead of silently inflating returns.
+  const [pendingFlowConfirm, setPendingFlowConfirm] = useState(null)
   const [showIncome, setShowIncome] = useState(
     !!(item.incomeAmount || item.incomeRate || item.dividendYield || item.incomeMonths?.length)
   )
@@ -170,46 +178,24 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         ...(txType === 'DIVIDEND' && isBankLike ? { _reinvested: true } : {}),
       }
 
-      let itemFields, newLot, lotClose
-      if (isBankLike) {
-        const oldPrice = parseFloat(form.purchasePrice) || 0
-        const newPrice = isAdd ? oldPrice + amt : Math.max(0, oldPrice - amt)
-        itemFields = { purchasePrice: newPrice, currentPrice: newPrice }
-        set('purchasePrice', newPrice.toString())
-        set('currentPrice', newPrice.toString())
-      } else {
-        const pricePerUnit = parseFloat(form.currentPrice) || parseFloat(form.purchasePrice) || 1
-        if (isAdd) {
-          const newShares = amt / pricePerUnit
-          const oldQty = parseFloat(form.quantity) || 0
-          const newQty = oldQty + newShares
-          itemFields = { quantity: newQty }
-          newLot = {
-            symbol: (item.symbol || '').toUpperCase(),
-            quantity: newShares,
-            costBasis: pricePerUnit,
-            currency: itemCurrency,
-            acquisitionDate: contribDate,
-            institution: item.institution || '',
-          }
-          set('quantity', newQty.toString())
-        } else {
-          const sharesToSell = amt / pricePerUnit
-          const oldQty = parseFloat(form.quantity) || 0
-          const newQty = Math.max(0, oldQty - sharesToSell)
-          itemFields = { quantity: newQty }
-          if (sharesToSell > 0) {
-            lotClose = {
-              symbol: (item.symbol || '').toUpperCase(),
-              qty: sharesToSell,
-              price: pricePerUnit,
-              date: contribDate,
-              institution: item.institution || '',
-            }
-          }
-          set('quantity', newQty.toString())
-        }
-      }
+      const { itemFields, newLot, lotClose } = buildContributionFields({
+        item: {
+          type: form.type,
+          quantity: parseFloat(form.quantity) || 0,
+          purchasePrice: parseFloat(form.purchasePrice) || 0,
+          currentPrice: parseFloat(form.currentPrice) || parseFloat(form.purchasePrice) || 0,
+          symbol: item.symbol,
+          institution: item.institution,
+          currency: itemCurrency,
+        },
+        amount: amt,
+        date: contribDate,
+        isAdd,
+        currency: itemCurrency,
+      })
+      if (itemFields.purchasePrice != null) set('purchasePrice', itemFields.purchasePrice.toString())
+      if (itemFields.currentPrice != null) set('currentPrice', itemFields.currentPrice.toString())
+      if (itemFields.quantity != null) set('quantity', itemFields.quantity.toString())
 
       const prefFields = (!isBank && isAdd && item._contribIsIncome !== contribIsIncome)
         ? { _contribIsIncome: contribIsIncome }
@@ -261,6 +247,9 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         quantity: parseFloat(form.quantity) || 0,
         purchasePrice: parseFloat(form.purchasePrice) || 0,
         institution: form.institution.trim(),
+        // null (not undefined) clears the field on merge — the item goes back
+        // to Personal; every entity filter treats null as 'default'.
+        entityId: form.entityId && form.entityId !== 'default' ? form.entityId : null,
         currency: form.currency,
         acquisitionDate: form.acquisitionDate || '',
         accountType: form.accountType,
@@ -377,7 +366,59 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         }
       }
 
+      // Same guardrails as file imports — manual edits previously skipped them.
+      const validationErrors = validateItem(updated)
+      if (validationErrors.length > 0) {
+        setError(validationErrors.join(' · '))
+        setSaving(false)
+        return
+      }
+
+      // Detect a value change that has no matching cash-flow transaction. Only the
+      // ambiguous cases prompt: bank-like balances (deposit vs interest?) and market
+      // quantities (bought more vs correction?). Debts/receivables are skipped, and
+      // valuation-style price edits on non-market assets are treated as adjustments.
+      let flowDelta = 0
+      if (!isDebt && !form.isReceivable) {
+        const rawQty = Number(rawItem.quantity) || 0
+        const rawPP = Number(rawItem.purchasePrice) || 0
+        if (isBankLike) {
+          flowDelta = (updated.purchasePrice || 0) - rawPP
+        } else if (isMarket) {
+          const unitPrice = Number(rawItem.currentPrice) || parseFloat(form.currentPrice) || 0
+          flowDelta = ((updated.quantity || 0) - rawQty) * unitPrice
+        }
+      }
+      if (Math.abs(flowDelta) > 0.01) {
+        setSaving(false)
+        setPendingFlowConfirm({ delta: flowDelta, updated })
+        return
+      }
+
+      await finalizeSave(updated, false, 0)
+      return
+    } catch (err) { setError(err.message) }
+    setSaving(false)
+  }
+
+  const finalizeSave = async (updated, createFlow, delta) => {
+    setSaving(true)
+    setError('')
+    try {
       await onSave(updated)
+      if (createFlow && onAddTransaction && Math.abs(delta) > 0.01) {
+        await onAddTransaction({
+          date: new Date().toISOString().split('T')[0],
+          type: delta > 0 ? 'DEPOSIT' : 'WITHDRAWAL',
+          symbol: item.symbol || item.name || '',
+          description: `${delta > 0 ? t('Aporte a', 'Contribution to') : t('Retiro de', 'Withdrawal from')} ${item.name || item.symbol}`,
+          totalAmount: Math.abs(delta),
+          currency: form.currency || item._originalCurrency || item.currency || 'USD',
+          _linkedItemId: item.id,
+          _source: 'manual_edit_adjustment',
+        })
+      }
+      setPendingFlowConfirm(null)
       if (onNavigate) {
         onNavigate('next')
       } else {
@@ -417,7 +458,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           {/* Sector badge */}
           {item.sector && (
             <div className="flex gap-2 flex-wrap">
-              <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)' }}>{item.sector}</span>
+              <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'rgba(37,99,235,0.1)', color: 'var(--accent-blue)' }}>{item.sector}</span>
               {item.industry && <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'rgba(168,85,247,0.1)', color: 'var(--accent-purple)' }}>{item.industry}</span>}
               {item.exchangeName && <span className="text-xs bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] px-2 py-0.5 rounded">{item.exchangeName}</span>}
             </div>
@@ -435,7 +476,19 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          {/* Move the account between entities (personal / business / family) */}
+          {entities.length > 1 && (
+            <div>
+              <label htmlFor="edit-entity" className={labelCls}>{t('Entidad', 'Entity')}</label>
+              <select id="edit-entity" value={form.entityId} onChange={e => set('entityId', e.target.value)} className={inputCls}>
+                {entities.map((en) => (
+                  <option key={en.id} value={en.id}>{en.icon || '📁'} {en.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label htmlFor="edit-type" className={labelCls}>{t('Tipo', 'Type')}</label>
               <select id="edit-type" value={form.type} onChange={e => set('type', e.target.value)} className={inputCls}>
@@ -499,7 +552,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           <div>
             <label htmlFor="edit-acquisition-date" className={labelCls}>{t('Fecha de adquisición', 'Acquisition date')}</label>
             <input id="edit-acquisition-date" value={form.acquisitionDate} onChange={e => set('acquisitionDate', e.target.value)}
-              type="date" className={inputCls} />
+              type="date" max={new Date().toISOString().split('T')[0]} className={inputCls} />
           </div>
 
           {/* Contribution / Withdrawal */}
@@ -555,7 +608,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input type="checkbox" checked={contribIsIncome} onChange={e => setContribIsIncome(e.target.checked)}
                         className="w-3.5 h-3.5 rounded border-slate-600 accent-emerald-500" />
-                      <span className="text-xs" style={{ color: '#94a3b8' }}>
+                      <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
                         {t('Es ingreso generado (intereses, dividendos)', 'Is earned income (interest, dividends)')}
                       </span>
                       <InfoTip text={t(
@@ -709,7 +762,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label htmlFor="edit-monthly-payment" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Pago mensual', 'Monthly payment')}</label>
                   <input id="edit-monthly-payment" value={form.monthlyPayment} onChange={e => set('monthlyPayment', e.target.value)}
@@ -742,7 +795,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
               {isCreditCard && (
                 <div className="border-t border-red-500/10 pt-3 space-y-3">
-                  <p className="text-xs uppercase tracking-wide" style={{ color: '#fca5a5' }}>{t('Tarjeta de crédito', 'Credit Card')}</p>
+                  <p className="text-xs uppercase tracking-wide" style={{ color: 'var(--text-negative)' }}>{t('Tarjeta de crédito', 'Credit Card')}</p>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label htmlFor="edit-card-brand" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Marca', 'Brand')}</label>
@@ -786,7 +839,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           {isAlternative && form.subtype === 'safe_note' && (
             <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'color-mix(in srgb, var(--accent-pink) 20%, transparent)', backgroundColor: 'color-mix(in srgb, var(--accent-pink) 5%, transparent)' }}>
               <p className="text-xs font-medium" style={{ color: 'var(--accent-pink)' }}>🔮 SAFE Note</p>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <div>
                   <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tipo', 'Type')}</label>
                   <select value={form.safeType} onChange={e => set('safeType', e.target.value)} className={inputCls}>
@@ -812,7 +865,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           {/* Fees */}
           <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'color-mix(in srgb, var(--accent-orange) 20%, transparent)', backgroundColor: 'color-mix(in srgb, var(--accent-orange) 5%, transparent)' }}>
             <p className="text-xs font-medium" style={{ color: 'var(--accent-orange)' }}>{t('Costos & Comisiones', 'Costs & Fees')}</p>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <div>
                 <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Costo entrada', 'Entry fee')} <InfoTip text={t('Monto fijo en tu moneda (ej: $80). NO es porcentaje. Es el costo de entrada o comisión que pagaste una sola vez.', 'Fixed amount in your currency (e.g. $80). NOT a percentage. One-time entry cost or commission you paid.')} /></label>
                 <input value={form.entryFee} onChange={e => set('entryFee', e.target.value)}
@@ -936,8 +989,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
           {/* Section 3: Income/Dividends */}
           {isMarket && item.dividendYield > 0 && (
-            <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'rgba(59,130,246,0.2)', backgroundColor: 'rgba(59,130,246,0.05)' }}>
-              <p className="text-xs font-medium" style={{ color: 'var(--accent-green)' }}>💰 {t('Dividendo', 'Dividend')} — {item.dividendYield}% {item.incomeFrequency || ''}</p>
+            <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'rgba(37,99,235,0.2)', backgroundColor: 'rgba(37,99,235,0.05)' }}>
+              <p className="text-xs font-medium" style={{ color: 'var(--accent-green)' }}>💰 {t('Dividendo', 'Dividend')}: {item.dividendYield}% {item.incomeFrequency || ''}</p>
               <div>
                 <p className="text-xs text-[var(--text-muted,#475569)] mb-1">{t('Acción con dividendos:', 'Dividend action:')}</p>
                 <div className="flex gap-2">
@@ -948,7 +1001,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   </button>
                   <button type="button" onClick={() => set('dividendAction', 'reinvest')}
                     className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                    style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                    style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                     🔄 {t('Reinvertir', 'Reinvest')}
                   </button>
                 </div>
@@ -991,7 +1044,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   {[{ key: 'fixed', es: 'Fija', en: 'Fixed' }, { key: 'variable', es: 'Variable', en: 'Variable' }, { key: 'continuous', es: 'Continua', en: 'Continuous' }].map(rt => (
                     <button key={rt.key} type="button" onClick={() => set('rateType', rt.key)}
                       className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                      style={form.rateType === rt.key ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                      style={form.rateType === rt.key ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                       {lang === 'es' ? rt.es : rt.en}
                     </button>
                   ))}
@@ -1002,19 +1055,19 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               <div className="flex gap-1">
                 <button type="button" onClick={() => set('incomeMode', 'fixed')}
                   className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                  style={form.incomeMode === 'fixed' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                  style={form.incomeMode === 'fixed' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                   {t('Monto fijo', 'Fixed amount')}
                 </button>
                 <button type="button" onClick={() => set('incomeMode', 'percent')}
                   className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                  style={form.incomeMode === 'percent' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                  style={form.incomeMode === 'percent' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                   {t('% del saldo', '% of balance')}
                 </button>
               </div>
 
               {/* Rate inputs */}
               {form.rateType === 'variable' ? (
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <div>
                     <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa mín %', 'Min %')}</label>
                     <input value={form.rateMin} onChange={e => set('rateMin', e.target.value)}
@@ -1077,7 +1130,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                         <button key={i} type="button"
                           onClick={() => set('incomeMonths', active ? form.incomeMonths.filter(x => x !== i) : [...form.incomeMonths, i].sort((a, b) => a - b))}
                           className="px-2 py-1 text-xs font-medium rounded transition-all border"
-                          style={active ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.25)', borderColor: 'rgba(59,130,246,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                          style={active ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.25)', borderColor: 'rgba(37,99,235,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                           {label}
                         </button>
                       )
@@ -1086,23 +1139,48 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 </div>
               )}
 
-              {/* Income destination */}
+              {/* What happens with each payment — reinvest was only offered for
+                  dividend stocks; bonds/CDT/alternatives can reinvest too
+                  (processDividends already supports it for any asset). */}
               <div>
-                <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Pagos van a:', 'Payments go to:')}</label>
-                <select value={form.incomeDestination}
-                  onChange={e => { if (e.target.value === '__new__') { setCreatingDest(true); return } set('incomeDestination', e.target.value) }}
-                  className={inputCls}>
-                  <option value="">{t('-- Seleccionar --', '-- Select --')}</option>
-                  {destItems.filter(it => it.id !== item.id).map(it => (
-                    <option key={it.id} value={it.id}>{it.name || it.symbol} {it.institution ? `(${it.institution})` : ''}</option>
-                  ))}
-                  {onCreateDestination && <option value="__new__">+ {t('Crear cuenta nueva', 'Create new account')}</option>}
-                </select>
-                {creatingDest && onCreateDestination && (
-                  <InlineCreateAccount onCreate={onCreateDestination} onCancel={() => setCreatingDest(false)}
-                    onCreated={handleDestCreated} lang={lang} defaultCurrency={form.currency} />
-                )}
+                <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('¿Qué haces con los pagos?', 'What do you do with payments?')}</label>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => set('dividendAction', 'cash')}
+                    className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
+                    style={form.dividendAction !== 'reinvest' ? { backgroundColor: 'color-mix(in srgb, var(--accent-cyan) 20%, transparent)', color: 'var(--accent-cyan)', borderColor: 'color-mix(in srgb, var(--accent-cyan) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                    💵 {t('Los recibo', 'I receive them')}
+                  </button>
+                  <button type="button" onClick={() => set('dividendAction', 'reinvest')}
+                    className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
+                    style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                    🔄 {t('Se reinvierten', 'They reinvest')}
+                  </button>
+                </div>
               </div>
+
+              {/* Income destination — irrelevant while reinvesting */}
+              {form.dividendAction === 'reinvest' ? (
+                <p className="text-xs" style={{ color: 'var(--text-muted,#475569)' }}>
+                  {t('Cada pago se reinvierte en este mismo activo (aumenta tu posición).', 'Each payment is reinvested into this same asset (grows your position).')}
+                </p>
+              ) : (
+                <div>
+                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Pagos van a:', 'Payments go to:')}</label>
+                  <select value={form.incomeDestination}
+                    onChange={e => { if (e.target.value === '__new__') { setCreatingDest(true); return } set('incomeDestination', e.target.value) }}
+                    className={inputCls}>
+                    <option value="">{t('-- Seleccionar --', '-- Select --')}</option>
+                    {destItems.filter(it => it.id !== item.id).map(it => (
+                      <option key={it.id} value={it.id}>{it.name || it.symbol} {it.institution ? `(${it.institution})` : ''}</option>
+                    ))}
+                    {onCreateDestination && <option value="__new__">+ {t('Crear cuenta nueva', 'Create new account')}</option>}
+                  </select>
+                  {creatingDest && onCreateDestination && (
+                    <InlineCreateAccount onCreate={onCreateDestination} onCancel={() => setCreatingDest(false)}
+                      onCreated={handleDestCreated} lang={lang} defaultCurrency={form.currency} />
+                  )}
+                </div>
+              )}
 
               {/* Capital return */}
               <div>
@@ -1112,6 +1190,42 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               </div>
             </div>
           )}
+
+          {/* Flow confirmation — a value delta needs classifying before save */}
+          {pendingFlowConfirm && (() => {
+            const { delta, updated } = pendingFlowConfirm
+            const isAdd = delta > 0
+            const amtStr = `${form.currency} ${Math.abs(delta).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+            return (
+              <div className="p-3 border rounded-lg text-xs space-y-2" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-orange) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-orange) 25%, transparent)' }}>
+                <p style={{ color: 'var(--accent-orange)' }} className="font-medium">
+                  {t(`El valor de esta cuenta ${isAdd ? 'subió' : 'bajó'} ${amtStr}. ¿Qué representa este cambio?`,
+                     `This account's value ${isAdd ? 'increased' : 'decreased'} by ${amtStr}. What does this change represent?`)}
+                </p>
+                <p style={{ color: 'var(--text-muted)' }}>
+                  {t('Si es dinero que metiste o sacaste, se registra como movimiento para que no infle tu retorno.',
+                     'If it is money you added or took out, it is recorded as a cash flow so it does not inflate your return.')}
+                </p>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <button type="button" disabled={saving} onClick={() => finalizeSave(updated, true, delta)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50"
+                    style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}>
+                    {isAdd ? t('Aporte (dinero nuevo)', 'Deposit (new money)') : t('Retiro (dinero que salió)', 'Withdrawal (money out)')}
+                  </button>
+                  <button type="button" disabled={saving} onClick={() => finalizeSave(updated, false, 0)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium border disabled:opacity-50"
+                    style={{ color: 'var(--text-secondary)', borderColor: 'var(--card-border)' }}>
+                    {t('Ganancia/pérdida o corrección', 'Gain/loss or correction')}
+                  </button>
+                  <button type="button" disabled={saving} onClick={() => setPendingFlowConfirm(null)}
+                    className="px-3 py-1.5 rounded-lg text-xs disabled:opacity-50"
+                    style={{ color: 'var(--text-muted)' }}>
+                    {t('Cancelar', 'Cancel')}
+                  </button>
+                </div>
+              </div>
+            )
+          })()}
 
           {/* Actions */}
           <div className="flex gap-3 pt-2">

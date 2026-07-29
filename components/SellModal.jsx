@@ -6,13 +6,20 @@ import { useFocusTrap } from '@/hooks/useFocusTrap'
 const QTY_EPSILON = 0.0001
 const BANK_RE = /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i
 
-export default function SellModal({ item, onClose, onExecuteSale, onSold, existingItems = [], lang = 'es' }) {
+// Sale figures must be in the item's ORIGINAL currency (the one its lots' costBasis
+// is stored in) so realizedGain stays consistent. Enriched items carry _original*
+// (raw price/currency); for base-currency items these equal the converted fields,
+// so the common case is unchanged.
+const origPriceOf = (it) => it._originalPrice ?? it.currentPrice ?? it._originalPurchasePrice ?? it.purchasePrice ?? 0
+
+export default function SellModal({ item, onClose, onExecuteSale, onSold, existingItems = [], lang = 'es', convert }) {
   const trapRef = useFocusTrap()
   const t = (es, en) => lang === 'es' ? es : en
   const today = new Date().toISOString().split('T')[0]
+  const origCur = item._originalCurrency || item.currency || 'USD'
 
   const [quantity, setQuantity] = useState('')
-  const [salePrice, setSalePrice] = useState((item.currentPrice || item.purchasePrice || '').toString())
+  const [salePrice, setSalePrice] = useState((origPriceOf(item) || '').toString())
   const [saleDate, setSaleDate] = useState(today)
   const [destination, setDestination] = useState('__exit__')
   const [destinationId, setDestinationId] = useState('')
@@ -25,7 +32,7 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
     return () => window.removeEventListener('keydown', handleEsc)
   }, [onClose])
 
-  const totalValue = (item.quantity || 0) * (item.currentPrice || item.purchasePrice || 0)
+  const totalValue = (item.quantity || 0) * origPriceOf(item)
   const qtySell = parseFloat(quantity) || 0
   const price = parseFloat(salePrice) || 0
   const proceeds = Math.round(qtySell * price * 100) / 100
@@ -47,14 +54,18 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
         ? { quantity: 0, currentPrice: 0, purchasePrice: 0, saleDate, salePrice: price, soldFully: true }
         : { quantity: newQty }
 
-      // SELL transaction (+ WITHDRAWAL if the money leaves the portfolio)
+      // SELL transaction (+ WITHDRAWAL if the money leaves the portfolio).
+      // _linkedItemId ties it to the sold asset; _destinationItemId (set below
+      // for '__stay__') records WHERE the proceeds landed so history and the
+      // completeness engine can follow the money.
       const transactions = [{
         type: 'SELL',
         symbol: item.symbol || '',
         description: `${t('Venta', 'Sale')} ${qtySell} ${item.name || item.symbol} @ ${price}`,
         date: saleDate,
         totalAmount: proceeds,
-        currency: item.currency || 'USD',
+        currency: origCur,
+        _linkedItemId: item.id,
       }]
 
       let destId, destFields, destLot
@@ -65,21 +76,33 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
           description: `${t('Retiro', 'Withdrawal')} - ${item.name || item.symbol}`,
           date: saleDate,
           totalAmount: proceeds,
-          currency: item.currency || 'USD',
+          currency: origCur,
+          _linkedItemId: item.id,
+          _origin: 'external',
         })
       } else if (destination === '__stay__' && destinationId) {
         const dest = existingItems.find((it) => it.id === destinationId)
         if (dest) {
+          // Proceeds are in the SOLD asset's currency; the destination stores raw
+          // values in ITS OWN currency — convert before crediting, or a USD sale
+          // into a GTQ account credits ~7.8× less than reality.
+          const destCur = dest._originalCurrency || dest.currency || origCur
+          const proceedsInDest = (convert && destCur !== origCur)
+            ? convert(proceeds, origCur, destCur)
+            : proceeds
+          transactions[0]._destinationItemId = dest.id
           if (BANK_RE.test(dest.type || '')) {
-            const newBal = (dest.currentPrice || dest.purchasePrice || 0) + proceeds
+            const newBal = origPriceOf(dest) + proceedsInDest
             destId = dest.id
             destFields = { currentPrice: newBal, purchasePrice: newBal }
           } else {
             // Buying more of a market asset with the proceeds: bump quantity AND
             // create a matching lot so lots stay consistent with item.quantity
-            // (otherwise FIFO/cost-basis breaks per the lots model).
-            const destPrice = dest.currentPrice || dest.purchasePrice || 1
-            const addQty = proceeds / destPrice
+            // (otherwise FIFO/cost-basis breaks per the lots model). Use the dest's
+            // ORIGINAL price/currency so the new lot's costBasis matches the lots
+            // convention.
+            const destPrice = origPriceOf(dest) || 1
+            const addQty = proceedsInDest / destPrice
             destId = dest.id
             destFields = { quantity: (dest.quantity || 0) + addQty }
             destLot = {
@@ -88,7 +111,7 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
               costBasis: destPrice,
               acquisitionDate: saleDate,
               institution: dest.institution || '',
-              currency: dest.currency || item.currency || 'USD',
+              currency: dest._originalCurrency || dest.currency || origCur,
             }
           }
         }
@@ -142,13 +165,13 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
             <div className="text-center">
               <p className={labelCls}>{t('Precio actual', 'Current price')}</p>
               <p className="text-sm font-semibold text-[var(--text-primary,white)]">
-                {(item.currentPrice || item.purchasePrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {origPriceOf(item).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             </div>
             <div className="text-center">
               <p className={labelCls}>{t('Valor total', 'Total value')}</p>
               <p className="text-sm font-semibold text-emerald-400">
-                {item.currency} {totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {origCur} {totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             </div>
           </div>
@@ -175,7 +198,7 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
           {/* Proceeds preview */}
           {qtySell > 0 && price > 0 && (
             <p className="text-xs text-emerald-400 -mt-2">
-              {t('Monto de venta', 'Sale proceeds')}: {item.currency || 'USD'} {proceeds.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {t('Monto de venta', 'Sale proceeds')}: {origCur} {proceeds.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
           )}
 
@@ -204,7 +227,7 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
                     ? 'bg-[var(--input-bg,#000000)] text-[var(--text-secondary,#94a3b8)] border-[var(--card-border,#38383A)]'
                     : ''
                 }`}
-                style={destination === '__stay__' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.2)', borderColor: 'rgba(59,130,246,0.4)' } : undefined}>{t('Queda en el portafolio', 'Stays in portfolio')}</button>
+                style={destination === '__stay__' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.4)' } : undefined}>{t('Queda en el portafolio', 'Stays in portfolio')}</button>
             </div>
             {destination === '__exit__' && (
               <p className="text-xs text-red-400/70">
@@ -235,7 +258,7 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
               {t('Cancelar', 'Cancel')}
             </button>
             <button type="submit" disabled={saving}
-              className="flex-1 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-500 disabled:opacity-50 transition-colors text-sm font-medium">
+              className="flex-1 py-2.5 bg-red-600 rounded-lg hover:bg-red-500 disabled:opacity-50 transition-colors text-sm font-medium" style={{ color: '#ffffff' }}>
               {saving ? '...' : t('Confirmar Venta', 'Confirm Sale')}
             </button>
           </div>

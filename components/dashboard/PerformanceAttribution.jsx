@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { formatCurrency, getTypeCategory, TYPE_COLORS } from './utils'
 import { computeAssetAttribution } from './analytics'
+import { InfoTip } from '../ui/Tooltip'
 
 export default function PerformanceAttribution({ items, lang }) {
   const t = (es, en) => lang === 'es' ? es : en
@@ -45,6 +46,7 @@ export default function PerformanceAttribution({ items, lang }) {
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
           {t('ATRIBUCIÓN DE RENDIMIENTO', 'PERFORMANCE ATTRIBUTION')}
+          <InfoTip text={t('Qué activos explican tu ganancia/pérdida total: cuánto aportó cada posición (ganancia no realizada = valor actual − costo). Los de arriba suman, los de abajo restan.', 'Which assets explain your total gain/loss: each position\'s contribution (unrealized gain = current value − cost). Top ones add, bottom ones drag.')} />
         </h3>
         <span className="text-sm font-bold" style={{ color: attribution.totalGain >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
           {attribution.totalGain >= 0 ? '+' : ''}{formatCurrency(attribution.totalGain)}

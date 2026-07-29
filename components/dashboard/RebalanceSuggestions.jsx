@@ -11,6 +11,7 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
   const t = (es, en) => lang === 'es' ? es : en
   const [editing, setEditing] = useState(false)
 
+  const usingDefaultTargets = !goals?.allocationTargets
   const targets = goals?.allocationTargets || DEFAULT_TARGETS
   const [form, setForm] = useState({ ...DEFAULT_TARGETS, ...targets })
 
@@ -60,6 +61,12 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
           {t('REBALANCEO', 'REBALANCING')}
         </h3>
         <div className="flex items-center gap-2">
+          {usingDefaultTargets && (
+            <span className="text-xs px-2 py-0.5 rounded-full" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-tertiary)' }}
+              title={t('Los % objetivo son los de fábrica (40/20/15/10/5…). El drift y las sugerencias se calculan contra ellos: edítalos para que reflejen TU plan.', 'Target % are factory defaults (40/20/15/10/5…). Drift and suggestions are computed against them: edit to reflect YOUR plan.')}>
+              {t('Objetivo por defecto', 'Default target')}
+            </span>
+          )}
           {isBalanced ? (
             <span className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
               {t('Balanceado', 'Balanced')}
@@ -99,7 +106,7 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
               {t('Total', 'Total')}: {Object.values(form).reduce((s, v) => s + (v || 0), 0)}%
             </span>
             <button onClick={handleSave}
-              className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors">
+              className="px-3 py-1.5 text-xs bg-blue-600 rounded-lg hover:bg-blue-500 transition-colors" style={{ color: '#ffffff' }}>
               {t('Guardar', 'Save')}
             </button>
           </div>
@@ -122,8 +129,9 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
                     <span className="text-slate-600">/</span>
                     <span className="text-slate-400">{c.targetPct}%</span>
                     {(isOver || isUnder) && (
-                      <span className="font-medium" style={{ color: isOver ? 'var(--text-negative)' : 'var(--accent-green)' }}>
-                        {c.diff > 0 ? '+' : ''}{c.diff.toFixed(1)}%
+                      <span className="font-semibold font-mono tabular-nums px-1.5 py-0.5 rounded"
+                        style={{ color: isOver ? 'var(--text-negative)' : 'var(--accent-green)', backgroundColor: isOver ? 'var(--alert-error-bg)' : 'var(--alert-success-bg)' }}>
+                        {isOver ? '↑' : '↓'}{Math.abs(c.diff).toFixed(1)}%
                       </span>
                     )}
                   </div>
@@ -145,13 +153,14 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
                 .filter((c) => Math.abs(c.diff) > 2 && c.targetPct > 0)
                 .slice(0, 3)
                 .map((c) => (
-                  <div key={c.cat} className="flex items-center justify-between text-xs">
-                    <span className="text-slate-400">
-                      {c.diff > 0
-                        ? `${t('Reducir', 'Reduce')} ${c.cat}`
-                        : `${t('Aumentar', 'Increase')} ${c.cat}`}
-                    </span>
+                  <div key={c.cat} className="flex items-center justify-between text-xs px-2.5 py-1.5 rounded-lg capitalize"
+                    style={{ backgroundColor: c.diff > 0 ? 'var(--alert-error-bg)' : 'var(--alert-success-bg)' }}>
                     <span className="font-medium" style={{ color: c.diff > 0 ? 'var(--text-negative)' : 'var(--accent-green)' }}>
+                      {c.diff > 0
+                        ? `↓ ${t('Reducir', 'Reduce')} ${c.cat}`
+                        : `↑ ${t('Aumentar', 'Increase')} ${c.cat}`}
+                    </span>
+                    <span className="font-semibold font-mono tabular-nums" style={{ color: c.diff > 0 ? 'var(--text-negative)' : 'var(--accent-green)' }}>
                       {c.diff > 0 ? '-' : '+'}{formatCurrency(Math.abs(c.diffValue))}
                     </span>
                   </div>

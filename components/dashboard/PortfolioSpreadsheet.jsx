@@ -20,7 +20,7 @@ const CATEGORY_LABELS = {
 const CATEGORY_ACCENT = {
   banks: '#94a3b8',
   funds: '#818cf8',
-  stocks: '#3b82f6',
+  stocks: 'var(--accent-blue)',
   crypto: '#f97316',
   alternatives: '#a78bfa',
   bonds: '#f59e0b',
@@ -67,7 +67,7 @@ function getOriginalValue(item) {
 }
 
 function formatNum(val) {
-  if (val == null || !isFinite(val)) return '—'
+  if (val == null || !isFinite(val)) return '-'
   return Math.abs(val).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
@@ -75,7 +75,7 @@ function isMarketAsset(type) {
   return /stock|crypto|fund|etf/i.test(type) && !/realestate|inmueble/i.test(type)
 }
 
-const EditableCell = memo(function EditableCell({ displayValue, editValue, onSave, hint, isNegative, currency, onEditStart, onEditEnd }) {
+const EditableCell = memo(function EditableCell({ displayValue, editValue, onSave, hint, editLabel, livePreview, isNegative, currency, onEditStart, onEditEnd }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const ref = useRef(null)
@@ -92,7 +92,9 @@ const EditableCell = memo(function EditableCell({ displayValue, editValue, onSav
 
   const commit = () => {
     const num = parseFloat(draft.replace(/[^0-9.\-]/g, ''))
-    if (isFinite(num) && num >= 0) onSave(num)
+    // Same ceiling as file imports (lib/validation MAX_PRICE) — inline edits
+    // shouldn't be the one door where absurd values slip in.
+    if (isFinite(num) && num >= 0 && num <= 10_000_000) onSave(num)
     setEditing(false)
     onEditEnd?.()
   }
@@ -103,17 +105,26 @@ const EditableCell = memo(function EditableCell({ displayValue, editValue, onSav
   }
 
   if (editing) {
+    const draftNum = parseFloat(draft.replace(/[^0-9.\-]/g, ''))
+    // Floating editor: the label/preview are often wider than the 128px month
+    // column, so the open editor renders as an anchored popover with its own
+    // solid background instead of bleeding transparently into neighbor cells.
     return (
-      <div>
-        <div className="flex items-center gap-1">
-          {currency && <span className="text-xs text-blue-500 font-semibold shrink-0">{currency}</span>}
-          <input ref={ref} type="text" value={draft}
-            onChange={e => setDraft(e.target.value)}
-            onBlur={commit}
-            onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') cancel() }}
-            className="w-full bg-white border-2 border-blue-400 rounded px-3 py-1.5 text-sm text-slate-900 text-right font-mono focus:outline-none focus:ring-2 focus:ring-blue-300" />
+      <div className="relative" style={{ minHeight: '2rem' }}>
+        <div className="absolute right-0 top-0 z-30 min-w-[190px] bg-white border-2 border-blue-400 rounded-lg shadow-lg p-2">
+          {editLabel && <p className="text-xs text-blue-500 text-right mb-1 font-medium">{editLabel}</p>}
+          <div className="flex items-center gap-1">
+            {currency && <span className="text-xs text-blue-500 font-semibold shrink-0">{currency}</span>}
+            <input ref={ref} type="text" value={draft}
+              onChange={e => setDraft(e.target.value)}
+              onBlur={commit}
+              onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') cancel() }}
+              className="w-full bg-white border border-blue-300 rounded px-2 py-1.5 text-sm text-slate-900 text-right font-mono focus:outline-none focus:ring-2 focus:ring-blue-300" />
+          </div>
+          {livePreview && isFinite(draftNum) && (
+            <p className="text-xs text-blue-400 text-right mt-1">{livePreview(draftNum)}</p>
+          )}
         </div>
-        {hint && <p className="text-xs text-blue-400 text-right mt-0.5 pr-1">{hint}</p>}
       </div>
     )
   }
@@ -196,9 +207,11 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   const monthlyTotals = useMemo(() => {
     const base = baseCurrency || 'USD'
     // Snapshot NAV per month — used as a fallback for months that have no per-item
-    // reconstruction yet. These snapshots are IBKR/broker NAV and omit manually
-    // added assets, so they are NOT the source of truth for the TOTAL row.
+    // reconstruction yet. IBKR equityHistory snapshots (_source:'ibkr') are broker
+    // NAV and omit manually added assets (bonds, crypto, cash), so a month that
+    // falls back to one would undercount; we augment it below.
     const snapByMonth = {}
+    const ibkrSourceByMonth = {}
     if (snapshots && snapshots.length) {
       const dates = {}
       snapshots.forEach(s => {
@@ -210,6 +223,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         if (!dates[key] || sDate > dates[key]) {
           dates[key] = sDate
           snapByMonth[key] = convert ? convert(val, 'USD', base) : val
+          ibkrSourceByMonth[key] = s._source === 'ibkr'
         }
       })
       const keys = Object.keys(snapByMonth).sort()
@@ -220,11 +234,35 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         }
       }
     }
+
+    // Non-IBKR (manually-added) assets that an IBKR-only snapshot leaves out.
+    // Held flat at their current value, gated by an effective acquisition date so a
+    // bond bought in June doesn't inflate May. This mirrors what the per-item
+    // reconstruction produces (IBKR scaled to NAV + manual assets held flat).
+    const monthEndOf = (mk) => { const [y, m] = mk.split('-').map(Number); return Date.UTC(y, m, 0) }
+    const effAcqTs = (it) => {
+      const a = it.acquisitionDate ? Date.parse(it.acquisitionDate) : NaN
+      if (!isNaN(a)) return a
+      const c = it.createdAt ? new Date(it.createdAt) : null
+      return c && !isNaN(c.getTime()) ? Date.UTC(c.getUTCFullYear(), 0, 1) : null
+    }
+    const nonIbkrItems = items
+      .filter(it => it._source !== 'ibkr' && it.id && !isExcludedFromNetWorth(it))
+      .map(it => ({ value: getItemValue(it), acqTs: effAcqTs(it) }))
+      .filter(it => it.value)
+    const nonIbkrValueAtMonth = (mk) => {
+      const end = monthEndOf(mk)
+      let sum = 0
+      for (const it of nonIbkrItems) if (it.acqTs == null || it.acqTs <= end) sum += it.value
+      return sum
+    }
+
     // Prefer summing the per-item reconstruction: IBKR items are already scaled to
     // the snapshot NAV and summed together with manually-added static assets, so
     // the TOTAL row matches the sum of the category rows AND includes assets the
     // broker-only snapshots leave out (a bond, a cash fund). Fall back to the raw
-    // snapshot NAV for any month not reconstructed yet.
+    // snapshot NAV for any month not reconstructed yet — augmenting IBKR-only
+    // snapshots with the manual assets so the fallback never undercounts.
     const result = {}
     const allKeys = new Set([...Object.keys(snapByMonth), ...Object.keys(historicalItems)])
     allKeys.forEach(mk => {
@@ -243,11 +281,32 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         })
         result[mk] = sum
       } else if (snapByMonth[mk] != null) {
-        result[mk] = snapByMonth[mk]
+        let total = snapByMonth[mk]
+        if (ibkrSourceByMonth[mk] && nonIbkrItems.length) total += nonIbkrValueAtMonth(mk)
+        result[mk] = total
       }
     })
     return result
   }, [snapshots, convert, baseCurrency, historicalItems, items])
+
+  // Months whose TOTAL comes from a snapshot NAV fallback (no per-item breakdown):
+  // the category rows show "—" there while the TOTAL shows a figure, so we mark
+  // those cells instead of leaving a column that visibly doesn't add up.
+  const fallbackMonths = useMemo(() => {
+    const s = new Set()
+    Object.keys(monthlyTotals).forEach(mk => {
+      const hist = historicalItems[mk]
+      if (!hist || Object.keys(hist).length === 0) s.add(mk)
+    })
+    return s
+  }, [monthlyTotals, historicalItems])
+
+  // Any displayed historical cell reconstructed as a held-flat estimate → show the
+  // "~" legend so users know which numbers are inferred vs price/NAV-backed.
+  const hasEstimated = useMemo(() =>
+    months.some(mk => mk !== currentMonthKey && Object.values(historicalItems[mk] || {}).some(c => c?.estimated)),
+    [months, currentMonthKey, historicalItems]
+  )
 
   const itemSnapshotSavedRef = useRef(false)
   const lastFetchedYearRef = useRef(null)
@@ -255,10 +314,18 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   const snapshotSig = snapshots?.length ?? 0
   const txSig = transactions?.length ?? 0
   const lotSig = lots?.length ?? 0
+  // Content signature over the edit-sensitive item fields. Counts alone miss in-place
+  // edits (quantity/symbol/date/cost), which must invalidate the cached history or
+  // past columns keep showing stale values. Live price ticks are deliberately
+  // excluded (currentPrice changes constantly and doesn't affect reconstruction
+  // inputs); purchasePrice uses the raw original so FX refreshes don't wipe it.
+  const itemContentSig = useMemo(() => (items || []).map(it =>
+    `${it.id}:${it.symbol || ''}:${it.quantity || 0}:${it._originalPurchasePrice ?? it.purchasePrice ?? 0}:${it.acquisitionDate || ''}`
+  ).sort().join('|'), [items])
   useEffect(() => {
     lastFetchedYearRef.current = null
     setHistoricalItems({})
-  }, [snapshotSig, txSig, lotSig])
+  }, [snapshotSig, txSig, lotSig, itemContentSig])
 
   useEffect(() => {
     if (!onLoadItemSnapshots || months.length === 0) return
@@ -292,7 +359,9 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
 
   useEffect(() => {
     if (!onSaveItemSnapshots || !items || items.length === 0) return
-    const itemHash = items.reduce((s, it) => s + (it.currentPrice || 0), 0).toFixed(2)
+    // Key on id+qty+symbol+price — a price-sum alone misses quantity/symbol edits
+    // that leave the sum unchanged, so the current month's snapshot never re-saved.
+    const itemHash = items.map(it => `${it.id}:${it.symbol || ''}:${it.quantity || 0}:${(it.currentPrice || 0).toFixed(4)}`).sort().join('|')
     const saveKey = `${currentMonthKey}-${itemHash}`
     if (itemSnapshotSavedRef.current === saveKey) return
     itemSnapshotSavedRef.current = saveKey
@@ -435,12 +504,26 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       )
       if (hasOpenLots) {
         setBlockMsg(lang === 'es'
-          ? `${item.symbol}: cantidad controlada por lots — edita desde el detalle del activo`
-          : `${item.symbol}: quantity managed by lots — edit from asset detail`)
+          ? `${item.symbol}: cantidad controlada por lots: edita desde el detalle del activo`
+          : `${item.symbol}: quantity managed by lots: edit from asset detail`)
         setTimeout(() => setBlockMsg(null), 4000)
         return
       }
-      onUpdateItem(item.id, { quantity: newVal })
+      // The cell displays the total VALUE, so the user edits value — derive the
+      // quantity from it at the current (raw-currency) price instead of making
+      // them type a share count into a dollar-looking cell.
+      const price = item._originalPrice ?? item.currentPrice ?? item.purchasePrice ?? 0
+      if (!(price > 0)) {
+        setBlockMsg(lang === 'es'
+          ? `${item.symbol}: sin precio actual: no se puede derivar la cantidad`
+          : `${item.symbol}: no current price: cannot derive quantity`)
+        setTimeout(() => setBlockMsg(null), 4000)
+        return
+      }
+      const cur = item._originalCurrency || item.currency || 'USD'
+      const base = baseCurrency || 'USD'
+      const valInOriginal = showOriginal ? newVal : (convert ? convert(newVal, base, cur) : newVal)
+      onUpdateItem(item.id, { quantity: valInOriginal / price })
     } else {
       const qty = item.quantity || 1
       if (showOriginal) {
@@ -455,6 +538,78 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     setSaveMsg(lang === 'es' ? `${item.symbol || item.name}: guardado` : `${item.symbol || item.name}: saved`)
     setTimeout(() => setSaveMsg(null), 2000)
   }, [onUpdateItem, showOriginal, convert, baseCurrency, lots, lang])
+
+  // CSV of the reconstructed monthly matrix — the dashboard export only covers
+  // current items + transactions, not this per-month history.
+  const handleExportCsv = useCallback(() => {
+    const esc = (s) => {
+      const str = String(s ?? '')
+      return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str
+    }
+    const rows = []
+    rows.push([t('Categoría', 'Category'), t('Activo', 'Asset'), ...months].map(esc).join(','))
+    categories.forEach(cat => {
+      cat.institutions.forEach(inst => {
+        inst.items.forEach(it => {
+          const cells = months.map(mk => {
+            if (mk === currentMonthKey) return getItemValue(it).toFixed(2)
+            const v = historicalItems[mk]?.[it.id]?.value
+            return v != null ? v.toFixed(2) : ''
+          })
+          rows.push([cat.label, it.symbol || it.name || '', ...cells].map(esc).join(','))
+        })
+      })
+    })
+    rows.push(['TOTAL', '', ...months.map(mk => {
+      const v = mk === currentMonthKey ? grandTotal : monthlyTotals[mk]
+      return v != null ? v.toFixed(2) : ''
+    })].map(esc).join(','))
+    const blob = new Blob(['﻿' + rows.join('\n')], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `chispudo-spreadsheet-${selectedYear}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [categories, months, currentMonthKey, historicalItems, monthlyTotals, grandTotal, selectedYear, lang])
+
+  // Same data walk as the CSV, as a real workbook: month labels as headers,
+  // numbers as numbers (not strings), fallback-month totals flagged with * and
+  // a footnote. xlsx is already a dependency (dashboard export uses it).
+  const handleExportXlsx = useCallback(async () => {
+    const XLSX = await import('xlsx')
+    const header = [t('Categoría', 'Category'), t('Activo', 'Asset'), ...months.map((mk) => getMonthLabel(mk, lang))]
+    const rows = [header]
+    categories.forEach(cat => {
+      cat.institutions.forEach(inst => {
+        inst.items.forEach(it => {
+          const cells = months.map(mk => {
+            if (mk === currentMonthKey) return Math.round(getItemValue(it) * 100) / 100
+            const v = historicalItems[mk]?.[it.id]?.value
+            return v != null ? Math.round(v * 100) / 100 : null
+          })
+          rows.push([cat.label, it.symbol || it.name || '', ...cells])
+        })
+      })
+    })
+    rows.push(['TOTAL', '', ...months.map(mk => {
+      const v = mk === currentMonthKey ? grandTotal : monthlyTotals[mk]
+      if (v == null) return null
+      const rounded = Math.round(v * 100) / 100
+      // Fallback months carry the snapshot NAV without per-item breakdown —
+      // keep the asterisk convention from the on-screen table.
+      return fallbackMonths.has(mk) ? `${rounded}*` : rounded
+    })])
+    if ([...fallbackMonths].some((mk) => months.includes(mk))) {
+      rows.push([])
+      rows.push([t('* Total del snapshot: sin desglose por categoría', '* Snapshot total: no per-category breakdown')])
+    }
+    const ws = XLSX.utils.aoa_to_sheet(rows)
+    ws['!cols'] = [{ wch: 18 }, { wch: 22 }, ...months.map(() => ({ wch: 12 }))]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, `${t('Matriz', 'Matrix')} ${selectedYear}`)
+    XLSX.writeFile(wb, `chispudo-spreadsheet-${selectedYear}.xlsx`)
+  }, [categories, months, currentMonthKey, historicalItems, monthlyTotals, grandTotal, fallbackMonths, selectedYear, lang])
 
   const isCurrentYear = selectedYear === now.getFullYear()
   const prevMonthKey = months.length >= 2 ? months[months.length - 2] : null
@@ -521,10 +676,20 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
               </button>
             ))}
           </div>
+          <button onClick={handleExportCsv}
+            className="px-2.5 py-1 text-xs rounded-md border border-slate-200 bg-slate-100 text-slate-500 hover:bg-white hover:text-slate-900 transition-colors"
+            title={t('Descargar la matriz mensual como CSV', 'Download the monthly matrix as CSV')}>
+            CSV
+          </button>
+          <button onClick={handleExportXlsx}
+            className="px-2.5 py-1 text-xs rounded-md border border-slate-200 bg-slate-100 text-slate-500 hover:bg-white hover:text-slate-900 transition-colors"
+            title={t('Descargar la matriz mensual como Excel', 'Download the monthly matrix as Excel')}>
+            Excel
+          </button>
           {loadingHistory && (
             <span className="text-xs text-blue-500 animate-pulse">{t('Calculando historial...', 'Calculating history...')}</span>
           )}
-          <span className="text-xs text-slate-400 hidden sm:inline">{t('Click para editar', 'Click to edit')}</span>
+          <span className="text-xs text-slate-400">{t('Click para editar', 'Click to edit')}</span>
         </div>
       </div>
 
@@ -541,7 +706,9 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         </div>
       )}
       <div className="overflow-x-auto">
-        <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', width: `${100 / zoom}%` }}>
+        {/* CSS zoom (not transform: scale) — a transform creates a containing
+            block that disables position:sticky on the name column at zoom ≠ 1. */}
+        <div style={{ zoom }}>
         <table className="w-full text-sm border-collapse min-w-[600px]">
           <caption className="sr-only">{t('Valores históricos del portafolio por mes', 'Historical portfolio values by month')}</caption>
           <thead>
@@ -607,11 +774,12 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                         </td>
                       )
                     }
-                    const monthTotal = monthlyTotals[mk]
-                    const catEstimate = monthTotal && grandTotal > 0 ? monthTotal * (cat.total / grandTotal) : null
+                    // No real per-item history for this category/month → show a dash
+                    // instead of a pro-rata estimate. The platform must not invent
+                    // historical values (e.g. cash balances have no price history).
                     return (
-                      <td key={mk} className="text-right py-3 px-2 tabular-nums font-mono text-sm text-slate-400 italic">
-                        {catEstimate ? formatNum(catEstimate) : ''}
+                      <td key={mk} className="text-right py-3 px-2 tabular-nums font-mono text-sm" style={{ color: '#cbd5e1' }}>
+                        -
                       </td>
                     )
                   })}
@@ -670,10 +838,15 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                         const market = isMarketAsset(item.type)
                         const qty = item.quantity || 0
                         const qtyLabel = market && qty ? qty.toLocaleString(undefined, { maximumFractionDigits: 4 }) : null
-                        const editVal = market ? qty.toFixed(4).replace(/\.?0+$/, '') : Math.abs(val).toFixed(2)
-                        const editHint = market
-                          ? (item.symbol || item.name || '')
+                        // The cell shows the total value, so the editor edits value
+                        // too (quantity is derived from the price on save).
+                        const editVal = Math.abs(val).toFixed(2)
+                        const rawPrice = item._originalPrice ?? item.currentPrice ?? item.purchasePrice ?? 0
+                        const valToOriginal = (v) => showOriginal ? v : (convert ? convert(v, baseCurrency || 'USD', itemCurrency(item)) : v)
+                        const livePreview = market && rawPrice > 0
+                          ? (v) => `≈ ${(valToOriginal(v) / rawPrice).toLocaleString(undefined, { maximumFractionDigits: 4 })} ${item.symbol || ''}`
                           : null
+                        const editLabel = t(`Valor de ${item.symbol || item.name || ''}`, `Value of ${item.symbol || item.name || ''}`)
                         const isEditing = editingItemId === item.id
                         const rowStyle = isEditing ? { backgroundColor: '#eff6ff', boxShadow: 'inset 0 0 0 2px #93c5fd' } : { backgroundColor: '#ffffff' }
                         const stickyStyle = isEditing ? { backgroundColor: '#eff6ff' } : { backgroundColor: '#ffffff' }
@@ -692,7 +865,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                                 {qtyLabel && (
                                   <span className="text-slate-400 text-xs shrink-0">{qtyLabel}</span>
                                 )}
-                                <span className="text-xs font-semibold shrink-0" style={{ color: isEditing ? '#3b82f6' : '#94a3b8' }}>{cur}</span>
+                                <span className="text-xs font-semibold shrink-0" style={{ color: isEditing ? 'var(--accent-blue)' : '#94a3b8' }}>{cur}</span>
                                 {item.rewardType && REWARD_ICONS[item.rewardType] && (
                                   <span className="text-xs bg-cyan-50 text-cyan-600 px-1 rounded shrink-0" title={item.rewardType}>
                                     {REWARD_ICONS[item.rewardType]}
@@ -704,15 +877,24 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                               </div>
                             </td>
                             <td />
-                            {showOriginal && <td className="text-center py-2.5 px-1 text-xs" style={{ color: isEditing ? '#3b82f6' : '#94a3b8', fontWeight: isEditing ? 600 : undefined }}>{cur}</td>}
+                            {showOriginal && <td className="text-center py-2.5 px-1 text-xs" style={{ color: isEditing ? 'var(--accent-blue)' : '#94a3b8', fontWeight: isEditing ? 600 : undefined }}>{cur}</td>}
                             {months.map(mk => {
                               const isCurrent = mk === currentMonthKey
                               if (!isCurrent) {
                                 const histMonth = historicalItems[mk]
-                                const histVal = histMonth && item.id ? histMonth[item.id]?.value : null
+                                const cell = histMonth && item.id ? histMonth[item.id] : null
+                                const histVal = cell?.value ?? null
+                                const isEst = histVal != null && cell?.estimated
                                 return (
                                   <td key={mk} className="text-right py-2.5 px-2 tabular-nums font-mono text-sm" style={{ color: histVal != null ? '#64748b' : '#cbd5e1' }}>
-                                    {histVal != null ? formatNum(histVal) : '—'}
+                                    {histVal != null ? (
+                                      <>
+                                        {isEst && (
+                                          <span title={t('Valor estimado: mantenido plano; sin precio histórico real', 'Estimated: held flat; no real historical price')} style={{ color: '#cbd5e1', marginRight: '1px' }}>~</span>
+                                        )}
+                                        {formatNum(histVal)}
+                                      </>
+                                    ) : '-'}
                                   </td>
                                 )
                               }
@@ -723,7 +905,8 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                                       displayValue={val}
                                       editValue={editVal}
                                       onSave={(v) => handleValueUpdate(item, v)}
-                                      hint={editHint}
+                                      editLabel={editLabel}
+                                      livePreview={livePreview}
                                       isNegative={val < 0}
                                       currency={cur}
                                       onEditStart={() => setEditingItemId(item.id)}
@@ -790,7 +973,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                     const val = ri.months[mk]
                     return (
                       <td key={mk} className="text-right py-2 px-2 tabular-nums font-mono text-sm" style={isCurrent ? { backgroundColor: '#eff6ff', color: '#cbd5e1' } : { color: val != null ? '#64748b' : '#cbd5e1' }}>
-                        {isCurrent ? '—' : val != null ? formatNum(val) : '—'}
+                        {isCurrent ? '-' : val != null ? formatNum(val) : '-'}
                       </td>
                     )
                   })}
@@ -840,9 +1023,11 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
               {months.map(mk => {
                 const isCurrent = mk === currentMonthKey
                 const val = isCurrent ? grandTotal : (monthlyTotals[mk] || null)
+                const isFallback = !isCurrent && val != null && fallbackMonths.has(mk)
                 return (
-                  <td key={mk} className="text-right py-3.5 px-2 font-black tabular-nums font-mono text-base" style={isCurrent ? { backgroundColor: '#eff6ff', color: '#0f172a' } : { color: val ? '#475569' : '#cbd5e1' }}>
-                    {val ? formatCurrency(val) : '—'}
+                  <td key={mk} className="text-right py-3.5 px-2 font-black tabular-nums font-mono text-base" style={isCurrent ? { backgroundColor: '#eff6ff', color: '#0f172a' } : { color: val ? '#475569' : '#cbd5e1' }}
+                    title={isFallback ? t('Valor total del snapshot (sin desglose por categoría para este mes)', 'Snapshot total (no per-category breakdown for this month)') : undefined}>
+                    {val ? formatCurrency(val) : '-'}{isFallback ? <span style={{ color: '#94a3b8' }}>*</span> : null}
                   </td>
                 )
               })}
@@ -920,6 +1105,18 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
           </tfoot>
         </table>
         </div>
+        {months.some(mk => mk !== currentMonthKey && monthlyTotals[mk] != null && fallbackMonths.has(mk)) && (
+          <p className="text-xs px-4 py-2" style={{ color: '#94a3b8' }}>
+            * {t('Total del snapshot de ese mes: aún sin desglose por categoría (las filas muestran "-").',
+                 'Snapshot total for that month: no per-category breakdown yet (rows show "-").')}
+          </p>
+        )}
+        {hasEstimated && (
+          <p className="text-xs px-4 py-2" style={{ color: '#94a3b8' }}>
+            ~ {t('Valor estimado: reconstruido manteniendo el saldo/posición plano (sin precio histórico de mercado).',
+                 'Estimated: reconstructed by holding the balance/position flat (no historical market price).')}
+          </p>
+        )}
       </div>
     </div>
   )

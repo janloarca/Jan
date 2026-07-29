@@ -116,7 +116,7 @@ export default function PrintSummary({ items, netWorth, totalAssets, snapshots, 
             <div className="border rounded-lg p-3 text-center">
               <div className="text-xs text-gray-500">{t('Rendimiento', 'Return')}</div>
               <div className="text-xl font-bold" style={{ color: (growthPct || 0) >= 0 ? '#059669' : '#dc2626' }}>
-                {growthPct != null ? `${growthPct >= 0 ? '+' : ''}${growthPct.toFixed(1)}%` : '—'}
+                {growthPct != null ? `${growthPct >= 0 ? '+' : ''}${growthPct.toFixed(1)}%` : '-'}
               </div>
             </div>
           </div>
@@ -228,7 +228,7 @@ export default function PrintSummary({ items, netWorth, totalAssets, snapshots, 
                     <tr key={it.id} className="border-b border-gray-100">
                       <td className="py-1.5 font-medium">{it.name || it.symbol}</td>
                       <td className="py-1.5 text-right text-red-600">{formatCurrency(Math.abs(getItemValue(it)))}</td>
-                      <td className="py-1.5 text-right text-gray-500">{it.interestRate ? `${it.interestRate}%` : '—'}</td>
+                      <td className="py-1.5 text-right text-gray-500">{it.interestRate ? `${it.interestRate}%` : '-'}</td>
                     </tr>
                   ))}
                 </tbody>

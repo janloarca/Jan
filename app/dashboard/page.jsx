@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 import { useDashboardData } from '@/hooks/useDashboardData'
 import { getItemValue, formatCurrency, getTypeCategory } from '@/components/dashboard/utils'
 import Header from '@/components/dashboard/Header'
+import AdBanner from '@/components/AdBanner'
+import DashboardLoading from './loading'
 import NetWorthCard from '@/components/dashboard/NetWorthCard'
 import ActionButtons from '@/components/dashboard/ActionButtons'
 import SectionCollapse from '@/components/dashboard/SectionCollapse'
@@ -37,6 +39,7 @@ const IBKRSyncModal = dynamic(() => import('@/components/IBKRSyncModal'), { load
 const BlockchainSyncModal = dynamic(() => import('@/components/BlockchainSyncModal'), { loading: () => <ModalSkeleton /> })
 const LedgerSyncModal = dynamic(() => import('@/components/LedgerSyncModal'), { loading: () => <ModalSkeleton /> })
 const SettingsModal = dynamic(() => import('@/components/SettingsModal'), { loading: () => <ModalSkeleton /> })
+const ConnectionsModal = dynamic(() => import('@/components/ConnectionsModal'), { loading: () => <ModalSkeleton /> })
 const EditAccountModal = dynamic(() => import('@/components/EditAccountModal'), { loading: () => <ModalSkeleton /> })
 const OptimizeModal = dynamic(() => import('@/components/OptimizeModal'))
 const AssetDetailModal = dynamic(() => import('@/components/dashboard/AssetDetailModal'), { loading: () => <ModalSkeleton /> })
@@ -55,11 +58,15 @@ const ConcentrationRisk = dynamic(() => import('@/components/dashboard/Concentra
 const GainsReport = dynamic(() => import('@/components/dashboard/GainsReport'), { loading: () => <SkeletonCard /> })
 const PerformanceAttribution = dynamic(() => import('@/components/dashboard/PerformanceAttribution'), { loading: () => <SkeletonCard /> })
 const RiskMetrics = dynamic(() => import('@/components/dashboard/RiskMetrics'), { loading: () => <SkeletonCard /> })
-const InsightCards = dynamic(() => import('@/components/dashboard/InsightCards'), { loading: () => <SkeletonCard /> })
 const InstitutionPerformance = dynamic(() => import('@/components/dashboard/InstitutionPerformance'), { loading: () => <SkeletonCard /> })
 const RebalanceSuggestions = dynamic(() => import('@/components/dashboard/RebalanceSuggestions'), { loading: () => <SkeletonCard /> })
 
 import RecentTransactions from '@/components/dashboard/RecentTransactions'
+import ChispuSuggestions from '@/components/dashboard/ChispuSuggestions'
+import CostsCard from '@/components/dashboard/CostsCard'
+import { reconcileBrokerPositions } from '@/lib/brokerReconcile'
+import { analyzeDataCompleteness } from '@/lib/dataCompleteness'
+import { DEMO_ITEMS, DEMO_LOTS, DEMO_TRANSACTIONS, isDemoItem } from '@/lib/demoData'
 import AssetAllocation from '@/components/dashboard/AssetAllocation'
 import NotificationCenter from '@/components/dashboard/NotificationCenter'
 import InstallPrompt from '@/components/dashboard/InstallPrompt'
@@ -96,10 +103,8 @@ function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, 
         ))}
       </div>
       {tab === 'health' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <CardBoundary id="AN-01"><FinancialHealth items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} /></CardBoundary>
-          <CardBoundary id="AN-02"><ConcentrationRisk items={portfolioItems} lang={lang} /></CardBoundary>
-        </div>
+        // Concentration lives in its own dedicated tab; don't duplicate it here.
+        <CardBoundary id="AN-01"><FinancialHealth items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} /></CardBoundary>
       )}
       {tab === 'risk' && !beginnerMode && (
         <CardBoundary id="AN-05"><RiskMetrics snapshots={snapshots} benchmarkData={benchmarkData} netWorth={netWorth} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} benchmarkName={benchmarkName} /></CardBoundary>
@@ -108,7 +113,7 @@ function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, 
         <CardBoundary id="AN-02b"><ConcentrationRisk items={portfolioItems} lang={lang} /></CardBoundary>
       )}
       {tab === 'gains' && hasLots && (
-        <CardBoundary id="AN-03"><GainsReport lots={lots} items={portfolioItems} lang={lang} /></CardBoundary>
+        <CardBoundary id="AN-03"><GainsReport lots={lots} items={portfolioItems} lang={lang} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
       )}
       {tab === 'attribution' && !beginnerMode && (
         <CardBoundary id="AN-04"><PerformanceAttribution items={portfolioItems} lang={lang} /></CardBoundary>
@@ -122,6 +127,7 @@ export default function DashboardPage() {
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [modal, setModal] = useState(null)
+  const [cashflowPrefill, setCashflowPrefill] = useState(null)
   const [importBrokerHint, setImportBrokerHint] = useState(null)
   const [editItem, setEditItem] = useState(null)
   const [sellItem, setSellItem] = useState(null)
@@ -243,10 +249,10 @@ export default function DashboardPage() {
 
   // Data layer
   const {
-    items, snapshots, transactions, goals, settings, profile, alerts, lots, portfolios, financeTransactions,
+    items, snapshots, augmentedSnapshots, transactions, goals, settings, profile, effectiveProfile, alerts, lots, portfolios, financeTransactions,
     dataLoading,
-    addItem, updateItem, deleteItem, deleteAllItems,
-    saveSnapshot, deleteAllSnapshots,
+    addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
+    saveSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, deleteAllTransactions,
     addAlert, deleteAlert,
     addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution,
@@ -262,11 +268,11 @@ export default function DashboardPage() {
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
     returnYTD, ytdChange, returnSinceStart, sinceStartDate,
     annualDividends, estimatedAnnualIncome,
-    netContributions, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
+    netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
     benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName,
-    handleIBKRSync,
+    handleIBKRSync, triggerIBKRSync,
     ibkrConnected, ibkrAutoSyncing,
-    ibkrSyncStatus, ibkrSyncErrorCode, ibkrLastSync,
+    ibkrSyncStatus, ibkrSyncErrorCode, ibkrLastSync, ibkrSyncSummary,
   } = useDashboardData({ user, lang, activePortfolio, activeEntity })
 
   const handleOpenImport = useCallback((bh) => {
@@ -275,9 +281,52 @@ export default function DashboardPage() {
   }, [])
   const handleOpenAccount = useCallback(() => setModal('account'), [])
   const handleOpenSettings = useCallback(() => setModal('settings'), [])
+  const handleOpenConnections = useCallback(() => setModal('connections'), [])
   const handleOpenTransfer = useCallback(() => setModal('transfer'), [])
-  const handleOpenCashflow = useCallback(() => setModal('cashflow'), [])
+  const handleOpenCashflow = useCallback(() => { setCashflowPrefill(null); setModal('cashflow') }, [])
+  const handleOpenCashflowPrefilled = useCallback((prefill) => { setCashflowPrefill(prefill || null); setModal('cashflow') }, [])
   const handleOpenIBKR = useCallback(() => setModal('ibkr'), [])
+
+  // Header IBKR pill: when connected, sync in the BACKGROUND (no blocking modal) and
+  // let the user keep working — the pill spins (ibkrAutoSyncing) and a toast reports the
+  // outcome. Not connected → open the modal to enter credentials the first time.
+  const handleIBKRPillClick = useCallback(async () => {
+    if (!ibkrConnected) { setModal('ibkr'); return }
+    if (ibkrAutoSyncing) return
+    showToast(lang === 'es' ? 'Sincronizando IBKR… puedes seguir usando la app' : 'Syncing IBKR… you can keep using the app', 'info', 2500)
+    const res = await triggerIBKRSync()
+    if (res?.ok) {
+      // Tell the user how much HISTORY arrived, not just position count: a short
+      // Flex period silently truncates equity/deposits/trades, and this toast is
+      // the only feedback on the background path.
+      const shortHistory = res.equityDays > 1 && res.equityOldest
+        && new Date(res.equityOldest).getTime() > Date.UTC(new Date().getUTCFullYear(), 0, 1) + 45 * 86400000
+      if (res.equityDays <= 1) {
+        showToast(lang === 'es'
+          ? `IBKR: ${res.count} posiciones, pero SIN historial de valor. Agrega "Equity Summary" a tu Flex Query.`
+          : `IBKR: ${res.count} positions but NO value history. Add "Equity Summary" to your Flex Query.`, 'error', 6000)
+      } else if (shortHistory) {
+        showToast(lang === 'es'
+          ? `IBKR: ${res.count} posiciones · solo ${res.equityDays} días de historial (desde ${res.equityOldest}). El período del Flex Query sigue corto: ponlo en "Year to Date".`
+          : `IBKR: ${res.count} positions · only ${res.equityDays} days of history (since ${res.equityOldest}). Your Flex Query period is still short: set it to "Year to Date".`, 'error', 8000)
+      } else if ((res.trades || 0) + (res.flows || 0) === 0) {
+        // History arrived but zero trades/deposits: the query is missing the
+        // Trades / Cash Transactions sections, so the rewound value curve and
+        // deposit-aware returns cannot be built.
+        showToast(lang === 'es'
+          ? `IBKR: ${res.count} posiciones · ${res.equityDays} días de historial, pero 0 trades y 0 depósitos. Agrega "Trades" y "Cash Transactions" a tu Flex Query.`
+          : `IBKR: ${res.count} positions · ${res.equityDays} days of history but 0 trades and 0 deposits. Add "Trades" and "Cash Transactions" to your Flex Query.`, 'error', 8000)
+      } else {
+        showToast(lang === 'es'
+          ? `IBKR: ${res.count} posiciones · ${res.equityDays} días de historial · ${res.trades || 0} trades · ${res.flows || 0} depósitos/retiros · ${res.dividends || 0} dividendos`
+          : `IBKR: ${res.count} positions · ${res.equityDays} days of history · ${res.trades || 0} trades · ${res.flows || 0} deposits/withdrawals · ${res.dividends || 0} dividends`, 'success', 7000)
+      }
+    } else if (res?.error === 'BUSY') {
+      // a sync is already running; the spinning pill already communicates this
+    } else if (res?.error !== 'NOT_CONNECTED') {
+      showToast(lang === 'es' ? 'IBKR no se pudo actualizar. Revisa la conexión en Ajustes.' : 'IBKR sync failed. Check the connection in Settings.', 'error', 4000)
+    }
+  }, [ibkrConnected, ibkrAutoSyncing, triggerIBKRSync, lang])
   const handleOpenBlockchain = useCallback(() => setModal('blockchain'), [])
   const handleOpenPrint = useCallback(() => setModal('print'), [])
   const handleOpenReview = useCallback(() => setShowReview(true), [])
@@ -290,11 +339,23 @@ export default function DashboardPage() {
   const handleCloseReview = useCallback(() => setShowReview(false), [])
   const handleDismissToast = useCallback(() => setToast(null), [])
 
+  // Demo mode (onboarding sample data): seed via the batch import path and
+  // clean up selectively by the _source:'demo' flag.
+  const handleSeedDemo = useCallback(async () => {
+    await bulkImport({ items: DEMO_ITEMS, lots: DEMO_LOTS, transactions: DEMO_TRANSACTIONS })
+  }, [bulkImport])
+
   const showToast = useCallback((msg, type = 'success', duration = 3000) => {
     if (toastTimer.current) clearTimeout(toastTimer.current)
     setToast({ msg, type })
     toastTimer.current = setTimeout(() => setToast(null), duration)
   }, [])
+
+  const isDemoMode = useMemo(() => items.some(isDemoItem), [items])
+  const handleClearDemo = useCallback(async () => {
+    await deleteDemoData()
+    showToast(lang === 'es' ? 'Datos de ejemplo eliminados' : 'Sample data removed')
+  }, [deleteDemoData, showToast, lang])
 
   useEffect(() => {
     return () => { if (toastTimer.current) clearTimeout(toastTimer.current) }
@@ -303,8 +364,12 @@ export default function DashboardPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return
     const params = new URLSearchParams(window.location.search)
-    const oauthCode = params.get('oauth_code')
-    const oauthBroker = params.get('oauth_broker')
+    // The auth callback now delivers the single-use code in the URL FRAGMENT
+    // (never sent in Referer headers or server logs). Query is kept as a
+    // fallback for redirects already in flight during a deploy.
+    const hashParams = new URLSearchParams((window.location.hash || '').replace(/^#/, ''))
+    const oauthCode = hashParams.get('oauth_code') || params.get('oauth_code')
+    const oauthBroker = hashParams.get('oauth_broker') || params.get('oauth_broker')
     const oauthError = params.get('oauth_error')
     if (oauthError) {
       showToast(`OAuth error: ${oauthError}`, 'error', 5000)
@@ -363,6 +428,13 @@ export default function DashboardPage() {
       return Object.keys(patches).length > 0 ? { ...item, ...patches } : item
     })
   }, [rawPortfolioItems, enrichData])
+
+  // Data-completeness engine: gap findings + score over RAW data (items carry
+  // their own currency; the engine converts per-tx via `convert`).
+  const dataCompleteness = useMemo(
+    () => analyzeDataCompleteness({ items, transactions, lots, convert, baseCurrency }),
+    [items, transactions, lots, convert, baseCurrency]
+  )
 
   // Export XLSX
   const handleExport = useCallback(async () => {
@@ -463,14 +535,24 @@ export default function DashboardPage() {
   }, [handleExport, handleRefresh])
 
   const handleReport = useCallback(async () => {
-    const { generateReport } = await import('@/lib/generateReport')
-    await generateReport({
-      items: enrichedItems, snapshots, transactions,
-      netWorth, totalAssets, lang, returnYTD, annualDividends,
-      profileName: profile?.name || user?.displayName || '',
-    })
-    showToast(lang === 'es' ? 'PDF descargado' : 'PDF downloaded')
-  }, [enrichedItems, snapshots, transactions, lang, netWorth, totalAssets, returnYTD, annualDividends, profile, user, showToast])
+    if (!enrichedItems || enrichedItems.length === 0) {
+      showToast(lang === 'es' ? 'Agrega activos antes de generar el reporte' : 'Add assets before generating the report')
+      return
+    }
+    try {
+      const { generateReport } = await import('@/lib/generateReport')
+      await generateReport({
+        items: enrichedItems, snapshots, transactions,
+        netWorth, totalAssets, lang, returnYTD, annualDividends,
+        profileName: profile?.name || user?.displayName || '',
+        baseCurrency, convert,
+      })
+      showToast(lang === 'es' ? 'PDF descargado' : 'PDF downloaded')
+    } catch (err) {
+      console.error('[report] generation failed:', err)
+      showToast(lang === 'es' ? 'Error generando el PDF' : 'Error generating PDF')
+    }
+  }, [enrichedItems, snapshots, transactions, lang, netWorth, totalAssets, returnYTD, annualDividends, profile, user, showToast, baseCurrency, convert])
 
   const handleShare = useCallback(async () => {
     const t = (es, en) => lang === 'es' ? es : en
@@ -493,7 +575,7 @@ export default function DashboardPage() {
       .map((it) => `  ${it.name}: ${formatCurrency(it.value)}`)
       .join('\n')
     const text = [
-      `⚡ ${t('Mi Portafolio', 'My Portfolio')} — Chispudo`,
+      `⚡ ${t('Mi Portafolio', 'My Portfolio')}: Chispudo`,
       '',
       `${t('Patrimonio Neto', 'Net Worth')}: ${formatCurrency(netWorth)}`,
       `${t('Activos', 'Assets')}: ${formatCurrency(totalAssets)}`,
@@ -557,31 +639,40 @@ export default function DashboardPage() {
     }
   }, [dataLoading, enrichedItems.length])
 
+  // Returning from the per-page tour chain (PageTour routed back with the final
+  // flag): reopen the tour so it can show its closing card. The flag itself is
+  // consumed by OnboardingTour's finalStep initializer.
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && sessionStorage.getItem('chispudo-tour-final') === '1') {
+        setShowOnboarding(true)
+      }
+    } catch {}
+  }, [])
+
   const topBanner = useMemo(() => {
+    // Nothing to be stale ABOUT on an empty account: a brand-new user opening the app
+    // was greeted by an amber "exchange rates outdated" warning above the welcome
+    // screen, which reads as "this is broken" before they've added anything.
+    if (portfolioItems.length === 0) return null
     if (staleCode) return 'stale'
     if (ibkrSyncErrorCode === 'TOKEN_EXPIRED') return 'ibkr-expired'
     if (ibkrSyncErrorCode === 'INVALID_QUERY') return 'ibkr-query'
+    if (ibkrSyncErrorCode === 'LOCKED') return 'ibkr-locked'
+    // Any other auto-sync failure (RATE_LIMITED/TIMEOUT/UNKNOWN) was invisible:
+    // the user saw stale data with no hint that the last sync didn't run.
+    if (ibkrSyncErrorCode) return 'ibkr-failed'
     if (pricesError || ratesError) return 'prices'
-    if (contributionWarning) return 'contribution'
+    // The contribution hint is NOT a top-of-page alarm — it lives as a quiet
+    // muted note inside NetWorthCard (a 40%-growth-with-few-deposits nudge is
+    // informational, not a warning that should shout in amber).
     return null
-  }, [staleCode, ibkrSyncErrorCode, pricesError, ratesError, contributionWarning])
+  }, [staleCode, ibkrSyncErrorCode, pricesError, ratesError, portfolioItems.length])
 
-  // Loading state
+  // Loading state — show the structural skeleton (same layout as the loaded page)
+  // instead of a lone spinner, so first paint already looks like the dashboard.
   if (authLoading || (user && dataLoading)) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-theme-base">
-        <div className="text-center">
-          <div className="inline-flex items-center gap-2 mb-4">
-            <span className="text-2xl" style={{ color: 'var(--accent-blue)' }}>⚡</span>
-            <span className="text-lg font-bold" style={{ color: 'var(--accent-blue)' }}>Chispudo</span>
-          </div>
-          <div className="block">
-            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-t-transparent" style={{ borderColor: '#3b82f6', borderTopColor: 'transparent' }} />
-          </div>
-          <p className="mt-4 text-slate-500 text-sm">{lang === 'es' ? 'Cargando tu portfolio...' : 'Loading your portfolio...'}</p>
-        </div>
-      </div>
-    )
+    return <DashboardLoading />
   }
 
   if (!user) return null
@@ -599,16 +690,19 @@ export default function DashboardPage() {
         pricesLoading={pricesLoading || ratesLoading}
         onAddAccount={handleOpenAccount}
         onCommandPalette={handleOpenCmdPalette}
+        onOpenConnections={handleOpenConnections}
         ibkrConnected={ibkrConnected}
         ibkrAutoSyncing={ibkrAutoSyncing}
+        ibkrSyncSummary={ibkrSyncSummary}
         ibkrSyncStatus={ibkrSyncStatus}
-        onIBKR={handleOpenIBKR}
+        onIBKR={handleIBKRPillClick}
+        friendsEnabled={settings?.friendsEnabled !== false}
       />
 
       {topBanner && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3">
           {topBanner === 'stale' && (
-            <div className="px-4 py-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)' }}>
+            <div className="px-4 py-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(37,99,235,0.1)', border: '1px solid rgba(37,99,235,0.2)' }}>
               <div className="flex items-center gap-2">
                 <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--accent-blue)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -631,7 +725,7 @@ export default function DashboardPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
                 <p className="text-sm font-medium" style={{ color: '#fcd34d' }}>
-                  {lang === 'es' ? 'Tu token de IBKR expiró — genera uno nuevo para mantener tu portafolio actualizado' : 'Your IBKR token has expired — generate a new one to keep your portfolio updated'}
+                  {lang === 'es' ? 'Tu token de IBKR expiró: genera uno nuevo para mantener tu portafolio actualizado' : 'Your IBKR token has expired: generate a new one to keep your portfolio updated'}
                 </p>
               </div>
               <button onClick={() => setModal('ibkr')}
@@ -648,13 +742,47 @@ export default function DashboardPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
                 <p className="text-sm font-medium" style={{ color: '#fcd34d' }}>
-                  {lang === 'es' ? 'Query ID de IBKR inválido — verifica tu Flex Query en IBKR' : 'Invalid IBKR Query ID — verify your Flex Query in IBKR'}
+                  {lang === 'es' ? 'Query ID de IBKR inválido: verifica tu Flex Query en IBKR' : 'Invalid IBKR Query ID: verify your Flex Query in IBKR'}
                 </p>
               </div>
               <button onClick={() => setModal('ibkr')}
                 className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
                 style={{ backgroundColor: '#d97706', color: '#fff' }}>
                 {lang === 'es' ? 'Configurar' : 'Configure'}
+              </button>
+            </div>
+          )}
+          {topBanner === 'ibkr-locked' && (
+            <div className="px-4 py-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 shrink-0" style={{ color: '#f87171' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+                <p className="text-sm font-medium" style={{ color: '#fca5a5' }}>
+                  {lang === 'es' ? 'IBKR bloqueó tu token: genera uno NUEVO en IBKR o importa un CSV mientras tanto' : 'IBKR locked your token: generate a NEW one in IBKR or import a CSV in the meantime'}
+                </p>
+              </div>
+              <button onClick={() => setModal('ibkr')}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
+                style={{ backgroundColor: '#dc2626', color: '#fff' }}>
+                {lang === 'es' ? 'Resolver' : 'Resolve'}
+              </button>
+            </div>
+          )}
+          {topBanner === 'ibkr-failed' && (
+            <div className="px-4 py-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}>
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 shrink-0" style={{ color: '#fbbf24' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+                <p className="text-sm font-medium" style={{ color: '#fcd34d' }}>
+                  {lang === 'es' ? 'La última sincronización con IBKR falló: tus datos pueden estar desactualizados' : 'The last IBKR sync failed: your data may be outdated'}
+                </p>
+              </div>
+              <button onClick={() => setModal('ibkr')}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
+                style={{ backgroundColor: '#d97706', color: '#fff' }}>
+                {lang === 'es' ? 'Reintentar' : 'Retry'}
               </button>
             </div>
           )}
@@ -666,9 +794,9 @@ export default function DashboardPage() {
                 </svg>
                 <p className="text-sm font-medium" style={{ color: '#fcd34d' }}>
                   {pricesError && ratesError
-                    ? (lang === 'es' ? 'Precios y tasas desactualizados — error de conexión' : 'Prices and rates outdated — connection error')
+                    ? (lang === 'es' ? 'Precios y tasas desactualizados: error de conexión' : 'Prices and rates outdated: connection error')
                     : pricesError
-                      ? (lang === 'es' ? 'Precios desactualizados — no se pudo conectar' : 'Prices outdated — could not connect')
+                      ? (lang === 'es' ? 'Precios desactualizados: no se pudo conectar' : 'Prices outdated: could not connect')
                       : (lang === 'es' ? 'Tasas de cambio desactualizadas' : 'Exchange rates outdated')}
                 </p>
               </div>
@@ -679,47 +807,46 @@ export default function DashboardPage() {
               </button>
             </div>
           )}
-          {topBanner === 'contribution' && (
-            <div className="px-4 py-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}>
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" style={{ color: '#fbbf24' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <p className="text-sm font-medium" style={{ color: '#fcd34d' }}>
-                  {lang === 'es'
-                    ? 'Tus retornos pueden no ser precisos — registra tus depósitos y retiros'
-                    : 'Your returns may not be accurate — log your deposits and withdrawals'}
-                </p>
-              </div>
-              <button onClick={() => setModal('cashflow')}
-                className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
-                style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
-                {lang === 'es' ? 'Registrar' : 'Log now'}
-              </button>
-            </div>
-          )}
         </div>
       )}
 
       <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-5 space-y-3 sm:space-y-4">
+        {/* Demo mode: the exit must always be obvious, even after the tour ends */}
+        {isDemoMode && (
+          <div className="flex items-center justify-between gap-2 px-4 py-2 rounded-xl text-xs"
+            style={{ backgroundColor: 'var(--alert-info-bg)', border: '1px solid var(--alert-info-border)' }}>
+            <span style={{ color: 'var(--text-secondary)' }}>
+              {lang === 'es' ? 'Estás explorando con datos de ejemplo: nada de esto es tuyo todavía.' : 'You are exploring with sample data: none of this is yours yet.'}
+            </span>
+            <button onClick={handleClearDemo}
+              className="shrink-0 px-2.5 py-1 rounded-lg font-medium"
+              style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
+              {lang === 'es' ? 'Borrar demo y empezar' : 'Delete demo and start'}
+            </button>
+          </div>
+        )}
+
+        {/* Time-sensitive alerts (maturities, dividends received) belong at the
+            top — buried at page-bottom they were invisible on mobile. */}
+        <NotificationCenter items={portfolioItems} transactions={transactions} lang={lang} />
         <div className="flex items-center gap-3 flex-wrap">
+          {/* Freshness dot: 1-day-old data is normal (snapshots are daily), so
+              1-13d stays neutral/muted — amber only kicks in at ≥14d. */}
           {dataAge === 0 ? (
             <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
-          ) : dataAge != null && dataAge >= 7 ? (
-            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#f87171' }} />
-          ) : dataAge != null && dataAge >= 1 ? (
+          ) : dataAge != null && dataAge >= 14 ? (
             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#fbbf24' }} />
           ) : (
-            <span className="w-2 h-2 rounded-full bg-slate-500" />
+            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--text-muted)' }} />
           )}
-          <span className="text-xs" style={{ color: dataAge >= 7 ? '#f87171' : dataAge >= 1 ? '#fbbf24' : '#7c8a9c' }}>
+          <span className="text-xs" style={{ color: dataAge != null && dataAge >= 14 ? '#fbbf24' : 'var(--text-muted)' }}>
             {dataAge === 0
               ? (lang === 'es' ? 'Datos al día' : 'Data up to date')
               : dataAge != null
                 ? (lang === 'es' ? `Actualizado hace ${dataAge}d` : `Updated ${dataAge}d ago`)
                 : (lang === 'es' ? 'Sin datos aún' : 'No data yet')}
           </span>
-          {dataAge != null && dataAge >= 7 && (
+          {dataAge != null && dataAge >= 14 && (
             <button onClick={handleRefresh} className="text-micro underline transition-colors" style={{ color: 'var(--accent-blue)' }}>
               {lang === 'es' ? 'Actualizar' : 'Refresh'}
             </button>
@@ -738,10 +865,11 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <h1 className="sr-only">{lang === 'es' ? 'Patrimonio — Dashboard' : 'Net Worth — Dashboard'}</h1>
+        <h1 className="sr-only">{lang === 'es' ? 'Patrimonio: Dashboard' : 'Net Worth: Dashboard'}</h1>
 
 
-        {portfolioItems.length === 0 && !dataLoading && (
+        {/* One onboarding surface at a time — don't stack this under the tour modal */}
+        {portfolioItems.length === 0 && !dataLoading && !showOnboarding && (
           <EmptyState
             onAdd={handleOpenAccount}
             onImport={handleOpenImport}
@@ -749,6 +877,13 @@ export default function DashboardPage() {
               const { generateTemplate } = await import('@/lib/generateTemplate')
               await generateTemplate()
             }}
+            onDemo={async () => {
+              // Seed first, then open the tour: with demo items already present
+              // the tour mounts straight into the anchored walkthrough.
+              await handleSeedDemo()
+              setShowOnboarding(true)
+            }}
+            onConnect={handleOpenConnections}
             lang={lang}
           />
         )}
@@ -756,51 +891,107 @@ export default function DashboardPage() {
         {/* ═══ RESUMEN ═══ */}
         {portfolioItems.length > 0 && <>
         <ErrorBoundary lang={lang}>
-        <div className="stagger-1 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 items-start">
+        <div className="stagger-1 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 items-stretch">
           <div className="md:col-span-1 lg:col-span-2 flex flex-col gap-4">
-            <CardBoundary id="OL-01">
+            <CardBoundary id="OL-01" className="h-full">
             <NetWorthCard
               netWorth={netWorth} returnYTD={returnYTD} ytdChange={ytdChange}
               returnSinceStart={returnSinceStart} sinceStartDate={sinceStartDate}
               yearlyChange={yearlyChange} dailyChange={dailyChange} convert={convert}
-              lang={lang} netContributions={netContributions} cashTotal={cashTotal} snapshots={snapshots}
+              lang={lang} netContributions={netContributions} cashTotal={cashTotal} snapshots={augmentedSnapshots} items={portfolioItems}
+              contributionWarning={contributionWarning} onLogFlow={() => setModal('cashflow')}
             />
             </CardBoundary>
           </div>
 
           <div className="md:col-span-2 lg:col-span-3 flex flex-col gap-4">
-            <CardBoundary id="OR-01"><PortfolioGrowthChart items={portfolioItems} lots={lots} snapshots={snapshots} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} benchmarkSymbol={benchmarkSymbol} benchmarkName={benchmarkName} onSaveSnapshot={saveSnapshot} /></CardBoundary>
+            <CardBoundary id="OR-01"><PortfolioGrowthChart items={portfolioItems} lots={lots} snapshots={snapshots} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} benchmarkSymbol={benchmarkSymbol} benchmarkName={benchmarkName} onSaveSnapshot={saveSnapshot} ibkrSyncSummary={ibkrSyncSummary} /></CardBoundary>
           </div>
         </div>
         </ErrorBoundary>
 
-        <div className="stagger-2"><CardBoundary id="INS-01"><InsightCards items={portfolioItems} profile={profile} netWorth={netWorth} estimatedAnnualIncome={estimatedAnnualIncome} lang={lang} onOpenSettings={handleOpenSettings} /></CardBoundary></div>
+        {/* Ad slot — first seam below the hero, visible without scrolling.
+            Renders nothing until NEXT_PUBLIC_ADSENSE_SLOT_FOOTER is set. */}
+        <div className="stagger-2"><AdBanner lang={lang} /></div>
 
-        {/* ═══ COMPOSICIÓN: Allocation + Rendimiento por institución ═══ */}
-        <div className="stagger-3 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 items-start">
-          <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} /></CardBoundary>
-          <CardBoundary id="INST-01"><InstitutionPerformance items={portfolioItems} lots={lots} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
-        </div>
+        {/* Insight cards feed removed at the user's request: the metrics it
+            repeated (emergency fund, FIRE, savings rate, passive income) live in
+            their dedicated cards, and the row left dead whitespace on tablets. */}
 
-        <ActionButtons
-          onImport={handleOpenImport} onAddAccount={handleOpenAccount}
-          onTransfer={handleOpenTransfer} onCashFlow={handleOpenCashflow} onExport={handleExport}
-          onShare={handleShare} onIntegrations={handleOpenSettings}
-          onReview={handleOpenReview} itemCount={enrichedItems.length} lang={lang}
-          ibkrSyncStatus={ibkrSyncStatus} ibkrLastSync={ibkrLastSync}
-        />
+        {/* Chispu te sugiere — data gaps with one-tap fixes. HIGH-severity
+            findings surface above the fold (before composition/actions);
+            otherwise the card sits below the action row. */}
+        {(() => {
+          const hasHigh = dataCompleteness.findings.some((f) => f.severity === 'high')
+          const suggestionsCard = (
+            <CardBoundary id="SUGG-01">
+              <ChispuSuggestions
+                findings={dataCompleteness.findings}
+                globalScore={dataCompleteness.globalScore}
+                items={items}
+                lang={lang}
+                onEditItem={setEditItem}
+                onOpenCashflow={handleOpenCashflowPrefilled}
+                onOpenReview={handleOpenReview}
+              />
+            </CardBoundary>
+          )
+          return (
+            <>
+              {hasHigh && suggestionsCard}
+
+              {/* ═══ COMPOSICIÓN: Allocation + Rendimiento por institución ═══ */}
+              <div className="stagger-3 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 items-start">
+                <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} /></CardBoundary>
+                <CardBoundary id="INST-01"><InstitutionPerformance items={portfolioItems} lang={lang} baseCurrency={baseCurrency} /></CardBoundary>
+              </div>
+
+              <ActionButtons
+                onImport={handleOpenImport} onAddAccount={handleOpenAccount}
+                onTransfer={handleOpenTransfer} onCashFlow={handleOpenCashflow} onExport={handleExport}
+                onShare={handleShare} onIntegrations={handleOpenConnections}
+                onReview={handleOpenReview} itemCount={enrichedItems.length} lang={lang}
+                ibkrSyncStatus={ibkrSyncStatus} ibkrLastSync={ibkrLastSync}
+              />
+
+              {!hasHigh && suggestionsCard}
+            </>
+          )
+        })()}
 
         {/* ═══ INGRESOS ═══ */}
         <div className="stagger-4"><SectionCollapse title={lang === 'es' ? 'Ingresos' : 'Income'} id="income">
           <ErrorBoundary lang={lang}>
-            <CardBoundary id="IG-01"><DividendIncome transactions={transactions} items={portfolioItems} convert={convert} baseCurrency={baseCurrency} lang={lang} netWorth={netWorth} /></CardBoundary>
+            <CardBoundary id="IG-01"><DividendIncome transactions={transactions} items={portfolioItems} convert={convert} baseCurrency={baseCurrency} lang={lang} totalAssets={totalAssets} /></CardBoundary>
           </ErrorBoundary>
         </SectionCollapse></div>
+
+        <div className="stagger-4">
+          <CardBoundary id="COST-01"><CostsCard transactions={transactions} convert={convert} baseCurrency={baseCurrency} lang={lang} /></CardBoundary>
+        </div>
 
         {/* ═══ ACTIVIDAD RECIENTE ═══ */}
         <div className="stagger-5"><SectionCollapse title={lang === 'es' ? 'Actividad Reciente' : 'Recent Activity'} id="activity" defaultOpen={false}>
           <ErrorBoundary lang={lang}>
-            <CardBoundary id="HO-02"><RecentTransactions transactions={transactions} lang={lang} onExportCSV={handleExportTransactionsCSV} /></CardBoundary>
+            {/* Gross money in vs out — one compact strip (three separate airy cards
+                wasted a whole row of vertical space on tablets) */}
+            {(contributionsSummary.totalContributed > 0 || contributionsSummary.totalWithdrawn > 0) && (
+              <div className="bg-theme-surface/80 rounded-xl border border-glass-border/50 px-4 py-2.5 mb-3 grid grid-cols-3 gap-3">
+                <div className="flex items-baseline gap-2 min-w-0">
+                  <span className="text-xs text-slate-500 shrink-0">{lang === 'es' ? 'Aportado' : 'Deposited'}</span>
+                  <span className="text-sm font-bold font-mono tabular-nums truncate" style={{ color: 'var(--accent-green)' }}>{formatCurrency(contributionsSummary.totalContributed)}</span>
+                </div>
+                <div className="flex items-baseline gap-2 min-w-0 justify-center">
+                  <span className="text-xs text-slate-500 shrink-0">{lang === 'es' ? 'Retirado' : 'Withdrawn'}</span>
+                  <span className="text-sm font-bold font-mono tabular-nums truncate" style={{ color: 'var(--text-negative)' }}>{formatCurrency(contributionsSummary.totalWithdrawn)}</span>
+                </div>
+                <div className="flex items-baseline gap-2 min-w-0 justify-end">
+                  <span className="text-xs text-slate-500 shrink-0">{lang === 'es' ? 'Neto' : 'Net'}</span>
+                  <span className="text-sm font-bold font-mono tabular-nums truncate" style={{ color: 'var(--text-primary)' }}>{formatCurrency(contributionsSummary.netContributions)}</span>
+                </div>
+              </div>
+            )}
+            <CardBoundary id="HO-02"><RecentTransactions transactions={transactions} items={items} lang={lang} onExportCSV={handleExportTransactionsCSV} /></CardBoundary>
           </ErrorBoundary>
         </SectionCollapse></div>
 
@@ -817,11 +1008,10 @@ export default function DashboardPage() {
         {/* ═══ ANALISIS ═══ */}
         <SectionCollapse title={lang === 'es' ? 'Análisis' : 'Analysis'} id="analysis" defaultOpen={!beginnerMode && !!(lots && lots.length > 0)}>
           <ErrorBoundary lang={lang}>
-            <AnalysisTabs lang={lang} portfolioItems={portfolioItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lots={lots} transactions={transactions} convert={convert} baseCurrency={baseCurrency} benchmarkData={benchmarkData} benchmarkName={benchmarkName} beginnerMode={beginnerMode} />
+            <AnalysisTabs lang={lang} portfolioItems={portfolioItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={augmentedSnapshots} lots={lots} transactions={transactions} convert={convert} baseCurrency={baseCurrency} benchmarkData={benchmarkData} benchmarkName={benchmarkName} beginnerMode={beginnerMode} />
           </ErrorBoundary>
         </SectionCollapse></div>
 
-        <NotificationCenter items={portfolioItems} transactions={transactions} lang={lang} />
         <InstallPrompt lang={lang} />
 
         <div className="flex items-center justify-center gap-3 pt-4 pb-8">
@@ -834,6 +1024,7 @@ export default function DashboardPage() {
             {lang === 'es' ? 'Imprimir Resumen' : 'Print Summary'}
           </button>
         </div>
+
         </>}
       </main>
 
@@ -842,6 +1033,7 @@ export default function DashboardPage() {
           onClose={handleCloseModal} onImportItems={addItem}
           onImportTransaction={addTransaction} onImportSnapshot={saveSnapshot}
           onAddLot={addLot} onAddFinanceTransaction={addFinanceTransaction}
+          existingFinanceTransactions={financeTransactions}
           onUpdateItem={updateItem} onDeleteItem={deleteItem} onBulkImport={bulkImport}
           existingItems={items} existingLots={lots}
           activePortfolio={activePortfolio} activeEntity={activeEntity !== '__all__' ? activeEntity : 'default'}
@@ -878,7 +1070,7 @@ export default function DashboardPage() {
           item={sellItem} onClose={handleCloseSell}
           onExecuteSale={executeSaleAtomic}
           onSold={() => showToast(lang === 'es' ? `${sellItem.symbol} vendido` : `${sellItem.symbol} sold`)}
-          existingItems={items} lang={lang}
+          existingItems={items} lang={lang} convert={convert}
         />
       )}
 
@@ -890,9 +1082,19 @@ export default function DashboardPage() {
             showToast(lang === 'es' ? `IBKR: ${data.items?.length || 0} posiciones sincronizadas` : `IBKR: ${data.items?.length || 0} positions synced`)
           }}
           savedToken={settings?.ibkrToken || ''} savedQueryId={settings?.ibkrQueryId || ''}
+          vaultMigrated={!!settings?._ibkrVaultMigrated} syncSummary={ibkrSyncSummary}
           onSaveCredentials={(creds) => { saveSettings({ ...creds, _ibkrLastSync: new Date().toISOString(), _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
-          onDisconnect={() => {
-            saveSettings({ ibkrToken: null, ibkrQueryId: null, _ibkrLastSync: null, _ibkrLastAutoSync: null, _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null })
+          onApiSyncSuccess={() => { saveSettings({ _ibkrLastSync: new Date().toISOString(), _ibkrAutoSyncStatus: 'ok', _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
+          onDisconnect={async () => {
+            saveSettings({ ibkrToken: null, ibkrQueryId: null, _ibkrVaultMigrated: null, _ibkrLastSync: null, _ibkrLastAutoSync: null, _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null })
+            // Also wipe the SERVER vault — clearing only the client doc left the
+            // encrypted token alive, so the connection resurfaced and auto-synced.
+            try {
+              await authFetch('/api/brokers/ibkr', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'save-credentials', token: '', queryId: '' }),
+              })
+            } catch (e) { console.error('[ibkr] vault clear on disconnect failed:', e?.message) }
             showToast(lang === 'es' ? 'IBKR desconectado' : 'IBKR disconnected')
           }}
           uid={user?.uid} lang={lang}
@@ -958,8 +1160,18 @@ export default function DashboardPage() {
             await addTransaction(tx)
             showToast(lang === 'es' ? 'Flujo de caja registrado' : 'Cash flow recorded')
           }}
+          onTransfer={async (payload) => {
+            await transferFunds(payload)
+            showToast(lang === 'es' ? 'Transferencia registrada' : 'Transfer recorded')
+          }}
+          onExecuteContribution={async (payload) => {
+            await executeContribution(payload)
+            showToast(lang === 'es' ? 'Movimiento registrado' : 'Movement recorded')
+          }}
+          existingItems={items}
           lang={lang}
           baseCurrency={baseCurrency}
+          prefill={cashflowPrefill}
         />
       )}
 
@@ -975,30 +1187,13 @@ export default function DashboardPage() {
           onDeleteAllItems={deleteAllItems} onDeleteAllSnapshots={deleteAllSnapshots}
           onDeleteAllTransactions={deleteAllTransactions}
           onDeleteAllFinanceTransactions={deleteAllFinanceTransactions}
+          onDeleteItemGroup={deleteItemGroup}
+          onSetLang={() => handleSetLang('toggle')}
           entities={entities}
           onAddEntity={addEntity}
           onUpdateEntity={updateEntityData}
           onDeleteEntity={deleteEntity}
-          lastSyncTime={settings?._ibkrLastSync || settings?._ibkrLastAutoSync || null}
-          portfolioItems={portfolioItems}
-          onSyncBroker={async (brokerId, data) => {
-            const positions = data?.positions || data || []
-            const posArray = Array.isArray(positions) ? positions : []
-            const mapped = posArray.filter(p => p.quantity !== 0).map(p => ({
-              symbol: (p.symbol || '').toUpperCase(), name: p.name || p.symbol,
-              type: p.type || 'Stock', quantity: Math.abs(p.quantity || 0),
-              purchasePrice: p.purchasePrice || 0, currentPrice: p.currentPrice || 0,
-              institution: p.institution || brokerId || 'Unknown', currency: p.currency || 'USD',
-              acquisitionDate: p.acquisitionDate,
-              _source: brokerId || 'broker',
-            }))
-            if (mapped.length > 0) {
-              await bulkImport({ items: mapped }, (done, total) => {
-                showToast(`Sync ${brokerId}: ${done}/${total}`, 'info', 2000)
-              })
-              showToast(`${brokerId}: ${mapped.length} positions synced`, 'success')
-            }
-          }}
+          onOpenConnections={handleOpenConnections}
           onExportBackup={() => {
             const data = {
               exportDate: new Date().toISOString(), version: '1.0',
@@ -1012,23 +1207,74 @@ export default function DashboardPage() {
             a.click()
             URL.revokeObjectURL(url)
           }}
+          theme={theme} onToggleTheme={handleSetTheme} lang={lang}
+          beginnerMode={beginnerMode} onToggleBeginner={handleToggleBeginner}
+          portfolioItems={portfolioItems}
+        />
+      )}
+
+      {modal === 'connections' && (
+        <ConnectionsModal
+          onClose={handleCloseModal}
+          lang={lang}
+          lastSyncTime={settings?._ibkrLastSync || settings?._ibkrLastAutoSync || null}
+          portfolioItems={portfolioItems}
           onOpenIBKR={handleOpenIBKR}
+          onBackgroundSync={handleIBKRPillClick}
           onImport={handleOpenImport}
           onAddAccount={handleOpenAccount}
           onOpenBlockchain={handleOpenBlockchain}
-          theme={theme} onToggleTheme={handleSetTheme} lang={lang}
-          beginnerMode={beginnerMode} onToggleBeginner={handleToggleBeginner}
-          profile={profile} onSaveProfile={saveProfile}
+          onSaveCredentials={(creds) => { saveSettings({ ...creds, _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
+          onSyncBroker={async (brokerId, data) => {
+            const positions = data?.positions || data || []
+            const posArray = Array.isArray(positions) ? positions : []
+            const source = brokerId || 'broker'
+            const mapped = posArray.filter(p => p.quantity !== 0).map(p => ({
+              symbol: (p.symbol || '').toUpperCase(), name: p.name || p.symbol,
+              type: p.type || 'Stock', quantity: Math.abs(p.quantity || 0),
+              purchasePrice: p.purchasePrice || 0, currentPrice: p.currentPrice || 0,
+              institution: p.institution || brokerId || 'Unknown', currency: p.currency || 'USD',
+              acquisitionDate: p.acquisitionDate,
+              // Preserve the short/long side: the old mapper dropped isDebt and
+              // Math.abs'd the quantity, so a hedged book imported as 100% long.
+              isDebt: !!p.isDebt || (p.quantity || 0) < 0,
+              conid: p.conid, accountId: p.accountId || p._ibkrAccountId,
+              _source: source,
+            }))
+            if (mapped.length === 0) {
+              showToast(lang === 'es'
+                ? `${brokerId}: no se recibieron posiciones. Revisa la conexión.`
+                : `${brokerId}: no positions received. Check the connection.`, 'error')
+              return
+            }
+            // Reconcile instead of blind-inserting: bulkImport mints a new id per
+            // item, so the old path duplicated the whole portfolio on every sync.
+            const tag = {}
+            if (activePortfolio && activePortfolio !== '__all__') tag.portfolioId = activePortfolio
+            if (activeEntity && activeEntity !== '__all__' && activeEntity !== 'default') tag.entityId = activeEntity
+            const { newItems, updateItems, deleteIds } = reconcileBrokerPositions({
+              incoming: mapped, existing: items, source, tag,
+            })
+            await bulkImport({ items: newItems, updateItems, deleteIds }, (done, total) => {
+              showToast(`Sync ${brokerId}: ${done}/${total}`, 'info', 2000)
+            })
+            const parts = [
+              `${mapped.length} ${lang === 'es' ? 'posiciones' : 'positions'}`,
+              newItems.length ? `+${newItems.length}` : null,
+              deleteIds.length ? `-${deleteIds.length}` : null,
+            ].filter(Boolean)
+            showToast(`${brokerId}: ${parts.join(' · ')}`, 'success')
+          }}
         />
       )}
 
       {modal === 'print' && (
         <PrintSummary items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets}
-          snapshots={snapshots} transactions={transactions} lang={lang} onClose={handleCloseModal} />
+          snapshots={augmentedSnapshots} transactions={transactions} lang={lang} onClose={handleCloseModal} />
       )}
 
       {editItem && (
-        <EditAccountModal key={editItem.id} item={editItem} onClose={handleCloseEdit}
+        <EditAccountModal key={editItem.id} item={editItem} onClose={handleCloseEdit} entities={entities}
           onSave={async (updated) => {
             const { id, ...fields } = updated
             await updateItem(editItem.id, fields)
@@ -1068,6 +1314,7 @@ export default function DashboardPage() {
           onClose={handleCloseReview}
           onEditItem={setEditItem}
           lang={lang}
+          findings={dataCompleteness.findings}
         />
       )}
 
@@ -1078,6 +1325,7 @@ export default function DashboardPage() {
         onAdd={handleOpenAccount} onImport={handleOpenImport}
         onExport={handleExport} onShare={handleShare}
         onSettings={handleOpenSettings} onSearch={handleOpenCmdPalette} lang={lang}
+        friendsEnabled={settings?.friendsEnabled !== false}
       />
 
       {showOnboarding && (
@@ -1087,6 +1335,9 @@ export default function DashboardPage() {
             else if (action === 'settings') setModal('settings')
           }}
           onComplete={() => setShowOnboarding(false)}
+          onSeedDemo={handleSeedDemo}
+          onClearDemo={handleClearDemo}
+          demoActive={isDemoMode}
         />
       )}
 

@@ -1,0 +1,204 @@
+'use client'
+
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
+import { useDashboardData } from '@/hooks/useDashboardData'
+import { computeCosts } from '@/lib/costsSummary'
+import PageShell, { PageTitle } from '@/components/PageShell'
+import { SkeletonCard } from '@/components/dashboard/Skeleton'
+import { Receipt, TrendingDown, Landmark, Percent, ArrowDownRight } from 'lucide-react'
+
+export default function CostsPage() {
+  const router = useRouter()
+  const [user, setUser] = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
+  const [lang, setLang] = useState('es')
+  const [year, setYear] = useState('all')
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('chispudo-lang')
+      if (saved === 'en' || saved === 'es') setLang(saved)
+    }
+  }, [])
+  const handleSetLang = useCallback(() => {
+    const next = lang === 'en' ? 'es' : 'en'
+    setLang(next)
+    if (typeof window !== 'undefined') localStorage.setItem('chispudo-lang', next)
+  }, [lang])
+
+  useEffect(() => {
+    let unsubscribe = () => {}
+    async function initAuth() {
+      const { auth } = await import('@/lib/firebase')
+      const { onIdTokenChanged } = await import('firebase/auth')
+      if (!auth) { setAuthLoading(false); router.push('/login'); return }
+      unsubscribe = onIdTokenChanged(auth, (currentUser) => {
+        if (!currentUser) router.push('/login')
+        else setUser(currentUser)
+        setAuthLoading(false)
+      })
+    }
+    initAuth()
+    return () => unsubscribe()
+  }, [router])
+
+  const { transactions, convert, baseCurrency, settings, dataLoading } =
+    useDashboardData({ user, lang, activePortfolio: '__all__' })
+
+  const t = useCallback((es, en) => (lang === 'es' ? es : en), [lang])
+
+  const years = useMemo(() => {
+    const set = new Set()
+    for (const tx of transactions || []) {
+      if (tx.date && tx.date.length >= 4) set.add(tx.date.slice(0, 4))
+    }
+    return [...set].sort().reverse()
+  }, [transactions])
+
+  const costs = useMemo(
+    () => computeCosts({ transactions, convert, baseCurrency, year: year === 'all' ? null : year }),
+    [transactions, convert, baseCurrency, year]
+  )
+
+  const fmt = useCallback((n) => {
+    const v = Number(n) || 0
+    try {
+      return new Intl.NumberFormat(lang === 'es' ? 'es-GT' : 'en-US', {
+        style: 'currency', currency: baseCurrency || 'USD', maximumFractionDigits: 2,
+      }).format(v)
+    } catch {
+      return `${(baseCurrency || 'USD')} ${v.toFixed(2)}`
+    }
+  }, [lang, baseCurrency])
+
+  const monthLabel = useCallback((mk) => {
+    const [y, m] = mk.split('-')
+    const d = new Date(Number(y), Number(m) - 1, 1)
+    return d.toLocaleDateString(lang === 'es' ? 'es-ES' : 'en-US', { month: 'short', year: '2-digit' }).replace('.', '')
+  }, [lang])
+
+  // ---- render gates below every hook --------------------------------------
+  if (authLoading || (user && dataLoading)) {
+    return (
+      <div className="min-h-screen bg-theme-base">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-5">
+          <SkeletonCard /><SkeletonCard />
+        </div>
+      </div>
+    )
+  }
+  if (!user) return null
+
+  const breakdown = [
+    { key: 'commissions', label: t('Comisiones', 'Commissions'), value: costs.commissions, Icon: TrendingDown, hint: t('De compras y ventas', 'From buys and sells') },
+    { key: 'fees', label: t('Cargos', 'Fees'), value: costs.fees, Icon: Receipt, hint: t('Cargos del broker', 'Broker fees') },
+    { key: 'taxes', label: t('Impuestos', 'Taxes'), value: costs.taxes, Icon: Landmark, hint: t('Retención de impuestos', 'Withholding tax') },
+    { key: 'interestPaid', label: t('Intereses', 'Interest'), value: costs.interestPaid, Icon: Percent, hint: t('Interés de margen', 'Margin interest') },
+  ].filter((b) => b.value > 0)
+
+  const maxMonth = Math.max(1, ...costs.months.map((m) => costs.byMonth[m].total))
+
+  return (
+    <PageShell user={user} lang={lang} setLang={handleSetLang} settings={settings} width="narrow">
+        <PageTitle icon={Receipt}
+          title={t('Costos', 'Costs')}
+          subtitle={t('Lo que pagas por invertir: comisiones, cargos, impuestos e intereses.',
+                      'What you pay to invest: commissions, fees, taxes and interest.')}
+          actions={years.length > 0 && (
+            <div className="flex items-center gap-1 p-1 rounded-lg overflow-x-auto max-w-full" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+              {['all', ...years].map((y) => (
+                <button key={y} onClick={() => setYear(y)}
+                  className="px-3 py-1 text-xs font-medium rounded-md whitespace-nowrap transition-colors"
+                  style={year === y
+                    ? { backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)' }
+                    : { color: 'var(--text-muted)' }}>
+                  {y === 'all' ? t('Todo', 'All') : y}
+                </button>
+              ))}
+            </div>
+          )} />
+
+        {!costs.hasData ? (
+          <div className="rounded-2xl p-8 text-center border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--card-border)' }}>
+            <Receipt size={36} className="mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
+            <p className="text-sm font-medium text-white mb-1">{t('Aún no hay costos registrados', 'No costs recorded yet')}</p>
+            <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
+              {t('Los costos aparecen cuando tus operaciones traen comisiones o cuando importas cargos, impuestos e intereses de tu broker. Sincroniza IBKR o importa un Activity Statement para verlos aquí.',
+                 'Costs appear when your trades carry commissions or when you import fees, taxes and interest from your broker. Sync IBKR or import an Activity Statement to see them here.')}
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Total cost hero */}
+            <div className="rounded-2xl p-5 border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--card-border)', boxShadow: 'var(--shadow-card)' }}>
+              <p className="text-xs uppercase tracking-wider text-slate-500 mb-1">
+                {t('Costo total', 'Total cost')} {year !== 'all' && `· ${year}`}
+              </p>
+              <p className="text-3xl font-bold text-white tracking-tight">{fmt(costs.totalCost)}</p>
+              <p className="text-xs text-slate-500 mt-1">
+                {costs.count} {t('movimientos de costo', 'cost entries')}
+              </p>
+              {costs.interestReceived > 0 && (
+                <div className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs"
+                  style={{ backgroundColor: 'var(--alert-success-bg)', color: 'var(--accent-green)' }}>
+                  <ArrowDownRight size={13} />
+                  {t('Interés recibido', 'Interest received')}: {fmt(costs.interestReceived)}
+                </div>
+              )}
+            </div>
+
+            {/* Breakdown cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {breakdown.map(({ key, label, value, Icon, hint }) => (
+                <div key={key} className="rounded-2xl p-4 border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--card-border)' }}>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Icon size={14} style={{ color: 'var(--accent-blue)' }} />
+                    <span className="text-xs text-slate-400">{label}</span>
+                  </div>
+                  <p className="text-lg font-bold text-white">{fmt(value)}</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">{hint}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* By month */}
+            {costs.months.length > 0 && (
+              <div className="rounded-2xl p-5 border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--card-border)' }}>
+                <p className="text-xs uppercase tracking-wider text-slate-500 mb-3">{t('Por mes', 'By month')}</p>
+                <div className="space-y-2">
+                  {costs.months.slice(0, 12).map((mk) => {
+                    const b = costs.byMonth[mk]
+                    return (
+                      <div key={mk} className="flex items-center gap-3">
+                        <span className="text-xs text-slate-400 w-16 shrink-0">{monthLabel(mk)}</span>
+                        <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                          <div className="h-full rounded-full" style={{ width: `${Math.max(2, (b.total / maxMonth) * 100)}%`, backgroundColor: 'var(--accent-blue)' }} />
+                        </div>
+                        <span className="text-xs font-medium text-white w-24 text-right shrink-0">{fmt(b.total)}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* By symbol */}
+            {costs.bySymbol.length > 0 && (
+              <div className="rounded-2xl p-5 border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--card-border)' }}>
+                <p className="text-xs uppercase tracking-wider text-slate-500 mb-3">{t('Por activo', 'By asset')}</p>
+                <div className="space-y-1.5">
+                  {costs.bySymbol.slice(0, 15).map((s) => (
+                    <div key={s.symbol} className="flex items-center justify-between text-sm">
+                      <span className="text-slate-300 font-medium">{s.symbol}</span>
+                      <span className="text-white">{fmt(s.amount)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+    </PageShell>
+  )
+}

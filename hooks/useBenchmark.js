@@ -1,5 +1,6 @@
 'use client'
 
+import { authFetch } from '@/lib/authFetch'
 import { useState, useEffect, useCallback } from 'react'
 
 export const BENCHMARKS = {
@@ -35,7 +36,7 @@ export function useBenchmark(period = 'YTD', symbol = '%5EGSPC') {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/prices/benchmark?period=${encodeURIComponent(period)}&symbol=${encodeURIComponent(symbol)}`)
+      const res = await authFetch(`/api/prices/benchmark?period=${encodeURIComponent(period)}&symbol=${encodeURIComponent(symbol)}`)
       if (res.ok) {
         const data = await res.json()
         setBenchmarkData(data)
@@ -67,7 +68,7 @@ export function useBenchmark(period = 'YTD', symbol = '%5EGSPC') {
       } catch {}
       if (!cancelled) { setLoading(true); setError(null) }
       try {
-        const res = await fetch(`/api/prices/benchmark?period=${encodeURIComponent(period)}&symbol=${encodeURIComponent(symbol)}`)
+        const res = await authFetch(`/api/prices/benchmark?period=${encodeURIComponent(period)}&symbol=${encodeURIComponent(symbol)}`)
         if (cancelled) return
         if (res.ok) {
           const data = await res.json()

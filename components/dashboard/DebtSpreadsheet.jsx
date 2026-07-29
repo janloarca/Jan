@@ -109,7 +109,7 @@ export default function DebtSpreadsheet({ items, lang, onEditItem, onAdd }) {
       {onAdd && (
         <div className="flex justify-end">
           <button onClick={onAdd}
-            className="px-4 py-2 text-xs font-medium bg-red-600 text-white rounded-lg hover:bg-red-500 transition-colors flex items-center gap-1.5">
+            className="px-4 py-2 text-xs font-medium bg-red-600 rounded-lg hover:bg-red-500 transition-colors flex items-center gap-1.5" style={{ color: '#ffffff' }}>
             + {t('Agregar deuda', 'Add debt')}
           </button>
         </div>
@@ -207,21 +207,21 @@ export default function DebtSpreadsheet({ items, lang, onEditItem, onAdd }) {
                       </td>
                       <td className="px-3 py-2.5 text-right">
                         <span className={`font-mono text-sm ${debt.rate > 20 ? 'font-semibold' : ''}`} style={{ color: debt.rate > 20 ? '#ef4444' : debt.rate > 0 ? '#d97706' : '#94a3b8' }}>
-                          {debt.rate > 0 ? pctFmt(debt.rate) : '—'}
+                          {debt.rate > 0 ? pctFmt(debt.rate) : '-'}
                         </span>
                       </td>
                       <td className="px-3 py-2.5 text-right">
-                        <span className="font-mono text-sm text-slate-700">{debt.monthly > 0 ? `$${fmt(debt.monthly)}` : '—'}</span>
+                        <span className="font-mono text-sm text-slate-700">{debt.monthly > 0 ? `$${fmt(debt.monthly)}` : '-'}</span>
                       </td>
                       <td className="px-3 py-2.5 text-center">
-                        <span className="text-xs text-slate-500">{DEBT_TERM_LABELS[debt.debtTerm] || debt.debtTerm || '—'}</span>
+                        <span className="text-xs text-slate-500">{DEBT_TERM_LABELS[debt.debtTerm] || debt.debtTerm || '-'}</span>
                       </td>
                       <td className="px-3 py-2.5 text-right">
-                        <span className="font-mono text-sm text-slate-700">{debt.remaining > 0 ? debt.remaining : '—'}</span>
+                        <span className="font-mono text-sm text-slate-700">{debt.remaining > 0 ? debt.remaining : '-'}</span>
                       </td>
                       <td className="px-3 py-2.5 text-right">
                         <span className="font-mono text-sm" style={{ color: debt.monthlyInterest > 100 ? '#ef4444' : '#f59e0b' }}>
-                          {debt.monthlyInterest > 0 ? `$${fmt(debt.monthlyInterest)}` : '—'}
+                          {debt.monthlyInterest > 0 ? `$${fmt(debt.monthlyInterest)}` : '-'}
                         </span>
                       </td>
                       <td className="px-3 py-2.5 text-right">

@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
-import { safeJson } from '@/lib/authFetch'
+import { authFetch, safeJson } from '@/lib/authFetch'
+import { validateItem } from '@/lib/validation'
 import InlineCreateAccount from './InlineCreateAccount'
+import TimelineEditor, { validateTimelineRows } from './TimelineEditor'
 
 const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
 
@@ -117,6 +119,10 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     cardBrand: '', rewardType: '', rewardRate: '', rewardBalance: '',
   })
   const [isNewMoney, setIsNewMoney] = useState(true)
+  // How the value was built: one lump at acquisitionDate (default) or several
+  // dated contributions captured in a timeline (rows explain the total).
+  const [valueTimeline, setValueTimeline] = useState('single')
+  const [timelineRows, setTimelineRows] = useState([])
   const [detectedCurrency, setDetectedCurrency] = useState(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -183,7 +189,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
       searchAbortRef.current = new AbortController()
       setSearchLoading(true)
       try {
-        const res = await fetch(`/api/prices/search?q=${encodeURIComponent(q)}`, { signal: searchAbortRef.current.signal })
+        const res = await authFetch(`/api/prices/search?q=${encodeURIComponent(q)}`, { signal: searchAbortRef.current.signal })
         if (res.ok) {
           const data = await safeJson(res) || {}
           setSearchResults(data.results || [])
@@ -220,7 +226,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     searchAbortRef.current = new AbortController()
     setFetchingQuote(true)
     try {
-      const res = await fetch(`/api/prices/search?symbol=${encodeURIComponent(result.symbol)}&type=${encodeURIComponent(newType)}`, { signal: searchAbortRef.current.signal })
+      const res = await authFetch(`/api/prices/search?symbol=${encodeURIComponent(result.symbol)}&type=${encodeURIComponent(newType)}`, { signal: searchAbortRef.current.signal })
       if (res.ok) {
         const data = await safeJson(res) || {}
         if (data.quote?.price) {
@@ -248,7 +254,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
       if (sym.length < 1) return
       setDivLoading(true)
       try {
-        const res = await fetch(`/api/prices/dividends?symbol=${encodeURIComponent(sym)}`)
+        const res = await authFetch(`/api/prices/dividends?symbol=${encodeURIComponent(sym)}`)
         if (res.ok) setDivInfo(await safeJson(res))
       } catch {}
       setDivLoading(false)
@@ -297,11 +303,26 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     if (isMarketAsset && qty <= 0) { setError(t('La cantidad debe ser mayor a 0', 'Quantity must be greater than 0')); return }
     if (form.maturityDate && form.acquisitionDate && form.maturityDate < form.acquisitionDate) { setError(t('La fecha de vencimiento debe ser posterior a la de compra', 'Maturity date must be after acquisition date')); return }
 
+    // Timeline mode: rows explain how the value was built over time. Validate
+    // them and anchor the item's acquisitionDate on the earliest contribution.
+    const curPrice0 = parseFloat(form.currentPrice) || 0
+    const tlTotal = isMarketAsset ? qty * price : qty * (curPrice0 || price)
+    const useTimeline = isNewMoney && !isDebt && !duplicateWarning && valueTimeline === 'multi' && tlTotal > 0
+    let tlRows = []
+    if (useTimeline) {
+      const tlError = validateTimelineRows(timelineRows, tlTotal, { requireExact: isMarketAsset, lang })
+      if (tlError) { setError(tlError); return }
+      tlRows = timelineRows
+        .filter((r) => (parseFloat(r.amount) || 0) > 0 && r.date)
+        .sort((a, b) => a.date.localeCompare(b.date))
+    }
+    const effectiveAcqDate = useTimeline ? tlRows[0].date : form.acquisitionDate
+
     setSaving(true)
     try {
       const item = {
         type, currency: form.currency, institution: form.institution.trim(),
-        acquisitionDate: form.acquisitionDate, accountType: form.accountType,
+        acquisitionDate: effectiveAcqDate, accountType: form.accountType,
       }
 
       if (form.sector) item.sector = form.sector
@@ -371,7 +392,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
           item.incomeMonthsExplicit = true
         }
         item.paymentSchedule = form.paymentSchedule
-        if (form.incomeDestination) item.incomeDestination = form.incomeDestination
+        item.dividendAction = form.dividendAction || 'cash'
+        if (form.dividendAction !== 'reinvest' && form.incomeDestination) item.incomeDestination = form.incomeDestination
         if (form.capitalReturn) {
           item.capitalReturn = parseFloat(form.capitalReturn) || 0
           if (form.capitalDestination) item.capitalDestination = form.capitalDestination
@@ -467,31 +489,79 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
         item.entityId = activeEntity
       }
 
+      // Same guardrails as file imports (future dates, absurd values, bad currency) —
+      // manual entry previously skipped them entirely.
+      const validationErrors = validateItem(item)
+      if (validationErrors.length > 0) {
+        setError(validationErrors.join(' · '))
+        setSaving(false)
+        return
+      }
+
       const itemId = await onAdd(item)
 
-      if (onAddLot && item.symbol && item.quantity > 0 && item.purchasePrice > 0 && !item.isDebt) {
-        await onAddLot({
-          symbol: (item.symbol || '').toUpperCase(),
-          quantity: item.quantity,
-          costBasis: item.purchasePrice,
-          currency: item.currency || 'USD',
-          acquisitionDate: item.acquisitionDate || new Date().toISOString().split('T')[0],
-          ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
-        })
+      // On an "Add to position" merge the item now carries the COMBINED quantity
+      // and weighted-average cost — the lot and the DEPOSIT must record only THIS
+      // purchase, or the historical share count double-counts (old lots + combined).
+      const isMerge = !!duplicateWarning && isMarketAsset
+      const lotQty = isMerge ? qty : item.quantity
+      const lotCost = isMerge ? price : item.purchasePrice
+
+      if (useTimeline) {
+        // One DEPOSIT (and one lot for share-based) PER contribution row, so
+        // history steps up at each real date. The entered total IS the current
+        // balance — rows explain it, nothing gets re-credited.
+        for (const row of tlRows) {
+          const rowAmt = Math.round((parseFloat(row.amount) || 0) * 100) / 100
+          if (onAddLot && item.symbol && isMarketAsset && price > 0 && !item.isDebt) {
+            await onAddLot({
+              symbol: (item.symbol || '').toUpperCase(),
+              quantity: rowAmt / price,
+              costBasis: price,
+              currency: item.currency || 'USD',
+              acquisitionDate: row.date,
+              ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
+            })
+          }
+          if (onAddTransaction) {
+            await onAddTransaction({
+              type: 'DEPOSIT', symbol: item.symbol || '',
+              description: `${item.name || item.symbol} - ${t('Aporte', 'Contribution')}`,
+              date: row.date,
+              totalAmount: rowAmt, currency: item.currency || 'USD',
+              ...(itemId ? { _linkedItemId: itemId } : {}),
+              ...(activeEntity && activeEntity !== 'default' ? { entityId: activeEntity } : {}),
+              _source: 'manual_new_account',
+            })
+          }
+        }
+      } else {
+        if (onAddLot && item.symbol && lotQty > 0 && lotCost > 0 && !item.isDebt) {
+          await onAddLot({
+            symbol: (item.symbol || '').toUpperCase(),
+            quantity: lotQty,
+            costBasis: lotCost,
+            currency: item.currency || 'USD',
+            acquisitionDate: item.acquisitionDate || new Date().toISOString().split('T')[0],
+            ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
+          })
+        }
+
+        const singleDeposit = isMerge ? lotQty * lotCost : (item.quantity || 1) * (item.purchasePrice || 0)
+        if (isNewMoney && onAddTransaction && singleDeposit > 0) {
+          await onAddTransaction({
+            type: 'DEPOSIT', symbol: item.symbol || '',
+            description: `${item.name || item.symbol} - ${t('Dinero nuevo', 'New money')}`,
+            date: item.acquisitionDate || new Date().toISOString().split('T')[0],
+            totalAmount: Math.round(singleDeposit * 100) / 100, currency: item.currency || 'USD',
+            ...(itemId ? { _linkedItemId: itemId } : {}),
+            ...(activeEntity && activeEntity !== 'default' ? { entityId: activeEntity } : {}),
+            _source: 'manual_new_account',
+          })
+        }
       }
 
-      const totalValue = (item.quantity || 1) * (item.purchasePrice || 0)
-      if (isNewMoney && onAddTransaction && totalValue > 0) {
-        await onAddTransaction({
-          type: 'DEPOSIT', symbol: item.symbol || '',
-          description: `${item.name || item.symbol} - ${t('Dinero nuevo', 'New money')}`,
-          date: form.acquisitionDate || new Date().toISOString().split('T')[0],
-          totalAmount: Math.round(totalValue * 100) / 100, currency: item.currency || 'USD',
-          ...(itemId ? { _linkedItemId: itemId } : {}),
-          ...(activeEntity && activeEntity !== 'default' ? { entityId: activeEntity } : {}),
-          _source: 'manual_new_account',
-        })
-      }
+      const totalValue = isMerge ? lotQty * lotCost : (item.quantity || 1) * (item.purchasePrice || 0)
 
       if (!isNewMoney && form.capitalDestination && totalValue > 0) {
         const source = existingItems.find(it => it.id === form.capitalDestination)
@@ -505,13 +575,13 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     setSaving(false)
   }
 
-  const inputCls = 'w-full px-3 py-2 bg-[var(--input-bg,#000000)] border border-[var(--card-border,#38383A)] rounded-lg text-sm text-[var(--text-primary,white)] placeholder-[var(--text-muted,#475569)] focus:outline-none focus:border-blue-500/50'
+  const inputCls = 'w-full min-w-0 px-3 py-2 bg-[var(--input-bg,#000000)] border border-[var(--card-border,#38383A)] rounded-lg text-sm text-[var(--text-primary,white)] placeholder-[var(--text-muted,#475569)] focus:outline-none focus:border-blue-500/50'
   const labelCls = 'text-xs text-[var(--text-secondary,#94a3b8)] mb-1 block font-medium'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="add-account-title"
       style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
-      <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <div ref={trapRef} className="modal-glass max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border,#38383A)]">
           <div className="flex items-center gap-3">
             {step === 2 && <button onClick={() => setStep(1)} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-sm">←</button>}
@@ -535,9 +605,9 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
           {step === 1 && (<>
             <div>
               <label className={labelCls}>{t('Tipo de activo', 'Asset type')}</label>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                 {TYPES.map(tp => (
-                  <button key={tp.key} type="button" onClick={() => { setType(tp.key); setSubtype(''); setForm(prev => ({ ...prev, symbol: '', name: '', purchasePrice: '', currentPrice: '', sector: '', industry: '', isIlliquid: false, custodyType: '', maturityDate: '' })); setDivInfo(null) }}
+                  <button key={tp.key} type="button" onClick={() => { setType(tp.key); setSubtype(''); setForm(prev => ({ ...prev, symbol: '', name: '', purchasePrice: '', currentPrice: '', sector: '', industry: '', isIlliquid: false, custodyType: '', maturityDate: '' })); setDivInfo(null); setValueTimeline('single'); setTimelineRows([]) }}
                     className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg transition-all text-center border ${
                       type !== tp.key ? 'bg-[var(--input-bg,#000000)] border-[var(--card-border,#38383A)] text-[var(--text-secondary,#94a3b8)] hover:border-[var(--text-secondary,#94a3b8)]' : ''
                     }`}
@@ -669,7 +739,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             {duplicateWarning && (
               <div className="p-3 rounded-lg space-y-2" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-orange) 10%, transparent)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'color-mix(in srgb, var(--accent-orange) 30%, transparent)' }}>
                 <p className="text-xs font-medium" style={{ color: 'var(--accent-orange)' }}>{t('Este activo ya existe en tu portafolio', 'This asset already exists in your portfolio')}</p>
-                <p className="text-xs text-[var(--text-secondary,#94a3b8)]">{duplicateWarning.name} ({duplicateWarning.institution || '—'}) — {duplicateWarning.quantity} @ {duplicateWarning.currency}</p>
+                <p className="text-xs text-[var(--text-secondary,#94a3b8)]">{duplicateWarning.name} ({duplicateWarning.institution || '-'}): {duplicateWarning.quantity} @ {duplicateWarning.currency}</p>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => { setStep(2) }}
                     className="flex-1 px-2 py-1.5 text-xs font-medium rounded" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-orange) 20%, transparent)', color: 'var(--accent-orange)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'color-mix(in srgb, var(--accent-orange) 40%, transparent)' }}>
@@ -691,7 +761,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 {t('Cancelar', 'Cancel')}
               </button>
               <button type="submit"
-                className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors text-sm font-medium">
+                className="flex-1 py-2.5 bg-blue-600 rounded-lg hover:bg-blue-500 transition-colors text-sm font-medium" style={{ color: '#ffffff' }}>
                 {t('Siguiente', 'Next')} →
               </button>
             </div>
@@ -716,17 +786,22 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             )}
 
             {isProperty && (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label htmlFor="add-propertyPurchasePrice" className={labelCls}>{t('Valor de compra', 'Purchase value')} <span style={{ color: 'var(--text-negative)' }}>*</span></label>
-                  <input id="add-propertyPurchasePrice" value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
-                    placeholder="85000" type="number" step="any" className={inputCls} />
+              <div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="add-propertyPurchasePrice" className={labelCls}>{t('Lo que pagaste', 'What you paid')} <span style={{ color: 'var(--text-negative)' }}>*</span></label>
+                    <input id="add-propertyPurchasePrice" value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
+                      placeholder="85000" type="number" step="any" className={inputCls} />
+                  </div>
+                  <div>
+                    <label htmlFor="add-propertyCurrentPrice" className={labelCls}>{t('Valor de hoy', 'Value today')} <span style={{ color: 'var(--text-muted)' }}>({t('opcional', 'optional')})</span></label>
+                    <input id="add-propertyCurrentPrice" value={form.currentPrice} onChange={e => set('currentPrice', e.target.value)}
+                      placeholder="95000" type="number" step="any" className={inputCls} />
+                  </div>
                 </div>
-                <div>
-                  <label htmlFor="add-propertyCurrentPrice" className={labelCls}>{t('Valor actual', 'Current value')}</label>
-                  <input id="add-propertyCurrentPrice" value={form.currentPrice} onChange={e => set('currentPrice', e.target.value)}
-                    placeholder="95000" type="number" step="any" className={inputCls} />
-                </div>
+                <p className="text-xs mt-1" style={{ color: 'var(--text-muted,#475569)' }}>
+                  {t('Si dejas "Valor de hoy" vacío, usamos lo que pagaste.', 'If you leave "Value today" empty, we use what you paid.')}
+                </p>
               </div>
             )}
 
@@ -739,17 +814,22 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             )}
 
             {(isBond || isAlternative) && (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label htmlFor="add-amountInvested" className={labelCls}>{t('Monto invertido', 'Amount invested')} <span style={{ color: 'var(--text-negative)' }}>*</span></label>
-                  <input id="add-amountInvested" value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
-                    placeholder="10000" type="number" step="any" className={inputCls} />
+              <div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="add-amountInvested" className={labelCls}>{t('Lo que invertiste', 'What you invested')} <span style={{ color: 'var(--text-negative)' }}>*</span></label>
+                    <input id="add-amountInvested" value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
+                      placeholder="10000" type="number" step="any" className={inputCls} />
+                  </div>
+                  <div>
+                    <label htmlFor="add-currentValue" className={labelCls}>{t('Valor de hoy', 'Value today')} <span style={{ color: 'var(--text-muted)' }}>({t('opcional', 'optional')})</span></label>
+                    <input id="add-currentValue" value={form.currentPrice} onChange={e => set('currentPrice', e.target.value)}
+                      placeholder="10800" type="number" step="any" className={inputCls} />
+                  </div>
                 </div>
-                <div>
-                  <label htmlFor="add-currentValue" className={labelCls}>{t('Valor actual', 'Current value')} <span style={{ color: 'var(--text-muted)' }}>({t('opcional', 'optional')})</span></label>
-                  <input id="add-currentValue" value={form.currentPrice} onChange={e => set('currentPrice', e.target.value)}
-                    placeholder="10800" type="number" step="any" className={inputCls} />
-                </div>
+                <p className="text-xs mt-1" style={{ color: 'var(--text-muted,#475569)' }}>
+                  {t('Si dejas "Valor de hoy" vacío, usamos lo que invertiste.', 'If you leave "Value today" empty, we use what you invested.')}
+                </p>
               </div>
             )}
 
@@ -793,7 +873,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                       placeholder="7.5" type="number" step="any" className={inputCls} />
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label htmlFor="add-debtTerm" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Plazo', 'Term')}</label>
                     <select id="add-debtTerm" value={form.debtTerm} onChange={e => set('debtTerm', e.target.value)} className={inputCls}>
@@ -872,32 +952,18 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               </div>
             )}
 
-            {/* Currency + Account Type */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label htmlFor="add-currency" className={labelCls}>
-                  {t('Moneda', 'Currency')} <span style={{ color: 'var(--text-negative)' }}>*</span>
-                  {detectedCurrency && form.currency === detectedCurrency && (
-                    <span className="ml-1 px-1.5 py-0.5 rounded text-xs font-medium" style={{ color: 'var(--accent-green)', backgroundColor: 'color-mix(in srgb, var(--accent-green) 15%, transparent)' }}>
-                      {t('Detectada', 'Detected')}
-                    </span>
-                  )}
-                </label>
-                <select id="add-currency" value={form.currency} onChange={e => set('currency', e.target.value)} className={inputCls}>
-                  {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="add-accountType" className={labelCls}>{t('Tipo de cuenta', 'Account type')}</label>
-                <select id="add-accountType" value={form.accountType} onChange={e => set('accountType', e.target.value)} className={inputCls}>
-                  {ACCOUNT_TYPES.map(at => <option key={at.key} value={at.key}>{lang === 'es' ? at.es : at.en}</option>)}
-                </select>
-                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                  {form.accountType === 'taxable' ? t('Paga impuestos (ej. cuenta de bolsa normal)', 'Pays taxes (e.g. regular brokerage)') :
-                   form.accountType === 'retirement' ? t('Ahorro para retiro (ej. 401k, IRA, AFP)', 'Retirement savings (e.g. 401k, IRA)') :
-                   t('Exenta de impuestos (ej. Roth IRA)', 'Tax-exempt (e.g. Roth IRA)')}
-                </p>
-              </div>
+            {/* Currency (account type moved into Advanced: the taxable/retirement
+                distinction confused most users and 'taxable' is the right default) */}
+            <div>
+              <label htmlFor="add-currency" className={labelCls}>
+                {t('Moneda', 'Currency')} <span style={{ color: 'var(--text-negative)' }}>*</span>
+              </label>
+              <select id="add-currency" value={form.currency} onChange={e => set('currency', e.target.value)} className={inputCls}>
+                {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              {detectedCurrency && form.currency === detectedCurrency && (
+                <p className="text-xs mt-1" style={{ color: 'var(--accent-green)' }}>✓ {t('Detectada automáticamente', 'Auto-detected')}</p>
+              )}
             </div>
 
             {/* Acquisition date */}
@@ -906,7 +972,20 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 {isBank ? t('Fecha de apertura', 'Opening date') : t('Fecha de compra', 'Purchase date')} <span style={{ color: 'var(--text-negative)' }}>*</span>
               </label>
               <input id="add-acquisitionDate" value={form.acquisitionDate} onChange={e => set('acquisitionDate', e.target.value)}
-                type="date" className={inputCls} />
+                type="date" max={new Date().toISOString().split('T')[0]} className={inputCls}
+                disabled={valueTimeline === 'multi'} />
+              {valueTimeline === 'multi' && (
+                <p className="text-xs mt-1" style={{ color: 'var(--accent-blue)' }}>
+                  {t('Se toma de la primera fila del historial de aportes.', 'Taken from the first row of the contribution history.')}
+                </p>
+              )}
+              {/* The default is TODAY — if the user already held this asset and
+                  keeps the default, every history engine treats it as nonexistent
+                  before today (flat/empty past + wrong returns). Nudge hard. */}
+              <p className="text-xs mt-1" style={{ color: 'var(--accent-orange)' }}>
+                {t('Si ya lo tenías desde antes, usa la fecha REAL: el historial y los retornos arrancan en esta fecha.',
+                   'If you already held this, use the REAL date: history and returns start from this date.')}
+              </p>
             </div>
 
             {/* Dividend info for market assets */}
@@ -921,7 +1000,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 <div className="flex items-center gap-1.5">
                   <span className="text-emerald-400 text-xs font-medium">💰 {t('Dividendo detectado', 'Dividend detected')}</span>
                 </div>
-                <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center">
                   <div>
                     <p className="text-xs text-[var(--text-muted,#475569)]">{t('Rendimiento', 'Yield')}</p>
                     <p className="text-sm font-semibold text-emerald-400">{divInfo.dividendYield}%</p>
@@ -1001,7 +1080,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 {/* Rate inputs */}
                 {form.rateType === 'variable' ? (
                   <>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <div>
                       <label htmlFor="add-rateMin" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa mín %', 'Min rate %')}</label>
                       <input id="add-rateMin" value={form.rateMin} onChange={e => set('rateMin', e.target.value)}
@@ -1019,7 +1098,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     </div>
                   </div>
                   {form.rateMin && !form.rateMax && (
-                    <p className="text-xs" style={{ color: 'var(--accent-orange)' }}>⚠ {t('Falta la tasa máxima — el ingreso se calculará como 0.', 'Missing max rate — income will be calculated as 0.')}</p>
+                    <p className="text-xs" style={{ color: 'var(--accent-orange)' }}>⚠ {t('Falta la tasa máxima: el ingreso se calculará como 0.', 'Missing max rate: income will be calculated as 0.')}</p>
                   )}
                   </>
                 ) : (
@@ -1081,21 +1160,45 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   </div>
                 )}
 
-                {/* Income destination */}
+                {/* What happens with each payment — reinvest available for any
+                    income asset, not just dividend stocks */}
                 <div>
-                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('¿Dónde llega el rendimiento?', 'Where does the yield go?')}</label>
-                  <select value={form.incomeDestination}
-                    onChange={e => { if (e.target.value === '__new__') { setCreatingDest('income'); return } set('incomeDestination', e.target.value) }}
-                    className={inputCls}>
-                    <option value="">{t('-- Seleccionar --', '-- Select --')}</option>
-                    {destItems.map(it => <option key={it.id} value={it.id}>{it.name || it.symbol} {it.institution ? `(${it.institution})` : ''}</option>)}
-                    {onCreateDestination && <option value="__new__">+ {t('Crear cuenta nueva', 'Create new account')}</option>}
-                  </select>
-                  {creatingDest === 'income' && onCreateDestination && (
-                    <InlineCreateAccount onCreate={onCreateDestination} onCancel={() => setCreatingDest(null)}
-                      onCreated={(id, it) => handleDestCreated('incomeDestination', id, it)} lang={lang} defaultCurrency={form.currency} />
-                  )}
+                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('¿Qué haces con los pagos?', 'What do you do with payments?')}</label>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => set('dividendAction', 'cash')}
+                      className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
+                      style={form.dividendAction !== 'reinvest' ? { backgroundColor: 'color-mix(in srgb, var(--accent-cyan) 20%, transparent)', color: 'var(--accent-cyan)', borderColor: 'color-mix(in srgb, var(--accent-cyan) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                      💵 {t('Los recibo', 'I receive them')}
+                    </button>
+                    <button type="button" onClick={() => set('dividendAction', 'reinvest')}
+                      className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
+                      style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                      🔄 {t('Se reinvierten', 'They reinvest')}
+                    </button>
+                  </div>
                 </div>
+
+                {/* Income destination — irrelevant while reinvesting */}
+                {form.dividendAction === 'reinvest' ? (
+                  <p className="text-xs" style={{ color: 'var(--text-muted,#475569)' }}>
+                    {t('Cada pago se reinvierte en este mismo activo (aumenta tu posición).', 'Each payment is reinvested into this same asset (grows your position).')}
+                  </p>
+                ) : (
+                  <div>
+                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('¿Dónde llega el rendimiento?', 'Where does the yield go?')}</label>
+                    <select value={form.incomeDestination}
+                      onChange={e => { if (e.target.value === '__new__') { setCreatingDest('income'); return } set('incomeDestination', e.target.value) }}
+                      className={inputCls}>
+                      <option value="">{t('-- Seleccionar --', '-- Select --')}</option>
+                      {destItems.map(it => <option key={it.id} value={it.id}>{it.name || it.symbol} {it.institution ? `(${it.institution})` : ''}</option>)}
+                      {onCreateDestination && <option value="__new__">+ {t('Crear cuenta nueva', 'Create new account')}</option>}
+                    </select>
+                    {creatingDest === 'income' && onCreateDestination && (
+                      <InlineCreateAccount onCreate={onCreateDestination} onCancel={() => setCreatingDest(null)}
+                        onCreated={(id, it) => handleDestCreated('incomeDestination', id, it)} lang={lang} defaultCurrency={form.currency} />
+                    )}
+                  </div>
+                )}
 
                 {/* Capital return */}
                 <div>
@@ -1118,6 +1221,19 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
             {showAdvanced && (
               <div className="space-y-3 pl-1 ml-1" style={{ borderLeft: '2px solid color-mix(in srgb, var(--accent-blue) 20%, transparent)' }}>
+                {/* Account tax treatment (moved out of the main flow) */}
+                <div>
+                  <label htmlFor="add-accountType" className={labelCls}>{t('Tipo de cuenta', 'Account type')}</label>
+                  <select id="add-accountType" value={form.accountType} onChange={e => set('accountType', e.target.value)} className={inputCls}>
+                    {ACCOUNT_TYPES.map(at => <option key={at.key} value={at.key}>{lang === 'es' ? at.es : at.en}</option>)}
+                  </select>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                    {form.accountType === 'taxable' ? t('Paga impuestos (ej. cuenta de bolsa normal)', 'Pays taxes (e.g. regular brokerage)') :
+                     form.accountType === 'retirement' ? t('Ahorro para retiro (ej. 401k, IRA, AFP)', 'Retirement savings (e.g. 401k, IRA)') :
+                     t('Exenta de impuestos (ej. Roth IRA)', 'Tax-exempt (e.g. Roth IRA)')}
+                  </p>
+                </div>
+
                 {/* Maturity date for bonds/alternatives */}
                 {(isBond || isAlternative) && (
                   <div className="grid grid-cols-2 gap-3">
@@ -1179,7 +1295,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 {isAlternative && subtype === 'safe_note' && (
                   <div className="border border-pink-500/20 bg-pink-500/5 rounded-lg p-3 space-y-3">
                     <p className="text-xs text-pink-400 font-medium">SAFE Note</p>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <div>
                         <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tipo', 'Type')}</label>
                         <select value={form.safeType} onChange={e => set('safeType', e.target.value)} className={inputCls}>
@@ -1235,13 +1351,13 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             <div className="flex items-center gap-3 px-3 py-2 border border-[var(--card-border,#38383A)] rounded-lg">
               <button type="button" onClick={() => setIsNewMoney(!isNewMoney)}
                 className="w-8 h-4 rounded-full transition-colors relative"
-                style={{ backgroundColor: isNewMoney ? '#3b82f6' : 'var(--card-border,#38383A)' }}>
+                style={{ backgroundColor: isNewMoney ? 'var(--accent-blue)' : 'var(--card-border,#38383A)' }}>
                 <span className={`absolute w-3 h-3 bg-white rounded-full top-0.5 transition-transform ${isNewMoney ? 'left-4' : 'left-0.5'}`} />
               </button>
               <div>
                 <span className="text-xs text-[var(--text-primary,white)] font-medium">{t('Es dinero nuevo para mi portafolio', 'This is new money for my portfolio')}</span>
                 <p className="text-xs text-[var(--text-muted,#475569)]">
-                  {isNewMoney ? t('Viene de fuera (salario, venta, etc.) — no es ganancia', 'Comes from outside (salary, sale, etc.) — not a gain') : t('Ya estaba en otra cuenta de mi portafolio', 'Was already in another account in my portfolio')}
+                  {isNewMoney ? t('Viene de fuera (salario, venta, etc.): no es ganancia', 'Comes from outside (salary, sale, etc.): not a gain') : t('Ya estaba en otra cuenta de mi portafolio', 'Was already in another account in my portfolio')}
                 </p>
               </div>
             </div>
@@ -1263,6 +1379,57 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               </div>
             )}
 
+            {/* Value timeline — only for external money (transfers between own
+                accounts belong in Movimientos, mixing them here would inflate
+                the deposit math). Rows EXPLAIN the total, they don't add to it. */}
+            {isNewMoney && !isDebt && !duplicateWarning && (() => {
+              const qty = parseFloat(form.quantity) || (isBank || isProperty ? 1 : 0)
+              const price = parseFloat(form.purchasePrice) || 0
+              const cur = parseFloat(form.currentPrice) || 0
+              // Market: rows must cover the COST (shares don't grow on their own).
+              // Balance assets: rows explain the current balance; any shortfall
+              // is growth (interest earned along the way).
+              const tlTotal = isMarketAsset ? qty * price : qty * (cur || price)
+              if (!(tlTotal > 0)) return null
+              return (
+                <div className="border border-[var(--card-border,#38383A)] rounded-lg p-3 space-y-2">
+                  <label className="text-xs text-[var(--text-primary,white)] font-medium block">
+                    {t('¿Cómo llegó a este valor?', 'How did it reach this value?')}
+                  </label>
+                  <div className="flex gap-2">
+                    {[
+                      { key: 'single', label: t('En una fecha', 'On one date') },
+                      { key: 'multi', label: t('En varias fechas', 'On several dates') },
+                    ].map((o) => (
+                      <button key={o.key} type="button"
+                        onClick={() => {
+                          setValueTimeline(o.key)
+                          if (o.key === 'multi' && timelineRows.length === 0) {
+                            setTimelineRows([{ date: form.acquisitionDate || new Date().toISOString().split('T')[0], amount: String(tlTotal) }])
+                          }
+                        }}
+                        className="flex-1 px-2 py-2 text-xs font-medium leading-tight rounded-lg border transition-colors"
+                        style={valueTimeline === o.key
+                          ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.15)', borderColor: 'rgba(37,99,235,0.5)' }
+                          : { color: 'var(--text-secondary)', borderColor: 'rgba(71,85,105,0.5)' }}>
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
+                  {valueTimeline === 'multi' && (
+                    <>
+                      <p className="text-xs text-[var(--text-muted,#475569)]">
+                        {t('Registra cada aporte con su fecha: así el historial muestra cómo creció desde el principio.',
+                           'Log each contribution with its date: history will show how it grew from the start.')}
+                      </p>
+                      <TimelineEditor rows={timelineRows} onChange={setTimelineRows}
+                        total={tlTotal} currency={form.currency} requireExact={isMarketAsset} lang={lang} />
+                    </>
+                  )}
+                </div>
+              )
+            })()}
+
             {(() => {
               const qty = parseFloat(form.quantity) || (isBank || isProperty ? 1 : 0)
               const price = parseFloat(form.purchasePrice) || 0
@@ -1271,8 +1438,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               const fmt = (v) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
               if (total > 0) {
                 const warnings = []
-                if (total > 10000000) warnings.push(t('⚠ Valor muy alto — verifica los datos', '⚠ Very high value — check your data'))
-                if (isMarketAsset && qty > 0 && price > 0 && qty === price) warnings.push(t('⚠ Cantidad y precio son iguales — ¿es correcto?', '⚠ Quantity and price are the same — is this correct?'))
+                if (total > 10000000) warnings.push(t('⚠ Valor muy alto: verifica los datos', '⚠ Very high value: check your data'))
+                if (isMarketAsset && qty > 0 && price > 0 && qty === price) warnings.push(t('⚠ Cantidad y precio son iguales: ¿es correcto?', '⚠ Quantity and price are the same: is this correct?'))
                 return (
                   <div className="p-3 rounded-lg border text-xs"
                     style={warnings.length > 0 ? { backgroundColor: 'color-mix(in srgb, var(--accent-orange) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-orange) 20%, transparent)' } : { backgroundColor: 'color-mix(in srgb, var(--accent-green) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-green) 20%, transparent)' }}>
@@ -1295,7 +1462,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 ← {t('Atrás', 'Back')}
               </button>
               <button type="submit" disabled={saving}
-                className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium">
+                className="flex-1 py-2.5 bg-blue-600 rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium" style={{ color: '#ffffff' }}>
                 {saving ? '...' : t('Registrar', 'Register')}
               </button>
             </div>

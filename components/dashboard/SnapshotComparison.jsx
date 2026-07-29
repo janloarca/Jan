@@ -76,8 +76,6 @@ export default function SnapshotComparison({ snapshots, items, lang }) {
       .sort((a, b) => b.val - a.val)
   }, [items])
 
-  if (sorted.length < 2) return null
-
   const sparkline = useMemo(() => {
     const values = sorted.map((s) => s.netWorthUSD ?? s.totalActivosUSD ?? 0).filter((v) => v > 0)
     if (values.length < 3) return null
@@ -93,6 +91,10 @@ export default function SnapshotComparison({ snapshots, items, lang }) {
     }).join(' ')
     return { points, w, h }
   }, [sorted])
+
+  // Render gate BELOW every hook — the second snapshot arriving while mounted
+  // must not change the hook count (React would throw).
+  if (sorted.length < 2) return null
 
   return (
     <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-4 sm:p-5">

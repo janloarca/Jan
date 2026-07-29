@@ -42,8 +42,9 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              // Next.js + theme bootstrap script need inline; eval used by some Next chunks
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+              // Next.js + theme bootstrap script need inline; eval used by some Next chunks.
+              // Google hosts: AdSense footer unit (components/AdFooter.jsx).
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net https://tpc.googlesyndication.com https://www.googletagservices.com https://adservice.google.com https://ep2.adtrafficquality.google",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com data:",
               "img-src 'self' data: blob: https:",

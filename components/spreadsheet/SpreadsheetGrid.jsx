@@ -104,7 +104,7 @@ export default function SpreadsheetGrid({ initialRows, context, onSave, lang }) 
         <button
           onClick={() => setShowFormulas(!showFormulas)}
           className="px-3 py-1 text-xs rounded border transition-colors"
-          style={showFormulas ? { backgroundColor: 'rgba(59,130,246,0.2)', color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.3)' } : { color: '#94a3b8', borderColor: '#475569' }}
+          style={showFormulas ? { backgroundColor: 'rgba(37,99,235,0.2)', color: 'var(--accent-blue)', borderColor: 'rgba(37,99,235,0.3)' } : { color: '#94a3b8', borderColor: '#475569' }}
         >
           {t('Fórmulas', 'Formulas')}
         </button>

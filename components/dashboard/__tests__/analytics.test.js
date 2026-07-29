@@ -8,7 +8,106 @@ import {
   computeCAGR,
   computeBeta,
   computeNetContributions,
+  inferPeriodsPerYear,
+  filterValueSpikes,
 } from '../analytics'
+
+describe('filterValueSpikes', () => {
+  const mk = (vals) => vals.map((value, i) => ({ ts: i, value }))
+
+  test('drops an isolated up-spike (~2× both neighbors)', () => {
+    const out = filterValueSpikes(mk([11000, 11000, 24500, 11000, 11200]))
+    expect(out.map((p) => p.value)).toEqual([11000, 11000, 11000, 11200])
+  })
+
+  test('drops an isolated down-dip (<55% of both neighbors)', () => {
+    const out = filterValueSpikes(mk([10000, 10100, 4000, 10050, 10000]))
+    expect(out.map((p) => p.value)).toEqual([10000, 10100, 10050, 10000])
+  })
+
+  test('keeps a genuine step (deposit): next point stays at the new level', () => {
+    const vals = [11000, 11000, 24000, 24100, 24200]
+    expect(filterValueSpikes(mk(vals)).map((p) => p.value)).toEqual(vals)
+  })
+
+  test('keeps a gradual crash (no single-point dip)', () => {
+    const vals = [10000, 8000, 6200, 5000, 4100]
+    expect(filterValueSpikes(mk(vals)).map((p) => p.value)).toEqual(vals)
+  })
+
+  test('endpoints are never dropped; short series pass through', () => {
+    expect(filterValueSpikes(mk([100, 5000])).length).toBe(2)
+    expect(filterValueSpikes(null)).toEqual([])
+  })
+})
+
+describe('inferPeriodsPerYear', () => {
+  const day = 86400000
+  const series = (n, stepDays, start = Date.UTC(2025, 0, 1)) =>
+    Array.from({ length: n }, (_, i) => ({ date: new Date(start + i * stepDays * day).toISOString() }))
+
+  test('daily snapshots → near the high clamp', () => {
+    const ppy = inferPeriodsPerYear(series(40, 1))
+    expect(ppy).toBeGreaterThan(200)
+    expect(ppy).toBeLessThanOrEqual(365)
+  })
+
+  test('monthly snapshots → ~12', () => {
+    const monthly = Array.from({ length: 13 }, (_, i) => ({ date: new Date(Date.UTC(2024, i, 1)).toISOString() }))
+    const ppy = inferPeriodsPerYear(monthly)
+    expect(ppy).toBeGreaterThan(11)
+    expect(ppy).toBeLessThan(13)
+  })
+
+  test('fewer than 2 points → default 12', () => {
+    expect(inferPeriodsPerYear([])).toBe(12)
+    expect(inferPeriodsPerYear([{ date: '2025-01-01' }])).toBe(12)
+    expect(inferPeriodsPerYear(null)).toBe(12)
+  })
+
+  test('clamped to [4, 365]', () => {
+    expect(inferPeriodsPerYear(series(2, 1))).toBeLessThanOrEqual(365)
+    expect(inferPeriodsPerYear(series(2, 365 * 5))).toBe(4)
+  })
+})
+
+describe('computeSharpeRatio cadence (periodsPerYear)', () => {
+  const returns = [0.02, -0.01, 0.03, -0.02, 0.01, 0.02, -0.01, 0.03]
+
+  test('higher cadence annualizes to higher volatility', () => {
+    const daily = computeSharpeRatio({ returns, periodsPerYear: 252 })
+    const monthly = computeSharpeRatio({ returns, periodsPerYear: 12 })
+    expect(daily.annualizedVolatility).toBeGreaterThan(monthly.annualizedVolatility)
+    // factor ~ sqrt(252/12)
+    expect(daily.annualizedVolatility / monthly.annualizedVolatility).toBeCloseTo(Math.sqrt(252 / 12), 1)
+  })
+
+  test('default periodsPerYear (12) is backward-compatible', () => {
+    const explicit = computeSharpeRatio({ returns, periodsPerYear: 12 })
+    const defaulted = computeSharpeRatio({ returns })
+    expect(defaulted.annualizedVolatility).toBe(explicit.annualizedVolatility)
+    expect(defaulted.annualizedReturn).toBe(explicit.annualizedReturn)
+    expect(defaulted.sharpe).toBe(explicit.sharpe)
+  })
+})
+
+describe('computeAssetAttribution cost-basis guard', () => {
+  test('item with purchasePrice → real gain', () => {
+    const [a] = computeAssetAttribution([{ symbol: 'A', quantity: 10, currentPrice: 12, purchasePrice: 10 }])
+    expect(a.gain).toBeCloseTo((12 - 10) * 10)
+  })
+
+  test('item without purchasePrice → gain 0, not faked from currentPrice', () => {
+    const res = computeAssetAttribution([
+      { symbol: 'A', quantity: 10, currentPrice: 12, purchasePrice: 10 },
+      { symbol: 'NOCOST', quantity: 5, currentPrice: 100 },
+    ])
+    const nocost = res.find((r) => r.symbol === 'NOCOST')
+    expect(nocost.gain).toBe(0)
+    expect(nocost.value).toBeCloseTo(500)
+    expect(typeof nocost.weight).toBe('number')
+  })
+})
 
 describe('computeSharpeRatio', () => {
   test('normal returns', () => {
@@ -207,6 +306,30 @@ describe('computeTWRSeries', () => {
 
   test('null chart data returns empty', () => {
     expect(computeTWRSeries(null, [], null, 'USD')).toEqual([])
+  })
+
+  test('flowFromTs ignores flows inside the reconstructed prefix but nets later ones', () => {
+    // Points 1-2 are a hold-flat prefix (flows implicitly pre-dated), point 3 is
+    // real NAV. The deposit at ts=1500 falls in the prefix and must NOT be netted;
+    // the deposit at ts=2500 falls in the real region and must be netted.
+    const chartData = [
+      { ts: 1000, value: 100 },
+      { ts: 2000, value: 110 },
+      { ts: 3000, value: 220 },
+    ]
+    const transactions = [
+      { date: new Date(1500).toISOString(), type: 'DEPOSIT', totalAmount: 50, currency: 'USD' },
+      { date: new Date(2500).toISOString(), type: 'DEPOSIT', totalAmount: 100, currency: 'USD' },
+    ]
+    const series = computeTWRSeries(chartData, transactions, null, 'USD', { flowFromTs: 2000 })
+    // Sub-period 1: 100 → 110 with the early deposit IGNORED → +10%.
+    expect(series[1]).toBeCloseTo(10, 0)
+    // Sub-period 2: (110 + 100 deposit) → 220 → +4.76%; chained ≈ +15.2%.
+    expect(series[2]).toBeCloseTo(15.2, 0)
+    // Without flowFromTs the early deposit would wrongly crush sub-period 1:
+    // (100+50) → 110 reads as -26.7%.
+    const blind = computeTWRSeries(chartData, transactions, null, 'USD')
+    expect(blind[1]).toBeLessThan(-20)
   })
 })
 

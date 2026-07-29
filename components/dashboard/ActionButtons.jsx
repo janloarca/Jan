@@ -15,7 +15,7 @@ export default function ActionButtons({ onImport, onAddAccount, onTransfer, onCa
     : ibkrSyncStatus === 'ok' ? 'var(--accent-orange)' : null
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+    <div data-tour="actions" className="flex flex-wrap items-center gap-1.5 sm:gap-2">
       <button onClick={onImport} className={btnBase} style={outlineStyle}>
         <Upload size={14} /> <span className="hidden sm:inline">{lang === 'es' ? 'Importar' : 'Import'}</span>
       </button>

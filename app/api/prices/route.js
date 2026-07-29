@@ -1,23 +1,12 @@
 import { NextResponse } from 'next/server'
 import { rateLimit } from '@/lib/rateLimit'
+import { verifyAuth } from '@/lib/apiAuth'
 import { fetchWithRetry } from '@/lib/fetchWithRetry'
+import { CRYPTO_MAP } from '@/lib/cryptoMap'
+import { isMarketPriced } from '@/components/dashboard/utils'
+import { saveLastGood, getLastGood } from '@/lib/priceCache'
 
 const SYMBOL_RE = /^[A-Z0-9._\-^=]{1,20}$/i
-
-const CRYPTO_MAP = {
-  BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', ADA: 'cardano',
-  DOT: 'polkadot', AVAX: 'avalanche-2', MATIC: 'matic-network',
-  LINK: 'chainlink', UNI: 'uniswap', AAVE: 'aave', XRP: 'ripple',
-  DOGE: 'dogecoin', SHIB: 'shiba-inu', BNB: 'binancecoin',
-  ATOM: 'cosmos', NEAR: 'near', FTM: 'fantom', ALGO: 'algorand',
-  XLM: 'stellar', LTC: 'litecoin', BCH: 'bitcoin-cash',
-  USDT: 'tether', USDC: 'usd-coin', DAI: 'dai',
-  MANA: 'decentraland', SAND: 'the-sandbox', APE: 'apecoin',
-  CRO: 'crypto-com-chain', VET: 'vechain', HBAR: 'hedera-hashgraph',
-  ICP: 'internet-computer', FIL: 'filecoin', EOS: 'eos',
-  XTZ: 'tezos', THETA: 'theta-token', EGLD: 'elrond-erd-2',
-  CELR: 'celer-network', CELO: 'celo',
-}
 
 async function fetchStockPrices(symbols) {
   const results = {}
@@ -46,7 +35,12 @@ async function fetchStockPrices(symbols) {
           const price = meta.regularMarketPrice
           const prev7d = closes && closes.length > 1 ? closes.find((c) => c != null) : null
           const change7d = prev7d ? ((price - prev7d) / prev7d) * 100 : null
-          results[sym] = { price, change7d, currency: meta.currency || 'USD' }
+          // 1-day change: prefer Yahoo's previousClose (yesterday's close),
+          // else fall back to the second-to-last daily close in the range.
+          const validCloses = (closes || []).filter((c) => c != null)
+          const prevDayClose = meta.previousClose ?? (validCloses.length >= 2 ? validCloses[validCloses.length - 2] : null)
+          const change1d = prevDayClose ? ((price - prevDayClose) / prevDayClose) * 100 : null
+          results[sym] = { price, change7d, change1d, currency: meta.currency || 'USD' }
         }
       } catch (err) {
         console.error(`[api/prices] Failed to fetch ${sym}:`, err.message)
@@ -67,7 +61,7 @@ async function fetchCryptoPrices(symbols) {
   if (ids.length === 0) return { results, warnings }
 
   try {
-    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(',')}&vs_currencies=usd&include_7d_change=true`
+    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(',')}&vs_currencies=usd&include_7d_change=true&include_24hr_change=true`
     const res = await fetchWithRetry(url, { next: { revalidate: 300 } })
     if (!res.ok) {
       warnings.push(`CoinGecko returned ${res.status}`)
@@ -81,6 +75,7 @@ async function fetchCryptoPrices(symbols) {
         results[sym] = {
           price: data[id].usd,
           change7d: data[id].usd_7d_change ?? null,
+          change1d: data[id].usd_24h_change ?? null,
           currency: 'USD',
         }
       }
@@ -93,19 +88,23 @@ async function fetchCryptoPrices(symbols) {
 }
 
 export async function POST(request) {
-  const { limited } = rateLimit(request, { maxRequests: 60 })
-  if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  const { limited } = await rateLimit(request, { maxRequests: 60 })
+  if (limited) return NextResponse.json({ error: 'Too many requests', errorCode: 'RATE_LIMITED' }, { status: 429 })
+
+  // These proxy Yahoo/CoinGecko with our quota — require a signed-in user.
+  const authResult = await verifyAuth(request)
+  if (authResult.error) return authResult.error
 
   try {
     let body
     try {
       body = await request.json()
     } catch {
-      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid JSON', errorCode: 'BAD_REQUEST' }, { status: 400 })
     }
     const { items } = body
     if (!items || !Array.isArray(items) || items.length > 100) {
-      return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid request', errorCode: 'BAD_REQUEST' }, { status: 400 })
     }
 
     const stockSymbols = []
@@ -114,6 +113,10 @@ export async function POST(request) {
     items.forEach((it) => {
       const sym = (it.symbol || '').toUpperCase().trim()
       if (!sym || !SYMBOL_RE.test(sym)) return
+      // Server-side guard mirroring the client whitelist (isMarketPriced): never
+      // quote cash/bond/manual items — a bond coded "TE" or a cash bucket "USD"
+      // would otherwise resolve to an unrelated real ticker.
+      if (!isMarketPriced(it)) return
       const type = (it.type || '').toLowerCase()
       if (/crypto|cripto|blockchain/i.test(type) || CRYPTO_MAP[sym]) {
         cryptoSymbols.push(sym)
@@ -129,11 +132,27 @@ export async function POST(request) {
 
     const allWarnings = [...stockResult.warnings, ...cryptoResult.warnings]
     const allPrices = { ...stockResult.results, ...cryptoResult.results }
-    const requested = stockSymbols.length + cryptoSymbols.length
+    const requestedSyms = [...new Set([...stockSymbols, ...cryptoSymbols])]
 
-    if (requested > 0 && Object.keys(allPrices).length === 0) {
+    // Persist fresh quotes and backfill any missing symbol from the last-known-
+    // good cache — an upstream outage degrades to stale prices, not a dead UI.
+    let usedStale = false
+    for (const sym of requestedSyms) {
+      if (allPrices[sym]) {
+        saveLastGood(`px:${sym}`, allPrices[sym]).catch(() => {})
+      } else {
+        const cached = await getLastGood(`px:${sym}`)
+        if (cached?.data) {
+          allPrices[sym] = { ...cached.data, stale: true, asOf: cached.asOf }
+          usedStale = true
+        }
+      }
+    }
+
+    if (requestedSyms.length > 0 && Object.keys(allPrices).length === 0) {
       return NextResponse.json({
         error: 'All price sources failed',
+        errorCode: 'UPSTREAM_DOWN',
         prices: {},
         warnings: allWarnings,
         timestamp: new Date().toISOString(),
@@ -142,11 +161,12 @@ export async function POST(request) {
 
     return NextResponse.json({
       prices: allPrices,
+      ...(usedStale ? { stale: true } : {}),
       ...(allWarnings.length > 0 ? { warnings: allWarnings } : {}),
       timestamp: new Date().toISOString(),
     })
   } catch (err) {
     console.error('prices error:', err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error', errorCode: 'INTERNAL', prices: {} }, { status: 500 })
   }
 }

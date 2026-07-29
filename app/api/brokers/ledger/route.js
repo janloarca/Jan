@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
+import { retryRequest } from '@/lib/fetchWithRetry'
 
 export const dynamic = 'force-dynamic'
 
 async function fetchBTCBalance(address) {
-  const res = await fetch(`https://blockchain.info/q/addressbalance/${address}?confirmations=1`)
+  const res = await retryRequest(() => fetch(`https://blockchain.info/q/addressbalance/${address}?confirmations=1`, { signal: AbortSignal.timeout(15000) }))
   if (!res.ok) throw new Error(`BTC balance fetch failed for ${address}`)
   const satoshis = parseInt(await res.text())
   if (isNaN(satoshis)) throw new Error(`Invalid BTC balance for ${address}`)
@@ -13,7 +14,7 @@ async function fetchBTCBalance(address) {
 }
 
 async function fetchETHBalance(address) {
-  const res = await fetch(`https://api.etherscan.io/api?module=account&action=balance&address=${address}&tag=latest`)
+  const res = await retryRequest(() => fetch(`https://api.etherscan.io/api?module=account&action=balance&address=${address}&tag=latest`, { signal: AbortSignal.timeout(15000) }))
   if (!res.ok) throw new Error(`ETH balance fetch failed for ${address}`)
   const data = await res.json()
   if (data.status !== '1' && data.message !== 'OK') {
@@ -25,7 +26,7 @@ async function fetchETHBalance(address) {
 }
 
 async function fetchSOLBalance(address) {
-  const res = await fetch('https://api.mainnet-beta.solana.com', {
+  const res = await retryRequest(() => fetch('https://api.mainnet-beta.solana.com', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -33,7 +34,8 @@ async function fetchSOLBalance(address) {
       method: 'getBalance',
       params: [address],
     }),
-  })
+    signal: AbortSignal.timeout(15000),
+  }))
   if (!res.ok) throw new Error(`SOL balance fetch failed for ${address}`)
   const data = await res.json()
   if (data.error) throw new Error(`SOL RPC error: ${data.error.message}`)
@@ -41,7 +43,7 @@ async function fetchSOLBalance(address) {
 }
 
 async function fetchEVMBalance(rpcUrl, address, decimals = 18) {
-  const res = await fetch(rpcUrl, {
+  const res = await retryRequest(() => fetch(rpcUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -49,7 +51,8 @@ async function fetchEVMBalance(rpcUrl, address, decimals = 18) {
       method: 'eth_getBalance',
       params: [address, 'latest'],
     }),
-  })
+    signal: AbortSignal.timeout(15000),
+  }))
   if (!res.ok) throw new Error(`EVM balance fetch failed for ${address}`)
   const data = await res.json()
   if (data.error) throw new Error(`RPC error: ${data.error.message}`)
@@ -80,7 +83,7 @@ const ADDRESS_PATTERNS = {
 }
 
 export async function POST(request) {
-  const { limited } = rateLimit(request, { maxRequests: 20 })
+  const { limited } = await rateLimit(request, { maxRequests: 20 })
   if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 
   const { uid, error } = await verifyAuth(request)

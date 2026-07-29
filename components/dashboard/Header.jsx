@@ -2,9 +2,20 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Search, RefreshCw, Settings, LogOut, Plus, Upload, Zap } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Search, RefreshCw, Settings, LogOut, Plus, Upload, Zap, ChevronDown, Link2 } from 'lucide-react'
 
-export default function Header({ user, lang, setLang, onImport, onSignOut, onRefresh, onSettings, pricesLoading, onAddAccount, onCommandPalette, ibkrConnected, ibkrAutoSyncing, ibkrSyncStatus, onIBKR }) {
+export default function Header({ user, lang, setLang, onImport, onSignOut, onRefresh, onSettings, pricesLoading, onAddAccount, onCommandPalette, onOpenConnections, ibkrConnected, ibkrAutoSyncing, ibkrSyncStatus, ibkrSyncSummary, onIBKR, friendsEnabled = true }) {
+  const [newMenuOpen, setNewMenuOpen] = useState(false)
+  const newMenuRef = useRef(null)
+
+  useEffect(() => {
+    if (!newMenuOpen) return
+    const onKey = (e) => { if (e.key === 'Escape') setNewMenuOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [newMenuOpen])
+
   // Short, human date: "21 jun 2026" / "Jun 21, 2026"
   const today = new Date().toLocaleDateString(lang === 'es' ? 'es-ES' : 'en-US', {
     day: 'numeric', month: 'short', year: 'numeric'
@@ -12,9 +23,12 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
   const pathname = usePathname()
 
   const navItems = [
-    { href: '/dashboard', label: lang === 'es' ? 'Patrimonio' : 'Portfolio' },
+    // "Net Worth", not "Portfolio" — one name for the core concept everywhere
+    // (matches the page's own h1 and the NetWorth card).
+    { href: '/dashboard', label: lang === 'es' ? 'Patrimonio' : 'Net Worth' },
     { href: '/finances', label: lang === 'es' ? 'Finanzas' : 'Finances' },
     { href: '/spreadsheet', label: lang === 'es' ? 'Hoja de Cálculo' : 'Spreadsheet' },
+    ...(friendsEnabled !== false ? [{ href: '/friends', label: lang === 'es' ? 'Amigos' : 'Friends' }] : []),
   ]
 
   // Shared icon-button style (settings, logout, refresh) — 36px, hairline border.
@@ -36,7 +50,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
             {/* Navigation — segmented control */}
             <nav className="hidden sm:flex items-center gap-0.5 p-1 rounded-[10px]"
               style={{ backgroundColor: 'var(--bg-tertiary)' }}
-              aria-label="Main navigation">
+              aria-label="Main navigation" data-tour="nav">
               {navItems.map(item => {
                 const active = pathname === item.href
                 return (
@@ -72,14 +86,23 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
             </button>
 
             {ibkrConnected && (
-              <button onClick={onIBKR}
-                aria-label="IBKR status"
-                className="px-2.5 h-9 text-xs font-medium rounded-full border transition-colors flex items-center gap-1.5"
+              <button onClick={onIBKR} disabled={ibkrAutoSyncing}
+                aria-label={ibkrAutoSyncing
+                  ? (lang === 'es' ? 'Sincronizando IBKR' : 'Syncing IBKR')
+                  : (lang === 'es' ? 'Sincronizar IBKR ahora' : 'Sync IBKR now')}
+                title={ibkrAutoSyncing
+                  ? (lang === 'es' ? 'Sincronizando IBKR…' : 'Syncing IBKR…')
+                  : ibkrSyncSummary
+                    ? (lang === 'es'
+                        ? `IBKR conectado · ${ibkrSyncSummary.items ?? 0} posiciones · toca para sincronizar`
+                        : `IBKR connected · ${ibkrSyncSummary.items ?? 0} positions · tap to sync`)
+                    : (lang === 'es' ? 'Sincronizar IBKR ahora' : 'Sync IBKR now')}
+                className="px-2.5 h-9 text-xs font-medium rounded-full border transition-colors flex items-center gap-1.5 disabled:cursor-default"
                 style={ibkrAutoSyncing
                   ? { color: 'var(--accent-blue)', borderColor: 'rgba(79,70,229,0.3)', backgroundColor: 'rgba(79,70,229,0.08)' }
                   : ibkrSyncStatus === 'error'
                     ? { color: '#D97706', borderColor: '#FDE68A', backgroundColor: '#FFFBEB' }
-                    : { color: '#D97706', borderColor: '#FDE68A', backgroundColor: '#FFFBEB' }
+                    : { color: 'var(--text-secondary)', borderColor: 'var(--card-border)' }
                 }>
                 <span className="font-mono">IBKR</span>
                 {ibkrAutoSyncing
@@ -91,28 +114,56 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
               </button>
             )}
 
-            <button onClick={setLang} aria-label={lang === 'es' ? 'Cambiar a inglés' : 'Switch to Spanish'}
-              className="px-2 h-9 text-caption rounded-md border transition-colors hover:bg-theme-elevated font-medium"
-              style={{ color: 'var(--text-secondary)', borderColor: 'var(--card-border)' }}>
-              {lang === 'en' ? 'ES' : 'EN'}
-            </button>
-
+            {/* Every way of getting data IN lives behind one primary action, instead of
+                spreading "Nuevo" + "Importar" across the bar (and hiding "Conectar" in
+                Settings, where nobody looked for it). The language toggle moved into
+                Settings — it is a preference you set once, not a per-session control. */}
             {onAddAccount && (
-              <button onClick={onAddAccount} aria-label={lang === 'es' ? 'Agregar activo' : 'Add asset'}
-                className="btn-primary text-body" style={{ borderRadius: '8px' }}>
-                <Plus size={14} /> {lang === 'es' ? 'Nuevo' : 'New'}
-              </button>
+              <div className="relative" ref={newMenuRef}>
+                <button onClick={() => setNewMenuOpen((v) => !v)}
+                  aria-haspopup="menu" aria-expanded={newMenuOpen}
+                  aria-label={lang === 'es' ? 'Agregar' : 'Add'}
+                  className="btn-primary text-body" data-tour="header-new">
+                  <Plus size={14} /> {lang === 'es' ? 'Nuevo' : 'New'}
+                  <ChevronDown size={13} className={newMenuOpen ? 'rotate-180 transition-transform' : 'transition-transform'} />
+                </button>
+                {newMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-30" onClick={() => setNewMenuOpen(false)} />
+                    <div role="menu"
+                      className="absolute right-0 mt-2 w-64 rounded-xl border p-1.5 z-40"
+                      style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--card-border)', boxShadow: 'var(--shadow-modal)', backdropFilter: 'var(--glass-blur)' }}>
+                      {[
+                        { icon: Plus, label: lang === 'es' ? 'Agregar manualmente' : 'Add manually',
+                          desc: lang === 'es' ? 'Una posición a la vez' : 'One position at a time',
+                          onClick: onAddAccount },
+                        onOpenConnections && { icon: Link2, label: lang === 'es' ? 'Conectar tu broker' : 'Connect your broker',
+                          desc: lang === 'es' ? 'Sync automático' : 'Automatic sync',
+                          onClick: onOpenConnections },
+                        onImport && { icon: Upload, label: lang === 'es' ? 'Importar archivo' : 'Import file',
+                          desc: lang === 'es' ? 'Excel o CSV' : 'Excel or CSV',
+                          onClick: onImport, tour: 'header-import' },
+                      ].filter(Boolean).map((it) => (
+                        <button key={it.label} role="menuitem" data-tour={it.tour}
+                          onClick={() => { setNewMenuOpen(false); it.onClick() }}
+                          className="w-full flex items-start gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors hover:bg-theme-elevated">
+                          <it.icon size={15} className="mt-0.5 shrink-0" style={{ color: 'var(--accent-blue)' }} />
+                          <span className="min-w-0">
+                            <span className="block text-body font-medium" style={{ color: 'var(--text-primary)' }}>{it.label}</span>
+                            <span className="block text-micro" style={{ color: 'var(--text-muted)' }}>{it.desc}</span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
             )}
-
-            <button onClick={onImport} aria-label={lang === 'es' ? 'Importar archivo' : 'Import file'}
-              className="hidden sm:flex items-center gap-1 px-3 h-9 text-body font-medium rounded-lg border transition-colors hover:bg-theme-elevated"
-              style={{ color: 'var(--text-secondary)', borderColor: 'var(--card-border)' }}>
-              <Upload size={14} /> {lang === 'es' ? 'Importar' : 'Import'}
-            </button>
 
             <button onClick={onSettings}
               className={`${iconBtn} hover:bg-theme-elevated`}
               style={iconBtnStyle}
+              data-tour="header-settings"
               aria-label={lang === 'es' ? 'Configuración' : 'Settings'}>
               <Settings size={16} />
             </button>

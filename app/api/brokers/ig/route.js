@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
+import { retryRequest } from '@/lib/fetchWithRetry'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { encryptToken, decryptToken } from '@/lib/crypto'
 
@@ -53,7 +54,7 @@ function classifyError(errMsg) {
 }
 
 async function igCreateSession(apiKey, username, password) {
-  const res = await fetch(`${IG_BASE_URL}/session`, {
+  const res = await retryRequest(() => fetch(`${IG_BASE_URL}/session`, {
     method: 'POST',
     headers: {
       'X-IG-API-KEY': apiKey,
@@ -63,7 +64,7 @@ async function igCreateSession(apiKey, username, password) {
     },
     body: JSON.stringify({ identifier: username, password }),
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  })
+  }))
 
   if (!res.ok) {
     const text = await res.text().catch(() => '')
@@ -88,7 +89,7 @@ async function igCreateSession(apiKey, username, password) {
 }
 
 async function igFetch(endpoint, apiKey, cst, securityToken) {
-  const res = await fetch(`${IG_BASE_URL}${endpoint}`, {
+  const res = await retryRequest(() => fetch(`${IG_BASE_URL}${endpoint}`, {
     headers: {
       'X-IG-API-KEY': apiKey,
       'CST': cst,
@@ -96,7 +97,7 @@ async function igFetch(endpoint, apiKey, cst, securityToken) {
       'Accept': 'application/json',
     },
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  })
+  }))
 
   if (!res.ok) {
     const text = await res.text().catch(() => '')
@@ -147,7 +148,7 @@ function getCredentialsPath(uid) {
 }
 
 export async function POST(request) {
-  const { limited } = rateLimit(request, { maxRequests: 20 })
+  const { limited } = await rateLimit(request, { maxRequests: 20 })
   if (limited) return NextResponse.json({ error: 'Too many requests', errorCode: 'RATE_LIMITED' }, { status: 429 })
 
   const { uid, error } = await verifyAuth(request)

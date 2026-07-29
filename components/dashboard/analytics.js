@@ -12,18 +12,34 @@ function stddev(arr) {
   return Math.sqrt(variance)
 }
 
-export function computeSharpeRatio({ returns, riskFreeRate }) {
+// Infer how many return-periods fit in a year from the actual snapshot cadence,
+// so volatility/Sharpe annualize correctly whether snapshots are daily (~252),
+// monthly (~12) or irregular. Defaults to 12 when there isn't enough to tell.
+export function inferPeriodsPerYear(snapshots) {
+  const dates = (snapshots || [])
+    .map((s) => new Date(s?.date).getTime())
+    .filter((t) => !isNaN(t))
+    .sort((a, b) => a - b)
+  if (dates.length < 2) return 12
+  const spanYears = (dates[dates.length - 1] - dates[0]) / (365.25 * 86400000)
+  if (spanYears <= 0) return 12
+  const ppy = (dates.length - 1) / spanYears
+  return Math.max(4, Math.min(365, ppy))
+}
+
+export function computeSharpeRatio({ returns, periodsPerYear = 12, riskFreeRate }) {
   if (!returns || returns.length < 3) return { sharpe: null, annualizedReturn: null, annualizedVolatility: null }
-  const rf = riskFreeRate ?? 0.04 / 12
+  const ppy = periodsPerYear > 0 ? periodsPerYear : 12
+  const rf = riskFreeRate ?? 0.04 / ppy
   const avgReturn = mean(returns)
   const sd = stddev(returns)
-  if (sd === 0) return { sharpe: null, annualizedReturn: avgReturn * 12 * 100, annualizedVolatility: 0 }
-  const sharpe = ((avgReturn - rf) / sd) * Math.sqrt(12)
+  if (sd === 0) return { sharpe: null, annualizedReturn: avgReturn * ppy * 100, annualizedVolatility: 0 }
+  const sharpe = ((avgReturn - rf) / sd) * Math.sqrt(ppy)
   const clamped = Math.max(-10, Math.min(10, sharpe))
   return {
     sharpe: Math.round(clamped * 100) / 100,
-    annualizedReturn: avgReturn * 12 * 100,
-    annualizedVolatility: sd * Math.sqrt(12) * 100,
+    annualizedReturn: avgReturn * ppy * 100,
+    annualizedVolatility: sd * Math.sqrt(ppy) * 100,
   }
 }
 
@@ -402,10 +418,42 @@ export function computePeriodicReturns(snapshots, transactions, convert, baseCur
       } else {
         r = (curr - prev) / prev
       }
-      if (Math.abs(r) < 1) returns.push(r)
+      if (isFinite(r)) returns.push(r)
     }
   }
-  return returns
+  return filterOutlierReturns(returns)
+}
+
+// Robust outlier gate for periodic returns. The old fixed |r|<1 cut was
+// asymmetric in practice: a corrupt one-day NAV double (+123%) was dropped but
+// its mirror legs (−55%) were kept, blowing up volatility/Sharpe. Use median ±
+// 6×MAD when the sample allows; fall back to the symmetric |r|<1 cut otherwise.
+function filterOutlierReturns(returns) {
+  const base = returns.filter((r) => Math.abs(r) < 1)
+  if (base.length < 6) return base
+  const sorted = [...base].sort((a, b) => a - b)
+  const median = sorted[Math.floor(sorted.length / 2)]
+  const absDev = base.map((r) => Math.abs(r - median)).sort((a, b) => a - b)
+  const mad = absDev[Math.floor(absDev.length / 2)]
+  if (!mad) return base
+  // 1.4826 scales MAD to σ-equivalent for normal data; 6σ keeps real fat tails.
+  return base.filter((r) => Math.abs(r - median) <= 6 * 1.4826 * mad)
+}
+
+// Drop isolated single-point spikes/dips (>1.8× above or <0.55× below BOTH
+// neighbors) from a {ts,value} series before drawdown/risk math — the same
+// guard the growth chart applies to its merged series. A real crash or deposit
+// is a step (the neighbor stays at the new level), which this keeps.
+export function filterValueSpikes(series) {
+  if (!series || series.length < 3) return series || []
+  return series.filter((p, i) => {
+    if (i === 0 || i === series.length - 1) return true
+    const prev = series[i - 1].value, next = series[i + 1].value
+    if (prev <= 0 || next <= 0) return true
+    const upSpike = p.value > prev * 1.8 && p.value > next * 1.8
+    const downDip = p.value < prev * 0.55 && p.value < next * 0.55
+    return !(upSpike || downDip)
+  })
 }
 
 export function computeBeta(portfolioReturns, benchmarkReturns) {
@@ -487,12 +535,19 @@ export function computeInformationRatio(returns, benchmarkReturns) {
   return Math.round(clamp(ir) * 100) / 100
 }
 
-export function computeTWRSeries(chartData, transactions, convert, baseCurrency) {
+// opts.flowFromTs: ignore external flows BEFORE this timestamp. Used when the value
+// series has a reconstructed (hold-flat) prefix spliced before the first real broker
+// NAV snapshot: that prefix holds the current quantity flat, so deposits/withdrawals
+// are already implicitly pre-dated in it. Netting them again double-counts and reads
+// each early deposit as a fake gain or loss. Flows inside the real-NAV region still net.
+export function computeTWRSeries(chartData, transactions, convert, baseCurrency, opts = {}) {
   if (!chartData || chartData.length < 2) return []
 
+  const flowFromTs = opts.flowFromTs ?? null
   const flowTypes = { DEPOSIT: 1, WITHDRAWAL: -1 }
   const flows = (transactions || [])
     .filter((tx) => tx.date && flowTypes[(tx.type || '').toUpperCase()] != null)
+    .filter((tx) => flowFromTs == null || new Date(tx.date).getTime() >= flowFromTs)
     .map((tx) => {
       const sign = flowTypes[(tx.type || '').toUpperCase()]
       const amt = convert
@@ -532,9 +587,11 @@ export function computeAssetAttribution(items) {
   return items.map((it) => {
     const qty = it.quantity || 0
     const cur = it.currentPrice || it.purchasePrice || 0
-    const cost = it.purchasePrice || cur
+    // No cost basis → we can't attribute a gain; report 0 rather than inventing
+    // cost = current price (which silently zeroed the gain anyway).
+    const cost = it.purchasePrice > 0 ? it.purchasePrice : null
     const value = qty * cur
-    const gain = value - qty * cost
+    const gain = cost != null ? value - qty * cost : 0
     return {
       symbol: it.symbol || it.name || '',
       value,

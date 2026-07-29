@@ -1,24 +1,31 @@
 'use client'
 
 import { useMemo } from 'react'
-import { computeSharpeRatio, computeVolatility, computeMaxDrawdown, computePeriodicReturns, computeBeta, computeSortino, computeTreynor, computeJensensAlpha, computeInformationRatio } from './analytics'
+import { computeSharpeRatio, computeVolatility, computeMaxDrawdown, computePeriodicReturns, computeBeta, computeSortino, computeTreynor, computeJensensAlpha, computeInformationRatio, inferPeriodsPerYear, filterValueSpikes } from './analytics'
 import { InfoTip } from '../ui/Tooltip'
 
 export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, transactions, convert, baseCurrency, benchmarkName }) {
   const metrics = useMemo(() => {
     const returns = computePeriodicReturns(snapshots, transactions, convert, baseCurrency)
-    const sharpeResult = computeSharpeRatio({ returns })
-    const vol = computeVolatility({ returns })
+    const ppy = inferPeriodsPerYear(snapshots)
+    const sharpeResult = computeSharpeRatio({ returns, periodsPerYear: ppy })
+    const vol = computeVolatility({ returns, periodsPerYear: ppy })
 
     const valueSeries = (snapshots || [])
       .filter((s) => s.date)
       .map((s) => ({ ts: new Date(s.date).getTime(), value: s.netWorthUSD ?? s.totalActivosUSD ?? 0 }))
       .filter((p) => !isNaN(p.ts) && isFinite(p.ts) && p.value > 0)
       .sort((a, b) => a.ts - b.ts)
-    const drawdown = computeMaxDrawdown(valueSeries)
+    const drawdown = computeMaxDrawdown(filterValueSpikes(valueSeries))
 
+    // Benchmark-relative metrics need the portfolio and benchmark return series
+    // sampled over the SAME pairs. `returns` (Modified Dietz over snapshots) is
+    // filtered/derived differently than the per-valueSeries benchmark returns, so
+    // pairing them by slice(-len) would misalign. Build both here in one loop and
+    // push together, applying the same outlier guard to both.
     let beta = null
     let bReturns = []
+    let pReturnsB = []
     if (benchmarkData?.dataPoints?.length > 2 && valueSeries.length > 2) {
       const bPts = benchmarkData.dataPoints.slice().sort((a, b) => a.ts - b.ts)
       const findClosest = (ts) => {
@@ -36,17 +43,22 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
       for (let i = 1; i < valueSeries.length; i++) {
         const closestCurr = findClosest(valueSeries[i].ts)
         const closestPrev = findClosest(valueSeries[i - 1].ts)
-        if (closestCurr && closestPrev && closestPrev.close > 0) {
-          bReturns.push((closestCurr.close - closestPrev.close) / closestPrev.close)
+        const prevVal = valueSeries[i - 1].value
+        if (closestCurr && closestPrev && closestPrev.close > 0 && prevVal > 0) {
+          const pr = (valueSeries[i].value - prevVal) / prevVal
+          if (Math.abs(pr) < 1) {
+            pReturnsB.push(pr)
+            bReturns.push((closestCurr.close - closestPrev.close) / closestPrev.close)
+          }
         }
       }
-      beta = computeBeta(returns, bReturns)
+      beta = computeBeta(pReturnsB, bReturns)
     }
 
     const sortino = computeSortino(returns)
-    const treynor = computeTreynor(returns, bReturns)
-    const alpha = computeJensensAlpha(returns, bReturns)
-    const ir = computeInformationRatio(returns, bReturns)
+    const treynor = computeTreynor(pReturnsB, bReturns)
+    const alpha = computeJensensAlpha(pReturnsB, bReturns)
+    const ir = computeInformationRatio(pReturnsB, bReturns)
 
     return { sharpe: sharpeResult.sharpe, vol, drawdown, beta, sortino, treynor, alpha, ir }
   }, [snapshots, benchmarkData, transactions, convert, baseCurrency])

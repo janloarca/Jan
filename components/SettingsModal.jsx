@@ -7,6 +7,7 @@ import EntityManager from '@/components/dashboard/EntityManager'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { isNotificationSupported, getNotificationPermission, requestNotificationPermission } from '@/lib/notifications'
 import { BENCHMARKS } from '@/hooks/useBenchmark'
+import { disconnectAllSyncs } from '@/lib/brokerRegistry'
 
 const CURRENCIES = [
   { code: 'USD', name: 'US Dollar', symbol: '$' },
@@ -25,63 +26,51 @@ const CURRENCIES = [
   { code: 'CNY', name: 'Chinese Yuan', symbol: '¥' },
 ]
 
-export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onExportBackup, onSyncBroker, onOpenIBKR, onImport, onAddAccount, onOpenBlockchain, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, beginnerMode = false, onToggleBeginner, lang = 'es', profile, onSaveProfile, lastSyncTime, portfolioItems = [] }) {
+export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onDeleteItemGroup, onExportBackup, onOpenConnections, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, beginnerMode = false, onToggleBeginner, lang = 'es', onSetLang, portfolioItems = [] }) {
   const trapRef = useFocusTrap()
   const [baseCurrency, setBaseCurrency] = useState(settings?.baseCurrency || 'USD')
   const [benchmarkSymbol, setBenchmarkSymbol] = useState(settings?.benchmarkSymbol || '%5EGSPC')
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(null)
+  const [deleting, setDeleting] = useState(null)
   const [tab, setTab] = useState('general')
-  const [profileForm, setProfileForm] = useState({
-    monthlyIncome: profile?.monthlyIncome || '',
-    monthlySavings: profile?.monthlySavings || '',
-    monthlyExpenses: profile?.monthlyExpenses || '',
-    age: profile?.age || '',
-    retirementAge: profile?.retirementAge || '',
-    riskTolerance: profile?.riskTolerance || 'moderate',
-    emergencyMonths: profile?.emergencyMonths || 6,
-    incomeGoal: profile?.incomeGoal || '',
-    portfolioGoal: profile?.portfolioGoal || '',
-    targetYear: profile?.targetYear || '',
-  })
-  const [profileSaving, setProfileSaving] = useState(false)
-  const [shareToken, setShareToken] = useState(null)
-  const [shareEnabled, setShareEnabled] = useState(false)
+  const [shareLinks, setShareLinks] = useState(null) // null = not loaded yet
   const [shareLoading, setShareLoading] = useState(false)
-  const [shareCopied, setShareCopied] = useState(false)
-  const [ibkrToken, setIbkrToken] = useState('')
-  const [ibkrQueryId, setIbkrQueryId] = useState('')
-  const [ibkrConfigured, setIbkrConfigured] = useState(false)
-  const [ibkrSaving, setIbkrSaving] = useState(false)
-  const [ibkrError, setIbkrError] = useState('')
-  const [showConfig, setShowConfig] = useState(false)
-  const [confirmUnlink, setConfirmUnlink] = useState(false)
+  const [shareCopied, setShareCopied] = useState(null) // token just copied
+  const [shareCreating, setShareCreating] = useState(false)
+  const [shareForm, setShareForm] = useState({ label: '', scopeType: 'all', entityId: '', institutions: [], display: 'both' })
   const [saveStatus, setSaveStatus] = useState(null)
-  const [brokerConnections, setBrokerConnections] = useState({})
-  const [expandedBroker, setExpandedBroker] = useState(null)
-  const [brokerForm, setBrokerForm] = useState({})
-  const [brokerSyncing, setBrokerSyncing] = useState(null)
-  const [brokerError, setBrokerError] = useState(null)
+  const [friendsEnabled, setFriendsEnabled] = useState(settings?.friendsEnabled !== false)
 
   const t = (es, en) => lang === 'es' ? es : en
 
-  const flash = (type, msg) => { setSaveStatus({ type, msg }); setTimeout(() => setSaveStatus(null), 3000) }
-
-  const institutionSummaries = useMemo(() => {
-    const map = {}
-    for (const item of portfolioItems) {
-      const inst = (item.institution || '').trim()
-      if (!inst) continue
-      if (!map[inst]) map[inst] = { name: inst, count: 0, value: 0, isIbkr: false }
-      map[inst].count++
-      const val = (item.currentPrice || item.purchasePrice || 0) * (item.quantity || 1)
-      map[inst].value += val
-      if (item._source === 'ibkr' || inst.toLowerCase().includes('interactive brokers') || inst.toLowerCase() === 'ibkr') {
-        map[inst].isIbkr = true
-      }
+  // Group holdings by origin (source + institution) so the user can wipe one account
+  // — e.g. "Interactive Brokers · IBKR API" — without touching another (their manual
+  // "IDC"). Same batch-delete engine (deleteItemGroup) that respects shared symbols.
+  // `_origin` separates an API sync from an uploaded statement for the SAME broker
+  // (both carry _source:'ibkr'); items saved before it existed have none and simply
+  // group by source+institution, so nothing needs migrating.
+  const sourceLabel = (s, origin) => {
+    const m = { ibkr: 'IBKR', blockchain: t('Wallet', 'Wallet'), ledger: 'Ledger', hapi: 'Hapi', demo: 'Demo' }
+    const base = m[s] || ((!s || String(s).startsWith('manual')) ? t('Manual', 'Manual') : String(s))
+    if (origin === 'api') return `${base} API`
+    if (origin === 'file') return `${base} ${t('archivo', 'file')}`
+    return base
+  }
+  const accountGroups = useMemo(() => {
+    const map = new Map()
+    for (const it of portfolioItems || []) {
+      const source = it._source || 'manual'
+      const institution = (it.institution || '').trim()
+      const origin = it._origin || ''
+      const key = `${source}|${institution}|${origin}`
+      if (!map.has(key)) map.set(key, { key, source, institution, origin, ids: [], count: 0 })
+      const g = map.get(key); g.ids.push(it.id); g.count++
     }
-    return Object.values(map).sort((a, b) => Math.abs(b.value) - Math.abs(a.value))
+    return [...map.values()].sort((a, b) => b.count - a.count)
   }, [portfolioItems])
+
+  const flash = (type, msg) => { setSaveStatus({ type, msg }); setTimeout(() => setSaveStatus(null), 3000) }
 
   useEffect(() => {
     const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
@@ -104,7 +93,12 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
       setConfirmDelete(type)
       return
     }
+    setDeleting(type)
     try {
+      if (type.startsWith('group:') && onDeleteItemGroup) {
+        const g = accountGroups.find((x) => `group:${x.key}` === type)
+        if (g) await onDeleteItemGroup(g.ids)
+      }
       if (type === 'items') await onDeleteAllItems({ cascade: true })
       if (type === 'snapshots') await onDeleteAllSnapshots()
       if (type === 'transactions') await onDeleteAllTransactions()
@@ -114,264 +108,105 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
         await onDeleteAllSnapshots()
         await onDeleteAllTransactions()
         if (onDeleteAllFinanceTransactions) await onDeleteAllFinanceTransactions()
+        // An emptied account must not keep live broker connections silently
+        // re-importing positions — wipe every stored sync credential too.
+        await disconnectAllSyncs(authFetch)
+        // The IBKR auto-sync gate reads these preference flags (useDashboardData);
+        // clearing only the server vault leaves the 30-min auto-sync alive and the
+        // "deleted" IBKR positions come back. This was a real user-reported bug.
+        await onSaveSettings({
+          ibkrToken: null, ibkrQueryId: null, _ibkrVaultMigrated: null,
+          _ibkrLastSync: null, _ibkrLastAutoSync: null, _ibkrLastAutoSyncAttempt: null,
+          _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null,
+        })
       }
-    } catch (e) { flash('err', e.message || t('Error al borrar', 'Error deleting')) }
-    setConfirmDelete(null)
-    flash('ok', t('Datos eliminados', 'Data deleted'))
+      setConfirmDelete(null)
+      flash('ok', type === 'all' ? t('Datos y conexiones eliminados', 'Data and connections deleted') : t('Datos eliminados', 'Data deleted'))
+    } catch (e) {
+      flash('err', e.message || t('Error al borrar', 'Error deleting'))
+    } finally {
+      setDeleting(null)
+    }
   }
 
-  const handleShareAction = useCallback(async (action) => {
-    setShareLoading(true)
-    try {
-      const res = await authFetch('/api/share', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
-      })
-      if (res.ok) {
-        const data = await safeJson(res)
-        setShareToken(data.token || null)
-        setShareEnabled(data.enabled ?? false)
-      }
-    } catch {}
-    setShareLoading(false)
-  }, [])
-
-  const shareUrl = shareToken ? `${typeof window !== 'undefined' ? window.location.origin : ''}/shared/${shareToken}` : ''
-
-  const copyShareLink = useCallback(() => {
-    navigator.clipboard.writeText(shareUrl)
-    setShareCopied(true)
-    setTimeout(() => setShareCopied(false), 2000)
-  }, [shareUrl])
-
-  useEffect(() => {
-    authFetch('/api/brokers/ibkr', {
+  const shareApi = useCallback(async (payload) => {
+    const res = await authFetch('/api/share', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'get-credentials' }),
-    }).then((r) => r.ok ? safeJson(r) : null).then((d) => {
-      if (d?.configured) {
-        setIbkrConfigured(true)
-        setIbkrQueryId(d.flexQueryId || '')
-      }
-    }).catch(() => {})
+      body: JSON.stringify(payload),
+    })
+    const data = await safeJson(res)
+    if (!res.ok) throw new Error(data?.error || 'Error')
+    return data
   }, [])
 
-  const handleIbkrSave = async () => {
-    setIbkrSaving(true)
-    setIbkrError('')
-    try {
-      const res = await authFetch('/api/brokers/ibkr', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'save-credentials', token: ibkrToken, queryId: ibkrQueryId }),
-      })
-      if (res.ok) {
-        setIbkrConfigured(true)
-        setIbkrToken('')
-      } else {
-        const d = await safeJson(res) || {}
-        setIbkrError(d.error || 'Error')
-      }
-    } catch (e) { setIbkrError(e.message) }
-    setIbkrSaving(false)
-  }
-
-  const handleIbkrDisconnect = async () => {
-    setIbkrSaving(true)
-    try {
-      await authFetch('/api/brokers/ibkr', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'save-credentials', token: null, queryId: null }),
-      })
-      setIbkrConfigured(false)
-      setIbkrToken('')
-      setIbkrQueryId('')
-      flash('ok', t('IBKR desvinculado', 'IBKR unlinked'))
-    } catch (e) { flash('err', e.message || t('Error al desvincular', 'Error unlinking')) }
-    setIbkrSaving(false)
-  }
-
-
-  const BROKER_REGISTRY = [
-    { id: 'alpaca', name: 'Alpaca Markets', icon: '🦙', category: 'traditional', hasApi: true, fields: [
-      { key: 'apiKey', label: 'API Key', placeholder: 'PK...' },
-      { key: 'apiSecret', label: 'API Secret', placeholder: '••••••••', type: 'password' },
-    ], instructions: { es: 'Ve a tu cuenta Alpaca → Paper/Live → API Keys → Generar', en: 'Go to Alpaca account → Paper/Live → API Keys → Generate' } },
-    { id: 'schwab', name: 'Charles Schwab', icon: '🇺🇸', category: 'traditional', hasApi: true, authType: 'oauth', fields: [], instructions: { es: 'Conecta tu cuenta Schwab via OAuth. Se abrirá una ventana de autorización.', en: 'Connect your Schwab account via OAuth. An authorization window will open.' } },
-    { id: 'etoro', name: 'eToro', icon: '📈', category: 'traditional', hasApi: true, fields: [
-      { key: 'apiKey', label: 'API Key (x-api-key)', placeholder: 'Tu API key' },
-      { key: 'userKey', label: 'User Key (x-user-key)', placeholder: 'Tu user key' },
-    ], instructions: { es: 'Ve a eToro → Configuración → API → Generar keys', en: 'Go to eToro → Settings → API → Generate keys' } },
-    { id: 'tradestation', name: 'TradeStation', icon: '🖥️', category: 'traditional', hasApi: true, authType: 'oauth', fields: [], instructions: { es: 'Conecta tu cuenta TradeStation via OAuth. Requiere cuenta con $10k mínimo.', en: 'Connect your TradeStation account via OAuth. Requires $10k minimum funded account.' } },
-    { id: 'tastytrade', name: 'Tastytrade', icon: '🇺🇸', category: 'traditional', hasApi: true, apiNote: 'Session', fields: [
-      { key: 'username', label: 'Username', type: 'text' },
-      { key: 'password', label: 'Password', type: 'password' },
-    ], instructions: { es: 'Ingresa tu usuario y contraseña de Tastytrade.', en: 'Enter your Tastytrade username and password.' } },
-    { id: 'saxo', name: 'Saxo Bank', icon: '🏦', category: 'traditional', hasApi: true, authType: 'oauth', fields: [], instructions: { es: 'Conecta tu cuenta Saxo Bank via OAuth. Ambiente sim disponible.', en: 'Connect your Saxo Bank account via OAuth. Sim environment available.' } },
-    { id: 'ig', name: 'IG Markets', icon: '🇬🇧', category: 'traditional', hasApi: true, apiNote: 'API Key + Session',
-      fields: [
-        { key: 'apiKey', label: 'API Key', type: 'text' },
-        { key: 'username', label: 'Username', type: 'text' },
-        { key: 'password', label: 'Password', type: 'password' },
-      ],
-      instructions: { es: 'Genera tu API key en My IG → Settings → API. Ingresa tu usuario y contraseña.', en: 'Generate your API key at My IG → Settings → API. Enter your username and password.' }
-    },
-    { id: 'degiro', name: 'DEGIRO', icon: '🇪🇺', category: 'traditional', hasApi: false, apiNote: t('No oficial', 'Unofficial'), fields: [] },
-    { id: 'trading212', name: 'Trading 212', icon: '📊', category: 'traditional', hasApi: false, apiNote: t('Limitado', 'Limited'), fields: [] },
-    { id: 'traderepublic', name: 'Trade Republic', icon: '🇩🇪', category: 'traditional', hasApi: false, apiNote: t('No oficial', 'Unofficial'), fields: [] },
-    { id: 'lightyear', name: 'Lightyear', icon: '💡', category: 'traditional', hasApi: false },
-    { id: 'fidelity', name: 'Fidelity', icon: '🇺🇸', category: 'traditional', hasApi: false },
-    { id: 'vanguard', name: 'Vanguard', icon: '🇺🇸', category: 'traditional', hasApi: false },
-    { id: 'webull', name: 'Webull', icon: '📱', category: 'traditional', hasApi: false, apiNote: t('Partner', 'Partner') },
-    { id: 'm1finance', name: 'M1 Finance', icon: '🇺🇸', category: 'traditional', hasApi: false },
-    { id: 'revolut', name: 'Revolut Investments', icon: '💳', category: 'traditional', hasApi: false },
-    { id: 'myinvestor', name: 'MyInvestor', icon: '🇪🇸', category: 'traditional', hasApi: false },
-    { id: 'dukascopy', name: 'Dukascopy', icon: '🇨🇭', category: 'traditional', hasApi: false },
-    { id: 'ppiglobal', name: 'PPI Global', icon: '🇦🇷', category: 'traditional', hasApi: false, apiNote: t('API oficial', 'Official API') },
-    { id: 'tdameritrade', name: 'TD Ameritrade', icon: '🇺🇸', category: 'traditional', hasApi: false, apiNote: '→ Schwab' },
-    { id: 'binance', name: 'Binance', icon: '🟡', category: 'crypto', hasApi: true, fields: [
-      { key: 'apiKey', label: 'API Key', placeholder: 'Tu API key' },
-      { key: 'apiSecret', label: 'Secret Key', placeholder: '••••••••', type: 'password' },
-    ], instructions: { es: 'Ve a Binance → API Management → Crear API → Solo lectura', en: 'Go to Binance → API Management → Create API → Read-only' } },
-    { id: 'coinbase', name: 'Coinbase', icon: '🟠', category: 'crypto', hasApi: true, fields: [
-      { key: 'apiKey', label: 'API Key', placeholder: 'Tu API key' },
-      { key: 'apiSecret', label: 'API Secret', placeholder: '••••••••', type: 'password' },
-    ], instructions: { es: 'Ve a Coinbase → Settings → API → New API Key → Portfolio read', en: 'Go to Coinbase → Settings → API → New API Key → Portfolio read' } },
-    { id: 'kraken', name: 'Kraken', icon: '🦑', category: 'crypto', hasApi: true, fields: [
-      { key: 'apiKey', label: 'API Key', placeholder: 'Tu API key' },
-      { key: 'apiSecret', label: 'Private Key', placeholder: '••••••••', type: 'password' },
-    ], instructions: { es: 'Ve a Kraken → Security → API → Create Key → Solo consulta', en: 'Go to Kraken → Security → API → Create Key → Query only' } },
-    { id: 'bitso', name: 'Bitso', icon: '🟢', category: 'crypto', hasApi: true, fields: [
-      { key: 'apiKey', label: 'API Key', placeholder: 'Tu API key' },
-      { key: 'apiSecret', label: 'API Secret', placeholder: '••••••••', type: 'password' },
-    ], instructions: { es: 'Ve a Bitso → API → Crear key → 2FA requerido', en: 'Go to Bitso → API → Create key → 2FA required' } },
-  ]
-
   useEffect(() => {
-    if (tab !== 'brokers') return
-    const controller = new AbortController()
-    const apiBrokers = BROKER_REGISTRY.filter(b => b.hasApi)
-    apiBrokers.forEach(broker => {
-      authFetch(`/api/brokers/${broker.id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'get-credentials' }),
-        signal: controller.signal,
-      }).then(r => r.ok ? safeJson(r) : null).then(d => {
-        if (controller.signal.aborted) return
-        if (d?.configured) {
-          setBrokerConnections(prev => ({ ...prev, [broker.id]: { configured: true, lastSync: d.lastSync } }))
-        }
-      }).catch(() => {})
-    })
-    return () => controller.abort()
-  }, [tab])
+    if (tab !== 'share' || shareLinks !== null) return
+    setShareLoading(true)
+    shareApi({ action: 'list' })
+      .then((d) => setShareLinks(d.links || []))
+      .catch(() => setShareLinks([]))
+      .finally(() => setShareLoading(false))
+  }, [tab, shareLinks, shareApi])
 
-  const handleBrokerConnect = async (broker) => {
-    setBrokerSyncing(broker.id)
-    setBrokerError(null)
+  const shareUrlFor = (token) => `${typeof window !== 'undefined' ? window.location.origin : ''}/shared/${token}`
 
-    if (broker.authType === 'oauth') {
-      try {
-        const res = await authFetch(`/api/brokers/${broker.id}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'get-auth-url' }),
-        })
-        if (res.ok) {
-          const data = await safeJson(res)
-          if (data.url) {
-            window.open(data.url, '_blank', 'width=600,height=700')
-            flash('ok', t('Ventana de autorización abierta. Completa el proceso allí.', 'Authorization window opened. Complete the process there.'))
-          }
-        } else {
-          const d = await safeJson(res) || {}
-          setBrokerError(d.error || 'OAuth not configured')
-        }
-      } catch (e) { setBrokerError(e.message) }
-      setBrokerSyncing(null)
-      return
-    }
-
-    try {
-      const res = await authFetch(`/api/brokers/${broker.id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'save-credentials', ...brokerForm }),
-      })
-      if (res.ok) {
-        setBrokerConnections(prev => ({ ...prev, [broker.id]: { configured: true } }))
-        setExpandedBroker(null)
-        setBrokerForm({})
-        flash('ok', `${broker.name} ${t('vinculado', 'linked')}`)
-      } else {
-        const d = await safeJson(res) || {}
-        setBrokerError(d.error || 'Error')
-      }
-    } catch (e) { setBrokerError(e.message) }
-    setBrokerSyncing(null)
+  const copyShareLink = (token) => {
+    navigator.clipboard.writeText(shareUrlFor(token))
+    setShareCopied(token)
+    setTimeout(() => setShareCopied(null), 2000)
   }
 
-  const handleBrokerSync = async (broker) => {
-    setBrokerSyncing(broker.id)
-    setBrokerError(null)
+  const handleCreateShare = async () => {
+    setShareLoading(true)
     try {
-      const res = await authFetch(`/api/brokers/${broker.id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'sync' }),
-      })
-      if (res.ok) {
-        const data = await safeJson(res)
-        if (data.positions && onSyncBroker) {
-          onSyncBroker(broker.id, data)
-        }
-        flash('ok', `${broker.name}: ${data.count || 0} ${t('posiciones sincronizadas', 'positions synced')}`)
-      } else {
-        const d = await safeJson(res) || {}
-        setBrokerError(d.error || 'Sync failed')
-      }
-    } catch (e) { setBrokerError(e.message) }
-    setBrokerSyncing(null)
-  }
-
-  const handleBrokerDisconnect = async (broker) => {
-    setBrokerSyncing(broker.id)
-    try {
-      await authFetch(`/api/brokers/${broker.id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'save-credentials' }),
-      })
-      setBrokerConnections(prev => { const n = { ...prev }; delete n[broker.id]; return n })
-      flash('ok', `${broker.name} ${t('desvinculado', 'unlinked')}`)
+      const scope = shareForm.scopeType === 'entity'
+        ? { type: 'entity', entityId: shareForm.entityId, entityName: (entities || []).find((e) => e.id === shareForm.entityId)?.name || '' }
+        : shareForm.scopeType === 'institutions'
+          ? { type: 'institutions', institutions: shareForm.institutions }
+          : { type: 'all' }
+      const { link } = await shareApi({ action: 'create', label: shareForm.label, scope, display: shareForm.display })
+      setShareLinks((prev) => [...(prev || []), link])
+      setShareCreating(false)
+      setShareForm({ label: '', scopeType: 'all', entityId: '', institutions: [], display: 'both' })
+      copyShareLink(link.token)
+      flash('ok', t('Link creado y copiado', 'Link created and copied'))
     } catch (e) { flash('err', e.message) }
-    setBrokerSyncing(null)
+    setShareLoading(false)
   }
 
-  const handleSaveProfile = async () => {
-    if (!onSaveProfile) return
-    setProfileSaving(true)
+  const toggleFriends = async () => {
+    const next = !friendsEnabled
+    setFriendsEnabled(next)
     try {
-      const data = {}
-      Object.entries(profileForm).forEach(([k, v]) => {
-        if (k === 'riskTolerance') { data[k] = v; return }
-        if (v !== '' && v != null) data[k] = Number(v)
-      })
-      await onSaveProfile(data)
-      flash('ok', t('Perfil guardado', 'Profile saved'))
-    } catch (e) { flash('err', e.message || t('Error al guardar perfil', 'Error saving profile')) }
-    setProfileSaving(false)
+      await onSaveSettings({ friendsEnabled: next })
+      // Turning it off purges the public profile + removes you from every group.
+      if (!next) {
+        await authFetch('/api/friends', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'disable' }),
+        }).catch(() => {})
+      }
+      flash('ok', next ? t('Amigos activado', 'Friends enabled') : t('Amigos desactivado', 'Friends disabled'))
+    } catch (e) {
+      setFriendsEnabled(!next) // revert on failure
+      flash('err', e.message || t('Error al guardar', 'Error saving'))
+    }
   }
+
+  const handleRevokeShare = async (token) => {
+    setShareLoading(true)
+    try {
+      await shareApi({ action: 'revoke', token })
+      setShareLinks((prev) => (prev || []).filter((l) => l.token !== token))
+      flash('ok', t('Link revocado', 'Link revoked'))
+    } catch (e) { flash('err', e.message) }
+    setShareLoading(false)
+  }
+
 
   const tabs = [
     { key: 'general', label: t('General', 'General') },
-    { key: 'profile', label: t('Perfil', 'Profile') },
     { key: 'entities', label: t('Entidades', 'Entities') },
-    { key: 'brokers', label: t('Brokers', 'Brokers') },
     { key: 'share', label: t('Compartir', 'Share') },
     { key: 'data', label: t('Datos', 'Data') },
   ]
@@ -411,6 +246,20 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
         <div className="flex-1 overflow-y-auto p-6">
           {tab === 'general' && (
             <div className="space-y-5">
+              {/* Broker syncs moved to their own hub — keep a pointer for discoverability */}
+              {onOpenConnections && (
+                <div className="flex items-center justify-between p-3 bg-theme-base border border-glass-border rounded-lg">
+                  <div>
+                    <div className="text-sm text-white font-medium">🔗 {t('Conexiones y Sync', 'Connections & Sync')}</div>
+                    <div className="text-xs text-slate-500">{t('Brokers, exchanges y wallets vinculados.', 'Linked brokers, exchanges and wallets.')}</div>
+                  </div>
+                  <button onClick={() => { onClose(); setTimeout(() => onOpenConnections(), 50) }}
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors shrink-0 ml-3 border hover:bg-blue-500/10" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
+                    {t('Abrir', 'Open')}
+                  </button>
+                </div>
+              )}
+
               {/* Theme toggle */}
               <div>
                 <label className="text-xs mb-2 block font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Tema', 'Theme')}</label>
@@ -433,6 +282,28 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                   ))}
                 </div>
               </div>
+
+              {/* Language. Moved here from the header: it's a preference you set once,
+                  not a control worth permanent space in the top bar. */}
+              {onSetLang && (
+                <div>
+                  <label className="text-xs mb-2 block font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Idioma', 'Language')}</label>
+                  <div className="flex gap-2">
+                    {[
+                      { key: 'es', label: 'Español' },
+                      { key: 'en', label: 'English' },
+                    ].map((opt) => (
+                      <button key={opt.key} onClick={() => { if (lang !== opt.key) onSetLang() }}
+                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg transition-all ${
+                          lang === opt.key ? 'border' : 'bg-theme-base border border-glass-border text-slate-300 hover:border-slate-500'
+                        }`}
+                        style={lang === opt.key ? { color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' } : undefined}>
+                        <span className="text-sm font-medium">{opt.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Beginner mode toggle */}
               <div>
@@ -462,56 +333,52 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                 </button>
               </div>
 
+              {/* Friends tab toggle — social leaderboard, off = hidden + profile purged */}
               <div>
-                <label className="text-xs mb-2 block font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Moneda principal', 'Base currency')}</label>
-                <p className="text-xs text-slate-600 mb-3">{t('Todos los valores se mostrarán en esta moneda.', 'All values will be displayed in this currency.')}</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {CURRENCIES.map((c) => (
-                    <button key={c.code} onClick={() => setBaseCurrency(c.code)}
-                      className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-left transition-all ${
-                        baseCurrency === c.code
-                          ? 'border'
-                          : 'bg-theme-base border border-glass-border text-slate-300 hover:border-slate-500'
-                      }`}
-                      style={baseCurrency === c.code ? { color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' } : undefined}>
-                      <span className="text-sm font-bold w-8">{c.symbol}</span>
-                      <div className="min-w-0">
-                        <div className="text-xs font-medium">{c.code}</div>
-                        <div className="text-xs text-slate-500 truncate">{c.name}</div>
-                      </div>
-                      {baseCurrency === c.code && (
-                        <svg className="w-4 h-4 ml-auto shrink-0" style={{ color: 'var(--accent-blue)' }} fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                      )}
-                    </button>
-                  ))}
-                </div>
+                <label className="text-xs mb-2 block font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Amigos', 'Friends')}</label>
+                <button type="button" role="switch" aria-checked={friendsEnabled} onClick={toggleFriends}
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg border transition-all text-left"
+                  style={friendsEnabled
+                    ? { color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' }
+                    : { borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-input)' }}>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium" style={friendsEnabled ? undefined : { color: 'var(--text-primary)' }}>
+                      {t('Mostrar la pestaña Amigos', 'Show the Friends tab')}
+                    </div>
+                    <div className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+                      {t('Ranking de retorno con tus amigos. Solo se comparte tu % y símbolos, nunca montos. Al apagar se oculta la pestaña y se borra tu perfil público.', 'A return leaderboard with friends. Only your % and symbols are shared, never amounts. Turning it off hides the tab and deletes your public profile.')}
+                    </div>
+                  </div>
+                  <span className="shrink-0 w-10 h-6 rounded-full flex items-center transition-all px-0.5"
+                    style={{ backgroundColor: friendsEnabled ? 'var(--accent-blue)' : 'var(--bg-tertiary)' }}>
+                    <span className="w-5 h-5 rounded-full bg-white transition-transform"
+                      style={{ transform: friendsEnabled ? 'translateX(16px)' : 'translateX(0)' }} />
+                  </span>
+                </button>
               </div>
 
-              <div>
-                <label className="text-xs mb-2 block font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Benchmark', 'Benchmark')}</label>
-                <p className="text-xs text-slate-600 mb-3">{t('Índice de referencia para comparar tu portafolio.', 'Reference index to compare your portfolio against.')}</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {Object.entries(BENCHMARKS).map(([key, bm]) => (
-                    <button key={key} onClick={() => setBenchmarkSymbol(key)}
-                      className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-left transition-all ${
-                        benchmarkSymbol === key
-                          ? 'border'
-                          : 'bg-theme-base border border-glass-border text-slate-300 hover:border-slate-500'
-                      }`}
-                      style={benchmarkSymbol === key ? { color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' } : undefined}>
-                      <div className="min-w-0">
-                        <div className="text-xs font-medium">{bm.short}</div>
-                        <div className="text-xs text-slate-500 truncate">{bm.name}</div>
-                      </div>
-                      {benchmarkSymbol === key && (
-                        <svg className="w-4 h-4 ml-auto shrink-0" style={{ color: 'var(--accent-blue)' }} fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                      )}
-                    </button>
-                  ))}
+              {/* Currency + benchmark as compact selects — the old 14-card grid
+                  made the tab feel endless for a choice made once. */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="settings-currency" className="text-xs mb-1.5 block font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Moneda principal', 'Base currency')}</label>
+                  <select id="settings-currency" value={baseCurrency} onChange={(e) => setBaseCurrency(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
+                    {CURRENCIES.map((c) => (
+                      <option key={c.code} value={c.code}>{c.symbol} {c.code} · {c.name}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-slate-600 mt-1">{t('Todos los valores se muestran en esta moneda.', 'All values are displayed in this currency.')}</p>
+                </div>
+                <div>
+                  <label htmlFor="settings-benchmark" className="text-xs mb-1.5 block font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Benchmark', 'Benchmark')}</label>
+                  <select id="settings-benchmark" value={benchmarkSymbol} onChange={(e) => setBenchmarkSymbol(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
+                    {Object.entries(BENCHMARKS).map(([key, bm]) => (
+                      <option key={key} value={key}>{bm.short} · {bm.name}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-slate-600 mt-1">{t('Índice contra el que se compara tu portafolio.', 'Index your portfolio is compared against.')}</p>
                 </div>
               </div>
 
@@ -529,7 +396,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                       <span className="text-xs font-medium px-2 py-1 bg-red-500/10 rounded" style={{ color: 'var(--text-negative)' }}>{t('Bloqueado', 'Blocked')}</span>
                     ) : (
                       <button onClick={async () => { await requestNotificationPermission(); }}
-                        className="px-3 py-1.5 text-xs font-medium text-white rounded-lg hover:bg-blue-500 transition-colors" style={{ backgroundColor: 'var(--accent-blue)' }}>
+                        className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-blue-500 transition-colors" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
                         {t('Activar', 'Enable')}
                       </button>
                     )}
@@ -538,67 +405,12 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               )}
 
               <button onClick={handleSave} disabled={saving}
-                className="w-full py-2.5 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium" style={{ backgroundColor: 'var(--accent-blue)' }}>
+                className="w-full py-2.5 rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
                 {saving ? '...' : t('Guardar configuracion', 'Save settings')}
               </button>
             </div>
           )}
 
-          {tab === 'profile' && (
-            <div className="space-y-5">
-              <p className="text-xs text-slate-500">{t(
-                'Completa tu perfil financiero para recibir insights personalizados.',
-                'Complete your financial profile to get personalized insights.'
-              )}</p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {[
-                  { key: 'monthlyIncome', label: t('Ingreso mensual', 'Monthly income'), placeholder: '5000' },
-                  { key: 'monthlyExpenses', label: t('Gastos mensuales', 'Monthly expenses'), placeholder: '3000' },
-                  { key: 'monthlySavings', label: t('Ahorro mensual', 'Monthly savings'), placeholder: '1000' },
-                  { key: 'age', label: t('Edad', 'Age'), placeholder: '30' },
-                  { key: 'retirementAge', label: t('Edad de retiro', 'Retirement age'), placeholder: '60' },
-                  { key: 'emergencyMonths', label: t('Meses de emergencia', 'Emergency months'), placeholder: '6' },
-                  { key: 'incomeGoal', label: t('Meta ingreso pasivo/mes', 'Passive income goal/mo'), placeholder: '2000' },
-                  { key: 'portfolioGoal', label: t('Meta de portafolio', 'Portfolio goal'), placeholder: '500000' },
-                  { key: 'targetYear', label: t('Año objetivo', 'Target year'), placeholder: '2030' },
-                ].map((field) => (
-                  <div key={field.key}>
-                    <label className="text-xs text-slate-500 uppercase tracking-wider mb-1.5 block">{field.label}</label>
-                    <input type="number" value={profileForm[field.key]} onChange={(e) => setProfileForm((p) => ({ ...p, [field.key]: e.target.value }))}
-                      placeholder={field.placeholder}
-                      className="w-full px-4 py-2.5 bg-theme-base border border-glass-border/60 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-                  </div>
-                ))}
-              </div>
-
-              <div>
-                <label className="text-xs text-slate-500 uppercase tracking-wider mb-1.5 block">{t('Tolerancia al riesgo', 'Risk tolerance')}</label>
-                <div className="flex gap-2">
-                  {[
-                    { key: 'conservative', label: t('Conservador', 'Conservative') },
-                    { key: 'moderate', label: t('Moderado', 'Moderate') },
-                    { key: 'aggressive', label: t('Agresivo', 'Aggressive') },
-                  ].map((opt) => (
-                    <button key={opt.key} onClick={() => setProfileForm((p) => ({ ...p, riskTolerance: opt.key }))}
-                      className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                        profileForm.riskTolerance === opt.key
-                          ? 'border'
-                          : 'bg-theme-base border border-glass-border text-slate-300 hover:border-slate-500'
-                      }`}
-                      style={profileForm.riskTolerance === opt.key ? { color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' } : undefined}>
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <button onClick={handleSaveProfile} disabled={profileSaving}
-                className="w-full py-2.5 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium" style={{ backgroundColor: 'var(--accent-blue)' }}>
-                {profileSaving ? '...' : t('Guardar perfil', 'Save profile')}
-              </button>
-            </div>
-          )}
 
           {tab === 'entities' && (
             <div className="space-y-4">
@@ -608,6 +420,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                   onAdd={onAddEntity}
                   onUpdate={onUpdateEntity}
                   onDelete={onDeleteEntity}
+                  items={portfolioItems}
                   lang={lang}
                 />
               ) : (
@@ -616,349 +429,160 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
             </div>
           )}
 
-          {tab === 'brokers' && (() => {
-            const syncAge = lastSyncTime ? Date.now() - new Date(lastSyncTime).getTime() : null
-            const syncDays = syncAge ? Math.floor(syncAge / 86400000) : null
-            const syncStatus = !ibkrConfigured ? 'disconnected' : !lastSyncTime ? 'never' : syncDays > 7 ? 'stale' : 'ok'
-            const statusColor = {
-              disconnected: { dot: 'var(--text-negative)', text: 'var(--text-negative)' },
-              never: { dot: 'var(--accent-orange)', text: 'var(--accent-orange)' },
-              stale: { dot: 'var(--accent-orange)', text: 'var(--accent-orange)' },
-              ok: { dot: '#34d399', text: '#34d399' },
-            }[syncStatus]
-            const statusLabel = {
-              disconnected: t('No vinculado', 'Not linked'),
-              never: t('Nunca sincronizado', 'Never synced'),
-              stale: t(`Hace ${syncDays}d`, `${syncDays}d ago`),
-              ok: syncDays === 0 ? t('Hoy', 'Today') : t(`Hace ${syncDays}d`, `${syncDays}d ago`),
-            }[syncStatus]
 
-            const nonIbkrInstitutions = institutionSummaries.filter(inst => !inst.isIbkr)
-            const traditionalBrokers = BROKER_REGISTRY.filter(b => b.category === 'traditional')
-            const cryptoBrokers = BROKER_REGISTRY.filter(b => b.category === 'crypto')
-
-            const renderBrokerCard = (broker) => {
-              const conn = brokerConnections[broker.id]
-              const isExpanded = expandedBroker === broker.id
-              const isSyncing = brokerSyncing === broker.id
-              return (
-                <div key={broker.id} className="bg-theme-base border border-glass-border/60 rounded-lg overflow-hidden">
-                  <div className="flex items-center gap-3 px-3 py-2">
-                    <div className="relative shrink-0">
-                      <span className="text-sm">{broker.icon}</span>
-                      {conn?.configured && (
-                        <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-emerald-400 rounded-full border border-[#000000]" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-white">{broker.name}</p>
-                      {conn?.configured && (
-                        <p className="text-xs" style={{ color: 'var(--accent-green)' }}>{t('Vinculado', 'Linked')}</p>
-                      )}
-                      {!conn?.configured && broker.apiNote && !broker.hasApi && (
-                        <p className="text-xs text-slate-600">{broker.apiNote}</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {broker.hasApi && conn?.configured ? (
-                        <>
-                          <button onClick={() => handleBrokerSync(broker)} disabled={isSyncing}
-                            className="px-2.5 py-1 text-white text-xs font-medium rounded-md hover:bg-blue-500 disabled:opacity-50 transition-colors" style={{ backgroundColor: 'var(--accent-blue)' }}>
-                            {isSyncing ? '...' : 'Sync'}
-                          </button>
-                          <button onClick={() => handleBrokerDisconnect(broker)} disabled={isSyncing}
-                            className="px-2 py-1 text-xs hover:opacity-100 transition-colors" style={{ color: 'var(--text-negative)', opacity: 0.6 }}>
-                            ✕
-                          </button>
-                        </>
-                      ) : broker.hasApi ? (
-                        <button onClick={() => {
-                          if (broker.authType === 'oauth') { handleBrokerConnect(broker); return }
-                          setExpandedBroker(isExpanded ? null : broker.id); setBrokerForm({}); setBrokerError(null)
-                        }}
-                          className="px-2.5 py-1 border text-xs font-medium rounded-md hover:bg-blue-500/10 transition-colors" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
-                          {isSyncing ? '...' : broker.authType === 'oauth' ? 'OAuth' : isExpanded ? t('Cancelar', 'Cancel') : 'API'}
-                        </button>
-                      ) : broker.apiNote ? (
-                        <span className="px-2 py-0.5 text-xs text-slate-600 border border-glass-border/40 rounded">
-                          {broker.apiNote}
-                        </span>
-                      ) : null}
-                      <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport(broker.id) }, 50) }}
-                        className="px-2.5 py-1 border border-glass-border text-xs font-medium rounded-md hover:bg-theme-elevated transition-colors" style={{ color: 'var(--text-secondary)' }}>
-                        CSV
-                      </button>
-                    </div>
-                  </div>
-                  {isExpanded && broker.hasApi && !broker.authType && (
-                    <div className="px-3 pb-3 pt-1 border-t border-glass-border/30 space-y-2">
-                      {broker.instructions && (
-                        <p className="text-xs text-slate-600">{broker.instructions[lang] || broker.instructions.en}</p>
-                      )}
-                      {brokerError && expandedBroker === broker.id && (
-                        <p className="text-xs" style={{ color: 'var(--text-negative)' }}>{brokerError}</p>
-                      )}
-                      {broker.fields.map(f => (
-                        <div key={f.key}>
-                          <label className="text-xs text-slate-500 mb-0.5 block">{f.label}</label>
-                          <input type={f.type || 'text'} value={brokerForm[f.key] || ''}
-                            onChange={(e) => setBrokerForm(prev => ({ ...prev, [f.key]: e.target.value }))}
-                            placeholder={f.placeholder}
-                            className="w-full px-3 py-1.5 bg-theme-surface border border-glass-border/60 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-                        </div>
-                      ))}
-                      <button onClick={() => handleBrokerConnect(broker)}
-                        disabled={isSyncing || broker.fields.some(f => !brokerForm[f.key])}
-                        className="w-full py-2 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 text-xs font-medium" style={{ backgroundColor: 'var(--accent-blue)' }}>
-                        {isSyncing ? '...' : t('Conectar', 'Connect')}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )
+          {tab === 'share' && (() => {
+            const institutionOptions = [...new Set(portfolioItems.map((it) => (it.institution || '').trim()).filter(Boolean))].sort()
+            const scopeChip = (scope) => {
+              if (scope?.type === 'entity') return `👥 ${scope.entityName || t('Entidad', 'Entity')}`
+              if (scope?.type === 'institutions') return `🏦 ${(scope.institutions || []).join(', ')}`
+              return `📊 ${t('Todo el portafolio', 'Whole portfolio')}`
             }
+            const displayChip = (display) => {
+              if (display === 'percent') return ` · 👁 ${t('solo %', '% only')}`
+              if (display === 'amounts') return ` · 👁 ${t('solo montos', 'amounts only')}`
+              return ''
+            }
+            const toggleInst = (inst) => setShareForm((p) => ({
+              ...p,
+              institutions: p.institutions.includes(inst) ? p.institutions.filter((i) => i !== inst) : [...p.institutions, inst],
+            }))
+            const canCreate = shareForm.scopeType === 'all'
+              || (shareForm.scopeType === 'entity' && shareForm.entityId)
+              || (shareForm.scopeType === 'institutions' && shareForm.institutions.length > 0)
 
             return (
-            <div className="space-y-5">
-              {/* ── IBKR (API + CSV) ── */}
+            <div className="space-y-4">
               <div>
-                <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Interactive Brokers</p>
-                <div className="p-3 bg-theme-base border border-glass-border rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <div className="relative shrink-0">
-                      <span className="text-xl">🏦</span>
-                      <span className="absolute -bottom-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-[#1C1C1E]" style={{ backgroundColor: statusColor.dot }} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-white">Interactive Brokers</p>
-                      <p className="text-xs" style={{ color: statusColor.text }}>
-                        {ibkrConfigured ? statusLabel : t('No vinculado', 'Not linked')}
-                        {ibkrConfigured && <span className="text-slate-600 ml-1">· ID: {ibkrQueryId}</span>}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {ibkrConfigured ? (
-                        <button onClick={() => { onClose(); setTimeout(() => { if (onOpenIBKR) onOpenIBKR() }, 50) }}
-                          className="px-2.5 py-1 text-white text-xs font-medium rounded-md hover:bg-blue-500 transition-colors" style={{ backgroundColor: 'var(--accent-blue)' }}>
-                          Sync
-                        </button>
-                      ) : (
-                        <button onClick={() => setShowConfig(true)}
-                          className="px-2.5 py-1 border text-xs font-medium rounded-md hover:bg-blue-500/10 transition-colors" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
-                          API
-                        </button>
-                      )}
-                      <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport('ibkr') }, 50) }}
-                        className="px-2.5 py-1 border border-glass-border text-xs font-medium rounded-md hover:bg-theme-elevated transition-colors" style={{ color: 'var(--text-secondary)' }}>
-                        CSV
-                      </button>
-                    </div>
-                  </div>
-                  {ibkrConfigured && syncStatus === 'stale' && (
-                    <p className="text-xs mt-2 pl-9" style={{ color: 'var(--accent-orange)' }}>
-                      {t('Tus datos podrían estar desactualizados', 'Your data may be outdated')}
-                    </p>
-                  )}
-                </div>
-
-                {!ibkrConfigured && showConfig && (
-                  <div className="space-y-3 p-3 bg-theme-base border border-glass-border rounded-xl mt-2">
-                    <p className="text-xs text-slate-600">
-                      {t('Ve a IBKR → Reports → Flex Queries → crear query con Open Positions + Trades. Genera un Flex Token en Settings.',
-                         'Go to IBKR → Reports → Flex Queries → create query with Open Positions + Trades. Generate a Flex Token in Settings.')}
-                    </p>
-                    {ibkrError && <p className="text-xs" style={{ color: 'var(--text-negative)' }}>{ibkrError}</p>}
-                    <div>
-                      <label className="text-xs text-slate-500 mb-0.5 block">Flex Token</label>
-                      <input type="password" value={ibkrToken} onChange={(e) => setIbkrToken(e.target.value)}
-                        placeholder="••••••••••••••••"
-                        className="w-full px-3 py-1.5 bg-theme-surface border border-glass-border/60 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-slate-500 mb-0.5 block">Query ID</label>
-                      <input type="text" value={ibkrQueryId} onChange={(e) => setIbkrQueryId(e.target.value)}
-                        placeholder="123456"
-                        className="w-full px-3 py-1.5 bg-theme-surface border border-glass-border/60 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-                    </div>
-                    <button onClick={handleIbkrSave} disabled={ibkrSaving || !ibkrToken || !ibkrQueryId}
-                      className="w-full py-2 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 text-xs font-medium" style={{ backgroundColor: 'var(--accent-blue)' }}>
-                      {ibkrSaving ? '...' : t('Conectar', 'Connect')}
-                    </button>
-                  </div>
-                )}
-
-                {ibkrConfigured && !confirmUnlink && (
-                  <button onClick={() => setConfirmUnlink(true)}
-                    className="text-xs hover:opacity-100 transition-colors mt-2" style={{ color: 'var(--text-negative)', opacity: 0.6 }}>
-                    {t('Desvincular', 'Unlink')}
-                  </button>
-                )}
-                {ibkrConfigured && confirmUnlink && (
-                  <div className="p-3 bg-theme-surface border border-glass-border border-l-4 border-l-red-500 rounded-lg space-y-2 mt-2">
-                    <p className="text-xs font-medium" style={{ color: 'var(--text-negative)' }}>{t('¿Desvincular Interactive Brokers?', 'Unlink Interactive Brokers?')}</p>
-                    <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                      {t('Se eliminará la conexión API. Tus posiciones importadas se mantienen.',
-                         'The API connection will be removed. Your imported positions will be kept.')}
-                    </p>
-                    <div className="flex gap-2">
-                      <button onClick={async () => { await handleIbkrDisconnect(); setConfirmUnlink(false) }} disabled={ibkrSaving}
-                        className="px-3 py-1.5 text-white text-xs font-medium rounded-lg hover:bg-red-500 transition-colors" style={{ backgroundColor: 'var(--text-negative)' }}>
-                        {ibkrSaving ? '...' : t('Sí', 'Yes')}
-                      </button>
-                      <button onClick={() => setConfirmUnlink(false)}
-                        className="px-3 py-1.5 border border-glass-border text-xs rounded-lg hover:bg-theme-elevated transition-colors" style={{ color: 'var(--text-secondary)' }}>
-                        {t('No', 'No')}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* ── BROKERS TRADICIONALES ── */}
-              <details className="group" open>
-                <summary className="flex items-center justify-between cursor-pointer">
-                  <p className="text-xs text-slate-500 uppercase tracking-wider">
-                    {t('Brokers Tradicionales', 'Traditional Brokers')}
-                    <span className="text-slate-600 ml-1">({traditionalBrokers.length})</span>
-                  </p>
-                  <span className="text-xs text-slate-600 group-open:rotate-180 transition-transform">▼</span>
-                </summary>
-                <div className="mt-2 space-y-1">
-                  {traditionalBrokers.map(renderBrokerCard)}
-                </div>
-              </details>
-
-              {/* ── CRYPTO ── */}
-              <details className="group" open>
-                <summary className="flex items-center justify-between cursor-pointer">
-                  <p className="text-xs text-slate-500 uppercase tracking-wider">
-                    Crypto
-                    <span className="text-slate-600 ml-1">({cryptoBrokers.length + 1})</span>
-                  </p>
-                  <span className="text-xs text-slate-600 group-open:rotate-180 transition-transform">▼</span>
-                </summary>
-                <div className="mt-2 space-y-1">
-                  {cryptoBrokers.map(renderBrokerCard)}
-                  <div className="bg-theme-base border border-glass-border/60 rounded-lg">
-                    <div className="flex items-center gap-3 px-3 py-2">
-                      <span className="text-sm">🔗</span>
-                      <div className="flex-1">
-                        <p className="text-sm text-white">{t('Wallet on-chain', 'On-chain Wallet')}</p>
-                        <p className="text-xs text-slate-600">Blockchain.com, Ledger, MetaMask</p>
-                      </div>
-                      <button onClick={() => { onClose(); setTimeout(() => { if (onOpenBlockchain) onOpenBlockchain() }, 50) }}
-                        className="px-2.5 py-1 border text-xs font-medium rounded-md hover:bg-blue-500/10 transition-colors" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
-                        {t('Conectar', 'Connect')}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </details>
-
-              {/* ── PRIVADO / VC ── */}
-              <details className="group">
-                <summary className="flex items-center justify-between cursor-pointer">
-                  <p className="text-xs text-slate-500 uppercase tracking-wider">{t('Privado / VC', 'Private / VC')}</p>
-                  <span className="text-xs text-slate-600 group-open:rotate-180 transition-transform">▼</span>
-                </summary>
-                <div className="mt-2 space-y-2">
-                  <p className="text-xs text-slate-600 mb-1">
-                    {t('SAFE notes, VC funds, PE, club deals.',
-                       'SAFE notes, VC funds, PE, club deals.')}
-                  </p>
-                  <div className="flex gap-2">
-                    <button onClick={() => { onClose(); setTimeout(() => { if (onAddAccount) onAddAccount() }, 50) }}
-                      className="flex-1 px-3 py-2 border text-xs font-medium rounded-lg hover:bg-blue-500/10 transition-colors" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
-                      {t('Agregar', 'Add')}
-                    </button>
-                    <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport() }, 50) }}
-                      className="flex-1 px-3 py-2 border border-glass-border text-xs font-medium rounded-lg hover:bg-theme-elevated transition-colors" style={{ color: 'var(--text-secondary)' }}>
-                      CSV
-                    </button>
-                  </div>
-                </div>
-              </details>
-
-              {/* ── YOUR INSTITUTIONS ── */}
-              {nonIbkrInstitutions.length > 0 && (
-                <div>
-                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">{t('Tus instituciones', 'Your institutions')}</p>
-                  <div className="space-y-1">
-                    {nonIbkrInstitutions.map(inst => (
-                      <div key={inst.name} className="flex items-center gap-3 px-3 py-2 bg-theme-base border border-glass-border/60 rounded-lg">
-                        <span className="text-slate-500 text-sm">🏢</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-white font-medium truncate">{inst.name}</p>
-                          <p className="text-xs text-slate-500">
-                            {inst.count} {t('posiciones', 'positions')} · ${Math.abs(inst.value).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-            )
-          })()}
-
-          {tab === 'share' && (
-            <div className="space-y-5">
-              <div>
-                <h3 className="text-sm font-medium text-white mb-1">{t('Modo Asesor', 'Advisor Mode')}</h3>
-                <p className="text-xs text-slate-500 mb-4">{t(
-                  'Genera un link de solo lectura para compartir tu portafolio con asesores o contadores. No revela la institución de tus activos.',
-                  'Generate a read-only link to share your portfolio with advisors or accountants. Does not reveal your asset institutions.'
+                <h3 className="text-sm font-medium text-white mb-1">{t('Links de solo lectura', 'Read-only links')}</h3>
+                <p className="text-xs text-slate-500">{t(
+                  'Comparte tu portafolio completo con un asesor, o solo una parte: una entidad o cuentas específicas (ej. solo tu IBKR). Cada link es independiente y se puede revocar sin tocar los demás. Nunca revelan la institución de tus activos.',
+                  'Share your whole portfolio with an advisor, or just a slice: one entity or specific accounts (e.g. only your IBKR). Each link is independent and can be revoked without touching the others. They never reveal the institution behind your assets.'
                 )}</p>
               </div>
 
-              {!shareEnabled ? (
-                <button onClick={() => handleShareAction('enable')} disabled={shareLoading}
-                  className="w-full py-3 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-50 transition-colors text-sm font-medium flex items-center justify-center gap-2" style={{ backgroundColor: 'var(--accent-green)' }}>
-                  {shareLoading ? '...' : (
-                    <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                      </svg>
-                      {t('Activar link compartido', 'Enable share link')}
-                    </>
-                  )}
-                </button>
+              {/* Existing links */}
+              {shareLinks === null || (shareLoading && !shareLinks?.length && !shareCreating) ? (
+                <p className="text-xs text-slate-500">…</p>
+              ) : shareLinks.length === 0 && !shareCreating ? (
+                <p className="text-xs text-slate-600">{t('Aún no has creado ningún link.', 'You haven\'t created any links yet.')}</p>
               ) : (
-                <div className="space-y-3">
-                  <div className="bg-theme-base border border-glass-border rounded-lg p-3">
-                    <label className="text-xs text-slate-500 block mb-1.5">{t('Link de solo lectura', 'Read-only link')}</label>
-                    <div className="flex items-center gap-2">
-                      <input type="text" readOnly value={shareUrl}
-                        className="flex-1 bg-transparent text-xs text-slate-300 outline-none truncate" />
-                      <button onClick={copyShareLink}
-                        className="shrink-0 px-3 py-1.5 text-white text-xs rounded-lg hover:bg-blue-500 transition-colors" style={{ backgroundColor: 'var(--accent-blue)' }}>
-                        {shareCopied ? t('Copiado!', 'Copied!') : t('Copiar', 'Copy')}
-                      </button>
+                <div className="space-y-1.5">
+                  {shareLinks.map((link) => (
+                    <div key={link.token} className="p-3 bg-theme-base border border-glass-border/60 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-white font-medium truncate">{link.label || t('Sin nombre', 'Untitled')}</p>
+                          <p className="text-xs text-slate-500 truncate">{scopeChip(link.scope)}{displayChip(link.display)}</p>
+                        </div>
+                        <button onClick={() => copyShareLink(link.token)}
+                          className="shrink-0 px-2.5 py-1 text-xs font-medium rounded-md transition-colors" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
+                          {shareCopied === link.token ? t('¡Copiado!', 'Copied!') : t('Copiar', 'Copy')}
+                        </button>
+                        <button onClick={() => handleRevokeShare(link.token)} disabled={shareLoading} aria-label={t('Revocar', 'Revoke')}
+                          className="shrink-0 px-2 py-1 text-xs hover:opacity-100 transition-opacity" style={{ color: 'var(--text-negative)', opacity: 0.6 }}>
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Create flow */}
+              {shareCreating ? (
+                <div className="space-y-3 p-3 bg-theme-base border border-glass-border rounded-xl">
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1 block">{t('Nombre del link (para ti)', 'Link name (for you)')}</label>
+                    <input value={shareForm.label} onChange={(e) => setShareForm((p) => ({ ...p, label: e.target.value }))}
+                      placeholder={t('Ej: Para mi contador', 'E.g. For my accountant')} maxLength={40}
+                      className="w-full px-3 py-1.5 bg-theme-surface border border-glass-border/60 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1 block">{t('¿Qué compartes?', 'What are you sharing?')}</label>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {[
+                        { key: 'all', label: t('Todo', 'Everything') },
+                        ...(entities && entities.length > 1 ? [{ key: 'entity', label: t('Una entidad', 'One entity') }] : []),
+                        ...(institutionOptions.length > 0 ? [{ key: 'institutions', label: t('Cuentas específicas', 'Specific accounts') }] : []),
+                      ].map((opt) => (
+                        <button key={opt.key} onClick={() => setShareForm((p) => ({ ...p, scopeType: opt.key }))}
+                          className={`px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors ${shareForm.scopeType !== opt.key ? 'hover:text-white' : ''}`}
+                          style={shareForm.scopeType === opt.key
+                            ? { borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', color: 'var(--accent-blue)' }
+                            : { borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
+                          {opt.label}
+                        </button>
+                      ))}
                     </div>
                   </div>
 
-                  <div className="flex gap-2">
-                    <button onClick={() => handleShareAction('regenerate')} disabled={shareLoading}
-                      className="flex-1 py-2 border border-glass-border text-slate-300 rounded-lg hover:bg-slate-700/50 disabled:opacity-50 transition-colors text-xs">
-                      {t('Regenerar link', 'Regenerate link')}
-                    </button>
-                    <button onClick={() => handleShareAction('disable')} disabled={shareLoading}
-                      className="flex-1 py-2 border rounded-lg hover:bg-red-500/10 disabled:opacity-50 transition-colors text-xs" style={{ borderColor: 'var(--text-negative)', color: 'var(--text-negative)' }}>
-                      {t('Desactivar', 'Disable')}
-                    </button>
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1 block">{t('¿Qué números verán?', 'Which numbers will they see?')}</label>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {[
+                        { key: 'both', label: t('Montos y %', 'Amounts & %') },
+                        { key: 'amounts', label: t('Solo montos', 'Amounts only') },
+                        { key: 'percent', label: t('Solo % (oculta montos)', '% only (hides amounts)') },
+                      ].map((opt) => (
+                        <button key={opt.key} onClick={() => setShareForm((p) => ({ ...p, display: opt.key }))}
+                          className={`px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors ${shareForm.display !== opt.key ? 'hover:text-white' : ''}`}
+                          style={shareForm.display === opt.key
+                            ? { borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', color: 'var(--accent-blue)' }
+                            : { borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    {shareForm.display === 'percent' && (
+                      <p className="text-xs text-slate-600 mt-1">{t('Verán el desempeño y la asignación en %, sin ningún monto de dinero.', 'They\'ll see performance and allocation in %, without any money amounts.')}</p>
+                    )}
                   </div>
 
-                  <div className="border rounded-lg p-3" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-orange) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-orange) 20%, transparent)' }}>
-                    <p className="text-xs" style={{ color: 'var(--accent-orange)' }}>{t(
-                      'Cualquier persona con este link puede ver tu portafolio (sin montos de instituciones). Regenera o desactiva el link en cualquier momento.',
-                      'Anyone with this link can view your portfolio (without institution details). Regenerate or disable the link at any time.'
-                    )}</p>
+                  {shareForm.scopeType === 'entity' && (
+                    <select value={shareForm.entityId} onChange={(e) => setShareForm((p) => ({ ...p, entityId: e.target.value }))}
+                      className="w-full px-3 py-2 bg-theme-surface border border-glass-border/60 rounded-lg text-xs text-white focus:outline-none">
+                      <option value="">{t('- Elige la entidad -', '- Pick the entity -')}</option>
+                      {(entities || []).map((en) => (
+                        <option key={en.id} value={en.id}>{en.icon || '📁'} {en.name}</option>
+                      ))}
+                    </select>
+                  )}
+
+                  {shareForm.scopeType === 'institutions' && (
+                    <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+                      <p className="text-xs text-slate-600">{t('Solo se compartirán las posiciones de lo que marques:', 'Only positions from what you check will be shared:')}</p>
+                      {institutionOptions.map((inst) => (
+                        <label key={inst} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-theme-elevated cursor-pointer">
+                          <input type="checkbox" checked={shareForm.institutions.includes(inst)} onChange={() => toggleInst(inst)} />
+                          <span className="text-xs text-white">{inst}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <button onClick={handleCreateShare} disabled={shareLoading || !canCreate}
+                      className="flex-1 py-2 rounded-lg hover:bg-emerald-500 disabled:opacity-50 text-xs font-medium" style={{ color: '#ffffff', backgroundColor: 'var(--accent-green)' }}>
+                      {shareLoading ? '...' : t('Crear y copiar link', 'Create & copy link')}
+                    </button>
+                    <button onClick={() => setShareCreating(false)}
+                      className="px-3 py-2 border border-glass-border text-xs rounded-lg hover:bg-theme-elevated transition-colors" style={{ color: 'var(--text-secondary)' }}>
+                      {t('Cancelar', 'Cancel')}
+                    </button>
                   </div>
                 </div>
+              ) : (
+                <button onClick={() => setShareCreating(true)}
+                  className="w-full px-3 py-2.5 text-xs font-medium text-slate-400 border border-dashed border-glass-border rounded-lg hover:text-blue-400 hover:border-blue-500/30 transition-colors">
+                  + {t('Crear link para compartir', 'Create share link')}
+                </button>
               )}
+
+              <p className="text-xs text-slate-600">{t('Los links expiran a los 90 días.', 'Links expire after 90 days.')}</p>
             </div>
-          )}
+            )
+          })()}
 
           {tab === 'data' && (
             <div className="space-y-4">
@@ -975,36 +599,107 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                 </div>
               )}
 
-              <p className="text-xs text-slate-500">{t('Administra los datos de tu portfolio. Estas acciones no se pueden deshacer.', 'Manage your portfolio data. These actions cannot be undone.')}</p>
-
-              {[
-                { key: 'items', label: t('Eliminar todas las cuentas', 'Delete all accounts'), desc: t('Borra todos los instrumentos y posiciones.', 'Deletes all instruments and positions.'), warn: t('Se borrarán cuentas, lots y transacciones asociadas.', 'This will delete accounts, lots, and associated transactions.') },
-                { key: 'snapshots', label: t('Eliminar snapshots', 'Delete snapshots'), desc: t('Borra el historial de snapshots del portfolio.', 'Deletes portfolio snapshot history.'), warn: t('El gráfico de crecimiento perderá datos históricos.', 'The growth chart will lose historical data.') },
-                { key: 'transactions', label: t('Eliminar transacciones', 'Delete transactions'), desc: t('Borra el historial de transacciones.', 'Deletes transaction history.'), warn: t('Los retornos YTD y Modified Dietz serán menos precisos.', 'YTD returns and Modified Dietz will be less accurate.') },
-                { key: 'financeTransactions', label: t('Eliminar finanzas', 'Delete finance data'), desc: t('Borra todos los ingresos y gastos.', 'Deletes all income and expense data.'), warn: t('Se perderá el historial de ingresos y gastos.', 'Income and expense history will be lost.') },
-                { key: 'all', label: t('Eliminar todo', 'Delete everything'), desc: t('Borra todos los datos del portfolio.', 'Deletes all portfolio data.'), warn: t('Se borrarán TODOS los datos: cuentas, historial, transacciones y finanzas.', 'ALL data will be deleted: accounts, history, transactions, and finances.') },
-              ].map((action) => (
-                <div key={action.key} className="flex items-center justify-between p-3 bg-theme-base border border-glass-border rounded-lg">
-                  <div>
-                    <div className="text-sm text-white font-medium">{action.label}</div>
-                    <div className="text-xs text-slate-500">{action.desc}</div>
-                    {confirmDelete === action.key && (
-                      <div className="text-xs mt-1 font-medium" style={{ color: 'var(--accent-orange)' }}>{action.warn}</div>
-                    )}
+              {/* One prominent nuclear action; the granular deletes live collapsed
+                  below — they're rarely needed and were drowning the tab. */}
+              {(() => {
+                const renderAction = (action) => {
+                  const armed = confirmDelete === action.key
+                  const busy = deleting === action.key
+                  return (
+                  <div key={action.key} className="p-3 bg-theme-base border border-glass-border rounded-lg">
+                    {/* Label+desc and the button live in one centered row; the warning
+                        reveals BELOW it (animated max-height) so arming confirm never
+                        shifts the button's position ("la casilla se mueve"). */}
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm text-white font-medium">{action.label}</div>
+                        <div className="text-xs text-slate-500">{action.desc}</div>
+                      </div>
+                      <button onClick={() => handleDelete(action.key)} disabled={busy}
+                        className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors shrink-0 border inline-flex items-center gap-1.5 disabled:opacity-70"
+                        style={armed
+                          ? { backgroundColor: 'var(--text-negative)', color: '#ffffff', borderColor: 'var(--text-negative)' }
+                          : { color: 'var(--text-negative)', borderColor: 'rgba(239,68,68,0.3)' }}>
+                        {busy && <span className="inline-block w-3 h-3 rounded-full border-2 border-white/40 border-t-white animate-spin" />}
+                        {busy ? t('Borrando…', 'Deleting…') : armed ? t('Confirmar', 'Confirm') : t('Eliminar', 'Delete')}
+                      </button>
+                    </div>
+                    <div className="overflow-hidden transition-all duration-200 ease-out"
+                      style={{ maxHeight: armed ? 48 : 0, opacity: armed ? 1 : 0 }}>
+                      <div className="text-xs mt-2 font-medium" style={{ color: 'var(--accent-orange)' }}>{action.warn}</div>
+                    </div>
                   </div>
-                  <button onClick={() => handleDelete(action.key)}
-                    className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors shrink-0 ml-3 border"
-                    style={confirmDelete === action.key
-                      ? { backgroundColor: 'var(--text-negative)', color: '#ffffff', borderColor: 'var(--text-negative)' }
-                      : { color: 'var(--text-negative)', borderColor: 'rgba(239,68,68,0.3)' }}>
-                    {confirmDelete === action.key ? t('Confirmar', 'Confirm') : t('Eliminar', 'Delete')}
-                  </button>
-                </div>
-              ))}
+                )}
+                return (
+                  <>
+                    <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'rgba(239,68,68,0.25)' }}>
+                      <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-negative)' }}>{t('Empezar de cero', 'Start over')}</p>
+                      {renderAction({ key: 'all', label: t('Eliminar todo', 'Delete everything'), desc: t('Borra cuentas, historial, transacciones y finanzas, y desconecta todos los brokers vinculados.', 'Deletes accounts, history, transactions and finances, and disconnects every linked broker.'), warn: t('No se puede deshacer. Descarga un backup antes si tienes duda.', 'This cannot be undone. Download a backup first if in doubt.') })}
+                    </div>
+
+                    <details className="group">
+                      <summary className="flex items-center justify-between cursor-pointer py-1">
+                        <p className="text-xs text-slate-500 uppercase tracking-wider">{t('Borrado selectivo', 'Selective delete')}</p>
+                        <span className="text-xs text-slate-600 group-open:rotate-180 transition-transform">▼</span>
+                      </summary>
+                      <div className="mt-2 space-y-2">
+                        <p className="text-xs text-slate-600">{t('Para casos puntuales: normalmente no necesitas esto.', 'For edge cases: you normally don\'t need these.')}</p>
+                        {[
+                          { key: 'items', label: t('Eliminar todas las cuentas', 'Delete all accounts'), desc: t('Instrumentos y posiciones (con sus lots y transacciones).', 'Instruments and positions (with their lots and transactions).'), warn: t('Se borrarán cuentas, lots y transacciones asociadas.', 'This will delete accounts, lots, and associated transactions.') },
+                          { key: 'transactions', label: t('Eliminar transacciones', 'Delete transactions'), desc: t('Solo el historial de movimientos del portafolio.', 'Only the portfolio movement history.'), warn: t('Los retornos YTD y Modified Dietz serán menos precisos.', 'YTD returns and Modified Dietz will be less accurate.') },
+                          { key: 'financeTransactions', label: t('Eliminar finanzas', 'Delete finance data'), desc: t('Solo los ingresos y gastos personales.', 'Only personal income and expense data.'), warn: t('Se perderá el historial de ingresos y gastos.', 'Income and expense history will be lost.') },
+                          { key: 'snapshots', label: t('Eliminar snapshots', 'Delete snapshots'), desc: t('Solo el historial del gráfico de crecimiento.', 'Only the growth chart history.'), warn: t('El gráfico de crecimiento perderá datos históricos.', 'The growth chart will lose historical data.') },
+                        ].map(renderAction)}
+
+                        {/* Per-account delete: wipe one origin (e.g. IBKR API) without
+                            touching another (manual IDC). Only when >1 account exists. */}
+                        {/* Shown from ONE account up: the guard used to require >1, which
+                            hid the section from exactly the users who most need it (a
+                            single connected broker they want to wipe without touching
+                            their manual holdings). It also makes the accounts visible. */}
+                        {onDeleteItemGroup && accountGroups.length > 0 && (
+                          <div className="pt-1">
+                            <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">{t('Por cuenta', 'By account')}</p>
+                            <div className="space-y-2">
+                              {accountGroups.map((g) => renderAction({
+                                key: `group:${g.key}`,
+                                label: g.institution || t('Sin institución', 'No institution'),
+                                desc: `${g.count} ${g.count === 1 ? t('posición', 'position') : t('posiciones', 'positions')} · ${sourceLabel(g.source, g.origin)}`,
+                                warn: t('Se borra solo esta cuenta (posiciones, lots y transacciones); las demás no se tocan.', 'Deletes only this account (positions, lots and transactions); the others are untouched.'),
+                              }))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </details>
+                    {/* Build id: lets anyone confirm at a glance whether this phone is
+                        running the latest deploy (Vercel free tier has silently stopped
+                        deploying before when the daily limit was hit). */}
+                    <BuildVersionFooter lang={lang} />
+                  </>
+                )
+              })()}
             </div>
           )}
         </div>
       </div>
     </div>
+  )
+}
+
+// Tiny build stamp so a screenshot of Settings proves which deploy the device runs.
+function BuildVersionFooter({ lang }) {
+  const [buildId, setBuildId] = useState(null)
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/version').then((r) => r.json()).then((d) => {
+      if (!cancelled) setBuildId(d?.buildId || '?')
+    }).catch(() => { if (!cancelled) setBuildId('?') })
+    return () => { cancelled = true }
+  }, [])
+  return (
+    <p className="text-[10px] font-mono text-center pt-2" style={{ color: 'var(--text-muted)' }}>
+      {lang === 'es' ? 'Versión' : 'Build'}: {buildId || '…'}
+    </p>
   )
 }

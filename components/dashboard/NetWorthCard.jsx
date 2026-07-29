@@ -1,10 +1,22 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { formatCurrency, getBaseCurrency } from './utils'
+import { useState, useEffect, useRef, useMemo } from 'react'
+import { formatCurrency, getBaseCurrency, getTypeCategory, getItemValue, isExcludedFromNetWorth, TYPE_COLORS, CHART_PALETTE } from './utils'
 import { InfoTip } from '../ui/Tooltip'
 
 const QUICK_CURRENCIES = ['USD', 'EUR', 'GBP', 'MXN', 'GTQ', 'COP', 'BRL', 'CAD']
+
+const CATEGORY_LABELS = {
+  banks: { es: 'Caja & Bancos', en: 'Cash & Banks' },
+  funds: { es: 'Fondos', en: 'Funds' },
+  stocks: { es: 'Acciones', en: 'Stocks' },
+  crypto: { es: 'Cripto', en: 'Crypto' },
+  alternatives: { es: 'Alternativos', en: 'Alternatives' },
+  bonds: { es: 'Bonos', en: 'Bonds' },
+  realestate: { es: 'Bienes Raíces', en: 'Real Estate' },
+  receivables: { es: 'Por Cobrar', en: 'Receivables' },
+  other: { es: 'Otros', en: 'Other' },
+}
 
 function getGreeting(lang) {
   const hour = new Date().getHours()
@@ -66,7 +78,7 @@ function Sparkline({ snapshots, width = 60, height = 24 }) {
   )
 }
 
-export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, yearlyChange, dailyChange, convert, lang, netContributions, cashTotal, snapshots }) {
+export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, yearlyChange, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, contributionWarning, onLogFlow }) {
   const hasYTD = returnYTD != null && isFinite(returnYTD)
   const displayReturn = hasYTD ? returnYTD : (returnSinceStart != null && isFinite(returnSinceStart) ? returnSinceStart : null)
   const hasReturn = displayReturn != null
@@ -94,8 +106,70 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
   const greeting = getGreeting(lang)
   const milestone = getMilestone(netWorth, displayReturn, lang)
 
+  // Asset-class composition of net worth — fills the card and explains where
+  // the money sits. Percentages are currency-agnostic; values use cv() so they
+  // follow the temporary currency picker like the rest of the card.
+  const allocation = useMemo(() => {
+    if (!items || items.length === 0) return []
+    const byGroup = {}
+    let total = 0
+    items.forEach((it) => {
+      if (it.isDebt || isExcludedFromNetWorth(it)) return
+      const val = getItemValue(it)
+      if (val <= 0) return
+      const key = getTypeCategory(it)
+      byGroup[key] = (byGroup[key] || 0) + val
+      total += val
+    })
+    let segs = Object.entries(byGroup)
+      .map(([name, value], i) => ({
+        name, value,
+        pct: total > 0 ? (value / total) * 100 : 0,
+        color: TYPE_COLORS[name]?.bg || CHART_PALETTE[i % CHART_PALETTE.length],
+      }))
+      .sort((a, b) => b.value - a.value)
+    if (segs.length > 5) {
+      const tail = segs.slice(4)
+      segs = segs.slice(0, 4)
+      segs.push({
+        name: '_more', isOther: true, count: tail.length,
+        value: tail.reduce((s, x) => s + x.value, 0),
+        pct: tail.reduce((s, x) => s + x.pct, 0),
+        color: 'var(--text-muted)',
+      })
+    }
+    return segs
+  }, [items])
+
+  const catLabel = (seg) => seg.isOther
+    ? (lang === 'es' ? `Otros (${seg.count})` : `Others (${seg.count})`)
+    : (CATEGORY_LABELS[seg.name]?.[lang] || seg.name)
+
+  // Biggest movers of the day — per-asset intraday % change, ordered by the
+  // magnitude of the move (gainers and losers mixed). Deduped by item id (two
+  // distinct holdings sharing a symbol must not shadow each other) and gated by
+  // position weight: a $5 position's ±10% shouldn't headline the card.
+  const movers = useMemo(() => {
+    if (!items || items.length === 0) return []
+    const eligible = items.filter((it) => !it.isDebt && !isExcludedFromNetWorth(it))
+    const total = eligible.reduce((s, it) => s + Math.abs(getItemValue(it)), 0)
+    const minValue = total * 0.005 // ≥0.5% of the portfolio
+    const seen = new Set()
+    const list = []
+    eligible.forEach((it) => {
+      if (it.change1d == null || !isFinite(it.change1d)) return
+      if (Math.abs(getItemValue(it)) < minValue) return
+      const key = it.id || it.symbol || it.name
+      const label = it.symbol || it.name
+      if (!label || seen.has(key)) return
+      seen.add(key)
+      list.push({ label, pct: it.change1d })
+    })
+    return list.sort((a, b) => Math.abs(b.pct) - Math.abs(a.pct)).slice(0, 5)
+  }, [items])
+
   return (
-    <div className="bg-gradient-to-br from-theme-card to-theme-surface rounded-2xl p-5 card-hero"
+    <div className="bg-gradient-to-br from-theme-card to-theme-surface rounded-2xl p-5 card-hero h-full flex flex-col"
       style={{ backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)', boxShadow: 'var(--shadow-elevated)', border: 'var(--glass-border)' }}>
       {/* Greeting + currency picker */}
       <div className="flex items-center justify-between mb-3">
@@ -120,7 +194,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
                 {QUICK_CURRENCIES.map((c) => (
                   <button key={c} onClick={() => { setTempCurrency(c === baseCur ? null : c); setShowPicker(false) }}
                     className="block w-full text-left px-3 py-1.5 text-xs rounded transition-colors"
-                    style={displayCur === c ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(59,130,246,0.1)' } : { color: 'var(--text-secondary)' }}>
+                    style={displayCur === c ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.1)' } : { color: 'var(--text-secondary)' }}>
                     {c}
                   </button>
                 ))}
@@ -155,8 +229,8 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
           }>
           {hasYTD ? 'YTD' : sinceStartDate ? (lang === 'es' ? 'Desde ' : 'Since ') + new Date(sinceStartDate).toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short', year: '2-digit' }) : 'YTD'}
           {' '}<span className="font-mono">{hasReturn ? `${isYTDPositive ? '+' : ''}${displayReturn.toFixed(2)}%` : 'N/A'}</span>
-          {hasReturn && <span className="opacity-50 ml-0.5" style={{ fontSize: '9px' }}>TWR</span>}
-          {hasYTD && <InfoTip text={lang === 'es' ? 'Year-to-Date: retorno desde el 1 de enero del año en curso. Calculado con TWR (Time-Weighted Return), que descuenta tus depósitos y retiros para medir el rendimiento real de tus inversiones.' : 'Year-to-Date: return since January 1st of the current year. Calculated using TWR (Time-Weighted Return), which excludes your deposits and withdrawals to measure true investment performance.'} />}
+          {hasReturn && <span className="opacity-50 ml-0.5" style={{ fontSize: '9px' }}>Dietz</span>}
+          {hasYTD && <InfoTip text={lang === 'es' ? 'Year-to-Date: retorno desde el 1 de enero del año en curso. Calculado con el método Dietz Modificado, que descuenta tus depósitos y retiros para que solo cuente lo que ganaron tus inversiones (no el dinero nuevo que metiste).' : 'Year-to-Date: return since January 1st of the current year. Calculated with the Modified Dietz method, which adjusts for your deposits and withdrawals so only investment performance counts (not new money you put in).'} />}
         </span>
         {yearlyChange != null && isFinite(yearlyChange) && (
           <span className="text-xs" style={{ color: isYearlyPositive ? 'var(--accent-green)' : 'var(--text-negative)' }}>
@@ -165,37 +239,74 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
         )}
       </div>
 
-      {/* Contributions vs Gains */}
-      {netContributions != null && netContributions > 0 && (
-        <div className="mt-3 pt-2 border-t border-glass-border/50">
-          <div className="flex items-center justify-between text-xs mb-1.5">
-            <span className="text-slate-500">{lang === 'es' ? 'Invertido' : 'Invested'}: <span className="text-slate-300 font-medium font-mono tabular-nums">{formatCurrency(cv(netContributions), displayCur)}</span></span>
-            <span className="text-slate-500">{lang === 'es' ? 'Ganancia' : 'Gains'}: <span className="font-medium font-mono tabular-nums" style={{ color: displayValue - cv(netContributions) >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>{formatCurrency(displayValue - cv(netContributions), displayCur)}</span></span>
+      {/* Quiet, non-alarming nudge: big growth with few logged deposits may mean
+          unrecorded contributions. A muted tip, NOT an amber warning banner. */}
+      {contributionWarning && (
+        <div className="mt-2 flex items-start gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+          <span className="shrink-0">ⓘ</span>
+          <span>
+            {lang === 'es'
+              ? 'Para un retorno más preciso, agrega tus depósitos y retiros.'
+              : 'For a more accurate return, add your deposits and withdrawals.'}
+            {onLogFlow && (
+              <button onClick={onLogFlow} className="ml-1 underline transition-colors" style={{ color: 'var(--accent-blue)' }}>
+                {lang === 'es' ? 'Registrar' : 'Log'}
+              </button>
+            )}
+          </span>
+        </div>
+      )}
+
+      {/* Composition — fills the card, shows where the net worth sits */}
+      {allocation.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-glass-border/50">
+          <span className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2.5 block">{lang === 'es' ? 'Composición' : 'Composition'}</span>
+          {/* Stacked bar */}
+          <div className="w-full h-2.5 rounded-full overflow-hidden flex mb-3" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+            {allocation.map((seg) => (
+              <div key={seg.name} className="h-full first:rounded-l-full last:rounded-r-full"
+                style={{ width: `${Math.max(seg.pct, 0.5)}%`, backgroundColor: seg.color }}
+                title={`${catLabel(seg)} · ${seg.pct.toFixed(1)}%`} />
+            ))}
           </div>
-          <div className="w-full h-1.5 rounded-full overflow-hidden flex" style={{ backgroundColor: 'rgba(127,127,127,0.15)' }}>
-            {(() => {
-              const displayContrib = cv(netContributions)
-              const contribPct = displayContrib > 0 && displayValue > 0
-                ? Math.min((displayContrib / displayValue) * 100, 100)
-                : 100
-              return (
-                <>
-                  <div className="h-full rounded-l-full" style={{ width: `${contribPct}%`, backgroundColor: 'var(--accent-blue)' }} />
-                  <div className="h-full rounded-r-full" style={{ width: `${Math.max(0, 100 - contribPct)}%`, backgroundColor: 'var(--accent-green)' }} />
-                </>
-              )
-            })()}
-          </div>
-          <div className="flex items-center gap-3 mt-1 text-xs text-slate-600">
-            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'var(--accent-blue)' }} />{lang === 'es' ? 'Invertido' : 'Invested'}</span>
-            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'var(--accent-green)' }} />{lang === 'es' ? 'Ganancias' : 'Gains'}</span>
+          {/* Legend */}
+          <div className="grid grid-cols-2 gap-x-5 gap-y-2">
+            {allocation.map((seg) => (
+              <div key={seg.name} className="flex items-center justify-between gap-2 min-w-0">
+                <span className="flex items-center gap-1.5 min-w-0">
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: seg.color }} />
+                  <span className="text-xs text-slate-400 truncate">{catLabel(seg)}</span>
+                </span>
+                <span className="text-xs font-medium font-mono tabular-nums shrink-0" style={{ color: 'var(--text-secondary)' }}>{seg.pct.toFixed(0)}%</span>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      {/* Cash available */}
+      {/* Biggest movers of the day — fills the remaining height */}
+      {movers.length > 0 && (
+        <div className="flex-1 flex flex-col min-h-0 mt-3 pt-3 border-t border-glass-border/50">
+          <span className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2.5 block">{lang === 'es' ? 'Mayores movimientos hoy' : "Today's biggest movers"}</span>
+          <div className="flex-1 flex flex-col justify-evenly">
+            {movers.map((m) => {
+              const up = m.pct >= 0
+              return (
+                <div key={m.label} className="flex items-center justify-between py-0.5">
+                  <span className="text-sm text-slate-300 font-medium truncate pr-2">{m.label}</span>
+                  <span className="text-sm font-mono tabular-nums font-medium shrink-0" style={{ color: up ? 'var(--accent-green)' : 'var(--text-negative)' }}>
+                    {up ? '▲' : '▼'} {up ? '+' : ''}{m.pct.toFixed(2)}%
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Cash available — anchored at the bottom */}
       {cashTotal != null && cashTotal > 0 && (
-        <div className={`${netContributions > 0 ? 'mt-2' : 'mt-4 pt-3 border-t border-glass-border/50'} flex items-center justify-between`}>
+        <div className="mt-auto pt-3 border-t border-glass-border/50 flex items-center justify-between">
           <span className="text-xs text-slate-500 flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'var(--accent-cyan)', opacity: 0.6 }} />
             {lang === 'es' ? 'Disponible' : 'Cash available'}
