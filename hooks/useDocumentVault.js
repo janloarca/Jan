@@ -64,7 +64,7 @@ export function useDocumentVault() {
     const { db } = await import('@/lib/firebase')
     const fs = await import('firebase/firestore')
     const snap = await fs.getDocs(fs.collection(db, `users/${uid}/items/${itemId}/documents`))
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    return snap.docs.map((d) => ({ ...d.data(), id: d.id }))
   }, [])
 
   return { uploadDocument, deleteDocument, listDocuments, uploading }

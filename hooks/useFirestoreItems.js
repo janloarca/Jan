@@ -112,21 +112,21 @@ export function useFirestoreItems() {
         fs.collection(db, `users/${currentUid}/items`),
         (snap) => {
           if (!cancelled) {
-            setItems(snap.docs.map((d) => sanitizeItem({ id: d.id, ...d.data() })))
+            setItems(snap.docs.map((d) => sanitizeItem({ ...d.data(), id: d.id })))
           }
         },
         onErr('items')
       )
       unsubSnapshots = fs.onSnapshot(
         fs.query(fs.collection(db, `users/${currentUid}/snapshots`), fs.orderBy('date')),
-        (snap) => { if (!cancelled) setSnapshots(snap.docs.map((d) => sanitizeDoc({ id: d.id, ...d.data() }))) },
+        (snap) => { if (!cancelled) setSnapshots(snap.docs.map((d) => sanitizeDoc({ ...d.data(), id: d.id }))) },
         onErr('snapshots')
       )
       unsubTransactions = fs.onSnapshot(
         fs.query(fs.collection(db, `users/${currentUid}/transactions`), fs.orderBy('date')),
         (snap) => {
           if (!cancelled) {
-            setTransactions(snap.docs.map((d) => sanitizeDoc({ id: d.id, ...d.data() })))
+            setTransactions(snap.docs.map((d) => sanitizeDoc({ ...d.data(), id: d.id })))
             setLoading(false)
           }
         },
@@ -149,22 +149,22 @@ export function useFirestoreItems() {
 
       unsubAlerts = fs.onSnapshot(
         fs.collection(db, `users/${currentUid}/alerts`),
-        (snap) => { if (!cancelled) setAlerts(snap.docs.map((d) => sanitizeDoc({ id: d.id, ...d.data() }))) },
+        (snap) => { if (!cancelled) setAlerts(snap.docs.map((d) => sanitizeDoc({ ...d.data(), id: d.id }))) },
         onErr('alerts')
       )
       unsubLots = fs.onSnapshot(
         fs.collection(db, `users/${currentUid}/lots`),
-        (snap) => { if (!cancelled) setLots(snap.docs.map((d) => sanitizeDoc({ id: d.id, ...d.data() }))) },
+        (snap) => { if (!cancelled) setLots(snap.docs.map((d) => sanitizeDoc({ ...d.data(), id: d.id }))) },
         onErr('lots')
       )
       unsubPortfolios = fs.onSnapshot(
         fs.collection(db, `users/${currentUid}/portfolios`),
-        (snap) => { if (!cancelled) setPortfolios(snap.docs.map((d) => sanitizeDoc({ id: d.id, ...d.data() }))) },
+        (snap) => { if (!cancelled) setPortfolios(snap.docs.map((d) => sanitizeDoc({ ...d.data(), id: d.id }))) },
         onErr('portfolios')
       )
       unsubFinanceTx = fs.onSnapshot(
         fs.query(fs.collection(db, `users/${currentUid}/financeTransactions`), fs.orderBy('date', 'desc')),
-        (snap) => { if (!cancelled) setFinanceTransactions(snap.docs.map((d) => sanitizeDoc({ id: d.id, ...d.data() }))) },
+        (snap) => { if (!cancelled) setFinanceTransactions(snap.docs.map((d) => sanitizeDoc({ ...d.data(), id: d.id }))) },
         onErr('financeTransactions')
       )
     }
@@ -365,7 +365,12 @@ export function useFirestoreItems() {
     const isManual = (transaction._source || '').startsWith('manual')
     const nonce = isManual ? `-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}` : ''
     const id = `${transaction.date || 'nodate'}-${(transaction.symbol || 'nosym').toUpperCase()}-${transaction.type || 'tx'}-${amt}${nonce}`
-    const txData = Object.fromEntries(Object.entries({ ...transaction, createdAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
+    // Strip a caller-supplied id (e.g. a state object round-tripped from the
+    // transactions list) — the doc id is authoritative and the read path
+    // trusts d.id, but a stray `id` field in the stored data would win if
+    // that read order ever regresses. Mirrors addItem's _removed pattern.
+    const { id: _removed, ...rawTx } = transaction
+    const txData = Object.fromEntries(Object.entries({ ...rawTx, createdAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
     await fs.setDoc(fs.doc(db, `users/${uid}/transactions`, id), txData)
   }, [uid])
 
@@ -455,7 +460,7 @@ export function useFirestoreItems() {
         fs.where('status', '==', 'open')
       ))
       let openLots = lotsSnap.docs
-        .map(d => ({ id: d.id, ...d.data() }))
+        .map(d => ({ ...d.data(), id: d.id }))
         .filter(l => l.quantity > 0)
         .sort((a, b) => (a.acquisitionDate || '').localeCompare(b.acquisitionDate || ''))
       if (institution) {
@@ -497,7 +502,11 @@ export function useFirestoreItems() {
   // Atomic money-movement helpers — all writes in a single writeBatch so a
   // partial failure cannot leave money debited from one account but never
   // credited to the other (or duplicated).
-  const strip = (o) => Object.fromEntries(Object.entries(o || {}).filter(([, v]) => v !== undefined))
+  // Drops undefined (Firestore rejects it) AND a caller-supplied `id` — every
+  // write site here builds its own deterministic doc id and the doc body must
+  // never carry one, or a read path that ever spreads data before d.id (see
+  // useFirestoreItems' listeners) would silently resurrect the wrong id.
+  const strip = (o) => { const { id: _id, ...rest } = o || {}; return Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined)) }
   // Deterministic id (no nonce) so retrying a failed atomic write overwrites the
   // same transaction doc instead of creating a duplicate.
   const txDocId = (tx) => {
@@ -535,7 +544,7 @@ export function useFirestoreItems() {
           fs.where('status', '==', 'open'),
         ))
         let openLots = lotsSnap.docs
-          .map((d) => ({ id: d.id, ...d.data() }))
+          .map((d) => ({ ...d.data(), id: d.id }))
           .filter((l) => l.quantity > 0)
           .sort((a, b) => (a.acquisitionDate || '').localeCompare(b.acquisitionDate || ''))
         if (lotClose.institution) {
@@ -603,7 +612,7 @@ export function useFirestoreItems() {
           fs.where('status', '==', 'open'),
         ))
         let openLots = lotsSnap.docs
-          .map((d) => ({ id: d.id, ...d.data() }))
+          .map((d) => ({ ...d.data(), id: d.id }))
           .filter((l) => l.quantity > 0)
           .sort((a, b) => (a.acquisitionDate || '').localeCompare(b.acquisitionDate || ''))
         if (lotClose.institution) {
@@ -754,7 +763,9 @@ export function useFirestoreItems() {
     if (!uid) throw new Error('Not authenticated')
     const { db, fs } = await getFirebase()
     const now = new Date().toISOString()
-    const strip = (obj) => Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined))
+    // Drops undefined AND a caller-supplied `id` — see the hook-scope strip()
+    // for why a stray id in the doc body is a landmine, not a no-op.
+    const strip = (obj) => { const { id: _id, ...rest } = obj || {}; return Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined)) }
 
     const ops = []
 

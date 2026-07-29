@@ -36,7 +36,7 @@ export function useEntities() {
             fs.collection(db, `users/${user.uid}/entities`),
             (snap) => {
               if (cancelled) return
-              const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+              const docs = snap.docs.map((d) => ({ ...d.data(), id: d.id }))
               if (docs.length === 0) {
                 setEntities([DEFAULT_ENTITY])
               } else {

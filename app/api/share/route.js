@@ -207,7 +207,7 @@ export async function GET(request) {
         return safe
       })
 
-    let snapshots = snapshotsSnap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    let snapshots = snapshotsSnap.docs.map((d) => ({ ...d.data(), id: d.id }))
 
     if (display === 'percent') {
       ;({ items, snapshots } = maskAmounts(items, snapshots))

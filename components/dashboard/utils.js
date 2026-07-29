@@ -219,15 +219,13 @@ export function augmentSnapshots(snapshots, items, convert) {
 export function findYearStartAnchor(snapshots, year) {
   if (!Array.isArray(snapshots) || snapshots.length === 0) return null
   const sorted = snapshots.filter((s) => s && s.date).sort((a, b) => new Date(a.date) - new Date(b.date))
-  let best = sorted.find((s) => {
-    const d = new Date(s.date)
-    return d.getFullYear() === year && d.getMonth() === 0
-  })
+  // String-prefix compare, not new Date(...).getFullYear()/getMonth(): those
+  // read in LOCAL time while the 'YYYY-MM-DD' string is UTC-midnight, so in
+  // UTC-6 'YYYY-01-01' misreads as December and 'YYYY-02-01' as January —
+  // the Jan-1 anchor silently resolves to the wrong month or null.
+  let best = sorted.find((s) => s.date.slice(0, 7) === `${year}-01`)
   if (!best) {
-    best = [...sorted].reverse().find((s) => {
-      const d = new Date(s.date)
-      return d.getFullYear() === year - 1 && d.getMonth() === 11
-    })
+    best = [...sorted].reverse().find((s) => s.date.slice(0, 7) === `${year - 1}-12`)
   }
   if (!best) return null
   const diff = Math.abs(new Date(best.date).getTime() - Date.UTC(year, 0, 1))

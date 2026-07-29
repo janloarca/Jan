@@ -67,7 +67,7 @@ function statsForScope(profile, scope) {
 
 async function readGroup(db, groupId) {
   const doc = await db.collection('friendGroups').doc(groupId).get()
-  return doc.exists ? { id: doc.id, ...doc.data() } : null
+  return doc.exists ? { ...doc.data(), id: doc.id } : null
 }
 
 export async function POST(request) {
