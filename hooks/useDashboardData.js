@@ -28,7 +28,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   const {
     items, snapshots, transactions, goals, settings, profile,
     loading: dataLoading, addItem, updateItem, deleteItem,
-    deleteAllItems, deleteItemGroup, saveSnapshot, deleteAllSnapshots, deleteDemoData,
+    deleteAllItems, deleteItemGroup, saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, deleteTransaction, deleteAllTransactions,
     alerts, addAlert, deleteAlert, updateAlert,
     lots, addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution, bulkImport,
@@ -738,7 +738,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             body: JSON.stringify({ action: 'save-credentials', token, queryId: settings.ibkrQueryId }),
           })
           saveSettings({ ibkrToken: null, _ibkrVaultMigrated: true })
-        } catch (e) { console.error('[ibkr] vault migration failed (manual sync):', e?.message) }
+        } catch (e) { console.error('[ibkr] vault migration failed (manual sync):', e.message) }
       }
       const data = await syncIBKR(token, settings.ibkrQueryId)
       await handleIBKRSync(data, 'merge')
@@ -1194,7 +1194,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
     // Firestore actions
     addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
-    saveSnapshot, deleteAllSnapshots, deleteDemoData,
+    saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, deleteTransaction, deleteAllTransactions,
     addAlert, deleteAlert, updateAlert,
     addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution,
