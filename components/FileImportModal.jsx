@@ -83,6 +83,8 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   const [aiOpen, setAiOpen] = useState(false)
   const [aiCopied, setAiCopied] = useState(false)
   const [histCopied, setHistCopied] = useState(false)
+  const [pdfReading, setPdfReading] = useState(false)
+  const [pdfNotice, setPdfNotice] = useState('')
   const fileRef = useRef(null)
   const [ibkrData, setIbkrData] = useState(null)
   const [ibkrImportMode, setIbkrImportMode] = useState('merge')
@@ -114,8 +116,104 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     }
   }, [brokerHint])
 
+  // The AI returns the template structure as JSON; we hydrate the SAME state
+  // the xlsx path fills (headers/rows/mapping/extraSheets), so mapping,
+  // preview, per-row validation and the import itself are literally the
+  // existing pipeline. Nothing the AI says reaches Firestore unreviewed.
+  const hydrateFromPdf = useCallback((data) => {
+    const HDRS = ['Simbolo', 'Nombre', 'Tipo', 'Cantidad', 'Precio de Compra', 'Precio Actual', 'Moneda', 'Institucion', 'Fecha de Compra', 'Notas']
+    const rows = (data.activos || []).map((a) => [
+      a.simbolo ?? '', a.nombre ?? '', a.tipo ?? '', a.cantidad ?? '', a.precioCompra ?? '',
+      a.precioActual ?? '', a.moneda ?? 'USD', a.institucion ?? '', a.fechaCompra ?? '', a.notas ?? '',
+    ])
+    if (rows.length === 0 && (data.transacciones || []).length === 0) {
+      setError(lang === 'es'
+        ? `La IA no encontró posiciones en el PDF.${data.missing ? ` Nota: ${data.missing}` : ''}`
+        : `The AI found no positions in the PDF.${data.missing ? ` Note: ${data.missing}` : ''}`)
+      return
+    }
+    const transactions = (data.transacciones || [])
+      .filter((t) => t.fecha && t.tipo)
+      .map((t) => ({
+        date: String(t.fecha),
+        type: String(t.tipo).toUpperCase(),
+        symbol: sanitizeCell(String(t.simbolo || '')).toUpperCase(),
+        description: sanitizeCell(String(t.descripcion || '')).slice(0, 500),
+        totalAmount: parseNumber(t.monto),
+        currency: sanitizeCell(String(t.moneda || 'USD')).toUpperCase(),
+      }))
+    const snapshots = (data.historial || [])
+      .filter((h) => h.fecha)
+      .map((h) => ({
+        date: String(h.fecha),
+        totalActivosUSD: parseNumber(h.totalActivos),
+        netWorthUSD: parseNumber(h.patrimonioNeto) || (parseNumber(h.totalActivos) - parseNumber(h.totalDeudas)),
+      }))
+    setExtraSheets({ snapshots, transactions })
+    setHeaders(HDRS)
+    setRawData(rows)
+    setMapping(guessMapping(HDRS))
+    setPdfNotice(lang === 'es'
+      ? `Chispu leyó tu PDF con IA. Revisa que cada dato esté correcto antes de importar.${data.missing ? ` La IA no encontró: ${data.missing}` : ''}`
+      : `Chispu read your PDF with AI. Review every value before importing.${data.missing ? ` The AI could not find: ${data.missing}` : ''}`)
+    setStep('map')
+  }, [lang])
+
+  const handlePdf = useCallback(async (file) => {
+    // Vercel caps serverless request bodies around 4.5MB and base64 inflates
+    // ~33%, so AI reading caps at 3MB. Bigger statements fall back to the
+    // manual prompt flow.
+    const MAX_PDF = 3 * 1024 * 1024
+    if (file.size > MAX_PDF) {
+      setError(lang === 'es'
+        ? 'PDF demasiado grande para la lectura con IA (máx 3MB). Usa el prompt manual de abajo con tu propia IA.'
+        : 'PDF too large for AI reading (max 3MB). Use the manual prompt below with your own AI.')
+      setAiOpen(true)
+      return
+    }
+    setPdfReading(true)
+    setError('')
+    try {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result)
+        reader.onerror = () => reject(new Error('read failed'))
+        reader.readAsDataURL(file)
+      })
+      const base64 = String(dataUrl).split(',')[1] || ''
+      const { authFetch } = await import('@/lib/authFetch')
+      // BYOK: the same Anthropic key the chat widget keeps in the browser. The
+      // server uses its own ANTHROPIC_API_KEY when one is configured.
+      let clientKey
+      try { clientKey = localStorage.getItem('chispudo-anthropic-key') || undefined } catch { clientKey = undefined }
+      const res = await authFetch('/api/import/parse-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pdf: base64, lang, apiKey: clientKey }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(lang === 'es'
+          ? data.errorCode === 'NO_AI_KEY'
+            ? 'La lectura automática de PDF necesita una API key de IA. Configúrala en el chat de Chispu o usa el prompt manual de abajo.'
+            : 'No pudimos leer el PDF con IA. Intenta de nuevo o usa el prompt manual de abajo.'
+          : data.errorCode === 'NO_AI_KEY'
+            ? 'Automatic PDF reading needs an AI API key. Set it up in the Chispu chat or use the manual prompt below.'
+            : 'We could not read the PDF with AI. Try again or use the manual prompt below.')
+        setAiOpen(true)
+        return
+      }
+      hydrateFromPdf(data)
+    } catch (err) {
+      setError(lang === 'es' ? `Error leyendo el PDF: ${err.message}` : `Error reading PDF: ${err.message}`)
+    } finally {
+      setPdfReading(false)
+    }
+  }, [lang, hydrateFromPdf])
+
   const handleFile = useCallback(async (file) => {
     setError('')
+    setPdfNotice('')
 
     const MAX_SIZE = 5 * 1024 * 1024
     if (file.size > MAX_SIZE) {
@@ -128,10 +226,18 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       'application/vnd.ms-excel',
       'text/csv',
       'application/csv',
+      'application/pdf',
     ]
     const ext = (file.name || '').split('.').pop()?.toLowerCase()
-    if (!validTypes.includes(file.type) && !['xlsx', 'xls', 'csv'].includes(ext)) {
-      setError(lang === 'es' ? 'Tipo de archivo no válido. Usa .xlsx o .csv.' : 'Invalid file type. Use .xlsx or .csv.')
+    if (!validTypes.includes(file.type) && !['xlsx', 'xls', 'csv', 'pdf'].includes(ext)) {
+      setError(lang === 'es' ? 'Tipo de archivo no válido. Usa .xlsx, .csv o .pdf.' : 'Invalid file type. Use .xlsx, .csv or .pdf.')
+      return
+    }
+
+    // Native PDF path: Chispu reads the statement with AI and pre-fills the
+    // same mapping/preview step a spreadsheet reaches.
+    if (ext === 'pdf' || file.type === 'application/pdf') {
+      await handlePdf(file)
       return
     }
 
@@ -156,7 +262,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         // stock mapper).
         csvText = await file.text()
         const kind = detectIBKRFileKind(csvText)
-        if (kind === 'pdf') { setError(lang === 'es' ? 'Esto es un PDF, no una hoja de cálculo. Expórtalo de nuevo en CSV o Excel, o usa el asistente de IA de abajo para convertirlo.' : 'This is a PDF, not a spreadsheet. Re-export it as CSV or Excel, or use the AI helper below to convert it.'); return }
+        if (kind === 'pdf') { await handlePdf(file); return }
         if (kind === 'xml') { setError(lang === 'es' ? 'Esto es un archivo XML. Expórtalo en CSV o Excel.' : 'This is an XML file. Export it as CSV or Excel.'); return }
         if (isIBKRSectionedFormat(csvText)) { acceptIBKR(csvText); return }
         // raw:true stops SheetJS from coercing "150,25" to the number 15025 and
@@ -199,12 +305,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
 
       // A PDF saved with an .xls name parses into junk rows instead of throwing.
       const looksPdf = json.length > 0 && /^%PDF/.test((json[0] || []).join(''))
-      if (looksPdf) {
-        setError(lang === 'es'
-          ? 'Esto es un PDF, no una hoja de cálculo. Expórtalo de nuevo en CSV o Excel, o usa el asistente de IA de abajo para convertirlo.'
-          : 'This is a PDF, not a spreadsheet. Re-export it as CSV or Excel, or use the AI helper below to convert it.')
-        return
-      }
+      if (looksPdf) { await handlePdf(file); return }
 
       if (json.length < 2) {
         setError(lang === 'es' ? 'El archivo no tiene datos suficientes.' : 'File has insufficient data.')
@@ -292,7 +393,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     } catch (err) {
       setError(lang === 'es' ? `Error leyendo archivo: ${err.message}` : `Error reading file: ${err.message}`)
     }
-  }, [lang, existingFinanceTransactions, existingItems])
+  }, [lang, existingFinanceTransactions, existingItems, handlePdf])
 
   const handlePaste = useCallback(() => {
     if (!pasteText.trim()) return
@@ -724,17 +825,27 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
               <div
                 onDrop={handleDrop}
                 onDragOver={(e) => e.preventDefault()}
-                onClick={() => fileRef.current?.click()}
+                onClick={() => !pdfReading && fileRef.current?.click()}
                 className="border-2 border-dashed border-glass-border rounded-xl p-6 sm:p-12 text-center cursor-pointer hover:border-[#3b82f6]/50 hover:bg-[#3b82f6]/5 transition-colors"
               >
-                <div className="text-4xl mb-3">{brokerInfo ? brokerInfo.icon : '📊'}</div>
-                <p className="text-white font-medium mb-1">{t('Arrastra tu archivo aquí', 'Drag your file here')}</p>
-                <p className="text-slate-500 text-sm">{t('o haz clic para seleccionar', 'or click to browse')}</p>
-                <p className="text-slate-600 text-xs mt-3">.xlsx, .xls, .csv</p>
+                {pdfReading ? (
+                  <div className="py-4">
+                    <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin mx-auto mb-3" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
+                    <p className="text-white font-medium mb-1">{t('Chispu está leyendo tu PDF con IA...', 'Chispu is reading your PDF with AI...')}</p>
+                    <p className="text-slate-500 text-sm">{t('Un estado grande puede tardar hasta medio minuto', 'A large statement can take up to half a minute')}</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="text-4xl mb-3">{brokerInfo ? brokerInfo.icon : '📊'}</div>
+                    <p className="text-white font-medium mb-1">{t('Arrastra tu archivo aquí', 'Drag your file here')}</p>
+                    <p className="text-slate-500 text-sm">{t('o haz clic para seleccionar', 'or click to browse')}</p>
+                    <p className="text-slate-600 text-xs mt-3">.xlsx, .xls, .csv, .pdf</p>
+                  </>
+                )}
                 <input
                   ref={fileRef}
                   type="file"
-                  accept=".xlsx,.xls,.csv"
+                  accept=".xlsx,.xls,.csv,.pdf"
                   className="hidden"
                   onChange={(e) => e.target.files[0] && handleFile(e.target.files[0])}
                 />
@@ -758,7 +869,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                 <button onClick={() => setAiOpen(!aiOpen)}
                   className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-left"
                   style={{ color: 'var(--accent-blue)' }}>
-                  <span>🤖 {t('¿Tus datos están en PDFs o fotos? Pídele el archivo a una IA', 'Data stuck in PDFs or photos? Ask an AI to build the file')}</span>
+                  <span>🤖 {t('¿PDF de más de 3MB, fotos, o prefieres tu propia IA? Prompt manual aquí', 'PDF over 3MB, photos, or prefer your own AI? Manual prompt here')}</span>
                   <span className={`transition-transform text-xs ${aiOpen ? 'rotate-180' : ''}`}>▾</span>
                 </button>
                 {aiOpen && (
@@ -955,6 +1066,11 @@ When done, give me the .xlsx file ready to download.`
           {/* Column mapping step */}
           {step === 'map' && (
             <div>
+              {pdfNotice && (
+                <div className="mb-3 p-3 rounded-lg text-xs leading-relaxed" style={{ backgroundColor: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.25)', color: 'var(--accent-blue)' }}>
+                  {pdfNotice}
+                </div>
+              )}
               <p className="text-slate-400 text-sm mb-3">
                 {t(`${rawData.length} filas encontradas. Mapea las columnas:`, `${rawData.length} rows found. Map the columns:`)}
               </p>

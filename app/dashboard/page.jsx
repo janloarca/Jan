@@ -7,6 +7,7 @@ import { useDashboardData } from '@/hooks/useDashboardData'
 import { getItemValue, formatCurrency, getTypeCategory, businessDaysSince } from '@/components/dashboard/utils'
 import Header from '@/components/dashboard/Header'
 import AdBanner from '@/components/AdBanner'
+import MonthEndCheckin, { hasLiveSync } from '@/components/dashboard/MonthEndCheckin'
 import DashboardLoading from './loading'
 import NetWorthCard from '@/components/dashboard/NetWorthCard'
 import ActionButtons from '@/components/dashboard/ActionButtons'
@@ -983,6 +984,15 @@ export default function DashboardPage() {
           </div>
         </div>
         </ErrorBoundary>
+
+        <MonthEndCheckin
+          settings={settings} saveSettings={saveSettings}
+          hasItems={portfolioItems.length > 0}
+          hasLiveConnection={hasLiveSync(portfolioItems, ibkrConnected)}
+          onImport={handleOpenImport}
+          onAddManual={handleOpenAccount}
+          lang={lang}
+        />
 
         {/* Ad slot — first seam below the hero, visible without scrolling.
             Renders nothing until NEXT_PUBLIC_ADSENSE_SLOT_FOOTER is set. */}
