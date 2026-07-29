@@ -336,6 +336,15 @@ export function useFirestoreItems() {
     await fs.setDoc(fs.doc(db, `users/${uid}/snapshots`, id), clean, { merge: true })
   }, [uid, items])
 
+  // Single-doc delete: the snapshot doc id IS its date string, so re-stamping
+  // a mis-dated snapshot (badDataCleanup class 6) means writing the corrected
+  // doc and removing the old day-01 one.
+  const deleteSnapshot = useCallback(async (id) => {
+    if (!uid || !id) return
+    const { db, fs } = await getFirebase()
+    await fs.deleteDoc(fs.doc(db, `users/${uid}/snapshots`, id))
+  }, [uid])
+
   const deleteAllSnapshots = useCallback(async () => {
     if (!uid) return
     const { db, fs } = await getFirebase()
@@ -898,7 +907,7 @@ export function useFirestoreItems() {
   return {
     items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, loading,
     addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
-    saveSnapshot, deleteAllSnapshots, deleteDemoData,
+    saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, deleteTransaction, deleteAllTransactions,
     addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     addAlert, deleteAlert, updateAlert,
