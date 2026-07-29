@@ -617,12 +617,22 @@ export function computeAssetAttribution(items) {
 // Note this is NOT chained: each point is measured from the period start, so a
 // single bad sub-period cannot compound into an absurd figure the way a chained
 // TWR does when one denominator is polluted.
-export function computeMWRSeries(chartData, transactions, convert, baseCurrency) {
+export function computeMWRSeries(chartData, transactions, convert, baseCurrency, opts = {}) {
   if (!chartData || chartData.length < 2) return []
+
+  // flowFromTs mirrors computeTWRSeries. When the early part of the chart is a
+  // hold-flat RECONSTRUCTION (today's holdings projected backwards), that
+  // reconstruction already contains the effect of the deposits that built the
+  // position, so netting those same flows again double-counts them. The chart
+  // was already passing this option; the function silently ignored it because
+  // it had no such parameter, and JavaScript never complains about an extra
+  // argument. See the FASE AD/AI note in CLAUDE.md.
+  const flowFromTs = opts.flowFromTs ?? null
 
   const flowTypes = { DEPOSIT: 1, WITHDRAWAL: -1 }
   const flows = (transactions || [])
     .filter((tx) => tx.date && flowTypes[(tx.type || '').toUpperCase()] != null)
+    .filter((tx) => flowFromTs == null || new Date(tx.date).getTime() >= flowFromTs)
     .map((tx) => {
       const sign = flowTypes[(tx.type || '').toUpperCase()]
       const raw = (tx.totalAmount ?? 0) * sign

@@ -539,8 +539,17 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         const nav = entry.netWorthUSD || 0
         const prevVal = prev.netWorthUSD ?? 0
         if (prev._source === 'ibkr') return prevVal !== nav
-        // Full/daily snapshot exists: only overwrite if the broker NAV is HIGHER
-        // (then the stored one was the poorer value).
+        // A 'backfill' doc is a RECONSTRUCTION (today's holdings priced at past
+        // dates), not an observation, and for a portfolio grown by deposits it
+        // reads far too high: one real account had January estimated at 7,153
+        // against a true 5,424. Real broker NAV must be allowed to correct it in
+        // EITHER direction. The old rule only accepted a higher value, so
+        // importing the true, lower history silently changed nothing and the
+        // year kept measuring from an invented starting point.
+        if (prev._source === 'backfill') return prevVal !== nav
+        // A daily/manual snapshot is a FULL-portfolio observation while broker
+        // NAV covers one account, so downgrading it would lose the rest of the
+        // holdings. Only take the broker figure when it is higher.
         return nav > prevVal
       })
       .map(entry => {
