@@ -70,6 +70,7 @@ import { reconcileBrokerPositions } from '@/lib/brokerReconcile'
 import { analyzeDataCompleteness } from '@/lib/dataCompleteness'
 import { detectPhantomFlows } from '@/lib/phantomFlows'
 import { detectFakeAggregateTrades, detectImportStampedAcquisitions, detectFakeCashReportItems, detectDuplicateCashDividends } from '@/lib/badDataCleanup'
+import { IBKR_DISCONNECTED_FIELDS } from '@/lib/brokerRegistry'
 import { DEMO_ITEMS, DEMO_LOTS, DEMO_TRANSACTIONS, isDemoItem } from '@/lib/demoData'
 import AssetAllocation from '@/components/dashboard/AssetAllocation'
 import PriceAlerts from '@/components/dashboard/PriceAlerts'
@@ -358,6 +359,25 @@ export default function DashboardPage() {
     setToast({ msg, type })
     toastTimer.current = setTimeout(() => setToast(null), duration)
   }, [])
+
+  // Shared by the sync modal's "Desconectar IBKR" button and the red top
+  // banner's own dismiss action — a locked/expired token only ever offered
+  // "reconnect" as a way out, with no visible way to say "I'm fine on CSV
+  // imports, stop nagging me." Both call sites must clear the SAME fields
+  // (client mirror + every auto-sync status field), or the banner keeps
+  // showing even after the user disconnects.
+  const handleIbkrDisconnect = useCallback(async () => {
+    saveSettings(IBKR_DISCONNECTED_FIELDS)
+    // Also wipe the SERVER vault — clearing only the client doc left the
+    // encrypted token alive, so the connection resurfaced and auto-synced.
+    try {
+      await authFetch('/api/brokers/ibkr', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'save-credentials', token: '', queryId: '' }),
+      })
+    } catch (e) { console.error('[ibkr] vault clear on disconnect failed:', e?.message) }
+    showToast(lang === 'es' ? 'IBKR desconectado' : 'IBKR disconnected')
+  }, [saveSettings, showToast, lang])
 
   // Self-heal rows THIS APP invented. Several shipped IBKR file-parser bugs
   // (FASE BU/BV/BY, fixed 2026-07-28) wrote fake data into real imports: a
@@ -803,11 +823,16 @@ export default function DashboardPage() {
                   {lang === 'es' ? 'Tu token de IBKR expiró: genera uno nuevo para mantener tu portafolio actualizado' : 'Your IBKR token has expired: generate a new one to keep your portfolio updated'}
                 </p>
               </div>
-              <button onClick={() => setModal('ibkr')}
-                className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
-                style={{ backgroundColor: '#d97706', color: '#fff' }}>
-                {lang === 'es' ? 'Actualizar' : 'Update'}
-              </button>
+              <div className="flex items-center gap-3 shrink-0">
+                <button onClick={handleIbkrDisconnect} className="text-xs transition-colors" style={{ color: '#fcd34d', opacity: 0.7 }}>
+                  {lang === 'es' ? 'Desconectar' : 'Disconnect'}
+                </button>
+                <button onClick={() => setModal('ibkr')}
+                  className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                  style={{ backgroundColor: '#d97706', color: '#fff' }}>
+                  {lang === 'es' ? 'Actualizar' : 'Update'}
+                </button>
+              </div>
             </div>
           )}
           {topBanner === 'ibkr-query' && (
@@ -820,11 +845,16 @@ export default function DashboardPage() {
                   {lang === 'es' ? 'Query ID de IBKR inválido: verifica tu Flex Query en IBKR' : 'Invalid IBKR Query ID: verify your Flex Query in IBKR'}
                 </p>
               </div>
-              <button onClick={() => setModal('ibkr')}
-                className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
-                style={{ backgroundColor: '#d97706', color: '#fff' }}>
-                {lang === 'es' ? 'Configurar' : 'Configure'}
-              </button>
+              <div className="flex items-center gap-3 shrink-0">
+                <button onClick={handleIbkrDisconnect} className="text-xs transition-colors" style={{ color: '#fcd34d', opacity: 0.7 }}>
+                  {lang === 'es' ? 'Desconectar' : 'Disconnect'}
+                </button>
+                <button onClick={() => setModal('ibkr')}
+                  className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                  style={{ backgroundColor: '#d97706', color: '#fff' }}>
+                  {lang === 'es' ? 'Configurar' : 'Configure'}
+                </button>
+              </div>
             </div>
           )}
           {topBanner === 'ibkr-locked' && (
@@ -837,11 +867,16 @@ export default function DashboardPage() {
                   {lang === 'es' ? 'IBKR bloqueó tu token: genera uno NUEVO en IBKR o importa un CSV mientras tanto' : 'IBKR locked your token: generate a NEW one in IBKR or import a CSV in the meantime'}
                 </p>
               </div>
-              <button onClick={() => setModal('ibkr')}
-                className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
-                style={{ backgroundColor: '#dc2626', color: '#fff' }}>
-                {lang === 'es' ? 'Resolver' : 'Resolve'}
-              </button>
+              <div className="flex items-center gap-3 shrink-0">
+                <button onClick={handleIbkrDisconnect} className="text-xs transition-colors" style={{ color: '#fca5a5', opacity: 0.7 }}>
+                  {lang === 'es' ? 'Desconectar' : 'Disconnect'}
+                </button>
+                <button onClick={() => setModal('ibkr')}
+                  className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                  style={{ backgroundColor: '#dc2626', color: '#fff' }}>
+                  {lang === 'es' ? 'Resolver' : 'Resolve'}
+                </button>
+              </div>
             </div>
           )}
           {topBanner === 'ibkr-failed' && (
@@ -1171,18 +1206,7 @@ export default function DashboardPage() {
           vaultMigrated={!!settings?._ibkrVaultMigrated} syncSummary={ibkrSyncSummary}
           onSaveCredentials={(creds) => { saveSettings({ ...creds, _ibkrLastSync: new Date().toISOString(), _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
           onApiSyncSuccess={() => { saveSettings({ _ibkrLastSync: new Date().toISOString(), _ibkrAutoSyncStatus: 'ok', _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
-          onDisconnect={async () => {
-            saveSettings({ ibkrToken: null, ibkrQueryId: null, _ibkrVaultMigrated: null, _ibkrLastSync: null, _ibkrLastAutoSync: null, _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null })
-            // Also wipe the SERVER vault — clearing only the client doc left the
-            // encrypted token alive, so the connection resurfaced and auto-synced.
-            try {
-              await authFetch('/api/brokers/ibkr', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'save-credentials', token: '', queryId: '' }),
-              })
-            } catch (e) { console.error('[ibkr] vault clear on disconnect failed:', e?.message) }
-            showToast(lang === 'es' ? 'IBKR desconectado' : 'IBKR disconnected')
-          }}
+          onDisconnect={handleIbkrDisconnect}
           uid={user?.uid} lang={lang}
           lastSyncTime={ibkrLastSync}
           existingItems={enrichedItems} existingTransactions={transactions} existingSnapshots={snapshots}

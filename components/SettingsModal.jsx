@@ -7,7 +7,7 @@ import EntityManager from '@/components/dashboard/EntityManager'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { isNotificationSupported, getNotificationPermission, requestNotificationPermission } from '@/lib/notifications'
 import { BENCHMARKS } from '@/hooks/useBenchmark'
-import { disconnectAllSyncs } from '@/lib/brokerRegistry'
+import { disconnectAllSyncs, IBKR_DISCONNECTED_FIELDS } from '@/lib/brokerRegistry'
 
 const CURRENCIES = [
   { code: 'USD', name: 'US Dollar', symbol: '$' },
@@ -134,11 +134,13 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
         // The IBKR auto-sync gate reads these preference flags (useDashboardData);
         // clearing only the server vault leaves the 30-min auto-sync alive and the
         // "deleted" IBKR positions come back. This was a real user-reported bug.
-        await onSaveSettings({
-          ibkrToken: null, ibkrQueryId: null, _ibkrVaultMigrated: null,
-          _ibkrLastSync: null, _ibkrLastAutoSync: null, _ibkrLastAutoSyncAttempt: null,
-          _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null,
-        })
+        await onSaveSettings(IBKR_DISCONNECTED_FIELDS)
+        // "Delete everything" left the Amigos profile and group membership
+        // behind — the wipe only ever touched portfolio collections, never
+        // the social ones. Same purge toggleFriends(false) does.
+        await authFetch('/api/friends', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'disable' }),
+        }).catch(() => {})
       }
       setConfirmDelete(null)
       flash('ok', type === 'all' ? t('Datos y conexiones eliminados', 'Data and connections deleted') : t('Datos eliminados', 'Data deleted'))

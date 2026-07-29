@@ -83,6 +83,23 @@ function sanitizeDoc(raw) {
   return out
 }
 
+// Deletes every doc in a collection in chunked batches instead of one
+// deleteDoc() per document fired all at once via Promise.all: an account with
+// a real year of history easily has 500-1000+ docs across items/lots/
+// transactions/snapshots, and an unbounded burst of individual writes against
+// Firestore stalls badly (real symptom: "delete all" spinning forever and
+// never reaching the steps after it, like clearing the IBKR connection).
+const DELETE_CHUNK = 400
+async function deleteAllDocsIn(db, fs, path) {
+  const snap = await fs.getDocs(fs.collection(db, path))
+  const refs = snap.docs.map((d) => d.ref)
+  for (let i = 0; i < refs.length; i += DELETE_CHUNK) {
+    const batch = fs.writeBatch(db)
+    for (const ref of refs.slice(i, i + DELETE_CHUNK)) batch.delete(ref)
+    await batch.commit()
+  }
+}
+
 export function useFirestoreItems() {
   const initCache = readInitCache()
   const [items, setItems] = useState(initCache?.items || [])
@@ -303,10 +320,7 @@ export function useFirestoreItems() {
     if (cascade) {
       collections.push(`users/${uid}/lots`, `users/${uid}/transactions`, `users/${uid}/snapshots`, `users/${uid}/itemSnapshots`)
     }
-    await Promise.all(collections.map(async (path) => {
-      const snap = await fs.getDocs(fs.collection(db, path))
-      await Promise.all(snap.docs.map((d) => fs.deleteDoc(d.ref)))
-    }))
+    for (const path of collections) await deleteAllDocsIn(db, fs, path)
   }, [uid])
 
   const saveSnapshot = useCallback(async (snapshot) => {
@@ -325,8 +339,7 @@ export function useFirestoreItems() {
   const deleteAllSnapshots = useCallback(async () => {
     if (!uid) return
     const { db, fs } = await getFirebase()
-    const snap = await fs.getDocs(fs.collection(db, `users/${uid}/snapshots`))
-    await Promise.all(snap.docs.map((d) => fs.deleteDoc(d.ref)))
+    await deleteAllDocsIn(db, fs, `users/${uid}/snapshots`)
   }, [uid])
 
   // Selective cleanup for the onboarding demo: removes every doc flagged
@@ -408,8 +421,7 @@ export function useFirestoreItems() {
   const deleteAllTransactions = useCallback(async () => {
     if (!uid) return
     const { db, fs } = await getFirebase()
-    const snap = await fs.getDocs(fs.collection(db, `users/${uid}/transactions`))
-    await Promise.all(snap.docs.map((d) => fs.deleteDoc(d.ref)))
+    await deleteAllDocsIn(db, fs, `users/${uid}/transactions`)
   }, [uid])
 
   const saveGoals = useCallback(async (goalsData) => {
@@ -718,8 +730,7 @@ export function useFirestoreItems() {
   const deleteAllFinanceTransactions = useCallback(async () => {
     if (!uid) return
     const { db, fs } = await getFirebase()
-    const snap = await fs.getDocs(fs.collection(db, `users/${uid}/financeTransactions`))
-    await Promise.all(snap.docs.map((d) => fs.deleteDoc(d.ref)))
+    await deleteAllDocsIn(db, fs, `users/${uid}/financeTransactions`)
   }, [uid])
 
   const addPortfolio = useCallback(async (portfolio) => {

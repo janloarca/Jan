@@ -9,7 +9,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { RefreshCw } from 'lucide-react'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { getBrokerRegistry, connectorExplainer } from '@/lib/brokerRegistry'
+import { getBrokerRegistry, connectorExplainer, IBKR_DISCONNECTED_FIELDS } from '@/lib/brokerRegistry'
 import { getBrokerHowTo } from '@/lib/brokerHowTo'
 import BrokerSteps from '@/components/ui/BrokerSteps'
 
@@ -127,8 +127,11 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
       setIbkrConfigured(false)
       setIbkrToken('')
       setIbkrQueryId('')
-      // Clear the client settings mirror too, so ibkrConnected/auto-sync turn off.
-      onSaveCredentials?.({ ibkrToken: null, ibkrQueryId: null, _ibkrVaultMigrated: false })
+      // Clear the client settings mirror AND every auto-sync status/error
+      // field — leaving _ibkrAutoSyncErrorCode set kept the "IBKR bloqueó tu
+      // token" banner showing forever even after unlinking, with no way to
+      // dismiss it short of reconnecting.
+      onSaveCredentials?.(IBKR_DISCONNECTED_FIELDS)
       flash('ok', t('IBKR desvinculado', 'IBKR unlinked'))
     } catch (e) { flash('err', e.message || t('Error al desvincular', 'Error unlinking')) }
     setIbkrSaving(false)
