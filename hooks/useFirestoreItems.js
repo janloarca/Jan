@@ -189,11 +189,13 @@ export function useFirestoreItems() {
 
   // Mantiene la caché de módulo al día con el estado vivo: los onSnapshot ya
   // actualizan el state; aquí solo lo persistimos para el próximo montaje.
+  // Gateada por !loading: mientras la primera carga no entrega datos reales,
+  // no se escribe nada, así una navegación rápida nunca cachea arrays vacíos.
   useEffect(() => {
-    if (uid) {
+    if (uid && !loading) {
       _cacheByUid[uid] = { items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile }
     }
-  }, [uid, items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile])
+  }, [uid, loading, items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile])
 
   const addItem = useCallback(async (item) => {
     if (!uid) { console.error('[addItem] No uid — write skipped'); return }
