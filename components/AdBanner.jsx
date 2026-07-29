@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ADSENSE_CLIENT, ADSENSE_SLOT_FOOTER } from '@/lib/adsense'
 
 // Google AdSense banner — the single ad slot on the dashboard. Placed right below
@@ -16,6 +16,8 @@ const SLOT = ADSENSE_SLOT_FOOTER
 
 export default function AdBanner({ lang = 'es' }) {
   const enabled = !!(ADSENSE_CLIENT && SLOT)
+  const [unfilled, setUnfilled] = useState(false)
+  const insRef = useRef(null)
 
   useEffect(() => {
     if (!enabled) return
@@ -24,9 +26,26 @@ export default function AdBanner({ lang = 'es' }) {
     } catch (e) {
       // Loader not ready yet — must never break the dashboard.
     }
+
+    // When AdSense has nothing to serve (site pending review, no demand, etc.)
+    // it marks the <ins> with data-ad-status="unfilled" and leaves it empty:
+    // without this check the dashboard shows a dead "PUBLICIDAD" card. Detect
+    // it live via MutationObserver, plus a 6s fallback for the empty-DOM case.
+    const el = insRef.current
+    if (!el) return
+    const observer = new MutationObserver(() => {
+      if (el.getAttribute('data-ad-status') === 'unfilled') setUnfilled(true)
+    })
+    observer.observe(el, { attributes: true, attributeFilter: ['data-ad-status'] })
+    const fallback = setTimeout(() => {
+      if (el.getAttribute('data-ad-status') === 'unfilled' || !el.innerHTML.trim()) {
+        setUnfilled(true)
+      }
+    }, 6000)
+    return () => { observer.disconnect(); clearTimeout(fallback) }
   }, [enabled])
 
-  if (!enabled) return null
+  if (!enabled || unfilled) return null
 
   return (
     <div className="card-glass rounded-2xl px-4 pt-2 pb-3">
@@ -36,6 +55,7 @@ export default function AdBanner({ lang = 'es' }) {
       {/* Slim horizontal unit; minHeight reserves the space up front so the ad
           doesn't shift the layout below when it loads */}
       <ins
+        ref={insRef}
         className="adsbygoogle"
         style={{ display: 'block', minHeight: 90, maxHeight: 120, overflow: 'hidden' }}
         data-ad-client={ADSENSE_CLIENT}

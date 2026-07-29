@@ -226,6 +226,8 @@ export default function FriendsPage() {
   if (!user) return null
 
   const my = myStats.all || { ytd: null, day: null }
+  const createDisabled = busy || !createName.trim()
+  const joinDisabled = busy || !joinCode.trim()
 
   return (
     <PageShell user={user} lang={lang} setLang={handleSetLang} settings={settings} width="narrow">
@@ -271,11 +273,11 @@ export default function FriendsPage() {
             <div className="text-right">
               <div className="flex items-end gap-3 justify-end">
                 <div>
-                  <div className="text-xl font-bold font-mono tabular-nums" style={{ color: pctColor(my.ytd) }}>{fmtPct(my.ytd)}</div>
+                  <div className="text-lg font-bold font-mono tabular-nums" style={{ color: pctColor(my.ytd) }}>{fmtPct(my.ytd)}</div>
                   <div className="text-[9px] text-slate-500 uppercase tracking-wide">YTD</div>
                 </div>
                 <div>
-                  <div className="text-base font-bold font-mono tabular-nums" style={{ color: pctColor(my.mtd) }}>{fmtPct(my.mtd)}</div>
+                  <div className="text-lg font-bold font-mono tabular-nums" style={{ color: pctColor(my.mtd) }}>{fmtPct(my.mtd)}</div>
                   <div className="text-[9px] text-slate-500 uppercase tracking-wide">{t('mes', 'month')}</div>
                 </div>
               </div>
@@ -322,8 +324,11 @@ export default function FriendsPage() {
                 ))}
               </div>
             </div>
-            <button onClick={handleCreate} disabled={busy || !createName.trim()}
-              className="w-full py-2 rounded-lg text-xs font-medium disabled:opacity-50" style={{ color: '#fff', backgroundColor: 'var(--accent-green)' }}>
+            <button onClick={handleCreate} disabled={createDisabled}
+              className="w-full py-2 rounded-lg text-xs font-medium transition-colors"
+              style={createDisabled
+                ? { backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)', cursor: 'not-allowed' }
+                : { backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
               {t('Crear y obtener código', 'Create & get code')}
             </button>
           </div>
@@ -334,8 +339,11 @@ export default function FriendsPage() {
             <input value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())} maxLength={12}
               placeholder={t('Pega el código del grupo', 'Paste the group code')}
               className="w-full px-3 py-2 rounded-lg text-sm text-white font-mono tracking-widest bg-theme-surface border border-glass-border/60 focus:outline-none" />
-            <button onClick={handleJoin} disabled={busy || !joinCode.trim()}
-              className="w-full py-2 rounded-lg text-xs font-medium disabled:opacity-50" style={{ color: '#fff', backgroundColor: 'var(--accent-blue)' }}>
+            <button onClick={handleJoin} disabled={joinDisabled}
+              className="w-full py-2 rounded-lg text-xs font-medium transition-colors"
+              style={joinDisabled
+                ? { backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)', cursor: 'not-allowed' }
+                : { backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
               {t('Unirme', 'Join')}
             </button>
           </div>
@@ -515,7 +523,7 @@ function GlobalBoard({ global, lang, t, api, flash, onChanged }) {
           className="px-2.5 py-1 text-xs font-medium rounded-md disabled:opacity-50 border"
           style={optedIn
             ? { borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }
-            : { borderColor: 'var(--accent-green)', color: '#fff', backgroundColor: 'var(--accent-green)' }}>
+            : { borderColor: 'var(--accent-blue)', color: '#fff', backgroundColor: 'var(--accent-blue)' }}>
           {optedIn ? t('Salir', 'Leave') : t('Participar', 'Join')}
         </button>
       </div>
