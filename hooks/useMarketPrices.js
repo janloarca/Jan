@@ -2,12 +2,19 @@ import { authFetch } from '@/lib/authFetch'
 import { isMarketPriced } from '@/components/dashboard/utils'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 
+// Caché en memoria a nivel de módulo: al cambiar de sección el hook arranca con
+// los últimos precios/dividendos conocidos en vez de una pantalla en blanco. El
+// fetch corre SIEMPRE al montar y cada 5 min, exactamente igual que antes.
+let _cachedPrices = {}
+let _cachedDividends = {}
+let _cachedLastUpdate = null
+
 export function useMarketPrices(items) {
-  const [prices, setPrices] = useState({})
-  const [dividends, setDividends] = useState({})
+  const [prices, setPrices] = useState(_cachedPrices)
+  const [dividends, setDividends] = useState(_cachedDividends)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [lastUpdate, setLastUpdate] = useState(null)
+  const [lastUpdate, setLastUpdate] = useState(_cachedLastUpdate)
   const abortRef = useRef(null)
 
   const fetchPrices = useCallback(async () => {
@@ -23,7 +30,7 @@ export function useMarketPrices(items) {
     abortRef.current = new AbortController()
     const { signal } = abortRef.current
 
-    setLoading(true)
+    if (Object.keys(_cachedPrices).length === 0) setLoading(true)
     setError(null)
     try {
       const stockSyms = symbols.filter((s) => !/crypto|cripto|blockchain/i.test(s.type || ''))
@@ -47,15 +54,18 @@ export function useMarketPrices(items) {
 
       if (priceRes.ok) {
         const data = await priceRes.json()
-        setPrices(data.prices || {})
-        setLastUpdate(data.timestamp)
+        _cachedPrices = data.prices || {}
+        _cachedLastUpdate = data.timestamp
+        setPrices(_cachedPrices)
+        setLastUpdate(_cachedLastUpdate)
       } else {
         setError('Failed to fetch prices')
       }
 
       if (divRes?.ok) {
         const divData = await divRes.json()
-        setDividends(divData.dividends || {})
+        _cachedDividends = divData.dividends || {}
+        setDividends(_cachedDividends)
       }
     } catch (err) {
       if (err.name === 'AbortError') return
