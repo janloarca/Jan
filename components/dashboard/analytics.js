@@ -601,3 +601,63 @@ export function computeAssetAttribution(items) {
     }
   }).sort((a, b) => b.contribution - a.contribution)
 }
+
+// Money-weighted return (Modified Dietz) as a cumulative series: for every point
+// on the chart, the return of the money the user actually had working from the
+// start of the period up to that point.
+//
+// Different question from TWR, and the one most people mean by "how am I doing".
+// TWR deliberately strips out the effect of WHEN you added money, so it measures
+// the manager, not the investor. MWR keeps it: a deposit made right before a
+// rally helps your number, exactly as it helped your wallet.
+//
+//   return = (endValue - startValue - netFlows) / (startValue + Σ flow × weight)
+//   weight = time the flow was actually invested / total period
+//
+// Note this is NOT chained: each point is measured from the period start, so a
+// single bad sub-period cannot compound into an absurd figure the way a chained
+// TWR does when one denominator is polluted.
+export function computeMWRSeries(chartData, transactions, convert, baseCurrency) {
+  if (!chartData || chartData.length < 2) return []
+
+  const flowTypes = { DEPOSIT: 1, WITHDRAWAL: -1 }
+  const flows = (transactions || [])
+    .filter((tx) => tx.date && flowTypes[(tx.type || '').toUpperCase()] != null)
+    .map((tx) => {
+      const sign = flowTypes[(tx.type || '').toUpperCase()]
+      const raw = (tx.totalAmount ?? 0) * sign
+      const amt = convert ? convert(raw, tx.currency || 'USD', baseCurrency || 'USD') : raw
+      return { ts: new Date(tx.date).getTime(), flow: Number.isFinite(amt) ? amt : raw }
+    })
+    .sort((a, b) => a.ts - b.ts)
+
+  const startTs = chartData[0].ts
+  const startValue = chartData[0].value ?? chartData[0].total ?? 0
+  const series = [0]
+
+  for (let i = 1; i < chartData.length; i++) {
+    const endTs = chartData[i].ts
+    const endValue = chartData[i].value ?? chartData[i].total ?? 0
+    const totalMs = endTs - startTs
+
+    if (totalMs <= 0 || startValue <= 0) { series.push(series[series.length - 1]); continue }
+
+    let sumFlows = 0
+    let weighted = 0
+    for (const f of flows) {
+      if (f.ts <= startTs || f.ts > endTs) continue
+      sumFlows += f.flow
+      weighted += f.flow * ((endTs - f.ts) / totalMs)
+    }
+
+    const capital = startValue + weighted
+    // A denominator at or below zero means the account was fully funded by
+    // flows inside the window; there is no invested base to measure against, so
+    // carry the previous figure instead of emitting a wild number.
+    if (capital <= 0) { series.push(series[series.length - 1]); continue }
+
+    series.push(((endValue - startValue - sumFlows) / capital) * 100)
+  }
+
+  return series
+}

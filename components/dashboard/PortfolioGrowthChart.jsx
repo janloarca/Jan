@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { formatCurrency, formatCompact, formatAxisTick, formatDate, getItemValue, buildIncomeEvents, isExcludedFromNetWorth, findYearStartAnchor, shouldHoldFlat } from './utils'
 import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
-import { computeTWRSeries } from './analytics'
+import { computeTWRSeries, computeMWRSeries } from './analytics'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import ErrorState from '@/components/ui/ErrorState'
 
@@ -749,7 +749,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     // ignored (flowFromTs). A TRANSACTIONAL prefix contains real flow effects,
     // so every flow nets, exactly like a broker's full-year TWR.
     const hasHoldFlatPrefix = !apiTransactional && firstRealTs != null && chartData[0].ts < firstRealTs - 3600000
-    return computeTWRSeries(chartData, returnTransactions, convert, baseCurrency,
+    return computeMWRSeries(chartData, returnTransactions, convert, baseCurrency,
       hasHoldFlatPrefix ? { flowFromTs: firstRealTs } : {})
   }, [chartData, returnTransactions, convert, baseCurrency, firstRealTs, apiTransactional])
 
@@ -1190,8 +1190,8 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
             {/* Mode chip inline with the number — the tiny caption below was easy
                 to miss, and an unlabeled return % invites misreading. */}
             <span className="text-xs font-sans font-semibold px-1.5 py-0.5 rounded" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-tertiary)' }}
-              title={t('Retorno ponderado por tiempo, el mismo método que usa tu broker', 'Time-weighted return, the same method your broker uses')}>
-              TWR
+              title={t('Retorno ponderado por dinero: cuenta cuándo pusiste cada aporte, así que mide lo que rindió TU dinero', 'Money-weighted return: it counts when you added each contribution, so it measures what YOUR money earned')}>
+              MWR
             </span>
             {annualizedReturn != null && hoverIdx == null && (
               <span className="text-xs font-sans font-normal text-slate-500 font-mono tabular-nums">
@@ -1206,7 +1206,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                 : period === 'YTD' ? t('Retorno total del año', 'Total return this year') : period === 'DAY' ? t('Retorno hoy', 'Return today') : `${t('Retorno', 'Return')} ${period}`}
             </span>
             <span className="text-xs text-slate-600">
-              {t('Sin efecto de tus depósitos, igual que tu broker', 'Without your deposits’ effect, same as your broker')}
+              {t('Cuenta cuándo pusiste tu dinero', 'Counts when you put your money in')}
             </span>
           </div>
         </div>
@@ -1619,7 +1619,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           <span className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: 'var(--accent-green)' }} />
             <span className="w-1.5 h-1.5 rounded-full inline-block -ml-1" style={{ backgroundColor: 'var(--text-negative)' }} />
-            {t('Tu portafolio (TWR): verde sobre 0%, rojo debajo', 'Your portfolio (TWR): green above 0%, red below')}
+            {t('Tu portafolio (MWR): verde sobre 0%, rojo debajo', 'Your portfolio (MWR): green above 0%, red below')}
           </span>
           {benchmarkReturnSeries && (
             <span className="flex items-center gap-1.5">
