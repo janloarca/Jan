@@ -16,6 +16,12 @@ export function useMarketPrices(items) {
   const [error, setError] = useState(null)
   const [lastUpdate, setLastUpdate] = useState(_cachedLastUpdate)
   const abortRef = useRef(null)
+  // A single failed poll is usually Yahoo hiccupping for a few seconds, not a
+  // real outage — the server already retries per-request (fetchWithRetry +
+  // query2 fallback) and falls back to a last-good cache. Only surface the
+  // "no se pudo conectar" banner once a poll fails twice IN A ROW: one blip
+  // shouldn't alarm the user with an error they can't do anything about.
+  const consecutiveFailuresRef = useRef(0)
 
   const fetchPrices = useCallback(async () => {
     if (!items || items.length === 0) return
@@ -58,8 +64,10 @@ export function useMarketPrices(items) {
         _cachedLastUpdate = data.timestamp
         setPrices(_cachedPrices)
         setLastUpdate(_cachedLastUpdate)
+        consecutiveFailuresRef.current = 0
       } else {
-        setError('Failed to fetch prices')
+        consecutiveFailuresRef.current += 1
+        if (consecutiveFailuresRef.current >= 2) setError('Failed to fetch prices')
       }
 
       if (divRes?.ok) {
@@ -70,7 +78,8 @@ export function useMarketPrices(items) {
     } catch (err) {
       if (err.name === 'AbortError') return
       console.error('Failed to fetch market prices:', err)
-      setError(err.message)
+      consecutiveFailuresRef.current += 1
+      if (consecutiveFailuresRef.current >= 2) setError(err.message)
     }
     setLoading(false)
   }, [items])

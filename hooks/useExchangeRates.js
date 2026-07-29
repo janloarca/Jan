@@ -21,10 +21,13 @@ export function useExchangeRates(baseCurrency) {
   const mountedRef = useRef(true)
   ratesRef.current = rates
   baseRef.current = baseCurrency
+  // Same reasoning as useMarketPrices: one failed poll (every 15 min here) is
+  // not worth alarming the user over — only surface the error after it fails
+  // twice in a row.
+  const consecutiveFailuresRef = useRef(0)
 
   const fetchRates = useCallback(async () => {
     if (!ratesRef.current) setLoading(true)
-    setError(null)
     try {
       const res = await authFetch('/api/exchange-rates')
       if (!mountedRef.current) return
@@ -42,20 +45,28 @@ export function useExchangeRates(baseCurrency) {
           setRates(valid)
           setLastUpdate(data.timestamp)
           setStale(!!data.stale)
-          if (data.stale) setError('rates-stale')
-          else setError(null)
+          // A stale rate is still a SUCCESSFUL response (the API degraded to its
+          // own cache on purpose) — it must not feed `error`, which drives the
+          // "no se pudo conectar" banner. That banner is for when we have
+          // NOTHING to show, not for "this number is a few minutes old."
+          consecutiveFailuresRef.current = 0
+          setError(null)
         } else {
-          setError('Invalid rate data')
+          consecutiveFailuresRef.current += 1
+          if (consecutiveFailuresRef.current >= 2) setError('Invalid rate data')
         }
       } else if (res.status === 503) {
-        setError('Exchange rates temporarily unavailable')
+        consecutiveFailuresRef.current += 1
+        if (consecutiveFailuresRef.current >= 2) setError('Exchange rates temporarily unavailable')
       } else {
-        setError('Failed to fetch rates')
+        consecutiveFailuresRef.current += 1
+        if (consecutiveFailuresRef.current >= 2) setError('Failed to fetch rates')
       }
     } catch (err) {
       if (!mountedRef.current) return
       console.error('Failed to fetch exchange rates:', err)
-      setError(err.message)
+      consecutiveFailuresRef.current += 1
+      if (consecutiveFailuresRef.current >= 2) setError(err.message)
     }
     if (mountedRef.current) setLoading(false)
   }, [])
