@@ -842,7 +842,13 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
   const txMarkers = useMemo(() => {
     if (!scopedTransactions || chartData.length < 2) return []
-    const actionTypes = ['BUY', 'SELL', 'DEPOSIT', 'WITHDRAWAL']
+    // ONLY real money in and out. A buy or a sell does not change net worth,
+    // it just moves value between cash and shares, so drawing them here filled
+    // the axis with red "sale" flags on a chart about how much you HAVE: a user
+    // with 27 routine sells and a single $10 withdrawal saw a wall of red and
+    // read it as money leaving. Deposits and withdrawals are the only events
+    // that actually move the line for a reason outside the market.
+    const actionTypes = ['DEPOSIT', 'WITHDRAWAL']
     const startTs = chartData[0].ts
     const endTs = chartData[chartData.length - 1].ts
     return scopedTransactions
@@ -1601,8 +1607,8 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           {/* The floor triangles were never explained anywhere */}
           {txMarkers.length > 0 && (
             <span className="flex items-center gap-1">
-              <span style={{ color: 'var(--accent-green)' }}>▲</span>{t('Compra/Depósito', 'Buy/Deposit')}
-              <span className="ml-1" style={{ color: 'var(--text-negative)' }}>▼</span>{t('Venta/Retiro', 'Sell/Withdrawal')}
+              <span style={{ color: 'var(--accent-green)' }}>▲</span>{t('Entró dinero', 'Money in')}
+              <span className="ml-1" style={{ color: 'var(--text-negative)' }}>▼</span>{t('Salió dinero', 'Money out')}
             </span>
           )}
         </div>
