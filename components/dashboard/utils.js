@@ -120,7 +120,7 @@ export function getTypeCategory(itemOrType) {
   const type = typeof itemOrType === 'string' ? itemOrType : itemOrType.type || ''
   if (typeof itemOrType === 'object' && itemOrType.isReceivable) return 'receivables'
   if (typeof itemOrType === 'object' && itemOrType.isDebt) return 'debts'
-  const t = type.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase()
+  const t = type.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
   if (/receivable|cobrar|por.cobrar/i.test(t)) return 'receivables'
   if (/^debt$/i.test(t) || /pasivo|liability|mortgage|hipoteca|loan|prestamo|credit.?card|tarjeta/i.test(t)) return 'debts'
   if (/crypto|cripto|blockchain|bitcoin|btc|eth|token|coin/i.test(t)) return 'crypto'
