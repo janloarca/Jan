@@ -182,6 +182,16 @@ function itemValueUSD(it, convert) {
   return it.isDebt ? -Math.abs(v) : v
 }
 
+// Single source of truth for "which snapshot source wins for the same date":
+// real observations always outrank a reconstructed estimate. ibkr (broker's
+// own Equity Summary) is absolute; manual and daily are both real NAV a human
+// or the app itself observed; backfill is portfolioRewind's guess for a gap
+// nothing else filled, so it must never beat an actual observation. Shared
+// between the chart's same-day dedup and bulkImport's write-time precedence
+// check — a divergence between the two IS the bug (one used to rank backfill
+// above manual/daily).
+export const SNAPSHOT_SRC_PRIORITY = { ibkr: 4, manual: 3, daily: 2, backfill: 1 }
+
 // IBKR equityHistory snapshots (_source:'ibkr') store only the broker NAV and omit
 // manually-added assets (bonds, crypto, cash). For consumers that want the FULL
 // portfolio NAV (returns, drawdown, sparkline…), augment ONLY those entries with the

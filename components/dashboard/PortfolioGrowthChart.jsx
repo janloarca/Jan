@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { formatCurrency, formatCompact, formatAxisTick, formatDate, getItemValue, buildIncomeEvents, isExcludedFromNetWorth, findYearStartAnchor, shouldHoldFlat } from './utils'
+import { formatCurrency, formatCompact, formatAxisTick, formatDate, getItemValue, buildIncomeEvents, isExcludedFromNetWorth, findYearStartAnchor, shouldHoldFlat, SNAPSHOT_SRC_PRIORITY } from './utils'
 import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { computeTWRSeries, computeMWRSeries } from './analytics'
 import { authFetch, safeJson } from '@/lib/authFetch'
@@ -452,16 +452,16 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
     // One point per calendar day: a day holding both an IBKR NAV doc and a
     // daily/manual doc plots two different values at the same x — a vertical
-    // spike. Broker NAV wins, then backfill, then the daily writer.
+    // spike. Real observations always outrank a reconstructed estimate (see
+    // SNAPSHOT_SRC_PRIORITY in utils.js).
     {
-      const SRC_PRIORITY = { ibkr: 4, backfill: 3, daily: 2, manual: 1 }
       const byDay = new Map()
       for (const p of pts) {
         const key = p.date.toISOString().slice(0, 10)
         const prev = byDay.get(key)
         if (!prev) { byDay.set(key, p); continue }
-        const a = SRC_PRIORITY[p.src] || 0
-        const b = SRC_PRIORITY[prev.src] || 0
+        const a = SNAPSHOT_SRC_PRIORITY[p.src] || 0
+        const b = SNAPSHOT_SRC_PRIORITY[prev.src] || 0
         if (a > b || (a === b && p.ts >= prev.ts)) byDay.set(key, p)
       }
       if (byDay.size < pts.length) pts = [...byDay.values()].sort((a, b) => a.ts - b.ts)

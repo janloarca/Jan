@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { sanitizeImportItem } from '@/lib/validation'
+import { SNAPSHOT_SRC_PRIORITY } from '@/components/dashboard/utils'
 
 let _db = null
 let _auth = null
@@ -802,8 +803,20 @@ export function useFirestoreItems() {
       ops.push({ type: 'set', ref: fs.doc(db, `users/${uid}/transactions`, id), data: strip({ ...tx, createdAt: now }) })
     }
 
+    // Precedence: a lower-authority import must never overwrite a higher-
+    // authority observation already on file for that date — it can only fill
+    // a gap or refresh same-or-higher-tier data. Without this, re-importing an
+    // older/narrower file (or one that estimates where an earlier one
+    // observed) silently downgrades a real NAV to a worse one.
+    const existingSnapByDate = new Map((snapshots || []).map((s) => [s.date || s.id, s]))
     for (const snap of (newSnaps || [])) {
       const id = snap.date || now.split('T')[0]
+      const existing = existingSnapByDate.get(id)
+      if (existing) {
+        const incoming = SNAPSHOT_SRC_PRIORITY[snap._source] || 0
+        const current = SNAPSHOT_SRC_PRIORITY[existing._source] || 0
+        if (incoming < current) continue
+      }
       ops.push({ type: 'set', ref: fs.doc(db, `users/${uid}/snapshots`, id), data: strip({ ...snap, createdAt: now }) })
     }
 
@@ -845,7 +858,7 @@ export function useFirestoreItems() {
       if (onProgress) onProgress(done, total)
     }
     if (failures > 0) throw new Error(`${failures} of ${total} operations failed`)
-  }, [uid])
+  }, [uid, snapshots])
 
   return {
     items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, loading,
