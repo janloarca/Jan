@@ -70,6 +70,7 @@ import { analyzeDataCompleteness } from '@/lib/dataCompleteness'
 import { detectPhantomFlows } from '@/lib/phantomFlows'
 import { DEMO_ITEMS, DEMO_LOTS, DEMO_TRANSACTIONS, isDemoItem } from '@/lib/demoData'
 import AssetAllocation from '@/components/dashboard/AssetAllocation'
+import PriceAlerts from '@/components/dashboard/PriceAlerts'
 import NotificationCenter from '@/components/dashboard/NotificationCenter'
 import InstallPrompt from '@/components/dashboard/InstallPrompt'
 import EmptyState from '@/components/dashboard/EmptyState'
@@ -265,6 +266,7 @@ export default function DashboardPage() {
     bulkImport,
     saveGoals, saveSettings, saveProfile,
     enrichedItems, portfolioItems: rawPortfolioItems, entityTransactions, entityFinanceTransactions,
+    marketPrices,
     pricesLoading, pricesError, pricesUpdate,
     rates, convert,
     ratesLoading, ratesError,
@@ -883,7 +885,7 @@ export default function DashboardPage() {
 
         {/* Time-sensitive alerts (maturities, dividends received) belong at the
             top — buried at page-bottom they were invisible on mobile. */}
-        <NotificationCenter items={portfolioItems} transactions={transactions} lang={lang} />
+        <NotificationCenter items={portfolioItems} transactions={transactions} lang={lang} settings={settings} />
         <div className="flex items-center gap-3 flex-wrap">
           {/* Freshness dot: 1-day-old data is normal (snapshots are daily), so
               1-13d stays neutral/muted — amber only kicks in at ≥14d. */}
@@ -999,6 +1001,7 @@ export default function DashboardPage() {
               <div className="stagger-3 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 items-start">
                 <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} /></CardBoundary>
                 <CardBoundary id="INST-01"><InstitutionPerformance items={portfolioItems} lang={lang} baseCurrency={baseCurrency} /></CardBoundary>
+                <CardBoundary id="OL-03"><PriceAlerts items={portfolioItems} alerts={alerts} marketPrices={marketPrices} addAlert={addAlert} deleteAlert={deleteAlert} lang={lang} /></CardBoundary>
               </div>
 
               <ActionButtons

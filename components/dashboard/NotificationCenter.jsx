@@ -4,7 +4,11 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { formatCurrency, getItemPrice, getMaturityInfo } from './utils'
 import { isNotificationSupported, getNotificationPermission, requestNotificationPermission, checkAndNotify } from '@/lib/notifications'
 
-export default function NotificationCenter({ items, transactions, lang }) {
+export default function NotificationCenter({ items, transactions, lang, settings }) {
+  // Absent = on, same default as every other settings.* toggle in the app.
+  const notifMaturity = settings?.notifMaturity !== false
+  const notifDividend = settings?.notifDividend !== false
+  const notifValuation = settings?.notifValuation !== false
   const [dismissed, setDismissed] = useState(() => {
     try {
       return new Set(JSON.parse(localStorage.getItem('chispudo-dismissed-notifs') || '[]'))
@@ -18,10 +22,10 @@ export default function NotificationCenter({ items, transactions, lang }) {
     if (notifiedRef.current) return
     if (isNotificationSupported() && itemCount > 0) {
       setPushPermission(getNotificationPermission())
-      checkAndNotify(items, lang)
+      checkAndNotify(items, lang, { notifMaturity, notifDividend })
       notifiedRef.current = true
     }
-  }, [itemCount, lang])
+  }, [itemCount, lang, notifMaturity, notifDividend])
 
   const t = (es, en) => lang === 'es' ? es : en
 
@@ -30,7 +34,7 @@ export default function NotificationCenter({ items, transactions, lang }) {
     const now = new Date()
 
     ;(items || []).forEach((it) => {
-      if (it.maturityDate) {
+      if (notifMaturity && it.maturityDate) {
         const info = getMaturityInfo(it)
         if (info && !info.expired && info.days <= 90) {
           notifs.push({
@@ -45,7 +49,7 @@ export default function NotificationCenter({ items, transactions, lang }) {
         }
       }
 
-      if (it.isIlliquid && it.lastManualValuation > 0 && it.lastValuationDate) {
+      if (notifValuation && it.isIlliquid && it.lastManualValuation > 0 && it.lastValuationDate) {
         const lastVal = new Date(it.lastValuationDate)
         const daysSince = Math.floor((now - lastVal) / 86400000)
         if (daysSince > 180) {
@@ -59,7 +63,7 @@ export default function NotificationCenter({ items, transactions, lang }) {
         }
       }
 
-      if (it.rateType === 'variable' && it.rateMin > 0 && it.rateMax > 0) {
+      if (notifValuation && it.rateType === 'variable' && it.rateMin > 0 && it.rateMax > 0) {
         const spread = it.rateMax - it.rateMin
         if (spread > 3) {
           notifs.push({
@@ -78,7 +82,7 @@ export default function NotificationCenter({ items, transactions, lang }) {
       const txDate = new Date(tx.date)
       return (now - txDate) < 7 * 86400000
     })
-    if (recentDivs.length > 0) {
+    if (notifDividend && recentDivs.length > 0) {
       const totalDiv = recentDivs.reduce((s, tx) => s + (tx.totalAmount || 0), 0)
       notifs.push({
         id: `div-recent`,
@@ -93,7 +97,7 @@ export default function NotificationCenter({ items, transactions, lang }) {
       const order = { urgent: 0, warning: 1, positive: 2, info: 3 }
       return (order[a.type] ?? 4) - (order[b.type] ?? 4)
     })
-  }, [items, transactions, dismissed, lang])
+  }, [items, transactions, dismissed, lang, notifMaturity, notifDividend, notifValuation])
 
   const dismiss = (id) => {
     const next = new Set([...dismissed, id])

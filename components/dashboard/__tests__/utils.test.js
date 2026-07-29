@@ -508,6 +508,19 @@ describe('computeScopedReturns', () => {
     expect(computeScopedReturns({ ...args, source: 'alpaca' })).toEqual({ ytd: null, mtd: null, day: null })
     expect(computeScopedReturns({ ...args, items: [] })).toEqual({ ytd: null, mtd: null, day: null })
   })
+
+  it('nets out a same-day deposit from day change instead of reading it as market gain', () => {
+    // A statement import lands today with a fresh $900 deposit on top of the
+    // Jul 14 baseline (1180). Without netting, (2100-1180)/1180 ≈ 78% "today".
+    const freshDeposit = [
+      ...transactions,
+      { type: 'DEPOSIT', totalAmount: 900, currency: 'USD', date: '2026-07-15', _source: 'ibkr' },
+    ]
+    const bigItems = [items[0], items[1], { quantity: 1, currentPrice: 900, _source: 'ibkr' }]
+    const { day } = computeScopedReturns({ ...args, items: bigItems, transactions: freshDeposit })
+    // endValue now 2100, baseline 1180, deposit 900 netted out → (2100-1180-900)/1180 ≈ 1.69%
+    expect(day).toBeCloseTo(1.69, 1)
+  })
 })
 
 describe('shouldHoldFlat', () => {

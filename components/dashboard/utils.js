@@ -283,14 +283,28 @@ export function computeScopedReturns({ snapshots, items, transactions, source, c
   const ytd = at(findYearStartAnchor(snaps, year), Date.UTC(year, 0, 1))
   const mtd = at(findMonthStartAnchor(snaps, year, month), Date.UTC(year, month, 1))
 
-  // Daily change: value now vs the last snapshot strictly before today.
+  // Daily change: value now vs the last snapshot strictly before today. Net out
+  // deposits/withdrawals since baseline (same bug as an un-netted dailyChange:
+  // a same-day import reads as market gain otherwise) — mirrors the Dietz
+  // treatment ytd/mtd already get above.
   const todayStr = now.toISOString().slice(0, 10)
   const prior = snaps.filter((s) => s.date < todayStr).sort((a, b) => new Date(a.date) - new Date(b.date))
   let day = null
   const baseline = prior[prior.length - 1]
   if (baseline) {
     const prevVal = cv(baseline.netWorthUSD ?? baseline.totalActivosUSD ?? 0)
-    if (prevVal > 0) day = Math.max(-200, Math.min(200, ((endValue - prevVal) / prevVal) * 100))
+    if (prevVal > 0) {
+      let netFlow = 0
+      flows.forEach((tx) => {
+        if (!tx.date || tx.date <= baseline.date) return
+        const type = (tx.type || '').toUpperCase()
+        if (type !== 'DEPOSIT' && type !== 'WITHDRAWAL') return
+        const amt = Number(tx.totalAmount ?? tx.amount ?? 0)
+        const converted = convert ? convert(amt, tx.currency || 'USD', baseCurrency || 'USD') : amt
+        netFlow += type === 'DEPOSIT' ? converted : -converted
+      })
+      day = Math.max(-200, Math.min(200, ((endValue - prevVal - netFlow) / prevVal) * 100))
+    }
   }
   return { ytd, mtd, day }
 }

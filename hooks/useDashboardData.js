@@ -48,6 +48,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
   const alertsCheckedRef = useRef(null)
   useEffect(() => {
+    if (settings?.notifPriceAlerts === false) return
     if (!marketPrices || Object.keys(marketPrices).length === 0 || !alerts || alerts.length === 0) return
     const key = pricesUpdate || Date.now()
     if (alertsCheckedRef.current === key) return
@@ -55,7 +56,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     checkPriceAlerts(alerts, marketPrices, (alertId) => {
       updateAlert(alertId, { triggered: true, triggeredAt: new Date().toISOString() })
     })
-  }, [marketPrices, alerts, pricesUpdate, updateAlert])
+  }, [marketPrices, alerts, pricesUpdate, updateAlert, settings?.notifPriceAlerts])
 
   const enrichedItems = useMemo(() => {
     if (!rates) return rawEnriched
@@ -824,10 +825,24 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     if (!prevSnapshot || netWorth <= 0) return null
     const prevValue = convertSnapshot(prevSnapshot.netWorthUSD ?? prevSnapshot.totalActivosUSD ?? 0)
     if (prevValue <= 0) return null
-    const abs = netWorth - prevValue
+    // Net out real money movements since the previous snapshot, same treatment
+    // as YTD/yearly Dietz: a deposit (e.g. a fresh statement import) landing
+    // today is new capital, not market gain. String-prefix date compare per
+    // house rule (new Date('YYYY-MM-DD') runs the day in UTC-6).
+    const prevDate = prevSnapshot.date || ''
+    let netFlow = 0
+    ;(transactions || []).forEach((tx) => {
+      if (!tx.date || tx.date <= prevDate) return
+      const type = (tx.type || '').toUpperCase()
+      if (type !== 'DEPOSIT' && type !== 'WITHDRAWAL') return
+      const amt = Number(tx.totalAmount ?? tx.amount ?? 0)
+      const converted = convert ? convert(amt, tx.currency || 'USD', baseCurrency || 'USD') : amt
+      netFlow += type === 'DEPOSIT' ? converted : -converted
+    })
+    const abs = netWorth - prevValue - netFlow
     const pct = (abs / prevValue) * 100
     return { abs, pct }
-  }, [prevSnapshot, netWorth, convertSnapshot])
+  }, [prevSnapshot, netWorth, convertSnapshot, transactions, convert, baseCurrency])
 
   const yearlyChange = useMemo(() => {
     if (augmentedSnapshots.length < 2) return null

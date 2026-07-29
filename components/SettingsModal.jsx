@@ -41,6 +41,26 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   const [shareForm, setShareForm] = useState({ label: '', scopeType: 'all', entityId: '', institutions: [], display: 'both' })
   const [saveStatus, setSaveStatus] = useState(null)
   const [friendsEnabled, setFriendsEnabled] = useState(settings?.friendsEnabled !== false)
+  // Per-category notification prefs. Absent = on, mirrors friendsEnabled's default.
+  const NOTIF_CATEGORIES = [
+    { key: 'notifMaturity', es: 'Vencimientos', en: 'Maturities' },
+    { key: 'notifDividend', es: 'Dividendos recibidos', en: 'Dividends received' },
+    { key: 'notifValuation', es: 'Valuaciones desactualizadas', en: 'Outdated valuations' },
+    { key: 'notifPriceAlerts', es: 'Alertas de precio', en: 'Price alerts' },
+  ]
+  const [notifPrefs, setNotifPrefs] = useState(() =>
+    Object.fromEntries(NOTIF_CATEGORIES.map((c) => [c.key, settings?.[c.key] !== false]))
+  )
+  const toggleNotifCategory = async (key) => {
+    const next = { ...notifPrefs, [key]: !notifPrefs[key] }
+    setNotifPrefs(next)
+    try {
+      await onSaveSettings({ [key]: next[key] })
+    } catch (e) {
+      setNotifPrefs(notifPrefs) // revert on failure
+      flash('err', e.message || t('Error al guardar', 'Error saving'))
+    }
+  }
 
   const t = (es, en) => lang === 'es' ? es : en
 
@@ -403,6 +423,26 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                   </div>
                 </div>
               )}
+
+              {/* Which categories matter to this user — a payment/maturity notice for
+                  someone with no bonds/CDs is just noise, and this was pure all-or-nothing
+                  browser permission before. */}
+              <div>
+                <label className="text-xs mb-2 block font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Qué avisar', 'What to notify about')}</label>
+                <div className="p-3 bg-theme-base border border-glass-border rounded-lg space-y-2.5">
+                  {NOTIF_CATEGORIES.map((c) => (
+                    <label key={c.key} className="flex items-center justify-between gap-3 cursor-pointer">
+                      <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{t(c.es, c.en)}</span>
+                      <button type="button" role="switch" aria-checked={notifPrefs[c.key]} onClick={() => toggleNotifCategory(c.key)}
+                        className="shrink-0 w-9 h-5 rounded-full flex items-center transition-all px-0.5"
+                        style={{ backgroundColor: notifPrefs[c.key] ? 'var(--accent-blue)' : 'var(--bg-tertiary)' }}>
+                        <span className="w-4 h-4 rounded-full bg-white transition-transform"
+                          style={{ transform: notifPrefs[c.key] ? 'translateX(16px)' : 'translateX(0)' }} />
+                      </button>
+                    </label>
+                  ))}
+                </div>
+              </div>
 
               <button onClick={handleSave} disabled={saving}
                 className="w-full py-2.5 rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>

@@ -8,6 +8,37 @@ import { saveLastGood, getLastGood } from '@/lib/priceCache'
 
 const SYMBOL_RE = /^[A-Z0-9._\-^=]{1,20}$/i
 
+// Yahoo's unofficial chart API blocks/rate-limits by source IP rather than by
+// API key. Since this fetch runs server-side, every user shares OUR Vercel
+// function's outbound IP — a block against query1 takes down prices for
+// EVERYONE at once, for as long as Yahoo keeps it up (can be an hour+).
+// query2 is Yahoo's other production edge for the same endpoint (same JSON
+// shape, no extra parsing needed) and empirically is not always blocked at
+// the same time as query1, so it is tried as a same-request fallback before
+// giving up on a symbol.
+const YAHOO_HOSTS = ['query1.finance.yahoo.com', 'query2.finance.yahoo.com']
+
+async function fetchYahooChart(sym) {
+  let lastError = 'unknown error'
+  for (const host of YAHOO_HOSTS) {
+    try {
+      const url = `https://${host}/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=7d`
+      const res = await fetchWithRetry(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+        next: { revalidate: 300 },
+      })
+      if (!res.ok) {
+        lastError = `Yahoo (${host}) returned ${res.status}`
+        continue
+      }
+      return { data: await res.json() }
+    } catch (err) {
+      lastError = err.message
+    }
+  }
+  return { error: lastError }
+}
+
 async function fetchStockPrices(symbols) {
   const results = {}
   const warnings = []
@@ -18,33 +49,24 @@ async function fetchStockPrices(symbols) {
 
   for (const batch of batches) {
     await Promise.all(batch.map(async (sym) => {
-      try {
-        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=7d`
-        const res = await fetchWithRetry(url, {
-          headers: { 'User-Agent': 'Mozilla/5.0' },
-          next: { revalidate: 300 },
-        })
-        if (!res.ok) {
-          warnings.push(`${sym}: Yahoo returned ${res.status}`)
-          return
-        }
-        const data = await res.json()
-        const meta = data.chart?.result?.[0]?.meta
-        const closes = data.chart?.result?.[0]?.indicators?.quote?.[0]?.close
-        if (meta && meta.regularMarketPrice) {
-          const price = meta.regularMarketPrice
-          const prev7d = closes && closes.length > 1 ? closes.find((c) => c != null) : null
-          const change7d = prev7d ? ((price - prev7d) / prev7d) * 100 : null
-          // 1-day change: prefer Yahoo's previousClose (yesterday's close),
-          // else fall back to the second-to-last daily close in the range.
-          const validCloses = (closes || []).filter((c) => c != null)
-          const prevDayClose = meta.previousClose ?? (validCloses.length >= 2 ? validCloses[validCloses.length - 2] : null)
-          const change1d = prevDayClose ? ((price - prevDayClose) / prevDayClose) * 100 : null
-          results[sym] = { price, change7d, change1d, currency: meta.currency || 'USD' }
-        }
-      } catch (err) {
-        console.error(`[api/prices] Failed to fetch ${sym}:`, err.message)
-        warnings.push(`${sym}: ${err.message}`)
+      const { data, error } = await fetchYahooChart(sym)
+      if (!data) {
+        console.error(`[api/prices] Failed to fetch ${sym}:`, error)
+        warnings.push(`${sym}: ${error}`)
+        return
+      }
+      const meta = data.chart?.result?.[0]?.meta
+      const closes = data.chart?.result?.[0]?.indicators?.quote?.[0]?.close
+      if (meta && meta.regularMarketPrice) {
+        const price = meta.regularMarketPrice
+        const prev7d = closes && closes.length > 1 ? closes.find((c) => c != null) : null
+        const change7d = prev7d ? ((price - prev7d) / prev7d) * 100 : null
+        // 1-day change: prefer Yahoo's previousClose (yesterday's close),
+        // else fall back to the second-to-last daily close in the range.
+        const validCloses = (closes || []).filter((c) => c != null)
+        const prevDayClose = meta.previousClose ?? (validCloses.length >= 2 ? validCloses[validCloses.length - 2] : null)
+        const change1d = prevDayClose ? ((price - prevDayClose) / prevDayClose) * 100 : null
+        results[sym] = { price, change7d, change1d, currency: meta.currency || 'USD' }
       }
     }))
   }
