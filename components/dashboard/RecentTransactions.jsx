@@ -2,7 +2,6 @@
 
 import { useState, useMemo } from 'react'
 import { formatCurrency, formatDate, formatMonth } from './utils'
-import { detectPhantomFlows } from '@/lib/phantomFlows'
 
 export default function RecentTransactions({ transactions, lang, onExportCSV, onDeleteTransaction, items = [] }) {
   const itemName = (id) => {
@@ -57,11 +56,6 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, on
     const sorted = Object.entries(months).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 3)
     return sorted.map(([month, data]) => ({ month, ...data, net: data.inflow - data.outflow }))
   }, [transactions])
-
-  // A shipped parser bug left some accounts with a contribution that never
-  // happened, and it silently wrecks the return. The user cannot be expected to
-  // spot which deposit is fake, so the app points at it and offers the fix.
-  const phantoms = useMemo(() => detectPhantomFlows(transactions || []), [transactions])
 
   const display = showAll ? all : all.slice(0, 5)
 
@@ -219,30 +213,6 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, on
               <span className="text-xs text-slate-600 shrink-0 hidden sm:inline">{m.count} txs</span>
             </div>
           ))}
-        </div>
-      )}
-
-      {phantoms.length > 0 && onDeleteTransaction && (
-        <div className="mb-3 px-3 py-2.5 rounded-lg text-xs" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)' }}>
-          <p className="font-medium" style={{ color: '#fcd34d' }}>
-            {lang === 'es'
-              ? `Encontramos ${phantoms.length === 1 ? 'un movimiento que parece' : `${phantoms.length} movimientos que parecen`} un total, no un aporte real.`
-              : `We found ${phantoms.length === 1 ? 'a movement that looks like' : `${phantoms.length} movements that look like`} a total, not a real contribution.`}
-          </p>
-          <p className="mt-1" style={{ color: 'var(--text-muted)' }}>
-            {lang === 'es'
-              ? 'Su monto es exactamente la suma de todos tus otros movimientos, la firma de una fila de "Total" que se importó por error. Mientras esté ahí, tu retorno sale mal.'
-              : 'Its amount is exactly the sum of all your other movements, the signature of a "Total" row imported by mistake. While it is there, your return is wrong.'}
-          </p>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            {phantoms.map((p) => (
-              <button key={p.id} onClick={() => onDeleteTransaction(p.id)}
-                className="px-2 py-1 rounded-md text-[11px] font-medium"
-                style={{ backgroundColor: '#d97706', color: '#ffffff' }}>
-                {lang === 'es' ? 'Quitar' : 'Remove'} {formatCurrency(p.amount)} {p.date ? `(${formatDate(p.date)})` : ''}
-              </button>
-            ))}
-          </div>
         </div>
       )}
 

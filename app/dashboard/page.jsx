@@ -67,6 +67,7 @@ import ChispuSuggestions from '@/components/dashboard/ChispuSuggestions'
 import CostsCard from '@/components/dashboard/CostsCard'
 import { reconcileBrokerPositions } from '@/lib/brokerReconcile'
 import { analyzeDataCompleteness } from '@/lib/dataCompleteness'
+import { detectPhantomFlows } from '@/lib/phantomFlows'
 import { DEMO_ITEMS, DEMO_LOTS, DEMO_TRANSACTIONS, isDemoItem } from '@/lib/demoData'
 import AssetAllocation from '@/components/dashboard/AssetAllocation'
 import NotificationCenter from '@/components/dashboard/NotificationCenter'
@@ -144,6 +145,40 @@ export default function DashboardPage() {
   const [toast, setToast] = useState(null)
   const toastTimer = useRef(null)
   const [staleCode, setStaleCode] = useState(false)
+
+  // Self-heal a movement THIS APP invented. A shipped parser bug read the
+  // "Total" row of a broker statement as a real contribution, which silently
+  // doubles net contributions and breaks the return. The row was never the
+  // user's entry, so asking them to confirm its removal would be handing them
+  // our mistake to clean up, and anyone who ignored the prompt would keep a
+  // wrong number forever. We know it is wrong, so we remove it and say so.
+  // Detection is narrow (lib/phantomFlows): the amount has to equal the exact
+  // sum of every other flow from the same source, the row has to be unlabelled
+  // and the newest of its group.
+  const healedRef = useRef(false)
+  useEffect(() => {
+    if (dataLoading || healedRef.current || !deleteTransaction) return
+    const phantoms = detectPhantomFlows(transactions || [])
+    if (phantoms.length === 0) return
+    healedRef.current = true
+    let cancelled = false
+    ;(async () => {
+      let removed = 0
+      for (const p of phantoms) {
+        try { await deleteTransaction(p.id); removed++ } catch { /* leave it; next load retries */ }
+      }
+      if (cancelled || removed === 0) return
+      const total = phantoms.reduce((sum, p) => sum + Math.abs(p.amount || 0), 0)
+      showToast(
+        lang === 'es'
+          ? `Corregimos un error nuestro: quitamos ${removed === 1 ? 'un aporte' : `${removed} aportes`} que en realidad era un total del reporte (${formatCurrency(total)}). Tu retorno ya estaba mal por eso.`
+          : `We fixed a bug on our side: removed ${removed === 1 ? 'a contribution' : `${removed} contributions`} that were really a report total (${formatCurrency(total)}). Your return was wrong because of it.`,
+        'info', 7000
+      )
+    })()
+    return () => { cancelled = true }
+  }, [dataLoading, transactions, deleteTransaction, lang, showToast])
+
   const { entities, addEntity, updateEntity: updateEntityData, deleteEntity } = useEntities()
 
   // Theme + lang init
