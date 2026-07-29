@@ -68,6 +68,7 @@ import CostsCard from '@/components/dashboard/CostsCard'
 import { reconcileBrokerPositions } from '@/lib/brokerReconcile'
 import { analyzeDataCompleteness } from '@/lib/dataCompleteness'
 import { detectPhantomFlows } from '@/lib/phantomFlows'
+import { detectFakeAggregateTrades, detectImportStampedAcquisitions, detectFakeCashReportItems, detectDuplicateCashDividends } from '@/lib/badDataCleanup'
 import { DEMO_ITEMS, DEMO_LOTS, DEMO_TRANSACTIONS, isDemoItem } from '@/lib/demoData'
 import AssetAllocation from '@/components/dashboard/AssetAllocation'
 import PriceAlerts from '@/components/dashboard/PriceAlerts'
@@ -357,38 +358,54 @@ export default function DashboardPage() {
     toastTimer.current = setTimeout(() => setToast(null), duration)
   }, [])
 
-  // Self-heal a movement THIS APP invented. A shipped parser bug read the
-  // "Total" row of a broker statement as a real contribution, which silently
-  // doubles net contributions and breaks the return. The row was never the
-  // user's entry, so asking them to confirm its removal would be handing them
-  // our mistake to clean up, and anyone who ignored the prompt would keep a
-  // wrong number forever. We know it is wrong, so we remove it and say so.
-  // Detection is narrow (lib/phantomFlows): the amount has to equal the exact
-  // sum of every other flow from the same source, the row has to be unlabelled
-  // and the newest of its group.
+  // Self-heal rows THIS APP invented. Several shipped IBKR file-parser bugs
+  // (FASE BU/BV/BY, fixed 2026-07-28) wrote fake data into real imports: a
+  // "Total" row read as a deposit, a lifetime trade-aggregate misread as
+  // individual buys/sells, Cash Report line items misread as holdings, and a
+  // dividend duplicated under symbol CASH by two parsers claiming the same
+  // section. None of these were the user's entry, so asking them to confirm
+  // removal would be handing them our mistake to clean up. We know these are
+  // wrong (lib/phantomFlows, lib/badDataCleanup — each detector proves a real
+  // row cannot match its predicate), so we fix them and say so.
+  // Order matters (lib/badDataCleanup): fake trades first, since clearing the
+  // acquisitionDate side effect (1b) needs to know WHICH symbols were faked.
   const healedRef = useRef(false)
   useEffect(() => {
-    if (dataLoading || healedRef.current || !deleteTransaction) return
+    if (dataLoading || healedRef.current || !deleteTransaction || !deleteItem || !updateItem) return
+    const fakeTrades = detectFakeAggregateTrades(transactions || [])
+    const fakeTradeSymbols = new Set(fakeTrades.map((t) => (t.symbol || '').toUpperCase()))
+    const stampedAcquisitions = detectImportStampedAcquisitions(items || [], fakeTradeSymbols)
+    const dupeDividends = detectDuplicateCashDividends(transactions || [])
     const phantoms = detectPhantomFlows(transactions || [])
-    if (phantoms.length === 0) return
+    const fakeCashItems = detectFakeCashReportItems(items || [])
+
+    const txToDelete = [...fakeTrades, ...dupeDividends, ...phantoms]
+    if (txToDelete.length === 0 && stampedAcquisitions.length === 0 && fakeCashItems.length === 0) return
     healedRef.current = true
     let cancelled = false
     ;(async () => {
-      let removed = 0
-      for (const p of phantoms) {
-        try { await deleteTransaction(p.id); removed++ } catch { /* leave it; next load retries */ }
+      let removedTx = 0, clearedItems = 0, removedItems = 0
+      for (const p of txToDelete) {
+        try { await deleteTransaction(p.id); removedTx++ } catch { /* leave it; next load retries */ }
       }
-      if (cancelled || removed === 0) return
-      const total = phantoms.reduce((sum, p) => sum + Math.abs(p.amount || 0), 0)
+      for (const a of stampedAcquisitions) {
+        try { await updateItem(a.id, { acquisitionDate: null, _historyIncomplete: true }); clearedItems++ } catch { /* leave it; next load retries */ }
+      }
+      for (const it of fakeCashItems) {
+        try { await deleteItem(it.id); removedItems++ } catch { /* leave it; next load retries */ }
+      }
+      if (cancelled || (removedTx === 0 && clearedItems === 0 && removedItems === 0)) return
+      const total = [...fakeTrades, ...phantoms, ...dupeDividends].reduce((sum, p) => sum + Math.abs(p.amount || 0), 0)
+        + fakeCashItems.reduce((sum, it) => sum + Math.abs(it.value || 0), 0)
       showToast(
         lang === 'es'
-          ? `Corregimos un error nuestro: quitamos ${removed === 1 ? 'un aporte' : `${removed} aportes`} que en realidad era un total del reporte (${formatCurrency(total)}). Tu retorno ya estaba mal por eso.`
-          : `We fixed a bug on our side: removed ${removed === 1 ? 'a contribution' : `${removed} contributions`} that were really a report total (${formatCurrency(total)}). Your return was wrong because of it.`,
-        'info', 7000
+          ? `Corregimos ${removedTx + removedItems + clearedItems} error(es) nuestro(s) en tu importación (${formatCurrency(total)} en filas que en realidad no existían). Tu retorno ya estaba mal por eso.`
+          : `We fixed ${removedTx + removedItems + clearedItems} error(s) on our side in your import (${formatCurrency(total)} in rows that were never really there). Your return was wrong because of it.`,
+        'info', 8000
       )
     })()
     return () => { cancelled = true }
-  }, [dataLoading, transactions, deleteTransaction, lang, showToast])
+  }, [dataLoading, transactions, items, deleteTransaction, deleteItem, updateItem, lang, showToast])
 
   const isDemoMode = useMemo(() => items.some(isDemoItem), [items])
   const handleClearDemo = useCallback(async () => {
