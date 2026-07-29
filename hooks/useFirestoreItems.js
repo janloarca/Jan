@@ -26,6 +26,17 @@ async function waitForAuth(auth) {
   })
 }
 
+// Caché en memoria a nivel de módulo, keyed por uid: al cambiar de sección el
+// hook arranca con el último estado conocido y los onSnapshot lo pisan con el
+// estado vivo del servidor. La clave es el uid, así un cambio de cuenta nunca
+// ve datos del usuario anterior, y currentUser null (sign-out) la invalida.
+let _cacheByUid = {}
+
+function readInitCache() {
+  const uid = _auth?.currentUser?.uid
+  return (uid && _cacheByUid[uid]) || null
+}
+
 const QTY_EPSILON = 0.0001
 function roundQty(v) { return Math.round(v * 10000) / 10000 }
 
@@ -72,18 +83,19 @@ function sanitizeDoc(raw) {
 }
 
 export function useFirestoreItems() {
-  const [items, setItems] = useState([])
-  const [snapshots, setSnapshots] = useState([])
-  const [transactions, setTransactions] = useState([])
-  const [alerts, setAlerts] = useState([])
-  const [lots, setLots] = useState([])
-  const [portfolios, setPortfolios] = useState([])
-  const [financeTransactions, setFinanceTransactions] = useState([])
-  const [goals, setGoals] = useState(null)
-  const [settings, setSettings] = useState(null)
-  const [profile, setProfile] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [uid, setUid] = useState(null)
+  const initCache = readInitCache()
+  const [items, setItems] = useState(initCache?.items || [])
+  const [snapshots, setSnapshots] = useState(initCache?.snapshots || [])
+  const [transactions, setTransactions] = useState(initCache?.transactions || [])
+  const [alerts, setAlerts] = useState(initCache?.alerts || [])
+  const [lots, setLots] = useState(initCache?.lots || [])
+  const [portfolios, setPortfolios] = useState(initCache?.portfolios || [])
+  const [financeTransactions, setFinanceTransactions] = useState(initCache?.financeTransactions || [])
+  const [goals, setGoals] = useState(initCache?.goals || null)
+  const [settings, setSettings] = useState(initCache?.settings || null)
+  const [profile, setProfile] = useState(initCache?.profile || null)
+  const [loading, setLoading] = useState(!initCache)
+  const [uid, setUid] = useState(_auth?.currentUser?.uid || null)
 
   useEffect(() => {
     let unsubItems = () => {}
@@ -101,7 +113,9 @@ export function useFirestoreItems() {
 
       const user = await waitForAuth(auth)
       if (cancelled) return
-      if (!user) { setLoading(false); return }
+      // Sign-out: currentUser null invalida la caché para que ningún montaje
+      // posterior arranque con datos de una sesión ya cerrada.
+      if (!user) { _cacheByUid = {}; setLoading(false); return }
 
       const currentUid = user.uid
       setUid(currentUid)
@@ -172,6 +186,14 @@ export function useFirestoreItems() {
     init()
     return () => { cancelled = true; unsubItems(); unsubSnapshots(); unsubTransactions(); unsubAlerts(); unsubLots(); unsubPortfolios(); unsubFinanceTx() }
   }, [])
+
+  // Mantiene la caché de módulo al día con el estado vivo: los onSnapshot ya
+  // actualizan el state; aquí solo lo persistimos para el próximo montaje.
+  useEffect(() => {
+    if (uid) {
+      _cacheByUid[uid] = { items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile }
+    }
+  }, [uid, items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile])
 
   const addItem = useCallback(async (item) => {
     if (!uid) { console.error('[addItem] No uid — write skipped'); return }
