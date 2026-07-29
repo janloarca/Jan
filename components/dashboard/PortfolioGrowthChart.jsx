@@ -217,16 +217,15 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       setFetchError(t('El rango está invertido: "desde" es posterior a "hasta".', 'Range is inverted: "from" is after "to".'))
       return
     }
-    if (period === 'DAY') {
-      // Clear leftover points from the previous period — the DAY splice mixes any
-      // recent API points into the intraday snapshots.
-      setDataPoints([])
-      setLoading(false)
-      return
-    }
     const gen = ++fetchGenRef.current
     setLoading(true)
     setFetchError(null)
+    // A period switch TO DAY must not let the previous period's dataPoints (e.g.
+    // months of YTD data) bleed into the DAY splice while this fetch is in
+    // flight — chartData's DAY branch maps whatever is in dataPoints without a
+    // period check, so a stale point that happens to fall in the last-3-days
+    // window would flash on screen until the real intraday response lands.
+    if (period === 'DAY') setDataPoints([])
     try {
       let apiPeriod = period === 'MTD' ? '1M' : period
       if (period === 'CUSTOM') {
@@ -411,10 +410,14 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       const recentSnaps = [...snapshots]
         .filter(s => s.date && new Date(s.date).getTime() >= threeDaysAgo)
         .sort((a, b) => new Date(a.date) - new Date(b.date))
-        .map(s => ({ ts: new Date(s.date).getTime(), date: new Date(s.date), value: convertVal(s) }))
+        .map(s => ({ ts: new Date(s.date).getTime(), date: new Date(s.date), value: convertVal(s), src: s._source || null }))
         .filter(p => p.value > 0)
       if (currentTotal > 0) {
-        recentSnaps.push({ ts: Date.now(), date: new Date(), value: currentTotal })
+        // The live "now" point is real current NAV, not an estimate — tag it as
+        // a real source so flowAware (below) treats a same-day IBKR deposit the
+        // same way every other period does: netted out of the return, not read
+        // as market gain (the +1.98% vs +10.99% TWR bug this file documents).
+        recentSnaps.push({ ts: Date.now(), date: new Date(), value: currentTotal, src: 'daily' })
       }
       return recentSnaps
     }
