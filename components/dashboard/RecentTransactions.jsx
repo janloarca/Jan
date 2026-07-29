@@ -3,13 +3,17 @@
 import { useState, useMemo } from 'react'
 import { formatCurrency, formatDate, formatMonth } from './utils'
 
-export default function RecentTransactions({ transactions, lang, onExportCSV, items = [] }) {
+export default function RecentTransactions({ transactions, lang, onExportCSV, onDeleteTransaction, items = [] }) {
   const itemName = (id) => {
     if (!id) return null
     const it = items.find((i) => i.id === id)
     return it ? (it.name || it.symbol) : null
   }
   const [showAll, setShowAll] = useState(false)
+  // Two-step delete: a mis-parsed import can put a movement here that wrecks the
+  // return, and the user needs to remove it, but a one-tap delete next to every
+  // row is how real history gets destroyed by accident.
+  const [confirmId, setConfirmId] = useState(null)
   const [typeFilter, setTypeFilter] = useState('ALL')
   const [dateRange, setDateRange] = useState('all')
 
@@ -224,7 +228,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, it
         <>
           <div className="space-y-0">
             {display.map((tx, i) => (
-              <div key={tx.id || i} className="flex items-center justify-between py-2 border-b border-glass-border/30 last:border-0 hover:bg-theme-elevated/30 transition-colors -mx-2 px-2 rounded">
+              <div key={tx.id || i} className="group flex items-center justify-between py-2 border-b border-glass-border/30 last:border-0 hover:bg-theme-elevated/30 transition-colors -mx-2 px-2 rounded">
                 <div className="flex items-center gap-3">
                   <span className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0" style={typeBadgeStyle(tx.type)}>
                     {typeIcon(tx.type)}
@@ -242,7 +246,29 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, it
                     </span>
                   </div>
                 </div>
-                <div className="text-right">
+                <div className="text-right flex items-center gap-2">
+                  {onDeleteTransaction && tx.id && (
+                    confirmId === tx.id ? (
+                      <span className="flex items-center gap-1">
+                        <button onClick={() => { onDeleteTransaction(tx.id); setConfirmId(null) }}
+                          className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                          style={{ backgroundColor: 'var(--text-negative)', color: 'var(--bg-card)' }}>
+                          {lang === 'es' ? 'Borrar' : 'Delete'}
+                        </button>
+                        <button onClick={() => setConfirmId(null)}
+                          className="text-[10px] px-1 py-0.5 rounded" style={{ color: 'var(--text-muted)' }}>
+                          {lang === 'es' ? 'No' : 'No'}
+                        </button>
+                      </span>
+                    ) : (
+                      <button onClick={() => setConfirmId(tx.id)}
+                        aria-label={lang === 'es' ? 'Borrar movimiento' : 'Delete movement'}
+                        className="text-xs opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity"
+                        style={{ color: 'var(--text-muted)' }}>
+                        &times;
+                      </button>
+                    )
+                  )}
                   <span className="text-sm font-medium font-mono tabular-nums" style={{ color:
                     (tx.type || '').toUpperCase() === 'SELL' || (tx.type || '').toUpperCase() === 'WITHDRAWAL'
                       ? 'var(--text-negative)'

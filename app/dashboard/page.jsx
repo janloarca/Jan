@@ -254,7 +254,7 @@ export default function DashboardPage() {
     dataLoading,
     addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
     saveSnapshot, deleteAllSnapshots, deleteDemoData,
-    addTransaction, deleteAllTransactions,
+    addTransaction, deleteTransaction, deleteAllTransactions,
     addAlert, deleteAlert,
     addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution,
     addPortfolio, deletePortfolio,
@@ -1010,7 +1010,7 @@ export default function DashboardPage() {
                 </div>
               </div>
             )}
-            <CardBoundary id="HO-02"><RecentTransactions transactions={transactions} items={items} lang={lang} onExportCSV={handleExportTransactionsCSV} /></CardBoundary>
+            <CardBoundary id="HO-02"><RecentTransactions transactions={transactions} items={items} lang={lang} onExportCSV={handleExportTransactionsCSV} onDeleteTransaction={deleteTransaction} /></CardBoundary>
             <CardBoundary id="HO-03"><DataQualityCard items={portfolioItems} transactions={transactions} snapshots={snapshots} convert={convert} baseCurrency={baseCurrency} lang={lang} onConnect={handleOpenConnections} onImportBroker={handleOpenImport} /></CardBoundary>
           </ErrorBoundary>
         </SectionCollapse></div>
