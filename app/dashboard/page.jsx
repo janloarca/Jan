@@ -69,7 +69,7 @@ import CostsCard from '@/components/dashboard/CostsCard'
 import { reconcileBrokerPositions } from '@/lib/brokerReconcile'
 import { analyzeDataCompleteness } from '@/lib/dataCompleteness'
 import { detectPhantomFlows } from '@/lib/phantomFlows'
-import { detectFakeAggregateTrades, detectImportStampedAcquisitions, detectFakeCashReportItems, detectDuplicateCashDividends } from '@/lib/badDataCleanup'
+import { detectFakeAggregateTrades, detectImportStampedAcquisitions, detectFakeCashReportItems, detectDuplicateCashDividends, detectCrossSourceDuplicateFlows } from '@/lib/badDataCleanup'
 import { IBKR_DISCONNECTED_FIELDS } from '@/lib/brokerRegistry'
 import { DEMO_ITEMS, DEMO_LOTS, DEMO_TRANSACTIONS, isDemoItem } from '@/lib/demoData'
 import AssetAllocation from '@/components/dashboard/AssetAllocation'
@@ -384,10 +384,14 @@ export default function DashboardPage() {
   // "Total" row read as a deposit, a lifetime trade-aggregate misread as
   // individual buys/sells, Cash Report line items misread as holdings, and a
   // dividend duplicated under symbol CASH by two parsers claiming the same
-  // section. None of these were the user's entry, so asking them to confirm
-  // removal would be handing them our mistake to clean up. We know these are
-  // wrong (lib/phantomFlows, lib/badDataCleanup — each detector proves a real
-  // row cannot match its predicate), so we fix them and say so.
+  // section. A fifth class isn't a parser bug at all: the SAME real deposit
+  // imported once via file and once via the live API sync lands as two docs,
+  // because the API path appends a txn-id suffix to the doc id the file path
+  // never had — doubling that flow's effect on every return calculation.
+  // None of these were the user's entry, so asking them to confirm removal
+  // would be handing them our mistake to clean up. We know these are wrong
+  // (lib/phantomFlows, lib/badDataCleanup — each detector proves a real row
+  // cannot match its predicate), so we fix them and say so.
   // Order matters (lib/badDataCleanup): fake trades first, since clearing the
   // acquisitionDate side effect (1b) needs to know WHICH symbols were faked.
   const healedRef = useRef(false)
@@ -397,10 +401,11 @@ export default function DashboardPage() {
     const fakeTradeSymbols = new Set(fakeTrades.map((t) => (t.symbol || '').toUpperCase()))
     const stampedAcquisitions = detectImportStampedAcquisitions(items || [], fakeTradeSymbols)
     const dupeDividends = detectDuplicateCashDividends(transactions || [])
+    const dupeFlows = detectCrossSourceDuplicateFlows(transactions || [])
     const phantoms = detectPhantomFlows(transactions || [])
     const fakeCashItems = detectFakeCashReportItems(items || [])
 
-    const txToDelete = [...fakeTrades, ...dupeDividends, ...phantoms]
+    const txToDelete = [...fakeTrades, ...dupeDividends, ...dupeFlows, ...phantoms]
     if (txToDelete.length === 0 && stampedAcquisitions.length === 0 && fakeCashItems.length === 0) return
     healedRef.current = true
     let cancelled = false
@@ -416,7 +421,7 @@ export default function DashboardPage() {
         try { await deleteItem(it.id); removedItems++ } catch { /* leave it; next load retries */ }
       }
       if (cancelled || (removedTx === 0 && clearedItems === 0 && removedItems === 0)) return
-      const total = [...fakeTrades, ...phantoms, ...dupeDividends].reduce((sum, p) => sum + Math.abs(p.amount || 0), 0)
+      const total = [...fakeTrades, ...phantoms, ...dupeDividends, ...dupeFlows].reduce((sum, p) => sum + Math.abs(p.amount || 0), 0)
         + fakeCashItems.reduce((sum, it) => sum + Math.abs(it.value || 0), 0)
       showToast(
         lang === 'es'
