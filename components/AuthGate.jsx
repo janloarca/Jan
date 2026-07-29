@@ -12,14 +12,20 @@ function setSessionCookie(token) {
   document.cookie = `__session=${token}; path=/; max-age=604800; SameSite=Lax${secure}`
 }
 
+// Caché en memoria a nivel de módulo: una vez verificada la sesión en esta carga
+// de la app, cambiar de sección no vuelve a mostrar el spinner "Verificando
+// sesión...". El listener se monta igual en cada navegación: si la sesión muere,
+// redirige a /login exactamente como antes.
+let _sessionAlive = false
+
 export default function AuthGate({ children }) {
-  const [status, setStatus] = useState('checking') // 'checking' | 'authed'
+  const [status, setStatus] = useState(_sessionAlive ? 'authed' : 'checking') // 'checking' | 'authed'
   const router = useRouter()
   const pathname = usePathname()
 
   useEffect(() => {
     // Sin config de Firebase (dev local sin env vars) no bloqueamos la pantalla.
-    if (!auth) { setStatus('authed'); return }
+    if (!auth) { _sessionAlive = true; setStatus('authed'); return }
 
     let cancelled = false
     let unsub
@@ -34,8 +40,10 @@ export default function AuthGate({ children }) {
             try {
               setSessionCookie(await u.getIdToken())
             } catch {}
+            _sessionAlive = true
             setStatus('authed')
           } else {
+            _sessionAlive = false
             router.replace(`/login?redirect=${encodeURIComponent(pathname)}`)
           }
         })
