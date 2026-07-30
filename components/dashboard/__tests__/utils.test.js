@@ -571,7 +571,7 @@ describe('shouldHoldFlat', () => {
   })
 
   it('ignores trades for a different symbol', () => {
-    expect(shouldHoldFlat(ibkr, [{ type: 'BUY', symbol: 'AAPL' }])).toBe(true)
+    expect(shouldHoldFlat(ibkr, [{ type: 'BUY', symbol: 'AAPL' }], [])).toBe(true)
   })
 
   it('does NOT hold flat with real multi-lot or closed-lot history', () => {
