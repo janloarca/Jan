@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { sanitizeImportItem } from '@/lib/validation'
 import { SNAPSHOT_SRC_PRIORITY } from '@/components/dashboard/utils'
+import { detectMisstampedMonthlyNavSnapshots } from '@/lib/badDataCleanup'
 
 let _db = null
 let _auth = null
@@ -344,6 +345,38 @@ export function useFirestoreItems() {
     const { db, fs } = await getFirebase()
     await fs.deleteDoc(fs.doc(db, `users/${uid}/snapshots`, id))
   }, [uid])
+
+  // Self-heal class 6 (lib/badDataCleanup): monthly PortfolioAnalyst NAV rows
+  // were date-stamped month-START before the parser fix, so their snapshots sit
+  // on day 01 holding the month-END value and poison the YTD anchor
+  // (findYearStartAnchor) plus the growth chart's year-start point. Snapshot
+  // doc ids ARE the date string, so a re-stamp writes the corrected doc first
+  // and deletes the day-01 doc second (never the reverse: a failed create must
+  // not orphan the data).
+  const snapHealRef = useRef(false)
+  useEffect(() => {
+    if (loading || snapHealRef.current || !uid) return
+    const fixes = detectMisstampedMonthlyNavSnapshots(snapshots)
+    if (fixes.length === 0) return
+    snapHealRef.current = true
+    let cancelled = false
+    ;(async () => {
+      let restamped = 0
+      for (const f of fixes) {
+        if (cancelled) return
+        const original = snapshots.find((x) => x && x.id === f.id)
+        if (!original) continue
+        try {
+          const { id: _oldId, ...rest } = original
+          await saveSnapshot({ ...rest, date: f.newDate })
+          await deleteSnapshot(f.id)
+          restamped++
+        } catch { /* leave it; next load retries */ }
+      }
+      if (restamped > 0) console.info(`[badDataCleanup] re-stamped ${restamped} monthly IBKR snapshot(s) to month-end`)
+    })()
+    return () => { cancelled = true }
+  }, [loading, uid, snapshots, saveSnapshot, deleteSnapshot])
 
   const deleteAllSnapshots = useCallback(async () => {
     if (!uid) return
