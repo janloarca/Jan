@@ -233,13 +233,23 @@ export function findYearStartAnchor(snapshots, year) {
   // read in LOCAL time while the 'YYYY-MM-DD' string is UTC-midnight, so in
   // UTC-6 'YYYY-01-01' misreads as December and 'YYYY-02-01' as January —
   // the Jan-1 anchor silently resolves to the wrong month or null.
-  let best = sorted.find((s) => s.date.slice(0, 7) === `${year}-01`)
-  if (!best) {
-    best = [...sorted].reverse().find((s) => s.date.slice(0, 7) === `${year - 1}-12`)
-  }
-  if (!best) return null
-  const diff = Math.abs(new Date(best.date).getTime() - Date.UTC(year, 0, 1))
-  return diff <= 15 * 86400000 ? best : null
+  const WINDOW = 15 * 86400000
+  const jan1 = Date.UTC(year, 0, 1)
+  // 1) A January snapshot of the target year, accepted only within 15 days of
+  //    Jan 1. A month-END stamp ('2026-01-31' from a monthly PortfolioAnalyst
+  //    NAV export) sits 30 days out and fails on purpose: that row already
+  //    holds January's deposit and gain, so anchoring YTD there would make
+  //    Modified Dietz subtract January's flows a second time.
+  const jan = sorted.find((s) => s.date.slice(0, 7) === `${year}-01`)
+  if (jan && Math.abs(new Date(jan.date).getTime() - jan1) <= WINDOW) return jan
+  // 2) Otherwise (no January row, or it failed the window) anchor on the
+  //    LATEST late-December snapshot of the prior year. |Dec 17 - Jan 1| is
+  //    exactly 15 days, so the same window against Jan 1 accepts Dec 17-31
+  //    and rejects anything earlier in December.
+  const dec = [...sorted].reverse().find((s) => s.date.slice(0, 7) === `${year - 1}-12`)
+  if (dec && Math.abs(new Date(dec.date).getTime() - jan1) <= WINDOW) return dec
+  // 3) No trustworthy year-start observation: the caller hides YTD.
+  return null
 }
 
 // Month-start anchor for a month-to-date (MTD) return: the snapshot closest to
