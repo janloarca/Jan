@@ -763,6 +763,20 @@ export function useFirestoreItems() {
     }
   }, [uid])
 
+  const updateFinanceTransaction = useCallback(async (txId, fields) => {
+    if (!uid || !txId) return false
+    try {
+      const { db, fs } = await getFirebase()
+      const clean = Object.fromEntries(Object.entries(fields || {}).filter(([, v]) => v !== undefined))
+      if (!Object.keys(clean).length) return false
+      await fs.setDoc(fs.doc(db, `users/${uid}/financeTransactions`, txId), clean, { merge: true })
+      return true
+    } catch (err) {
+      console.error('[finance] update failed', err)
+      return false
+    }
+  }, [uid])
+
   const deleteFinanceTransaction = useCallback(async (txId) => {
     if (!uid) return
     const { db, fs } = await getFirebase()
@@ -942,7 +956,7 @@ export function useFirestoreItems() {
     addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
     saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, deleteTransaction, deleteAllTransactions,
-    addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
+    addFinanceTransaction, updateFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     addAlert, deleteAlert, updateAlert,
     addLot, updateLot, closeLotsFIFO,
     transferFunds, executeSaleAtomic, executeContribution,

@@ -33,7 +33,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     alerts, addAlert, deleteAlert, updateAlert,
     lots, addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution, bulkImport,
     portfolios, addPortfolio, deletePortfolio,
-    financeTransactions, addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
+    financeTransactions, addFinanceTransaction, updateFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     saveGoals, saveSettings, saveProfile,
     saveItemSnapshots, loadItemSnapshots,
   } = firestoreData
@@ -1199,7 +1199,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     addAlert, deleteAlert, updateAlert,
     addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution,
     addPortfolio, deletePortfolio,
-    addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
+    addFinanceTransaction, updateFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     bulkImport,
     saveGoals, saveSettings, saveProfile,
     saveItemSnapshots, loadItemSnapshots,

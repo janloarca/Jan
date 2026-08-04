@@ -50,6 +50,37 @@
 - El ingreso de inversión (read-only, de DIVIDEND `!_reinvested` del portafolio) entra vía `extras` en CADA mes comparado (actual/prev/yoy) para que cards e insights cuenten la misma historia de ahorro
 - 'Inversiones' está bloqueada en captura manual (`MANUAL_INCOME_BLOCKED`) pero permitida al categorizar imports (un depósito de dividendo externo en el banco es válido)
 
+### Captura automática de gastos: atajo iOS + correo reenviado (FASE AP)
+- iOS **no tiene disparador de "llegó una notificación"**: el push del banco es
+  ilegible desde Shortcuts. Por eso hay dos caminos y los dos hacen falta: (A) la
+  automatización **Transacción** de Wallet, que solo ve Apple Pay pero es instantánea,
+  y (C) el reenvío de las alertas por correo, que ve TODO (incluida la tarjeta física)
+  pero corre en un barrido diario. Guía de usuario en `docs/gastos-automaticos.md`.
+- **Un solo token para los dos transportes.** `ingestTokens/{token}` → uid (top-level,
+  Admin SDK, patrón exacto de `shareTokens`), espejado en `users/{uid}/settings/ingest`.
+  El atajo lo manda como `Authorization: Bearer`; el correo lo lleva como plus-address
+  (`gastos+<token>@dominio`). No se usa Firebase ID token porque Shortcuts solo puede
+  adjuntar un header estático y un correo no lleva nada.
+- **Rutear correo por el token, JAMÁS por `From:`.** La cabecera del remitente se
+  falsifica sin esfuerzo; rutear por ella dejaría a cualquiera escribir gastos en la
+  cuenta de otro. El plus-address vive en `Delivered-To`/`X-Original-To` (el reenvío
+  automático de Gmail deja el `To:` original intacto), así que hay que leer esas
+  cabeceras primero y `To`/`Cc` solo como fallback de un reenvío manual.
+- **Los dos caminos se solapan a propósito → el dedup es el corazón del módulo.**
+  Dos capas en `lib/expenseIngest.js`: (1) doc id determinístico (mismo evento
+  reintentado = no-op) y (2) barrido de casi-duplicados: mismo monto+moneda con ±1 día
+  y `descSimilarity >= 0.5` en el comercio. La ventana de ±1 día NO es holgura: el
+  cargo se postea el día después de la compra, así que Wallet y el correo traen fechas
+  distintas del mismo cobro legítimamente. También atrapa lo que ya escribiste a mano.
+- El cron es **diario** por límite del plan Hobby de Vercel (solo crons diarios), no por
+  diseño; de ahí el botón "Sincronizar ahora" que corre el mismo `sweepInbox`.
+- Reversos/devoluciones se detectan y se DESCARTAN (no se guardan como ingreso ni como
+  gasto): registrarlos como gasto infla el mes, y como ingreso ensucia el ahorro. Esos
+  entran por la importación del estado de cuenta.
+- El lazo que hace que la categorización sirva: corregir la categoría de una fila
+  `_source:'auto_*'` guarda una regla por comercio (`action:'learn'`). Solo aprenden las
+  filas automáticas, para no fabricar reglas de descripciones escritas a mano.
+
 ### Recordatorio por correo (cron)
 - SMTP genérico con nodemailer contra un buzón del PROPIO dominio — sin servicios de envío de terceros (decisión del usuario); el código no se casa con ningún host
 - Gating silencioso por env vars (`SMTP_HOST/USER/PASS`; sin ellas → no-op) — patrón kvConfigured

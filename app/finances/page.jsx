@@ -24,6 +24,7 @@ import { computeMonthlyAnalysis, buildFinanceInsights, investmentIncomeOfMonth }
 import PageTour from '@/components/dashboard/PageTour'
 import { Wallet } from 'lucide-react'
 import { INCOME_GROUPS } from '@/lib/financeCategories'
+import { authFetch } from '@/lib/authFetch'
 
 export default function FinancesPage() {
   const router = useRouter()
@@ -75,6 +76,7 @@ export default function FinancesPage() {
     updateItem,
     financeTransactions,
     addFinanceTransaction,
+    updateFinanceTransaction,
     deleteFinanceTransaction,
     settings,
     saveSettings,
@@ -159,6 +161,22 @@ export default function FinancesPage() {
       ...(next ? { financeReminderEmail: user?.email || '', financeReminderLang: lang } : {}),
     })
   }, [reminderEnabled, saveSettings, user, lang])
+
+  // Fixing the category of a transaction also TEACHES the auto-capture
+  // classifier: the rule is stored per merchant, so the next charge from that
+  // place lands already classified. Only auto-captured rows teach, so correcting
+  // a hand-typed entry never writes a rule from a description the user typed.
+  const handleRecategorize = useCallback(async (tx, category) => {
+    if (!tx?.id || !category || category === tx.category) return
+    await updateFinanceTransaction(tx.id, { category, _needsReview: false })
+    const merchant = tx.merchant || tx.description
+    if (!merchant || !String(tx._source || '').startsWith('auto_')) return
+    await authFetch('/api/ingest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'learn', merchant, category }),
+    }).catch(() => {})
+  }, [updateFinanceTransaction])
 
   const t = (es, en) => lang === 'es' ? es : en
 
@@ -310,6 +328,7 @@ export default function FinancesPage() {
         <FinanceTransactionList
           transactions={monthTransactions}
           onDelete={deleteFinanceTransaction}
+          onRecategorize={handleRecategorize}
           lang={lang}
         />
         </>}

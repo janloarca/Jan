@@ -1,11 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import { CATEGORY_COLORS } from '@/lib/financeCategories'
+import { CATEGORY_COLORS, FINANCE_CATEGORIES } from '@/lib/financeCategories'
 
-export default function FinanceTransactionList({ transactions, onDelete, lang = 'es' }) {
+export default function FinanceTransactionList({ transactions, onDelete, onRecategorize, lang = 'es' }) {
   const [filter, setFilter] = useState('ALL')
   const [search, setSearch] = useState('')
+  // Row whose category select is open. Editing inline (rather than in a modal)
+  // matters here: correcting an auto-captured category is the gesture that
+  // teaches the classifier, so it has to be one click away.
+  const [editing, setEditing] = useState(null)
   const t = (es, en) => lang === 'es' ? es : en
 
   const filtered = transactions
@@ -66,12 +70,38 @@ export default function FinanceTransactionList({ transactions, onDelete, lang = 
               {filtered.map((tx, i) => (
                 <tr key={tx.id || i} className="border-b border-glass-border/50 hover:bg-theme-elevated">
                   <td className="py-2 px-2 text-slate-400 whitespace-nowrap">{tx.date}</td>
-                  <td className="py-2 px-2 text-white max-w-[200px] truncate">{tx.description || '-'}</td>
+                  <td className="py-2 px-2 text-white max-w-[200px] truncate">
+                    {String(tx._source || '').startsWith('auto_') && (
+                      <span title={t('Capturado automáticamente', 'Captured automatically')} className="mr-1">⚡</span>
+                    )}
+                    {tx.description || '-'}
+                    {tx.location && <span className="text-slate-600"> · {tx.location}</span>}
+                  </td>
                   <td className="py-2 px-2">
-                    <span className="inline-flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: CATEGORY_COLORS[tx.category] || '#64748b' }} />
-                      <span className="text-slate-300">{tx.category}</span>
-                    </span>
+                    {onRecategorize && editing === (tx.id || i) ? (
+                      <select
+                        autoFocus
+                        defaultValue={tx.category}
+                        onBlur={() => setEditing(null)}
+                        onChange={(e) => { onRecategorize(tx, e.target.value); setEditing(null) }}
+                        className="px-1.5 py-1 bg-theme-base border border-glass-border rounded-md text-xs text-white focus:outline-none">
+                        {(tx.type === 'INCOME' ? FINANCE_CATEGORIES.INCOME : FINANCE_CATEGORIES.EXPENSE).map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <button
+                        onClick={() => onRecategorize && setEditing(tx.id || i)}
+                        disabled={!onRecategorize}
+                        title={onRecategorize ? t('Cambiar categoría', 'Change category') : undefined}
+                        className="inline-flex items-center gap-1 rounded-md px-1 -mx-1 transition-colors disabled:cursor-default hover:bg-theme-elevated">
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: CATEGORY_COLORS[tx.category] || '#64748b' }} />
+                        <span className="text-slate-300">{tx.category}</span>
+                        {tx._needsReview && (
+                          <span title={t('Revisa la categoría', 'Check the category')} style={{ color: '#f59e0b' }}>?</span>
+                        )}
+                      </button>
+                    )}
                   </td>
                   <td className="py-2 px-2 text-right font-medium font-mono tabular-nums whitespace-nowrap"
                     style={{ color: tx.type === 'INCOME' ? 'var(--accent-green)' : 'var(--text-negative)' }}>
