@@ -6,6 +6,7 @@ import { detectBI, parseBI } from '@/lib/parsers/biParser'
 import { detectCoinbase, parseCoinbase } from '@/lib/parsers/coinbaseParser'
 import { detectKraken, parseKraken } from '@/lib/parsers/krakenParser'
 import { isIBKRSectionedFormat, parseIBKRFile, formatIBKRFileResult, detectIBKRFileKind, pickSectionedCsvFromWorkbook } from '@/lib/parsers/ibkrFileParser'
+import { parseIBKRXmlFile } from '@/lib/parsers/ibkrXmlFileAdapter'
 import { parseAmount, parseImportDate } from '@/lib/numberParse'
 import { FIELD_MAP, BROKER_PRESETS, guessMapping } from '@/lib/importMapping'
 import { FINANCE_CATEGORIES, CATEGORY_COLORS } from '@/lib/financeCategories'
@@ -227,10 +228,12 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       'text/csv',
       'application/csv',
       'application/pdf',
+      'text/xml',
+      'application/xml',
     ]
     const ext = (file.name || '').split('.').pop()?.toLowerCase()
-    if (!validTypes.includes(file.type) && !['xlsx', 'xls', 'csv', 'pdf'].includes(ext)) {
-      setError(lang === 'es' ? 'Tipo de archivo no válido. Usa .xlsx, .csv o .pdf.' : 'Invalid file type. Use .xlsx, .csv or .pdf.')
+    if (!validTypes.includes(file.type) && !['xlsx', 'xls', 'csv', 'pdf', 'xml'].includes(ext)) {
+      setError(lang === 'es' ? 'Tipo de archivo no válido. Usa .xlsx, .csv, .pdf o .xml (IBKR).' : 'Invalid file type. Use .xlsx, .csv, .pdf or .xml (IBKR).')
       return
     }
 
@@ -249,11 +252,30 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       if (parsed._isPerformanceReport || (parsed.positions.length === 0 && parsed.cashPositions.length === 0)) { ibkrEmptyError(); return true }
       setIbkrData(formatIBKRFileResult(parsed)); setStep('ibkr-preview'); return true
     }
+    // A Flex Query downloaded by hand arrives as XML: the file the app's own
+    // instructions tell IBKR users to get. It enters the SAME preview/import
+    // flow as the CSV (the adapter returns the formatIBKRFileResult shape).
+    const acceptIBKRXml = (xmlText) => {
+      if (!/<FlexQueryResponse|<FlexStatements?\b/i.test(xmlText.slice(0, 2000))) {
+        setError(lang === 'es'
+          ? 'Este XML no es un Flex Query de IBKR. Descarga el Activity Flex Query (Performance & Reports → Flex Queries) y súbelo tal cual.'
+          : 'This XML is not an IBKR Flex Query. Download the Activity Flex Query (Performance & Reports → Flex Queries) and upload it as is.')
+        return true
+      }
+      const data = parseIBKRXmlFile(xmlText)
+      if (data.empty) { ibkrEmptyError(); return true }
+      setIbkrData(data); setStep('ibkr-preview'); return true
+    }
 
     try {
       const XLSX = await import('xlsx')
       let wb
       let csvText = null
+
+      if (ext === 'xml') {
+        acceptIBKRXml(await file.text())
+        return
+      }
 
       if (ext === 'csv') {
         // file.text() decodes UTF-8 correctly; letting SheetJS read the raw bytes
@@ -263,7 +285,8 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         csvText = await file.text()
         const kind = detectIBKRFileKind(csvText)
         if (kind === 'pdf') { await handlePdf(file); return }
-        if (kind === 'xml') { setError(lang === 'es' ? 'Esto es un archivo XML. Expórtalo en CSV o Excel.' : 'This is an XML file. Export it as CSV or Excel.'); return }
+        // A Flex XML saved with a .csv name is still the file we asked for.
+        if (kind === 'xml') { acceptIBKRXml(csvText); return }
         if (isIBKRSectionedFormat(csvText)) { acceptIBKR(csvText); return }
         // raw:true stops SheetJS from coercing "150,25" to the number 15025 and
         // "1.234,56" to 1.23456 — the values reach parseAmount as written.
@@ -634,7 +657,10 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   }, [biData, biMatch, biSelected, stmtAccount, onAddFinanceTransaction, onImportItems, onUpdateItem, existingItems, selectedBankAccount])
 
   const doIBKRImport = useCallback(async () => {
-    if (!ibkrData || !ibkrData.items || ibkrData.items.length === 0) return
+    // History-only files are valid: a Flex XML for a closed year can carry just
+    // NAV days and trades, no current positions.
+    if (!ibkrData || !ibkrData.items
+      || (ibkrData.items.length === 0 && (ibkrData.transactions || []).length === 0 && (ibkrData.equityHistory || []).length === 0)) return
     setImporting(true)
     setError('')
     setImportProgress({ done: 0, total: 0 })
@@ -688,6 +714,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
 
     let lastDone = 0
     const summary = {
+      isIBKR: true,
       success: validItems.length,
       failed: 0,
       total: ibkrData.items.length,
@@ -839,13 +866,13 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                     <div className="text-4xl mb-3">{brokerInfo ? brokerInfo.icon : '📊'}</div>
                     <p className="text-white font-medium mb-1">{t('Arrastra tu archivo aquí', 'Drag your file here')}</p>
                     <p className="text-slate-500 text-sm">{t('o haz clic para seleccionar', 'or click to browse')}</p>
-                    <p className="text-slate-600 text-xs mt-3">.xlsx, .xls, .csv, .pdf</p>
+                    <p className="text-slate-600 text-xs mt-3">{brokerHint === 'ibkr' ? '.xml, .xlsx, .xls, .csv, .pdf' : '.xlsx, .xls, .csv, .pdf'}</p>
                   </>
                 )}
                 <input
                   ref={fileRef}
                   type="file"
-                  accept=".xlsx,.xls,.csv,.pdf"
+                  accept={brokerHint === 'ibkr' ? '.xml,.xlsx,.xls,.csv,.pdf' : '.xlsx,.xls,.csv,.pdf'}
                   className="hidden"
                   onChange={(e) => e.target.files[0] && handleFile(e.target.files[0])}
                 />
@@ -1580,6 +1607,24 @@ When done, give me the .xlsx file ready to download.`
               )}
               {result.snapCount > 0 && (
                 <p className="text-xs mt-1" style={{ color: '#22d3ee' }}>📊 {result.snapCount} {t('periodos de historial', 'history periods')}</p>
+              )}
+              {result.isIBKR && result.navDays > 0 && (
+                <p className="text-xs mt-1" style={{ color: '#22d3ee' }}>📊 {result.navDays} {t('días de historial de valor importados', 'days of value history imported')}</p>
+              )}
+              {/* IBKR import with ZERO NAV days: the file lacked the daily-value
+                  section, so history and returns stay empty even though the
+                  import "succeeded". Say so here, where it is still actionable. */}
+              {result.isIBKR && result.navDays === 0 && (
+                <div className="mt-3 mx-auto max-w-sm px-3 py-2.5 rounded-lg text-left text-xs" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)' }}>
+                  <p className="font-medium" style={{ color: '#fcd34d' }}>
+                    {t('El archivo no trae el valor diario de tu cuenta (sección "Net Asset Value (NAV) in Base").',
+                       'The file has no daily account value (the "Net Asset Value (NAV) in Base" section).')}
+                  </p>
+                  <p className="mt-1" style={{ color: 'var(--text-muted)' }}>
+                    {t('Por eso tu historial y tus retornos siguen vacíos. Vuelve a generar el Flex Query marcando esa sección y sube el archivo otra vez: se suma a lo que ya importaste.',
+                       'That is why your history and returns stay empty. Generate the Flex Query again ticking that section and upload the file again: it adds to what you already imported.')}
+                  </p>
+                </div>
               )}
               {result.txCount > 0 && (
                 <p className="text-[#34d399] text-xs mt-1">💰 {result.txCount} {t('transacciones', 'transactions')}</p>
