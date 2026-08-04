@@ -1254,9 +1254,14 @@ export default function DashboardPage() {
           onSyncComplete={async ({ items: syncItems, transactions: syncTxs, mode }) => {
             const newKeys = new Set()
             for (const item of syncItems) {
+              // Match by wallet address when both sides have one: every chain's
+              // address is unique, and several chains now share a symbol (ETH
+              // mainnet vs ETH on Arbitrum/Base/Optimism). The symbol fallback
+              // only applies to legacy items imported before _walletAddress.
               const existing = items.find(it =>
-                it._walletAddress === item._walletAddress ||
-                ((it.symbol || '').toUpperCase() === (item.symbol || '').toUpperCase() &&
+                (item._walletAddress && it._walletAddress === item._walletAddress) ||
+                (!item._walletAddress && !it._walletAddress &&
+                 (it.symbol || '').toUpperCase() === (item.symbol || '').toUpperCase() &&
                  (it._source === 'ledger' || (it.institution || '').toLowerCase() === 'ledger'))
               )
               if (existing) {

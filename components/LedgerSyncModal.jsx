@@ -19,6 +19,11 @@ const CHAINS = [
 // can group by custody. Watch-only either way, the device is never touched.
 const CUSTODIES = ['Ledger', 'Trezor', 'Coldcard', 'Exchange', 'Otra wallet']
 
+// The asset the BALANCE is denominated in, per chain. L2s settle in ETH: a
+// balance read from Arbitrum/Base/Optimism is ETH, not the ARB/OP token, so
+// pricing it by chain key undervalued it by ~1000x.
+const CHAIN_ASSET = { BTC: 'BTC', ETH: 'ETH', SOL: 'SOL', MATIC: 'MATIC', AVAX: 'AVAX', ARB: 'ETH', BASE: 'ETH', OP: 'ETH' }
+
 // USD price for a date from a daily [{date:'YYYY-MM-DD', close}] series:
 // exact match, else the nearest close within 3 days (weekend gaps), else null.
 function priceOnDate(prices, dateStr) {
@@ -107,14 +112,16 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
   const handleConfirm = useCallback(async () => {
     if (!results) return
 
-    // Historical USD prices for chains that have detected inflows, so each
+    // Historical USD prices for assets that have detected inflows, so each
     // inflow imports as a BUY at that day's price (real cost basis). One
-    // chart call per chain, via our own cached prices API.
-    const chainsWithFlows = [...new Set(results.results.filter(r => r.inflows?.length > 0).map(r => r.chain))]
+    // chart call per asset, via our own cached prices API.
+    const chainsWithFlows = [...new Set(results.results.filter(r => r.inflows?.length > 0).map(r => CHAIN_ASSET[r.chain] || r.chain))]
     const charts = {}
     await Promise.all(chainsWithFlows.map(async (chain) => {
       try {
-        const res = await authFetch(`/api/prices/chart?symbol=${chain}&range=max&interval=1d`)
+        // type=crypto is mandatory: without it the route proxies Yahoo, where
+        // BTC resolves to nothing and ETH to Ethan Allen Interiors.
+        const res = await authFetch(`/api/prices/chart?symbol=${chain}&range=max&interval=1d&type=crypto`)
         const data = await safeJson(res)
         if (res.ok && Array.isArray(data?.prices)) charts[chain] = data.prices
       } catch { /* pricing is best-effort: unpriced inflows import at 0 and stay editable */ }
@@ -123,9 +130,10 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
     const items = []
     const transactions = []
     for (const r of results.results) {
+      const asset = CHAIN_ASSET[r.chain] || r.chain
       const inflows = r.inflows || []
       const priced = inflows
-        .map((f) => ({ ...f, price: priceOnDate(charts[r.chain], f.date) }))
+        .map((f) => ({ ...f, price: priceOnDate(charts[asset], f.date) }))
         .filter((f) => f.price != null && f.price > 0)
       const totalQty = priced.reduce((s, f) => s + f.amount, 0)
       const avgCost = totalQty > 0
@@ -133,7 +141,7 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
         : 0
 
       items.push({
-        symbol: r.chain,
+        symbol: asset,
         name: `${r.chain} (${custody})`,
         type: 'Crypto',
         quantity: r.balance,
@@ -151,7 +159,7 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
       for (const f of priced) {
         transactions.push({
           type: 'BUY',
-          symbol: r.chain,
+          symbol: asset,
           quantity: f.amount,
           pricePerUnit: f.price,
           totalAmount: f.amount * f.price,
