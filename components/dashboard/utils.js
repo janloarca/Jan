@@ -608,20 +608,20 @@ export function solveDietzStartValue({ endValue, startTs, endTs, transactions, c
 export function projectItemAnnualIncome(item, balance) {
   if (item.rateType === 'variable' && item.rateMin > 0 && item.rateMax > 0) {
     const midRate = (item.rateMin + item.rateMax) / 2
-    return balance * (midRate + item.rateMax) / 2
+    return balance * (midRate / 100)
   }
   if (item.rateType === 'continuous' && item.incomeRate > 0) {
-    return (Math.exp(item.incomeRate / 100) - 1)
+    return balance * (Math.exp(item.incomeRate / 100) - 1)
   }
   if (item.incomeAmount > 0 && item.incomeMonths) {
     const payCount = Array.isArray(item.incomeMonths) ? item.incomeMonths.length : 12
-    return (item.incomeAmount * payCount) / balance * 100
+    return (item.incomeAmount * payCount)
   }
   if (item.incomeMode === 'percent' && item.incomeRate > 0) {
-    return item.incomeRate
+    return balance * (item.incomeRate / 100)
   }
   if (item.dividendYield > 0) {
-    return item.dividendYield
+    return balance * (item.dividendYield / 100)
   }
   return 0
 }
