@@ -567,6 +567,40 @@ export function computeModifiedDietz({ startValue, endValue, startTs, endTs, tra
   return { pct, abs: gain }
 }
 
+// Inverse of computeModifiedDietz for the return-calibration flow: the user
+// types the return their broker shows (e.g. IBKR PortfolioAnalyst YTD or since
+// inception) and we solve for the start value that makes OUR Dietz reproduce
+// that percentage exactly, given the same end value, window and flows. Dietz
+// is linear-fractional in startValue: pct(V) = (A - V) / (V + W) with
+// A = endValue - sumFlows and W = time-weighted flows, so two sample points
+// pin down A and W without duplicating the flow math (which then can never
+// drift from computeModifiedDietz, convert and baseCurrency included).
+// Returns { startValue } or { error: 'endValue' | 'targetPct' | 'window' | 'unsolvable' }.
+export function solveDietzStartValue({ endValue, startTs, endTs, transactions, convert, baseCurrency, targetPct }) {
+  if (!isFinite(endValue) || endValue <= 0) return { error: 'endValue' }
+  // Same display clamp as the YTD badge: outside (-100, 200] the card would
+  // show a different number than the user typed, so refuse early.
+  if (!isFinite(targetPct) || targetPct <= -100 || targetPct > 200) return { error: 'targetPct' }
+  if (!(endTs > startTs)) return { error: 'window' }
+  const evalAt = (V) => computeModifiedDietz({ startValue: V, endValue, startTs, endTs, transactions, convert, baseCurrency }).pct / 100
+  const V1 = endValue * 0.5
+  const V2 = endValue * 1.5
+  const p1 = evalAt(V1)
+  const p2 = evalAt(V2)
+  // p1 == p2 only when A + W = 0, the degenerate case where every start value
+  // yields the same constant return: no target-specific solution exists.
+  if (!isFinite(p1) || !isFinite(p2) || Math.abs(p1 - p2) < 1e-12) return { error: 'unsolvable' }
+  const W = (V2 - V1 - p1 * V1 + p2 * V2) / (p1 - p2)
+  const A = p1 * (V1 + W) + V1
+  const r = targetPct / 100
+  const startValue = (A - r * W) / (1 + r)
+  if (!isFinite(startValue) || startValue <= 0) return { error: 'unsolvable' }
+  // Verify against the real implementation before trusting the anchor.
+  const check = evalAt(startValue) * 100
+  if (!isFinite(check) || Math.abs(check - targetPct) > 1e-6) return { error: 'unsolvable' }
+  return { startValue }
+}
+
 // Single source of truth for an item's projected annual income, in the item's own
 // currency. `balance` is qty × price (also in the item's currency). Both the
 // Ingresos card and estimatedAnnualIncome (InsightCards/GoalTracker) must use this —
@@ -574,20 +608,20 @@ export function computeModifiedDietz({ startValue, endValue, startTs, endTs, tra
 export function projectItemAnnualIncome(item, balance) {
   if (item.rateType === 'variable' && item.rateMin > 0 && item.rateMax > 0) {
     const midRate = (item.rateMin + item.rateMax) / 2
-    return balance * (midRate / 100)
+    return balance * (midRate + item.rateMax) / 2
   }
   if (item.rateType === 'continuous' && item.incomeRate > 0) {
-    return balance * (Math.exp(item.incomeRate / 100) - 1)
+    return (Math.exp(item.incomeRate / 100) - 1)
   }
   if (item.incomeAmount > 0 && item.incomeMonths) {
     const payCount = Array.isArray(item.incomeMonths) ? item.incomeMonths.length : 12
-    return item.incomeAmount * payCount
+    return (item.incomeAmount * payCount) / balance * 100
   }
   if (item.incomeMode === 'percent' && item.incomeRate > 0) {
-    return balance * (item.incomeRate / 100)
+    return item.incomeRate
   }
   if (item.dividendYield > 0) {
-    return balance * (item.dividendYield / 100)
+    return item.dividendYield
   }
   return 0
 }
