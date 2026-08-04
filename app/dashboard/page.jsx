@@ -1251,7 +1251,8 @@ export default function DashboardPage() {
       {modal === 'ledger' && (
         <LedgerSyncModal
           onClose={handleCloseModal}
-          onSyncComplete={async ({ items: syncItems, mode }) => {
+          onSyncComplete={async ({ items: syncItems, transactions: syncTxs, mode }) => {
+            const newKeys = new Set()
             for (const item of syncItems) {
               const existing = items.find(it =>
                 it._walletAddress === item._walletAddress ||
@@ -1262,10 +1263,19 @@ export default function DashboardPage() {
                 await updateItem(existing.id, { quantity: item.quantity, _source: 'ledger', _walletAddress: item._walletAddress })
               } else {
                 await addItem(item)
+                newKeys.add(item._walletAddress || item.symbol)
               }
             }
+            // Inflows attach only to NEWLY created items: re-syncing an address
+            // that already exists would duplicate its BUY history.
+            let txCount = 0
+            for (const tx of (syncTxs || [])) {
+              if (newKeys.has(tx._walletAddress || tx.symbol)) { await addTransaction(tx); txCount++ }
+            }
             setModal(null)
-            showToast(lang === 'es' ? `Ledger: ${syncItems.length} balances importados` : `Ledger: ${syncItems.length} balances imported`)
+            showToast(lang === 'es'
+              ? `Cripto: ${syncItems.length} posiciones, ${txCount} compras detectadas`
+              : `Crypto: ${syncItems.length} positions, ${txCount} detected buys`)
           }}
           lang={lang}
         />
@@ -1342,6 +1352,7 @@ export default function DashboardPage() {
           onImport={handleOpenImport}
           onAddAccount={handleOpenAccount}
           onOpenBlockchain={handleOpenBlockchain}
+          onOpenLedger={() => setModal('ledger')}
           onSaveCredentials={(creds) => { saveSettings({ ...creds, _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
           onSyncBroker={async (brokerId, data) => {
             const positions = data?.positions || data || []
