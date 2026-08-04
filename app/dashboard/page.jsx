@@ -4,12 +4,13 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useDashboardData } from '@/hooks/useDashboardData'
-import { getItemValue, formatCurrency, getTypeCategory, businessDaysSince } from '@/components/dashboard/utils'
+import { getItemValue, formatCurrency, getTypeCategory, businessDaysSince, findYearStartAnchor } from '@/components/dashboard/utils'
 import Header from '@/components/dashboard/Header'
 import AdBanner from '@/components/AdBanner'
 import MonthEndCheckin, { hasLiveSync } from '@/components/dashboard/MonthEndCheckin'
 import DashboardLoading from './loading'
 import NetWorthCard from '@/components/dashboard/NetWorthCard'
+import CalibrateReturnModal from '@/components/dashboard/CalibrateReturnModal'
 import ActionButtons from '@/components/dashboard/ActionButtons'
 import SectionCollapse from '@/components/dashboard/SectionCollapse'
 import MobileNav from '@/components/dashboard/MobileNav'
@@ -260,7 +261,7 @@ export default function DashboardPage() {
     items, snapshots, augmentedSnapshots, transactions, goals, settings, profile, effectiveProfile, alerts, lots, portfolios, financeTransactions,
     dataLoading,
     addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
-    saveSnapshot, deleteAllSnapshots, deleteDemoData,
+    saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, deleteTransaction, deleteAllTransactions,
     addAlert, deleteAlert,
     addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution,
@@ -1015,6 +1016,8 @@ export default function DashboardPage() {
               yearlyChange={yearlyChange} dailyChange={dailyChange} convert={convert}
               lang={lang} netContributions={netContributions} cashTotal={cashTotal} snapshots={augmentedSnapshots} items={portfolioItems}
               contributionWarning={contributionWarning} onLogFlow={() => setModal('cashflow')}
+              onCalibrate={() => setModal('calibrate')}
+              ytdCalibrated={!!findYearStartAnchor(augmentedSnapshots, new Date().getUTCFullYear())?._calibrated}
             />
             </CardBoundary>
           </div>
@@ -1386,6 +1389,13 @@ export default function DashboardPage() {
       {modal === 'print' && (
         <PrintSummary items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets}
           snapshots={augmentedSnapshots} transactions={transactions} lang={lang} onClose={handleCloseModal} />
+      )}
+
+      {modal === 'calibrate' && (
+        <CalibrateReturnModal
+          netWorth={netWorth} transactions={transactions} convert={convert} baseCurrency={baseCurrency}
+          snapshots={snapshots} saveSnapshot={saveSnapshot} deleteSnapshot={deleteSnapshot}
+          lang={lang} onClose={handleCloseModal} />
       )}
 
       {editItem && (
