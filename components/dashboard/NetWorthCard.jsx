@@ -78,7 +78,7 @@ function Sparkline({ snapshots, width = 60, height = 24 }) {
   )
 }
 
-export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, yearlyChange, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, contributionWarning, onLogFlow }) {
+export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, yearlyChange, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, contributionWarning, onLogFlow, onCalibrate, ytdCalibrated }) {
   const hasYTD = returnYTD != null && isFinite(returnYTD)
   const displayReturn = hasYTD ? returnYTD : (returnSinceStart != null && isFinite(returnSinceStart) ? returnSinceStart : null)
   const hasReturn = displayReturn != null
@@ -234,7 +234,20 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
           {' '}<span className="font-mono">{hasReturn ? `${isYTDPositive ? '+' : ''}${displayReturn.toFixed(2)}%` : 'N/A'}</span>
           {hasReturn && <span className="opacity-50 ml-0.5" style={{ fontSize: '9px' }}>Dietz</span>}
           {hasYTD && <InfoTip text={lang === 'es' ? 'Year-to-Date: retorno desde el 1 de enero del año en curso. Calculado con el método Dietz Modificado, que descuenta tus depósitos y retiros para que solo cuente lo que ganaron tus inversiones (no el dinero nuevo que metiste).' : 'Year-to-Date: return since January 1st of the current year. Calculated with the Modified Dietz method, which adjusts for your deposits and withdrawals so only investment performance counts (not new money you put in).'} />}
+          {ytdCalibrated && (
+            <span className="ml-1 px-1 rounded uppercase" style={{ fontSize: '9px', backgroundColor: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}
+              title={lang === 'es' ? 'Anclado al % que escribiste de tu broker. La curva intermedia se estima.' : 'Anchored to the % you typed from your broker. The in-between curve is estimated.'}>
+              {lang === 'es' ? 'calibrado' : 'calibrated'}
+            </span>
+          )}
         </span>
+        {onCalibrate && (
+          <button onClick={onCalibrate}
+            className="text-xs text-slate-500 hover:text-slate-300 underline decoration-dotted underline-offset-2 transition-colors cursor-pointer"
+            title={lang === 'es' ? 'Escribe el % que ves en tu broker y cuadramos los números' : 'Type the % you see in your broker and we reconcile the numbers'}>
+            {lang === 'es' ? 'Calibrar' : 'Calibrate'}
+          </button>
+        )}
         {yearlyChange != null && isFinite(yearlyChange) && (
           <span className="text-xs" style={{ color: isYearlyPositive ? 'var(--accent-green)' : 'var(--text-negative)' }}>
             {isYearlyPositive ? '▲' : '▼'} <span className="font-mono">{Math.abs(yearlyChange).toFixed(1)}%</span> {lang === 'es' ? 'vs año ant.' : 'vs prior yr'}
