@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { CheckCircle, Lock, ChevronDown, ChevronUp, Upload, RefreshCw } from 'lucide-react'
 import { parseIBKRFile, formatIBKRFileResult, detectIBKRFileKind, pickSectionedCsvFromWorkbook } from '@/lib/parsers/ibkrFileParser'
+import { parseIBKRXmlFile } from '@/lib/parsers/ibkrXmlFileAdapter'
 import { authFetch } from '@/lib/authFetch'
 
 // Real-phase stepper: shows which of the 4 sync phases is running instead of a
@@ -385,15 +386,20 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
 
     try {
       const parsePromise = (async () => {
-        const isCSV = file.name.toLowerCase().endsWith('.csv')
+        const fileName = file.name.toLowerCase()
+        const isCSV = fileName.endsWith('.csv')
+        const isXml = fileName.endsWith('.xml')
         let parsed
 
-        if (isCSV) {
+        if (isCSV || isXml) {
           const text = await file.text()
           // Specific errors beat the generic "no data" so the user knows what to fix.
           const kind = detectIBKRFileKind(text)
           if (kind === 'pdf') throw new Error(t('Esto es un PDF. Vuelve a exportar el Activity Statement en formato CSV o Excel (XLS).', 'This is a PDF. Re-export the Activity Statement as CSV or Excel (XLS).'))
-          if (kind === 'xml') throw new Error(t('Esto es un archivo XML de Flex Query. Para importar por archivo, exporta el Activity Statement en CSV o Excel; el XML se usa solo por el sync automático (API).', 'This is a Flex Query XML file. For file import, export the Activity Statement as CSV or Excel; XML is only used by the automatic sync (API).'))
+          // The Flex Query XML is exactly what the instructions tell users to
+          // download: the adapter reshapes it to the same result the CSV path
+          // produces, so the preview/import below works unchanged.
+          if (kind === 'xml') return parseIBKRXmlFile(text)
           parsed = parseIBKRFile(text)
         } else {
           const XLSX = (await import('xlsx')).default || await import('xlsx')
@@ -1044,7 +1050,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                     </div>
                   </div>
 
-                  <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" onChange={handleFileSelect} className="hidden" />
+                  <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls,.xml" onChange={handleFileSelect} className="hidden" />
 
                   <div
                     onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
@@ -1070,7 +1076,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                         <p className="text-xs text-slate-500 mt-1">
                           {t('o haz clic para seleccionar', 'or click to browse')}
                         </p>
-                        <p className="text-xs text-slate-600 mt-3">CSV, XLSX, XLS · Max 5MB</p>
+                        <p className="text-xs text-slate-600 mt-3">XML, CSV, XLSX, XLS · Max 5MB</p>
                       </>
                     )}
                   </div>
