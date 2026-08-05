@@ -642,54 +642,75 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
 
   const [showRemoved, setShowRemoved] = useState(false)
 
+  // Placed after every hook above (never between them) — an empty portfolio
+  // otherwise rendered as a wall of blank category rows with nothing to click.
+  if (!items || items.length === 0) {
+    return (
+      <div className="bg-[#f8fafc] border border-slate-200 rounded-lg py-16 px-6 text-center">
+        <p className="text-sm font-semibold text-slate-600">{t('Todavía no hay activos', 'No assets yet')}</p>
+        <p className="text-xs text-slate-400 mt-1">{t('Agrega una cuenta o activo para ver su historial mes a mes aquí.', 'Add an account or asset to see its month-by-month history here.')}</p>
+      </div>
+    )
+  }
+
   return (
     <div className="bg-[#f8fafc] border border-slate-200 overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-white">
+      {/* Toolbar: grouped into clusters (currency, zoom, year, export) with
+          dividers instead of one long undifferentiated row of buttons, and
+          wraps onto a second line on narrow screens instead of forcing a
+          horizontal scroll or squishing every control down to unreadable. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-3 border-b border-slate-200 bg-white">
         <h2 className="text-sm font-bold text-slate-900">{t('Portfolio Spreadsheet', 'Portfolio Spreadsheet')}</h2>
-        <div className="flex items-center gap-3">
-          <div className="flex bg-slate-100 rounded-md border border-slate-200 p-0.5">
-            <button onClick={() => setShowOriginal(false)}
-              className={`px-2.5 py-1 text-xs rounded transition-colors ${!showOriginal ? 'bg-white text-slate-900 font-semibold shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
-              {baseCurrency || 'USD'}
-            </button>
-            <button onClick={() => setShowOriginal(true)}
-              className={`px-2.5 py-1 text-xs rounded transition-colors ${showOriginal ? 'bg-white text-slate-900 font-semibold shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
-              {t('Original', 'Original')}
-            </button>
-          </div>
-          <div className="flex items-center gap-1 bg-slate-100 rounded-md border border-slate-200 p-0.5">
-            <button onClick={zoomOut} disabled={zoom <= ZOOM_LEVELS[0]}
-              className="w-6 h-6 flex items-center justify-center text-xs rounded text-slate-500 hover:bg-white hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-              −
-            </button>
-            <span className="text-xs text-slate-400 w-8 text-center tabular-nums">{Math.round(zoom * 100)}%</span>
-            <button onClick={zoomIn} disabled={zoom >= ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
-              className="w-6 h-6 flex items-center justify-center text-xs rounded text-slate-500 hover:bg-white hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-              +
-            </button>
-          </div>
-          <div className="flex bg-slate-100 rounded-md border border-slate-200 p-0.5">
-            {availableYears.map(y => (
-              <button key={y} onClick={() => setSelectedYear(y)}
-                className={`px-2 py-1 text-xs rounded transition-colors ${selectedYear === y ? 'bg-white text-slate-900 font-semibold shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
-                {y}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 pr-2 border-r border-slate-200 last:border-r-0 last:pr-0">
+            <div className="flex bg-slate-100 rounded-md border border-slate-200 p-0.5">
+              <button onClick={() => setShowOriginal(false)}
+                className={`px-2.5 py-1 text-xs rounded transition-colors ${!showOriginal ? 'bg-white text-slate-900 font-semibold shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+                {baseCurrency || 'USD'}
               </button>
-            ))}
+              <button onClick={() => setShowOriginal(true)}
+                className={`px-2.5 py-1 text-xs rounded transition-colors ${showOriginal ? 'bg-white text-slate-900 font-semibold shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+                {t('Original', 'Original')}
+              </button>
+            </div>
+            <div className="flex items-center gap-1 bg-slate-100 rounded-md border border-slate-200 p-0.5">
+              <button onClick={zoomOut} disabled={zoom <= ZOOM_LEVELS[0]}
+                className="w-6 h-6 flex items-center justify-center text-xs rounded text-slate-500 hover:bg-white hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                −
+              </button>
+              <span className="text-xs text-slate-400 w-8 text-center tabular-nums">{Math.round(zoom * 100)}%</span>
+              <button onClick={zoomIn} disabled={zoom >= ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
+                className="w-6 h-6 flex items-center justify-center text-xs rounded text-slate-500 hover:bg-white hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                +
+              </button>
+            </div>
           </div>
-          <button onClick={handleExportCsv}
-            className="px-2.5 py-1 text-xs rounded-md border border-slate-200 bg-slate-100 text-slate-500 hover:bg-white hover:text-slate-900 transition-colors"
-            title={t('Descargar la matriz mensual como CSV', 'Download the monthly matrix as CSV')}>
-            CSV
-          </button>
-          <button onClick={handleExportXlsx}
-            className="px-2.5 py-1 text-xs rounded-md border border-slate-200 bg-slate-100 text-slate-500 hover:bg-white hover:text-slate-900 transition-colors"
-            title={t('Descargar la matriz mensual como Excel', 'Download the monthly matrix as Excel')}>
-            Excel
-          </button>
+          <div className="flex items-center gap-2 pr-2 border-r border-slate-200 last:border-r-0 last:pr-0">
+            <div className="flex bg-slate-100 rounded-md border border-slate-200 p-0.5">
+              {availableYears.map(y => (
+                <button key={y} onClick={() => setSelectedYear(y)}
+                  className={`px-2 py-1 text-xs rounded transition-colors ${selectedYear === y ? 'bg-white text-slate-900 font-semibold shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+                  {y}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={handleExportCsv}
+              className="px-2.5 py-1 text-xs rounded-md border border-slate-200 bg-slate-100 text-slate-500 hover:bg-white hover:text-slate-900 transition-colors"
+              title={t('Descargar la matriz mensual como CSV', 'Download the monthly matrix as CSV')}>
+              CSV
+            </button>
+            <button onClick={handleExportXlsx}
+              className="px-2.5 py-1 text-xs rounded-md border border-slate-200 bg-slate-100 text-slate-500 hover:bg-white hover:text-slate-900 transition-colors"
+              title={t('Descargar la matriz mensual como Excel', 'Download the monthly matrix as Excel')}>
+              Excel
+            </button>
+          </div>
           {loadingHistory && (
             <span className="text-xs text-blue-500 animate-pulse">{t('Calculando historial...', 'Calculating history...')}</span>
           )}
-          <span className="text-xs text-slate-400">{t('Click para editar', 'Click to edit')}</span>
+          <span className="text-xs text-slate-400 hidden sm:inline">{t('Click para editar', 'Click to edit')}</span>
         </div>
       </div>
 
@@ -712,14 +733,21 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         <table className="w-full text-sm border-collapse min-w-[600px]">
           <caption className="sr-only">{t('Valores históricos del portafolio por mes', 'Historical portfolio values by month')}</caption>
           <thead>
+            {/* Sticky vertically (top-0) same as the name column is sticky
+                horizontally (left-0) — with 10+ category/institution rows the
+                month labels used to scroll out of view immediately, forcing a
+                scroll back up just to remember which column is which. The
+                corner cell is sticky on both axes so it stays put either way;
+                it needs the highest z-index for the moment it visually
+                overlaps both the stuck header row and the stuck name column. */}
             <tr className="border-b border-slate-300 bg-slate-50">
-              <th scope="col" className="text-left py-2.5 pl-4 pr-2 text-slate-500 font-semibold text-xs uppercase tracking-wide sticky left-0 bg-slate-50 z-20 min-w-[140px] max-w-[200px]" />
-              <th scope="col" className="text-right py-2.5 px-1 text-slate-400 font-semibold text-xs w-8">%</th>
-              {showOriginal && <th scope="col" className="text-center py-2.5 px-1 text-slate-400 font-semibold text-xs w-10">{t('Mon', 'Cur')}</th>}
+              <th scope="col" className="text-left py-2.5 pl-4 pr-2 text-slate-500 font-semibold text-xs uppercase tracking-wide sticky left-0 top-0 bg-slate-50 z-30 min-w-[140px] max-w-[200px]" />
+              <th scope="col" className="text-right py-2.5 px-1 text-slate-400 font-semibold text-xs w-8 sticky top-0 bg-slate-50 z-20">%</th>
+              {showOriginal && <th scope="col" className="text-center py-2.5 px-1 text-slate-400 font-semibold text-xs w-10 sticky top-0 bg-slate-50 z-20">{t('Mon', 'Cur')}</th>}
               {months.map(mk => {
                 const isCurrent = mk === currentMonthKey
                 return (
-                  <th scope="col" key={mk} className="text-right py-2.5 px-2 font-semibold text-xs w-32" style={isCurrent ? { backgroundColor: '#eff6ff', color: 'var(--accent-blue-strong)' } : { color: '#94a3b8' }}>
+                  <th scope="col" key={mk} className="text-right py-2.5 px-2 font-semibold text-xs w-32 sticky top-0 bg-slate-50 z-20" style={isCurrent ? { backgroundColor: '#eff6ff', color: 'var(--accent-blue-strong)' } : { color: '#94a3b8' }}>
                     {getMonthLabel(mk, lang)}
                     {isCurrent && <div className="text-xs font-normal text-blue-400">{t('actual', 'current')}</div>}
                   </th>

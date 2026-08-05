@@ -5,6 +5,7 @@ import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { validateItem } from '@/lib/validation'
 import { buildContributionFields } from '@/lib/contributions'
 import InlineCreateAccount from './InlineCreateAccount'
+import FormSection from './FormSection'
 
 const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
 const ACCOUNT_TYPES = [
@@ -22,6 +23,19 @@ function stripEnriched(item) {
   if (_originalPurchasePrice != null) rawItem.purchasePrice = _originalPurchasePrice
   if (_originalCurrency != null) rawItem.currency = _originalCurrency
   return rawItem
+}
+
+// Some numeric fields arrive with float-math noise (a NAV/unit derived from
+// reinvested dividends can read "1.018837890625"). Nobody edits a form by
+// eyeballing 12 decimals: round only what's SHOWN when the field is first
+// populated, trimming trailing zeros. If the user never touches the field,
+// re-saving it is off by a fraction the size of a rounding error — immaterial
+// for money, and worth it for a form a human can actually read.
+function roundDisplay(v, maxDecimals = 6) {
+  if (v == null || v === '') return ''
+  const n = Number(v)
+  if (!isFinite(n)) return ''
+  return parseFloat(n.toFixed(maxDecimals)).toString()
 }
 
 function InfoTip({ text }) {
@@ -53,9 +67,9 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     name: item.name || '',
     type: item.type || 'Stock',
     subtype: item.subtype || '',
-    quantity: item.quantity?.toString() || '',
-    purchasePrice: (item._originalPurchasePrice ?? item.purchasePrice)?.toString() || '',
-    currentPrice: (item._originalPrice ?? item.currentPrice)?.toString() || '',
+    quantity: roundDisplay(item.quantity, 8),
+    purchasePrice: roundDisplay(item._originalPurchasePrice ?? item.purchasePrice, 6),
+    currentPrice: roundDisplay(item._originalPrice ?? item.currentPrice, 6),
     institution: item.institution || '',
     entityId: item.entityId || 'default',
     currency: item._originalCurrency || item.currency || 'USD',
@@ -133,6 +147,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
   // chart agree on who owns it.
   const [editingTxId, setEditingTxId] = useState(null)
   const [txDraft, setTxDraft] = useState({ date: '', amount: '', link: false })
+  const [showAllTx, setShowAllTx] = useState(false)
   const [savingTxId, setSavingTxId] = useState(null)
   const startEditTx = (tx) => {
     setEditingTxId(tx.id)
@@ -533,7 +548,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           )}
 
           {/* Section 1: Basic Info */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label htmlFor="edit-name" className={labelCls}>{t('Nombre', 'Name')}</label>
               <input id="edit-name" value={form.name} onChange={e => set('name', e.target.value)} className={inputCls} />
@@ -594,7 +609,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 type="number" step="any" className={inputCls} />
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label htmlFor="edit-quantity" className={labelCls}>{t('Cantidad', 'Quantity')} <InfoTip text={t('Número de unidades, acciones o participaciones que posees.', 'Number of units, shares or participations you own.')} /></label>
                 <input id="edit-quantity" value={form.quantity} onChange={e => set('quantity', e.target.value)}
@@ -650,7 +665,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   <p className="text-xs font-medium" style={{ color: contribType === 'add' ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                     {contribType === 'add' ? t('Nuevo aporte', 'New contribution') : t('Retiro de fondos', 'Withdraw funds')}
                   </p>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
                       <label htmlFor="edit-contrib-amount" className={labelCls}>{t('Monto', 'Amount')} ({form.currency})</label>
                       <input id="edit-contrib-amount" value={contribAmount} onChange={e => setContribAmount(e.target.value)}
@@ -702,10 +717,10 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               {linkedTransactions.length > 0 && (
                 <div className="border border-[var(--card-border,#38383A)] rounded-lg p-3">
                   <p className="text-xs font-medium text-[var(--text-secondary,#94a3b8)] mb-2">
-                    {t('Historial de movimientos', 'Transaction history')}
+                    {t('Historial de movimientos', 'Transaction history')} <span style={{ color: 'var(--text-muted,#475569)' }}>({linkedTransactions.length})</span>
                   </p>
-                  <div className="space-y-1 max-h-28 overflow-y-auto">
-                    {linkedTransactions.map(tx => {
+                  <div className={`space-y-1 ${showAllTx ? 'max-h-64 overflow-y-auto' : ''}`}>
+                    {(showAllTx ? linkedTransactions : linkedTransactions.slice(0, 3)).map(tx => {
                       // A DIVIDEND linked to this item means it GENERATED that
                       // income — a positive event for it — even when the cash
                       // settles in a different destination account. Only a
@@ -718,7 +733,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                       if (editing) {
                         return (
                           <div key={tx.id} className="py-2 border-b border-[var(--card-border,#38383A)]/30 last:border-0 space-y-2">
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                               <div>
                                 <span className="text-[10px] block mb-0.5" style={{ color: 'var(--text-muted)' }}>{t('Fecha', 'Date')}</span>
                                 <input type="date" value={txDraft.date} max={new Date().toISOString().split('T')[0]}
@@ -798,54 +813,70 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                       )
                     })}
                   </div>
+                  {linkedTransactions.length > 3 && (
+                    <button type="button" onClick={() => setShowAllTx(v => !v)}
+                      className="w-full text-center text-xs mt-2 pt-2 border-t border-[var(--card-border,#38383A)]/50"
+                      style={{ color: 'var(--accent-blue)' }}>
+                      {showAllTx ? t('Ver menos', 'Show less') : t(`Ver todos (${linkedTransactions.length})`, `Show all (${linkedTransactions.length})`)}
+                    </button>
+                  )}
                 </div>
               )}
             </div>
           )}
 
-          {/* Maturity date */}
-          {isBondOrAlt && (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label htmlFor="edit-maturity-date" className={labelCls}>{t('Fecha vencimiento', 'Maturity date')}</label>
-                <input id="edit-maturity-date" value={form.maturityDate} onChange={e => set('maturityDate', e.target.value)}
-                  type="date" className={inputCls} />
-              </div>
-              <div>
-                <label htmlFor="edit-at-maturity" className={labelCls}>{t('Al vencimiento', 'At maturity')}</label>
-                <select id="edit-at-maturity" value={form.maturityAction} onChange={e => set('maturityAction', e.target.value)} className={inputCls}>
-                  <option value="return_capital">{t('Devolver capital', 'Return capital')}</option>
-                  <option value="auto_renew">{t('Renovar', 'Auto-renew')}</option>
-                  <option value="convert_equity">{t('Convertir', 'Convert to equity')}</option>
-                </select>
-              </div>
-            </div>
-          )}
-
-          {/* Illiquid toggle + manual valuation */}
+          {/* Maturity + illiquid — same lifecycle question ("when/how does this
+              asset stop looking like this?"), so one accordion instead of two
+              always-open blocks. Maturity only applies to bonds/alternatives;
+              illiquid applies to those plus real estate. */}
           {(isBondOrAlt || /realestate|inmueble/i.test(form.type)) && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-3 px-3 py-2 border border-[var(--card-border,#38383A)] rounded-lg">
-                <button type="button" onClick={() => set('isIlliquid', !form.isIlliquid)}
-                  className="w-8 h-4 rounded-full transition-colors relative"
-                  style={{ backgroundColor: form.isIlliquid ? 'var(--accent-orange)' : 'var(--card-border, #38383A)' }}>
-                  <span className={`absolute w-3 h-3 bg-white rounded-full top-0.5 transition-transform ${form.isIlliquid ? 'left-4' : 'left-0.5'}`} />
-                </button>
-                <span className="text-xs text-[var(--text-primary,white)]">{t('Activo ilíquido', 'Illiquid asset')}</span>
-              </div>
-              {form.isIlliquid && (
-                <div>
-                  <label htmlFor="edit-manual-valuation" className={labelCls}>{t('Valuación manual', 'Manual valuation')}</label>
-                  <input id="edit-manual-valuation" value={form.lastManualValuation} onChange={e => set('lastManualValuation', e.target.value)}
-                    type="number" step="any" placeholder={t('Valor estimado actual', 'Current estimated value')} className={inputCls} />
+            <FormSection icon="📅" title={t('Vencimiento & Liquidez', 'Maturity & Liquidity')} summary={(() => {
+              const parts = []
+              if (isBondOrAlt && form.maturityDate) parts.push(`${t('Vence', 'Due')} ${form.maturityDate}`)
+              if (form.isIlliquid) parts.push(t('ilíquido', 'illiquid'))
+              return parts.length > 0 ? parts.join(' · ') : t('sin configurar', 'not set')
+            })()}>
+              {isBondOrAlt && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="edit-maturity-date" className={labelCls}>{t('Fecha vencimiento', 'Maturity date')}</label>
+                    <input id="edit-maturity-date" value={form.maturityDate} onChange={e => set('maturityDate', e.target.value)}
+                      type="date" className={inputCls} />
+                  </div>
+                  <div>
+                    <label htmlFor="edit-at-maturity" className={labelCls}>{t('Al vencimiento', 'At maturity')}</label>
+                    <select id="edit-at-maturity" value={form.maturityAction} onChange={e => set('maturityAction', e.target.value)} className={inputCls}>
+                      <option value="return_capital">{t('Devolver capital', 'Return capital')}</option>
+                      <option value="auto_renew">{t('Renovar', 'Auto-renew')}</option>
+                      <option value="convert_equity">{t('Convertir', 'Convert to equity')}</option>
+                    </select>
+                  </div>
                 </div>
               )}
-            </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center gap-3 px-3 py-2 border border-[var(--card-border,#38383A)] rounded-lg">
+                  <button type="button" onClick={() => set('isIlliquid', !form.isIlliquid)}
+                    className="w-8 h-4 rounded-full transition-colors relative"
+                    style={{ backgroundColor: form.isIlliquid ? 'var(--accent-orange)' : 'var(--card-border, #38383A)' }}>
+                    <span className={`absolute w-3 h-3 bg-white rounded-full top-0.5 transition-transform ${form.isIlliquid ? 'left-4' : 'left-0.5'}`} />
+                  </button>
+                  <span className="text-xs text-[var(--text-primary,white)]">{t('Activo ilíquido', 'Illiquid asset')}</span>
+                </div>
+                {form.isIlliquid && (
+                  <div>
+                    <label htmlFor="edit-manual-valuation" className={labelCls}>{t('Valuación manual', 'Manual valuation')}</label>
+                    <input id="edit-manual-valuation" value={form.lastManualValuation} onChange={e => set('lastManualValuation', e.target.value)}
+                      type="number" step="any" placeholder={t('Valor estimado actual', 'Current estimated value')} className={inputCls} />
+                  </div>
+                )}
+              </div>
+            </FormSection>
           )}
 
           {/* Custody for crypto */}
           {isCrypto && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label htmlFor="edit-custody" className={labelCls}>{t('Custodia', 'Custody')}</label>
                 <select id="edit-custody" value={form.custodyType} onChange={e => set('custodyType', e.target.value)} className={inputCls}>
@@ -889,7 +920,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label htmlFor="edit-interest-rate" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa interés %', 'Interest rate %')}</label>
                   <input id="edit-interest-rate" value={form.interestRate} onChange={e => set('interestRate', e.target.value)}
@@ -929,7 +960,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label htmlFor="edit-min-payment" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Pago mínimo', 'Min payment')}</label>
                   <input id="edit-min-payment" value={form.minimumPayment} onChange={e => set('minimumPayment', e.target.value)}
@@ -945,7 +976,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               {isCreditCard && (
                 <div className="border-t border-red-500/10 pt-3 space-y-3">
                   <p className="text-xs uppercase tracking-wide" style={{ color: 'var(--text-negative)' }}>{t('Tarjeta de crédito', 'Credit Card')}</p>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label htmlFor="edit-card-brand" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Marca', 'Brand')}</label>
                       <select id="edit-card-brand" value={form.cardBrand} onChange={e => set('cardBrand', e.target.value)} className={inputCls}>
@@ -966,7 +997,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                     </div>
                   </div>
                   {form.rewardType && (
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label htmlFor="edit-reward-rate" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa reward %', 'Reward rate %')}</label>
                         <input id="edit-reward-rate" value={form.rewardRate} onChange={e => set('rewardRate', e.target.value)}
@@ -1012,8 +1043,13 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           )}
 
           {/* Fees */}
-          <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'color-mix(in srgb, var(--accent-orange) 20%, transparent)', backgroundColor: 'color-mix(in srgb, var(--accent-orange) 5%, transparent)' }}>
-            <p className="text-xs font-medium" style={{ color: 'var(--accent-orange)' }}>{t('Costos & Comisiones', 'Costs & Fees')}</p>
+          <FormSection icon="💸" title={t('Costos & Comisiones', 'Costs & Fees')} summary={(() => {
+            const parts = []
+            if (parseFloat(form.entryFee) > 0) parts.push(`${t('Entrada', 'Entry')} ${parseFloat(form.entryFee).toFixed(2)}`)
+            if (parseFloat(form.managementFee) > 0) parts.push(form.managementFeeType === 'fixed' ? `Mgmt $${parseFloat(form.managementFee).toFixed(2)}` : `Mgmt ${parseFloat(form.managementFee).toFixed(2)}%`)
+            if (parseFloat(form.expenseRatio) > 0) parts.push(`Expense ${parseFloat(form.expenseRatio).toFixed(2)}%`)
+            return parts.length > 0 ? parts.join(' · ') : t('sin configurar', 'not set')
+          })()}>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <div>
                 <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Costo entrada', 'Entry fee')} <InfoTip text={t('Monto fijo en tu moneda (ej: $80). NO es porcentaje. Es el costo de entrada o comisión que pagaste una sola vez.', 'Fixed amount in your currency (e.g. $80). NOT a percentage. One-time entry cost or commission you paid.')} /></label>
@@ -1111,58 +1147,20 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 })()}
               </p>
             )}
-          </div>
+          </FormSection>
 
-          {/* Tax jurisdiction */}
-          <div>
-            <label className={labelCls}>{t('Jurisdicción fiscal', 'Tax jurisdiction')}</label>
-            <select value={form.taxJurisdiction} onChange={e => set('taxJurisdiction', e.target.value)} className={inputCls}>
-              <option value="">{t('-- Opcional --', '-- Optional --')}</option>
-              <option value="GT">🇬🇹 Guatemala</option>
-              <option value="MX">🇲🇽 México</option>
-              <option value="US">🇺🇸 USA</option>
-              <option value="CO">🇨🇴 Colombia</option>
-              <option value="CL">🇨🇱 Chile</option>
-              <option value="BR">🇧🇷 Brasil</option>
-              <option value="PE">🇵🇪 Perú</option>
-              <option value="AR">🇦🇷 Argentina</option>
-              <option value="OTHER">{t('Otro', 'Other')}</option>
-            </select>
-          </div>
-
-          {/* Asset country */}
-          <div>
-            <label className={labelCls}>{t('País del activo', 'Asset country')}</label>
-            <select value={form.assetCountry} onChange={e => set('assetCountry', e.target.value)} className={inputCls}>
-              <option value="">{t('-- Opcional --', '-- Optional --')}</option>
-              <option value="GT">🇬🇹 Guatemala</option>
-              <option value="MX">🇲🇽 México</option>
-              <option value="US">🇺🇸 USA</option>
-              <option value="CO">🇨🇴 Colombia</option>
-              <option value="CL">🇨🇱 Chile</option>
-              <option value="BR">🇧🇷 Brasil</option>
-              <option value="PE">🇵🇪 Perú</option>
-              <option value="AR">🇦🇷 Argentina</option>
-              <option value="CR">🇨🇷 Costa Rica</option>
-              <option value="PA">🇵🇦 Panamá</option>
-              <option value="ES">🇪🇸 España</option>
-              <option value="UK">🇬🇧 UK</option>
-              <option value="DE">🇩🇪 Alemania</option>
-              <option value="CH">🇨🇭 Suiza</option>
-              <option value="JP">🇯🇵 Japón</option>
-              <option value="CN">🇨🇳 China</option>
-              <option value="KR">🇰🇷 Corea del Sur</option>
-              <option value="HK">🇭🇰 Hong Kong</option>
-              <option value="SG">🇸🇬 Singapur</option>
-              <option value="AU">🇦🇺 Australia</option>
-              <option value="CA">🇨🇦 Canadá</option>
-              <option value="GLOBAL">{t('Global / Multi-país', 'Global / Multi-country')}</option>
-              <option value="OTHER">{t('Otro', 'Other')}</option>
-            </select>
-          </div>
-
-          {/* Notes & Tags */}
-          <div className="space-y-3">
+          {/* Notes, tags, beneficiary, tax jurisdiction & asset country — five
+              rarely-touched fields that used to each get their own always-open
+              block. One accordion, one summary line. */}
+          <FormSection icon="🗂️" title={t('Detalles adicionales', 'Additional details')} summary={(() => {
+            const parts = []
+            if (form.beneficiary) parts.push(form.beneficiary)
+            if (form.taxJurisdiction) parts.push(form.taxJurisdiction)
+            if (form.assetCountry) parts.push(form.assetCountry)
+            if (form.tags) parts.push(`${form.tags.split(',').filter(Boolean).length} ${t('etiquetas', 'tags')}`)
+            if (form.notes) parts.push(t('notas', 'notes'))
+            return parts.length > 0 ? parts.join(' · ') : t('sin configurar', 'not set')
+          })()}>
             <div>
               <label className={labelCls}>{t('Notas', 'Notes')}</label>
               <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
@@ -1181,7 +1179,53 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 placeholder={t('Nombre del beneficiario...', 'Beneficiary name...')}
                 className={inputCls} />
             </div>
-          </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>{t('Jurisdicción fiscal', 'Tax jurisdiction')}</label>
+                <select value={form.taxJurisdiction} onChange={e => set('taxJurisdiction', e.target.value)} className={inputCls}>
+                  <option value="">{t('-- Opcional --', '-- Optional --')}</option>
+                  <option value="GT">🇬🇹 Guatemala</option>
+                  <option value="MX">🇲🇽 México</option>
+                  <option value="US">🇺🇸 USA</option>
+                  <option value="CO">🇨🇴 Colombia</option>
+                  <option value="CL">🇨🇱 Chile</option>
+                  <option value="BR">🇧🇷 Brasil</option>
+                  <option value="PE">🇵🇪 Perú</option>
+                  <option value="AR">🇦🇷 Argentina</option>
+                  <option value="OTHER">{t('Otro', 'Other')}</option>
+                </select>
+              </div>
+              <div>
+                <label className={labelCls}>{t('País del activo', 'Asset country')}</label>
+                <select value={form.assetCountry} onChange={e => set('assetCountry', e.target.value)} className={inputCls}>
+                  <option value="">{t('-- Opcional --', '-- Optional --')}</option>
+                  <option value="GT">🇬🇹 Guatemala</option>
+                  <option value="MX">🇲🇽 México</option>
+                  <option value="US">🇺🇸 USA</option>
+                  <option value="CO">🇨🇴 Colombia</option>
+                  <option value="CL">🇨🇱 Chile</option>
+                  <option value="BR">🇧🇷 Brasil</option>
+                  <option value="PE">🇵🇪 Perú</option>
+                  <option value="AR">🇦🇷 Argentina</option>
+                  <option value="CR">🇨🇷 Costa Rica</option>
+                  <option value="PA">🇵🇦 Panamá</option>
+                  <option value="ES">🇪🇸 España</option>
+                  <option value="UK">🇬🇧 UK</option>
+                  <option value="DE">🇩🇪 Alemania</option>
+                  <option value="CH">🇨🇭 Suiza</option>
+                  <option value="JP">🇯🇵 Japón</option>
+                  <option value="CN">🇨🇳 China</option>
+                  <option value="KR">🇰🇷 Corea del Sur</option>
+                  <option value="HK">🇭🇰 Hong Kong</option>
+                  <option value="SG">🇸🇬 Singapur</option>
+                  <option value="AU">🇦🇺 Australia</option>
+                  <option value="CA">🇨🇦 Canadá</option>
+                  <option value="GLOBAL">{t('Global / Multi-país', 'Global / Multi-country')}</option>
+                  <option value="OTHER">{t('Otro', 'Other')}</option>
+                </select>
+              </div>
+            </div>
+          </FormSection>
 
           {/* Section 3: Income/Dividends */}
           {isMarket && item.dividendYield > 0 && (
@@ -1224,15 +1268,15 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           )}
 
           {hasIncome && (
-            <button type="button" onClick={() => setShowIncome(!showIncome)}
-              className="w-full text-left px-3 py-2 border border-[var(--card-border,#38383A)] rounded-lg text-xs text-[var(--text-secondary,#94a3b8)] hover:border-blue-500/30 transition-colors flex items-center justify-between">
-              <span>💰 {t('Configurar rendimiento', 'Configure yield')}</span>
-              <span className="text-lg">{showIncome ? '−' : '+'}</span>
-            </button>
-          )}
-
-          {showIncome && hasIncome && (
-            <div className="border border-[var(--card-border,#38383A)] rounded-lg p-3 space-y-3">
+            <FormSection icon="💰" title={t('Configurar rendimiento', 'Configure yield')}
+              open={showIncome} onToggle={setShowIncome}
+              summary={(() => {
+                if (form.rateType === 'variable' && (form.rateMin || form.rateMax)) return `${form.rateMin || 0}%-${form.rateMax || 0}% ${t('variable', 'variable')}`
+                if (form.rateType === 'continuous' && form.incomeRate) return `${form.incomeRate}% ${t('continua', 'continuous')}`
+                if (form.incomeMode === 'percent' && form.incomeRate) return `${form.incomeRate}% ${t('anual', 'annual')}`
+                if (form.incomeMode === 'fixed' && form.incomeAmount) return `${form.currency} ${form.incomeAmount} ${t('por pago', 'per payment')}`
+                return t('sin configurar', 'not set')
+              })()}>
               {/* Rate type */}
               <div>
                 <label className="text-xs text-[var(--text-muted,#475569)] mb-1.5 block">{t('Tipo de tasa', 'Rate type')}</label>
@@ -1281,7 +1325,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
                     {form.incomeMode === 'fixed' ? (<>
                       <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Monto por pago', 'Per payment')} <InfoTip text={t('Monto fijo que recibes en cada pago, en la moneda del activo.', 'Fixed amount you receive each payment, in the asset\'s currency.')} /></label>
@@ -1384,7 +1428,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 <input value={form.capitalReturn} onChange={e => set('capitalReturn', e.target.value)}
                   placeholder="0" type="number" step="any" className={inputCls} />
               </div>
-            </div>
+            </FormSection>
           )}
 
           {/* Flow confirmation — a value delta needs classifying before save */}
@@ -1423,36 +1467,44 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
             )
           })()}
 
-          {/* Actions */}
-          <div className="flex gap-3 pt-2">
-            <button type="button" onClick={handleDelete}
-              className="px-4 py-2.5 text-xs font-medium rounded-lg transition-colors border"
-              style={confirmDelete ? { backgroundColor: 'var(--text-negative)', color: '#ffffff', borderColor: 'var(--text-negative)' } : { color: 'var(--text-negative)', borderColor: 'color-mix(in srgb, var(--text-negative) 30%, transparent)' }}>
-              {confirmDelete ? t('Confirmar', 'Confirm') : t('Eliminar', 'Delete')}
-            </button>
-            <div className="flex-1" />
-            {(() => {
-              const qty = parseFloat(form.quantity) || (isBank ? 1 : 0)
-              const price = parseFloat(form.currentPrice) || parseFloat(form.purchasePrice) || 0
-              const total = qty * price
-              const isDebtType = /debt|deuda/i.test(form.type)
-              const fmt = (v) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-              if (total > 0) return (
-                <span className="text-xs font-medium px-2 py-1 rounded" style={{ color: 'var(--accent-green)', backgroundColor: 'color-mix(in srgb, var(--accent-green) 10%, transparent)' }}>
-                  {isDebtType ? t('Deuda', 'Debt') : ''} {form.currency} {fmt(total)}
-                </span>
-              )
-              return null
-            })()}
-            <button type="button" onClick={onClose}
-              className="px-4 py-2.5 border border-[var(--card-border,#38383A)] text-[var(--text-secondary,#cbd5e1)] rounded-lg hover:bg-[var(--input-bg,#2C2C2E)] transition-colors text-sm">
-              {t('Cancelar', 'Cancel')}
-            </button>
-            <button type="submit" disabled={saving}
-              className="px-6 py-2.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors text-sm font-medium"
-              style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}>
-              {saving ? '...' : onNavigate ? t('Guardar →', 'Save →') : t('Guardar', 'Save')}
-            </button>
+          {/* Actions — sticky so Guardar/Cancelar never require scrolling past
+              every accordion, even with Rendimiento expanded. Stacks on mobile
+              (Eliminar+total on top, Cancelar/Guardar full-width below) so four
+              controls don't get squeezed onto one 375px-wide row. */}
+          <div className="sticky bottom-0 -mx-6 -mb-6 mt-2 px-6 py-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 rounded-b-[20px]"
+            style={{ background: 'var(--bg-card)', backdropFilter: 'var(--glass-blur-strong)', WebkitBackdropFilter: 'var(--glass-blur-strong)', borderTop: '1px solid var(--card-border,#38383A)' }}>
+            <div className="flex items-center gap-3 order-2 sm:order-1">
+              <button type="button" onClick={handleDelete}
+                className="px-4 py-2.5 text-xs font-medium rounded-lg transition-colors border"
+                style={confirmDelete ? { backgroundColor: 'var(--text-negative)', color: '#ffffff', borderColor: 'var(--text-negative)' } : { color: 'var(--text-negative)', borderColor: 'color-mix(in srgb, var(--text-negative) 30%, transparent)' }}>
+                {confirmDelete ? t('Confirmar', 'Confirm') : t('Eliminar', 'Delete')}
+              </button>
+              {(() => {
+                const qty = parseFloat(form.quantity) || (isBank ? 1 : 0)
+                const price = parseFloat(form.currentPrice) || parseFloat(form.purchasePrice) || 0
+                const total = qty * price
+                const isDebtType = /debt|deuda/i.test(form.type)
+                const fmt = (v) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                if (total > 0) return (
+                  <span className="text-xs font-medium px-2 py-1 rounded" style={{ color: 'var(--accent-green)', backgroundColor: 'color-mix(in srgb, var(--accent-green) 10%, transparent)' }}>
+                    {isDebtType ? t('Deuda', 'Debt') : ''} {form.currency} {fmt(total)}
+                  </span>
+                )
+                return null
+              })()}
+            </div>
+            <div className="flex-1 order-1 sm:order-2" />
+            <div className="flex gap-3 order-3">
+              <button type="button" onClick={onClose}
+                className="flex-1 sm:flex-none px-4 py-2.5 border border-[var(--card-border,#38383A)] text-[var(--text-secondary,#cbd5e1)] rounded-lg hover:bg-[var(--input-bg,#2C2C2E)] transition-colors text-sm">
+                {t('Cancelar', 'Cancel')}
+              </button>
+              <button type="submit" disabled={saving}
+                className="flex-1 sm:flex-none px-6 py-2.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors text-sm font-medium"
+                style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}>
+                {saving ? '...' : onNavigate ? t('Guardar →', 'Save →') : t('Guardar', 'Save')}
+              </button>
+            </div>
           </div>
 
           {/* Delete warning */}
