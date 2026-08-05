@@ -1,4 +1,4 @@
-import { computeModifiedDietz, solveDietzStartValue, accountKeyOfItem, heldFlatAccountValueUSD, combineAccountCalibrations } from '../utils'
+import { computeModifiedDietz, solveDietzStartValue, accountKeyOfItem, heldFlatAccountValueUSD, combineAccountCalibrations, buildCalibrationNavPoints } from '../utils'
 
 // solveDietzStartValue backs the "Calibrar rendimiento" modal: the user types
 // the return their broker shows and we solve for the start value that makes
@@ -198,5 +198,96 @@ describe('combineAccountCalibrations', () => {
       calibrations: [{ _account: 'hapi', netWorthUSD: 0 }],
       items,
     })).toBeNull()
+  })
+})
+
+// buildCalibrationNavPoints converts per-account anchors into whole-portfolio
+// NAV points so the growth chart and the monthly spreadsheet reflect a
+// calibration too, not only the YTD badge.
+describe('buildCalibrationNavPoints', () => {
+  const items = [
+    { symbol: 'AAPL', institution: 'Hapi', quantity: 60, currentPrice: 100, currency: 'USD' },
+    { symbol: 'MSFT', _source: 'ibkr', institution: 'Interactive Brokers', quantity: 20, currentPrice: 200, currency: 'USD' },
+  ]
+  const calibrations = [
+    { date: '2026-01-01', _account: 'ibkr', _calibrated: true, netWorthUSD: 4500 },
+    { date: '2026-01-01', _account: 'hapi', _calibrated: true, netWorthUSD: 5000 },
+  ]
+
+  it('returns [] without calibrations', () => {
+    expect(buildCalibrationNavPoints({ accountCalibrations: [], navSnapshots: [], items })).toEqual([])
+    expect(buildCalibrationNavPoints({ accountCalibrations: null, navSnapshots: null, items })).toEqual([])
+  })
+
+  it('combines the accounts of one date against the latest prior NAV', () => {
+    const pts = buildCalibrationNavPoints({
+      accountCalibrations: calibrations,
+      navSnapshots: [{ date: '2025-12-31', netWorthUSD: 10000, _source: 'daily' }],
+      items,
+    })
+    expect(pts).toHaveLength(1)
+    // Same math as combineAccountCalibrations: 10000 - 4000 - 6000 + 4500 + 5000
+    expect(pts[0].netWorthUSD).toBeCloseTo(9500, 8)
+    expect(pts[0].date).toBe('2026-01-01')
+    expect(pts[0]._accountCombined).toBe(true)
+    expect(pts[0]._calibrated).toBe(true)
+    expect(pts[0]._source).toBe('manual')
+  })
+
+  it('rebuilds the base from uncalibrated items when no prior NAV exists', () => {
+    const pts = buildCalibrationNavPoints({
+      accountCalibrations: [calibrations[0]],
+      navSnapshots: [],
+      items,
+    })
+    // Base = held-flat of the uncalibrated account (hapi 6000); + 4500 calibrated
+    expect(pts).toHaveLength(1)
+    expect(pts[0].netWorthUSD).toBeCloseTo(10500, 8)
+  })
+
+  it('ignores NAV snapshots after the anchor date when picking the base', () => {
+    const pts = buildCalibrationNavPoints({
+      accountCalibrations: [calibrations[0]],
+      navSnapshots: [
+        { date: '2025-12-31', netWorthUSD: 10000, _source: 'daily' },
+        { date: '2026-06-01', netWorthUSD: 99999, _source: 'daily' },
+      ],
+      items,
+    })
+    // base 10000, IBKR estimate = 10000 - 6000 (non-IBKR) = 4000 → 10000 - 4000 + 4500
+    expect(pts[0].netWorthUSD).toBeCloseTo(10500, 8)
+  })
+
+  it('skips dates already anchored by a global calibration', () => {
+    const pts = buildCalibrationNavPoints({
+      accountCalibrations: calibrations,
+      navSnapshots: [{ date: '2026-01-01', netWorthUSD: 9500, _source: 'manual', _calibrated: true }],
+      items,
+    })
+    expect(pts).toEqual([])
+  })
+
+  it('emits one point per distinct date, sorted', () => {
+    const pts = buildCalibrationNavPoints({
+      accountCalibrations: [
+        { date: '2026-01-01', _account: 'ibkr', _calibrated: true, netWorthUSD: 4500 },
+        { date: '2025-06-01', _account: 'hapi', _calibrated: true, netWorthUSD: 3000 },
+      ],
+      navSnapshots: [],
+      items,
+    })
+    expect(pts.map((p) => p.date)).toEqual(['2025-06-01', '2026-01-01'])
+  })
+
+  it('drops calibrations without a positive value or a date', () => {
+    const pts = buildCalibrationNavPoints({
+      accountCalibrations: [
+        { date: '2026-01-01', _account: 'ibkr', _calibrated: true, netWorthUSD: 0 },
+        { _account: 'hapi', _calibrated: true, netWorthUSD: 5000 },
+      ],
+      navSnapshots: [],
+      items,
+    })
+    expect(pts).toEqual([])
   })
 })

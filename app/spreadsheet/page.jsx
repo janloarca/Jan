@@ -69,7 +69,7 @@ export default function SpreadsheetPage() {
 
   const {
     items, enrichedItems, netWorth, transactions, financeTransactions, returnYTD,
-    snapshots, addItem, updateItem, deleteItem, portfolioItems, convert, rates,
+    snapshotsWithCalibration, addItem, updateItem, deleteItem, portfolioItems, convert, rates,
     baseCurrency, saveItemSnapshots, loadItemSnapshots, lots,
     addTransaction, addLot, closeLotsFIFO, executeContribution, dataLoading, settings,
   } = useDashboardData({ user, lang, activePortfolio: '__all__' })
@@ -276,7 +276,7 @@ export default function SpreadsheetPage() {
         <div className="flex-1 p-4 sm:p-6 overflow-auto">
           <PortfolioSpreadsheet
             items={portfolioItems || enrichedItems}
-            snapshots={snapshots}
+            snapshots={snapshotsWithCalibration}
             lang={lang}
             onUpdateItem={updateItem}
             onEditItem={(item) => setEditItem(item)}
