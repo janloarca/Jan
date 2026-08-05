@@ -283,10 +283,39 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       // real date. Rewind each such item by its OWN linked DEPOSIT/WITHDRAWAL/
       // DIVIDEND transactions — same mechanism as the IBKR cash line, just
       // scoped per item instead of to one designated account.
+      //
+      // A DIVIDEND is special: it's linked to the SOURCE asset (a bond paying
+      // interest) for bookkeeping, but the source's own value never changes —
+      // only the destination it was routed to does. Naively attributing it to
+      // the linked item subtracted the payout from the bond's own past value
+      // instead of crediting it to the account it actually landed in (real
+      // bug: a $6,000 bond with a $240 payout showed $5,760, flat, forever —
+      // the payout never reached the destination's reconstruction either).
+      // Mirrors the redirect lib/historicalValues.js already does for the
+      // spreadsheet: reinvested (or destination-less) dividends stay with the
+      // source; everything else moves to incomeDestination.
+      const itemById = new Map(chartItems.map((it) => [it.id, it]))
+      const txByTrueOwner = {}
+      ;(scopedTransactions || []).forEach((tx) => {
+        const type = (tx.type || '').toUpperCase()
+        if (!['DEPOSIT', 'WITHDRAWAL', 'DIVIDEND'].includes(type) || !tx._linkedItemId) return
+        let ownerId = tx._linkedItemId
+        if (type === 'DIVIDEND' && !tx._reinvested) {
+          const source = itemById.get(tx._linkedItemId)
+          if (source?.dividendAction !== 'reinvest') {
+            if (source?.incomeDestination && itemById.has(source.incomeDestination)) {
+              ownerId = source.incomeDestination
+            } else {
+              return // cash with no tracked destination left the portfolio — don't attribute it anywhere
+            }
+          }
+        }
+        ;(txByTrueOwner[ownerId] = txByTrueOwner[ownerId] || []).push(tx)
+      })
       const perItemCashFlows = {}
       chartItems.forEach((it) => {
         if (it._source === 'ibkr' || !isBankLikeItem(it)) return
-        const linkedTx = (scopedTransactions || []).filter((tx) => tx._linkedItemId === it.id)
+        const linkedTx = txByTrueOwner[it.id] || []
         if (linkedTx.length === 0) return
         const flows = buildCashFlows(linkedTx, (amt, cur2) => convert ? convert(amt, cur2, 'USD') : amt)
         if (flows.length > 0) perItemCashFlows[it.id] = flows

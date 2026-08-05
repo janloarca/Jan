@@ -582,11 +582,17 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
           })
         }
 
-        const singleDeposit = isMerge ? lotQty * lotCost : (item.quantity || 1) * (item.purchasePrice || 0)
+        // Entry fee/brokerage cost adds to the DEPOSIT (the true cash that left
+        // your pocket) but never to the item's own tracked value — so the return
+        // calc sees "you put in 6098, the bond is worth 6000" and starts $98
+        // down from day one, using the existing Modified Dietz math untouched
+        // (deposits already net out of gain; no separate fee-aware code path).
+        const feeOnEntry = isMerge ? 0 : (parseFloat(form.entryFee) || 0)
+        const singleDeposit = (isMerge ? lotQty * lotCost : (item.quantity || 1) * (item.purchasePrice || 0)) + feeOnEntry
         if (isNewMoney && onAddTransaction && singleDeposit > 0) {
           await onAddTransaction({
             type: 'DEPOSIT', symbol: item.symbol || '',
-            description: `${item.name || item.symbol} - ${t('Dinero nuevo', 'New money')}`,
+            description: `${item.name || item.symbol} - ${t('Dinero nuevo', 'New money')}${feeOnEntry > 0 ? ` (${t('incl. corretaje', 'incl. brokerage')})` : ''}`,
             date: item.acquisitionDate || new Date().toISOString().split('T')[0],
             totalAmount: Math.round(singleDeposit * 100) / 100, currency: item.currency || 'USD',
             ...(itemId ? { _linkedItemId: itemId } : {}),
