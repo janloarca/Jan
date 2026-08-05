@@ -6,7 +6,7 @@ import { buildContributionFields } from '@/lib/contributions'
 
 const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
 
-export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, onExecuteContribution, existingItems = [], lang = 'es', baseCurrency = 'USD', prefill = null }) {
+export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, onExecuteContribution, onConfirmNewMoney, existingItems = [], lang = 'es', baseCurrency = 'USD', prefill = null }) {
   const trapRef = useFocusTrap()
   const t = (es, en) => lang === 'es' ? es : en
 
@@ -174,6 +174,14 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
           await onExecuteContribution({ itemId: balanceTarget.id, itemFields, transaction, newLot, lotClose })
         } else {
           await onAddTransaction(transaction)
+        }
+        // "Capturar historia" (a backfill deposit the user says is already
+        // inside the balance) answers "¿de dónde vino este dinero?" for
+        // good — stamp it on the item so the finding that sent them here
+        // can never fire again for it, the same guarantee AddAccountModal
+        // gives a brand-new account.
+        if (alreadyReflected && balanceTarget && onConfirmNewMoney) {
+          await onConfirmNewMoney(balanceTarget.id)
         }
       }
       if (keepOpen) {
