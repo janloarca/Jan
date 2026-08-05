@@ -9,6 +9,10 @@ let _cachedRates = null
 let _cachedLastUpdate = null
 let _cachedStale = false
 
+// Same manual-refresh rule as useMarketPrices: the spinner must be visible
+// long enough to register (600ms) or the click reads as "nothing happened".
+const MANUAL_MIN_VISIBLE_MS = 600
+
 export function useExchangeRates(baseCurrency) {
   const [rates, setRates] = useState(_cachedRates)
   const [loading, setLoading] = useState(false)
@@ -26,14 +30,18 @@ export function useExchangeRates(baseCurrency) {
   // twice in a row.
   const consecutiveFailuresRef = useRef(0)
 
-  const fetchRates = useCallback(async () => {
-    if (!ratesRef.current) setLoading(true)
+  // manual=true (header button, ⌘R): show the spinner even over cached rates
+  // and report success back for the outcome toast. Background polls unchanged.
+  const fetchRates = useCallback(async (manual = false) => {
+    const startedAt = Date.now()
+    if (manual || !ratesRef.current) setLoading(true)
+    let ok = false
     try {
       const res = await authFetch('/api/exchange-rates')
-      if (!mountedRef.current) return
+      if (!mountedRef.current) return false
       if (res.ok) {
         const data = await res.json()
-        if (!mountedRef.current) return
+        if (!mountedRef.current) return false
         const raw = data.rates || {}
         const valid = Object.fromEntries(
           Object.entries(raw).filter(([, v]) => typeof v === 'number' && v > 0 && isFinite(v))
@@ -51,6 +59,7 @@ export function useExchangeRates(baseCurrency) {
           // NOTHING to show, not for "this number is a few minutes old."
           consecutiveFailuresRef.current = 0
           setError(null)
+          ok = true
         } else {
           consecutiveFailuresRef.current += 1
           if (consecutiveFailuresRef.current >= 2) setError('Invalid rate data')
@@ -63,12 +72,17 @@ export function useExchangeRates(baseCurrency) {
         if (consecutiveFailuresRef.current >= 2) setError('Failed to fetch rates')
       }
     } catch (err) {
-      if (!mountedRef.current) return
+      if (!mountedRef.current) return false
       console.error('Failed to fetch exchange rates:', err)
       consecutiveFailuresRef.current += 1
       if (consecutiveFailuresRef.current >= 2) setError(err.message)
     }
-    if (mountedRef.current) setLoading(false)
+    if (!mountedRef.current) return ok
+    const elapsed = Date.now() - startedAt
+    const wait = manual ? Math.max(0, MANUAL_MIN_VISIBLE_MS - elapsed) : 0
+    if (wait > 0) setTimeout(() => { if (mountedRef.current) setLoading(false) }, wait)
+    else setLoading(false)
+    return ok
   }, [])
 
   useEffect(() => {
@@ -118,5 +132,5 @@ export function useExchangeRates(baseCurrency) {
 
   const ready = !!rates
 
-  return { rates, loading, error, stale, lastUpdate, convert, getRate, convertItemValue, ready, refresh: fetchRates }
+  return { rates, loading, error, stale, lastUpdate, convert, getRate, convertItemValue, ready, refresh: () => fetchRates(true) }
 }

@@ -475,9 +475,13 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     return () => { cancelled = true }
   }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, transactions, addTransaction, deleteTransaction, updateItem, convert])
 
-  const handleRefresh = useCallback(() => {
-    refreshPrices()
-    refreshRates()
+  // Manual refresh (header button, ⌘R, stale-data banners): awaits both
+  // fetches and reports per-source success so the page can toast the outcome.
+  // The underlying hooks show their spinner on manual refreshes even when a
+  // cache exists — before, a cached revalidate ran fully silent.
+  const handleRefresh = useCallback(async () => {
+    const [pricesOk, ratesOk] = await Promise.all([refreshPrices(), refreshRates()])
+    return { pricesOk: pricesOk !== false, ratesOk: ratesOk !== false }
   }, [refreshPrices, refreshRates])
 
   // IBKR auto-sync
