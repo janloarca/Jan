@@ -772,9 +772,10 @@ export default function DashboardPage() {
     // staleness rule so this banner can never disagree with the header pill.
     if (ibkrNeedsAttention) return 'ibkr-failed'
     if (pricesError || ratesError) return 'prices'
-    // The contribution hint is NOT a top-of-page alarm — it lives as a quiet
-    // muted note inside NetWorthCard (a 40%-growth-with-few-deposits nudge is
-    // informational, not a warning that should shout in amber).
+    // The contribution hint is not an alarm anywhere: it is one line inside the
+    // "Completar información" flow (Nuevo menu), reachable when the user goes
+    // looking. It used to sit under the YTD figure, where it read as a
+    // complaint about the number itself.
     return null
   }, [staleCode, ibkrSyncErrorCode, ibkrNeedsAttention, pricesError, ratesError, portfolioItems.length])
 
@@ -1492,6 +1493,8 @@ export default function DashboardPage() {
         onAdd={handleOpenAccount} onImport={handleOpenImport}
         onExport={handleExport} onShare={handleShare}
         onSettings={handleOpenSettings} onSearch={handleOpenCmdPalette} lang={lang}
+        onEnrich={portfolioItems.length > 0 ? handleOpenEnrich : null}
+        enrichGapCount={dataCompleteness.findings.filter((f) => f.itemId).length}
         friendsEnabled={settings?.friendsEnabled !== false}
       />
 

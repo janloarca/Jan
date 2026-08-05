@@ -142,6 +142,8 @@ movió unos $58 (FASE DG).
   seguro sería un dato inventado.
 - Ventaja lateral: "HOY" y "Mayores movimientos hoy" ahora salen de la misma
   fuente, así que la tarjeta ya no se contradice a sí misma.
+- `computeScopedReturns` (el día por broker que se publica a Amigos) usa la MISMA
+  función. Si aparece otro cálculo de "cambio diario", tiene que llamarla también.
 
 ## Ingresos automáticos: dedup por MES, y la cuenta destino debe VER lo que recibe
 
