@@ -1013,10 +1013,9 @@ export default function DashboardPage() {
             <NetWorthCard
               netWorth={netWorth} returnYTD={returnYTD} ytdChange={ytdChange}
               returnSinceStart={returnSinceStart} sinceStartDate={sinceStartDate}
-              yearlyChange={yearlyChange} dailyChange={dailyChange} convert={convert}
+              dailyChange={dailyChange} convert={convert}
               lang={lang} netContributions={netContributions} cashTotal={cashTotal} snapshots={augmentedSnapshots} items={portfolioItems}
               contributionWarning={contributionWarning} onLogFlow={() => setModal('cashflow')}
-              onCalibrate={() => setModal('calibrate')}
               ytdCalibrated={ytdCalibrated}
             />
             </CardBoundary>
@@ -1358,6 +1357,7 @@ export default function DashboardPage() {
           onAddAccount={handleOpenAccount}
           onOpenBlockchain={handleOpenBlockchain}
           onOpenLedger={() => setModal('ledger')}
+          onCalibrate={() => setModal('calibrate')}
           onSaveCredentials={(creds) => { saveSettings({ ...creds, _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
           onSyncBroker={async (brokerId, data) => {
             const positions = data?.positions || data || []

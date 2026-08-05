@@ -13,7 +13,7 @@ import { getBrokerRegistry, connectorExplainer, IBKR_DISCONNECTED_FIELDS } from 
 import { getBrokerHowTo } from '@/lib/brokerHowTo'
 import BrokerSteps from '@/components/ui/BrokerSteps'
 
-export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, onBackgroundSync, onImport, onAddAccount, onOpenBlockchain, onOpenLedger, onSaveCredentials, lang = 'es', lastSyncTime, portfolioItems = [] }) {
+export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, onBackgroundSync, onImport, onAddAccount, onOpenBlockchain, onOpenLedger, onSaveCredentials, onCalibrate, lang = 'es', lastSyncTime, portfolioItems = [] }) {
   const trapRef = useFocusTrap()
   const t = (es, en) => lang === 'es' ? es : en
 
@@ -578,6 +578,20 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                   ))}
                 </div>
               </div>
+            )}
+
+            {/* Calibrate return: lives here (account-sync context) instead of
+                on the net worth card, which was getting crowded with actions
+                that aren't "look at your number" — this is "fix your number". */}
+            {onCalibrate && (
+              <button onClick={() => { onClose(); setTimeout(() => onCalibrate(), 50) }}
+                className="w-full flex items-center justify-between gap-3 px-3 py-2.5 bg-theme-base border border-glass-border/60 rounded-lg hover:bg-theme-elevated transition-colors text-left">
+                <span className="min-w-0">
+                  <span className="text-sm text-white font-medium block">{t('¿Tu retorno no cuadra con tu broker?', "Your return doesn't match your broker?")}</span>
+                  <span className="text-xs text-slate-500">{t('Escribe el % que ves ahí y lo calibramos', 'Type the % you see there and we calibrate it')}</span>
+                </span>
+                <span className="text-xs shrink-0" style={{ color: 'var(--accent-blue)' }}>{t('Calibrar', 'Calibrate')}</span>
+              </button>
             )}
           </div>
         </div>

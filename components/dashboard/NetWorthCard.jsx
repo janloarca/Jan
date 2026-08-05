@@ -25,65 +25,11 @@ function getGreeting(lang) {
   return lang === 'es' ? 'Buenas noches' : 'Good evening'
 }
 
-function getMilestone(netWorth, returnYTD, lang) {
-  if (returnYTD == null) return { text: lang === 'es' ? 'Acumulando datos' : 'Gathering data', positive: false }
-  if (returnYTD > 20) return { text: lang === 'es' ? 'Año increíble' : 'Incredible year', positive: true }
-  if (returnYTD > 10) return { text: lang === 'es' ? 'Gran rendimiento' : 'Strong returns', positive: true }
-  if (returnYTD > 0) return { text: lang === 'es' ? 'En positivo' : 'In the green', positive: true }
-  if (returnYTD > -5) return { text: lang === 'es' ? 'Mantente firme' : 'Stay steady', positive: false }
-  return { text: lang === 'es' ? 'Los mercados se recuperan' : 'Markets recover', positive: false }
-}
-
-function Sparkline({ snapshots, width = 60, height = 24 }) {
-  if (!snapshots || snapshots.length < 2) return null
-  const recent = snapshots.slice(-30)
-  const values = recent.map(s => s.netWorthUSD ?? s.totalActivosUSD ?? 0).filter(v => v > 0)
-  if (values.length < 2) return null
-
-  const min = Math.min(...values)
-  const max = Math.max(...values)
-  const range = max - min || 1
-  const trending = values[values.length - 1] >= values[0]
-  const color = trending ? 'var(--accent-green)' : 'var(--text-negative)'
-
-  const points = values.map((v, i) => {
-    const x = (i / (values.length - 1)) * width
-    const y = height - ((v - min) / range) * (height - 4) - 2
-    return `${x},${y}`
-  }).join(' ')
-
-  const gradientId = `spark-${trending ? 'up' : 'down'}`
-
-  return (
-    <svg width={width} height={height} className="block" aria-hidden="true">
-      <defs>
-        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <polygon
-        points={`0,${height} ${points} ${width},${height}`}
-        fill={`url(#${gradientId})`}
-      />
-      <polyline
-        points={points}
-        fill="none"
-        stroke={color}
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
-export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, yearlyChange, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, contributionWarning, onLogFlow, onCalibrate, ytdCalibrated }) {
+export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, contributionWarning, onLogFlow, ytdCalibrated }) {
   const hasYTD = returnYTD != null && isFinite(returnYTD)
   const displayReturn = hasYTD ? returnYTD : (returnSinceStart != null && isFinite(returnSinceStart) ? returnSinceStart : null)
   const hasReturn = displayReturn != null
   const isYTDPositive = (displayReturn ?? 0) >= 0
-  const isYearlyPositive = (yearlyChange ?? 0) >= 0
   const isDayPositive = dailyChange ? dailyChange.abs >= 0 : true
   const baseCur = getBaseCurrency()
   const [tempCurrency, setTempCurrency] = useState(null)
@@ -104,7 +50,6 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
   const displayValue = cv(netWorth)
 
   const greeting = getGreeting(lang)
-  const milestone = getMilestone(netWorth, displayReturn, lang)
 
   // Asset-class composition of net worth — fills the card and explains where
   // the money sits. Percentages are currency-agnostic; values use cv() so they
@@ -145,10 +90,13 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
     ? (lang === 'es' ? `Otros (${seg.count})` : `Others (${seg.count})`)
     : (CATEGORY_LABELS[seg.name]?.[lang] || seg.name)
 
-  // Biggest movers of the day — per-asset intraday % change, ordered by the
-  // magnitude of the move (gainers and losers mixed). Deduped by item id (two
-  // distinct holdings sharing a symbol must not shadow each other) and gated by
-  // position weight: a $5 position's ±10% shouldn't headline the card.
+  // Biggest movers of the day — per-asset intraday % change. Sorted SIGNED
+  // (biggest gainer first, biggest loss last), the standard gainers-on-top
+  // reading, not by absolute magnitude — mixing a -8% and a +7% by |value|
+  // reads as noise where a plain descending list reads as a story. Deduped by
+  // item id (two distinct holdings sharing a symbol must not shadow each
+  // other) and gated by position weight: a $5 position's ±10% shouldn't
+  // headline the card.
   const movers = useMemo(() => {
     if (!items || items.length === 0) return []
     const eligible = items.filter((it) => !it.isDebt && !isExcludedFromNetWorth(it))
@@ -165,92 +113,80 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
       seen.add(key)
       list.push({ label, pct: it.change1d })
     })
-    return list.sort((a, b) => Math.abs(b.pct) - Math.abs(a.pct)).slice(0, 5)
+    const gainers = list.filter((m) => m.pct >= 0).sort((a, b) => b.pct - a.pct)
+    const losers = list.filter((m) => m.pct < 0).sort((a, b) => a.pct - b.pct)
+    return [...gainers, ...losers].slice(0, 5)
   }, [items])
 
   return (
     <div className="bg-gradient-to-br from-theme-card to-theme-surface rounded-2xl p-5 card-hero h-full flex flex-col"
       style={{ backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)', boxShadow: 'var(--shadow-elevated)', border: 'var(--glass-border)' }}>
-      {/* Greeting + currency picker */}
+      {/* Greeting + currency picker — the milestone pill (a second colored
+          badge next to the picker) is gone: the combined today/YTD line below
+          already says whether things are up or down, so a second label
+          restating it in a pill was noise, not information. */}
       <div className="flex items-center justify-between mb-3">
         <span className="text-xs text-slate-500 uppercase tracking-wider font-medium">{greeting}</span>
-        <div className="flex items-center gap-2">
-          {milestone.text && (
-            <span className="text-xs font-medium px-2 py-0.5 rounded-full"
-              style={milestone.positive
-                ? { backgroundColor: 'rgba(52,211,153,0.1)', color: 'var(--accent-green)' }
-                : { backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }
-              }>{milestone.text}</span>
-          )}
-          <div className="relative" ref={pickerRef}>
-            <button onClick={() => setShowPicker(!showPicker)}
-              className="text-xs px-2 py-0.5 rounded text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
-              style={{ border: '1px solid transparent', ...(showPicker ? { backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)', border: 'var(--glass-border)', backgroundColor: 'rgba(255,255,255,0.05)' } : {}) }}>
-              {displayCur}
-            </button>
-            {showPicker && (
-              <div className="absolute right-0 top-full mt-1 bg-theme-card/80 rounded-lg z-10 p-1 min-w-[80px]"
-                style={{ backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)', boxShadow: 'var(--shadow-elevated)', border: 'var(--glass-border)' }}>
-                {QUICK_CURRENCIES.map((c) => (
-                  <button key={c} onClick={() => { setTempCurrency(c === baseCur ? null : c); setShowPicker(false) }}
-                    className="block w-full text-left px-3 py-1.5 text-xs rounded transition-colors"
-                    style={displayCur === c ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.1)' } : { color: 'var(--text-secondary)' }}>
-                    {c}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* KPI: Main value — Level 1 typography. Sparkline goes to the far right in
-          its own shrink-0 box so it can never collide with the big number. */}
-      <div className="flex items-center justify-between gap-3 mb-0.5">
-        <p className="min-w-0 text-[2.25rem] sm:text-[3rem] leading-none text-white tracking-tight font-bold font-mono tabular-nums drop-shadow-sm">{formatCurrency(displayValue, displayCur)}</p>
-        <div className="shrink-0">
-          <Sparkline snapshots={snapshots} />
-        </div>
-      </div>
-
-      {/* Sub-KPI: Daily change — Level 2 typography */}
-      {dailyChange && isFinite(dailyChange.pct) && (
-        <p className="text-sm font-medium mt-1" style={{ color: isDayPositive ? 'var(--accent-green)' : 'var(--text-negative)' }}>
-          <span className="font-mono tabular-nums">{isDayPositive ? '+' : ''}{formatCurrency(cv(dailyChange.abs), displayCur)} ({isDayPositive ? '+' : ''}{dailyChange.pct.toFixed(2)}%)</span>
-          <span className="text-slate-600 font-normal ml-1.5 text-xs">{lang === 'es' ? 'hoy' : 'today'}</span>
-        </p>
-      )}
-
-      {/* Metadata: YTD + yearly — Level 3 typography */}
-      <div className="flex items-center gap-3 mt-2">
-        <span className="text-xs font-medium px-2 py-0.5 rounded-full"
-          style={!hasReturn
-            ? { backgroundColor: 'rgba(100,116,139,0.12)', color: 'var(--text-secondary)' }
-            : isYTDPositive
-              ? { backgroundColor: 'rgba(52,211,153,0.12)', color: 'var(--accent-green)' }
-              : { backgroundColor: 'rgba(239,68,68,0.12)', color: 'var(--text-negative)' }
-          }>
-          {hasYTD ? 'YTD' : sinceStartDate ? (lang === 'es' ? 'Desde ' : 'Since ') + new Date(sinceStartDate).toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short', year: '2-digit' }) : 'YTD'}
-          {' '}<span className="font-mono">{hasReturn ? `${isYTDPositive ? '+' : ''}${displayReturn.toFixed(2)}%` : 'N/A'}</span>
-          {hasReturn && <span className="opacity-50 ml-0.5" style={{ fontSize: '9px' }}>Dietz</span>}
-          {hasYTD && <InfoTip text={lang === 'es' ? 'Year-to-Date: retorno desde el 1 de enero del año en curso. Calculado con el método Dietz Modificado, que descuenta tus depósitos y retiros para que solo cuente lo que ganaron tus inversiones (no el dinero nuevo que metiste).' : 'Year-to-Date: return since January 1st of the current year. Calculated with the Modified Dietz method, which adjusts for your deposits and withdrawals so only investment performance counts (not new money you put in).'} />}
-          {ytdCalibrated && (
-            <span className="ml-1 px-1 rounded uppercase" style={{ fontSize: '9px', backgroundColor: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}
-              title={lang === 'es' ? 'Anclado al % que escribiste de tu broker. La curva intermedia se estima.' : 'Anchored to the % you typed from your broker. The in-between curve is estimated.'}>
-              {lang === 'es' ? 'calibrado' : 'calibrated'}
-            </span>
-          )}
-        </span>
-        {onCalibrate && (
-          <button onClick={onCalibrate}
-            className="text-xs text-slate-500 hover:text-slate-300 underline decoration-dotted underline-offset-2 transition-colors cursor-pointer"
-            title={lang === 'es' ? 'Escribe el % que ves en tu broker y cuadramos los números' : 'Type the % you see in your broker and we reconcile the numbers'}>
-            {lang === 'es' ? 'Calibrar' : 'Calibrate'}
+        <div className="relative" ref={pickerRef}>
+          <button onClick={() => setShowPicker(!showPicker)}
+            className="text-xs px-2 py-0.5 rounded text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
+            style={{ border: '1px solid transparent', ...(showPicker ? { backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)', border: 'var(--glass-border)', backgroundColor: 'rgba(255,255,255,0.05)' } : {}) }}>
+            {displayCur}
           </button>
+          {showPicker && (
+            <div className="absolute right-0 top-full mt-1 bg-theme-card/80 rounded-lg z-10 p-1 min-w-[80px]"
+              style={{ backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)', boxShadow: 'var(--shadow-elevated)', border: 'var(--glass-border)' }}>
+              {QUICK_CURRENCIES.map((c) => (
+                <button key={c} onClick={() => { setTempCurrency(c === baseCur ? null : c); setShowPicker(false) }}
+                  className="block w-full text-left px-3 py-1.5 text-xs rounded transition-colors"
+                  style={displayCur === c ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.1)' } : { color: 'var(--text-secondary)' }}>
+                  {c}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* KPI: Main value — Level 1 typography, the one hero figure in the
+          view. No sparkline beside it: at 60x24px it had no axis, no label
+          and no legend, so it read as decoration nobody could interpret —
+          the real chart is one tap away in the Valor/Rendimiento card. */}
+      <p className="min-w-0 text-[2.25rem] sm:text-[3rem] leading-none text-white tracking-tight font-bold font-mono tabular-nums drop-shadow-sm mb-1.5">{formatCurrency(displayValue, displayCur)}</p>
+
+      {/* Today + YTD, one line. Direction lives ONLY in the small arrow —
+          the numbers themselves stay in plain text color, so the line reads
+          as one calm sentence instead of two competing red/green claims. */}
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
+        {dailyChange && isFinite(dailyChange.pct) && (
+          <span className="whitespace-nowrap">
+            <span className="text-[11px] font-semibold tracking-wide mr-1" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'HOY' : 'TODAY'}</span>
+            <span style={{ color: isDayPositive ? 'var(--accent-green)' : 'var(--text-negative)' }}>{isDayPositive ? '▲' : '▼'}</span>
+            {' '}
+            <span className="font-mono tabular-nums" style={{ color: 'var(--text-primary)' }}>
+              {isDayPositive ? '+' : ''}{formatCurrency(cv(dailyChange.abs), displayCur)} ({isDayPositive ? '+' : ''}{dailyChange.pct.toFixed(2)}%)
+            </span>
+          </span>
         )}
-        {yearlyChange != null && isFinite(yearlyChange) && (
-          <span className="text-xs" style={{ color: isYearlyPositive ? 'var(--accent-green)' : 'var(--text-negative)' }}>
-            {isYearlyPositive ? '▲' : '▼'} <span className="font-mono">{Math.abs(yearlyChange).toFixed(1)}%</span> {lang === 'es' ? 'vs año ant.' : 'vs prior yr'}
+        {dailyChange && hasReturn && <span aria-hidden="true" style={{ color: 'var(--glass-border)' }}>│</span>}
+        {hasReturn && (
+          <span className="whitespace-nowrap">
+            <span className="text-[11px] font-semibold tracking-wide mr-1" style={{ color: 'var(--text-muted)' }}>
+              {hasYTD ? 'YTD' : ((lang === 'es' ? 'DESDE ' : 'SINCE ') + (sinceStartDate ? new Date(sinceStartDate).toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short', year: '2-digit' }) : ''))}
+            </span>
+            <span style={{ color: isYTDPositive ? 'var(--accent-green)' : 'var(--text-negative)' }}>{isYTDPositive ? '▲' : '▼'}</span>
+            {' '}
+            <span className="font-mono tabular-nums" style={{ color: 'var(--text-primary)' }}>
+              {hasYTD && ytdChange != null && isFinite(ytdChange) && `${isYTDPositive ? '+' : ''}${formatCurrency(cv(ytdChange), displayCur)} `}
+              ({isYTDPositive ? '+' : ''}{displayReturn.toFixed(2)}%)
+            </span>
+            {hasYTD && <InfoTip text={lang === 'es' ? 'Year-to-Date: retorno desde el 1 de enero del año en curso. Calculado con el método Dietz Modificado, que descuenta tus depósitos y retiros para que solo cuente lo que ganaron tus inversiones (no el dinero nuevo que metiste).' : 'Year-to-Date: return since January 1st of the current year. Calculated with the Modified Dietz method, which adjusts for your deposits and withdrawals so only investment performance counts (not new money you put in).'} />}
+            {ytdCalibrated && (
+              <span className="ml-1 text-[10px]" style={{ color: 'var(--text-muted)' }}
+                title={lang === 'es' ? 'Anclado al % que escribiste de tu broker. La curva intermedia se estima.' : 'Anchored to the % you typed from your broker. The in-between curve is estimated.'}>
+                · {lang === 'es' ? 'calibrado' : 'calibrated'}
+              </span>
+            )}
           </span>
         )}
       </div>
@@ -300,18 +236,22 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
         </div>
       )}
 
-      {/* Biggest movers of the day — fills the remaining height */}
+      {/* Biggest movers of the day — sorted biggest gain to biggest loss.
+          Only the arrow carries green/red; the % itself stays plain text so
+          five rows of alternating red/green don't fight each other, and
+          rows sit close together (fixed gap, not stretched to fill height). */}
       {movers.length > 0 && (
-        <div className="flex-1 flex flex-col min-h-0 mt-3 pt-3 border-t border-glass-border/50">
-          <span className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2.5 block">{lang === 'es' ? 'Mayores movimientos hoy' : "Today's biggest movers"}</span>
-          <div className="flex-1 flex flex-col justify-evenly">
+        <div className="mt-3 pt-3 border-t border-glass-border/50">
+          <span className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2 block">{lang === 'es' ? 'Mayores movimientos hoy' : "Today's biggest movers"}</span>
+          <div className="space-y-1">
             {movers.map((m) => {
               const up = m.pct >= 0
               return (
-                <div key={m.label} className="flex items-center justify-between py-0.5">
-                  <span className="text-sm text-slate-300 font-medium truncate pr-2">{m.label}</span>
-                  <span className="text-sm font-mono tabular-nums font-medium shrink-0" style={{ color: up ? 'var(--accent-green)' : 'var(--text-negative)' }}>
-                    {up ? '▲' : '▼'} {up ? '+' : ''}{m.pct.toFixed(2)}%
+                <div key={m.label} className="flex items-center justify-between">
+                  <span className="text-sm truncate pr-2" style={{ color: 'var(--text-secondary)' }}>{m.label}</span>
+                  <span className="text-sm font-mono tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>
+                    <span style={{ color: up ? 'var(--accent-green)' : 'var(--text-negative)' }}>{up ? '▲' : '▼'}</span>
+                    {' '}{up ? '+' : ''}{m.pct.toFixed(2)}%
                   </span>
                 </div>
               )
