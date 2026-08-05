@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { sanitizeImportItem } from '@/lib/validation'
-import { SNAPSHOT_SRC_PRIORITY } from '@/components/dashboard/utils'
+import { SNAPSHOT_SRC_PRIORITY, snapshotDocId } from '@/components/dashboard/utils'
 import { detectMisstampedMonthlyNavSnapshots } from '@/lib/badDataCleanup'
 
 let _db = null
@@ -332,25 +332,25 @@ export function useFirestoreItems() {
     if (items.some((i) => i._source === 'demo')) return
     const { db, fs } = await getFirebase()
     const dateStr = snapshot.date || new Date().toISOString().split('T')[0]
-    // Calibration anchors share their date with real NAV snapshots (a YTD
-    // calibration sits on Jan 1, where a daily snapshot may also live): a
-    // compound id keeps them from overwriting each other. This now applies to
-    // GLOBAL calibrations too ('global' suffix) — they used to take the plain
-    // date id and clobbered the real NAV doc of that day. Real (non-calibrated)
-    // snapshots keep the plain date id so dedup/precedence logic is untouched.
-    const id = snapshot._calibrated
-      ? `${dateStr}~${snapshot._calibrationKind || 'cal'}~${snapshot._account ? String(snapshot._account).replace(/[^a-z0-9]+/gi, '-') : 'global'}`
-      : dateStr
+    // Calibration anchors are NOT the day's NAV: they share their date with
+    // real NAV snapshots (a YTD calibration sits on Jan 1, where a daily
+    // snapshot may also live), so they ALWAYS get a compound id, per account
+    // or 'global'. Plain-date ids stay reserved for real portfolio NAV so
+    // dedup/precedence logic is untouched. Before this, global calibrations
+    // used the plain date id and collided with (or blocked) the real daily
+    // snapshot of that date.
+    const id = snapshotDocId(snapshot, dateStr)
     const clean = Object.fromEntries(Object.entries({ ...snapshot, createdAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
     await fs.setDoc(fs.doc(db, `users/${uid}/snapshots`, id), clean, { merge: true })
-    // Legacy migration: a global calibration previously saved under the plain
-    // date id is now superseded by the compound-id doc. Remove the old one so
-    // the same anchor doesn't apply twice (only when the legacy doc really is
-    // a calibration of the same kind — never delete a real NAV observation).
-    if (snapshot._calibrated && !snapshot._account) {
-      const legacy = (snapshots || []).find((s) => s && s.id === dateStr && s._calibrated
-        && (s._calibrationKind || 'cal') === (snapshot._calibrationKind || 'cal'))
-      if (legacy) await fs.deleteDoc(fs.doc(db, `users/${uid}/snapshots`, dateStr))
+    // Migrate the pre-compound-id layout in place: a legacy GLOBAL calibration
+    // lived at the plain date id. Once its replacement lands at the compound
+    // id, remove the legacy doc so it cannot shadow the real daily NAV writer
+    // (which writes the plain date id) nor duplicate the constraint.
+    if (snapshot._calibrated && !snapshot._account && id !== dateStr) {
+      const legacy = (snapshots || []).find((s) => s && s.id === dateStr && s._calibrated && !s._account)
+      if (legacy) {
+        try { await fs.deleteDoc(fs.doc(db, `users/${uid}/snapshots`, dateStr)) } catch { /* next save retries */ }
+      }
     }
   }, [uid, items, snapshots])
 
@@ -419,7 +419,6 @@ export function useFirestoreItems() {
       for (const ref of refs.slice(i, i + CHUNK)) batch.delete(ref)
       await batch.commit()
     }
-
   }, [uid, items, lots, transactions])
 
   // Delete a specific set of items (by id) plus their lots and transactions — the
@@ -476,6 +475,20 @@ export function useFirestoreItems() {
     if (!uid || !txId) return
     const { db, fs } = await getFirebase()
     await fs.deleteDoc(fs.doc(db, `users/${uid}/transactions`, txId))
+  }, [uid])
+
+  // Patch an existing movement in place (fix a wrong date/amount, or attach a
+  // stray one to the account it belongs to via _linkedItemId). The doc id
+  // encodes date/symbol/type/amount purely as a dedupe key for AUTO-generated
+  // rows — the read path trusts the doc id and never re-derives it from the
+  // fields, so editing content without renaming the doc is safe and keeps the
+  // row's identity (and anything already pointing at it) intact.
+  const updateTransaction = useCallback(async (txId, fields) => {
+    if (!uid || !txId || !fields) return
+    const { db, fs } = await getFirebase()
+    const clean = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined))
+    if (Object.keys(clean).length === 0) return
+    await fs.updateDoc(fs.doc(db, `users/${uid}/transactions`, txId), clean)
   }, [uid])
 
   const deleteAllTransactions = useCallback(async () => {
@@ -560,6 +573,7 @@ export function useFirestoreItems() {
         .map(d => ({ ...d.data(), id: d.id }))
         .filter(l => l.quantity > 0)
         .sort((a, b) => (a.acquisitionDate || '').localeCompare(b.acquisitionDate || ''))
+
       if (institution) {
         const instLots = openLots.filter(l => l.institution === institution)
         if (instLots.length > 0) openLots = instLots
@@ -663,7 +677,7 @@ export function useFirestoreItems() {
       for (const c of closes) {
         if (c.closable >= c.lot.quantity - QTY_EPSILON) {
           tx.update(fs.doc(db, `users/${uid}/lots`, c.lot.id), {
-            status: 'closed', quantity: c.closable, closedDate: lotClose.date, closedPrice: lotClose.price, realizedGain: c.realizedGain,
+            status: 'closed', quantity: closable, closedDate: lotClose.date, closedPrice: lotClose.price, realizedGain: c.realizedGain,
           })
         } else {
           tx.update(fs.doc(db, `users/${uid}/lots`, c.lot.id), { quantity: roundQty(c.lot.quantity - c.closable) })
@@ -732,7 +746,7 @@ export function useFirestoreItems() {
       for (const c of closes) {
         if (c.closable >= c.lot.quantity - QTY_EPSILON) {
           tx.update(fs.doc(db, `users/${uid}/lots`, c.lot.id), {
-            status: 'closed', quantity: c.closable, closedDate: lotClose.date, closedPrice: lotClose.price, realizedGain: c.realizedGain,
+            status: 'closed', quantity: closable, closedDate: lotClose.date, closedPrice: lotClose.price, realizedGain: c.realizedGain,
           })
         } else {
           tx.update(fs.doc(db, `users/${uid}/lots`, c.lot.id), { quantity: roundQty(c.lot.quantity - c.closable) })
@@ -903,10 +917,10 @@ export function useFirestoreItems() {
     // a gap or refresh same-or-higher-tier data. Without this, re-importing an
     // older/narrower file (or one that estimates where an earlier one
     // observed) silently downgrades a real NAV to a worse one.
-    // Per-account calibration anchors (_account) are NOT portfolio NAV: they
-    // must not participate in same-date precedence or their 'manual' priority
-    // would block a real daily/ibkr import landing on the anchor date.
-    const existingSnapByDate = new Map((snapshots || []).filter((s) => s && !s._account).map((s) => [s.date || s.id, s]))
+    // Calibration anchors (_calibrated, per-account OR global) are NOT portfolio
+    // NAV: they must not participate in same-date precedence or their 'manual'
+    // priority would block a real daily/ibkr import landing on the anchor date.
+    const existingSnapByDate = new Map((snapshots || []).filter((s) => s && !s._account && !s._calibrated).map((s) => [s.date || s.id, s]))
     for (const snap of (newSnaps || [])) {
       const id = snap.date || now.split('T')[0]
       const existing = existingSnapByDate.get(id)
@@ -962,7 +976,7 @@ export function useFirestoreItems() {
     items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, loading,
     addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
     saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
-    addTransaction, deleteTransaction, deleteAllTransactions,
+    addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,
     addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     addAlert, deleteAlert, updateAlert,
     addLot, updateLot, closeLotsFIFO,
