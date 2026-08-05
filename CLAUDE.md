@@ -158,6 +158,14 @@ movió unos $58 (FASE DG).
 - **Al limpiar duplicados gana el registro REAL.** `redundantAutoDividendIds`
   borra el `_source:'auto'` cuando el mes ya tiene un pago no-auto, nunca al revés,
   y cada borrado revierte su crédito en el destino (`queueReversal`).
+- **Un pago BACKFILLEADO no toca el saldo del destino.** El saldo que el usuario
+  escribió es una foto de HOY, así que todo cupón de un mes ya cerrado ya está
+  adentro. Sumarlo otra vez deja la cuenta permanentemente arriba: un cupón de
+  240 en mayo dejó el Fondo Líquido en 480 en agosto con UNA sola transacción en
+  la lista (por eso no parecía duplicado). La transacción sí se escribe (la
+  historia es real); solo el saldo se deja quieto, y lleva
+  `_destinationCredited:false` para que una limpieza posterior no "revierta" un
+  crédito que nunca ocurrió. Solo el pago del mes EN CURSO acredita.
 
 **La cuenta destino tiene que poder ver el dinero que le llega.** Un cupón se
 archiva contra el activo que lo generó (`_linkedItemId` = VITALI), así que el

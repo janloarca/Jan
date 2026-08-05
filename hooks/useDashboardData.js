@@ -282,6 +282,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       const destReversal = {}
       const queueReversal = (it, tx) => {
         if (!it.incomeDestination) return
+        // Never un-credit what was never credited: backfilled payments are
+        // written as history without touching the destination's balance, and
+        // they carry _destinationCredited:false to say so. Older payments have
+        // no flag at all and were all credited, so they still reverse.
+        if (tx._destinationCredited === false) return
         const amt = Number(tx.totalAmount ?? tx.amount ?? 0)
         if (!(amt > 0)) return
         const key = it.incomeDestination
@@ -335,7 +340,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             const payDay = it.incomePayDay || 1
             if (offset === 0 && todayDay < payDay) continue
             const dateStr = `${checkYear}-${String(checkMonth + 1).padStart(2, '0')}-${String(payDay).padStart(2, '0')}`
-            monthsToCheck.push({ dateStr, month: checkMonth, year: checkYear })
+            // offset > 0 = a month that already closed, so this is RECONSTRUCTED
+            // history, not money arriving now. See the credit below.
+            monthsToCheck.push({ dateStr, month: checkMonth, year: checkYear, backfill: offset > 0 })
           }
         } else {
           // Without explicit months, only process current month
@@ -343,12 +350,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             const payDay = it.incomePayDay || 1
             if (todayDay >= payDay) {
               const dateStr = `${now.getUTCFullYear()}-${String(currentMonth + 1).padStart(2, '0')}-${String(payDay).padStart(2, '0')}`
-              monthsToCheck.push({ dateStr, month: currentMonth, year: now.getUTCFullYear() })
+              monthsToCheck.push({ dateStr, month: currentMonth, year: now.getUTCFullYear(), backfill: false })
             }
           }
         }
 
-        for (const { dateStr } of monthsToCheck) {
+        for (const { dateStr, backfill } of monthsToCheck) {
           if (cancelled) return
           // Dates the user explicitly said did NOT happen (asked at account
           // creation, when the schedule implied a payment already due) —
@@ -407,6 +414,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             _source: 'auto',
             _linkedItemId: it.id,
             ...(isReinvest ? { _reinvested: true } : {}),
+            // Whether this payment also moved the destination account's stored
+            // balance. Backfilled history does not (see below), so a later
+            // cleanup must not "reverse" a credit that never happened.
+            ...(!isReinvest && it.incomeDestination ? { _destinationCredited: !backfill } : {}),
           })
 
           if (isReinvest) {
@@ -423,7 +434,17 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
                 institution: it.institution || '',
               })
             } catch (e) { console.error('[dividend-reinvest-lot]', e.message) }
-          } else if (it.incomeDestination) {
+          } else if (it.incomeDestination && !backfill) {
+            // Only money arriving NOW moves the destination's balance.
+            //
+            // A backfilled payment is reconstructed history: the balance the
+            // user typed for the destination is a figure for TODAY, so every
+            // past coupon is already inside it. Crediting those again pushes
+            // the account permanently above the real number (a $240 coupon
+            // recorded in May left a cash account reading $480 in August, with
+            // a single transaction on file to explain it). The transaction is
+            // still written above, because the history is real; only the
+            // balance is left alone.
             const dest = enrichedItems.find((d) => (d.id || d.symbol) === it.incomeDestination)
             if (dest) {
               await addToDestination(dest, amount, incomeCurrency)
