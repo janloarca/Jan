@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { formatCurrency, formatCompact, getItemValue, getDividendIncomeByItem, getItemCostBasis } from './utils'
+import { formatCurrency, formatCompact, getItemValue, getDividendIncomeByItem, getItemCostBasis, getItemPrincipalCost } from './utils'
 import { InfoTip } from '../ui/Tooltip'
 
 // Institution comparison card.
@@ -23,15 +23,18 @@ export default function InstitutionPerformance({ items, lang, baseCurrency, tran
       const rawName = it.institution || t('Sin institución', 'No institution')
       // Normalized key: "IDC VALORES" and "IDC Valores" are one custodian, not two rows.
       const key = rawName.trim().replace(/\s+/g, ' ').toLowerCase()
-      if (!map[key]) map[key] = { name: rawName.trim(), count: 0, value: 0, cost: 0, income: 0 }
+      if (!map[key]) map[key] = { name: rawName.trim(), count: 0, value: 0, cost: 0, principal: 0, income: 0 }
       map[key].count += 1
       map[key].value += getItemValue(it)
+      // Gain measures against principal; the % divides by all-in cost (with
+      // fees) — see getItemPrincipalCost for why the two differ.
+      map[key].principal += getItemPrincipalCost(it)
       map[key].cost += getItemCostBasis(it)
       map[key].income += dividendIncome.get(it.id) || 0
     })
     return Object.values(map)
       .map((inst) => {
-        const gainLoss = inst.value - inst.cost + inst.income
+        const gainLoss = inst.value - inst.principal + inst.income
         const gainPct = inst.cost > 0 ? (gainLoss / inst.cost) * 100 : null
         return { ...inst, gainLoss, gainPct }
       })
@@ -51,8 +54,8 @@ export default function InstitutionPerformance({ items, lang, baseCurrency, tran
         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue)' }} />
         {t('RENDIMIENTO POR INSTITUCIÓN', 'INSTITUTION PERFORMANCE')}
         <InfoTip text={t(
-          'El % es el retorno de ESA institución sobre lo que invertiste ahí (ganancia ÷ costo de sus posiciones). No es su aporte al portafolio total, por eso puede no coincidir con "Asignación de Activos".',
-          'The % is that institution\'s own return on what you invested there (gain ÷ cost of its positions). It\'s not its contribution to the whole portfolio, so it can differ from "Asset Allocation".'
+          'El % es el retorno de ESA institución: ganancia ÷ lo que invertiste ahí (incluye costos de entrada). Misma fórmula que "Asignación de Activos", pero agrupada por institución: si una institución tiene activos de varios tipos, sus % no tienen por qué ser idénticos.',
+          'The % is that institution\'s own return: gain ÷ what you invested there (includes entry costs). Same formula as "Asset Allocation", just grouped by institution: if one institution holds several asset types, the two % need not be identical.'
         )} />
       </h3>
 

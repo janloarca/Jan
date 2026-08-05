@@ -19,6 +19,7 @@ import {
   shouldHoldFlat,
   getDividendIncomeByItem,
   getItemCostBasis,
+  getItemPrincipalCost,
 } from '../utils'
 
 describe('projectItemAnnualIncome', () => {
@@ -697,5 +698,25 @@ describe('getItemCostBasis', () => {
 
   it('treats a missing quantity/price/fee as 0, never NaN', () => {
     expect(getItemCostBasis({})).toBe(0)
+  })
+
+  it('getItemPrincipalCost excludes the fee that getItemCostBasis includes', () => {
+    const bond = { quantity: 1, purchasePrice: 6000, entryFee: 95.78 }
+    expect(getItemPrincipalCost(bond)).toBe(6000)
+    expect(getItemCostBasis(bond)).toBeCloseTo(6095.78)
+  })
+
+  // The real VITALI case: a $6,000 bond bought for $6,095.78 all-in that has
+  // paid $240 of interest. Gain is measured against principal, the % divides
+  // by all-in cost, so the fee drags the yield 4.00% -> 3.94% without also
+  // being charged as a capital loss.
+  it('yields the expected 3.94% for a bond with an entry fee', () => {
+    const bond = { quantity: 1, purchasePrice: 6000, currentPrice: 6000, entryFee: 95.78 }
+    const value = 6000
+    const income = 240
+    const gain = (value - getItemPrincipalCost(bond)) + income
+    const pct = (gain / getItemCostBasis(bond)) * 100
+    expect(gain).toBeCloseTo(240)
+    expect(pct).toBeCloseTo(3.94, 2)
   })
 })

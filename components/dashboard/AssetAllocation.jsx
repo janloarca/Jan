@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { formatCurrency, getTypeCategory, TYPE_COLORS, CHART_PALETTE, getItemValue, getSectorFromItem, getGeographyFromItem, getInvestmentClass, INVESTMENT_CLASS_META, isExcludedFromNetWorth, getDividendIncomeByItem, getItemCostBasis } from './utils'
+import { formatCurrency, getTypeCategory, TYPE_COLORS, CHART_PALETTE, getItemValue, getSectorFromItem, getGeographyFromItem, getInvestmentClass, INVESTMENT_CLASS_META, isExcludedFromNetWorth, getDividendIncomeByItem, getItemCostBasis, getItemPrincipalCost } from './utils'
 import { InfoTip } from '../ui/Tooltip'
 
 export default function AssetAllocation({ items, lang, transactions, convert, baseCurrency }) {
@@ -37,11 +37,14 @@ export default function AssetAllocation({ items, lang, transactions, convert, ba
       const val = getItemValue(it)
       if (val <= 0) return
       const key = fn(it)
-      const cost = getItemCostBasis(it)
+      // Gain measures against principal; the % divides by all-in cost (with
+      // fees) — see getItemPrincipalCost for why the two differ.
+      const principal = getItemPrincipalCost(it)
+      const invested = getItemCostBasis(it)
       const income = dividendIncome.get(it.id) || 0
       byGroup[key] = (byGroup[key] || 0) + val
-      gainByGroup[key] = (gainByGroup[key] || 0) + (val - cost) + income
-      costByGroup[key] = (costByGroup[key] || 0) + cost
+      gainByGroup[key] = (gainByGroup[key] || 0) + (val - principal) + income
+      costByGroup[key] = (costByGroup[key] || 0) + invested
       total += val
     })
     return Object.entries(byGroup)

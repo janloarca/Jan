@@ -163,9 +163,21 @@ export function isExcludedFromNetWorth(item) {
 // use THIS, not qty*purchasePrice alone, or the same $ of fee shows up in
 // some numbers and not others.
 export function getItemCostBasis(item) {
+  return getItemPrincipalCost(item) + (Number(item.entryFee) || 0)
+}
+
+// Just the principal: what the asset itself cost, with no fees. The gain
+// numerator measures against THIS ("what did the asset do"), while the
+// percentage divides by getItemCostBasis ("what I had to put in, all-in").
+// Keeping them separate is what makes the entry fee behave like a real
+// investor expects on an income asset: a $6,000 bond bought for $6,095.78
+// that paid $240 yields 240/6095.78 = 3.94% — the fee drags the yield down
+// (vs 4.00% with no fee) without also being double-charged as a capital loss
+// against a single period. Over the whole hold the fee is still fully felt,
+// because it stays in the denominator forever.
+export function getItemPrincipalCost(item) {
   const qty = Number(item.quantity) || 0
-  const base = qty * (Number(item.purchasePrice) || 0)
-  return base + (Number(item.entryFee) || 0)
+  return qty * (Number(item.purchasePrice) || 0)
 }
 
 // Effective acquisition timestamp for an item: the real acquisitionDate, else the
