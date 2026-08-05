@@ -71,7 +71,7 @@ export default function SpreadsheetPage() {
     items, enrichedItems, netWorth, transactions, financeTransactions, returnYTD,
     snapshots, addItem, updateItem, deleteItem, portfolioItems, convert, rates,
     baseCurrency, saveItemSnapshots, loadItemSnapshots, lots,
-    addTransaction, addLot, closeLotsFIFO, executeContribution, dataLoading, settings,
+    addTransaction, updateTransaction, deleteTransaction, addLot, closeLotsFIFO, executeContribution, dataLoading, settings,
   } = useDashboardData({ user, lang, activePortfolio: '__all__' })
 
   const [editItem, setEditItem] = useState(null)
@@ -343,6 +343,7 @@ export default function SpreadsheetPage() {
           }}
           onDelete={deleteItem} existingItems={items} lang={lang}
           onAddTransaction={addTransaction} onExecuteContribution={executeContribution}
+          onDeleteTransaction={deleteTransaction} onUpdateTransaction={updateTransaction}
           onCreateDestination={addItem}
           transactions={transactions} baseCurrency={baseCurrency} />
       )}

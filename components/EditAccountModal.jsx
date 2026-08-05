@@ -43,7 +43,7 @@ function InfoTip({ text }) {
   )
 }
 
-export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es', allItems, onNavigate, onAddTransaction, onDeleteTransaction, transactions, onExecuteContribution, onCreateDestination, baseCurrency, entities = [] }) {
+export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es', allItems, onNavigate, onAddTransaction, onDeleteTransaction, onUpdateTransaction, transactions, onExecuteContribution, onCreateDestination, baseCurrency, entities = [] }) {
   const trapRef = useFocusTrap()
   const [creatingDest, setCreatingDest] = useState(false)
   const [extraItems, setExtraItems] = useState([])
@@ -126,6 +126,43 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     }
     setConfirmDeleteTxId(null)
     setDeletingTxId(null)
+  }
+
+  // Inline edit of one movement: fix a wrong date/amount, or attach a stray
+  // one (no _linkedItemId) to this account so both the history list and the
+  // chart agree on who owns it.
+  const [editingTxId, setEditingTxId] = useState(null)
+  const [txDraft, setTxDraft] = useState({ date: '', amount: '', link: false })
+  const [savingTxId, setSavingTxId] = useState(null)
+  const startEditTx = (tx) => {
+    setEditingTxId(tx.id)
+    setConfirmDeleteTxId(null)
+    setTxDraft({
+      date: (tx.date || '').slice(0, 10),
+      amount: String(tx.totalAmount ?? tx.amount ?? ''),
+      link: !!tx._linkedItemId,
+    })
+  }
+  const handleSaveTx = async (tx) => {
+    if (!onUpdateTransaction) return
+    const amt = parseFloat(txDraft.amount)
+    if (!(amt > 0)) { setError(t('El monto debe ser mayor a 0', 'Amount must be greater than 0')); return }
+    if (!txDraft.date) { setError(t('Elige la fecha del movimiento', 'Pick the movement date')); return }
+    setSavingTxId(tx.id)
+    setError('')
+    try {
+      const fields = { date: txDraft.date, totalAmount: amt }
+      if (tx.amount != null) fields.amount = amt
+      // Linking is one-way on purpose: attaching a stray movement is a fix,
+      // detaching a correctly-linked one would only re-create the invisible-row
+      // problem this whole flow exists to solve.
+      if (txDraft.link && !tx._linkedItemId) fields._linkedItemId = item.id
+      await onUpdateTransaction(tx.id, fields)
+      setEditingTxId(null)
+    } catch (e) {
+      setError(e.message || t('No se pudo guardar el movimiento', 'Could not save the movement'))
+    }
+    setSavingTxId(null)
   }
   // Direct balance/quantity edits change NAV without a cash-flow transaction, which
   // the return math (Modified Dietz) would read as pure gain. When a save changes the
@@ -677,6 +714,50 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                       // "VITALI lost $240" when its own value never changed.
                       const isPositive = tx.type === 'DEPOSIT' || tx.type === 'DIVIDEND'
                       const confirming = confirmDeleteTxId === tx.id
+                      const editing = editingTxId === tx.id
+                      if (editing) {
+                        return (
+                          <div key={tx.id} className="py-2 border-b border-[var(--card-border,#38383A)]/30 last:border-0 space-y-2">
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <span className="text-[10px] block mb-0.5" style={{ color: 'var(--text-muted)' }}>{t('Fecha', 'Date')}</span>
+                                <input type="date" value={txDraft.date} max={new Date().toISOString().split('T')[0]}
+                                  onChange={e => setTxDraft(d => ({ ...d, date: e.target.value }))} className={inputCls} />
+                              </div>
+                              <div>
+                                <span className="text-[10px] block mb-0.5" style={{ color: 'var(--text-muted)' }}>{t('Monto', 'Amount')} ({tx.currency || form.currency})</span>
+                                <input type="number" step="any" min="0" value={txDraft.amount}
+                                  onChange={e => setTxDraft(d => ({ ...d, amount: e.target.value }))} className={inputCls} />
+                              </div>
+                            </div>
+                            {!tx._linkedItemId && (
+                              <label className="flex items-start gap-2 cursor-pointer p-2 rounded"
+                                style={{ backgroundColor: 'var(--alert-info-bg)', border: '1px solid var(--alert-info-border)' }}>
+                                <input type="checkbox" checked={txDraft.link}
+                                  onChange={e => setTxDraft(d => ({ ...d, link: e.target.checked }))}
+                                  className="w-3.5 h-3.5 mt-0.5 rounded accent-blue-500 shrink-0" />
+                                <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+                                  {t(`Vincular este movimiento a ${item.name || item.symbol}`, `Link this movement to ${item.name || item.symbol}`)}
+                                  <span className="block" style={{ color: 'var(--text-muted)' }}>
+                                    {t('Deja de estar suelto: la lista y la gráfica pasan a contarlo igual.', 'It stops floating loose: the list and the chart start counting it the same way.')}
+                                  </span>
+                                </span>
+                              </label>
+                            )}
+                            <div className="flex gap-2">
+                              <button type="button" onClick={() => { setEditingTxId(null); setError('') }}
+                                className="flex-1 px-2 py-1.5 text-xs rounded border border-[var(--card-border,#38383A)]" style={{ color: 'var(--text-secondary)' }}>
+                                {t('Cancelar', 'Cancel')}
+                              </button>
+                              <button type="button" onClick={() => handleSaveTx(tx)} disabled={savingTxId === tx.id}
+                                className="flex-1 px-2 py-1.5 text-xs font-medium rounded text-white disabled:opacity-50"
+                                style={{ backgroundColor: 'var(--accent-blue-strong, #2563eb)' }}>
+                                {savingTxId === tx.id ? '...' : t('Guardar', 'Save')}
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      }
                       return (
                         <div key={tx.id} className="flex items-center justify-between gap-2 text-xs py-1 border-b border-[var(--card-border,#38383A)]/30 last:border-0">
                           <span style={{ color: 'var(--text-muted)' }}>{tx.date}</span>
@@ -693,16 +774,26 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                             )}
                             {tx.description && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{tx.description}</p>}
                           </div>
-                          {onDeleteTransaction && (
-                            <button type="button" onClick={() => handleDeleteTx(tx)} disabled={deletingTxId === tx.id}
-                              className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors disabled:opacity-50"
-                              style={confirming
-                                ? { color: '#ffffff', backgroundColor: 'var(--text-negative)', borderColor: 'var(--text-negative)' }
-                                : { color: 'var(--text-muted)', borderColor: 'var(--card-border,#38383A)' }}
-                              title={t('Borrar este movimiento (ej. un duplicado)', 'Delete this movement (e.g. a duplicate)')}>
-                              {deletingTxId === tx.id ? '...' : confirming ? t('Confirmar', 'Confirm') : t('Borrar', 'Delete')}
-                            </button>
-                          )}
+                          <span className="flex items-center gap-1 shrink-0">
+                            {onUpdateTransaction && (
+                              <button type="button" onClick={() => startEditTx(tx)}
+                                className="px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors"
+                                style={{ color: 'var(--text-muted)', borderColor: 'var(--card-border,#38383A)' }}
+                                title={t('Corregir la fecha o el monto, o vincularlo a esta cuenta', 'Fix the date or amount, or link it to this account')}>
+                                {t('Editar', 'Edit')}
+                              </button>
+                            )}
+                            {onDeleteTransaction && (
+                              <button type="button" onClick={() => handleDeleteTx(tx)} disabled={deletingTxId === tx.id}
+                                className="px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors disabled:opacity-50"
+                                style={confirming
+                                  ? { color: '#ffffff', backgroundColor: 'var(--text-negative)', borderColor: 'var(--text-negative)' }
+                                  : { color: 'var(--text-muted)', borderColor: 'var(--card-border,#38383A)' }}
+                                title={t('Borrar este movimiento (ej. un duplicado)', 'Delete this movement (e.g. a duplicate)')}>
+                                {deletingTxId === tx.id ? '...' : confirming ? t('Confirmar', 'Confirm') : t('Borrar', 'Delete')}
+                              </button>
+                            )}
+                          </span>
                         </div>
                       )
                     })}

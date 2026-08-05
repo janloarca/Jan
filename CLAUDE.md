@@ -56,6 +56,68 @@
 - Dedup mensual con `_lastFinanceReminder: 'YYYY-MM'` en preferences; solo se marca DESPUÉS de un envío exitoso
 - El cron usa fechas UTC y queries de Firestore por rango de string `'YYYY-MM-01'..'YYYY-MM-31'` (funciona para todos los meses por comparación lexicográfica)
 
+## Rendimiento de activos con costo de entrada (caso de referencia: VITALI)
+
+Caso real que fija la convención para CUALQUIER activo con comisión de entrada
+(bonos, fondos, alternativos, CDs). Si aparece otro, copiar esta lógica.
+
+**Los datos de VITALI:** bono de USD 6,000 comprado el 2026-01-06, comisión de
+entrada USD 95.78 pagada aparte (total desembolsado 6,095.78), cupón 8% anual
+pagado semestral (240 en mayo + 240 en diciembre), los pagos salen en efectivo
+a otra cuenta (`incomeDestination` = Fondo Líquido), no se reinvierten.
+
+**Las tres funciones, en `components/dashboard/utils.js`:**
+- `getItemPrincipalCost(item)`: lo que costó el activo EN SÍ, sin comisiones.
+  Es contra esto que se mide la ganancia ("qué hizo el activo").
+- `getItemCostBasis(item)`: todo el efectivo que salió del bolsillo. Es entre
+  esto que se divide ("cuánto tuve que poner en total").
+- `getDividendIncomeByItem(...)`: los pagos que el activo GENERÓ. Necesario
+  porque un activo que paga en efectivo a otra cuenta nunca mueve su propio
+  `currentPrice`: sin esto siempre mostraría 0% por más que haya rendido.
+
+**La fórmula, idéntica en AssetAllocation y en InstitutionPerformance:**
+
+    ganancia = (valorActual - principalCost) + ingresosGenerados
+    retorno% = ganancia / costBasis
+
+Con VITALI hoy: `(6000 - 6000) + 240 = 240`; `240 / 6,095.78 = 3.94%`.
+
+**Los tres errores que ya se cometieron aquí (no repetirlos):**
+1. Usar `getItemCostBasis` en AMBOS lados de la fracción cobra la comisión dos
+   veces: como pérdida de capital en el numerador Y otra vez inflando el
+   denominador. Daba 2.37% en vez de 3.94% (FASE DD).
+2. Dividir entre el valor total del portafolio en vez del costo del propio
+   grupo. Eso mide "aporte a la ganancia total", una pregunta distinta, y hace
+   que el mismo activo muestre dos números sin relación según la tarjeta que
+   mires (FASE DB).
+3. Contar el capital nuevo como si fuera retorno. Un depósito NO es ganancia:
+   si entra en el numerador, financiar una cuenta se ve como +100% (FASE DB).
+
+**Qué NO hace la fórmula (decisión consciente del usuario):** no anualiza ni
+proyecta. El número es realizado puro y sube solo conforme entran los pagos:
+3.94% hoy, 7.87% cuando caiga el cupón de diciembre (480/6,095.78). La comisión
+se queda en el denominador mientras se mida desde la compra, así que estas
+tarjetas siempre muestran "sobre el total desembolsado". El 8% flat de un año
+2 aislado (480/6,000, comisión ya hundida) necesitaría un selector de periodo
+por tarjeta, que hoy no existe.
+
+**`entryFeeMode`** decide de qué lado del valor de compra cae la comisión:
+- `'separate'` (default, y lo normal en corretaje): se pagó encima.
+  `costBasis = principal + fee`, `principalCost = principal`.
+- `'deducted'`: salió del monto que mandaste, así que al activo entró menos.
+  `costBasis = principal`, `principalCost = principal - fee`.
+En ambos `costBasis - principalCost === fee`, y ESE es el invariante que hace
+que la fórmula de arriba funcione igual para los dos modos. Cualquier lugar que
+sume la comisión por su cuenta (el DEPOSIT inicial de `AddAccountModal`, la
+línea de capital invertido del chart) tiene que saltarse el modo `'deducted'`
+o la cuenta doble.
+
+**Movimientos huérfanos:** `EditAccountModal` y `PortfolioGrowthChart` tienen
+que emparejar movimientos con el MISMO criterio (`_linkedItemId` o, si no hay,
+el símbolo). Cuando divergieron, una transacción sin vínculo inflaba el capital
+invertido en la gráfica pero era invisible en la lista, así que un duplicado no
+se podía ni encontrar ni borrar (FASE DC).
+
 ## Copy / texto visible — reglas del usuario
 
 - **PROHIBIDO el guión largo (—) en cualquier string visible de la UI** (decisión del usuario,

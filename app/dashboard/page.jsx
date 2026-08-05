@@ -262,7 +262,7 @@ export default function DashboardPage() {
     dataLoading,
     addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
     saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
-    addTransaction, deleteTransaction, deleteAllTransactions,
+    addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,
     addAlert, deleteAlert,
     addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution,
     addPortfolio, deletePortfolio,
@@ -1427,6 +1427,7 @@ export default function DashboardPage() {
           }}
           onAddTransaction={addTransaction}
           onDeleteTransaction={deleteTransaction}
+          onUpdateTransaction={updateTransaction}
           onExecuteContribution={executeContribution}
           onCreateDestination={addItem}
           transactions={transactions}

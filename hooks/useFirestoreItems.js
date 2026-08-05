@@ -466,6 +466,20 @@ export function useFirestoreItems() {
     await fs.deleteDoc(fs.doc(db, `users/${uid}/transactions`, txId))
   }, [uid])
 
+  // Patch an existing movement in place (fix a wrong date/amount, or attach a
+  // stray one to the account it belongs to via _linkedItemId). The doc id
+  // encodes date/symbol/type/amount purely as a dedupe key for AUTO-generated
+  // rows — the read path trusts the doc id and never re-derives it from the
+  // fields, so editing content without renaming the doc is safe and keeps the
+  // row's identity (and anything already pointing at it) intact.
+  const updateTransaction = useCallback(async (txId, fields) => {
+    if (!uid || !txId || !fields) return
+    const { db, fs } = await getFirebase()
+    const clean = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined))
+    if (Object.keys(clean).length === 0) return
+    await fs.updateDoc(fs.doc(db, `users/${uid}/transactions`, txId), clean)
+  }, [uid])
+
   const deleteAllTransactions = useCallback(async () => {
     if (!uid) return
     const { db, fs } = await getFirebase()
@@ -950,7 +964,7 @@ export function useFirestoreItems() {
     items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, loading,
     addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
     saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
-    addTransaction, deleteTransaction, deleteAllTransactions,
+    addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,
     addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     addAlert, deleteAlert, updateAlert,
     addLot, updateLot, closeLotsFIFO,
