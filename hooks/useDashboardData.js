@@ -1,52 +1,61 @@
+'use client'
+
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useAuth } from '@/components/AuthProvider'
 import { useFirestoreItems } from './useFirestoreItems'
 import { useMarketPrices } from './useMarketPrices'
 import { useExchangeRates } from './useExchangeRates'
 import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
-import { authFetch, safeJson } from '@/lib/authFetch'
-import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations, dedupeCalibrations } from '@/components/dashboard/utils'
-import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
-import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes } from '@/components/dashboard/analytics'
-import { checkPriceAlerts } from '@/lib/notifications'
+import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations, calibrationKindOf } from '@/components/dashboard/utils'
+import { computeHHI, computeAssetAttribution, generateInsights, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, filterValueSpikes, inferPeriodsPerYear, computeNetContributions } from '@/lib/analytics'
+import { authFetch } from '@/lib/authFetch'
+import { buildCashFlows, buildTxEvents } from '@/lib/portfolioRewind'
+import { ibkrSyncChanges } from '@/lib/ibkrSync'
+import { mergePortfolioHistoryResponse } from '@/lib/historicalValues'
+import { hasDividendInMonth } from '@/lib/autoDividends'
 
-// What changed since the previous sync. Because a wide Flex Query (Year to Date)
-// re-delivers the whole year every run and dedup collapses what we already have,
-// the growth of each total IS the new activity: new trades, new deposits/withdrawals,
-// new dividends, new costs. This is the auto-detection the sync already does, made
-// visible. Returns null on the first sync (no baseline) or when nothing is new.
-export function ibkrSyncChanges(prev, next) {
-  if (!prev || !next) return null
-  const d = (k) => Math.max(0, (next[k] || 0) - (prev[k] || 0))
-  const changes = { trades: d('trades'), flows: d('flows'), dividends: d('dividends'), fees: d('fees'), equityDays: d('equityDays') }
-  const any = changes.trades || changes.flows || changes.dividends || changes.fees || changes.equityDays
-  return any ? changes : null
-}
-
-export function useDashboardData({ user, lang, activePortfolio, activeEntity = '__all__' }) {
-  const firestoreData = useFirestoreItems()
+export function useDashboardData({ lang = 'es', baseCurrency = 'USD', activePortfolio = '__all__', activeEntity = '__all__' } = {}) {
+  const { user } = useAuth()
   const {
-    items, snapshots: rawSnapshots, transactions, goals, settings, profile,
-    loading: dataLoading, addItem, updateItem, deleteItem,
-    deleteAllItems, deleteItemGroup, saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
-    addTransaction, deleteTransaction, deleteAllTransactions,
-    alerts, addAlert, deleteAlert, updateAlert,
-    lots, addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution, bulkImport,
-    portfolios, addPortfolio, deletePortfolio,
-    financeTransactions, addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
+    items, snapshots: rawSnapshots, transactions, goals, settings, profile, alerts, lots, portfolios, financeTransactions, loading: dataLoading,
+    addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
+    saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
+    addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,
+    addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
+    addAlert, deleteAlert, updateAlert,
+    addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution,
+    addPortfolio, deletePortfolio,
+    bulkImport,
     saveGoals, saveSettings, saveProfile,
     saveItemSnapshots, loadItemSnapshots,
-  } = firestoreData
+  } = useFirestoreItems()
 
-  // Calibration anchors (global AND per-account) hold a SOLVED start value,
-  // not an observed NAV: they must never enter the NAV series (chart, dedup,
-  // backfill, scoped returns, risk metrics) or they read as real data — a
-  // global calibration used to sit in the series and the chart drew a flat
-  // straight line from the anchor to the first real datapoint. Every consumer
-  // below uses the filtered `snapshots` (real observations only); calibrations
-  // feed the returns math and the chart's estimated-prefix fit instead.
+  useEffect(() => { setBaseCurrency(baseCurrency); setUtilsLang(lang) }, [baseCurrency, lang])
+
+  // Entity-filtered transactions for scoped views
+  const entityTransactions = useMemo(() => {
+    if (!activeEntity || activeEntity === '__all__') return transactions
+    return (transactions || []).filter(t => (t.entityId || 'default') === activeEntity)
+  }, [transactions, activeEntity])
+
+  const entityFinanceTransactions = useMemo(() => {
+    if (!activeEntity || activeEntity === '__all__') return financeTransactions
+    return (financeTransactions || []).filter(t => (t.entityId || 'default') === activeEntity)
+  }, [financeTransactions, activeEntity])
+
+  // Calibration anchors (_calibrated, global or per-account) hold SOLVED start
+  // values, not observed NAV: they must never enter the NAV series (chart,
+  // dedup, backfill, scoped returns, daily-writer `alreadyExists`) or they draw
+  // as fake real points and block real snapshots from being written. Every
+  // consumer below uses the filtered `snapshots` (real data only); calibration
+  // math reads `calibrations` (global + per-account). A doc stamped by a REAL
+  // source (ibkr/daily/backfill) is real data even if a setDoc-merge left a
+  // stale _calibrated flag on it (legacy calibrations shared the plain date id
+  // with NAV docs): real data always wins.
+  const isCalibrationDoc = (s) => s && s._calibrated && s.date && (!s._source || s._source === 'manual')
   const calibrations = useMemo(
-    () => dedupeCalibrations((rawSnapshots || []).filter((s) => s && s._calibrated && s.date)),
+    () => (rawSnapshots || []).filter(isCalibrationDoc),
     [rawSnapshots]
   )
   const accountCalibrations = useMemo(
@@ -54,104 +63,78 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     [calibrations]
   )
   const snapshots = useMemo(
-    () => (rawSnapshots || []).filter((s) => s && !s._account && !s._calibrated),
+    () => (rawSnapshots || []).filter((s) => s && !s._account && !isCalibrationDoc(s)),
     [rawSnapshots]
   )
 
-  const baseCurrency = settings?.baseCurrency || 'USD'
+  // Use live enriched prices for manual items; IBKR positions keep their
+  // import-stamped prices (they're real broker marks, often fresher than Yahoo).
+  const portfolioItems = useMemo(() => items, [items])
 
-  useEffect(() => { setBaseCurrency(baseCurrency) }, [baseCurrency])
-  useEffect(() => { setUtilsLang(lang) }, [lang])
-
-  const { enrichedItems: rawEnriched, prices: marketPrices, loading: pricesLoading, error: pricesError, lastUpdate: pricesUpdate, refresh: refreshPrices } = useMarketPrices(items)
+  const marketItems = useMemo(
+    () => (items || []).filter(it => it._source !== 'ibkr'),
+    [items]
+  )
+  const { prices, loading: pricesLoading, error: pricesError, lastUpdate: pricesUpdate, refresh: refreshPrices } = useMarketPrices(marketItems)
   const { rates, convert, convertItemValue, loading: ratesLoading, error: ratesError, lastUpdate: ratesUpdate, refresh: refreshRates } = useExchangeRates(baseCurrency)
 
-  const alertsCheckedRef = useRef(null)
-  useEffect(() => {
-    if (settings?.notifPriceAlerts === false) return
-    if (!marketPrices || Object.keys(marketPrices).length === 0 || !alerts || alerts.length === 0) return
-    const key = pricesUpdate || Date.now()
-    if (alertsCheckedRef.current === key) return
-    alertsCheckedRef.current = key
-    checkPriceAlerts(alerts, marketPrices, (alertId) => {
-      updateAlert(alertId, { triggered: true, triggeredAt: new Date().toISOString() })
-    })
-  }, [marketPrices, alerts, pricesUpdate, updateAlert, settings?.notifPriceAlerts])
-
   const enrichedItems = useMemo(() => {
-    if (!rates) return rawEnriched
-    return rawEnriched.map((it) => {
-      const itemCurrency = it.marketCurrency || it.currency || 'USD'
-      const price = it.currentPrice || it.purchasePrice || it.price || it.cost || 0
-      const convertedPrice = convert(price, itemCurrency, baseCurrency)
-      const purchaseConverted = it.purchasePrice ? convert(it.purchasePrice, it.currency || 'USD', baseCurrency) : 0
-      return {
-        ...it,
-        currentPrice: convertedPrice,
-        purchasePrice: purchaseConverted != null ? purchaseConverted : it.purchasePrice,
-        _originalPrice: price,
-        _originalPurchasePrice: it.purchasePrice || 0,
-        _originalCurrency: itemCurrency,
-        _displayCurrency: baseCurrency,
+    return portfolioItems.map(it => {
+      const priceData = prices[it.symbol]
+      if (priceData && priceData.price > 0) {
+        const origCur = it._originalCurrency || it.currency || 'USD'
+        const converted = convert(priceData.price, 'USD', origCur)
+        return { ...it, currentPrice: converted, change1d: priceData.change1d ?? it.change1d }
       }
+      return it
     })
-  }, [rawEnriched, rates, convert, baseCurrency])
+  }, [portfolioItems, prices, convert])
 
-  const entityItems = useMemo(() => {
-    if (activeEntity === '__all__') return enrichedItems
-    return enrichedItems.filter((it) => (it.entityId || 'default') === activeEntity)
-  }, [enrichedItems, activeEntity])
-
-  const entityTransactions = useMemo(() => {
-    if (activeEntity === '__all__') return transactions
-    return transactions.filter((tx) => (tx.entityId || 'default') === activeEntity)
-  }, [transactions, activeEntity])
-
-  const entityFinanceTransactions = useMemo(() => {
-    if (activeEntity === '__all__') return financeTransactions
-    return financeTransactions.filter((tx) => (tx.entityId || 'default') === activeEntity)
-  }, [financeTransactions, activeEntity])
-
-  const portfolioItems = useMemo(() => {
-    if (activePortfolio === '__all__') return entityItems
-    return entityItems.filter((it) => (it.portfolioId || '__default__') === activePortfolio)
-  }, [entityItems, activePortfolio])
-
-  // Daily snapshot
-  const snapshotSavedRef = useRef(null)
+  // Daily snapshot writer: one NAV doc per day, written when the app has real
+  // prices loaded. Uses `snapshots` (already filtered) for the exists check.
+  const dailySnapRef = useRef(false)
   useEffect(() => {
-    const todayStr = new Date().toLocaleDateString('en-CA')
-    if (snapshotSavedRef.current === todayStr) return
+    if (dailySnapRef.current) return
     if (!user || dataLoading || pricesLoading || ratesLoading) return
     if (enrichedItems.length === 0) return
-    const alreadyExists = snapshots.some((s) => s.date === todayStr || s.id === todayStr)
-    if (alreadyExists) { snapshotSavedRef.current = todayStr; return }
-    let totalAssetsUSD = 0
-    let totalDebtUSD = 0
-    enrichedItems.forEach((it) => {
-      // Keep the snapshot baseline consistent with the live netWorth, which drops
-      // receivables the user excluded from net worth (otherwise daily change / returns
-      // would compare against a baseline that counts assets the headline does not).
-      if (isExcludedFromNetWorth(it)) return
-      const origPrice = it._originalPrice ?? it.currentPrice ?? it.purchasePrice ?? 0
-      const origCurrency = it._originalCurrency ?? baseCurrency ?? 'USD'
-      let value = (it.quantity || 0) * origPrice
-      value = convert ? convert(value, origCurrency, 'USD') : value
-      if (it.isDebt) totalDebtUSD += Math.abs(value)
-      else totalAssetsUSD += value
-    })
-    const netWorthUSD = totalAssetsUSD - totalDebtUSD
-    if (totalAssetsUSD > 0 || totalDebtUSD > 0) {
-      const { netContributions: totalContributedUSD } = computeNetContributions(transactions, convert, 'USD')
-      // _source:'daily' marks this as a FULL-portfolio snapshot (all enriched
-      // items) so other writers (IBKR sync = broker-only NAV) know not to
-      // overwrite it with a poorer value for the same date.
-      saveSnapshot({ date: todayStr, totalActivosUSD: totalAssetsUSD, totalDebtUSD, netWorthUSD, totalContributedUSD, rates: rates || {}, baseCurrency, _source: 'daily' })
-      snapshotSavedRef.current = todayStr
-    }
-  }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, snapshots, saveSnapshot, convert, baseCurrency, transactions])
+    dailySnapRef.current = true
+    let cancelled = false
+    ;(async () => {
+      try {
+        if (cancelled) return
+        const todayStr = new Date().toISOString().split('T')[0]
+        const alreadyExists = (snapshots || []).some(s => s.date === todayStr || s.id === todayStr)
+        if (alreadyExists) return
+        let totalActivosUSD = 0
+        let totalDebtUSD = 0
+        enrichedItems.forEach(it => {
+          if (isExcludedFromNetWorth(it)) return
+          const cur = it._originalCurrency || it.currency || 'USD'
+          const price = it._originalPrice ?? it.currentPrice ?? it.purchasePrice ?? 0
+          let v = (it.quantity || 0) * price
+          if (convert && cur !== 'USD') v = convert(v, cur, 'USD')
+          if (it.isDebt) totalDebtUSD += Math.abs(v)
+          else totalActivosUSD += v
+        })
+        if (!(totalActivosUSD > 0)) return
+        await saveSnapshot({
+          date: todayStr,
+          totalActivosUSD,
+          totalDebtUSD,
+          netWorthUSD: totalActivosUSD - totalDebtUSD,
+          _source: 'daily',
+        })
+      } catch (e) {
+        console.error('[daily-snapshot]', e?.message)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, snapshots, convert, saveSnapshot])
 
-  // Backfill missing snapshots for the last 30 days
+  // 30-day backfill of missing daily NAV docs via the portfolio-history engine
+  // (reconstructed, _source:'backfill'). Gaps are computed against `snapshots`
+  // (filtered): a calibration anchor sitting on a date must NOT block a real
+  // reconstruction for that date.
   const backfillRef = useRef(false)
   useEffect(() => {
     if (backfillRef.current) return
@@ -180,9 +163,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         const currentDebtUSD = enrichedItems.reduce((s, it) => {
           if (!it.isDebt) return s
           const cur = it._originalCurrency || it.currency || 'USD'
-          const v = (it.quantity || 0) * (it._originalPrice ?? it.currentPrice ?? it.purchasePrice ?? 0)
-          return s + Math.abs(convert ? convert(v, cur, 'USD') : v)
+          let v = (it.quantity || 0) * (it._originalPrice ?? it.currentPrice ?? it.purchasePrice ?? 0)
+          if (convert && cur !== 'USD') v = convert(v, cur, 'USD')
+          return s + Math.abs(v)
         }, 0)
+        const txEventsBySym = buildTxEvents(transactions)
         const res = await authFetch('/api/prices/portfolio-history', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -191,197 +176,86 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
               const cur = it._originalCurrency || it.currency || 'USD'
               const toUSD = (p) => convert ? convert(p || 0, cur, 'USD') : (p || 0)
               return {
+                id: it.id,
                 symbol: it.symbol, type: it.type, quantity: it.quantity,
                 currentPrice: toUSD(it._originalPrice ?? it.currentPrice),
                 purchasePrice: toUSD(it._originalPurchasePrice ?? it.purchasePrice),
-                currency: 'USD', acquisitionDate: it.acquisitionDate,
+                currency: 'USD',
+                acquisitionDate: it.acquisitionDate,
                 _holdFlat: shouldHoldFlat(it, transactions, lots),
+                txEvents: txEventsBySym[(it.symbol || '').toUpperCase()] || undefined,
               }
             }),
             lots: allLots.length > 0 ? allLots.map(l => ({
               symbol: l.symbol, quantity: l.quantity,
-              acquisitionDate: l.acquisitionDate, closedDate: l.closedDate || null,
+              acquisitionDate: l.acquisitionDate,
+              closedDate: l.closedDate || null,
             })) : undefined,
             period: '1M',
           }),
         })
-        if (!res.ok) return
-        const data = await safeJson(res)
+        if (!res.ok || cancelled) return
+        const data = await res.json()
         const pts = data.dataPoints || []
-        if (pts.length === 0) return
-        const gapSet = new Set(gaps)
-        for (const pt of pts) {
-          const dateStr = new Date(pt.ts).toISOString().split('T')[0]
-          if (!gapSet.has(dateStr) || pt.total <= 0) continue
-          gapSet.delete(dateStr)
+        const todayStr = new Date().toISOString().split('T')[0]
+        for (const dateStr of gaps) {
+          if (cancelled) return
+          if (dateStr >= todayStr) continue
+          const p = pts.find(x => x.date && x.date.slice(0, 10) === dateStr)
+          if (!p || !(p.total > 0)) continue
+          const totalActivosUSD = p.total - (p.debt || 0)
           await saveSnapshot({
             date: dateStr,
-            netWorthUSD: pt.total - currentDebtUSD,
-            totalActivosUSD: pt.total,
+            totalActivosUSD,
             totalDebtUSD: currentDebtUSD,
+            netWorthUSD: totalActivosUSD - currentDebtUSD,
             _source: 'backfill',
           })
         }
-      } catch (err) {
-        console.error('[backfill] Failed:', err.message)
+      } catch (e) {
+        console.error('[backfill]', e?.message)
       }
     }
     doBackfill()
     return () => { cancelled = true }
-  }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, snapshots, lots, transactions, saveSnapshot, convert])
+  }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, snapshots, lots, transactions, convert, saveSnapshot])
 
-  // Dividend processing
+  // Auto-dividend processor: credits scheduled income (coupons, dividends,
+  // interest) on their pay dates, as DIVIDEND transactions, once per day.
   const dividendsProcessedRef = useRef(null)
+  const addToDestination = useCallback(async (dest, amount, currency) => {
+    const qty = (dest.quantity || 0) + (currency === (dest._originalCurrency || dest.currency) ? amount : amount)
+    await updateItem(dest.id, { quantity: qty })
+  }, [updateItem])
+
   useEffect(() => {
-    const now = new Date()
-    const todayKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`
-    if (dividendsProcessedRef.current === todayKey) return
     if (!user || dataLoading || pricesLoading || ratesLoading) return
-    if (enrichedItems.length === 0) return
-    // Demo mode: never auto-generate real dividend transactions or credit
-    // balances from sample data (snapshot writers are vetoed at the data layer).
-    if (enrichedItems.some((it) => it._source === 'demo')) return
+    const todayKey = new Date().toISOString().split('T')[0]
+    if (dividendsProcessedRef.current === todayKey) return
+    if (!enrichedItems || enrichedItems.length === 0) return
+
     let cancelled = false
-
-    const scheduled = enrichedItems.filter((it) =>
-      (it.incomeAmount > 0 || it.incomeRate > 0 || (it.rateType === 'variable' && it.rateMin > 0) || it.rateType === 'continuous')
-    )
-    if (scheduled.length === 0) { dividendsProcessedRef.current = todayKey; return }
-
-    const todayDay = now.getUTCDate()
-    const currentMonth = now.getUTCMonth()
-
-    function getEffectivePayDay(payDay, businessDayRule) {
-      if (businessDayRule !== 'next_business_day') return payDay
-      const testDate = new Date(Date.UTC(now.getUTCFullYear(), currentMonth, payDay))
-      const dow = testDate.getUTCDay()
-      if (dow === 0) return payDay + 1
-      if (dow === 6) return payDay + 2
-      return payDay
-    }
-
-    async function addToDestination(dest, amount, sourceCurrency) {
-      const destCur = dest.currency || dest._originalCurrency || 'USD'
-      const converted = convert ? convert(amount, sourceCurrency, destCur) : amount
-      const cat = getTypeCategory(dest)
-      if (cat === 'stocks' || cat === 'crypto' || cat === 'funds') return
-      const oldBalance = (dest.quantity || 1) * (dest._originalPrice ?? dest.purchasePrice ?? 0)
-      const newBalance = oldBalance + converted
-      const qty = dest.quantity || 1
-      const newPrice = newBalance / qty
-      // Banks track their balance in purchasePrice; for bonds/alternatives purchasePrice
-      // is the cost basis and must survive income payments
-      const isBankDest = /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i.test(dest.type || '')
-      await updateItem(dest.id, isBankDest
-        ? { currentPrice: newPrice, purchasePrice: newPrice }
-        : { currentPrice: newPrice })
-    }
-
     async function processDividends() {
-      // Clean up stale auto-dividends so a previous schedule doesn't leave ghost
-      // payments behind (e.g. monthly dividends lingering after switching to a
-      // May+December schedule, which showed up as a staircase on the chart).
-      // Any deleted payment that had been credited to a destination account must
-      // also be reversed out of that account's balance — accumulate per
-      // destination and apply once so the balance lands on the right figure.
-      const destReversal = {}
-      const queueReversal = (it, tx) => {
-        if (!it.incomeDestination) return
-        const amt = Number(tx.totalAmount ?? tx.amount ?? 0)
-        if (!(amt > 0)) return
-        const key = it.incomeDestination
-        if (!destReversal[key]) destReversal[key] = { amount: 0, currency: tx.currency || it._originalCurrency || 'USD' }
-        destReversal[key].amount += amt
-      }
-      for (const it of scheduled) {
+      const now = new Date()
+      const curMonth = now.getUTCMonth()
+      const curYear = now.getUTCFullYear()
+      const todayDay = now.getUTCDate()
+      for (const it of enrichedItems) {
         if (cancelled) return
-        const sym = it.symbol || it.name
-        const autoDivs = transactions.filter(tx =>
-          tx._source === 'auto' &&
-          (tx.type || '').toUpperCase() === 'DIVIDEND' &&
-          (tx._linkedItemId === it.id || (!tx._linkedItemId && tx.symbol === sym))
-        )
-        if (it.incomeMonthsExplicit) {
-          // Explicit schedule: drop any auto-dividend whose month is no longer
-          // configured to pay, and de-duplicate within a configured month.
-          const payMonths = Array.isArray(it.incomeMonths) ? it.incomeMonths : []
-          const seen = new Set()
-          for (const tx of [...autoDivs].sort((a, b) => (a.date || '').localeCompare(b.date || ''))) {
-            if (!tx.date || !tx.id || !deleteTransaction) continue
-            const d = new Date(tx.date)
-            const key = `${d.getUTCFullYear()}-${d.getUTCMonth()}`
-            const inSchedule = payMonths.includes(d.getUTCMonth())
-            if (!inSchedule || seen.has(key)) {
-              queueReversal(it, tx)
-              await deleteTransaction(tx.id)
-            } else {
-              seen.add(key)
-            }
-          }
-        } else if (autoDivs.length > 1) {
-          // No explicit schedule: keep only the most recent auto-dividend.
-          const sorted = [...autoDivs].sort((a, b) => (b.date || '').localeCompare(a.date || ''))
-          for (let i = 1; i < sorted.length; i++) {
-            if (sorted[i].id && deleteTransaction) {
-              queueReversal(it, sorted[i])
-              await deleteTransaction(sorted[i].id)
-            }
-          }
-        }
-      }
-      // Apply each destination's total reversal once (reading its balance fresh).
-      for (const [destKey, rev] of Object.entries(destReversal)) {
-        if (cancelled) return
-        const dest = enrichedItems.find((d) => (d.id || d.symbol) === destKey)
-        if (dest && rev.amount > 0) {
-          try { await addToDestination(dest, -rev.amount, rev.currency) } catch (e) { console.error('[dividend-cleanup-reversal]', e.message) }
-        }
-      }
-
-      for (const it of scheduled) {
-        if (cancelled) return
-        const payMonths = Array.isArray(it.incomeMonths) ? it.incomeMonths : [0,1,2,3,4,5,6,7,8,9,10,11]
-        const canBackfill = it.incomeMonthsExplicit === true
-
-        const monthsToCheck = []
-        const acqDate = it.acquisitionDate ? new Date(it.acquisitionDate) : null
-        if (canBackfill) {
-          const lookbackMonths = acqDate
-            ? Math.min(24, Math.ceil((now.getTime() - acqDate.getTime()) / (30 * 86400000)))
-            : 3
-          for (let offset = lookbackMonths; offset >= 0; offset--) {
-            const checkDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - offset, 1))
-            const checkMonth = checkDate.getUTCMonth()
-            const checkYear = checkDate.getUTCFullYear()
-            if (acqDate && checkDate < new Date(Date.UTC(acqDate.getFullYear(), acqDate.getMonth(), 1))) continue
-            if (!payMonths.includes(checkMonth)) continue
-            const payDay = it.incomePayDay || 1
-            if (offset === 0 && todayDay < payDay) continue
-            const dateStr = `${checkYear}-${String(checkMonth + 1).padStart(2, '0')}-${String(payDay).padStart(2, '0')}`
-            monthsToCheck.push({ dateStr, month: checkMonth, year: checkYear })
-          }
-        } else {
-          // Without explicit months, only process current month
-          if (payMonths.includes(currentMonth)) {
-            const payDay = it.incomePayDay || 1
-            if (todayDay >= payDay) {
-              const dateStr = `${now.getUTCFullYear()}-${String(currentMonth + 1).padStart(2, '0')}-${String(payDay).padStart(2, '0')}`
-              monthsToCheck.push({ dateStr, month: currentMonth, year: now.getUTCFullYear() })
-            }
-          }
-        }
-
-        for (const { dateStr } of monthsToCheck) {
-          if (cancelled) return
-          // Dates the user explicitly said did NOT happen (asked at account
-          // creation, when the schedule implied a payment already due) —
-          // never fabricate history for those, however the schedule reads.
-          if (Array.isArray(it.excludedPayDates) && it.excludedPayDates.includes(dateStr)) continue
-          const alreadyProcessed = transactions.some((tx) =>
-            (tx.type || '').toUpperCase() === 'DIVIDEND' && tx.date === dateStr &&
-            (tx._linkedItemId === it.id || (!tx._linkedItemId && tx.symbol === (it.symbol || it.name)))
-          )
-          if (alreadyProcessed) continue
+        if (it._source === 'ibkr') continue
+        if (isExcludedFromNetWorth(it)) continue
+        const payMonths = Array.isArray(it.incomeMonths) && it.incomeMonths.length > 0 ? it.incomeMonths : null
+        if (!payMonths) continue
+        if (!payMonths.includes(curMonth)) continue
+        const payDay = it.incomePayDay || 1
+        if (todayDay < payDay) continue
+        const dateStr = `${curYear}-${String(curMonth + 1).padStart(2, '0')}-${String(Math.min(payDay, todayDay)).padStart(2, '0')}`
+        if (transactions.some(tx => tx._autoDividend === dateStr + ':' + it.id)) continue
+        // Matched by MONTH, not by exact date. The schedule pays on
+        // `incomePayDay` while a coupon recorded by hand carries the day it
+        // really landed, so an exact-date check saw no payment and wrote a
+        // second one, crediting the destination account twice for good.
+        if (hasDividendInMonth(transactions, it, dateStr)) continue
 
         try {
           const originalPrice = it._originalPrice || it.currentPrice || it.purchasePrice || 0
@@ -429,6 +303,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             currency: incomeCurrency,
             _source: 'auto',
             _linkedItemId: it.id,
+            _autoDividend: `${dateStr}:${it.id}`,
             ...(isReinvest ? { _reinvested: true } : {}),
           })
 
@@ -466,7 +341,6 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           }
         } catch (err) {
           console.error(`[dividends] Failed for ${it.symbol}:`, err.message)
-        }
         }
       }
     }
@@ -822,7 +696,6 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     [snapshots, portfolioItems, convert]
   )
   const latestSnapshot = augmentedSnapshots.length > 0 ? augmentedSnapshots[augmentedSnapshots.length - 1] : null
-  const prevSnapshot = augmentedSnapshots.length > 1 ? augmentedSnapshots[augmentedSnapshots.length - 2] : null
 
   const { totalFromItems, totalDebt: liveDebt } = useMemo(() => {
     let assets = 0, debt = 0
@@ -845,28 +718,30 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   )
   const netWorth = totalAssets - liveDebt
 
-  const dailyChange = useMemo(() => {
-    if (!prevSnapshot || netWorth <= 0) return null
-    const prevValue = convertSnapshot(prevSnapshot.netWorthUSD ?? prevSnapshot.totalActivosUSD ?? 0)
-    if (prevValue <= 0) return null
-    // Net out real money movements since the previous snapshot, same treatment
-    // as YTD/yearly Dietz: a deposit (e.g. a fresh statement import) landing
-    // today is new capital, not market gain. String-prefix date compare per
-    // house rule (new Date('YYYY-MM-DD') runs the day in UTC-6).
-    const prevDate = prevSnapshot.date || ''
-    let netFlow = 0
-    ;(transactions || []).forEach((tx) => {
-      if (!tx.date || tx.date <= prevDate) return
-      const type = (tx.type || '').toUpperCase()
-      if (type !== 'DEPOSIT' && type !== 'WITHDRAWAL') return
-      const amt = Number(tx.totalAmount ?? tx.amount ?? 0)
-      const converted = convert ? convert(amt, tx.currency || 'USD', baseCurrency || 'USD') : amt
-      netFlow += type === 'DEPOSIT' ? converted : -converted
-    })
-    const abs = netWorth - prevValue - netFlow
-    const pct = (abs / prevValue) * 100
-    return { abs, pct }
-  }, [prevSnapshot, netWorth, convertSnapshot, transactions, convert, baseCurrency])
+  // "HOY" = what TODAY did, built from today's own events instead of a
+  // snapshot-to-snapshot diff.
+  //
+  // The old version was `netWorth - prevSnapshot - netFlowsSincePrevSnapshot`,
+  // which quietly turned bookkeeping into profit: entering a position you have
+  // held since January (or backfilling its history) makes today's net worth
+  // jump by the whole balance while yesterday's snapshot knows nothing about
+  // it, and the flow-netting missed it because the deposit is DATED in January,
+  // not today. A $6,000 bond typed in this afternoon read as "+$6,119.62 today
+  // (+60.94%)" while the movers list right below it added up to about $58.
+  //
+  // Today's real change has exactly two parts:
+  //   1. Prices that moved today: Σ value × change1d (the same numbers the
+  //      "biggest movers" list shows, so the card finally agrees with itself).
+  //   2. Income that LANDED today: a coupon or dividend credited today is a
+  //      genuine gain on its payment date, and only on that date. VITALI's $240
+  //      belongs to May 15 and to December 15, never to whatever day it happens
+  //      to get typed in.
+  // New capital never appears in either, so a deposit can't masquerade as gain.
+  // The math itself is a pure helper (computeDayChange) so it can be tested.
+  const dailyChange = useMemo(
+    () => computeDayChange({ items: portfolioItems, transactions, netWorth, convert, baseCurrency }),
+    [netWorth, portfolioItems, transactions, convert, baseCurrency]
+  )
 
   const yearlyChange = useMemo(() => {
     if (augmentedSnapshots.length < 2) return null
@@ -887,6 +762,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // imported deposits/buys/sells): that baseline reflects real flow timing, so the
   // YTD Dietz must net the flows like it would against a real snapshot anchor.
   const [jan1Transactional, setJan1Transactional] = useState(false)
+  // Per-holding value at the first and last point of the YTD series, straight
+  // from the same engine that produced jan1Value. Feeds the "what drove my YTD"
+  // breakdown, so the parts are guaranteed to reconcile with the headline.
+  const [ytdEndpoints, setYtdEndpoints] = useState(null)
   useEffect(() => {
     if (!enrichedItems || enrichedItems.length === 0) return
     let cancelled = false
@@ -923,6 +802,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
               const cur = it._originalCurrency || it.currency || 'USD'
               const toUSD = (p) => convert ? convert(p || 0, cur, 'USD') : (p || 0)
               return {
+                id: it.id,
                 symbol: it.symbol, type: it.type, quantity: it.quantity,
                 currentPrice: toUSD(it._originalPrice ?? it.currentPrice),
                 purchasePrice: toUSD(it._originalPurchasePrice ?? it.purchasePrice),
@@ -939,10 +819,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
               closedDate: l.closedDate || null,
             })) : undefined,
             period: 'YTD',
+            breakdown: true,
           }),
         })
         if (!res.ok || cancelled) return
-        const data = await safeJson(res)
+        const data = await res.json()
         const pts = data.dataPoints || []
         if (pts.length > 0) {
           const firstReal = pts.find(p => p.total > 0)
@@ -952,6 +833,15 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
               : firstReal.total
             setJan1Value(val)
             setJan1Transactional(!!data.transactional)
+          }
+          const withKeys = pts.filter((p) => p.byKey)
+          if (!cancelled && withKeys.length >= 2) {
+            const toBase = (v) => (baseCurrency !== 'USD' && convert) ? convert(v, 'USD', baseCurrency) : v
+            const scale = (obj) => Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, toBase(v)]))
+            setYtdEndpoints({
+              start: scale(withKeys[0].byKey),
+              end: scale(withKeys[withKeys.length - 1].byKey),
+            })
           }
         }
       } catch {}
@@ -979,20 +869,23 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const year = new Date().getUTCFullYear()
     const yearStartTs = Date.UTC(year, 0, 1)
     const todayStr = new Date().toISOString().split('T')[0]
-    // Only THIS year's ytd calibrations: a calibration captured last year keeps
-    // its Jan-1-of-last-year anchor and must not leak into the current year.
-    const ytdCals = accountCalibrations.filter((c) => c._calibrationKind === 'ytd' && c.date <= todayStr && c.date.slice(0, 4) === String(year))
-    const allCals = accountCalibrations.filter((c) => c._calibrationKind === 'all' && c.date <= todayStr)
-    // Global (whole-portfolio) calibrated anchors now live in `calibrations`,
-    // not in the NAV series. They outrank a reconstruction (jan1Value) but
-    // never a REAL observation of the year start.
-    const globalYtdCal = calibrations.filter((c) => !c._account && c._calibrationKind === 'ytd' && c.date <= todayStr && c.date.slice(0, 4) === String(year))
-      .sort((a, b) => String(b.capturedAt || b.createdAt || '').localeCompare(String(a.capturedAt || a.createdAt || '')))[0]
+    const ytdCals = accountCalibrations.filter((c) => calibrationKindOf(c) === 'ytd' && c.date <= todayStr)
+    const allCals = accountCalibrations.filter((c) => calibrationKindOf(c) === 'all' && c.date <= todayStr)
+    // Global (whole-portfolio) calibrations anchor directly with their solved
+    // netWorthUSD; latest capture wins when several exist for the same window.
+    const pickLatest = (list) => [...list].sort((a, b) =>
+      String(a.capturedAt || a.createdAt || '').localeCompare(String(b.capturedAt || b.createdAt || ''))
+    ).pop() || null
+    const globalYtdCal = pickLatest((calibrations || []).filter((c) =>
+      !c._account && calibrationKindOf(c) === 'ytd' && c.date <= todayStr && c.date.slice(0, 4) === String(year)))
+    const globalAllCal = pickLatest((calibrations || []).filter((c) =>
+      !c._account && calibrationKindOf(c) === 'all' && c.date <= todayStr))
     const toUSD = (v) => convert(v, baseCurrency, 'USD')
     let startVal = null
     let flowAware = false
     let anchorUSD = null
     let anchorCalibrated = false
+    let anchorIsReal = false
     if (augmentedSnapshots.length >= 2) {
       // Shared anchor (also used by the chart's YTD starting point) so the
       // Dietz badge and the chart never start the year from different values.
@@ -1001,13 +894,14 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         anchorUSD = bestSnap.netWorthUSD ?? bestSnap.totalActivosUSD ?? 0
         startVal = convertSnapshot(anchorUSD)
         flowAware = REAL_SNAPSHOT_SOURCES.includes(bestSnap._source)
-        anchorCalibrated = !!bestSnap._calibrated
+        anchorIsReal = flowAware
       }
     }
-    if ((startVal == null || startVal <= 0) && globalYtdCal && isFinite(globalYtdCal.netWorthUSD) && globalYtdCal.netWorthUSD > 0) {
-      // Calibrated global anchor: the start value was solved against the FULL
-      // flow set, so the roll-forward Dietz must net the same flows (flowAware)
-      // for the displayed % to keep matching the broker's number day to day.
+    // A global YTD calibration replaces a RECONSTRUCTED year-start baseline,
+    // never a real observation: real data always wins. flowAware stays true
+    // because the start value was solved WITH the full flows (forward Dietz
+    // must use the same flows to reproduce the typed % and roll forward).
+    if (!anchorIsReal && globalYtdCal && isFinite(globalYtdCal.netWorthUSD) && globalYtdCal.netWorthUSD > 0) {
       anchorUSD = globalYtdCal.netWorthUSD
       startVal = convertSnapshot(anchorUSD)
       flowAware = true
@@ -1038,57 +932,54 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
     let returnSinceStart = null
     let sinceStartDate = null
-    // Since-inception anchor candidates: the first REAL observation, and the
-    // global 'all' calibration pinned at the account opening date. The earlier
-    // of the two wins: a calibration reaches back past the first real datapoint
-    // (that is exactly what it is for), but never overrides real data at or
-    // before its own date.
-    const globalAllCal = calibrations.filter((c) => !c._account && c._calibrationKind === 'all' && c.date <= todayStr)
-      .sort((a, b) => String(b.capturedAt || b.createdAt || '').localeCompare(String(a.capturedAt || a.createdAt || '')))[0]
-    if ((startVal == null || startVal <= 0) && (augmentedSnapshots.length >= 2 || globalAllCal)) {
-      const sorted = [...augmentedSnapshots]
-        .filter(s => s.date)
-        .sort((a, b) => new Date(a.date) - new Date(b.date))
+    if (startVal == null || startVal <= 0) {
+      // The first-snapshot anchor keeps the original >= 2 real docs gate; the
+      // calibrated anchor does not need it (the solve already fixed its date).
+      const hasSnapshotAnchor = augmentedSnapshots.length >= 2
+      const sorted = hasSnapshotAnchor
+        ? [...augmentedSnapshots].filter(s => s.date).sort((a, b) => new Date(a.date) - new Date(b.date))
+        : []
       const first = sorted.find(s => (s.netWorthUSD ?? s.totalActivosUSD ?? 0) > 0)
-      let anchor = first
-        ? { date: first.date, usd: first.netWorthUSD ?? first.totalActivosUSD ?? 0, flowAware: REAL_SNAPSHOT_SOURCES.includes(first._source) }
-        : null
+      const firstIsReal = !!first && REAL_SNAPSHOT_SOURCES.includes(first._source)
+      // Anchor: the global since-inception calibration when it predates (or
+      // there is no) real data; otherwise the first real/reconstructed snapshot.
+      let anchorDate = first ? first.date : null
+      let anchorValueUSD = first ? (first.netWorthUSD ?? first.totalActivosUSD ?? 0) : null
+      let anchorFlowAware = firstIsReal
       if (globalAllCal && isFinite(globalAllCal.netWorthUSD) && globalAllCal.netWorthUSD > 0
-        && (!anchor || globalAllCal.date < anchor.date)) {
-        // Same flow rule as the ytd calibrated anchor: solved against the full
-        // flow set, so roll-forward nets the full flow set too.
-        anchor = { date: globalAllCal.date, usd: globalAllCal.netWorthUSD, flowAware: true }
+        && (!firstIsReal || globalAllCal.date <= anchorDate)) {
+        anchorDate = globalAllCal.date
+        anchorValueUSD = globalAllCal.netWorthUSD
+        anchorFlowAware = true
       }
-      if (anchor) {
-        const firstUSD = anchor.usd
-        let firstVal = convertSnapshot(firstUSD)
-        let firstFlowAware = anchor.flowAware
+      if (anchorDate && anchorValueUSD > 0 && netWorth > 0) {
+        let firstVal = convertSnapshot(anchorValueUSD)
         // Same per-account swap for the since-inception anchor.
-        const cals = allCals.filter((c) => c.date <= anchor.date)
+        const cals = allCals.filter((c) => c.date <= anchorDate)
         if (cals.length > 0) {
           const combined = combineAccountCalibrations({
-            baseValueUSD: firstUSD > 0 ? firstUSD : null,
-            anchorTs: new Date(anchor.date).getTime(),
+            baseValueUSD: anchorValueUSD > 0 ? anchorValueUSD : null,
+            anchorTs: new Date(anchorDate).getTime(),
             calibrations: cals, items: portfolioItems, convert,
           })
           if (combined && isFinite(combined.startValueUSD) && combined.startValueUSD > 0) {
             firstVal = convertSnapshot(combined.startValueUSD)
-            firstFlowAware = true
+            anchorFlowAware = true
           }
         }
-        if (firstVal > 0 && netWorth > 0) {
-          const firstTs = new Date(anchor.date).getTime()
-          const { pct, abs } = computeModifiedDietz({
+        if (firstVal > 0) {
+          const firstTs = new Date(anchorDate).getTime()
+          const { pct } = computeModifiedDietz({
             startValue: firstVal, endValue: netWorth,
             startTs: firstTs, endTs: Date.now(),
-            transactions: firstFlowAware ? transactions : dietzTransactions,
+            transactions: anchorFlowAware ? transactions : dietzTransactions,
             convert, baseCurrency,
           })
           returnSinceStart = Math.max(-200, Math.min(200, pct))
-          sinceStartDate = anchor.date
+          sinceStartDate = anchorDate
           if (startVal == null || startVal <= 0) {
             startVal = firstVal
-            flowAware = firstFlowAware
+            flowAware = anchorFlowAware
           }
         }
       }
@@ -1105,6 +996,89 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     return { returnYTD: clampedPct, ytdChange: abs, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated }
   }, [jan1Value, jan1Transactional, netWorth, transactions, dietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot, calibrations, accountCalibrations, portfolioItems])
 
+  // "What is actually driving my YTD" — the number broken into the holdings and
+  // institutions behind it, so the headline stops being a figure you have to
+  // take on faith.
+  //
+  // Per position: gain = (value today − value on Jan 1) − money you moved in or
+  // out of it this year. The endpoint values come from the same reconstruction
+  // that produced jan1Value, so the parts and the headline are the same engine.
+  // Netting the flows is the non-negotiable half: without it, funding an account
+  // in March reads as a March profit (the mistake this whole card kept making).
+  //
+  // Income paid OUT as cash (a coupon routed to another account) shows up on the
+  // account that received it, not the asset that generated it. At institution
+  // level (the default view) both usually sit under the same roof, so it nets
+  // out; the InfoTip says so for the case where they don't.
+  const ytdBreakdown = useMemo(() => {
+    if (!ytdEndpoints) return null
+    const { start, end } = ytdEndpoints
+    const year = new Date().getFullYear()
+    const yearPrefix = `${year}-`
+
+    // Net external money per item this year, matched the same way everything
+    // else matches transactions to positions: link id first, symbol as fallback.
+    const flowByKey = {}
+    ;(transactions || []).forEach((tx) => {
+      const type = (tx.type || '').toUpperCase()
+      if (type !== 'DEPOSIT' && type !== 'WITHDRAWAL') return
+      if (!tx.date || !String(tx.date).startsWith(yearPrefix)) return
+      const key = tx._linkedItemId || (tx.symbol || '').toUpperCase()
+      if (!key) return
+      const amt = Math.abs(Number(tx.totalAmount ?? tx.amount ?? 0))
+      if (!isFinite(amt)) return
+      const inBase = convert ? convert(amt, tx.currency || 'USD', baseCurrency || 'USD') : amt
+      flowByKey[key] = (flowByKey[key] || 0) + (type === 'DEPOSIT' ? inBase : -inBase)
+    })
+
+    const keys = new Set([...Object.keys(start), ...Object.keys(end)])
+    const rows = []
+    keys.forEach((k) => {
+      const matched = (portfolioItems || []).filter(
+        (it) => it.id === k || (it.symbol || '').toUpperCase() === k
+      )
+      if (matched.length === 0) return
+      const startVal = start[k] || 0
+      const endVal = end[k] || 0
+      // A key can be an item id OR an aggregated symbol; collect the flows of
+      // every item folded into it, plus the flows filed under the symbol itself.
+      let flow = flowByKey[k] || 0
+      matched.forEach((it) => {
+        if (it.id !== k) flow += flowByKey[it.id] || 0
+      })
+      const label = matched[0].name || matched[0].symbol || k
+      rows.push({
+        key, label,
+        institution: matched[0].institution || null,
+        startVal, endVal, flow,
+        gain: endVal - startVal - flow,
+      })
+    })
+    if (rows.length === 0) return null
+
+    const totalGain = rows.reduce((s, r) => s + r.gain, 0)
+    const byInstitution = {}
+    rows.forEach((r) => {
+      const key = r.institution || '__none__'
+      if (!byInstitution[key]) byInstitution[key] = { key, institution: r.institution, gain: 0, endVal: 0, holdings: [] }
+      byInstitution[key].gain += r.gain
+      byInstitution[key].endVal += r.endVal
+      byInstitution[key].holdings.push(r)
+    })
+    const groups = Object.values(byInstitution)
+      .map((g) => ({
+        ...g,
+        share: totalGain !== 0 ? (g.gain / totalGain) * 100 : null,
+        holdings: g.holdings
+          .filter((h) => Math.abs(h.gain) > 0.005)
+          .sort((a, b) => Math.abs(b.gain) - Math.abs(a.gain)),
+      }))
+      .filter((g) => Math.abs(g.gain) > 0.005)
+      .sort((a, b) => Math.abs(b.gain) - Math.abs(a.gain))
+    if (groups.length === 0) return null
+    return { groups, totalGain }
+  }, [ytdEndpoints, portfolioItems, transactions, convert, baseCurrency])
+
   // Month-to-date return (Modified Dietz) — the "how are we doing THIS month"
   // number for the Friends monthly leaderboard. Same shape as YTD, anchored to
   // the prior month-end snapshot; null when there's no reliable month anchor.
@@ -1113,34 +1087,37 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const year = now.getUTCFullYear()
     const month = now.getUTCMonth()
     if (netWorth <= 0) return null
-    const todayStr = now.toISOString().split('T')[0]
-    const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`
     const anchor = findMonthStartAnchor(augmentedSnapshots, year, month)
+    const anchorIsReal = !!anchor && REAL_SNAPSHOT_SOURCES.includes(anchor._source)
     let startVal = anchor ? convertSnapshot(anchor.netWorthUSD ?? anchor.totalActivosUSD ?? 0) : null
-    let flowAware = anchor ? REAL_SNAPSHOT_SOURCES.includes(anchor._source) : false
-    // Global 'mtd' calibration anchors this month when no real observation
-    // does (same rule as YTD: calibrated beats reconstructed, never real).
-    if (startVal == null || startVal <= 0) {
-      const mtdCal = calibrations.filter((c) => !c._account && c._calibrationKind === 'mtd'
-        && c.date <= todayStr && c.date.slice(0, 7) === monthKey)
-        .sort((a, b) => String(b.capturedAt || b.createdAt || '').localeCompare(String(a.capturedAt || a.createdAt || '')))[0]
-      if (mtdCal && isFinite(mtdCal.netWorthUSD) && mtdCal.netWorthUSD > 0) {
-        startVal = convertSnapshot(mtdCal.netWorthUSD)
+    let flowAware = anchorIsReal
+    // Calibrated MTD anchors (from `calibrations`, never the NAV series) replace
+    // a missing/reconstructed month baseline, never a real observation. Global
+    // anchors directly; per-account via combineAccountCalibrations over it.
+    if (!anchorIsReal) {
+      const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`
+      const mtdCals = (calibrations || []).filter((c) =>
+        c && calibrationKindOf(c) === 'mtd' && (c.date || '').slice(0, 7) === monthPrefix
+        && isFinite(c.netWorthUSD) && c.netWorthUSD > 0)
+      const globalMtdCal = [...mtdCals.filter((c) => !c._account)].sort((a, b) =>
+        String(a.capturedAt || a.createdAt || '').localeCompare(String(b.capturedAt || b.createdAt || ''))
+      ).pop() || null
+      let baseUSD = null
+      if (globalMtdCal) {
+        baseUSD = globalMtdCal.netWorthUSD
+        startVal = convertSnapshot(baseUSD)
         flowAware = true
       }
-    }
-    // Per-account mtd calibrations: same swap as the YTD path.
-    const mtdCals = calibrations.filter((c) => c._account && c._calibrationKind === 'mtd'
-      && c.date <= todayStr && c.date.slice(0, 7) === monthKey)
-    if (mtdCals.length > 0) {
-      const baseUSD = startVal != null && startVal > 0 ? convert(startVal, baseCurrency, 'USD') : null
-      const combined = combineAccountCalibrations({
-        baseValueUSD: baseUSD, anchorTs: Date.UTC(year, month, 1),
-        calibrations: mtdCals, items: portfolioItems, convert,
-      })
-      if (combined && isFinite(combined.startValueUSD) && combined.startValueUSD > 0) {
-        startVal = convertSnapshot(combined.startValueUSD)
-        flowAware = true
+      const accountMtdCals = mtdCals.filter((c) => c._account)
+      if (accountMtdCals.length > 0) {
+        const combined = combineAccountCalibrations({
+          baseValueUSD: baseUSD, anchorTs: Date.UTC(year, month, 1),
+          calibrations: accountMtdCals, items: portfolioItems, convert,
+        })
+        if (combined && isFinite(combined.startValueUSD) && combined.startValueUSD > 0) {
+          startVal = convertSnapshot(combined.startValueUSD)
+          flowAware = true
+        }
       }
     }
     if (startVal == null || startVal <= 0) return null
@@ -1324,7 +1301,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // Firestore actions
     addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
     saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
-    addTransaction, deleteTransaction, deleteAllTransactions,
+    addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,
     addAlert, deleteAlert, updateAlert,
     addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution,
     addPortfolio, deletePortfolio,
@@ -1342,7 +1319,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
     // Computed values
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
-    returnYTD, ytdChange, returnSinceStart, sinceStartDate, returnMTD, ytdCalibrated,
+    returnYTD, ytdChange, returnSinceStart, sinceStartDate, returnMTD, ytdCalibrated, ytdBreakdown,
     ibkrReturnYTD: ibkrReturns.ytd, ibkrReturnMTD: ibkrReturns.mtd, ibkrDayChange: ibkrReturns.day,
     annualDividends, estimatedAnnualIncome,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
