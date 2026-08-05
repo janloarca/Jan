@@ -93,7 +93,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const [staticPoints, setStaticPoints] = useState([])
   const [viewMode, setViewMode] = useState('value')
   const [benchmarkPts, setBenchmarkPts] = useState(null)
-  const [showContributions, setShowContributions] = useState(true)
+  // Opt-in, not opt-on: a second dashed line that diverges sharply from the
+  // value line (money invested vs. what it's worth today) reads as a stray
+  // rendering glitch to someone who hasn't been told what it means. Showing
+  // it by default put that on every user on every load; the toggle is one tap
+  // away for whoever wants the comparison.
+  const [showContributions, setShowContributions] = useState(false)
   const [customRange, setCustomRange] = useState({ from: '', to: '' })
   const [showCustomRange, setShowCustomRange] = useState(false)
   const [showSnapshotImport, setShowSnapshotImport] = useState(false)
@@ -1196,7 +1201,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
             <button onClick={() => setShowContributions(!showContributions)}
               className="px-2 py-1 text-xs font-medium rounded-md transition-all"
               style={showContributions ? { backgroundColor: 'var(--accent-blue)', color: '#fff' } : { color: 'var(--text-muted)' }}
-              title={t('Mostrar/ocultar capital invertido', 'Show/hide invested capital')}>
+              title={t('Compara con cuánto dinero has puesto en total (línea punteada), aparte de cuánto vale hoy', 'Compares against how much money you\'ve put in total (dotted line), separate from what it\'s worth today')}>
               {t('Invertido', 'Invested')}
             </button>
           )}
@@ -1672,7 +1677,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           {showContributions && contributionLine && (
             <span className="flex items-center gap-1.5">
               <span className="w-3 h-0.5 rounded-full inline-block opacity-50" style={{ backgroundColor: 'var(--text-muted)', borderBottom: '1px dashed' }} />
-              {t('Capital invertido', 'Invested capital')}
+              {t('Capital invertido (lo que has puesto, no lo que vale)', 'Invested capital (what you\'ve put in, not what it\'s worth)')}
             </span>
           )}
           {/* The floor triangles were never explained anywhere */}

@@ -1426,6 +1426,7 @@ export default function DashboardPage() {
             showToast(lang === 'es' ? 'Activo eliminado' : 'Asset deleted')
           }}
           onAddTransaction={addTransaction}
+          onDeleteTransaction={deleteTransaction}
           onExecuteContribution={executeContribution}
           onCreateDestination={addItem}
           transactions={transactions}

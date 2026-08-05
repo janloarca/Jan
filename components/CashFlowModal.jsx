@@ -80,6 +80,10 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
   }
 
   const submit = async (keepOpen) => {
+    // Guard against a double-tap/double-click firing two submits before the
+    // button's `disabled={saving}` state re-renders — the real cause of a
+    // "×2" duplicate deposit marker on the chart from what was one click.
+    if (saving) return false
     const num = parseFloat(amount)
     if (!num || num <= 0) return false
     if (!date) { setError(t('Elige la fecha del movimiento.', 'Pick the movement date.')); return false }

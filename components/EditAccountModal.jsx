@@ -43,7 +43,7 @@ function InfoTip({ text }) {
   )
 }
 
-export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es', allItems, onNavigate, onAddTransaction, transactions, onExecuteContribution, onCreateDestination, baseCurrency, entities = [] }) {
+export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es', allItems, onNavigate, onAddTransaction, onDeleteTransaction, transactions, onExecuteContribution, onCreateDestination, baseCurrency, entities = [] }) {
   const trapRef = useFocusTrap()
   const [creatingDest, setCreatingDest] = useState(false)
   const [extraItems, setExtraItems] = useState([])
@@ -109,6 +109,23 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
+  // Same tap-to-confirm pattern as deleting the whole account, but scoped to
+  // one row: a duplicate (e.g. a double-submitted backfill) needs a way to
+  // remove just that one movement without leaving the modal.
+  const [confirmDeleteTxId, setConfirmDeleteTxId] = useState(null)
+  const [deletingTxId, setDeletingTxId] = useState(null)
+  const handleDeleteTx = async (tx) => {
+    if (confirmDeleteTxId !== tx.id) { setConfirmDeleteTxId(tx.id); return }
+    if (!onDeleteTransaction) return
+    setDeletingTxId(tx.id)
+    try {
+      await onDeleteTransaction(tx.id)
+    } catch (e) {
+      setError(e.message || t('No se pudo borrar el movimiento', 'Could not delete the movement'))
+    }
+    setConfirmDeleteTxId(null)
+    setDeletingTxId(null)
+  }
   // Direct balance/quantity edits change NAV without a cash-flow transaction, which
   // the return math (Modified Dietz) would read as pure gain. When a save changes the
   // item's value we ask whether it's new money (→ DEPOSIT/WITHDRAWAL) or a value
@@ -645,15 +662,26 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                       // value; showing the dividend red/negative here read as
                       // "VITALI lost $240" when its own value never changed.
                       const isPositive = tx.type === 'DEPOSIT' || tx.type === 'DIVIDEND'
+                      const confirming = confirmDeleteTxId === tx.id
                       return (
-                        <div key={tx.id} className="flex items-center justify-between text-xs py-1 border-b border-[var(--card-border,#38383A)]/30 last:border-0">
+                        <div key={tx.id} className="flex items-center justify-between gap-2 text-xs py-1 border-b border-[var(--card-border,#38383A)]/30 last:border-0">
                           <span style={{ color: 'var(--text-muted)' }}>{tx.date}</span>
-                          <div className="text-right">
+                          <div className="text-right min-w-0">
                             <span style={{ color: isPositive ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                               {isPositive ? '+' : '-'}{tx.currency || form.currency} {(tx.totalAmount || 0).toLocaleString()}
                             </span>
                             {tx.description && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{tx.description}</p>}
                           </div>
+                          {onDeleteTransaction && (
+                            <button type="button" onClick={() => handleDeleteTx(tx)} disabled={deletingTxId === tx.id}
+                              className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors disabled:opacity-50"
+                              style={confirming
+                                ? { color: '#ffffff', backgroundColor: 'var(--text-negative)', borderColor: 'var(--text-negative)' }
+                                : { color: 'var(--text-muted)', borderColor: 'var(--card-border,#38383A)' }}
+                              title={t('Borrar este movimiento (ej. un duplicado)', 'Delete this movement (e.g. a duplicate)')}>
+                              {deletingTxId === tx.id ? '...' : confirming ? t('Confirmar', 'Confirm') : t('Borrar', 'Delete')}
+                            </button>
+                          )}
                         </div>
                       )
                     })}
