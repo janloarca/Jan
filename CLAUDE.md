@@ -323,6 +323,25 @@ lo que sobre se agrupa en un "Otros" neutro.
   el memo de retornos ya los aplica y aplicarlos dos veces cuenta la corrección doble.
   Un ancla nunca pisa una observación real de esa fecha.
 
+### El checklist post-conexión (FASE DN)
+- Conectar ya no es el final del flujo: `lib/brokerCompletion.js` define, por broker,
+  los pasos para llegar al 100% de historial. Solo IBKR tiene los cuatro reales
+  (conectar → subir años anteriores → transcribir trimestres → copiar retornos);
+  el resto cae al fallback genérico (un solo paso: el que tenga en `brokerHowTo.js`,
+  api primero). Ningún paso es obligatorio, es un nudge con checkmarks, no un gate.
+- `done`/`skippable` son funciones puras sobre un objeto de estado
+  (`ibkrConnected`, `ibkrSnapshotSpanDays`, `hasQuarterlyHistory`,
+  `hasIbkrCalibration`, `earliestNeededDays`), no leen Firestore directo: así el
+  modal y cualquier badge futuro (ej. un contador en el pill del header) están
+  garantizados a coincidir.
+- **Se abre solo, una vez, en la conexión real.** `IBKRSyncModal` se usa tanto para
+  conectar por primera vez como para re-sincronizar; el dashboard captura
+  `ibkrConnected` en un ref al ABRIR el modal y compara al CERRARLO
+  (`ibkrWasConnectedRef`). Sin esa comparación, cada sync rutinario reabriría el
+  checklist encima del usuario. También queda alcanzable después, sin depender de
+  ese momento: un link en `ConnectionsModal` ("Completar historial") y un botón en
+  "Completar información" (`EnrichModal`) abren el mismo modal.
+
 ### Credenciales IBKR: DOS almacenes que deben mantenerse sincronizados (FASE AF)
 - Hay dos almacenes: (a) el **vault del servidor** (`users/{uid}/settings/ibkr`, token encriptado)
   vía `/api/brokers/ibkr` `save/get-credentials`; (b) el **doc `settings` del cliente**
