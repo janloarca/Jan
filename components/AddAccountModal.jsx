@@ -98,7 +98,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     interestRate: '', minimumPayment: '',
     debtTerm: '', installmentsTotal: '', installmentsRemaining: '', monthlyPayment: '',
     cardBrand: '', rewardType: '', rewardRate: '', rewardBalance: '',
-    entryFee: '', managementFee: '', managementFeeType: 'percent', expenseRatio: '',
+    entryFee: '', entryFeeMode: 'separate', managementFee: '', managementFeeType: 'percent', expenseRatio: '',
     accruedInterestAtPurchase: '',
   })
   const [isNewMoney, setIsNewMoney] = useState(true)
@@ -424,7 +424,10 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
       // Costs — entry commission (one-time), management fee (recurring, nets
       // out of future income), expense ratio. Same fields EditAccountModal
       // already collects; only missing here at creation time.
-      if (form.entryFee) item.entryFee = parseFloat(form.entryFee) || 0
+      if (form.entryFee) {
+        item.entryFee = parseFloat(form.entryFee) || 0
+        item.entryFeeMode = form.entryFeeMode || 'separate'
+      }
       if (form.managementFee) {
         item.managementFee = parseFloat(form.managementFee) || 0
         item.managementFeeType = form.managementFeeType || 'percent'
@@ -587,7 +590,12 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
         // calc sees "you put in 6098, the bond is worth 6000" and starts $98
         // down from day one, using the existing Modified Dietz math untouched
         // (deposits already net out of gain; no separate fee-aware code path).
-        const feeOnEntry = isMerge ? 0 : (parseFloat(form.entryFee) || 0)
+        // 'deducted' means the fee came OUT of the amount typed, so the cash
+        // that left the pocket is already that amount: adding it again would
+        // overstate the deposit (and understate every return measured against it).
+        const feeOnEntry = (isMerge || form.entryFeeMode === 'deducted')
+          ? 0
+          : (parseFloat(form.entryFee) || 0)
         const singleDeposit = (isMerge ? lotQty * lotCost : (item.quantity || 1) * (item.purchasePrice || 0)) + feeOnEntry
         if (isNewMoney && onAddTransaction && singleDeposit > 0) {
           await onAddTransaction({
@@ -1418,6 +1426,50 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                           placeholder="0" type="number" step="any" className={inputCls} />
                       </div>
                     )}
+                    {/* Which side of the purchase value the fee sits on decides
+                        how much cash really left the pocket, and that is the
+                        denominator of every return % for this asset. */}
+                    {parseFloat(form.entryFee) > 0 && (() => {
+                      const fee = parseFloat(form.entryFee) || 0
+                      const typed = (parseFloat(form.quantity) || 1) * (parseFloat(form.purchasePrice) || 0)
+                      const fmtM = (v) => `${form.currency} ${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      return (
+                        <div className="mt-2">
+                          <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">
+                            {t('¿Cómo se cobró?', 'How was it charged?')}
+                            {' '}
+                            <InfoTip text={t(
+                              'Cambia cuánto dinero salió realmente de tu bolsillo, que es contra lo que se mide tu rendimiento. "Se pagó aparte": mandaste el monto de compra Y ADEMÁS la comisión. "Se descontó del monto": mandaste solo el monto de compra y la comisión salió de ahí, así que al activo entró menos.',
+                              'It changes how much money actually left your pocket, which is what your return is measured against. "Paid separately": you sent the purchase amount AND the fee on top. "Deducted from amount": you sent just the purchase amount and the fee came out of it, so less actually bought the asset.'
+                            )} />
+                          </label>
+                          <div className="flex gap-1.5">
+                            {[
+                              { key: 'separate', es: 'Se pagó aparte', en: 'Paid separately' },
+                              { key: 'deducted', es: 'Se descontó del monto', en: 'Deducted from amount' },
+                            ].map(m => (
+                              <button key={m.key} type="button" onClick={() => set('entryFeeMode', m.key)}
+                                className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
+                                style={form.entryFeeMode === m.key
+                                  ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' }
+                                  : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                                {lang === 'es' ? m.es : m.en}
+                              </button>
+                            ))}
+                          </div>
+                          {typed > 0 && (
+                            <p className="text-xs mt-1.5" style={{ color: 'var(--text-secondary)' }}>
+                              {form.entryFeeMode === 'deducted'
+                                ? t(`Sales con ${fmtM(typed)} en total, y al activo entran ${fmtM(typed - fee)}.`,
+                                    `${fmtM(typed)} leaves your pocket in total, and ${fmtM(typed - fee)} actually goes into the asset.`)
+                                : t(`Sales con ${fmtM(typed + fee)} en total: ${fmtM(typed)} al activo más ${fmtM(fee)} de comisión.`,
+                                    `${fmtM(typed + fee)} leaves your pocket in total: ${fmtM(typed)} into the asset plus ${fmtM(fee)} in fees.`)}
+                            </p>
+                          )}
+                        </div>
+                      )
+                    })()}
+
                     {(parseFloat(form.entryFee) > 0 || parseFloat(form.managementFee) > 0 || parseFloat(form.expenseRatio) > 0) && (
                       <p className="text-xs mt-1.5" style={{ color: 'color-mix(in srgb, var(--accent-orange) 70%, transparent)' }}>
                         {parseFloat(form.entryFee) > 0 && `${t('Entrada', 'Entry')}: ${form.currency} ${parseFloat(form.entryFee).toFixed(2)}  `}

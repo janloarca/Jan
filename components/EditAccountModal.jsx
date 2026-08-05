@@ -105,6 +105,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     managementFeeType: item.managementFeeType || 'percent',
     expenseRatio: item.expenseRatio?.toString() || '',
     entryFee: item.entryFee?.toString() || '',
+    entryFeeMode: item.entryFeeMode || 'separate',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -355,7 +356,10 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         updated.managementFeeType = form.managementFeeType || 'percent'
       }
       if (form.expenseRatio) updated.expenseRatio = parseFloat(form.expenseRatio) || 0
-      if (form.entryFee) updated.entryFee = parseFloat(form.entryFee) || 0
+      if (form.entryFee) {
+        updated.entryFee = parseFloat(form.entryFee) || 0
+        updated.entryFeeMode = form.entryFeeMode || 'separate'
+      }
 
       // Tax jurisdiction & asset country
       updated.taxJurisdiction = form.taxJurisdiction || ''
@@ -950,6 +954,53 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   title={t('Ratio de gastos anual %', 'Annual expense ratio %')} />
               </div>
             </div>
+
+            {/* Only asked once there IS a fee: which side of the purchase value
+                it sits on decides how much really left your pocket, and that is
+                the denominator of every return % for this asset. */}
+            {parseFloat(form.entryFee) > 0 && (() => {
+              const fee = parseFloat(form.entryFee) || 0
+              const typed = (parseFloat(form.quantity) || 1) * (parseFloat(form.purchasePrice) || 0)
+              const cur = form.currency || 'USD'
+              const fmt = (v) => `${cur} ${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+              const modes = [
+                { key: 'separate', es: 'Se pagó aparte', en: 'Paid separately' },
+                { key: 'deducted', es: 'Se descontó del monto', en: 'Deducted from amount' },
+              ]
+              return (
+                <div>
+                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">
+                    {t('¿Cómo se cobró ese costo de entrada?', 'How was that entry cost charged?')}
+                    {' '}
+                    <InfoTip text={t(
+                      'Cambia cuánto dinero salió realmente de tu bolsillo, que es contra lo que se mide tu rendimiento. "Se pagó aparte": mandaste el monto de compra Y ADEMÁS la comisión. "Se descontó del monto": mandaste solo el monto de compra y la comisión salió de ahí, así que al activo entró menos.',
+                      'It changes how much money actually left your pocket, which is what your return is measured against. "Paid separately": you sent the purchase amount AND the fee on top. "Deducted from amount": you sent just the purchase amount and the fee came out of it, so less actually bought the asset.'
+                    )} />
+                  </label>
+                  <div className="flex gap-1.5">
+                    {modes.map(m => (
+                      <button key={m.key} type="button" onClick={() => set('entryFeeMode', m.key)}
+                        className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
+                        style={form.entryFeeMode === m.key
+                          ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' }
+                          : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                        {lang === 'es' ? m.es : m.en}
+                      </button>
+                    ))}
+                  </div>
+                  {typed > 0 && (
+                    <p className="text-xs mt-1.5" style={{ color: 'var(--text-secondary)' }}>
+                      {form.entryFeeMode === 'deducted'
+                        ? t(`Saliste con ${fmt(typed)} en total, y al activo entraron ${fmt(typed - fee)}.`,
+                            `${fmt(typed)} left your pocket in total, and ${fmt(typed - fee)} actually went into the asset.`)
+                        : t(`Saliste con ${fmt(typed + fee)} en total: ${fmt(typed)} al activo más ${fmt(fee)} de comisión.`,
+                            `${fmt(typed + fee)} left your pocket in total: ${fmt(typed)} into the asset plus ${fmt(fee)} in fees.`)}
+                    </p>
+                  )}
+                </div>
+              )
+            })()}
+
             {(parseFloat(form.entryFee) > 0 || parseFloat(form.managementFee) > 0 || parseFloat(form.expenseRatio) > 0) && (
               <p className="text-xs" style={{ color: 'color-mix(in srgb, var(--accent-orange) 60%, transparent)' }}>
                 {parseFloat(form.entryFee) > 0 && `${t('Entrada', 'Entry')}: $${parseFloat(form.entryFee).toFixed(2)}  `}

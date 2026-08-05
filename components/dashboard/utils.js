@@ -162,8 +162,18 @@ export function isExcludedFromNetWorth(item) {
 // entirely does — every return-% calc that compares gain against cost must
 // use THIS, not qty*purchasePrice alone, or the same $ of fee shows up in
 // some numbers and not others.
+// Total cash that left your pocket to own this. Which side of the entry fee
+// the typed "Valor compra" sits on is the user's call (entryFeeMode):
+//  - 'separate' (default, and how brokerage usually works): the fee was
+//    charged ON TOP, so you sent purchase value + fee.
+//  - 'deducted': the fee came OUT of the amount you sent, so the value you
+//    typed already contains it and nothing is added on top.
+// Either way costBasis - principalCost === the fee, which is what makes the
+// gain formula in the cards work identically for both modes.
 export function getItemCostBasis(item) {
-  return getItemPrincipalCost(item) + (Number(item.entryFee) || 0)
+  const principal = (Number(item.quantity) || 0) * (Number(item.purchasePrice) || 0)
+  if (item.entryFeeMode === 'deducted') return principal
+  return principal + (Number(item.entryFee) || 0)
 }
 
 // Just the principal: what the asset itself cost, with no fees. The gain
@@ -176,8 +186,11 @@ export function getItemCostBasis(item) {
 // against a single period. Over the whole hold the fee is still fully felt,
 // because it stays in the denominator forever.
 export function getItemPrincipalCost(item) {
-  const qty = Number(item.quantity) || 0
-  return qty * (Number(item.purchasePrice) || 0)
+  const principal = (Number(item.quantity) || 0) * (Number(item.purchasePrice) || 0)
+  // 'deducted': of everything you sent, only (total - fee) actually bought the
+  // asset, so THAT is what the gain gets measured against.
+  if (item.entryFeeMode === 'deducted') return principal - (Number(item.entryFee) || 0)
+  return principal
 }
 
 // Effective acquisition timestamp for an item: the real acquisitionDate, else the

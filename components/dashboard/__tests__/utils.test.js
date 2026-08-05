@@ -719,4 +719,23 @@ describe('getItemCostBasis', () => {
     expect(gain).toBeCloseTo(240)
     expect(pct).toBeCloseTo(3.94, 2)
   })
+
+  // entryFeeMode 'deducted': the $6,000 you sent already contained the fee, so
+  // only $5,904.22 bought the bond and nothing is added on top.
+  it("entryFeeMode 'deducted' keeps the fee inside the amount sent", () => {
+    const bond = { quantity: 1, purchasePrice: 6000, entryFee: 95.78, entryFeeMode: 'deducted' }
+    expect(getItemCostBasis(bond)).toBeCloseTo(6000)
+    expect(getItemPrincipalCost(bond)).toBeCloseTo(5904.22)
+    // The invariant both cards rely on: the gap between the two IS the fee.
+    expect(getItemCostBasis(bond) - getItemPrincipalCost(bond)).toBeCloseTo(95.78)
+  })
+
+  it('holds the same cost-minus-principal invariant in separate mode', () => {
+    const bond = { quantity: 1, purchasePrice: 6000, entryFee: 95.78 }
+    expect(getItemCostBasis(bond) - getItemPrincipalCost(bond)).toBeCloseTo(95.78)
+  })
+
+  it('defaults to separate mode when entryFeeMode is absent (no behavior change)', () => {
+    expect(getItemCostBasis({ quantity: 1, purchasePrice: 100, entryFee: 5 })).toBe(105)
+  })
 })

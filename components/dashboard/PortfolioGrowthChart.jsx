@@ -865,7 +865,9 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     // any return % that divides gain by it) silently ignored fees you told
     // the app about, even though costsSummary.js already counts them.
     const feeEvents = (scopedItems || [])
-      .filter(it => Number(it.entryFee) > 0 && it.acquisitionDate)
+      // 'deducted' fees are already inside the deposit that funded the asset,
+      // so adding them again would double-count the invested capital.
+      .filter(it => Number(it.entryFee) > 0 && it.acquisitionDate && it.entryFeeMode !== 'deducted')
       .map(it => {
         const cur = it._originalCurrency || it.currency || 'USD'
         const amt = convert ? convert(Number(it.entryFee), cur, baseCurrency || 'USD') : Number(it.entryFee)
