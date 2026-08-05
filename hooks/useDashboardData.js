@@ -5,7 +5,7 @@ import { useExchangeRates } from './useExchangeRates'
 import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations } from '@/components/dashboard/utils'
+import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations } from '@/components/dashboard/utils'
 import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
@@ -820,7 +820,6 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     [snapshots, portfolioItems, convert]
   )
   const latestSnapshot = augmentedSnapshots.length > 0 ? augmentedSnapshots[augmentedSnapshots.length - 1] : null
-  const prevSnapshot = augmentedSnapshots.length > 1 ? augmentedSnapshots[augmentedSnapshots.length - 2] : null
 
   const { totalFromItems, totalDebt: liveDebt } = useMemo(() => {
     let assets = 0, debt = 0
@@ -843,28 +842,30 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   )
   const netWorth = totalAssets - liveDebt
 
-  const dailyChange = useMemo(() => {
-    if (!prevSnapshot || netWorth <= 0) return null
-    const prevValue = convertSnapshot(prevSnapshot.netWorthUSD ?? prevSnapshot.totalActivosUSD ?? 0)
-    if (prevValue <= 0) return null
-    // Net out real money movements since the previous snapshot, same treatment
-    // as YTD/yearly Dietz: a deposit (e.g. a fresh statement import) landing
-    // today is new capital, not market gain. String-prefix date compare per
-    // house rule (new Date('YYYY-MM-DD') runs the day in UTC-6).
-    const prevDate = prevSnapshot.date || ''
-    let netFlow = 0
-    ;(transactions || []).forEach((tx) => {
-      if (!tx.date || tx.date <= prevDate) return
-      const type = (tx.type || '').toUpperCase()
-      if (type !== 'DEPOSIT' && type !== 'WITHDRAWAL') return
-      const amt = Number(tx.totalAmount ?? tx.amount ?? 0)
-      const converted = convert ? convert(amt, tx.currency || 'USD', baseCurrency || 'USD') : amt
-      netFlow += type === 'DEPOSIT' ? converted : -converted
-    })
-    const abs = netWorth - prevValue - netFlow
-    const pct = (abs / prevValue) * 100
-    return { abs, pct }
-  }, [prevSnapshot, netWorth, convertSnapshot, transactions, convert, baseCurrency])
+  // "HOY" = what TODAY did, built from today's own events instead of a
+  // snapshot-to-snapshot diff.
+  //
+  // The old version was `netWorth - prevSnapshot - netFlowsSincePrevSnapshot`,
+  // which quietly turned bookkeeping into profit: entering a position you have
+  // held since January (or backfilling its history) makes today's net worth
+  // jump by the whole balance while yesterday's snapshot knows nothing about
+  // it, and the flow-netting missed it because the deposit is DATED in January,
+  // not today. A $6,000 bond typed in this afternoon read as "+$6,119.62 today
+  // (+60.94%)" while the movers list right below it added up to about $58.
+  //
+  // Today's real change has exactly two parts:
+  //   1. Prices that moved today: Σ value × change1d (the same numbers the
+  //      "biggest movers" list shows, so the card finally agrees with itself).
+  //   2. Income that LANDED today: a coupon or dividend credited today is a
+  //      genuine gain on its payment date, and only on that date. VITALI's $240
+  //      belongs to May 15 and to December 15, never to whatever day it happens
+  //      to get typed in.
+  // New capital never appears in either, so a deposit can't masquerade as gain.
+  // The math itself is a pure helper (computeDayChange) so it can be tested.
+  const dailyChange = useMemo(
+    () => computeDayChange({ items: portfolioItems, transactions, netWorth, convert, baseCurrency }),
+    [netWorth, portfolioItems, transactions, convert, baseCurrency]
+  )
 
   const yearlyChange = useMemo(() => {
     if (augmentedSnapshots.length < 2) return null
@@ -885,6 +886,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // imported deposits/buys/sells): that baseline reflects real flow timing, so the
   // YTD Dietz must net the flows like it would against a real snapshot anchor.
   const [jan1Transactional, setJan1Transactional] = useState(false)
+  // Per-holding value at the first and last point of the YTD series, straight
+  // from the same engine that produced jan1Value. Feeds the "what drove my YTD"
+  // breakdown, so the parts are guaranteed to reconcile with the headline.
+  const [ytdEndpoints, setYtdEndpoints] = useState(null)
   useEffect(() => {
     if (!enrichedItems || enrichedItems.length === 0) return
     let cancelled = false
@@ -921,6 +926,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
               const cur = it._originalCurrency || it.currency || 'USD'
               const toUSD = (p) => convert ? convert(p || 0, cur, 'USD') : (p || 0)
               return {
+                id: it.id,
                 symbol: it.symbol, type: it.type, quantity: it.quantity,
                 currentPrice: toUSD(it._originalPrice ?? it.currentPrice),
                 purchasePrice: toUSD(it._originalPurchasePrice ?? it.purchasePrice),
@@ -937,6 +943,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
               closedDate: l.closedDate || null,
             })) : undefined,
             period: 'YTD',
+            breakdown: true,
           }),
         })
         if (!res.ok || cancelled) return
@@ -950,6 +957,15 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
               : firstReal.total
             setJan1Value(val)
             setJan1Transactional(!!data.transactional)
+          }
+          const withKeys = pts.filter((p) => p.byKey)
+          if (!cancelled && withKeys.length >= 2) {
+            const toBase = (v) => (baseCurrency !== 'USD' && convert) ? convert(v, 'USD', baseCurrency) : v
+            const scale = (obj) => Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, toBase(v)]))
+            setYtdEndpoints({
+              start: scale(withKeys[0].byKey),
+              end: scale(withKeys[withKeys.length - 1].byKey),
+            })
           }
         }
       } catch {}
@@ -1070,6 +1086,89 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const clampedPct = Math.max(-200, Math.min(200, pct))
     return { returnYTD: clampedPct, ytdChange: abs, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated }
   }, [jan1Value, jan1Transactional, netWorth, transactions, dietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot, accountCalibrations, portfolioItems])
+
+  // "What is actually driving my YTD" — the number broken into the holdings and
+  // institutions behind it, so the headline stops being a figure you have to
+  // take on faith.
+  //
+  // Per position: gain = (value today − value on Jan 1) − money you moved in or
+  // out of it this year. The endpoint values come from the same reconstruction
+  // that produced jan1Value, so the parts and the headline are the same engine.
+  // Netting the flows is the non-negotiable half: without it, funding an account
+  // in March reads as a March profit (the mistake this whole card kept making).
+  //
+  // Income paid OUT as cash (a coupon routed to another account) shows up on the
+  // account that received it, not the asset that generated it. At institution
+  // level (the default view) both usually sit under the same roof, so it nets
+  // out; the InfoTip says so for the case where they don't.
+  const ytdBreakdown = useMemo(() => {
+    if (!ytdEndpoints) return null
+    const { start, end } = ytdEndpoints
+    const year = new Date().getFullYear()
+    const yearPrefix = `${year}-`
+
+    // Net external money per item this year, matched the same way everything
+    // else matches transactions to positions: link id first, symbol as fallback.
+    const flowByKey = {}
+    ;(transactions || []).forEach((tx) => {
+      const type = (tx.type || '').toUpperCase()
+      if (type !== 'DEPOSIT' && type !== 'WITHDRAWAL') return
+      if (!tx.date || !String(tx.date).startsWith(yearPrefix)) return
+      const key = tx._linkedItemId || (tx.symbol || '').toUpperCase()
+      if (!key) return
+      const amt = Math.abs(Number(tx.totalAmount ?? tx.amount ?? 0))
+      if (!isFinite(amt)) return
+      const inBase = convert ? convert(amt, tx.currency || 'USD', baseCurrency || 'USD') : amt
+      flowByKey[key] = (flowByKey[key] || 0) + (type === 'DEPOSIT' ? inBase : -inBase)
+    })
+
+    const keys = new Set([...Object.keys(start), ...Object.keys(end)])
+    const rows = []
+    keys.forEach((k) => {
+      const matched = (portfolioItems || []).filter(
+        (it) => it.id === k || (it.symbol || '').toUpperCase() === k
+      )
+      if (matched.length === 0) return
+      const startVal = start[k] || 0
+      const endVal = end[k] || 0
+      // A key can be an item id OR an aggregated symbol; collect the flows of
+      // every item folded into it, plus the flows filed under the symbol itself.
+      let flow = flowByKey[k] || 0
+      matched.forEach((it) => {
+        if (it.id !== k) flow += flowByKey[it.id] || 0
+      })
+      const label = matched[0].name || matched[0].symbol || k
+      rows.push({
+        key, label,
+        institution: matched[0].institution || null,
+        startVal, endVal, flow,
+        gain: endVal - startVal - flow,
+      })
+    })
+    if (rows.length === 0) return null
+
+    const totalGain = rows.reduce((s, r) => s + r.gain, 0)
+    const byInstitution = {}
+    rows.forEach((r) => {
+      const key = r.institution || '__none__'
+      if (!byInstitution[key]) byInstitution[key] = { key, institution: r.institution, gain: 0, endVal: 0, holdings: [] }
+      byInstitution[key].gain += r.gain
+      byInstitution[key].endVal += r.endVal
+      byInstitution[key].holdings.push(r)
+    })
+    const groups = Object.values(byInstitution)
+      .map((g) => ({
+        ...g,
+        share: totalGain !== 0 ? (g.gain / totalGain) * 100 : null,
+        holdings: g.holdings
+          .filter((h) => Math.abs(h.gain) > 0.005)
+          .sort((a, b) => Math.abs(b.gain) - Math.abs(a.gain)),
+      }))
+      .filter((g) => Math.abs(g.gain) > 0.005)
+      .sort((a, b) => Math.abs(b.gain) - Math.abs(a.gain))
+    if (groups.length === 0) return null
+    return { groups, totalGain }
+  }, [ytdEndpoints, portfolioItems, transactions, convert, baseCurrency])
 
   // Month-to-date return (Modified Dietz) — the "how are we doing THIS month"
   // number for the Friends monthly leaderboard. Same shape as YTD, anchored to
@@ -1280,7 +1379,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
     // Computed values
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
-    returnYTD, ytdChange, returnSinceStart, sinceStartDate, returnMTD, ytdCalibrated,
+    returnYTD, ytdChange, returnSinceStart, sinceStartDate, returnMTD, ytdCalibrated, ytdBreakdown,
     ibkrReturnYTD: ibkrReturns.ytd, ibkrReturnMTD: ibkrReturns.mtd, ibkrDayChange: ibkrReturns.day,
     annualDividends, estimatedAnnualIncome,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
