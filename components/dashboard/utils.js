@@ -221,6 +221,87 @@ export function augmentSnapshots(snapshots, items, convert) {
   })
 }
 
+// Per-account calibration: every broker app shows ITS OWN return, so "Calibrar"
+// must anchor each account separately. Account keys: 'ibkr' for Interactive
+// Brokers (imported positions carry institution variants, so match loosely),
+// else the normalized institution name (same normalization as
+// InstitutionPerformance). Items with no institution return null.
+export function accountKeyOfItem(it) {
+  if (!it) return null
+  if (it._source === 'ibkr' || (it.institution || '').toLowerCase().includes('interactive brokers')) return 'ibkr'
+  const name = (it.institution || '').trim().replace(/\s+/g, ' ').toLowerCase()
+  return name || null
+}
+
+// Estimated USD share of ONE account at a past anchor date: the account's items
+// at CURRENT prices, included only if they already existed then
+// (effectiveAcqTs <= anchorTs). This is exactly the held-flat formula
+// augmentSnapshots uses, so a calibrated start replaces the account's own
+// estimate 1:1 instead of double-counting it.
+export function heldFlatAccountValueUSD(items, accountKey, anchorTs, convert) {
+  let sum = 0
+  for (const it of items || []) {
+    if (!it || isExcludedFromNetWorth(it)) continue
+    if (accountKeyOfItem(it) !== accountKey) continue
+    const acq = effectiveAcqTs(it)
+    if (acq != null && anchorTs != null && acq > anchorTs) continue
+    sum += itemValueUSD(it, convert)
+  }
+  return sum
+}
+
+// Combine per-account calibrated starts with the portfolio-level anchor:
+//   start = base − Σ(estimated share of each calibrated account) + Σ(calibrated starts)
+// One global % cannot represent accounts with different returns (mixing them is
+// what clamped the badge at ±200%); this swaps each calibrated account's share
+// for the value solved from the % THAT broker shows.
+// For the IBKR account inside a FULL-portfolio anchor, the estimated share is
+// base − heldFlat(everything non-IBKR): the exact inverse of augmentSnapshots.
+// baseValueUSD may be null/<=0 (no portfolio anchor at all): the base is then
+// rebuilt as the held-flat value of all UNCALIBRATED items at anchorTs.
+// Returns { startValueUSD, applied } or null when there is nothing to apply.
+export function combineAccountCalibrations({ baseValueUSD, anchorTs, calibrations, items, convert }) {
+  const cals = (calibrations || []).filter(c => c && c._account && isFinite(c.netWorthUSD) && c.netWorthUSD > 0)
+  if (cals.length === 0) return null
+  const hasRealBase = baseValueUSD != null && isFinite(baseValueUSD) && baseValueUSD > 0
+  const calKeys = new Set(cals.map(c => c._account))
+  let start = hasRealBase ? baseValueUSD : 0
+  if (!hasRealBase) {
+    for (const it of items || []) {
+      if (!it || isExcludedFromNetWorth(it)) continue
+      const key = accountKeyOfItem(it)
+      if (key && calKeys.has(key)) continue
+      const acq = effectiveAcqTs(it)
+      if (acq != null && anchorTs != null && acq > anchorTs) continue
+      start += itemValueUSD(it, convert)
+    }
+  }
+  const applied = []
+  for (const cal of cals) {
+    // With a rebuilt base the calibrated accounts were already left out of it,
+    // so there is no estimated share to subtract; only a real portfolio anchor
+    // contains one.
+    let est = 0
+    if (!hasRealBase) {
+      // est stays 0
+    } else if (cal._account === 'ibkr') {
+      let nonIbkr = 0
+      for (const it of items || []) {
+        if (!it || isExcludedFromNetWorth(it) || accountKeyOfItem(it) === 'ibkr') continue
+        const acq = effectiveAcqTs(it)
+        if (acq != null && anchorTs != null && acq > anchorTs) continue
+        nonIbkr += itemValueUSD(it, convert)
+      }
+      est = Math.max(0, baseValueUSD - nonIbkr)
+    } else {
+      est = heldFlatAccountValueUSD(items, cal._account, anchorTs, convert)
+    }
+    start = start - est + cal.netWorthUSD
+    applied.push(cal._account)
+  }
+  return { startValueUSD: start, applied }
+}
+
 // The single source of truth for "what was the portfolio worth at year start":
 // the snapshot dated in January of `year`, else late December of `year - 1`,
 // accepted only within 15 days of Jan 1. Used by BOTH the YTD Dietz badge
@@ -233,13 +314,23 @@ export function findYearStartAnchor(snapshots, year) {
   // read in LOCAL time while the 'YYYY-MM-DD' string is UTC-midnight, so in
   // UTC-6 'YYYY-01-01' misreads as December and 'YYYY-02-01' as January —
   // the Jan-1 anchor silently resolves to the wrong month or null.
-  let best = sorted.find((s) => s.date.slice(0, 7) === `${year}-01`)
-  if (!best) {
-    best = [...sorted].reverse().find((s) => s.date.slice(0, 7) === `${year - 1}-12`)
-  }
-  if (!best) return null
-  const diff = Math.abs(new Date(best.date).getTime() - Date.UTC(year, 0, 1))
-  return diff <= 15 * 86400000 ? best : null
+  const WINDOW = 15 * 86400000
+  const jan1 = Date.UTC(year, 0, 1)
+  // 1) A January snapshot of the target year, accepted only within 15 days of
+  //    Jan 1. A month-END stamp ('2026-01-31' from a monthly PortfolioAnalyst
+  //    NAV export) sits 30 days out and fails on purpose: that row already
+  //    holds January's deposit and gain, so anchoring YTD there would make
+  //    Modified Dietz subtract January's flows a second time.
+  const jan = sorted.find((s) => s.date.slice(0, 7) === `${year}-01`)
+  if (jan && Math.abs(new Date(jan.date).getTime() - jan1) <= WINDOW) return jan
+  // 2) Otherwise (no January row, or it failed the window) anchor on the
+  //    LATEST late-December snapshot of the prior year. |Dec 17 - Jan 1| is
+  //    exactly 15 days, so the same window against Jan 1 accepts Dec 17-31
+  //    and rejects anything earlier in December.
+  const dec = [...sorted].reverse().find((s) => s.date.slice(0, 7) === `${year - 1}-12`)
+  if (dec && Math.abs(new Date(dec.date).getTime() - jan1) <= WINDOW) return dec
+  // 3) No trustworthy year-start observation: the caller hides YTD.
+  return null
 }
 
 // Month-start anchor for a month-to-date (MTD) return: the snapshot closest to
@@ -557,6 +648,40 @@ export function computeModifiedDietz({ startValue, endValue, startTs, endTs, tra
   return { pct, abs: gain }
 }
 
+// Inverse of computeModifiedDietz for the return-calibration flow: the user
+// types the return their broker shows (e.g. IBKR PortfolioAnalyst YTD or since
+// inception) and we solve for the start value that makes OUR Dietz reproduce
+// that percentage exactly, given the same end value, window and flows. Dietz
+// is linear-fractional in startValue: pct(V) = (A - V) / (V + W) with
+// A = endValue - sumFlows and W = time-weighted flows, so two sample points
+// pin down A and W without duplicating the flow math (which then can never
+// drift from computeModifiedDietz, convert and baseCurrency included).
+// Returns { startValue } or { error: 'endValue' | 'targetPct' | 'window' | 'unsolvable' }.
+export function solveDietzStartValue({ endValue, startTs, endTs, transactions, convert, baseCurrency, targetPct }) {
+  if (!isFinite(endValue) || endValue <= 0) return { error: 'endValue' }
+  // Same display clamp as the YTD badge: outside (-100, 200] the card would
+  // show a different number than the user typed, so refuse early.
+  if (!isFinite(targetPct) || targetPct <= -100 || targetPct > 200) return { error: 'targetPct' }
+  if (!(endTs > startTs)) return { error: 'window' }
+  const evalAt = (V) => computeModifiedDietz({ startValue: V, endValue, startTs, endTs, transactions, convert, baseCurrency }).pct / 100
+  const V1 = endValue * 0.5
+  const V2 = endValue * 1.5
+  const p1 = evalAt(V1)
+  const p2 = evalAt(V2)
+  // p1 == p2 only when A + W = 0, the degenerate case where every start value
+  // yields the same constant return: no target-specific solution exists.
+  if (!isFinite(p1) || !isFinite(p2) || Math.abs(p1 - p2) < 1e-12) return { error: 'unsolvable' }
+  const W = (V2 - V1 - p1 * V1 + p2 * V2) / (p1 - p2)
+  const A = p1 * (V1 + W) + V1
+  const r = targetPct / 100
+  const startValue = (A - r * W) / (1 + r)
+  if (!isFinite(startValue) || startValue <= 0) return { error: 'unsolvable' }
+  // Verify against the real implementation before trusting the anchor.
+  const check = evalAt(startValue) * 100
+  if (!isFinite(check) || Math.abs(check - targetPct) > 1e-6) return { error: 'unsolvable' }
+  return { startValue }
+}
+
 // Single source of truth for an item's projected annual income, in the item's own
 // currency. `balance` is qty × price (also in the item's currency). Both the
 // Ingresos card and estimatedAnnualIncome (InsightCards/GoalTracker) must use this —
@@ -571,7 +696,7 @@ export function projectItemAnnualIncome(item, balance) {
   }
   if (item.incomeAmount > 0 && item.incomeMonths) {
     const payCount = Array.isArray(item.incomeMonths) ? item.incomeMonths.length : 12
-    return item.incomeAmount * payCount
+    return (item.incomeAmount * payCount)
   }
   if (item.incomeMode === 'percent' && item.incomeRate > 0) {
     return balance * (item.incomeRate / 100)

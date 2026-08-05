@@ -421,6 +421,35 @@ describe('findYearStartAnchor', () => {
     expect(findYearStartAnchor(snaps, year).date).toBe('2025-12-30')
   })
 
+  it('falls back to Dec-31 when a month-end Jan-31 row fails the window', () => {
+    // With month-end stamping, a monthly PortfolioAnalyst export puts the
+    // January NAV on '2026-01-31', 30 days from Jan 1. That row already holds
+    // January's deposit and gain, so it must NOT anchor YTD; the truthful
+    // baseline is the prior year's December month-end.
+    const snaps = [
+      { date: '2025-12-31', netWorthUSD: 98 },
+      { date: '2026-01-31', netWorthUSD: 100 },
+      { date: '2026-02-28', netWorthUSD: 103 },
+    ]
+    expect(findYearStartAnchor(snaps, year).date).toBe('2025-12-31')
+  })
+
+  it('returns null when the month-end Jan-31 row has no December fallback', () => {
+    const snaps = [
+      { date: '2026-01-31', netWorthUSD: 100 },
+      { date: '2026-02-28', netWorthUSD: 103 },
+    ]
+    expect(findYearStartAnchor(snaps, year)).toBeNull()
+  })
+
+  it('still accepts a genuine early-January snapshot within the window', () => {
+    const snaps = [
+      { date: '2025-12-31', netWorthUSD: 98 },
+      { date: '2026-01-02', netWorthUSD: 99 },
+    ]
+    expect(findYearStartAnchor(snaps, year).date).toBe('2026-01-02')
+  })
+
   it('returns null for empty or dateless input', () => {
     expect(findYearStartAnchor([], year)).toBeNull()
     expect(findYearStartAnchor([{ netWorthUSD: 1 }], year)).toBeNull()

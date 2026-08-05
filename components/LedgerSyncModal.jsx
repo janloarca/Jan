@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
-import { safeJson } from '@/lib/authFetch'
+import { authFetch, safeJson } from '@/lib/authFetch'
 
 const CHAINS = [
   { key: 'BTC', label: 'Bitcoin', placeholder: 'bc1q... or 1... or 3...' },
@@ -15,9 +15,36 @@ const CHAINS = [
   { key: 'OP', label: 'Optimism', placeholder: '0x...' },
 ]
 
+// Where the coins are kept: becomes the item's institution so the portfolio
+// can group by custody. Watch-only either way, the device is never touched.
+const CUSTODIES = ['Ledger', 'Trezor', 'Coldcard', 'Exchange', 'Otra wallet']
+
+// The asset the BALANCE is denominated in, per chain. L2s settle in ETH: a
+// balance read from Arbitrum/Base/Optimism is ETH, not the ARB/OP token, so
+// pricing it by chain key undervalued it by ~1000x.
+const CHAIN_ASSET = { BTC: 'BTC', ETH: 'ETH', SOL: 'SOL', MATIC: 'MATIC', AVAX: 'AVAX', ARB: 'ETH', BASE: 'ETH', OP: 'ETH' }
+
+// USD price for a date from a daily [{date:'YYYY-MM-DD', close}] series:
+// exact match, else the nearest close within 3 days (weekend gaps), else null.
+function priceOnDate(prices, dateStr) {
+  if (!Array.isArray(prices) || prices.length === 0) return null
+  const direct = prices.find((p) => p.date === dateStr && isFinite(p.close))
+  if (direct) return direct.close
+  const target = new Date(dateStr + 'T00:00:00Z').getTime()
+  let best = null
+  let bestDelta = Infinity
+  for (const p of prices) {
+    if (!p || !p.date || !isFinite(p.close)) continue
+    const delta = Math.abs(new Date(p.date + 'T00:00:00Z').getTime() - target)
+    if (delta < bestDelta) { bestDelta = delta; best = p }
+  }
+  return bestDelta <= 3 * 86400000 ? best.close : null
+}
+
 export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }) {
   const trapRef = useFocusTrap()
-  const [addresses, setAddresses] = useState([{ chain: 'BTC', address: '', label: '' }])
+  const [addresses, setAddresses] = useState([{ chain: 'BTC', address: '' }])
+  const [custody, setCustody] = useState('Ledger')
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState('')
   const [step, setStep] = useState('input')
@@ -32,7 +59,7 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
   }, [onClose])
 
   const addRow = () => {
-    setAddresses(prev => [...prev, { chain: 'BTC', address: '', label: '' }])
+    setAddresses(prev => [...prev, { chain: 'BTC', address: '' }])
   }
 
   const removeRow = (i) => {
@@ -82,25 +109,72 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
     setSyncing(false)
   }, [addresses, t])
 
-  const handleConfirm = useCallback(() => {
+  const handleConfirm = useCallback(async () => {
     if (!results) return
-    const items = results.results.map(r => ({
-      symbol: r.chain,
-      name: r.label || `${r.chain} (Ledger)`,
-      type: 'Crypto',
-      quantity: r.balance,
-      purchasePrice: 0,
-      currentPrice: 0,
-      currency: 'USD',
-      institution: 'Ledger',
-      custodyType: 'self_custody',
-      custodyDetails: r.address,
-      _source: 'ledger',
-      _walletAddress: r.address,
+
+    // Historical USD prices for assets that have detected inflows, so each
+    // inflow imports as a BUY at that day's price (real cost basis). One
+    // chart call per asset, via our own cached prices API.
+    const chainsWithFlows = [...new Set(results.results.filter(r => r.inflows?.length > 0).map(r => CHAIN_ASSET[r.chain] || r.chain))]
+    const charts = {}
+    await Promise.all(chainsWithFlows.map(async (chain) => {
+      try {
+        // type=crypto is mandatory: without it the route proxies Yahoo, where
+        // BTC resolves to nothing and ETH to Ethan Allen Interiors.
+        const res = await authFetch(`/api/prices/chart?symbol=${chain}&range=max&interval=1d&type=crypto`)
+        const data = await safeJson(res)
+        if (res.ok && Array.isArray(data?.prices)) charts[chain] = data.prices
+      } catch { /* pricing is best-effort: unpriced inflows import at 0 and stay editable */ }
     }))
-    onSyncComplete({ items, mode: 'merge' })
+
+    const items = []
+    const transactions = []
+    for (const r of results.results) {
+      const asset = CHAIN_ASSET[r.chain] || r.chain
+      const inflows = r.inflows || []
+      const priced = inflows
+        .map((f) => ({ ...f, price: priceOnDate(charts[asset], f.date) }))
+        .filter((f) => f.price != null && f.price > 0)
+      const totalQty = priced.reduce((s, f) => s + f.amount, 0)
+      const avgCost = totalQty > 0
+        ? priced.reduce((s, f) => s + f.amount * f.price, 0) / totalQty
+        : 0
+
+      items.push({
+        symbol: asset,
+        name: `${r.chain} (${custody})`,
+        type: 'Crypto',
+        quantity: r.balance,
+        purchasePrice: avgCost,
+        currentPrice: 0,
+        currency: 'USD',
+        institution: custody,
+        custodyType: custody === 'Exchange' ? 'custodial' : 'self_custody',
+        custodyDetails: r.address,
+        _source: 'ledger',
+        _walletAddress: r.address,
+        ...(r.firstSeen ? { acquisitionDate: r.firstSeen } : {}),
+      })
+
+      for (const f of priced) {
+        transactions.push({
+          type: 'BUY',
+          symbol: asset,
+          quantity: f.amount,
+          pricePerUnit: f.price,
+          totalAmount: f.amount * f.price,
+          currency: 'USD',
+          date: f.date,
+          description: t('Entrada on-chain detectada', 'Detected on-chain inflow'),
+          _source: 'ledger',
+          _walletAddress: r.address,
+        })
+      }
+    }
+
+    onSyncComplete({ items, transactions, mode: 'merge' })
     onClose()
-  }, [results, onSyncComplete, onClose])
+  }, [results, custody, onSyncComplete, onClose, t])
 
   const inputCls = 'w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50'
 
@@ -110,7 +184,7 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
       <div ref={trapRef} className="modal-glass max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <span className="text-xl">🔒</span> Ledger Sync
+            <span className="text-xl">🔒</span> {t('Cripto por dirección', 'Crypto by address')}
           </h2>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label="Close">&times;</button>
         </div>
@@ -121,10 +195,18 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
               <p className="text-xs text-blue-400 font-medium mb-1">{t('Cómo funciona:', 'How it works:')}</p>
               <p className="text-xs text-blue-300/80">
                 {t(
-                  'Pega tus direcciones públicas. Leemos el balance directamente del blockchain. No necesitas conectar tu Ledger ni compartir keys privadas.',
-                  'Paste your public addresses. We read the balance directly from the blockchain. No need to connect your Ledger or share private keys.'
+                  'Pega tus direcciones públicas. Leemos balance e historial directo del blockchain (mempool.space para Bitcoin, Routescan para Ethereum): no conectas tu dispositivo ni compartes keys privadas.',
+                  'Paste your public addresses. We read balance and history straight from the blockchain (mempool.space for Bitcoin, Routescan for Ethereum): no device connection, no private keys.'
                 )}
               </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1">{t('¿Dónde guardas esta cripto?', 'Where do you keep this crypto?')}</label>
+              <select value={custody} onChange={e => setCustody(e.target.value)}
+                className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white">
+                {CUSTODIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
             </div>
 
             <div className="space-y-3">
@@ -165,7 +247,7 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
                   <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                   {t('Leyendo blockchain...', 'Reading blockchain...')}
                 </>
-              ) : t('Leer balances', 'Read balances')}
+              ) : t('Leer blockchain', 'Read blockchain')}
             </button>
           </div>
         )}
@@ -173,22 +255,48 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
         {step === 'preview' && results && (
           <div className="p-6 space-y-4">
             <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3">
-              <p className="text-sm text-emerald-400 font-medium">{t('Balances encontrados', 'Balances found')}</p>
+              <p className="text-sm text-emerald-400 font-medium">{t('Lo que encontramos', 'What we found')}</p>
             </div>
 
             <div className="space-y-2">
               {results.results.map((r, i) => (
-                <div key={i} className="flex items-center justify-between px-3 py-2 bg-theme-base rounded-lg">
-                  <div>
-                    <span className="text-white text-sm font-medium">{r.chain}</span>
-                    <span className="text-slate-500 text-xs ml-2 font-mono">{r.address.slice(0, 8)}...{r.address.slice(-6)}</span>
+                <div key={i} className="px-3 py-2 bg-theme-base rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-white text-sm font-medium">{r.chain}</span>
+                      <span className="text-slate-500 text-xs ml-2 font-mono">{r.address.slice(0, 8)}...{r.address.slice(-6)}</span>
+                    </div>
+                    <span className="text-white text-sm font-mono">
+                      {r.balance.toLocaleString(undefined, { maximumFractionDigits: 8 })} {r.chain}
+                    </span>
                   </div>
-                  <span className="text-white text-sm font-mono">
-                    {r.balance.toLocaleString(undefined, { maximumFractionDigits: 8 })} {r.chain}
-                  </span>
+                  <div className="flex flex-wrap gap-x-3 mt-1">
+                    {r.firstSeen && (
+                      <span className="text-[11px] text-slate-500">{t('desde', 'since')} {r.firstSeen}</span>
+                    )}
+                    {r.inflows?.length > 0 && (
+                      <span className="text-[11px] text-slate-500">
+                        {r.inflows.length} {r.inflows.length === 1 ? t('entrada', 'inflow') : t('entradas', 'inflows')}
+                      </span>
+                    )}
+                    {r.historyTruncated && (
+                      <span className="text-[11px]" style={{ color: '#f59e0b' }}>
+                        {t('historial parcial (dirección muy activa)', 'partial history (very active address)')}
+                      </span>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
+
+            {results.results.some(r => r.inflows?.length > 0) && (
+              <p className="text-[11px] text-slate-500">
+                {t(
+                  'Las entradas se importan como compras al precio USD de ese día, para que tu costo y retorno salgan bien.',
+                  'Inflows import as buys at that day\'s USD price, so your cost basis and return come out right.'
+                )}
+              </p>
+            )}
 
             {results.errors?.length > 0 && (
               <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">

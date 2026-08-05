@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { sanitizeImportItem } from '@/lib/validation'
 import { SNAPSHOT_SRC_PRIORITY } from '@/components/dashboard/utils'
+import { detectMisstampedMonthlyNavSnapshots } from '@/lib/badDataCleanup'
 
 let _db = null
 let _auth = null
@@ -331,10 +332,57 @@ export function useFirestoreItems() {
     if (items.some((i) => i._source === 'demo')) return
     const { db, fs } = await getFirebase()
     const dateStr = snapshot.date || new Date().toISOString().split('T')[0]
-    const id = dateStr
+    // Per-account calibration anchors share their date with real NAV snapshots
+    // (a YTD calibration sits on Jan 1, where a daily snapshot may also live):
+    // a compound id keeps them from overwriting each other. Portfolio-wide
+    // snapshots keep the plain date id so dedup/precedence logic is untouched.
+    const id = snapshot._account
+      ? `${dateStr}~${snapshot._calibrationKind || 'cal'}~${String(snapshot._account).replace(/[^a-z0-9]+/gi, '-')}`
+      : dateStr
     const clean = Object.fromEntries(Object.entries({ ...snapshot, createdAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
     await fs.setDoc(fs.doc(db, `users/${uid}/snapshots`, id), clean, { merge: true })
   }, [uid, items])
+
+  // Single-doc delete: the snapshot doc id IS its date string, so re-stamping
+  // a mis-dated snapshot (badDataCleanup class 6) means writing the corrected
+  // doc and removing the old day-01 one.
+  const deleteSnapshot = useCallback(async (id) => {
+    if (!uid || !id) return
+    const { db, fs } = await getFirebase()
+    await fs.deleteDoc(fs.doc(db, `users/${uid}/snapshots`, id))
+  }, [uid])
+
+  // Self-heal class 6 (lib/badDataCleanup): monthly PortfolioAnalyst NAV rows
+  // were date-stamped month-START before the parser fix, so their snapshots sit
+  // on day 01 holding the month-END value and poison the YTD anchor
+  // (findYearStartAnchor) plus the growth chart's year-start point. Snapshot
+  // doc ids ARE the date string, so a re-stamp writes the corrected doc first
+  // and deletes the day-01 doc second (never the reverse: a failed create must
+  // not orphan the data).
+  const snapHealRef = useRef(false)
+  useEffect(() => {
+    if (loading || snapHealRef.current || !uid) return
+    const fixes = detectMisstampedMonthlyNavSnapshots(snapshots)
+    if (fixes.length === 0) return
+    snapHealRef.current = true
+    let cancelled = false
+    ;(async () => {
+      let restamped = 0
+      for (const f of fixes) {
+        if (cancelled) return
+        const original = snapshots.find((x) => x && x.id === f.id)
+        if (!original) continue
+        try {
+          const { id: _oldId, ...rest } = original
+          await saveSnapshot({ ...rest, date: f.newDate })
+          await deleteSnapshot(f.id)
+          restamped++
+        } catch { /* leave it; next load retries */ }
+      }
+      if (restamped > 0) console.info(`[badDataCleanup] re-stamped ${restamped} monthly IBKR snapshot(s) to month-end`)
+    })()
+    return () => { cancelled = true }
+  }, [loading, uid, snapshots, saveSnapshot, deleteSnapshot])
 
   const deleteAllSnapshots = useCallback(async () => {
     if (!uid) return
@@ -843,7 +891,10 @@ export function useFirestoreItems() {
     // a gap or refresh same-or-higher-tier data. Without this, re-importing an
     // older/narrower file (or one that estimates where an earlier one
     // observed) silently downgrades a real NAV to a worse one.
-    const existingSnapByDate = new Map((snapshots || []).map((s) => [s.date || s.id, s]))
+    // Per-account calibration anchors (_account) are NOT portfolio NAV: they
+    // must not participate in same-date precedence or their 'manual' priority
+    // would block a real daily/ibkr import landing on the anchor date.
+    const existingSnapByDate = new Map((snapshots || []).filter((s) => s && !s._account).map((s) => [s.date || s.id, s]))
     for (const snap of (newSnaps || [])) {
       const id = snap.date || now.split('T')[0]
       const existing = existingSnapByDate.get(id)
@@ -898,7 +949,7 @@ export function useFirestoreItems() {
   return {
     items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, loading,
     addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
-    saveSnapshot, deleteAllSnapshots, deleteDemoData,
+    saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, deleteTransaction, deleteAllTransactions,
     addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     addAlert, deleteAlert, updateAlert,

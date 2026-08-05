@@ -13,7 +13,7 @@ import { getBrokerRegistry, connectorExplainer, IBKR_DISCONNECTED_FIELDS } from 
 import { getBrokerHowTo } from '@/lib/brokerHowTo'
 import BrokerSteps from '@/components/ui/BrokerSteps'
 
-export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, onBackgroundSync, onImport, onAddAccount, onOpenBlockchain, onSaveCredentials, lang = 'es', lastSyncTime, portfolioItems = [] }) {
+export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, onBackgroundSync, onImport, onAddAccount, onOpenBlockchain, onOpenLedger, onSaveCredentials, lang = 'es', lastSyncTime, portfolioItems = [] }) {
   const trapRef = useFocusTrap()
   const t = (es, en) => lang === 'es' ? es : en
 
@@ -501,7 +501,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
               <summary className="flex items-center justify-between cursor-pointer">
                 <p className="text-xs text-slate-500 uppercase tracking-wider">
                   Crypto
-                  <span className="text-slate-600 ml-1">({cryptoBrokers.length + 1})</span>
+                  <span className="text-slate-600 ml-1">({cryptoBrokers.length + 2})</span>
                 </p>
                 <span className="text-xs text-slate-600 group-open:rotate-180 transition-transform">▼</span>
               </summary>
@@ -515,6 +515,19 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                       <p className="text-xs text-slate-600">Blockchain.com, Ledger, MetaMask</p>
                     </div>
                     <button onClick={() => { onClose(); setTimeout(() => { if (onOpenBlockchain) onOpenBlockchain() }, 50) }}
+                      className="px-2.5 py-1 border text-xs font-medium rounded-md hover:bg-blue-500/10 transition-colors" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
+                      {t('Conectar', 'Connect')}
+                    </button>
+                  </div>
+                </div>
+                <div className="bg-theme-base border border-glass-border/60 rounded-lg">
+                  <div className="flex items-center gap-3 px-3 py-2">
+                    <span className="text-sm">🔒</span>
+                    <div className="flex-1">
+                      <p className="text-sm text-white">{t('Cripto por dirección', 'Crypto by address')}</p>
+                      <p className="text-xs text-slate-600">Ledger, Trezor, Coldcard (watch-only)</p>
+                    </div>
+                    <button onClick={() => { onClose(); setTimeout(() => { if (onOpenLedger) onOpenLedger() }, 50) }}
                       className="px-2.5 py-1 border text-xs font-medium rounded-md hover:bg-blue-500/10 transition-colors" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
                       {t('Conectar', 'Connect')}
                     </button>

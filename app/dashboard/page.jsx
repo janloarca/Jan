@@ -10,6 +10,7 @@ import AdBanner from '@/components/AdBanner'
 import MonthEndCheckin, { hasLiveSync } from '@/components/dashboard/MonthEndCheckin'
 import DashboardLoading from './loading'
 import NetWorthCard from '@/components/dashboard/NetWorthCard'
+import CalibrateReturnModal from '@/components/dashboard/CalibrateReturnModal'
 import ActionButtons from '@/components/dashboard/ActionButtons'
 import SectionCollapse from '@/components/dashboard/SectionCollapse'
 import MobileNav from '@/components/dashboard/MobileNav'
@@ -257,10 +258,10 @@ export default function DashboardPage() {
 
   // Data layer
   const {
-    items, snapshots, augmentedSnapshots, transactions, goals, settings, profile, effectiveProfile, alerts, lots, portfolios, financeTransactions,
+    items, snapshots, augmentedSnapshots, accountCalibrations, transactions, goals, settings, profile, effectiveProfile, alerts, lots, portfolios, financeTransactions,
     dataLoading,
     addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
-    saveSnapshot, deleteAllSnapshots, deleteDemoData,
+    saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, deleteTransaction, deleteAllTransactions,
     addAlert, deleteAlert,
     addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution,
@@ -275,7 +276,7 @@ export default function DashboardPage() {
     ratesLoading, ratesError,
     handleRefresh,
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
-    returnYTD, ytdChange, returnSinceStart, sinceStartDate,
+    returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated,
     annualDividends, estimatedAnnualIncome,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
     benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName,
@@ -1015,6 +1016,8 @@ export default function DashboardPage() {
               yearlyChange={yearlyChange} dailyChange={dailyChange} convert={convert}
               lang={lang} netContributions={netContributions} cashTotal={cashTotal} snapshots={augmentedSnapshots} items={portfolioItems}
               contributionWarning={contributionWarning} onLogFlow={() => setModal('cashflow')}
+              onCalibrate={() => setModal('calibrate')}
+              ytdCalibrated={ytdCalibrated}
             />
             </CardBoundary>
           </div>
@@ -1248,21 +1251,36 @@ export default function DashboardPage() {
       {modal === 'ledger' && (
         <LedgerSyncModal
           onClose={handleCloseModal}
-          onSyncComplete={async ({ items: syncItems, mode }) => {
+          onSyncComplete={async ({ items: syncItems, transactions: syncTxs, mode }) => {
+            const newKeys = new Set()
             for (const item of syncItems) {
+              // Match by wallet address when both sides have one: every chain's
+              // address is unique, and several chains now share a symbol (ETH
+              // mainnet vs ETH on Arbitrum/Base/Optimism). The symbol fallback
+              // only applies to legacy items imported before _walletAddress.
               const existing = items.find(it =>
-                it._walletAddress === item._walletAddress ||
-                ((it.symbol || '').toUpperCase() === (item.symbol || '').toUpperCase() &&
+                (item._walletAddress && it._walletAddress === item._walletAddress) ||
+                (!item._walletAddress && !it._walletAddress &&
+                 (it.symbol || '').toUpperCase() === (item.symbol || '').toUpperCase() &&
                  (it._source === 'ledger' || (it.institution || '').toLowerCase() === 'ledger'))
               )
               if (existing) {
                 await updateItem(existing.id, { quantity: item.quantity, _source: 'ledger', _walletAddress: item._walletAddress })
               } else {
                 await addItem(item)
+                newKeys.add(item._walletAddress || item.symbol)
               }
             }
+            // Inflows attach only to NEWLY created items: re-syncing an address
+            // that already exists would duplicate its BUY history.
+            let txCount = 0
+            for (const tx of (syncTxs || [])) {
+              if (newKeys.has(tx._walletAddress || tx.symbol)) { await addTransaction(tx); txCount++ }
+            }
             setModal(null)
-            showToast(lang === 'es' ? `Ledger: ${syncItems.length} balances importados` : `Ledger: ${syncItems.length} balances imported`)
+            showToast(lang === 'es'
+              ? `Cripto: ${syncItems.length} posiciones, ${txCount} compras detectadas`
+              : `Crypto: ${syncItems.length} positions, ${txCount} detected buys`)
           }}
           lang={lang}
         />
@@ -1339,6 +1357,7 @@ export default function DashboardPage() {
           onImport={handleOpenImport}
           onAddAccount={handleOpenAccount}
           onOpenBlockchain={handleOpenBlockchain}
+          onOpenLedger={() => setModal('ledger')}
           onSaveCredentials={(creds) => { saveSettings({ ...creds, _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
           onSyncBroker={async (brokerId, data) => {
             const positions = data?.positions || data || []
@@ -1386,6 +1405,14 @@ export default function DashboardPage() {
       {modal === 'print' && (
         <PrintSummary items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets}
           snapshots={augmentedSnapshots} transactions={transactions} lang={lang} onClose={handleCloseModal} />
+      )}
+
+      {modal === 'calibrate' && (
+        <CalibrateReturnModal
+          netWorth={netWorth} transactions={transactions} convert={convert} baseCurrency={baseCurrency}
+          snapshots={snapshots} accountSnapshots={accountCalibrations} items={portfolioItems}
+          saveSnapshot={saveSnapshot} deleteSnapshot={deleteSnapshot}
+          lang={lang} onClose={handleCloseModal} />
       )}
 
       {editItem && (
