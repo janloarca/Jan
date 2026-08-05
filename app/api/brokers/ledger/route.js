@@ -45,7 +45,11 @@ async function esploraGet(path) {
 async function fetchBTCData(address) {
   const stats = await esploraGet(`/address/${address}`)
   const chain = stats?.chain_stats || {}
-  const balance = ((chain.funded_txo_sum || 0) - (chain.spent_txo_sum || 0)) / 1e8
+  const mempool = stats?.mempool_stats || {}
+  // Include the mempool: a deposit received minutes ago is still unconfirmed,
+  // and chain_stats alone reports a 0 balance for an otherwise-empty address.
+  const balance = ((chain.funded_txo_sum || 0) - (chain.spent_txo_sum || 0)
+    + (mempool.funded_txo_sum || 0) - (mempool.spent_txo_sum || 0)) / 1e8
   const txCount = chain.tx_count || 0
   if (txCount === 0) return { balance, firstSeen: null, inflows: [] }
 
