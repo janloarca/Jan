@@ -48,6 +48,7 @@ const AssetDetailModal = dynamic(() => import('@/components/dashboard/AssetDetai
 const AccountReviewModal = dynamic(() => import('@/components/dashboard/AccountReviewModal'), { loading: () => <ModalSkeleton /> })
 const EnrichModal = dynamic(() => import('@/components/dashboard/EnrichModal'), { loading: () => <ModalSkeleton /> })
 const QuarterlyHistoryModal = dynamic(() => import('@/components/dashboard/QuarterlyHistoryModal'), { loading: () => <ModalSkeleton /> })
+const BrokerCompletionModal = dynamic(() => import('@/components/dashboard/BrokerCompletionModal'), { loading: () => <ModalSkeleton /> })
 const CashFlowModal = dynamic(() => import('@/components/CashFlowModal'), { loading: () => <ModalSkeleton /> })
 const PrintSummary = dynamic(() => import('@/components/dashboard/PrintSummary'))
 const OnboardingTour = dynamic(() => import('@/components/dashboard/OnboardingTour'))
@@ -154,6 +155,11 @@ export default function DashboardPage() {
   // one institution ("fix everything IDC holds").
   const [reviewTarget, setReviewTarget] = useState({ itemId: null, guided: false, institution: null })
   const [showEnrich, setShowEnrich] = useState(false)
+  const [brokerCompletionId, setBrokerCompletionId] = useState(null)
+  // Snapshot of ibkrConnected the moment the IBKR modal opens, so closing it
+  // can tell "just connected for the first time" apart from "just re-synced" —
+  // the checklist should greet a NEW connection, not interrupt a routine sync.
+  const ibkrWasConnectedRef = useRef(false)
   const [toast, setToast] = useState(null)
   const toastTimer = useRef(null)
   const [staleCode, setStaleCode] = useState(false)
@@ -291,6 +297,14 @@ export default function DashboardPage() {
     ibkrConnected, ibkrAutoSyncing,
     ibkrSyncStatus, ibkrSyncErrorCode, ibkrLastSync, ibkrSyncSummary,
   } = useDashboardData({ user, lang, activePortfolio, activeEntity })
+
+  // Only matters for the ONE transition into 'ibkr': captures whether it was
+  // already connected, so closing the modal can tell "just connected for the
+  // first time" apart from "just ran a routine re-sync" — the completion
+  // checklist should greet a new connection, not interrupt a routine one.
+  useEffect(() => {
+    if (modal === 'ibkr') ibkrWasConnectedRef.current = ibkrConnected
+  }, [modal]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleOpenImport = useCallback((bh) => {
     setImportBrokerHint(bh || null)
@@ -1218,7 +1232,13 @@ export default function DashboardPage() {
 
       {modal === 'ibkr' && (
         <IBKRSyncModal
-          onClose={handleCloseModal}
+          onClose={() => {
+            const justConnected = !ibkrWasConnectedRef.current && ibkrConnected
+            handleCloseModal()
+            // Greet a brand-new connection with the checklist, once — a routine
+            // re-sync (already connected before opening) never triggers it.
+            if (justConnected) setTimeout(() => setBrokerCompletionId('ibkr'), 50)
+          }}
           onSyncComplete={async (data, mode, onProgress) => {
             await handleIBKRSync(data, mode, onProgress)
             showToast(lang === 'es' ? `IBKR: ${data.items?.length || 0} posiciones sincronizadas` : `IBKR: ${data.items?.length || 0} positions synced`)
@@ -1372,6 +1392,7 @@ export default function DashboardPage() {
           onOpenBlockchain={handleOpenBlockchain}
           onOpenLedger={() => setModal('ledger')}
           onCalibrate={() => setModal('calibrate')}
+          onOpenBrokerChecklist={(brokerId) => setBrokerCompletionId(brokerId)}
           onSaveCredentials={(creds) => { saveSettings({ ...creds, _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
           onSyncBroker={async (brokerId, data) => {
             const positions = data?.positions || data || []
@@ -1501,9 +1522,25 @@ export default function DashboardPage() {
           onPickAccount={handleEnrichAccount}
           onPickInstitution={handleEnrichInstitution}
           onGuided={handleEnrichGuided}
-          onQuarterlyHistory={handleOpenQuarterly}
-          onCalibrate={() => { setShowEnrich(false); setModal('calibrate') }}
+          onBrokerChecklist={() => { setShowEnrich(false); setBrokerCompletionId('ibkr') }}
           hasBroker={portfolioItems.some((it) => it._source === 'ibkr')}
+        />
+      )}
+
+      {brokerCompletionId && (
+        <BrokerCompletionModal
+          brokerId={brokerCompletionId}
+          brokerName={brokerCompletionId === 'ibkr' ? 'Interactive Brokers' : brokerCompletionId}
+          lang={lang}
+          onClose={() => setBrokerCompletionId(null)}
+          ibkrConnected={ibkrConnected}
+          snapshots={snapshots}
+          items={portfolioItems}
+          accountCalibrations={accountCalibrations}
+          onConnect={() => setModal('ibkr')}
+          onImportHistory={() => handleOpenImport('ibkr')}
+          onQuarterlyHistory={handleOpenQuarterly}
+          onCalibrate={() => setModal('calibrate')}
         />
       )}
 

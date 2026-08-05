@@ -13,7 +13,7 @@ import { getBrokerRegistry, connectorExplainer, IBKR_DISCONNECTED_FIELDS } from 
 import { getBrokerHowTo } from '@/lib/brokerHowTo'
 import BrokerSteps from '@/components/ui/BrokerSteps'
 
-export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, onBackgroundSync, onImport, onAddAccount, onOpenBlockchain, onOpenLedger, onSaveCredentials, onCalibrate, lang = 'es', lastSyncTime, portfolioItems = [] }) {
+export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, onBackgroundSync, onImport, onAddAccount, onOpenBlockchain, onOpenLedger, onSaveCredentials, onCalibrate, onOpenBrokerChecklist, lang = 'es', lastSyncTime, portfolioItems = [] }) {
   const trapRef = useFocusTrap()
   const t = (es, en) => lang === 'es' ? es : en
 
@@ -426,6 +426,15 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                   <p className="text-xs mt-2 pl-9" style={{ color: 'var(--accent-orange)' }}>
                     {t('Tus datos podrían estar desactualizados', 'Your data may be outdated')}
                   </p>
+                )}
+                {/* The 365-day Flex cap means "connected" is rarely "complete" —
+                    this is the door back into that checklist for anyone who
+                    skipped it the first time (or connected before it existed). */}
+                {ibkrConfigured && onOpenBrokerChecklist && (
+                  <button onClick={() => { onClose(); setTimeout(() => onOpenBrokerChecklist('ibkr'), 50) }}
+                    className="text-xs mt-2 pl-9 hover:underline transition-colors" style={{ color: 'var(--accent-blue)' }}>
+                    {t('Completar historial (4 pasos)', 'Complete history (4 steps)')}
+                  </button>
                 )}
               </div>
 

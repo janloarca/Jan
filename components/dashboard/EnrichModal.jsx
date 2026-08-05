@@ -11,14 +11,14 @@
 // want Chispu to tell you.
 
 import { useState, useMemo } from 'react'
-import { Search, Sparkles, ChevronRight, ListChecks, CalendarRange, Percent, Building2 } from 'lucide-react'
+import { Search, Sparkles, ChevronRight, ListChecks, ListOrdered, Building2 } from 'lucide-react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { getItemValue, formatCurrency } from './utils'
 
 export default function EnrichModal({
   items = [], findings = [], lang = 'es', onClose,
   onPickAccount, onPickInstitution, onGuided, contributionWarning = false,
-  onQuarterlyHistory, onCalibrate, hasBroker = false,
+  onBrokerChecklist, hasBroker = false,
 }) {
   const t = (es, en) => (lang === 'es' ? es : en)
   const trapRef = useFocusTrap()
@@ -129,41 +129,26 @@ export default function EnrichModal({
                 transcribed by quarter or leaned on via the broker's own
                 percentages. Hidden entirely when there is no broker, since
                 neither has anything to attach to. */}
-            {hasBroker && (onQuarterlyHistory || onCalibrate) && (
-              <>
-                {onQuarterlyHistory && (
-                  <button type="button" onClick={() => { onClose(); onQuarterlyHistory() }}
-                    className="w-full flex items-start gap-3 p-3.5 rounded-xl text-left transition-colors hover:bg-theme-elevated"
-                    style={{ border: '1px solid var(--card-border)' }}>
-                    <CalendarRange size={18} className="mt-0.5 shrink-0" style={{ color: 'var(--accent-blue)' }} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-body font-medium" style={{ color: 'var(--text-primary)' }}>
-                        {t('Transcribir el historial por trimestre', 'Transcribe the history by quarter')}
-                      </span>
-                      <span className="block text-micro mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                        {t('Unos 4 números por año, leídos de Portfolio Analyst. Te decimos dónde están.', 'About 4 numbers per year, read off Portfolio Analyst. We show you where they are.')}
-                      </span>
-                    </span>
-                    <ChevronRight size={16} className="mt-0.5 shrink-0" style={{ color: 'var(--text-muted)' }} />
-                  </button>
-                )}
-                {onCalibrate && (
-                  <button type="button" onClick={() => { onClose(); onCalibrate() }}
-                    className="w-full flex items-start gap-3 p-3.5 rounded-xl text-left transition-colors hover:bg-theme-elevated"
-                    style={{ border: '1px solid var(--card-border)' }}>
-                    <Percent size={18} className="mt-0.5 shrink-0" style={{ color: 'var(--accent-blue)' }} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-body font-medium" style={{ color: 'var(--text-primary)' }}>
-                        {t('Copiar los retornos que muestra tu broker', 'Copy the returns your broker shows')}
-                      </span>
-                      <span className="block text-micro mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                        {t('1W, 1M, 3M, YTD, 1Y y desde el inicio. Cada uno ancla la curva en su fecha.', '1W, 1M, 3M, YTD, 1Y and since inception. Each one anchors the curve at its own date.')}
-                      </span>
-                    </span>
-                    <ChevronRight size={16} className="mt-0.5 shrink-0" style={{ color: 'var(--text-muted)' }} />
-                  </button>
-                )}
-              </>
+            {/* One door, not two: "transcribir por trimestre" and "copiar
+                retornos" are steps 3 and 4 of the SAME numbered checklist
+                (lib/brokerCompletion.js), which also shows what is already
+                done. Splitting them here just meant re-explaining the same
+                365-day limit twice. */}
+            {hasBroker && onBrokerChecklist && (
+              <button type="button" onClick={() => { onClose(); onBrokerChecklist() }}
+                className="w-full flex items-start gap-3 p-3.5 rounded-xl text-left transition-colors hover:bg-theme-elevated"
+                style={{ border: '1px solid var(--card-border)' }}>
+                <ListOrdered size={18} className="mt-0.5 shrink-0" style={{ color: 'var(--accent-blue)' }} />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-body font-medium" style={{ color: 'var(--text-primary)' }}>
+                    {t('Llevar tu broker al 100%', 'Get your broker to 100%')}
+                  </span>
+                  <span className="block text-micro mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                    {t('Tu broker solo exporta ~12 meses: los pasos para completar lo de antes.', 'Your broker only exports ~12 months: the steps to fill in what came before.')}
+                  </span>
+                </span>
+                <ChevronRight size={16} className="mt-0.5 shrink-0" style={{ color: 'var(--text-muted)' }} />
+              </button>
             )}
 
             {contributionWarning && (
