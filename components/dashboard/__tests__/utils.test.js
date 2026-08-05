@@ -17,6 +17,7 @@ import {
   effectiveAcqTs,
   formatMonth,
   shouldHoldFlat,
+  getDividendIncomeByItem,
 } from '../utils'
 
 describe('projectItemAnnualIncome', () => {
@@ -623,5 +624,59 @@ describe('businessDaysSince', () => {
   it('never returns negative for a future date', () => {
     const future = new Date('2026-08-05T12:00:00Z').toISOString()
     expect(businessDaysSince(future, tue)).toBe(0)
+  })
+})
+
+describe('getDividendIncomeByItem', () => {
+  const bond = { id: 'bond1', dividendAction: 'cash' }
+  const reinvestingFund = { id: 'fund1', dividendAction: 'reinvest' }
+
+  it('attributes a cash dividend to the SOURCE item, not wherever it settled', () => {
+    const transactions = [
+      { type: 'DIVIDEND', totalAmount: 240, currency: 'USD', date: '2026-05-15', _linkedItemId: 'bond1' },
+    ]
+    const map = getDividendIncomeByItem(transactions, [bond], null, 'USD')
+    expect(map.get('bond1')).toBe(240)
+  })
+
+  it('excludes reinvested dividends — that gain already shows as higher quantity/value', () => {
+    const transactions = [
+      { type: 'DIVIDEND', totalAmount: 50, currency: 'USD', date: '2026-05-15', _linkedItemId: 'fund1', _reinvested: true },
+      { type: 'DIVIDEND', totalAmount: 30, currency: 'USD', date: '2026-06-15', _linkedItemId: 'fund1' }, // item.dividendAction says reinvest too
+    ]
+    const map = getDividendIncomeByItem(transactions, [reinvestingFund], null, 'USD')
+    expect(map.has('fund1')).toBe(false)
+  })
+
+  it('sums multiple payments for the same item', () => {
+    const transactions = [
+      { type: 'DIVIDEND', totalAmount: 240, currency: 'USD', date: '2026-05-15', _linkedItemId: 'bond1' },
+      { type: 'DIVIDEND', totalAmount: 240, currency: 'USD', date: '2026-12-15', _linkedItemId: 'bond1' },
+    ]
+    const map = getDividendIncomeByItem(transactions, [bond], null, 'USD')
+    expect(map.get('bond1')).toBe(480)
+  })
+
+  it('converts to the target currency', () => {
+    const transactions = [
+      { type: 'DIVIDEND', totalAmount: 100, currency: 'GTQ', date: '2026-05-15', _linkedItemId: 'bond1' },
+    ]
+    const convert = (amt, from, to) => (from === 'GTQ' && to === 'USD' ? amt / 7.8 : amt)
+    const map = getDividendIncomeByItem(transactions, [bond], convert, 'USD')
+    expect(map.get('bond1')).toBeCloseTo(100 / 7.8)
+  })
+
+  it('ignores non-DIVIDEND transactions and unlinked ones', () => {
+    const transactions = [
+      { type: 'DEPOSIT', totalAmount: 6000, currency: 'USD', date: '2026-01-06', _linkedItemId: 'bond1' },
+      { type: 'DIVIDEND', totalAmount: 240, currency: 'USD', date: '2026-05-15' }, // no _linkedItemId
+    ]
+    const map = getDividendIncomeByItem(transactions, [bond], null, 'USD')
+    expect(map.size).toBe(0)
+  })
+
+  it('returns an empty map for no transactions', () => {
+    expect(getDividendIncomeByItem([], [bond], null, 'USD').size).toBe(0)
+    expect(getDividendIncomeByItem(null, [bond], null, 'USD').size).toBe(0)
   })
 })

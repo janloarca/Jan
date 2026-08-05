@@ -1,37 +1,42 @@
 'use client'
 
 import { useMemo } from 'react'
-import { formatCurrency, formatCompact, getItemValue } from './utils'
+import { formatCurrency, formatCompact, getItemValue, getDividendIncomeByItem } from './utils'
 
 // Institution comparison card.
 // The portfolio NAV over time already lives in PortfolioGrowthChart (top of the
 // dashboard, with its own institution pills). This card answers the question that
 // chart does NOT show at a glance: how each institution compares right now —
 // value, share of the portfolio, and gain/loss. No duplicate NAV chart, no fetch.
-export default function InstitutionPerformance({ items, lang, baseCurrency }) {
+export default function InstitutionPerformance({ items, lang, baseCurrency, transactions, convert }) {
   const t = (es, en) => (lang === 'es' ? es : en)
 
   const institutions = useMemo(() => {
     if (!items || items.length === 0) return []
+    // A bond/bank account that pays cash to a different account (rather than
+    // reinvesting) never moves its own currentPrice — without this, it always
+    // shows a flat 0% gain regardless of how much it actually paid out.
+    const dividendIncome = getDividendIncomeByItem(transactions, items, convert, baseCurrency)
     const map = {}
     items.forEach((it) => {
       const rawName = it.institution || t('Sin institución', 'No institution')
       // Normalized key: "IDC VALORES" and "IDC Valores" are one custodian, not two rows.
       const key = rawName.trim().replace(/\s+/g, ' ').toLowerCase()
-      if (!map[key]) map[key] = { name: rawName.trim(), count: 0, value: 0, cost: 0 }
+      if (!map[key]) map[key] = { name: rawName.trim(), count: 0, value: 0, cost: 0, income: 0 }
       map[key].count += 1
       map[key].value += getItemValue(it)
       const qty = Number(it.quantity) || 0
       map[key].cost += qty * (it.purchasePrice || 0)
+      map[key].income += dividendIncome.get(it.id) || 0
     })
     return Object.values(map)
       .map((inst) => {
-        const gainLoss = inst.value - inst.cost
+        const gainLoss = inst.value - inst.cost + inst.income
         const gainPct = inst.cost > 0 ? (gainLoss / inst.cost) * 100 : 0
         return { ...inst, gainLoss, gainPct }
       })
       .sort((a, b) => b.value - a.value)
-  }, [items, lang])
+  }, [items, lang, transactions, convert, baseCurrency])
 
   const allTotal = useMemo(
     () => institutions.reduce((s, inst) => s + inst.value, 0),

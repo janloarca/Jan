@@ -1068,8 +1068,8 @@ export default function DashboardPage() {
 
               {/* ═══ COMPOSICIÓN: Allocation + Rendimiento por institución ═══ */}
               <div className="stagger-3 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 items-start">
-                <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} /></CardBoundary>
-                <CardBoundary id="INST-01"><InstitutionPerformance items={portfolioItems} lang={lang} baseCurrency={baseCurrency} /></CardBoundary>
+                <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
+                <CardBoundary id="INST-01"><InstitutionPerformance items={portfolioItems} lang={lang} baseCurrency={baseCurrency} transactions={transactions} convert={convert} /></CardBoundary>
                 <CardBoundary id="OL-03"><PriceAlerts items={portfolioItems} alerts={alerts} marketPrices={marketPrices} addAlert={addAlert} deleteAlert={deleteAlert} lang={lang} /></CardBoundary>
               </div>
 

@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { formatCurrency, getTypeCategory, TYPE_COLORS, CHART_PALETTE, getItemValue, getSectorFromItem, getGeographyFromItem, getInvestmentClass, INVESTMENT_CLASS_META, isExcludedFromNetWorth } from './utils'
+import { formatCurrency, getTypeCategory, TYPE_COLORS, CHART_PALETTE, getItemValue, getSectorFromItem, getGeographyFromItem, getInvestmentClass, INVESTMENT_CLASS_META, isExcludedFromNetWorth, getDividendIncomeByItem } from './utils'
 
-export default function AssetAllocation({ items, lang }) {
+export default function AssetAllocation({ items, lang, transactions, convert, baseCurrency }) {
   const [view, setView] = useState('type')
 
   const allocation = useMemo(() => {
@@ -17,6 +17,10 @@ export default function AssetAllocation({ items, lang }) {
     }
 
     const fn = groupFns[view] || groupFns.type
+    // A bond/bank account that pays cash to a different account (rather than
+    // reinvesting) never moves its own currentPrice — without this, it always
+    // shows 0% here no matter how much it actually paid out.
+    const dividendIncome = getDividendIncomeByItem(transactions, items, convert, baseCurrency)
     const byGroup = {}
     const gainByGroup = {}
     let total = 0
@@ -27,8 +31,9 @@ export default function AssetAllocation({ items, lang }) {
       const key = fn(it)
       const qty = it.quantity || 0
       const cost = qty * (it.purchasePrice || 0)
+      const income = dividendIncome.get(it.id) || 0
       byGroup[key] = (byGroup[key] || 0) + val
-      gainByGroup[key] = (gainByGroup[key] || 0) + (val - cost)
+      gainByGroup[key] = (gainByGroup[key] || 0) + (val - cost) + income
       total += val
     })
     return Object.entries(byGroup)
@@ -43,7 +48,7 @@ export default function AssetAllocation({ items, lang }) {
              : CHART_PALETTE[i % CHART_PALETTE.length],
       }))
       .sort((a, b) => b.value - a.value)
-  }, [items, view, lang])
+  }, [items, view, lang, transactions, convert, baseCurrency])
 
   const totalValue = useMemo(() => items.reduce((s, it) => {
     if (it.isDebt || isExcludedFromNetWorth(it)) return s

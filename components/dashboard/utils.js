@@ -451,6 +451,34 @@ export function buildIncomeEvents(transactions, items, convert, baseTo = 'USD') 
   return out
 }
 
+// Sum of DIVIDEND income each item GENERATED (source perspective), converted to
+// baseTo. Reinvested dividends are excluded — that gain already shows up as a
+// higher quantity/value on the item itself, so counting it again here would
+// double it. A bond/bank account that pays cash to a different destination
+// otherwise looks like it earned nothing (its own currentPrice never moves) in
+// any widget that computes gain as just currentPrice - purchasePrice — this is
+// the piece those widgets (Asset Allocation's Retorno view, Institution
+// Performance) are missing. Mirrors buildIncomeEvents' reinvest detection, but
+// attributes to the SOURCE instead of redirecting to the destination — here we
+// want "how much did this asset earn", not "where does the value now live".
+export function getDividendIncomeByItem(transactions, items, convert, baseTo = 'USD') {
+  const out = new Map()
+  if (!transactions || transactions.length === 0) return out
+  const byId = new Map((items || []).map((it) => [it.id, it]))
+  for (const tx of transactions) {
+    if ((tx.type || '').toUpperCase() !== 'DIVIDEND') continue
+    const amtRaw = Number(tx.totalAmount ?? tx.amount ?? 0)
+    if (!(amtRaw > 0) || !tx._linkedItemId) continue
+    const linked = byId.get(tx._linkedItemId)
+    const reinvested = tx._reinvested === true || (linked && linked.dividendAction === 'reinvest')
+    if (reinvested) continue
+    const cur = tx.currency || 'USD'
+    const amount = convert ? convert(amtRaw, cur, baseTo) : amtRaw
+    out.set(tx._linkedItemId, (out.get(tx._linkedItemId) || 0) + amount)
+  }
+  return out
+}
+
 export const TYPE_ICONS = {
   stocks: 'TrendingUp',
   crypto: 'Bitcoin',
