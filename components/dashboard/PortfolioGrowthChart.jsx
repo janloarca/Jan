@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { formatCurrency, formatCompact, formatAxisTick, formatDate, getItemValue, buildIncomeEvents, isExcludedFromNetWorth, findYearStartAnchor, shouldHoldFlat, SNAPSHOT_SRC_PRIORITY } from './utils'
+import { formatCurrency, formatCompact, formatAxisTick, formatDate, getItemValue, buildIncomeEvents, isExcludedFromNetWorth, findYearStartAnchor, shouldHoldFlat, SNAPSHOT_SRC_PRIORITY, fitSeriesToAnchors, combineAccountCalibrations, dedupeCalibrations } from './utils'
 import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { isBankLikeItem } from '@/lib/contributions'
 import { computeTWRSeries, computeMWRSeries } from './analytics'
@@ -78,7 +78,7 @@ function findClosestBenchmark(sorted, targetTs) {
   return sorted[lo]
 }
 
-export default function PortfolioGrowthChart({ items, lots, snapshots, transactions, lang, convert, baseCurrency, benchmarkSymbol, benchmarkName, onSaveSnapshot, ibkrSyncSummary = null, onImportBroker = null }) {
+export default function PortfolioGrowthChart({ items, lots, snapshots, transactions, lang, convert, baseCurrency, benchmarkSymbol, benchmarkName, onSaveSnapshot, ibkrSyncSummary = null, onImportBroker = null, calibrations = [] }) {
   const [period, setPeriod] = useState('YTD')
   const [hoverIdx, setHoverIdx] = useState(null)
   const [dataPoints, setDataPoints] = useState([])
@@ -563,10 +563,47 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
   // First timestamp with REAL broker NAV (vs reconstructed estimates). Drives the
   // performance-view rebase, the flow gating, and the short-history banner.
+  // Calibrated anchors are NOT real data: they arrive via the separate
+  // `calibrations` prop (never in `snapshots`), so they can't open this region.
   const firstRealTs = useMemo(() => {
     const p = snapshotData.find((s) => ['ibkr', 'daily', 'manual'].includes(s?.src))
     return p ? p.ts : null
   }, [snapshotData])
+
+  // Calibrated anchors as chart constraints (whole-portfolio views only: a
+  // single-institution scope can't honor a portfolio-level anchor). A global
+  // calibration contributes its solved value directly; per-account ones on the
+  // same anchor date are composed with combineAccountCalibrations, the exact
+  // same formula useDashboardData applies to the returns badges. Values here
+  // are USD; conversion to base happens where the series is built.
+  const calibAnchors = useMemo(() => {
+    if (selectedInst !== 'ALL' || !Array.isArray(calibrations) || calibrations.length === 0) return []
+    const byDate = new Map()
+    for (const c of dedupeCalibrations(calibrations)) {
+      if (!c || !c.date || !isFinite(c.netWorthUSD) || c.netWorthUSD <= 0) continue
+      if (!byDate.has(c.date)) byDate.set(c.date, { date: c.date, global: null, account: [] })
+      const slot = byDate.get(c.date)
+      if (c._account) slot.account.push(c)
+      else slot.global = c
+    }
+    const out = []
+    for (const { date, global, account } of byDate.values()) {
+      const [yy, mm, dd] = date.split('-').map(Number)
+      const ts = Date.UTC(yy, mm - 1, dd)
+      let valueUSD = global ? global.netWorthUSD : null
+      if (account.length > 0) {
+        const combined = combineAccountCalibrations({
+          baseValueUSD: valueUSD, anchorTs: ts,
+          calibrations: account, items, convert,
+        })
+        if (combined && isFinite(combined.startValueUSD) && combined.startValueUSD > 0) valueUSD = combined.startValueUSD
+      }
+      if (!(valueUSD > 0)) continue
+      const ref = global || account[0]
+      out.push({ ts, date, valueUSD, targetPct: ref.targetPct, capturedAt: ref.capturedAt })
+    }
+    return out.sort((a, b) => a.ts - b.ts)
+  }, [calibrations, selectedInst, items, convert])
 
   // Which broker the hold-flat estimate belongs to, so the short-history notice
   // points at the RIGHT place to fix it (only IBKR has a Flex Query "period" to
@@ -693,17 +730,50 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       const firstSnapTs = snapPts[0].ts
       const firstSnapVal = snapPts[0].value
       const lastSnapTs = snapPts[snapPts.length - 1].ts
-      if (period !== 'ALL') {
-        const olderApi = apiPts.filter(p => p.ts < firstSnapTs - 3600000)
+      // Calibrated anchors before the first real datapoint turn the estimated
+      // prefix into a FITTED curve that passes through them exactly
+      // (fitSeriesToAnchors) instead of a flat straight line from the anchor
+      // to the first real point. With anchors present the ALL guard relaxes:
+      // ALL may reach back to the pinned start anchors (the prefix keeps its
+      // grey "estimate" styling; anchors never become real data).
+      const anchorBase = baseCurrency || 'USD'
+      const anchors = calibAnchors
+        .map((a) => ({ ...a, value: convert ? convert(a.valueUSD, 'USD', anchorBase) : a.valueUSD }))
+        .filter((a) => isFinite(a.value) && a.value > 0 && a.ts < firstSnapTs - 3600000)
+      const olderApi = apiPts.filter(p => p.ts < firstSnapTs - 3600000)
+      if (period !== 'ALL' || anchors.length > 0) {
+        // For windowed periods an anchor only applies inside the fetched
+        // window; ALL has no window and reaches back to any pinned anchor.
+        const fitAnchors = period === 'ALL'
+          ? anchors
+          : anchors.filter((a) => olderApi.length === 0 || a.ts >= olderApi[0].ts - 86400000)
         if (olderApi.length > 0) {
-          // The API segment is an ESTIMATE (Σ qty×historical price) and can sit at
-          // a different level than the true snapshot NAV — splicing it in raw
-          // creates a fake cliff (and a phantom drawdown) at the seam. Scale it so
-          // its last point meets the first snapshot value, joining continuously.
-          const apiSeam = olderApi[olderApi.length - 1].value
-          const scale = apiSeam > 0 && firstSnapVal > 0 ? firstSnapVal / apiSeam : 1
-          const scaled = Math.abs(scale - 1) > 0.02 ? olderApi.map(p => ({ ...p, value: p.value * scale })) : olderApi
-          pts.unshift(...scaled)
+          if (fitAnchors.length > 0) {
+            // Seam constraint at the first real point (stamped last so it wins
+            // the same-day dedup): the fitted prefix joins real data exactly,
+            // like the uniform scaling below but passing through the anchors.
+            const fitted = fitSeriesToAnchors(olderApi, [
+              ...fitAnchors.map((a) => ({ ts: a.ts, valueUSD: a.value, capturedAt: a.capturedAt })),
+              { ts: firstSnapTs, valueUSD: firstSnapVal, capturedAt: 'zzzz-seam' },
+            ])
+            pts.unshift(...fitted)
+          } else {
+            // The API segment is an ESTIMATE (Σ qty×historical price) and can sit at
+            // a different level than the true snapshot NAV — splicing it in raw
+            // creates a fake cliff (and a phantom drawdown) at the seam. Scale it so
+            // its last point meets the first snapshot value, joining continuously.
+            const apiSeam = olderApi[olderApi.length - 1].value
+            const scale = apiSeam > 0 && firstSnapVal > 0 ? firstSnapVal / apiSeam : 1
+            const scaled = Math.abs(scale - 1) > 0.02 ? olderApi.map(p => ({ ...p, value: p.value * scale })) : olderApi
+            pts.unshift(...scaled)
+          }
+        }
+        // Splice the anchor points themselves so the curve passes through them
+        // exactly even where the API has no nearby point, and so the marker /
+        // tooltip can find them (the fitted factor at an anchor ts reproduces
+        // the anchor value, so this is a point ON the curve, not a spike).
+        for (const a of fitAnchors) {
+          pts.push({ ts: a.ts, date: new Date(a.ts), value: a.value, calAnchor: { targetPct: a.targetPct, capturedAt: a.capturedAt } })
         }
       }
       // Same seam treatment on the trailing side: API points appended after the
@@ -779,7 +849,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       if (real.length >= 2) return real
     }
     return pts
-  }, [dataPoints, snapshotData, currentTotal, period, staticPoints, selectedInst, manualAddedTs, snapshots, convert, baseCurrency, viewMode, firstRealTs, apiTransactional])
+  }, [dataPoints, snapshotData, currentTotal, period, staticPoints, selectedInst, manualAddedTs, snapshots, convert, baseCurrency, viewMode, firstRealTs, apiTransactional, calibAnchors])
 
   // Whether the auto-imported IBKR cash flows (_source:'ibkr') enter the return math
   // depends on the SOURCE of the value series (lesson from the +1.98% vs IBKR's
@@ -849,31 +919,46 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   }, [sortedBenchmark, chartData])
 
   const contributionLine = useMemo(() => {
-    if (viewMode !== 'value' || !scopedTransactions?.length || chartData.length < 2) return null
+    if (viewMode !== 'value' || chartData.length < 2) return null
     const flowTypes = { DEPOSIT: 1, WITHDRAWAL: -1 }
     // scopedTransactions already restricts to the selected institution, so a
     // deposit into another account never shows as invested capital here.
-    const txs = scopedTransactions
+    const txEvents = (scopedTransactions || [])
       .filter(tx => flowTypes[tx.type] != null)
-      .sort((a, b) => new Date(a.date) - new Date(b.date))
+      .map(tx => {
+        const amt = tx.totalAmount || tx.amount || 0
+        const convertedAmt = convert ? convert(amt, tx.currency || 'USD', baseCurrency || 'USD') : amt
+        return { ts: new Date(tx.date).getTime(), amt: (flowTypes[tx.type] || 0) * convertedAmt }
+      })
+    // A one-time entry/brokerage fee is real cash that left your pocket at
+    // purchase, same as a deposit — without this, "capital invertido" (and
+    // any return % that divides gain by it) silently ignored fees you told
+    // the app about, even though costsSummary.js already counts them.
+    const feeEvents = (scopedItems || [])
+      .filter(it => Number(it.entryFee) > 0 && it.acquisitionDate)
+      .map(it => {
+        const cur = it._originalCurrency || it.currency || 'USD'
+        const amt = convert ? convert(Number(it.entryFee), cur, baseCurrency || 'USD') : Number(it.entryFee)
+        return { ts: new Date(`${it.acquisitionDate}T00:00:00`).getTime(), amt }
+      })
+    const events = [...txEvents, ...feeEvents]
+      .filter(e => Number.isFinite(e.ts) && e.amt)
+      .sort((a, b) => a.ts - b.ts)
     // No real flows → no line: a flat "invested capital" at the start value
     // suggests a contribution that never happened.
-    if (txs.length === 0) return null
+    if (events.length === 0) return null
 
     const startVal = chartData[0].value
     return chartData.map(dp => {
       let cum = startVal
-      for (const tx of txs) {
-        const txTs = new Date(tx.date).getTime()
-        if (txTs <= chartData[0].ts) continue
-        if (txTs > dp.ts) break
-        const amt = tx.totalAmount || tx.amount || 0
-        const convertedAmt = convert ? convert(amt, tx.currency || 'USD', baseCurrency || 'USD') : amt
-        cum += (flowTypes[tx.type] || 0) * convertedAmt
+      for (const ev of events) {
+        if (ev.ts <= chartData[0].ts) continue
+        if (ev.ts > dp.ts) break
+        cum += ev.amt
       }
       return cum
     })
-  }, [chartData, scopedTransactions, viewMode, convert, baseCurrency])
+  }, [chartData, scopedTransactions, scopedItems, viewMode, convert, baseCurrency])
 
   const drawdown = useMemo(() => {
     if (chartData.length < 3) return null
@@ -1035,20 +1120,25 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const lastVal = measuredData.length > 0 ? measuredData[measuredData.length - 1].value : 0
   const growthAbs = lastVal - firstVal
   // A brand-new account funded partway through the period legitimately starts
-  // at $0 — growthAbs/firstVal is undefined there, and silently falling back
-  // to a bare 0 read as "no return" next to a real dollar gain (e.g. a bond
-  // funded in January showing "+$6,240.00 (+0.00%) este año"). Fall back to
-  // the capital actually invested (contributionLine, same series the "Capital
-  // invertido" overlay draws) as the denominator instead — same idea as a
-  // return-on-invested-capital calc when there's no prior balance to compare
-  // against. If there's no contribution history either, don't fabricate a
-  // percentage at all: null hides it rather than lying with a 0%.
+  // at $0 — growthAbs/firstVal is undefined there. Two bugs to avoid: (1)
+  // silently falling back to a bare 0 read as "no return" next to a real
+  // dollar gain ("+$6,240.00 (+0.00%) este año"); (2) dividing the RAW value
+  // change (growthAbs, which — correctly, per "incluye depósitos" — includes
+  // the deposit itself) by invested capital counts the deposited principal
+  // AS IF it were return, e.g. $6,000 in + $240 gained read as "+52%" once a
+  // duplicate deposit doubled the denominator, but even at the right
+  // denominator it would've read as "+100%" for a same-day deposit with zero
+  // gain — new money is not a return, full stop. Net the invested capital
+  // OUT of the numerator too (contributionLine, same series the "Capital
+  // invertido" overlay draws, already includes entry fees) so only the
+  // actual gain drives the %. No contribution history at all → null hides
+  // the percentage rather than lying with a 0%.
   const investedBase = contributionLine && contributionLine.length > 0
     ? contributionLine[contributionLine.length - 1]
     : null
   const growthPct = firstVal > 0
     ? (growthAbs / firstVal) * 100
-    : (investedBase > 0 ? (growthAbs / investedBase) * 100 : null)
+    : (investedBase > 0 ? ((growthAbs - investedBase) / investedBase) * 100 : null)
   const lastReturn = returnData.length > 0 ? returnData[returnData.length - 1] : 0
   // Annualized (CAGR) companion for multi-year spans — "+180% ALL" over 6 years is
   // easy to misread as a yearly figure.
@@ -1518,6 +1608,17 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                   <path d={polyline(contributionGeoPoints)} fill="none" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6 3" opacity="0.5" />
                 )}
 
+                {/* Calibrated anchors: subtle grey dots (estimate styling, NOT
+                    the blue of real data). The tooltip names the typed % and
+                    the capture date. */}
+                {chartData.map((p, i) => {
+                  if (!p.calAnchor || !geo.points[i]) return null
+                  return (
+                    <circle key={`cal-anchor-${i}`} cx={geo.points[i].x} cy={geo.points[i].y} r="3"
+                      fill="var(--text-muted)" stroke="var(--bg-card)" strokeWidth="1" opacity="0.75" />
+                  )
+                })}
+
                 {/* Transaction markers (aggregated: one triangle per point+direction) */}
                 {txMarkers.map((m, i) => {
                   const pt = geo.points[m.chartIdx]
@@ -1622,6 +1723,13 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                 <>
                   <div className="font-bold">{formatCurrency(hd.value)}</div>
                   <div className="text-slate-400">{formatTooltipDate(hd.date)}</div>
+                  {hd.calAnchor && (
+                    <div className="text-slate-500">
+                      {hd.calAnchor.targetPct != null && isFinite(hd.calAnchor.targetPct)
+                        ? `${t('Calibrado', 'Calibrated')}: ${hd.calAnchor.targetPct > 0 ? '+' : ''}${hd.calAnchor.targetPct}%${hd.calAnchor.capturedAt ? ` ${t('el', 'on')} ${formatDate(hd.calAnchor.capturedAt)}` : ''}`
+                        : t('Punto calibrado', 'Calibrated point')}
+                    </div>
+                  )}
                   {hoverIdx > 0 && (() => {
                     const prev = chartData[hoverIdx - 1]
                     const chg = hd.value - prev.value
