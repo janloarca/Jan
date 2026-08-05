@@ -676,6 +676,126 @@ export function computeModifiedDietz({ startValue, endValue, startTs, endTs, tra
   return { pct, abs: gain }
 }
 
+// Anchor date (period START, at capture time) for each calibration kind.
+// String-prefix date math only: 'YYYY-MM-DD' parts are parsed by split and all
+// arithmetic runs in UTC (new Date('YYYY-MM-DD').getMonth() reads LOCAL time
+// and shifts the month for everyone behind UTC). Calendar-month shifts clamp
+// the day to the target month's last day (Mar 31 - 1m -> Feb 28/29).
+// Returns 'YYYY-MM-DD' or null when the kind/inputs can't produce one.
+export function calibrationAnchorDate(kind, todayStr, inceptionDate) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(todayStr || '')) return null
+  const [y, m, d] = todayStr.split('-').map(Number)
+  const iso = (ts) => new Date(ts).toISOString().slice(0, 10)
+  const shiftMonths = (n) => {
+    const total = y * 12 + (m - 1) - n
+    const ty = Math.floor(total / 12)
+    const tm = total % 12
+    const lastDay = new Date(Date.UTC(ty, tm + 1, 0)).getUTCDate()
+    return iso(Date.UTC(ty, tm, Math.min(d, lastDay)))
+  }
+  switch (kind) {
+    case '1w': return iso(Date.UTC(y, m - 1, d) - 7 * 86400000)
+    case 'mtd': return `${todayStr.slice(0, 8)}01`
+    case '1m': return shiftMonths(1)
+    case '3m': return shiftMonths(3)
+    case 'ytd': return `${y}-01-01`
+    case '1y': return shiftMonths(12)
+    case 'all': return /^\d{4}-\d{2}-\d{2}$/.test(inceptionDate || '') ? inceptionDate : null
+    default: return null
+  }
+}
+
+// A calibration anchor is redundant when real broker/daily data already covers
+// the stretch from that anchor to today: the anchor date sits ON or AFTER the
+// first real observation, so the period no longer needs an estimated start.
+// `realDates` is a list of 'YYYY-MM-DD' strings of real (ibkr/daily) snapshots.
+export function calibrationCoveredByRealData(anchorDateStr, realDates) {
+  if (!anchorDateStr || !Array.isArray(realDates)) return false
+  const first = realDates.filter(Boolean).sort()[0]
+  return !!first && anchorDateStr >= first
+}
+
+// Same calibration saved twice (re-capture) or legacy vs compound-id docs can
+// coexist for the same (account, kind, anchorDate): keep the most recently
+// captured one so math never mixes two different solved values for one anchor.
+export function dedupeCalibrations(calibrations) {
+  const byKey = new Map()
+  for (const c of calibrations || []) {
+    if (!c || !c.date) continue
+    const key = `${c._account || 'global'}|${c._calibrationKind || 'cal'}|${c.date}`
+    const prev = byKey.get(key)
+    const stamp = (x) => String(x.capturedAt || x.createdAt || '')
+    if (!prev || stamp(c) >= stamp(prev)) byKey.set(key, c)
+  }
+  return [...byKey.values()]
+}
+
+// Re-scale an ESTIMATED series (API reconstruction) so it passes exactly
+// through user-calibrated anchors and joins the first real datapoint.
+//   points:  [{ ts, total }]  estimated prefix (raw API level)
+//   anchors: [{ ts, valueUSD, capturedAt? }]  constraints, ANY order; deduped
+//            by calendar day keeping the latest capturedAt. The caller should
+//            include the seam (first real point) as the final constraint when
+//            the prefix must join real data; without anchors the input is
+//            returned unchanged (caller's uniform seam scaling still applies).
+// The scale factor is interpolated linearly between consecutive constraints
+// and held constant outside them (free start), so the curve touches each
+// anchor exactly instead of drawing a flat straight line to the first real
+// point (the "two charts" artifact this replaces).
+export function fitSeriesToAnchors(points, anchors) {
+  const pts = (points || [])
+    .filter((p) => p && isFinite(p.ts) && isFinite(p.total))
+    .sort((a, b) => a.ts - b.ts)
+  if (pts.length === 0) return pts
+  const byDay = new Map()
+  for (const a of anchors || []) {
+    if (!a || !isFinite(a.ts) || !isFinite(a.valueUSD) || a.valueUSD <= 0) continue
+    const day = new Date(a.ts).toISOString().slice(0, 10)
+    const prev = byDay.get(day)
+    if (!prev || String(a.capturedAt || '') >= String(prev.capturedAt || '')) byDay.set(day, a)
+  }
+  const anchorsSorted = [...byDay.values()].sort((a, b) => a.ts - b.ts)
+  if (anchorsSorted.length === 0) return pts
+
+  // Raw (unscaled) series value at any ts: linear interpolation, clamped to
+  // the end points outside the range.
+  const valueAt = (ts) => {
+    if (ts <= pts[0].ts) return pts[0].total
+    const last = pts[pts.length - 1]
+    if (ts >= last.ts) return last.total
+    for (let i = 1; i < pts.length; i++) {
+      if (pts[i].ts >= ts) {
+        const w = pts[i].ts > pts[i - 1].ts ? (ts - pts[i - 1].ts) / (pts[i].ts - pts[i - 1].ts) : 0
+        return pts[i - 1].total + (pts[i].total - pts[i - 1].total) * w
+      }
+    }
+    return last.total
+  }
+  const constraints = []
+  for (const a of anchorsSorted) {
+    const raw = valueAt(a.ts)
+    if (!(raw > 0)) continue
+    constraints.push({ ts: a.ts, factor: a.valueUSD / raw })
+  }
+  if (constraints.length === 0) return pts
+
+  const factorAt = (ts) => {
+    if (ts <= constraints[0].ts) return constraints[0].factor
+    const last = constraints[constraints.length - 1]
+    if (ts >= last.ts) return last.factor
+    for (let i = 1; i < constraints.length; i++) {
+      if (constraints[i].ts >= ts) {
+        const c0 = constraints[i - 1]
+        const c1 = constraints[i]
+        const w = c1.ts > c0.ts ? (ts - c0.ts) / (c1.ts - c0.ts) : 0
+        return c0.factor + (c1.factor - c0.factor) * w
+      }
+    }
+    return last.factor
+  }
+  return pts.map((p) => ({ ...p, total: p.total * factorAt(p.ts) }))
+}
+
 // Inverse of computeModifiedDietz for the return-calibration flow: the user
 // types the return their broker shows (e.g. IBKR PortfolioAnalyst YTD or since
 // inception) and we solve for the start value that makes OUR Dietz reproduce
