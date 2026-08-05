@@ -5,7 +5,7 @@ import { useExchangeRates } from './useExchangeRates'
 import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations } from '@/components/dashboard/utils'
+import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations, dedupeCalibrations } from '@/components/dashboard/utils'
 import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
@@ -38,17 +38,23 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     saveItemSnapshots, loadItemSnapshots,
   } = firestoreData
 
-  // Per-account calibration anchors (_account) hold ONE account's solved start
-  // value, not portfolio NAV: they must never enter the NAV series (chart,
-  // dedup, backfill, scoped returns) or they would read as catastrophic drops.
-  // Every consumer below uses the filtered `snapshots`; only the calibration
-  // math in the returnYTD memo reads `accountCalibrations`.
-  const accountCalibrations = useMemo(
-    () => (rawSnapshots || []).filter((s) => s && s._account && s._calibrated && s.date),
+  // Calibration anchors (global AND per-account) hold a SOLVED start value,
+  // not an observed NAV: they must never enter the NAV series (chart, dedup,
+  // backfill, scoped returns, risk metrics) or they read as real data — a
+  // global calibration used to sit in the series and the chart drew a flat
+  // straight line from the anchor to the first real datapoint. Every consumer
+  // below uses the filtered `snapshots` (real observations only); calibrations
+  // feed the returns math and the chart's estimated-prefix fit instead.
+  const calibrations = useMemo(
+    () => dedupeCalibrations((rawSnapshots || []).filter((s) => s && s._calibrated && s.date)),
     [rawSnapshots]
   )
+  const accountCalibrations = useMemo(
+    () => calibrations.filter((s) => s._account),
+    [calibrations]
+  )
   const snapshots = useMemo(
-    () => (rawSnapshots || []).filter((s) => !(s && s._account)),
+    () => (rawSnapshots || []).filter((s) => s && !s._account && !s._calibrated),
     [rawSnapshots]
   )
 
@@ -973,8 +979,15 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const year = new Date().getUTCFullYear()
     const yearStartTs = Date.UTC(year, 0, 1)
     const todayStr = new Date().toISOString().split('T')[0]
-    const ytdCals = accountCalibrations.filter((c) => c._calibrationKind === 'ytd' && c.date <= todayStr)
+    // Only THIS year's ytd calibrations: a calibration captured last year keeps
+    // its Jan-1-of-last-year anchor and must not leak into the current year.
+    const ytdCals = accountCalibrations.filter((c) => c._calibrationKind === 'ytd' && c.date <= todayStr && c.date.slice(0, 4) === String(year))
     const allCals = accountCalibrations.filter((c) => c._calibrationKind === 'all' && c.date <= todayStr)
+    // Global (whole-portfolio) calibrated anchors now live in `calibrations`,
+    // not in the NAV series. They outrank a reconstruction (jan1Value) but
+    // never a REAL observation of the year start.
+    const globalYtdCal = calibrations.filter((c) => !c._account && c._calibrationKind === 'ytd' && c.date <= todayStr && c.date.slice(0, 4) === String(year))
+      .sort((a, b) => String(b.capturedAt || b.createdAt || '').localeCompare(String(a.capturedAt || a.createdAt || '')))[0]
     const toUSD = (v) => convert(v, baseCurrency, 'USD')
     let startVal = null
     let flowAware = false
@@ -990,6 +1003,15 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         flowAware = REAL_SNAPSHOT_SOURCES.includes(bestSnap._source)
         anchorCalibrated = !!bestSnap._calibrated
       }
+    }
+    if ((startVal == null || startVal <= 0) && globalYtdCal && isFinite(globalYtdCal.netWorthUSD) && globalYtdCal.netWorthUSD > 0) {
+      // Calibrated global anchor: the start value was solved against the FULL
+      // flow set, so the roll-forward Dietz must net the same flows (flowAware)
+      // for the displayed % to keep matching the broker's number day to day.
+      anchorUSD = globalYtdCal.netWorthUSD
+      startVal = convertSnapshot(anchorUSD)
+      flowAware = true
+      anchorCalibrated = true
     }
     if (startVal == null || startVal <= 0) { startVal = jan1Value; flowAware = jan1Transactional }
 
@@ -1016,21 +1038,37 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
     let returnSinceStart = null
     let sinceStartDate = null
-    if ((startVal == null || startVal <= 0) && augmentedSnapshots.length >= 2) {
+    // Since-inception anchor candidates: the first REAL observation, and the
+    // global 'all' calibration pinned at the account opening date. The earlier
+    // of the two wins: a calibration reaches back past the first real datapoint
+    // (that is exactly what it is for), but never overrides real data at or
+    // before its own date.
+    const globalAllCal = calibrations.filter((c) => !c._account && c._calibrationKind === 'all' && c.date <= todayStr)
+      .sort((a, b) => String(b.capturedAt || b.createdAt || '').localeCompare(String(a.capturedAt || a.createdAt || '')))[0]
+    if ((startVal == null || startVal <= 0) && (augmentedSnapshots.length >= 2 || globalAllCal)) {
       const sorted = [...augmentedSnapshots]
         .filter(s => s.date)
         .sort((a, b) => new Date(a.date) - new Date(b.date))
       const first = sorted.find(s => (s.netWorthUSD ?? s.totalActivosUSD ?? 0) > 0)
-      if (first) {
-        const firstUSD = first.netWorthUSD ?? first.totalActivosUSD ?? 0
+      let anchor = first
+        ? { date: first.date, usd: first.netWorthUSD ?? first.totalActivosUSD ?? 0, flowAware: REAL_SNAPSHOT_SOURCES.includes(first._source) }
+        : null
+      if (globalAllCal && isFinite(globalAllCal.netWorthUSD) && globalAllCal.netWorthUSD > 0
+        && (!anchor || globalAllCal.date < anchor.date)) {
+        // Same flow rule as the ytd calibrated anchor: solved against the full
+        // flow set, so roll-forward nets the full flow set too.
+        anchor = { date: globalAllCal.date, usd: globalAllCal.netWorthUSD, flowAware: true }
+      }
+      if (anchor) {
+        const firstUSD = anchor.usd
         let firstVal = convertSnapshot(firstUSD)
-        let firstFlowAware = REAL_SNAPSHOT_SOURCES.includes(first._source)
+        let firstFlowAware = anchor.flowAware
         // Same per-account swap for the since-inception anchor.
-        const cals = allCals.filter((c) => c.date <= first.date)
+        const cals = allCals.filter((c) => c.date <= anchor.date)
         if (cals.length > 0) {
           const combined = combineAccountCalibrations({
             baseValueUSD: firstUSD > 0 ? firstUSD : null,
-            anchorTs: new Date(first.date).getTime(),
+            anchorTs: new Date(anchor.date).getTime(),
             calibrations: cals, items: portfolioItems, convert,
           })
           if (combined && isFinite(combined.startValueUSD) && combined.startValueUSD > 0) {
@@ -1039,7 +1077,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           }
         }
         if (firstVal > 0 && netWorth > 0) {
-          const firstTs = new Date(first.date).getTime()
+          const firstTs = new Date(anchor.date).getTime()
           const { pct, abs } = computeModifiedDietz({
             startValue: firstVal, endValue: netWorth,
             startTs: firstTs, endTs: Date.now(),
@@ -1047,7 +1085,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             convert, baseCurrency,
           })
           returnSinceStart = Math.max(-200, Math.min(200, pct))
-          sinceStartDate = first.date
+          sinceStartDate = anchor.date
           if (startVal == null || startVal <= 0) {
             startVal = firstVal
             flowAware = firstFlowAware
@@ -1065,7 +1103,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     })
     const clampedPct = Math.max(-200, Math.min(200, pct))
     return { returnYTD: clampedPct, ytdChange: abs, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated }
-  }, [jan1Value, jan1Transactional, netWorth, transactions, dietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot, accountCalibrations, portfolioItems])
+  }, [jan1Value, jan1Transactional, netWorth, transactions, dietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot, calibrations, accountCalibrations, portfolioItems])
 
   // Month-to-date return (Modified Dietz) — the "how are we doing THIS month"
   // number for the Friends monthly leaderboard. Same shape as YTD, anchored to
@@ -1075,17 +1113,45 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const year = now.getUTCFullYear()
     const month = now.getUTCMonth()
     if (netWorth <= 0) return null
+    const todayStr = now.toISOString().split('T')[0]
+    const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`
     const anchor = findMonthStartAnchor(augmentedSnapshots, year, month)
     let startVal = anchor ? convertSnapshot(anchor.netWorthUSD ?? anchor.totalActivosUSD ?? 0) : null
+    let flowAware = anchor ? REAL_SNAPSHOT_SOURCES.includes(anchor._source) : false
+    // Global 'mtd' calibration anchors this month when no real observation
+    // does (same rule as YTD: calibrated beats reconstructed, never real).
+    if (startVal == null || startVal <= 0) {
+      const mtdCal = calibrations.filter((c) => !c._account && c._calibrationKind === 'mtd'
+        && c.date <= todayStr && c.date.slice(0, 7) === monthKey)
+        .sort((a, b) => String(b.capturedAt || b.createdAt || '').localeCompare(String(a.capturedAt || a.createdAt || '')))[0]
+      if (mtdCal && isFinite(mtdCal.netWorthUSD) && mtdCal.netWorthUSD > 0) {
+        startVal = convertSnapshot(mtdCal.netWorthUSD)
+        flowAware = true
+      }
+    }
+    // Per-account mtd calibrations: same swap as the YTD path.
+    const mtdCals = calibrations.filter((c) => c._account && c._calibrationKind === 'mtd'
+      && c.date <= todayStr && c.date.slice(0, 7) === monthKey)
+    if (mtdCals.length > 0) {
+      const baseUSD = startVal != null && startVal > 0 ? convert(startVal, baseCurrency, 'USD') : null
+      const combined = combineAccountCalibrations({
+        baseValueUSD: baseUSD, anchorTs: Date.UTC(year, month, 1),
+        calibrations: mtdCals, items: portfolioItems, convert,
+      })
+      if (combined && isFinite(combined.startValueUSD) && combined.startValueUSD > 0) {
+        startVal = convertSnapshot(combined.startValueUSD)
+        flowAware = true
+      }
+    }
     if (startVal == null || startVal <= 0) return null
     const { pct } = computeModifiedDietz({
       startValue: startVal, endValue: netWorth,
       startTs: Date.UTC(year, month, 1), endTs: Date.now(),
-      transactions: REAL_SNAPSHOT_SOURCES.includes(anchor._source) ? transactions : dietzTransactions,
+      transactions: flowAware ? transactions : dietzTransactions,
       convert, baseCurrency,
     })
     return Math.max(-200, Math.min(200, pct))
-  }, [netWorth, transactions, dietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot])
+  }, [netWorth, transactions, dietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot, calibrations, portfolioItems])
 
   // IBKR-only returns (Modified Dietz over the raw broker NAV + broker flows) for
   // the Friends "IBKR only" leaderboard scope. Uses RAW snapshots (not augmented,
@@ -1251,7 +1317,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
   return {
     // Raw Firestore data
-    items, snapshots, augmentedSnapshots, accountCalibrations, transactions, goals, settings, profile, effectiveProfile, alerts, lots, portfolios, financeTransactions,
+    items, snapshots, augmentedSnapshots, calibrations, accountCalibrations, transactions, goals, settings, profile, effectiveProfile, alerts, lots, portfolios, financeTransactions,
     entityTransactions, entityFinanceTransactions,
     dataLoading,
 
