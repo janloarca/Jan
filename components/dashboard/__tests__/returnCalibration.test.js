@@ -35,7 +35,7 @@ describe('solveDietzStartValue', () => {
     const target = 8.6059
     const { startValue, error } = solveDietzStartValue({ endValue: 10106.754497, startTs, endTs, transactions, targetPct: target })
     expect(error).toBeUndefined()
-    const { pct } = computeModifiedDietz({ startValue: 10106.754497, startTs, endTs, transactions })
+    const { pct } = computeModifiedDietz({ startValue, endValue: 10106.754497, startTs, endTs, transactions })
     expect(pct).toBeCloseTo(target, 8)
   })
 
@@ -43,7 +43,7 @@ describe('solveDietzStartValue', () => {
     const transactions = [{ type: 'DEPOSIT', date: iso(startTs + 10 * day), totalAmount: 3000, currency: 'USD' }]
     const { startValue, error } = solveDietzStartValue({ endValue: 8000, startTs, endTs, transactions, targetPct: -12.5 })
     expect(error).toBeUndefined()
-    const { pct } = computeModifiedDietz({ startValue: 8000, startTs, endTs, transactions })
+    const { pct } = computeModifiedDietz({ startValue, endValue: 8000, startTs, endTs, transactions })
     expect(pct).toBeCloseTo(-12.5, 8)
   })
 
@@ -52,7 +52,7 @@ describe('solveDietzStartValue', () => {
     const transactions = [{ type: 'DEPOSIT', date: iso(startTs + 60 * day), totalAmount: 100, currency: 'MXN' }]
     const { startValue, error } = solveDietzStartValue({ endValue: 5000, startTs, endTs, transactions, convert, baseCurrency: 'USD', targetPct: 5 })
     expect(error).toBeUndefined()
-    const { pct } = computeModifiedDietz({ startValue: 5000, startTs, endTs, transactions, convert, baseCurrency: 'USD' })
+    const { pct } = computeModifiedDietz({ startValue, endValue: 5000, startTs, endTs, transactions, convert, baseCurrency: 'USD' })
     expect(pct).toBeCloseTo(5, 8)
   })
 
