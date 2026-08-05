@@ -339,6 +339,149 @@ export function combineAccountCalibrations({ baseValueUSD, anchorTs, calibration
   return { startValueUSD: start, applied }
 }
 
+// Anchor date (period START at capture time) for a return calibration, in pure
+// UTC/string arithmetic: never new Date('YYYY-MM-DD').getMonth(), which reads
+// in local time and shifts the month in UTC-6. `todayStr` and `inceptionDate`
+// are 'YYYY-MM-DD'; month shifts clamp the day to the target month's last day
+// (Mar 31 minus one month is Feb 28/29, not Mar 3). Returns 'YYYY-MM-DD', or
+// null for an unknown kind or 'all' without an inception date.
+export function calibrationAnchorDate(kind, todayStr, inceptionDate) {
+  if (!todayStr || !/^\d{4}-\d{2}-\d{2}$/.test(todayStr)) return null
+  const y = parseInt(todayStr.slice(0, 4), 10)
+  const m = parseInt(todayStr.slice(5, 7), 10)
+  const d = parseInt(todayStr.slice(8, 10), 10)
+  const shiftMonths = (delta) => {
+    const total = (m - 1) + delta
+    const ny = y + Math.floor(total / 12)
+    const nm = ((total % 12) + 12) % 12 + 1
+    const lastDay = new Date(Date.UTC(ny, nm, 0)).getUTCDate()
+    return `${ny}-${String(nm).padStart(2, '0')}-${String(Math.min(d, lastDay)).padStart(2, '0')}`
+  }
+  switch (kind) {
+    case '1w': return new Date(Date.UTC(y, m - 1, d) - 7 * 86400000).toISOString().slice(0, 10)
+    case 'mtd': return `${y}-${String(m).padStart(2, '0')}-01`
+    case '1m': return shiftMonths(-1)
+    case '3m': return shiftMonths(-3)
+    case 'ytd': return `${y}-01-01`
+    case '1y': return shiftMonths(-12)
+    case 'all': return inceptionDate && /^\d{4}-\d{2}-\d{2}$/.test(inceptionDate) ? inceptionDate : null
+    default: return null
+  }
+}
+
+// Effective period of a stored calibration. Calibrations saved before the
+// 7-period redesign carry no _calibrationKind: they were YTD when the anchor
+// is Jan 1 and since-inception otherwise, and they must keep working as
+// constraints (they still have date + netWorthUSD + _calibrated).
+export function calibrationKindOf(cal) {
+  if (!cal || !cal.date) return null
+  if (cal._calibrationKind) return cal._calibrationKind
+  return cal.date.slice(5) === '01-01' ? 'ytd' : 'all'
+}
+
+// Whether a period's anchor date is already covered by REAL broker data: a
+// real ibkr/daily snapshot exists at or before... rather, the whole stretch
+// from the first real datapoint onwards is measured by real data, so an anchor
+// at/after that date has nothing to add. String compares only ('YYYY-MM-DD').
+export function calibrationCoveredByRealData(anchorDate, snapshots) {
+  if (!anchorDate) return false
+  const firstReal = (snapshots || [])
+    .filter((s) => s && s.date && (s._source === 'ibkr' || s._source === 'daily'))
+    .map((s) => s.date)
+    .sort()[0]
+  return !!firstReal && anchorDate >= firstReal
+}
+
+// Dedup calibration docs per (anchor date, kind, account) keeping the most
+// recent capturedAt ('YYYY-MM-DD', string compare); legacy docs without
+// capturedAt lose against any stamped one. Entries without a date are dropped.
+export function dedupeCalibrations(calibrations) {
+  const byKey = new Map()
+  for (const c of calibrations || []) {
+    if (!c || !c.date) continue
+    const key = `${c.date}|${c._calibrationKind || ''}|${c._account || 'global'}`
+    const prev = byKey.get(key)
+    if (!prev || String(c.capturedAt || '') >= String(prev.capturedAt || '')) byKey.set(key, c)
+  }
+  return [...byKey.values()]
+}
+
+// Re-scale an ESTIMATED series (points [{ts, total}]) so it passes EXACTLY
+// through the calibrated anchors ([{ts, value, capturedAt?}]) and lands on the
+// first real datapoint (`seam` = {ts, total}, typically the first real
+// snapshot). The scale factor interpolates linearly between consecutive
+// constraints; before the first anchor the factor stays at that anchor's
+// factor (free start) and, without a seam, after the last anchor it also stays
+// flat. Anchors dedup by ts keeping the most recent capturedAt ('YYYY-MM-DD',
+// string compare). With no usable anchors the points are returned untouched:
+// the caller keeps its current uniform scaling. Input is never mutated.
+export function fitSeriesToAnchors(points, anchors, seam = null) {
+  if (!Array.isArray(points) || points.length === 0) return points
+  const byTs = new Map()
+  for (const a of anchors || []) {
+    if (!a || !isFinite(a.ts) || !isFinite(a.value) || a.value <= 0) continue
+    const prev = byTs.get(a.ts)
+    if (!prev || String(a.capturedAt || '') >= String(prev.capturedAt || '')) byTs.set(a.ts, a)
+  }
+  if (byTs.size === 0) return points
+  const sorted = points.filter((p) => p && isFinite(p.ts) && isFinite(p.total)).sort((x, y) => x.ts - y.ts)
+  if (sorted.length === 0) return points
+
+  // Unscaled series value at an arbitrary ts (linear between points, flat
+  // outside the range): the anchor factor is measured against THIS estimate so
+  // the fitted point lands exactly on the anchor value.
+  const baseAt = (ts) => {
+    if (ts <= sorted[0].ts) return sorted[0].total
+    if (ts >= sorted[sorted.length - 1].ts) return sorted[sorted.length - 1].total
+    for (let i = 1; i < sorted.length; i++) {
+      if (sorted[i].ts >= ts) {
+        const p0 = sorted[i - 1]
+        const p1 = sorted[i]
+        const span = p1.ts - p0.ts
+        const w = span > 0 ? (ts - p0.ts) / span : 1
+        return p0.total + (p1.total - p0.total) * w
+      }
+    }
+    return sorted[sorted.length - 1].total
+  }
+
+  const constraints = [...byTs.values()]
+    .sort((a, b) => a.ts - b.ts)
+    .map((a) => {
+      const base = baseAt(a.ts)
+      return base > 0 ? { ts: a.ts, factor: a.value / base } : null
+    })
+    .filter(Boolean)
+  if (constraints.length === 0) return points
+  const lastAnchorTs = constraints[constraints.length - 1].ts
+  if (seam && isFinite(seam.ts) && isFinite(seam.total) && seam.total > 0 && seam.ts > lastAnchorTs) {
+    const base = baseAt(seam.ts)
+    if (base > 0) constraints.push({ ts: seam.ts, factor: seam.total / base })
+  }
+
+  const factorAt = (ts) => {
+    if (ts <= constraints[0].ts) return constraints[0].factor
+    const lastC = constraints[constraints.length - 1]
+    if (ts >= lastC.ts) return lastC.factor
+    for (let i = 1; i < constraints.length; i++) {
+      if (constraints[i].ts >= ts) {
+        const c0 = constraints[i - 1]
+        const c1 = constraints[i]
+        const span = c1.ts - c0.ts
+        const w = span > 0 ? (ts - c0.ts) / span : 1
+        return c0.factor + (c1.factor - c0.factor) * w
+      }
+    }
+    return lastC.factor
+  }
+
+  // Keep the input order (the caller's array may not be time-sorted).
+  return points.map((p) => {
+    if (!p || !isFinite(p.ts) || !isFinite(p.total) || p.total <= 0) return p
+    return { ...p, total: p.total * factorAt(p.ts) }
+  })
+}
+
 // The single source of truth for "what was the portfolio worth at year start":
 // the snapshot dated in January of `year`, else late December of `year - 1`,
 // accepted only within 15 days of Jan 1. Used by BOTH the YTD Dietz badge
