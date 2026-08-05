@@ -1260,7 +1260,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     </select>
                     {creatingDest === 'income' && onCreateDestination && (
                       <InlineCreateAccount onCreate={onCreateDestination} onCancel={() => setCreatingDest(null)}
-                        onCreated={(id, it) => handleDestCreated('incomeDestination', id, it)} lang={lang} defaultCurrency={form.currency} />
+                        onCreated={(id, it) => handleDestCreated('incomeDestination', id, it)} lang={lang} defaultCurrency={form.currency}
+                        sourceAcquisitionDate={form.acquisitionDate || null} />
                     )}
                   </div>
                 )}
@@ -1607,7 +1608,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 </select>
                 {creatingDest === 'capital' && onCreateDestination && (
                   <InlineCreateAccount onCreate={onCreateDestination} onCancel={() => setCreatingDest(null)}
-                    onCreated={(id, it) => handleDestCreated('capitalDestination', id, it)} lang={lang} defaultCurrency={form.currency} />
+                    onCreated={(id, it) => handleDestCreated('capitalDestination', id, it)} lang={lang} defaultCurrency={form.currency}
+                    sourceAcquisitionDate={form.acquisitionDate || null} />
                 )}
               </div>
             )}

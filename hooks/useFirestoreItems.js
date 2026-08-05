@@ -817,7 +817,16 @@ export function useFirestoreItems() {
   // v16: crypto historical prices now come from CoinGecko (not Yahoo, which
   // collided crypto tickers with unrelated equities) — invalidates docs that
   // cached garbage crypto values.
-  const SNAPSHOT_VERSION = 17
+  // v18: transcribed quarterly NAV ('ibkr_quarterly') now feeds the per-item IBKR
+  // scaling, and destination accounts created from a source item now default their
+  // acquisition date to the source's, instead of "today" — invalidates docs that
+  // cached values computed before either was true (e.g. VITALI reading ~5,760
+  // instead of a flat 6,000 for months before its first backfilled coupon, or a
+  // destination account showing no history because it looked created "today").
+  // A merge-on-save cache never self-heals a stale entry short of this version
+  // bump: `saveItemSnapshots` merges new values OVER old ones, so a wrong number
+  // computed once just sits there until the whole month is forced to recompute.
+  const SNAPSHOT_VERSION = 18
 
   const saveItemSnapshots = useCallback(async (monthKey, itemsData, currency) => {
     if (!uid || !monthKey || !itemsData) return
