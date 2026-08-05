@@ -93,7 +93,7 @@ export async function POST(request) {
   if (auth.error) return auth.error
 
   try {
-    const { items, lots, period, income } = await request.json()
+    const { items, lots, period, income, breakdown } = await request.json()
     if (!items || !Array.isArray(items) || items.length > 100) {
       return NextResponse.json({ error: 'Invalid request', errorCode: 'BAD_REQUEST' }, { status: 400 })
     }
@@ -312,11 +312,23 @@ export async function POST(request) {
       if (flows) staticCashFlows.set(si, flows)
     })
 
+    // Per-holding values at the two ENDS of the series. With them the client can
+    // answer "what drove my YTD" exactly (each position's start vs end value)
+    // using the very same engine that produced the headline number, instead of
+    // re-deriving it from purchase prices. Only the first and last point carry
+    // it, so the response stays small.
+    const wantBreakdown = breakdown === true && sortedTs.length > 0
+    const firstTs = sortedTs[0]
+    const lastTs = sortedTs[sortedTs.length - 1]
+
     const dataPoints = sortedTs.map((ts) => {
       let total = 0
       let staticSubtotal = 0
+      const byKey = wantBreakdown && (ts === firstTs || ts === lastTs) ? {} : null
+      const tally = (key, v) => { if (byKey && key) byKey[key] = (byKey[key] || 0) + v }
 
       staticItems.forEach((it, si) => {
+        const bkKey = it.id || (it.symbol || '').toUpperCase().trim() || null
         const flows = staticCashFlows.get(si)
         if (flows) {
           // Only the ONE designated account-level cash line (the broker's real
@@ -329,6 +341,7 @@ export async function POST(request) {
           const v = cashAtTs((it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0), flows, ts)
           staticSubtotal += v
           total += v
+          tally(bkKey, v)
           return
         }
         const acqTs = it.acquisitionDate ? new Date(it.acquisitionDate).getTime() : 0
@@ -356,10 +369,11 @@ export async function POST(request) {
         }
         staticSubtotal += v
         total += v
+        tally(bkKey, v)
       })
       staticPoints.push({ ts, value: Math.round(staticSubtotal * 100) / 100 })
 
-      Object.entries(allTimeSeries).forEach(([, data]) => {
+      Object.entries(allTimeSeries).forEach(([bkKey, data]) => {
         let price = null
         for (let i = data.history.length - 1; i >= 0; i--) {
           if (data.history[i].ts <= ts) { price = data.history[i].close; break }
@@ -371,13 +385,18 @@ export async function POST(request) {
           // imported BUY/SELL history. Beats hold-flat and lots because it knows
           // exactly when each share was bought or sold.
           usedTransactional = true
-          total += qtyAtTs(data.qty || 0, data.txEvents, ts) * (price || 0)
+          {
+            const v = qtyAtTs(data.qty || 0, data.txEvents, ts) * (price || 0)
+            total += v
+            tally(bkKey, v)
+          }
         } else if (data.holdFlat) {
           // IBKR import-date position: no reliable acquisition date and no genuine
           // trade history, so hold the current quantity flat back through the period
           // (Σ current qty × historical price) instead of zeroing it before the sync
           // stamp. Mirrors the dateUnreliable path in lib/historicalValues.js.
           total += (data.qty || 0) * (price || 0)
+          tally(bkKey, (data.qty || 0) * (price || 0))
         } else if (data.lots) {
           let qtyAtTime = 0
           for (const lot of data.lots) {
@@ -386,13 +405,15 @@ export async function POST(request) {
             }
           }
           total += qtyAtTime * (price || 0)
+          tally(bkKey, qtyAtTime * (price || 0))
         } else {
           if (ts < data.acquiredTs) return
           total += (data.qty || 0) * (price || 0)
+          tally(bkKey, (data.qty || 0) * (price || 0))
         }
       })
 
-      return { ts, total: Math.round(total * 100) / 100 }
+      return { ts, total: Math.round(total * 100) / 100, ...(byKey ? { byKey } : {}) }
     })
 
     const staticTotal = staticItems.reduce((s, it) => {

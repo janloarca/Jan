@@ -118,6 +118,44 @@ el símbolo). Cuando divergieron, una transacción sin vínculo inflaba el capit
 invertido en la gráfica pero era invisible en la lista, así que un duplicado no
 se podía ni encontrar ni borrar (FASE DC).
 
+## "HOY" y el cambio diario: eventos del día, nunca diff de snapshots
+
+`computeDayChange` (en `components/dashboard/utils.js`, usado por `dailyChange`
+de `useDashboardData`) mide SOLO lo que pasó hoy:
+
+    hoy = Σ(valor × change1d) + ingresos con fecha de HOY (DIVIDEND/INTEREST)
+
+**Por qué no un diff contra el snapshot de ayer.** Ese diff no distingue un
+movimiento de mercado de una posición que apenas capturaste: meter el bono que
+tienes desde enero hace que el patrimonio de hoy suba por su saldo completo
+mientras el snapshot de ayer no sabe que existe. Netear depósitos por fecha
+tampoco lo salva, porque un backfill está FECHADO en enero, no hoy. Así fue como
+la tarjeta llegó a decir "+$6,119.62 hoy (+60.94%)" un día en que el mercado se
+movió unos $58 (FASE DG).
+
+**Reglas que se derivan:**
+- El capital nuevo nunca aparece: no hay término de flujos porque no hay diff.
+- Un cupón semestral aparece los DOS días que paga (15 mayo, 15 diciembre), no
+  el día que se registra. La comisión de entrada ya se pagó al comprar; no
+  vuelve a restar aquí.
+- `null` (línea oculta) cuando no hay nada priceado ni ingreso hoy. Un "+0.00%"
+  seguro sería un dato inventado.
+- Ventaja lateral: "HOY" y "Mayores movimientos hoy" ahora salen de la misma
+  fuente, así que la tarjeta ya no se contradice a sí misma.
+
+## Paleta de clases de activo (`lib/colors.js`)
+
+Seis clases invertidas con color (`stocks/bonds/funds/crypto/realestate/
+alternatives`); efectivo, por cobrar y "otros" son neutros a propósito. Elegida
+en OKLCH y VERIFICADA con `scripts/validate_palette.js` del skill `dataviz`, no
+a ojo: banda de luminosidad para tema claro y oscuro, piso de croma, y el par
+más cercano en visión normal a ΔE 18 (la paleta vieja tenía pares bajo 8: tres
+morados casi idénticos en stocks/funds/alternatives). El par más apretado en
+daltonismo queda en ΔE 6, por eso TODO lugar donde salen estos colores imprime
+también el nombre de la clase: la identidad nunca la carga el color solo.
+**Seis es el techo:** un séptimo tono tumba a otro bajo el piso legible, así que
+lo que sobre se agrupa en un "Otros" neutro.
+
 ## Copy / texto visible — reglas del usuario
 
 - **PROHIBIDO el guión largo (—) en cualquier string visible de la UI** (decisión del usuario,

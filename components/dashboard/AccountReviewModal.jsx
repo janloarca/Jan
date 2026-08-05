@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { getItemValue, getTypeCategory, formatCurrency } from './utils'
 
@@ -16,16 +16,12 @@ const CATEGORY_LABELS = {
   other: { es: 'Otro', en: 'Other' },
 }
 
-export default function AccountReviewModal({ items, onClose, onEditItem, lang, transactions, findings = [] }) {
+const SEV_WEIGHT = { high: 3, medium: 2, low: 1 }
+
+export default function AccountReviewModal({ items, onClose, onEditItem, lang, transactions, findings = [], startItemId = null, onlyWithFindings = false }) {
   const t = (es, en) => lang === 'es' ? es : en
   const trapRef = useFocusTrap()
-  const [index, setIndex] = useState(0)
   const [reviewed, setReviewed] = useState({})
-
-  const sorted = useMemo(() =>
-    [...items].sort((a, b) => Math.abs(getItemValue(b)) - Math.abs(getItemValue(a))),
-    [items]
-  )
 
   // Findings come from the shared data-completeness engine (lib/dataCompleteness)
   // so this wizard and the "Chispu te sugiere" card always agree.
@@ -38,6 +34,32 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
     }
     return m
   }, [findings])
+
+  // Guided mode ("let Chispu recommend"): only the accounts that actually have
+  // gaps, worst first, so the wizard is a to-do list instead of a tour of
+  // everything you own. Falls back to the full list when nothing is missing,
+  // otherwise the modal would open onto an empty state.
+  const sorted = useMemo(() => {
+    const byValue = (a, b) => Math.abs(getItemValue(b)) - Math.abs(getItemValue(a))
+    if (!onlyWithFindings) return [...items].sort(byValue)
+    const gapped = items.filter((it) => (findingsByItem.get(it.id) || []).length > 0)
+    if (gapped.length === 0) return [...items].sort(byValue)
+    const weight = (it) => (findingsByItem.get(it.id) || []).reduce((s, f) => s + (SEV_WEIGHT[f.severity] || 1), 0)
+    return gapped.sort((a, b) => (weight(b) - weight(a)) || byValue(a, b))
+  }, [items, onlyWithFindings, findingsByItem])
+
+  const [index, setIndex] = useState(() => {
+    if (!startItemId) return 0
+    const at = items.findIndex((it) => it.id === startItemId)
+    return at >= 0 ? at : 0
+  })
+  // The initial index above is computed against `items`; re-anchor it once the
+  // real (sorted/filtered) order is known so "review THIS account" lands on it.
+  useEffect(() => {
+    if (!startItemId) return
+    const at = sorted.findIndex((it) => it.id === startItemId)
+    if (at >= 0) setIndex(at)
+  }, [startItemId, sorted])
 
   // Count-based (N of M items without findings) so both numbers in the strip
   // agree — the value-weighted globalScore lives in the dashboard card.
