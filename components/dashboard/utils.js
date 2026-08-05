@@ -302,6 +302,58 @@ export function combineAccountCalibrations({ baseValueUSD, anchorTs, calibration
   return { startValueUSD: start, applied }
 }
 
+// Turn per-account calibration anchors into whole-portfolio NAV points, one per
+// anchor date, so EVERY surface that draws history (growth chart, monthly
+// spreadsheet) reflects the calibration — not just the YTD badge, which does its
+// own combine. The base at each date is the latest known portfolio NAV at or
+// before it (null when none: the combine rebuilds it from uncalibrated items).
+// Dates that already carry a GLOBAL calibrated NAV snapshot are skipped (that
+// anchor already covers the whole portfolio), and each point is stamped
+// _accountCombined so consumers can keep it out of "real data" logic (the
+// short-history notice, manual-asset overlays, corrupt-point guards): a solved
+// anchor is user truth about the past, but it is not an observed NAV.
+export function buildCalibrationNavPoints({ accountCalibrations, navSnapshots, items, convert }) {
+  const cals = (accountCalibrations || []).filter((c) => c && c.date && c._account && isFinite(c.netWorthUSD) && c.netWorthUSD > 0)
+  if (cals.length === 0) return []
+  const globalCalDates = new Set(
+    (navSnapshots || []).filter((s) => s && s._calibrated && s.date).map((s) => s.date)
+  )
+  const byDate = new Map()
+  for (const c of cals) {
+    if (globalCalDates.has(c.date)) continue
+    if (!byDate.has(c.date)) byDate.set(c.date, [])
+    byDate.get(c.date).push(c)
+  }
+  if (byDate.size === 0) return []
+  const nav = (navSnapshots || [])
+    .filter((s) => s && s.date && (s.netWorthUSD ?? s.totalActivosUSD ?? 0) > 0)
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+  const pts = []
+  for (const [date, list] of byDate) {
+    let baseUSD = null
+    for (const s of nav) {
+      if (s.date > date) break
+      baseUSD = s.netWorthUSD ?? s.totalActivosUSD ?? 0
+    }
+    const combined = combineAccountCalibrations({
+      baseValueUSD: baseUSD,
+      anchorTs: new Date(date + 'T00:00:00Z').getTime(),
+      calibrations: list, items, convert,
+    })
+    if (combined && isFinite(combined.startValueUSD) && combined.startValueUSD > 0) {
+      pts.push({
+        id: `cal-combined-${date}`,
+        date,
+        netWorthUSD: combined.startValueUSD,
+        _source: 'manual',
+        _calibrated: true,
+        _accountCombined: true,
+      })
+    }
+  }
+  return pts.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+}
+
 // The single source of truth for "what was the portfolio worth at year start":
 // the snapshot dated in January of `year`, else late December of `year - 1`,
 // accepted only within 15 days of Jan 1. Used by BOTH the YTD Dietz badge
