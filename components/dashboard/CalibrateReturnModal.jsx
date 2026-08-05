@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
-import { solveDietzStartValue, accountKeyOfItem, heldFlatAccountValueUSD } from '@/components/dashboard/utils'
+import { solveDietzStartValue, accountKeyOfItem, heldFlatAccountValueUSD, calibrationAnchorDate, calibrationCoveredByRealData, calibrationKindOf } from '@/components/dashboard/utils'
 
 // Return calibration, PER ACCOUNT: every broker app shows its own return, so a
 // single % for the whole portfolio cannot represent accounts with different
@@ -19,35 +19,27 @@ import { solveDietzStartValue, accountKeyOfItem, heldFlatAccountValueUSD } from 
 // _calibrated:true marks it so the UI can badge it and "Quitar" can find it.
 // "Todo el portafolio" keeps the original global behavior for single-account
 // users and for calibrations saved before per-account existed.
-export default function CalibrateReturnModal({ onClose, netWorth, transactions, convert, baseCurrency = 'USD', snapshots = [], accountSnapshots = [], items = [], saveSnapshot, deleteSnapshot, lang = 'es' }) {
+export default function CalibrateReturnModal({ onClose, netWorth, transactions, convert, baseCurrency = 'USD', snapshots = [], calibrations = [], accountSnapshots = [], items = [], saveSnapshot, deleteSnapshot, lang = 'es' }) {
   const trapRef = useFocusTrap()
   const t = (es, en) => lang === 'es' ? es : en
-  const year = new Date().getUTCFullYear()
   const todayStr = new Date().toISOString().split('T')[0]
 
-  // The six windows every broker app shows on its performance screen. Each one
-  // becomes its own anchor: the % is solved back into the account value at that
-  // date, so six numbers typed once give the curve six real touch points
-  // instead of one. 'all' is last because it needs the opening date.
-  const shiftDays = (days) => {
-    const d = new Date()
-    d.setUTCDate(d.getUTCDate() - days)
-    return d
-  }
-  const shiftMonths = (months) => {
-    const d = new Date()
-    d.setUTCMonth(d.getUTCMonth() - months)
-    return d
-  }
-  const asDateStr = (d) => d.toISOString().split('T')[0]
+  // The seven windows every broker app shows on its performance screen. Each
+  // one becomes its own anchor: the % is solved back into the account value at
+  // that date, so seven numbers typed once give the curve seven real touch
+  // points instead of one. All are optional: a blank simply means that period
+  // keeps its estimate until the user fills it in. 'all' is last because it
+  // needs the opening date. Anchor dates come from the shared helper (pure
+  // UTC, day-clamped month shifts) so modal, returns and chart agree.
   const PERIODS = [
-    { kind: '1w', label: '1W', startDate: asDateStr(shiftDays(7)), placeholder: '0.42' },
-    { kind: '1m', label: '1M', startDate: asDateStr(shiftMonths(1)), placeholder: '1.8' },
-    { kind: '3m', label: '3M', startDate: asDateStr(shiftMonths(3)), placeholder: '4.5' },
-    { kind: 'ytd', label: 'YTD', startDate: `${year}-01-01`, placeholder: '8.61' },
-    { kind: '1y', label: '1Y', startDate: asDateStr(shiftMonths(12)), placeholder: '14.2' },
-    { kind: 'all', label: t('Desde el inicio', 'Since inception'), startDate: null, placeholder: '87.24' },
-  ]
+    { kind: '1w', label: '1W', placeholder: '0.42' },
+    { kind: 'mtd', label: 'MTD', placeholder: '0.9' },
+    { kind: '1m', label: '1M', placeholder: '1.8' },
+    { kind: '3m', label: '3M', placeholder: '4.5' },
+    { kind: 'ytd', label: 'YTD', placeholder: '8.61' },
+    { kind: '1y', label: '1Y', placeholder: '14.2' },
+    { kind: 'all', label: t('Desde el inicio', 'Since inception'), placeholder: '87.24' },
+  ].map((p) => ({ ...p, startDate: p.kind === 'all' ? null : calibrationAnchorDate(p.kind, todayStr) }))
   const KIND_LABEL = Object.fromEntries(PERIODS.map((p) => [p.kind, p.label]))
 
   // Accounts detected from the portfolio items, in first-seen order.
@@ -65,17 +57,24 @@ export default function CalibrateReturnModal({ onClose, netWorth, transactions, 
   const selKey = selected || accounts[0]?.key || 'global'
   const isGlobal = selKey === 'global'
 
-  // Calibrations already on file: global ones live in `snapshots`, per-account
-  // ones arrive separately (they are not part of the NAV series).
-  const globalCalibrated = (snapshots || []).filter((s) => s && s._calibrated && s.date)
-  const accountCalibrated = (accountSnapshots || []).filter((s) => s && s._calibrated && s.date)
+  // Calibrations already on file arrive in their own channel (they are not
+  // part of the NAV series). Fallback to the legacy props when the caller
+  // still passes them separately.
+  const allCals = (calibrations && calibrations.length > 0)
+    ? calibrations
+    : [
+      ...(snapshots || []).filter((s) => s && s._calibrated && s.date && !s._account),
+      ...(accountSnapshots || []).filter((s) => s && s._calibrated && s.date),
+    ]
+  const globalCalibrated = allCals.filter((s) => s && s._calibrated && s.date && !s._account)
+  const accountCalibrated = allCals.filter((s) => s && s._calibrated && s.date && s._account)
   const allCalibrated = [
     ...accountCalibrated.map((s) => ({ ...s, _label: s._accountName || s._account })),
     ...globalCalibrated.map((s) => ({ ...s, _label: t('Todo el portafolio', 'Whole portfolio') })),
   ]
   const calForSelected = (kind) => isGlobal
-    ? globalCalibrated.some((s) => s._calibrationKind === kind)
-    : accountCalibrated.some((s) => s._calibrationKind === kind && s._account === selKey)
+    ? globalCalibrated.some((s) => calibrationKindOf(s) === kind)
+    : accountCalibrated.some((s) => calibrationKindOf(s) === kind && s._account === selKey)
 
   // Default inception date: earliest dated transaction or snapshot we know.
   const earliestKnown = (() => {
@@ -118,6 +117,11 @@ export default function CalibrateReturnModal({ onClose, netWorth, transactions, 
   const realSnapshotAt = (dateStr) =>
     (snapshots || []).find((s) => s && s.date === dateStr && !s._calibrated && (s._source === 'ibkr' || s._source === 'daily'))
   const guardedByRealData = isGlobal || selKey === 'ibkr'
+  // A period whose anchor sits inside the real-data stretch (first broker/daily
+  // datapoint onwards) is already measured by real data: calibrating it would
+  // be a guess sitting on top of observations, so it is skipped with a note.
+  const coveredByRealData = (dateStr) =>
+    !!realSnapshotAt(dateStr) || calibrationCoveredByRealData(dateStr, snapshots)
 
   const save = async () => {
     setError('')
@@ -157,7 +161,7 @@ export default function CalibrateReturnModal({ onClose, netWorth, transactions, 
       const dateStr = p.kind === 'all' ? inceptionDate : p.startDate
       // A day the broker already reported needs no calibration: a solved value
       // would be a guess sitting on top of an observation.
-      if (guardedByRealData && realSnapshotAt(dateStr)) { skipped.push(p.label); continue }
+      if (guardedByRealData && coveredByRealData(dateStr)) { skipped.push(p.label); continue }
       jobs.push({
         kind: p.kind, label: p.label, targetPct: p.pct, dateStr,
         startTs: new Date(dateStr + 'T00:00:00Z').getTime(),
@@ -205,6 +209,9 @@ export default function CalibrateReturnModal({ onClose, netWorth, transactions, 
           _source: 'manual',
           _calibrated: true,
           _calibrationKind: s.kind,
+          targetPct: s.targetPct,
+          capturedAt: todayStr,
+          capturedEndValueUSD: isGlobal ? toUSD(netWorth) : accountEndUSD,
           ...(isGlobal ? {} : { _account: selKey, _accountName: selName }),
         })
       }
@@ -272,7 +279,9 @@ export default function CalibrateReturnModal({ onClose, netWorth, transactions, 
               {allCalibrated.map((s) => (
                 <div key={s.id || s.date} className="flex items-center justify-between text-xs">
                   <span style={{ color: 'var(--text-secondary)' }}>
-                    {s._label} · {KIND_LABEL[s._calibrationKind] || s._calibrationKind || 'YTD'} · {s.date}
+                    {s._label} · {KIND_LABEL[calibrationKindOf(s)] || calibrationKindOf(s) || 'YTD'} · {s.date}
+                    {s.targetPct != null && isFinite(s.targetPct) && ` · ${s.targetPct >= 0 ? '+' : ''}${s.targetPct}%`}
+                    {s.capturedAt && ` · ${t('del', 'from')} ${s.capturedAt}`}
                   </span>
                   <button type="button" disabled={saving} onClick={() => removeCalibration(s)}
                     className="px-2 py-0.5 rounded transition-colors hover:bg-white/5"
