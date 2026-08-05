@@ -16,8 +16,9 @@
 // each one up with the manually-tracked assets that already existed on that
 // date, so the curve is portfolio-wide and not just the broker's slice.
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
+import { authFetch } from '@/lib/authFetch'
 import { quartersBetween, quarterSnapshotDate, formatCurrency } from './utils'
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'MXN', 'GTQ', 'COP', 'BRL', 'CAD']
@@ -47,6 +48,13 @@ export default function QuarterlyHistoryModal({
   const [error, setError] = useState('')
   const [doneMsg, setDoneMsg] = useState('')
   const [showSteps, setShowSteps] = useState(true)
+  // Labels whose value came from the screenshot read, not typed by hand — a
+  // quick visual "double-check this one" cue. Clears the moment the user
+  // touches that field, since an edited value is no longer the AI's claim.
+  const [aiFilled, setAiFilled] = useState(() => new Set())
+  const [aiReading, setAiReading] = useState(false)
+  const [aiNotice, setAiNotice] = useState(null) // { count, confidence, notes }
+  const fileInputRef = useRef(null)
 
   const rows = useMemo(
     () => quartersBetween(fromYear, fromQuarter, now),
@@ -67,6 +75,85 @@ export default function QuarterlyHistoryModal({
     const v = values[r.label]
     return v != null && v !== '' && isFinite(parseFloat(v))
   }).length
+
+  // Read the chart screenshot with AI, same BYOK pattern as the PDF statement
+  // reader (parse-pdf): server key first, else the user's own key from the
+  // chat widget. The result only ever PREFILLS the grid below — nothing is
+  // saved until the user reviews it and presses "Guardar" themselves.
+  const handleImageFile = async (file) => {
+    if (!file) return
+    setAiNotice(null)
+    setError('')
+    const ALLOWED = { 'image/png': true, 'image/jpeg': true, 'image/webp': true }
+    if (!ALLOWED[file.type]) {
+      setError(t('Sube una imagen PNG, JPEG o WebP.', 'Upload a PNG, JPEG or WebP image.'))
+      return
+    }
+    const MAX = 5 * 1024 * 1024
+    if (file.size > MAX) {
+      setError(t('Captura demasiado grande (máx 5MB). Recórtala solo a la gráfica.', 'Screenshot too large (max 5MB). Crop it to just the chart.'))
+      return
+    }
+    setAiReading(true)
+    try {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result)
+        reader.onerror = () => reject(new Error('read failed'))
+        reader.readAsDataURL(file)
+      })
+      const base64 = String(dataUrl).split(',')[1] || ''
+      let clientKey
+      try { clientKey = localStorage.getItem('chispudo-anthropic-key') || undefined } catch { clientKey = undefined }
+      const res = await authFetch('/api/import/parse-chart-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: base64, mediaType: file.type, lang, apiKey: clientKey }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(data.errorCode === 'NO_AI_KEY'
+          ? t('La lectura automática necesita una API key de IA. Configúrala en el chat de Chispu, o transcribe a mano abajo.', 'Automatic reading needs an AI API key. Set it up in the Chispu chat, or transcribe by hand below.')
+          : t('No pudimos leer la captura. Intenta con otra imagen o transcribe a mano abajo.', 'We could not read the screenshot. Try another image or transcribe by hand below.'))
+        return
+      }
+      const quarters = data.quarters || []
+      if (quarters.length === 0) {
+        setError(t('No encontramos barras en esa imagen. Asegúrate de que se vean las etiquetas de cada trimestre.', 'We could not find bars in that image. Make sure each quarter\'s label is visible.'))
+        return
+      }
+      // Widen the visible range to the earliest quarter the AI actually found —
+      // otherwise a read that reaches further back than the current "Desde
+      // año" selection would fill values into rows nobody can see.
+      let minYear = Infinity, minQ = 5
+      for (const q of quarters) {
+        const m = q.label.match(/^Q([1-4]) (\d{4})$/)
+        if (!m) continue
+        const y = Number(m[2]), qq = Number(m[1])
+        if (y < minYear || (y === minYear && qq < minQ)) { minYear = y; minQ = qq }
+      }
+      if (isFinite(minYear)) {
+        const needsWiden = minYear < Number(fromYear) || (minYear === Number(fromYear) && minQ < Number(fromQuarter))
+        if (needsWiden) { setFromYear(String(minYear)); setFromQuarter(String(minQ)) }
+      }
+      // Only currency-switch on a clean grid: flipping it under numbers the
+      // user already typed by hand would silently reinterpret their entries.
+      const noManualValuesYet = Object.values(values).every((v) => v == null || String(v).trim() === '')
+      if (noManualValuesYet && data.currency && CURRENCIES.includes(data.currency)) setCurrency(data.currency)
+      setValues((prev) => {
+        const next = { ...prev }
+        for (const q of quarters) next[q.label] = String(q.value)
+        return next
+      })
+      setAiFilled(new Set(quarters.map((q) => q.label)))
+      setAiNotice({ count: quarters.length, confidence: data.confidence, notes: data.notes })
+    } catch (err) {
+      setError(t(`Error leyendo la imagen: ${err.message}`, `Error reading the image: ${err.message}`))
+    } finally {
+      setAiReading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
 
   const save = async () => {
     setError('')
@@ -204,6 +291,31 @@ export default function QuarterlyHistoryModal({
             </p>
           </div>
 
+          {/* Screenshot reader: an accelerator, never a requirement. Every value
+              it produces lands in the SAME editable grid below, so a misread
+              bar costs one field, not a redo. */}
+          <div className="rounded-xl p-3 space-y-2" style={{ border: '1px dashed var(--card-border)' }}>
+            <p className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+              {t('O sube la captura y que Chispu la lea', 'Or upload the screenshot and let Chispu read it')}
+            </p>
+            <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp"
+              onChange={(e) => handleImageFile(e.target.files?.[0])} className="hidden" id="quarterly-chart-image" />
+            <button type="button" disabled={aiReading}
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full py-2 text-body rounded-lg border disabled:opacity-50 transition-colors hover:bg-theme-elevated"
+              style={{ borderColor: 'var(--card-border)', color: 'var(--accent-blue)' }}>
+              {aiReading ? t('Leyendo...', 'Reading...') : t('📷 Subir captura del gráfico', '📷 Upload chart screenshot')}
+            </button>
+            {aiNotice && (
+              <p className="text-xs" style={{ color: aiNotice.confidence === 'low' ? 'var(--accent-orange)' : 'var(--accent-green)' }}>
+                {aiNotice.confidence === 'low'
+                  ? t(`Leyó ${aiNotice.count} barras estimando por altura: revisa cada número antes de guardar.`, `Read ${aiNotice.count} bars estimating by height: check every number before saving.`)
+                  : t(`Leyó ${aiNotice.count} barras. Revísalas abajo antes de guardar.`, `Read ${aiNotice.count} bars. Review them below before saving.`)}
+                {aiNotice.notes ? ` ${aiNotice.notes}` : ''}
+              </p>
+            )}
+          </div>
+
           {/* Range + currency */}
           <div className="grid grid-cols-3 gap-2">
             <div>
@@ -234,16 +346,30 @@ export default function QuarterlyHistoryModal({
             <div className="space-y-1.5">
               {rows.map((r) => {
                 const already = existing.get(quarterSnapshotDate(r.year, r.quarter, now))
+                const fromAi = aiFilled.has(r.label)
                 return (
                   <div key={r.label} className="flex items-center gap-2">
                     <span className="w-20 shrink-0 text-body font-mono" style={{ color: 'var(--text-secondary)' }}>{r.label}</span>
                     <input
                       value={values[r.label] ?? ''}
-                      onChange={(e) => setValues((v) => ({ ...v, [r.label]: e.target.value }))}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        setValues((v) => ({ ...v, [r.label]: val }))
+                        // An edited value is the user's claim now, not the AI's.
+                        if (fromAi) setAiFilled((s) => { const n = new Set(s); n.delete(r.label); return n })
+                      }}
                       inputMode="decimal"
                       placeholder={already ? formatCurrency(already.netWorthUSD, 'USD') : t('valor', 'value')}
-                      className={`${inputCls} flex-1`} style={inputStyle} />
-                    {already && (
+                      className={`${inputCls} flex-1`}
+                      style={fromAi ? { ...inputStyle, borderColor: 'var(--accent-blue)' } : inputStyle} />
+                    {fromAi && (
+                      <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded"
+                        style={{ color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' }}
+                        title={t('Leído de tu captura: verifica el número.', 'Read from your screenshot: double-check the number.')}>
+                        {t('IA', 'AI')}
+                      </span>
+                    )}
+                    {already && !fromAi && (
                       <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded"
                         style={{ color: 'var(--accent-green)', backgroundColor: 'color-mix(in srgb, var(--accent-green) 15%, transparent)' }}
                         title={t('Ya guardado. Escribe encima para corregirlo.', 'Already saved. Type over it to correct it.')}>
