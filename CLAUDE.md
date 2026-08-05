@@ -342,6 +342,21 @@ lo que sobre se agrupa en un "Otros" neutro.
   ese momento: un link en `ConnectionsModal` ("Completar historial") y un botón en
   "Completar información" (`EnrichModal`) abren el mismo modal.
 
+### Un ancla de calibración es del PORTAFOLIO, nunca de una sola institución (FASE DO)
+- `chartSnapshots` (useDashboardData) combina la cuenta calibrada CON el valor
+  actual de todo lo demás (`combineAccountCalibrations`) para producir un punto de
+  portafolio completo. Pasarlo tal cual como `snapshots` de `PortfolioGrowthChart`
+  rompe la vista "por institución": un ancla de 1M para IBKR llevaba adentro el
+  valor de VITALI (otra institución, IDC), y la gráfica filtrada a "Interactive
+  Brokers" mostraba un salto de $16K de la nada, con drawdown fantasma incluido.
+- **Regla:** cualquier punto `_calibrated:true` se descarta cuando `selectedInst
+  !== 'ALL'`. Un NAV real (`ibkr`/`ibkr_quarterly`) no necesita este filtro: por
+  construcción YA es el valor de esa sola cuenta, sin mezcla.
+- De paso, el filtro de "punto aislado corrupto" del chart (dip en V) vivía
+  duplicado inline en vez de llamar `filterValueSpikes` de `analytics.js`, que sí
+  cubre el caso espejo (subida en Λ). Dos copias de la misma regla es como este
+  tipo de bug se cuela: una se actualiza, la otra no.
+
 ### Credenciales IBKR: DOS almacenes que deben mantenerse sincronizados (FASE AF)
 - Hay dos almacenes: (a) el **vault del servidor** (`users/{uid}/settings/ibkr`, token encriptado)
   vía `/api/brokers/ibkr` `save/get-credentials`; (b) el **doc `settings` del cliente**

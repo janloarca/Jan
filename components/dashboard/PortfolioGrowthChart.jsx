@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { formatCurrency, formatCompact, formatAxisTick, formatDate, getItemValue, buildIncomeEvents, isExcludedFromNetWorth, findYearStartAnchor, shouldHoldFlat, SNAPSHOT_SRC_PRIORITY } from './utils'
 import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { isBankLikeItem } from '@/lib/contributions'
-import { computeTWRSeries, computeMWRSeries } from './analytics'
+import { computeTWRSeries, computeMWRSeries, filterValueSpikes } from './analytics'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import ErrorState from '@/components/ui/ErrorState'
 
@@ -464,7 +464,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     if (period === 'DAY') {
       const threeDaysAgo = now - 3 * 86400000
       const recentSnaps = [...snapshots]
-        .filter(s => s.date && new Date(s.date).getTime() >= threeDaysAgo)
+        .filter(s => s.date && new Date(s.date).getTime() >= threeDaysAgo && !(s._calibrated && selectedInst !== 'ALL'))
         .sort((a, b) => new Date(a.date) - new Date(b.date))
         .map(s => ({ ts: new Date(s.date).getTime(), date: new Date(s.date), value: convertVal(s), src: s._source || null }))
         .filter(p => p.value > 0)
@@ -492,6 +492,17 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     let pts = [...snapshots]
       .filter((s) => {
         if (!s.date) return false
+        // A calibration anchor (chartSnapshots in useDashboardData) is always a
+        // WHOLE-PORTFOLIO value, solved from one account's % but combined with
+        // every other account's current held-flat share. Scoped to "Todas" that
+        // is exactly right; scoped to one institution it is a portfolio total
+        // masquerading as that institution's own value — an "Interactive
+        // Brokers" view once showed a lone $16K spike from a 1M calibration
+        // because VITALI's $6,000 (a different institution entirely) rode
+        // along inside the same anchor. Real per-broker NAV (`ibkr`,
+        // `ibkr_quarterly`) carries no such ambiguity — it IS that account's
+        // value by construction — so only the synthetic anchors are gated here.
+        if (s._calibrated && selectedInst !== 'ALL') return false
         const ts = new Date(s.date).getTime()
         if (ts < cutoff) return false
         if (ceiling && ts > ceiling) return false
@@ -534,7 +545,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
     if (period === 'MTD' && pts.length < 2) {
       const sorted = [...snapshots]
-        .filter(s => s.date && new Date(s.date).getTime() < cutoff)
+        .filter(s => s.date && new Date(s.date).getTime() < cutoff && !(s._calibrated && selectedInst !== 'ALL'))
         .sort((a, b) => new Date(b.date) - new Date(a.date))
       if (sorted.length > 0) {
         const prevSnap = sorted[0]
@@ -546,17 +557,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     }
 
     // Drop an isolated corrupt/stale NAV doc (e.g. a one-off bad value a later
-    // sync never overwrote). Detect V-shaped dips: a point that is more than 45%
-    // below BOTH neighbors is almost certainly corrupt data, not a real market move.
-    // Real crashes produce gradual declines, not single-point dips.
-    if (pts.length >= 3) {
-      pts = pts.filter((p, i) => {
-        if (i === 0 || i === pts.length - 1) return true
-        const prev = pts[i - 1].value, next = pts[i + 1].value
-        if (prev <= 0 || next <= 0) return true
-        return !(p.value < prev * 0.55 && p.value < next * 0.55)
-      })
-    }
+    // sync never overwrote): a V-shaped dip OR a Λ-shaped spike, both more than
+    // 80% off BOTH neighbors. Real crashes and rallies are gradual, not
+    // single-point round trips. Shared with analytics.js (computeMWRSeries/TWR
+    // callers) so a discarded point can't disagree between the chart and the
+    // return math reading the same series.
+    pts = filterValueSpikes(pts)
 
     return pts
   }, [snapshots, period, convert, baseCurrency, customRange, currentTotal, selectedInst, scopedItems])
