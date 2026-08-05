@@ -90,15 +90,17 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
     ? (lang === 'es' ? `Otros (${seg.count})` : `Others (${seg.count})`)
     : (CATEGORY_LABELS[seg.name]?.[lang] || seg.name)
 
-  // Biggest movers of the day — per-asset intraday % change. Sorted SIGNED
-  // (biggest gainer first, biggest loss last), the standard gainers-on-top
-  // reading, not by absolute magnitude — mixing a -8% and a +7% by |value|
-  // reads as noise where a plain descending list reads as a story. Deduped by
-  // item id (two distinct holdings sharing a symbol must not shadow each
-  // other) and gated by position weight: a $5 position's ±10% shouldn't
-  // headline the card.
+  // Biggest movers of the day, split into two tabs (gainers / losers) instead
+  // of one combined list — a portfolio with 5+ gainers used to bury every
+  // loser past the slice(0,5) cut, so "biggest movers" only ever showed green.
+  // Each row carries the dollar swing AND its impact on the whole portfolio
+  // (weight × change1d, same formula as lib/friendsStats.js's movers) — the
+  // % you'd otherwise only see is the position's OWN day change, which says
+  // nothing about how much it actually moved your net worth. Deduped by item
+  // id (two holdings sharing a symbol must not shadow each other) and gated
+  // by position weight: a $5 position's ±10% shouldn't headline the card.
   const movers = useMemo(() => {
-    if (!items || items.length === 0) return []
+    if (!items || items.length === 0) return { gainers: [], losers: [] }
     const eligible = items.filter((it) => !it.isDebt && !isExcludedFromNetWorth(it))
     const total = eligible.reduce((s, it) => s + Math.abs(getItemValue(it)), 0)
     const minValue = total * 0.005 // ≥0.5% of the portfolio
@@ -106,17 +108,41 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
     const list = []
     eligible.forEach((it) => {
       if (it.change1d == null || !isFinite(it.change1d)) return
-      if (Math.abs(getItemValue(it)) < minValue) return
+      const value = getItemValue(it)
+      if (Math.abs(value) < minValue) return
       const key = it.id || it.symbol || it.name
       const label = it.symbol || it.name
       if (!label || seen.has(key)) return
       seen.add(key)
-      list.push({ label, pct: it.change1d })
+      list.push({
+        label, pct: it.change1d,
+        dollarChange: value * (it.change1d / 100),
+        impactPct: total > 0 ? (value / total) * it.change1d : 0,
+      })
     })
-    const gainers = list.filter((m) => m.pct >= 0).sort((a, b) => b.pct - a.pct)
-    const losers = list.filter((m) => m.pct < 0).sort((a, b) => a.pct - b.pct)
-    return [...gainers, ...losers].slice(0, 5)
+    const gainers = list.filter((m) => m.pct >= 0).sort((a, b) => b.pct - a.pct).slice(0, 5)
+    const losers = list.filter((m) => m.pct < 0).sort((a, b) => a.pct - b.pct).slice(0, 5)
+    return { gainers, losers }
   }, [items])
+
+  const [moversTab, setMoversTab] = useState('gainers')
+  // If the tab the user is on empties out (e.g. everything is up today) and
+  // the other one has content, land on the one with something to show.
+  useEffect(() => {
+    if (moversTab === 'gainers' && movers.gainers.length === 0 && movers.losers.length > 0) setMoversTab('losers')
+    if (moversTab === 'losers' && movers.losers.length === 0 && movers.gainers.length > 0) setMoversTab('gainers')
+  }, [movers, moversTab])
+
+  const touchStartX = useRef(null)
+  const onMoversTouchStart = (e) => { touchStartX.current = e.touches[0].clientX }
+  const onMoversTouchEnd = (e) => {
+    if (touchStartX.current == null) return
+    const dx = e.changedTouches[0].clientX - touchStartX.current
+    touchStartX.current = null
+    if (Math.abs(dx) < 40) return // ignore taps/scrolls, only real swipes
+    if (dx < 0 && movers.losers.length > 0) setMoversTab('losers')
+    if (dx > 0 && movers.gainers.length > 0) setMoversTab('gainers')
+  }
 
   return (
     <div className="bg-gradient-to-br from-theme-card to-theme-surface rounded-2xl p-5 card-hero h-full flex flex-col"
@@ -236,29 +262,51 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
         </div>
       )}
 
-      {/* Biggest movers of the day — sorted biggest gain to biggest loss.
-          Only the arrow carries green/red; the % itself stays plain text so
-          five rows of alternating red/green don't fight each other, and
-          rows sit close together (fixed gap, not stretched to fill height). */}
-      {movers.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-glass-border/50">
-          <span className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2 block">{lang === 'es' ? 'Mayores movimientos hoy' : "Today's biggest movers"}</span>
-          <div className="space-y-1">
-            {movers.map((m) => {
-              const up = m.pct >= 0
-              return (
+      {/* Biggest movers of the day — a tab per direction (swipe or tap),
+          so a green-heavy day no longer buries every loser. Only the arrow
+          carries green/red; the $ and portfolio-% stay plain text so rows
+          read as one calm list either way. */}
+      {(movers.gainers.length > 0 || movers.losers.length > 0) && (() => {
+        const activeList = moversTab === 'gainers' ? movers.gainers : movers.losers
+        const up = moversTab === 'gainers'
+        return (
+          <div className="mt-3 pt-3 border-t border-glass-border/50">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-slate-500 uppercase tracking-wider font-medium">{lang === 'es' ? 'Mayores movimientos hoy' : "Today's biggest movers"}</span>
+              {movers.gainers.length > 0 && movers.losers.length > 0 && (
+                <div className="flex gap-0.5 rounded-md p-0.5" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                  {[
+                    { key: 'gainers', icon: '▲', n: movers.gainers.length },
+                    { key: 'losers', icon: '▼', n: movers.losers.length },
+                  ].map((tab) => (
+                    <button key={tab.key} type="button" onClick={() => setMoversTab(tab.key)}
+                      className="px-1.5 py-0.5 rounded text-[10px] font-mono tabular-nums transition-colors"
+                      style={moversTab === tab.key
+                        ? { color: tab.key === 'gainers' ? 'var(--accent-green)' : 'var(--text-negative)', backgroundColor: 'var(--bg-card)' }
+                        : { color: 'var(--text-muted)' }}>
+                      {tab.icon} {tab.n}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="space-y-1" onTouchStart={onMoversTouchStart} onTouchEnd={onMoversTouchEnd}>
+              {activeList.map((m) => (
                 <div key={m.label} className="flex items-center justify-between">
                   <span className="text-sm truncate pr-2" style={{ color: 'var(--text-secondary)' }}>{m.label}</span>
                   <span className="text-sm font-mono tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>
                     <span style={{ color: up ? 'var(--accent-green)' : 'var(--text-negative)' }}>{up ? '▲' : '▼'}</span>
-                    {' '}{up ? '+' : ''}{m.pct.toFixed(2)}%
+                    {' '}{up ? '+' : ''}{formatCurrency(cv(m.dollarChange), displayCur)} ({up ? '+' : ''}{m.impactPct.toFixed(2)}%)
                   </span>
                 </div>
-              )
-            })}
+              ))}
+            </div>
+            <p className="text-[10px] mt-1.5" style={{ color: 'var(--text-muted)' }}>
+              {lang === 'es' ? '% = impacto sobre tu portafolio total' : '% = impact on your total portfolio'}
+            </p>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* Cash available — anchored at the bottom */}
       {cashTotal != null && cashTotal > 0 && (
