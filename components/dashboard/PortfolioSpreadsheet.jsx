@@ -837,7 +837,10 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                         const cur = itemCurrency(item)
                         const market = isMarketAsset(item.type)
                         const qty = item.quantity || 0
-                        const qtyLabel = market && qty ? qty.toLocaleString(undefined, { maximumFractionDigits: 4 }) : null
+                        // Sub-unit crypto amounts (0.00000547 BTC) round to "0"
+                        // at 4 decimals and read as a missing quantity: give
+                        // fractional amounts room before falling back.
+                        const qtyLabel = market && qty ? qty.toLocaleString(undefined, { maximumFractionDigits: qty < 1 ? 8 : 4 }) : null
                         // The cell shows the total value, so the editor edits value
                         // too (quantity is derived from the price on save).
                         const editVal = Math.abs(val).toFixed(2)
