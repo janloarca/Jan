@@ -1,254 +1,337 @@
-'use client'
-
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { getFirebase } from '@/lib/firebase'
+import { sanitizeImportItem } from '@/lib/validation'
+import { SNAPSHOT_SRC_PRIORITY } from '@/components/dashboard/utils'
 import { detectMisstampedMonthlyNavSnapshots } from '@/lib/badDataCleanup'
-import { migrateTransaction } from '@/lib/transactionTypes'
-import { sanitizeItem } from '@/lib/sanitize'
-import { sanitizeImportItem } from '@/lib/bulkImport'
-import { isDemoItem, isDemoTransaction } from '@/lib/demoItems'
-import { stripEmojis } from '@/lib/utils'
-import { shouldHoldFlat, SNAPSHOT_SRC_PRIORITY } from '@/components/dashboard/utils'
 
-// Profile is stored in Firestore but also mirrored to localStorage (keyed by
-// uid) so the UI has something to render while Firestore loads — and so demo
-// users can "Edit" their profile locally without ever touching Firebase.
-const lsKey = (uid) => `chispu_profile_${uid}`
+let _db = null
+let _auth = null
+let _firestoreMod = null
 
-export function useFirestoreItems(uid) {
-  const [items, setItems] = useState([])
-  const [snapshots, setSnapshots] = useState([])
-  const [transactions, setTransactions] = useState([])
-  const [alerts, setAlerts] = useState([])
-  const [lots, setLots] = useState([])
-  const [portfolios, setPortfolios] = useState([])
-  const [financeTransactions, setFinanceTransactions] = useState([])
-  const [goals, setGoals] = useState(null)
-  const [settings, setSettings] = useState(null)
-  const [profile, setProfile] = useState(() => {
-    if (typeof window === 'undefined' || !uid) return null
-    try {
-      const raw = localStorage.getItem(lsKey(uid))
-      return raw ? JSON.parse(raw) : null
-    } catch { return null }
+async function getFirebase() {
+  if (_db && _auth) return { db: _db, auth: _auth, fs: _firestoreMod }
+  const { db, auth } = await import('@/lib/firebase')
+  const fs = await import('firebase/firestore')
+  _db = db
+  _auth = auth
+  _firestoreMod = fs
+  return { db, auth, fs }
+}
+
+async function waitForAuth(auth) {
+  if (auth.currentUser) return auth.currentUser
+  const { onAuthStateChanged } = await import('firebase/auth')
+  return new Promise((resolve) => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      unsub()
+      resolve(user)
+    })
   })
-  const [loading, setLoading] = useState(true)
+}
 
-  // Demo mode (uid === 'demo') deliberately skips ALL Firestore listeners and
-  // mutations: the dashboard then renders from seed items and local state only.
-  const isDemo = uid === 'demo'
+// Caché en memoria a nivel de módulo, keyed por uid: al cambiar de sección el
+// hook arranca con el último estado conocido y los onSnapshot lo pisan con el
+// estado vivo del servidor. La clave es el uid, así un cambio de cuenta nunca
+// ve datos del usuario anterior, y currentUser null (sign-out) la invalida.
+let _cacheByUid = {}
 
-  useEffect(() => {
-    if (!uid || isDemo) {
-      setLoading(false)
-      return
-    }
+function readInitCache() {
+  const uid = _auth?.currentUser?.uid
+  return (uid && _cacheByUid[uid]) || null
+}
 
-    let cancelled = false
-    const unsubs = []
+const QTY_EPSILON = 0.0001
+function roundQty(v) { return Math.round(v * 10000) / 10000 }
 
-    async function setup() {
-      const { db, fs } = await getFirebase()
-      if (cancelled) return
+function toStr(v) {
+  if (v == null) return v
+  if (typeof v === 'string') return v
+  if (v.toDate) return v.toDate().toISOString()
+  if (v.seconds) return new Date(v.seconds * 1000).toISOString()
+  return String(v)
+}
 
-      const u = (fn) => unsubs.push(fn)
+function safeNum(v) { const n = Number(v) || 0; return isFinite(n) ? n : 0 }
 
-      u(fs.onSnapshot(fs.collection(db, `users/${uid}/items`), (snap) => {
-        setItems(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-      }, (err) => console.error('[Firestore] items listener:', err)))
-
-      u(fs.onSnapshot(fs.collection(db, `users/${uid}/snapshots`), (snap) => {
-        setSnapshots(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-      }, (err) => console.error('[Firestore] snapshots listener:', err)))
-
-      u(fs.onSnapshot(fs.collection(db, `users/${uid}/transactions`), (snap) => {
-        setTransactions(snap.docs.map(d => migrateTransaction({ id: d.id, ...d.data() })))
-      }, (err) => console.error('[Firestore] transactions listener:', err)))
-
-      u(fs.onSnapshot(fs.collection(db, `users/${uid}/alerts`), (snap) => {
-        setAlerts(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-      }, (err) => console.error('[Firestore] alerts listener:', err)))
-
-      u(fs.onSnapshot(fs.collection(db, `users/${uid}/lots`), (snap) => {
-        setLots(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-      }, (err) => console.error('[Firestore] lots listener:', err)))
-
-      u(fs.onSnapshot(fs.collection(db, `users/${uid}/portfolios`), (snap) => {
-        setPortfolios(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-      }, (err) => console.error('[Firestore] portfolios listener:', err)))
-
-      u(fs.onSnapshot(fs.collection(db, `users/${uid}/financeTransactions`), (snap) => {
-        setFinanceTransactions(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-      }, (err) => console.error('[Firestore] financeTransactions listener:', err)))
-
-      u(fs.onSnapshot(fs.doc(db, `users/${uid}/config`, 'goals'), (snap) => {
-        setGoals(snap.exists() ? snap.data() : null)
-      }, (err) => console.error('[Firestore] goals listener:', err)))
-
-      u(fs.onSnapshot(fs.doc(db, `users/${uid}/config`, 'settings'), (snap) => {
-        setSettings(snap.exists() ? snap.data() : null)
-      }, (err) => console.error('[Firestore] settings listener:', err)))
-
-      u(fs.onSnapshot(fs.doc(db, `users/${uid}/config`, 'profile'), (snap) => {
-        if (snap.exists()) {
-          const p = snap.data()
-          setProfile(p)
-          try { localStorage.setItem(lsKey(uid), JSON.stringify(p)) } catch {}
-        }
-      }, (err) => console.error('[Firestore] profile listener:', err)))
-
-      setLoading(false)
-    }
-
-    setup()
-    return () => {
-      cancelled = true
-      unsubs.forEach(u => u())
-    }
-  }, [uid, isDemo])
-
-  // One-shot healer: early IBKR syncs saved monthly NAV rows with each doc's
-  // date stamped at SYNC time (the day the sync ran) instead of the row's own
-  // month, so the chart drew a vertical stack of dots on that day. Rewrite the
-  // ids to the intended YYYY-MM-01 and drop any that would shadow a real doc.
-  // Effects re-run when `snapshots` changes, so gate on a ref, not state.
-  const snapHealRef = useRef('idle')
-  useEffect(() => {
-    if (!uid || isDemo || snapHealRef.current !== 'idle') return
-    if (!snapshots.some(s => s._source === 'ibkr')) return
-    const bad = detectMisstampedMonthlyNavSnapshots(snapshots)
-    if (bad.length === 0) { snapHealRef.current = 'done'; return }
-    snapHealRef.current = 'running'
-    ;(async () => {
-      const { db, fs } = await getFirebase()
-      for (const m of bad) {
-        try {
-          if (m.action === 'delete') {
-            await fs.deleteDoc(fs.doc(db, `users/${uid}/snapshots`, m.id))
-          } else {
-            const { id: _id, ...rest } = m.snap
-            await saveSnapshot({ ...rest, date: m.monthKey })
-            await fs.deleteDoc(fs.doc(db, `users/${uid}/snapshots`, m.id))
-          }
-        } catch (err) {
-          console.error('[snap-heal]', m.id, err)
-        }
-      }
-      snapHealRef.current = 'done'
-    })()
-  }, [uid, isDemo, snapshots])
-
-  // Firestore rejects undefined field values (and NaN). Strip undefined
-  // recursively before every write; sanitize inputs at the boundary instead.
-  // Also strip `id`: callers spread Firestore docs ({ id, ...data }) and a stray
-  // `id` inside the doc body is a landmine — e.g. updateLot(newId, oldLot) would
-  // write oldLot.id INTO newId's document, breaking every future update.
-  const strip = (obj) => {
-    if (Array.isArray(obj)) return obj.map(strip)
-    if (obj && typeof obj === 'object') {
-      const { id: _id, ...rest } = obj
-      return Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined).map(([k, v]) => [k, strip(v)]))
-    }
-    return obj
+function sanitizeItem(raw) {
+  return {
+    ...raw,
+    quantity: safeNum(raw.quantity),
+    purchasePrice: safeNum(raw.purchasePrice),
+    currentPrice: raw.currentPrice != null ? safeNum(raw.currentPrice) : undefined,
+    incomeAmount: raw.incomeAmount != null ? safeNum(raw.incomeAmount) : 0,
+    incomeRate: raw.incomeRate != null ? safeNum(raw.incomeRate) : 0,
+    rateMin: raw.rateMin != null ? safeNum(raw.rateMin) : 0,
+    rateMax: raw.rateMax != null ? safeNum(raw.rateMax) : 0,
+    incomeMonths: Array.isArray(raw.incomeMonths) ? raw.incomeMonths.filter((m) => typeof m === 'number' && m >= 0 && m < 12) : undefined,
+    maturityDate: toStr(raw.maturityDate),
+    acquisitionDate: toStr(raw.acquisitionDate),
+    createdAt: toStr(raw.createdAt),
   }
+}
 
-  const saveProfile = useCallback(async (data) => {
-    if (!uid) throw new Error('Not authenticated')
-    // Always mirror locally (instant UI + demo persistence).
-    try { localStorage.setItem(lsKey(uid), JSON.stringify(data)) } catch {}
-    setProfile(data)
-    if (isDemo) return
-    const { db, fs } = await getFirebase()
-    await fs.setDoc(fs.doc(db, `users/${uid}/config`, 'profile'), strip(data), { merge: true })
-  }, [uid, isDemo])
+function sanitizeDoc(raw) {
+  const out = { ...raw }
+  for (const key of Object.keys(out)) {
+    const v = out[key]
+    if (v != null && typeof v === 'object' && !Array.isArray(v)) {
+      if (typeof v.toDate === 'function') {
+        out[key] = v.toDate().toISOString()
+      } else if (v.seconds != null && v.nanoseconds != null) {
+        out[key] = new Date(v.seconds * 1000).toISOString()
+      }
+    }
+  }
+  return out
+}
+
+// Deletes every doc in a collection in chunked batches instead of one
+// deleteDoc() per document fired all at once via Promise.all: an account with
+// a real year of history easily has 500-1000+ docs across items/lots/
+// transactions/snapshots, and an unbounded burst of individual writes against
+// Firestore stalls badly (real symptom: "delete all" spinning forever and
+// never reaching the steps after it, like clearing the IBKR connection).
+const DELETE_CHUNK = 400
+async function deleteAllDocsIn(db, fs, path) {
+  const snap = await fs.getDocs(fs.collection(db, path))
+  const refs = snap.docs.map((d) => d.ref)
+  for (let i = 0; i < refs.length; i += DELETE_CHUNK) {
+    const batch = fs.writeBatch(db)
+    for (const ref of refs.slice(i, i + DELETE_CHUNK)) batch.delete(ref)
+    await batch.commit()
+  }
+}
+
+export function useFirestoreItems() {
+  const initCache = readInitCache()
+  const [items, setItems] = useState(initCache?.items || [])
+  const [snapshots, setSnapshots] = useState(initCache?.snapshots || [])
+  const [transactions, setTransactions] = useState(initCache?.transactions || [])
+  const [alerts, setAlerts] = useState(initCache?.alerts || [])
+  const [lots, setLots] = useState(initCache?.lots || [])
+  const [portfolios, setPortfolios] = useState(initCache?.portfolios || [])
+  const [financeTransactions, setFinanceTransactions] = useState(initCache?.financeTransactions || [])
+  const [goals, setGoals] = useState(initCache?.goals || null)
+  const [settings, setSettings] = useState(initCache?.settings || null)
+  const [profile, setProfile] = useState(initCache?.profile || null)
+  const [loading, setLoading] = useState(!initCache)
+  const [uid, setUid] = useState(_auth?.currentUser?.uid || null)
+
+  useEffect(() => {
+    let unsubItems = () => {}
+    let unsubSnapshots = () => {}
+    let unsubTransactions = () => {}
+    let unsubAlerts = () => {}
+    let unsubLots = () => {}
+    let unsubPortfolios = () => {}
+    let unsubFinanceTx = () => {}
+    let cancelled = false
+
+    async function init() {
+      const { db, auth, fs } = await getFirebase()
+      if (!auth || !db) { setLoading(false); return }
+
+      const user = await waitForAuth(auth)
+      if (cancelled) return
+      // Sign-out: currentUser null invalida la caché para que ningún montaje
+      // posterior arranque con datos de una sesión ya cerrada.
+      if (!user) { _cacheByUid = {}; setLoading(false); return }
+
+      const currentUid = user.uid
+      setUid(currentUid)
+
+      const onErr = (label) => (err) => { console.error(`[Firestore] ${label} listener error:`, err.code, err.message) }
+
+      unsubItems = fs.onSnapshot(
+        fs.collection(db, `users/${currentUid}/items`),
+        (snap) => {
+          if (!cancelled) {
+            setItems(snap.docs.map((d) => sanitizeItem({ ...d.data(), id: d.id })))
+          }
+        },
+        onErr('items')
+      )
+      unsubSnapshots = fs.onSnapshot(
+        fs.query(fs.collection(db, `users/${currentUid}/snapshots`), fs.orderBy('date')),
+        (snap) => { if (!cancelled) setSnapshots(snap.docs.map((d) => sanitizeDoc({ ...d.data(), id: d.id }))) },
+        onErr('snapshots')
+      )
+      unsubTransactions = fs.onSnapshot(
+        fs.query(fs.collection(db, `users/${currentUid}/transactions`), fs.orderBy('date')),
+        (snap) => {
+          if (!cancelled) {
+            setTransactions(snap.docs.map((d) => sanitizeDoc({ ...d.data(), id: d.id })))
+            setLoading(false)
+          }
+        },
+        onErr('transactions')
+      )
+
+      try {
+        // Independent docs — fetch in parallel instead of three round-trips in series.
+        const [goalsDoc, prefsDoc, profileDoc] = await Promise.all([
+          fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'goals')),
+          fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'preferences')),
+          fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'profile')),
+        ])
+        if (!cancelled && goalsDoc.exists()) setGoals(sanitizeDoc(goalsDoc.data()))
+        if (!cancelled && prefsDoc.exists()) setSettings(sanitizeDoc(prefsDoc.data()))
+        if (!cancelled && profileDoc.exists()) setProfile(sanitizeDoc(profileDoc.data()))
+      } catch (e) { console.error('[firestore] settings load failed:', e?.message) }
+
+      if (!cancelled) setLoading(false)
+
+      unsubAlerts = fs.onSnapshot(
+        fs.collection(db, `users/${currentUid}/alerts`),
+        (snap) => { if (!cancelled) setAlerts(snap.docs.map((d) => sanitizeDoc({ ...d.data(), id: d.id }))) },
+        onErr('alerts')
+      )
+      unsubLots = fs.onSnapshot(
+        fs.collection(db, `users/${currentUid}/lots`),
+        (snap) => { if (!cancelled) setLots(snap.docs.map((d) => sanitizeDoc({ ...d.data(), id: d.id }))) },
+        onErr('lots')
+      )
+      unsubPortfolios = fs.onSnapshot(
+        fs.collection(db, `users/${currentUid}/portfolios`),
+        (snap) => { if (!cancelled) setPortfolios(snap.docs.map((d) => sanitizeDoc({ ...d.data(), id: d.id }))) },
+        onErr('portfolios')
+      )
+      unsubFinanceTx = fs.onSnapshot(
+        fs.query(fs.collection(db, `users/${currentUid}/financeTransactions`), fs.orderBy('date', 'desc')),
+        (snap) => { if (!cancelled) setFinanceTransactions(snap.docs.map((d) => sanitizeDoc({ ...d.data(), id: d.id }))) },
+        onErr('financeTransactions')
+      )
+    }
+
+    init()
+    return () => { cancelled = true; unsubItems(); unsubSnapshots(); unsubTransactions(); unsubAlerts(); unsubLots(); unsubPortfolios(); unsubFinanceTx() }
+  }, [])
+
+  // Mantiene la caché de módulo al día con el estado vivo: los onSnapshot ya
+  // actualizan el state; aquí solo lo persistimos para el próximo montaje.
+  // Gateada por !loading: mientras la primera carga no entrega datos reales,
+  // no se escribe nada, así una navegación rápida nunca cachea arrays vacíos.
+  useEffect(() => {
+    if (uid && !loading) {
+      _cacheByUid[uid] = { items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile }
+    }
+  }, [uid, loading, items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile])
 
   const addItem = useCallback(async (item) => {
-    if (!uid || isDemo) throw new Error('Not authenticated')
-    const { db, fs } = await getFirebase()
-    const data = sanitizeItem(item)
-    const ref = await fs.addDoc(fs.collection(db, `users/${uid}/items`), strip({ ...data, createdAt: new Date().toISOString() }))
-    return ref.id
-  }, [uid, isDemo])
+    if (!uid) { console.error('[addItem] No uid — write skipped'); return }
+    try {
+      const { db, fs } = await getFirebase()
+      const id = item.id || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+      const { id: _removed, ...raw } = item
+      const data = sanitizeImportItem(raw)
+      const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined))
+      await fs.setDoc(fs.doc(db, `users/${uid}/items`, id), { ...clean, createdAt: new Date().toISOString() }, { merge: true })
+      return id
+    } catch (e) {
+      console.error('[addItem] Write failed:', e)
+    }
+  }, [uid])
 
-  const updateItem = useCallback(async (id, fields) => {
-    if (!uid || isDemo) throw new Error('Not authenticated')
-    const { db, fs } = await getFirebase()
-    await fs.updateDoc(fs.doc(db, `users/${uid}/items`, id), strip(fields))
-  }, [uid, isDemo])
+  const updateItem = useCallback(async (itemId, fields) => {
+    if (!uid || !itemId) return
+    let prev
+    setItems(cur => { prev = cur; return cur.map(it => it.id === itemId ? { ...it, ...fields } : it) })
+    try {
+      const { db, fs } = await getFirebase()
+      const clean = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined))
+      await fs.updateDoc(fs.doc(db, `users/${uid}/items`, itemId), clean)
+    } catch (err) {
+      if (prev) setItems(prev)
+      throw err
+    }
+  }, [uid])
 
-  const deleteItem = useCallback(async (id) => {
-    if (!uid || isDemo) throw new Error('Not authenticated')
-    const { db, fs } = await getFirebase()
-    await fs.deleteDoc(fs.doc(db, `users/${uid}/items`, id))
-  }, [uid, isDemo])
+  const deleteItem = useCallback(async (itemId, { skipRefCleanup = false } = {}) => {
+    if (!uid) return
+    const prev = items
+    const deletedItem = items.find(it => it.id === itemId)
+    setItems((cur) => cur.filter((it) => it.id !== itemId))
+    try {
+      const { db, fs } = await getFirebase()
+      const sym = (deletedItem?.symbol || '').toUpperCase()
+      const needLotCleanup = !!sym && !items.some(it => it.id !== itemId && (it.symbol || '').toUpperCase() === sym)
 
-  const deleteAllItems = useCallback(async () => {
-    if (!uid || isDemo) throw new Error('Not authenticated')
-    const { db, fs } = await getFirebase()
-    const snap = await fs.getDocs(fs.collection(db, `users/${uid}/items`))
-    const batch = fs.writeBatch(db)
-    snap.docs.forEach(d => batch.delete(d.ref))
-    await batch.commit()
-  }, [uid, isDemo])
+      // The four cleanup reads are independent — fetch them in one round-trip
+      // instead of four in series (deleting an item used to take 4× the latency).
+      // Writes below keep their original order (item first, then references).
+      const [itemsSnap, txSnap, lotSnap, isSnap] = await Promise.all([
+        skipRefCleanup ? null : fs.getDocs(fs.collection(db, `users/${uid}/items`)),
+        fs.getDocs(fs.collection(db, `users/${uid}/transactions`)),
+        needLotCleanup ? fs.getDocs(fs.collection(db, `users/${uid}/lots`)) : null,
+        fs.getDocs(fs.collection(db, `users/${uid}/itemSnapshots`)),
+      ])
 
-  // Delete an item AND its dependent records (transactions, lots) atomically.
-  // Linked records are matched by symbol AND optionally account/institution to
-  // avoid nuking e.g. AAPL@IBKR transactions when deleting AAPL@Manual.
-  const deleteItemGroup = useCallback(async ({ itemId, symbol, institution, source, deleteTransactions = true }) => {
-    if (!uid || isDemo) throw new Error('Not authenticated')
-    const { db, fs } = await getFirebase()
-    const batch = fs.writeBatch(db)
-    const isIBKR = source === 'ibkr'
-
-    // 1. Delete the item itself
-    batch.delete(fs.doc(db, `users/${uid}/items`, itemId))
-
-    if (deleteTransactions && symbol) {
-      // 2. Delete matching transactions
-      const txSnap = await fs.getDocs(fs.collection(db, `users/${uid}/transactions`))
-      for (const d of txSnap.docs) {
-        const t = d.data()
-        if ((t.symbol || '').toUpperCase() !== symbol.toUpperCase()) continue
-        if (isIBKR && t._source !== 'ibkr') continue
-        if (!isIBKR && institution && t._source === 'ibkr') continue
-        batch.delete(d.ref)
+      if (skipRefCleanup) {
+        await fs.deleteDoc(fs.doc(db, `users/${uid}/items`, itemId))
+      } else {
+        const batch = fs.writeBatch(db)
+        itemsSnap.docs.forEach((d) => {
+          if (d.id === itemId) return
+          const data = d.data()
+          const updates = {}
+          if (data.incomeDestination === itemId) updates.incomeDestination = ''
+          if (data.capitalDestination === itemId) updates.capitalDestination = ''
+          if (Object.keys(updates).length > 0) batch.update(d.ref, updates)
+        })
+        batch.delete(fs.doc(db, `users/${uid}/items`, itemId))
+        await batch.commit()
       }
 
-      // 3. Close/delete matching open lots
-      const lotSnap = await fs.getDocs(fs.collection(db, `users/${uid}/lots`))
-      for (const d of lotSnap.docs) {
-        const l = d.data()
-        if ((l.symbol || '').toUpperCase() !== symbol.toUpperCase()) continue
-        if (l.status === 'closed') continue
-        if (institution && l.institution && l.institution.toLowerCase() !== institution.toLowerCase()) continue
-        if (institution && !l.institution) continue
-        batch.delete(d.ref)
+      const txBatch = fs.writeBatch(db)
+      let txCount = 0
+      txSnap.docs.forEach(d => {
+        if (d.data()._linkedItemId === itemId) { txBatch.delete(d.ref); txCount++ }
+      })
+      if (txCount > 0) await txBatch.commit()
+
+      if (lotSnap) {
+        const lotBatch = fs.writeBatch(db)
+        let lotCount = 0
+        lotSnap.docs.forEach(d => {
+          if ((d.data().symbol || '').toUpperCase() === sym) { lotBatch.delete(d.ref); lotCount++ }
+        })
+        if (lotCount > 0) await lotBatch.commit()
       }
+
+      const isBatch = fs.writeBatch(db)
+      let isCount = 0
+      isSnap.docs.forEach(d => {
+        const data = d.data()
+        if (data.items && data.items[itemId]) {
+          const { [itemId]: _, ...rest } = data.items
+          isBatch.update(d.ref, { items: rest })
+          isCount++
+        }
+      })
+      if (isCount > 0) await isBatch.commit()
+    } catch (err) {
+      setItems(prev)
+      throw err
     }
+  }, [uid, items])
 
-    await batch.commit()
-  }, [uid, isDemo])
-
-  // For per-institution DailyNAV snapshots (IBKR), the itemId is the account key.
-  // For manual items, it's the item's Firestore doc id.
-  const saveSnapshot = useCallback(async (snapshot, options = {}) => {
-    if (!uid || isDemo) return
+  const deleteAllItems = useCallback(async ({ cascade } = {}) => {
+    if (!uid) return
     const { db, fs } = await getFirebase()
-    // Accept { date } or { month } ({ month:'YYYY-MM' } → first of that month).
-    let dateStr = snapshot.date || (snapshot.month ? `${snapshot.month}-01` : null) || new Date().toISOString().split('T')[0]
-
-    // Per-item daily snapshot: stored in its own collection so it never
-    // collides with portfolio NAV documents (id = itemId~date).
-    if (snapshot._itemId) {
-      const itemSnapId = `${String(snapshot._itemId).replace(/[^a-z0-9_-]+/gi, '-')}~${dateStr}`
-      await fs.setDoc(fs.doc(db, `users/${uid}/itemSnapshots`, itemSnapId), strip({
-        ...snapshot,
-        date: dateStr,
-        createdAt: new Date().toISOString(),
-      }), { merge: true })
-      return
+    const collections = [`users/${uid}/items`]
+    if (cascade) {
+      collections.push(`users/${uid}/lots`, `users/${uid}/transactions`, `users/${uid}/snapshots`, `users/${uid}/itemSnapshots`)
     }
+    for (const path of collections) await deleteAllDocsIn(db, fs, path)
+  }, [uid])
 
+  const saveSnapshot = useCallback(async (snapshot) => {
+    if (!uid) return
+    // Demo mode (onboarding sample data) must not leave real history behind —
+    // snapshots written while demo items exist would pollute the NAV chart
+    // after the demo is deleted.
+    if (items.some((i) => i._source === 'demo')) return
+    const { db, fs } = await getFirebase()
+    const dateStr = snapshot.date || new Date().toISOString().split('T')[0]
     // Calibration anchors share their date with real NAV snapshots (a YTD
     // calibration sits on Jan 1, where a daily snapshot may also live): a
     // compound id keeps them from overwriting each other. This now applies to
@@ -261,368 +344,497 @@ export function useFirestoreItems(uid) {
       : snapshot._account
         ? `${dateStr}~${snapshot._calibrationKind || 'cal'}~${String(snapshot._account).replace(/[^a-z0-9]+/gi, '-')}`
         : dateStr
-    await fs.setDoc(fs.doc(db, `users/${uid}/snapshots`, id), strip({
-      ...snapshot,
-      date: dateStr,
-      createdAt: new Date().toISOString(),
-    }), { merge: true })
-  }, [uid, isDemo])
+    const clean = Object.fromEntries(Object.entries({ ...snapshot, createdAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
+    await fs.setDoc(fs.doc(db, `users/${uid}/snapshots`, id), clean, { merge: true })
+  }, [uid, items])
 
+  // Single-doc delete: the snapshot doc id IS its date string, so re-stamping
+  // a mis-dated snapshot (badDataCleanup class 6) means writing the corrected
+  // doc and removing the old day-01 one.
   const deleteSnapshot = useCallback(async (id) => {
-    if (!uid || isDemo) throw new Error('Not authenticated')
+    if (!uid || !id) return
     const { db, fs } = await getFirebase()
     await fs.deleteDoc(fs.doc(db, `users/${uid}/snapshots`, id))
-  }, [uid, isDemo])
+  }, [uid])
+
+  // Self-heal class 6 (lib/badDataCleanup): monthly PortfolioAnalyst NAV rows
+  // were date-stamped month-START before the parser fix, so their snapshots sit
+  // on day 01 holding the month-END value and poison the YTD anchor
+  // (findYearStartAnchor) plus the growth chart's year-start point. Snapshot
+  // doc ids ARE the date string, so a re-stamp writes the corrected doc first
+  // and deletes the day-01 doc second (never the reverse: a failed create must
+  // not orphan the data).
+  const snapHealRef = useRef(false)
+  useEffect(() => {
+    if (loading || snapHealRef.current || !uid) return
+    const fixes = detectMisstampedMonthlyNavSnapshots(snapshots)
+    if (fixes.length === 0) return
+    snapHealRef.current = true
+    let cancelled = false
+    ;(async () => {
+      let restamped = 0
+      for (const f of fixes) {
+        if (cancelled) return
+        const original = snapshots.find((x) => x && x.id === f.id)
+        if (!original) continue
+        try {
+          const { id: _oldId, ...rest } = original
+          await saveSnapshot({ ...rest, date: f.newDate })
+          await deleteSnapshot(f.id)
+          restamped++
+        } catch { /* leave it; next load retries */ }
+      }
+      if (restamped > 0) console.info(`[badDataCleanup] re-stamped ${restamped} monthly IBKR snapshot(s) to month-end`)
+    })()
+    return () => { cancelled = true }
+  }, [loading, uid, snapshots, saveSnapshot, deleteSnapshot])
 
   const deleteAllSnapshots = useCallback(async () => {
-    if (!uid || isDemo) throw new Error('Not authenticated')
+    if (!uid) return
     const { db, fs } = await getFirebase()
-    const snap = await fs.getDocs(fs.collection(db, `users/${uid}/snapshots`))
-    const CHUNK = 400
-    for (let i = 0; i < snap.docs.length; i += CHUNK) {
+    await deleteAllDocsIn(db, fs, `users/${uid}/snapshots`)
+  }, [uid])
+
+  // Selective cleanup for the onboarding demo: removes every doc flagged
+  // _source:'demo' (items + lots + transactions) and nothing else. Snapshots
+  // never carry demo data (saveSnapshot/saveItemSnapshots are vetoed while
+  // demo items exist), so they need no sweep here.
+  const deleteDemoData = useCallback(async () => {
+    if (!uid) return
+    const { db, fs } = await getFirebase()
+    const refs = [
+      ...items.filter((i) => i._source === 'demo').map((i) => fs.doc(db, `users/${uid}/items`, i.id)),
+      ...lots.filter((l) => l._source === 'demo').map((l) => fs.doc(db, `users/${uid}/lots`, l.id)),
+      ...transactions.filter((t) => t._source === 'demo').map((t) => fs.doc(db, `users/${uid}/transactions`, t.id)),
+    ]
+    const CHUNK = 30
+    for (let i = 0; i < refs.length; i += CHUNK) {
       const batch = fs.writeBatch(db)
-      snap.docs.slice(i, i + CHUNK).forEach(d => batch.delete(d.ref))
+      for (const ref of refs.slice(i, i + CHUNK)) batch.delete(ref)
       await batch.commit()
     }
-  }, [uid, isDemo])
+  }, [uid, items, lots, transactions])
 
-  // Nuclear option for accounts that connected IBKR before the integration
-  // worked end-to-end: delete every document whose origin is the demo seed or
-  // an IBKR auto-import (items, transactions, lots, snapshots, finance
-  // transactions). Manual entries stay. Runs in chunks so big accounts don't
-  // hit the 500-write batch limit.
-  const deleteDemoData = useCallback(async (onProgress) => {
-    if (!uid || isDemo) throw new Error('Not authenticated')
+  // Delete a specific set of items (by id) plus their lots and transactions — the
+  // engine behind the per-account "selective delete" in Settings. The caller (the UI)
+  // owns the grouping (by source/institution); this stays generic. Lots/transactions
+  // are only removed for symbols NO surviving item still holds, so deleting one account
+  // never strips history a sibling account shares.
+  const deleteItemGroup = useCallback(async (itemIds) => {
+    if (!uid || !itemIds?.length) return 0
+    const idSet = new Set(itemIds)
+    const groupItems = items.filter((i) => idSet.has(i.id))
+    if (groupItems.length === 0) return 0
     const { db, fs } = await getFirebase()
-    const collections = ['items', 'transactions', 'lots', 'snapshots', 'financeTransactions']
-    let done = 0
-    for (const col of collections) {
-      const snap = await fs.getDocs(fs.collection(db, `users/${uid}/${col}`))
-      const victims = snap.docs.filter(d => {
-        const data = d.data()
-        if (col === 'items') return isDemoItem(data)
-        if (col === 'transactions') return isDemoTransaction(data)
-        return data._source === 'ibkr'
-      })
-      for (let i = 0; i < victims.length; i += 400) {
-        const batch = fs.writeBatch(db)
-        victims.slice(i, i + 400).forEach(d => batch.delete(d.ref))
-        await batch.commit()
-        done += Math.min(400, victims.length - i)
-        if (onProgress) onProgress(done)
-      }
+    const groupSyms = new Set(groupItems.map((i) => (i.symbol || '').toUpperCase()).filter(Boolean))
+    const survivingSyms = new Set(items.filter((i) => !idSet.has(i.id)).map((i) => (i.symbol || '').toUpperCase()))
+    const symDeletable = (s) => !!s && groupSyms.has(s) && !survivingSyms.has(s)
+    const refs = [
+      ...groupItems.map((i) => fs.doc(db, `users/${uid}/items`, i.id)),
+      ...lots.filter((l) => symDeletable((l.symbol || '').toUpperCase())).map((l) => fs.doc(db, `users/${uid}/lots`, l.id)),
+      ...transactions.filter((t) =>
+        idSet.has(t._linkedItemId) || idSet.has(t._destinationItemId) || idSet.has(t._originItemId)
+        || symDeletable((t.symbol || '').toUpperCase())
+      ).map((t) => fs.doc(db, `users/${uid}/transactions`, t.id)),
+    ]
+    const CHUNK = 30
+    for (let i = 0; i < refs.length; i += CHUNK) {
+      const batch = fs.writeBatch(db)
+      for (const ref of refs.slice(i, i + CHUNK)) batch.delete(ref)
+      await batch.commit()
     }
-    return done
-  }, [uid, isDemo])
+    setItems((cur) => cur.filter((it) => !idSet.has(it.id)))
+    return groupItems.length
+  }, [uid, items, lots, transactions])
 
-  const addTransaction = useCallback(async (tx) => {
-    if (!uid || isDemo) throw new Error('Not authenticated')
+  const addTransaction = useCallback(async (transaction) => {
+    if (!uid) return
     const { db, fs } = await getFirebase()
-    const ref = await fs.addDoc(fs.collection(db, `users/${uid}/transactions`), strip({
-      ...tx,
-      createdAt: new Date().toISOString(),
-    }))
-    return ref.id
-  }, [uid, isDemo])
+    const amt = Math.round((transaction.totalAmount || transaction.amount || 0) * 100)
+    // Deterministic IDs dedupe auto-generated transactions (daily dividend processing).
+    // Manual entries need a nonce so two identical same-day entries don't overwrite each other.
+    const isManual = (transaction._source || '').startsWith('manual')
+    const nonce = isManual ? `-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}` : ''
+    const id = `${transaction.date || 'nodate'}-${(transaction.symbol || 'nosym').toUpperCase()}-${transaction.type || 'tx'}-${amt}${nonce}`
+    // Strip a caller-supplied id (e.g. a state object round-tripped from the
+    // transactions list) — the doc id is authoritative and the read path
+    // trusts d.id, but a stray `id` field in the stored data would win if
+    // that read order ever regresses. Mirrors addItem's _removed pattern.
+    const { id: _removed, ...rawTx } = transaction
+    const txData = Object.fromEntries(Object.entries({ ...rawTx, createdAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
+    await fs.setDoc(fs.doc(db, `users/${uid}/transactions`, id), txData)
+  }, [uid])
 
-  const updateTransaction = useCallback(async (id, fields) => {
-    if (!uid || isDemo) throw new Error('Not authenticated')
+  const deleteTransaction = useCallback(async (txId) => {
+    if (!uid || !txId) return
     const { db, fs } = await getFirebase()
-    await fs.updateDoc(fs.doc(db, `users/${uid}/transactions`, id), strip(fields))
-  }, [uid, isDemo])
+    await fs.deleteDoc(fs.doc(db, `users/${uid}/transactions`, txId))
+  }, [uid])
 
-  const deleteTransaction = useCallback(async (id) => {
-    if (!uid || isDemo) throw new Error('Not authenticated')
+  // Patch an existing movement in place (fix a wrong date/amount, or attach a
+  // stray one to the account it belongs to via _linkedItemId). The doc id
+  // encodes date/symbol/type/amount purely as a dedupe key for AUTO-generated
+  // rows — the read path trusts the doc id and never re-derives it from the
+  // fields, so editing content without renaming the doc is safe and keeps the
+  // row's identity (and anything already pointing at it) intact.
+  const updateTransaction = useCallback(async (txId, fields) => {
+    if (!uid || !txId || !fields) return
     const { db, fs } = await getFirebase()
-    await fs.deleteDoc(fs.doc(db, `users/${uid}/transactions`, id))
-  }, [uid, isDemo])
+    const clean = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined))
+    if (Object.keys(clean).length === 0) return
+    await fs.updateDoc(fs.doc(db, `users/${uid}/transactions`, txId), clean)
+  }, [uid])
 
   const deleteAllTransactions = useCallback(async () => {
-    if (!uid || isDemo) throw new Error('Not authenticated')
+    if (!uid) return
     const { db, fs } = await getFirebase()
-    const snap = await fs.getDocs(fs.collection(db, `users/${uid}/transactions`))
-    const batch = fs.writeBatch(db)
-    snap.docs.forEach(d => batch.delete(d.ref))
-    await batch.commit()
-  }, [uid, isDemo])
+    await deleteAllDocsIn(db, fs, `users/${uid}/transactions`)
+  }, [uid])
 
-  const addFinanceTransaction = useCallback(async (tx) => {
-    if (!uid || isDemo) throw new Error('Not authenticated')
+  const saveGoals = useCallback(async (goalsData) => {
+    if (!uid) return
     const { db, fs } = await getFirebase()
-    const ref = await fs.addDoc(fs.collection(db, `users/${uid}/financeTransactions`), strip({
-      ...tx,
-      createdAt: new Date().toISOString(),
-    }))
-    return ref.id
-  }, [uid, isDemo])
+    const clean = Object.fromEntries(Object.entries({ ...goalsData, updatedAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
+    await fs.setDoc(fs.doc(db, `users/${uid}/settings`, 'goals'), clean, { merge: true })
+    setGoals((prev) => ({ ...prev, ...goalsData }))
+  }, [uid])
 
-  const deleteFinanceTransaction = useCallback(async (id) => {
-    if (!uid || isDemo) throw new Error('Not authenticated')
+  const saveSettings = useCallback(async (prefsData) => {
+    if (!uid) return
     const { db, fs } = await getFirebase()
-    await fs.deleteDoc(fs.doc(db, `users/${uid}/financeTransactions`, id))
-  }, [uid, isDemo])
+    const clean = Object.fromEntries(Object.entries({ ...prefsData, updatedAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
+    await fs.setDoc(fs.doc(db, `users/${uid}/settings`, 'preferences'), clean, { merge: true })
+    setSettings((prev) => ({ ...prev, ...prefsData }))
+  }, [uid])
 
-  const deleteAllFinanceTransactions = useCallback(async () => {
-    if (!uid || isDemo) throw new Error('Not authenticated')
+  const saveProfile = useCallback(async (profileData) => {
+    if (!uid) return
     const { db, fs } = await getFirebase()
-    const snap = await fs.getDocs(fs.collection(db, `users/${uid}/financeTransactions`))
-    const batch = fs.writeBatch(db)
-    snap.docs.forEach(d => batch.delete(d.ref))
-    await batch.commit()
-  }, [uid, isDemo])
+    const clean = Object.fromEntries(Object.entries({ ...profileData, updatedAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
+    await fs.setDoc(fs.doc(db, `users/${uid}/settings`, 'profile'), clean, { merge: true })
+    setProfile((prev) => ({ ...prev, ...profileData }))
+  }, [uid])
 
   const addAlert = useCallback(async (alert) => {
-    if (!uid || isDemo) throw new Error('Not authenticated')
+    if (!uid) return
     const { db, fs } = await getFirebase()
-    const ref = await fs.addDoc(fs.collection(db, `users/${uid}/alerts`), strip({
-      ...alert,
-      createdAt: new Date().toISOString(),
-    }))
-    return ref.id
-  }, [uid, isDemo])
+    const id = `${alert.symbol}-${Date.now()}`
+    const alertData = Object.fromEntries(Object.entries({ ...alert, createdAt: new Date().toISOString(), triggered: false, triggeredAt: null }).filter(([, v]) => v !== undefined))
+    await fs.setDoc(fs.doc(db, `users/${uid}/alerts`, id), alertData)
+  }, [uid])
 
-  const deleteAlert = useCallback(async (id) => {
-    if (!uid || isDemo) throw new Error('Not authenticated')
+  const deleteAlert = useCallback(async (alertId) => {
+    if (!uid) return
     const { db, fs } = await getFirebase()
-    await fs.deleteDoc(fs.doc(db, `users/${uid}/alerts`, id))
-  }, [uid, isDemo])
+    await fs.deleteDoc(fs.doc(db, `users/${uid}/alerts`, alertId))
+  }, [uid])
 
-  const updateAlert = useCallback(async (id, fields) => {
-    if (!uid || isDemo) throw new Error('Not authenticated')
+  const updateAlert = useCallback(async (alertId, data) => {
+    if (!uid) return
     const { db, fs } = await getFirebase()
-    await fs.updateDoc(fs.doc(db, `users/${uid}/alerts`, id), strip(fields))
-  }, [uid, isDemo])
+    await fs.updateDoc(fs.doc(db, `users/${uid}/alerts`, alertId), data)
+  }, [uid])
 
   const addLot = useCallback(async (lot) => {
-    if (!uid || isDemo) throw new Error('Not authenticated')
+    if (!uid) return
     const { db, fs } = await getFirebase()
-    const ref = await fs.addDoc(fs.collection(db, `users/${uid}/lots`), strip({
-      ...lot,
-      status: 'open',
-      createdAt: new Date().toISOString(),
-    }))
-    return ref.id
-  }, [uid, isDemo])
+    const qty = Math.round((lot.quantity || 0) * 1e8)
+    const cost = Math.round((lot.costBasis || 0) * 100)
+    const inst = (lot.institution || '').replace(/[/\\]/g, '-').slice(0, 20)
+    const id = `${(lot.symbol || 'lot').toUpperCase()}-${lot.acquisitionDate || 'nodate'}-${qty}-${cost}${inst ? `-${inst}` : ''}`
+    const lotData = Object.fromEntries(Object.entries({ ...lot, status: 'open', createdAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
+    await fs.setDoc(fs.doc(db, `users/${uid}/lots`, id), lotData)
+  }, [uid])
 
-  const updateLot = useCallback(async (id, fields) => {
-    if (!uid || isDemo) throw new Error('Not authenticated')
+  const updateLot = useCallback(async (lotId, data) => {
+    if (!uid) return
     const { db, fs } = await getFirebase()
-    await fs.updateDoc(fs.doc(db, `users/${uid}/lots`, id), strip(fields))
-  }, [uid, isDemo])
+    const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined))
+    await fs.updateDoc(fs.doc(db, `users/${uid}/lots`, lotId), clean)
+  }, [uid])
 
-  // Sell shares by closing oldest lots first (FIFO). Creates closed lot records
-  // or reduces quantities. Returns realized gain.
-  const closeLotsFIFO = useCallback(async (symbol, quantityToSell, salePrice, saleDate, institution = null) => {
-    if (!uid || isDemo) throw new Error('Not authenticated')
+  const closeLotsFIFO = useCallback(async (symbol, qtyToClose, closePrice, closeDate, institution) => {
+    if (!uid) return []
     const { db, fs } = await getFirebase()
 
-    // Get open lots for this symbol, oldest first (optionally per institution)
-    const lotsSnap = await fs.getDocs(fs.collection(db, `users/${uid}/lots`))
-    const openLots = lotsSnap.docs
-      .map(d => ({ id: d.id, ...d.data() }))
-      .filter(l => (l.symbol || '').toUpperCase() === symbol.toUpperCase() && l.status === 'open'
-        && (!institution || (l.institution || '').toLowerCase() === institution.toLowerCase()))
-      .sort((a, b) => (a.acquisitionDate || '').localeCompare(b.acquisitionDate || ''))
-
-    let remaining = quantityToSell
-    let totalRealizedGain = 0
-    const batch = fs.writeBatch(db)
-
-    for (const lot of openLots) {
-      if (remaining <= 0) break
-
-      const lotQty = lot.quantity || 0
-      const costBasis = lot.costBasis || 0
-
-      if (lotQty <= remaining) {
-        // Close entire lot
-        const gain = (salePrice - costBasis) * lotQty
-        totalRealizedGain += gain
-        batch.update(fs.doc(db, `users/${uid}/lots`, lot.id), strip({
-          status: 'closed',
-          saleDate,
-          salePrice,
-          realizedGain: Math.round(gain * 100) / 100,
-        }))
-        remaining -= lotQty
-      } else {
-        // Partial close: reduce lot quantity and create a closed lot for the sold portion
-        const gain = (salePrice - costBasis) * remaining
-        totalRealizedGain += gain
-        batch.update(fs.doc(db, `users/${uid}/lots`, lot.id), strip({
-          quantity: Math.round((lotQty - remaining) * 1e8) / 1e8,
-        }))
-        const closedLotRef = fs.doc(fs.collection(db, `users/${uid}/lots`))
-        batch.set(closedLotRef, strip({
-          ...lot,
-          quantity: Math.round(remaining * 1e8) / 1e8,
-          status: 'closed',
-          saleDate,
-          salePrice,
-          realizedGain: Math.round(gain * 100) / 100,
-          createdAt: new Date().toISOString(),
-        }))
-        remaining = 0
+    return fs.runTransaction(db, async (tx) => {
+      const lotsSnap = await tx.get(fs.query(
+        fs.collection(db, `users/${uid}/lots`),
+        fs.where('symbol', '==', symbol),
+        fs.where('status', '==', 'open')
+      ))
+      let openLots = lotsSnap.docs
+        .map(d => ({ ...d.data(), id: d.id }))
+        .filter(l => l.quantity > 0)
+        .sort((a, b) => (a.acquisitionDate || '').localeCompare(b.acquisitionDate || ''))
+      if (institution) {
+        const instLots = openLots.filter(l => l.institution === institution)
+        if (instLots.length > 0) openLots = instLots
       }
-    }
 
-    await batch.commit()
-    return { realizedGain: Math.round(totalRealizedGain * 100) / 100 }
-  }, [uid, isDemo])
+      let remaining = qtyToClose
+      const closedResults = []
+      for (const lot of openLots) {
+        if (remaining <= 0) break
+        const closable = Math.min(remaining, lot.quantity)
+        const realizedGain = (closePrice - lot.costBasis) * closable
 
-  // Move cash between two accounts as two linked TRANSFER_IN / TRANSFER_OUT
-  // transactions. Cash accounts hold money (they're not investments), so the
-  // amounts adjust the two items' values directly; non-cash items are
-  // untouched. Writes go in one batch so the pair lands atomically.
-  const transferFunds = useCallback(async ({ fromItemId, toItemId, amount, currency, date, note }) => {
-    if (!uid || isDemo) throw new Error('Not authenticated')
-    if (!fromItemId || !toItemId || !amount || amount <= 0) throw new Error('Invalid transfer')
-    const { db, fs } = await getFirebase()
-    const fromItem = items.find(i => i.id === fromItemId)
-    const toItem = items.find(i => i.id === toItemId)
-    if (!fromItem || !toItem) throw new Error('Account not found')
-    const txDate = date || new Date().toISOString().split('T')[0]
-    const batch = fs.writeBatch(db)
-    // _linkedItemId lets returns/Dietz flows attribute the leg to an account.
-    const outRef = fs.doc(fs.collection(db, `users/${uid}/transactions`))
-    batch.set(outRef, strip({
-      type: 'TRANSFER_OUT', symbol: fromItem.symbol, institution: fromItem.institution || '',
-      quantity: 0, price: 0, amount, totalAmount: amount, currency: currency || fromItem.currency || 'USD',
-      date: txDate, note: note || '', _linkedItemId: fromItemId, _transferPair: toItemId,
-      createdAt: new Date().toISOString(),
-    }))
-    const inRef = fs.doc(fs.collection(db, `users/${uid}/transactions`))
-    batch.set(inRef, strip({
-      type: 'TRANSFER_IN', symbol: toItem.symbol, institution: toItem.institution || '',
-      quantity: 0, price: 0, amount, totalAmount: amount, currency: currency || toItem.currency || 'USD',
-      date: txDate, note: note || '', _linkedItemId: toItemId, _transferPair: fromItemId,
-      createdAt: new Date().toISOString(),
-    }))
-    if (fromItem.isCash) batch.update(fs.doc(db, `users/${uid}/items`, fromItemId), strip({ quantity: Math.round(((fromItem.quantity || 0) - amount) * 100) / 100 }))
-    if (toItem.isCash) batch.update(fs.doc(db, `users/${uid}/items`, toItemId), strip({ quantity: Math.round(((toItem.quantity || 0) + amount) * 100) / 100 }))
-    await batch.commit()
-    return { outId: outRef.id, inId: inRef.id }
-  }, [uid, isDemo, items])
+        if (closable >= lot.quantity - QTY_EPSILON) {
+          tx.update(fs.doc(db, `users/${uid}/lots`, lot.id), {
+            status: 'closed', quantity: closable, closedDate: closeDate, closedPrice: closePrice, realizedGain,
+          })
+        } else {
+          tx.update(fs.doc(db, `users/${uid}/lots`, lot.id), {
+            quantity: roundQty(lot.quantity - closable),
+          })
+          const closedId = `${lot.id}-closed-${Date.now()}`
+          const { id: _lotId, ...lotData } = lot
+          tx.set(fs.doc(db, `users/${uid}/lots`, closedId), {
+            ...lotData, quantity: closable, status: 'closed',
+            closedDate: closeDate, closedPrice: closePrice, realizedGain,
+            createdAt: lot.createdAt,
+          })
+        }
 
-  // Sell part/all of a position atomically: closes lots FIFO, records the SALE
-  // transaction and reduces the item quantity, all in one Firestore batch so a
-  // half-applied sale can't desync lots from holdings.
-  const executeSaleAtomic = useCallback(async ({ item, quantity, salePrice, saleDate }) => {
-    if (!uid || isDemo) throw new Error('Not authenticated')
-    if (!item?.id || !quantity || quantity <= 0) throw new Error('Invalid sale')
-    const { db, fs } = await getFirebase()
-    const batch = fs.writeBatch(db)
-    const qty = quantity
-
-    const lotsSnap = await fs.getDocs(fs.collection(db, `users/${uid}/lots`))
-    const openLots = lotsSnap.docs
-      .map(d => ({ id: d.id, ...d.data() }))
-      .filter(l => (l.symbol || '').toUpperCase() === (item.symbol || '').toUpperCase() && l.status === 'open'
-        && (!(item.institution || '') || (l.institution || '').toLowerCase() === (item.institution || '').toLowerCase()))
-      .sort((a, b) => (a.acquisitionDate || '').localeCompare(b.acquisitionDate || ''))
-
-    let remaining = qty
-    let totalRealizedGain = 0
-    for (const lot of openLots) {
-      if (remaining <= 0) break
-      const lotQty = lot.quantity || 0
-      const costBasis = lot.costBasis || 0
-      if (lotQty <= remaining) {
-        const gain = (salePrice - costBasis) * lotQty
-        totalRealizedGain += gain
-        batch.update(fs.doc(db, `users/${uid}/lots`, lot.id), strip({ status: 'closed', saleDate, salePrice, realizedGain: Math.round(gain * 100) / 100 }))
-        remaining -= lotQty
-      } else {
-        const gain = (salePrice - costBasis) * remaining
-        totalRealizedGain += gain
-        batch.update(fs.doc(db, `users/${uid}/lots`, lot.id), strip({ quantity: Math.round((lotQty - remaining) * 1e8) / 1e8 }))
-        const closedLotRef = fs.doc(fs.collection(db, `users/${uid}/lots`))
-        batch.set(closedLotRef, strip({ ...lot, quantity: Math.round(remaining * 1e8) / 1e8, status: 'closed', saleDate, salePrice, realizedGain: Math.round(gain * 100) / 100, createdAt: new Date().toISOString() }))
-        remaining = 0
+        closedResults.push({ lotId: lot.id, quantity: closable, costBasis: lot.costBasis, realizedGain })
+        remaining -= closable
       }
-    }
+      return closedResults
+    })
+  }, [uid])
 
-    const newQty = Math.round(((item.quantity || 0) - qty) * 1e8) / 1e8
-    if (newQty <= 0) batch.delete(fs.doc(db, `users/${uid}/items`, item.id))
-    else batch.update(fs.doc(db, `users/${uid}/items`, item.id), strip({ quantity: newQty }))
+  // Atomic money-movement helpers — all writes in a single writeBatch so a
+  // partial failure cannot leave money debited from one account but never
+  // credited to the other (or duplicated).
+  // Drops undefined (Firestore rejects it) AND a caller-supplied `id` — every
+  // write site here builds its own deterministic doc id and the doc body must
+  // never carry one, or a read path that ever spreads data before d.id (see
+  // useFirestoreItems' listeners) would silently resurrect the wrong id.
+  const strip = (o) => { const { id: _id, ...rest } = o || {}; return Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined)) }
+  // Deterministic id (no nonce) so retrying a failed atomic write overwrites the
+  // same transaction doc instead of creating a duplicate.
+  const txDocId = (tx) => {
+    const amt = Math.round((tx.totalAmount || 0) * 100)
+    return `${tx.date || 'nodate'}-${(tx.symbol || 'nosym').toUpperCase()}-${tx.type || 'tx'}-${amt}`
+  }
 
-    const txRef = fs.doc(fs.collection(db, `users/${uid}/transactions`))
-    batch.set(txRef, strip({
-      type: 'SELL', symbol: item.symbol, institution: item.institution || '',
-      quantity: qty, price: salePrice, amount: qty * salePrice, totalAmount: qty * salePrice,
-      currency: item.currency || 'USD', date: saleDate,
-      _linkedItemId: item.id, createdAt: new Date().toISOString(),
-    }))
-
-    await batch.commit()
-    return { realizedGain: Math.round(totalRealizedGain * 100) / 100 }
-  }, [uid, isDemo])
-
-  // Record a cash contribution to a goal atomically: a CONTRIBUTION transaction
-  // (so the goal's "saved so far" advances) plus the optional cash-account debit,
-  // in one batch. `cashItemId` null means "from outside the portfolio".
-  const executeContribution = useCallback(async ({ goal, amount, currency, date, note, cashItemId }) => {
-    if (!uid || isDemo) throw new Error('Not authenticated')
-    if (!goal?.id || !amount || amount <= 0) throw new Error('Invalid contribution')
+  const transferFunds = useCallback(async ({ fromId, fromFields, toId, toFields, transaction }) => {
+    if (!uid) throw new Error('No uid')
     const { db, fs } = await getFirebase()
-    const txDate = date || new Date().toISOString().split('T')[0]
     const batch = fs.writeBatch(db)
-    const txRef = fs.doc(fs.collection(db, `users/${uid}/transactions`))
-    batch.set(txRef, strip({
-      type: 'CONTRIBUTION', symbol: (goal.name || 'META').toUpperCase().slice(0, 12),
-      institution: goal.institution || '', quantity: 0, price: 0,
-      amount, totalAmount: amount, currency: currency || 'USD', date: txDate,
-      note: note || '', _goalId: goal.id, createdAt: new Date().toISOString(),
-    }))
-    if (cashItemId) {
-      const cash = items.find(i => i.id === cashItemId)
-      if (cash && cash.isCash) {
-        batch.update(fs.doc(db, `users/${uid}/items`, cashItemId), strip({ quantity: Math.round(((cash.quantity || 0) - amount) * 100) / 100 }))
-      }
+    batch.update(fs.doc(db, `users/${uid}/items`, fromId), strip(fromFields))
+    batch.update(fs.doc(db, `users/${uid}/items`, toId), strip(toFields))
+    if (transaction) {
+      batch.set(fs.doc(db, `users/${uid}/transactions`, txDocId(transaction)), strip({ ...transaction, createdAt: new Date().toISOString() }))
     }
-    const goalRef = fs.doc(db, `users/${uid}/goals`, goal.id)
-    batch.set(goalRef, strip({ ...goal, savedAmount: Math.round(((goal.savedAmount || 0) + amount) * 100) / 100, updatedAt: new Date().toISOString() }), { merge: true })
     await batch.commit()
-    return { txId: txRef.id }
-  }, [uid, isDemo, items])
+  }, [uid])
+
+  // Fully atomic sale: source item update + SELL/WITHDRAWAL txs + destination
+  // credit + destination lot + source-lot FIFO close all in ONE Firestore
+  // transaction. Either everything commits or nothing does — no money vanishes
+  // and lots can never desync from the item. Idempotent on retry (deterministic
+  // ids), and runTransaction auto-retries on contention.
+  const executeSaleAtomic = useCallback(async ({ itemId, itemFields, transactions = [], destId, destFields, destLot, lotClose }) => {
+    if (!uid) throw new Error('No uid')
+    const { db, fs } = await getFirebase()
+    return fs.runTransaction(db, async (tx) => {
+      // --- READS FIRST (Firestore requires all reads before any writes) ---
+      let closes = []
+      if (lotClose && lotClose.symbol && lotClose.qty > 0) {
+        const lotsSnap = await tx.get(fs.query(
+          fs.collection(db, `users/${uid}/lots`),
+          fs.where('symbol', '==', lotClose.symbol),
+          fs.where('status', '==', 'open'),
+        ))
+        let openLots = lotsSnap.docs
+          .map((d) => ({ ...d.data(), id: d.id }))
+          .filter((l) => l.quantity > 0)
+          .sort((a, b) => (a.acquisitionDate || '').localeCompare(b.acquisitionDate || ''))
+        if (lotClose.institution) {
+          const instLots = openLots.filter((l) => l.institution === lotClose.institution)
+          if (instLots.length > 0) openLots = instLots
+        }
+        let remaining = lotClose.qty
+        for (const lot of openLots) {
+          if (remaining <= 0) break
+          const closable = Math.min(remaining, lot.quantity)
+          closes.push({ lot, closable, realizedGain: (lotClose.price - lot.costBasis) * closable })
+          remaining -= closable
+        }
+      }
+
+      // --- WRITES ---
+      tx.update(fs.doc(db, `users/${uid}/items`, itemId), strip(itemFields))
+
+      for (const c of closes) {
+        if (c.closable >= c.lot.quantity - QTY_EPSILON) {
+          tx.update(fs.doc(db, `users/${uid}/lots`, c.lot.id), {
+            status: 'closed', quantity: c.closable, closedDate: lotClose.date, closedPrice: lotClose.price, realizedGain: c.realizedGain,
+          })
+        } else {
+          tx.update(fs.doc(db, `users/${uid}/lots`, c.lot.id), { quantity: roundQty(c.lot.quantity - c.closable) })
+          // Deterministic closed-lot id (date, not Date.now()) so a transaction
+          // retry overwrites the same doc instead of duplicating it.
+          const closedId = `${c.lot.id}-closed-${lotClose.date}`
+          const { id: _lotId, ...lotData } = c.lot
+          tx.set(fs.doc(db, `users/${uid}/lots`, closedId), {
+            ...lotData, quantity: c.closable, status: 'closed',
+            closedDate: lotClose.date, closedPrice: lotClose.price, realizedGain: c.realizedGain,
+            createdAt: c.lot.createdAt,
+          })
+        }
+      }
+
+      transactions.forEach((t) => {
+        tx.set(fs.doc(db, `users/${uid}/transactions`, txDocId(t)), strip({ ...t, createdAt: new Date().toISOString() }))
+      })
+
+      if (destId && destFields) {
+        tx.update(fs.doc(db, `users/${uid}/items`, destId), strip(destFields))
+      }
+      if (destLot) {
+        const qty = Math.round((destLot.quantity || 0) * 1e8)
+        const cost = Math.round((destLot.costBasis || 0) * 100)
+        const inst = (destLot.institution || '').replace(/[/\\]/g, '-').slice(0, 20)
+        const lid = `${(destLot.symbol || 'lot').toUpperCase()}-${destLot.acquisitionDate || 'nodate'}-${qty}-${cost}${inst ? `-${inst}` : ''}`
+        tx.set(fs.doc(db, `users/${uid}/lots`, lid), strip({ ...destLot, status: 'open', createdAt: new Date().toISOString() }))
+      }
+    })
+  }, [uid])
+
+  const executeContribution = useCallback(async ({ itemId, itemFields, transaction, newLot, lotClose, prefFields }) => {
+    if (!uid) throw new Error('No uid')
+    const { db, fs } = await getFirebase()
+    return fs.runTransaction(db, async (tx) => {
+      // --- READS (only needed for withdraw / FIFO close) ---
+      let closes = []
+      if (lotClose && lotClose.symbol && lotClose.qty > 0) {
+        const lotsSnap = await tx.get(fs.query(
+          fs.collection(db, `users/${uid}/lots`),
+          fs.where('symbol', '==', lotClose.symbol),
+          fs.where('status', '==', 'open'),
+        ))
+        let openLots = lotsSnap.docs
+          .map((d) => ({ ...d.data(), id: d.id }))
+          .filter((l) => l.quantity > 0)
+          .sort((a, b) => (a.acquisitionDate || '').localeCompare(b.acquisitionDate || ''))
+        if (lotClose.institution) {
+          const instLots = openLots.filter((l) => l.institution === lotClose.institution)
+          if (instLots.length > 0) openLots = instLots
+        }
+        let remaining = lotClose.qty
+        for (const lot of openLots) {
+          if (remaining <= 0) break
+          const closable = Math.min(remaining, lot.quantity)
+          closes.push({ lot, closable, realizedGain: (lotClose.price - lot.costBasis) * closable })
+          remaining -= closable
+        }
+      }
+
+      // --- WRITES ---
+      const itemRef = fs.doc(db, `users/${uid}/items`, itemId)
+      tx.update(itemRef, strip(itemFields))
+
+      for (const c of closes) {
+        if (c.closable >= c.lot.quantity - QTY_EPSILON) {
+          tx.update(fs.doc(db, `users/${uid}/lots`, c.lot.id), {
+            status: 'closed', quantity: c.closable, closedDate: lotClose.date, closedPrice: lotClose.price, realizedGain: c.realizedGain,
+          })
+        } else {
+          tx.update(fs.doc(db, `users/${uid}/lots`, c.lot.id), { quantity: roundQty(c.lot.quantity - c.closable) })
+          const closedId = `${c.lot.id}-closed-${lotClose.date}`
+          const { id: _lotId, ...lotData } = c.lot
+          tx.set(fs.doc(db, `users/${uid}/lots`, closedId), {
+            ...lotData, quantity: c.closable, status: 'closed',
+            closedDate: lotClose.date, closedPrice: lotClose.price, realizedGain: c.realizedGain,
+            createdAt: c.lot.createdAt,
+          })
+        }
+      }
+
+      if (newLot) {
+        const qty = Math.round((newLot.quantity || 0) * 1e8)
+        const cost = Math.round((newLot.costBasis || 0) * 100)
+        const inst = (newLot.institution || '').replace(/[/\\]/g, '-').slice(0, 20)
+        const lid = `${(newLot.symbol || 'lot').toUpperCase()}-${newLot.acquisitionDate || 'nodate'}-${qty}-${cost}${inst ? `-${inst}` : ''}`
+        tx.set(fs.doc(db, `users/${uid}/lots`, lid), strip({ ...newLot, status: 'open', createdAt: new Date().toISOString() }))
+      }
+
+      if (transaction) {
+        tx.set(fs.doc(db, `users/${uid}/transactions`, txDocId(transaction)), strip({ ...transaction, createdAt: new Date().toISOString() }))
+      }
+
+      if (prefFields) {
+        tx.update(itemRef, strip(prefFields))
+      }
+    })
+  }, [uid])
+
+  const addFinanceTransaction = useCallback(async (tx) => {
+    if (!uid) return false
+    try {
+      const { db, fs } = await getFirebase()
+      const amt = Math.round((tx.amount || 0) * 100)
+      const desc = (tx.description || '').slice(0, 30).replace(/[/\\]/g, '-')
+      const nonce = `-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+      const id = `ftx-${tx.date || 'nodate'}-${desc}-${amt}${nonce}`
+      const txData = Object.fromEntries(Object.entries({ ...tx, createdAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
+      await fs.setDoc(fs.doc(db, `users/${uid}/financeTransactions`, id), txData)
+      return true
+    } catch (err) {
+      console.error('[finance] add failed', err)
+      return false
+    }
+  }, [uid])
+
+  const deleteFinanceTransaction = useCallback(async (txId) => {
+    if (!uid) return
+    const { db, fs } = await getFirebase()
+    await fs.deleteDoc(fs.doc(db, `users/${uid}/financeTransactions`, txId))
+  }, [uid])
+
+  const deleteAllFinanceTransactions = useCallback(async () => {
+    if (!uid) return
+    const { db, fs } = await getFirebase()
+    await deleteAllDocsIn(db, fs, `users/${uid}/financeTransactions`)
+  }, [uid])
 
   const addPortfolio = useCallback(async (portfolio) => {
-    if (!uid || isDemo) throw new Error('Not authenticated')
+    if (!uid) return
     const { db, fs } = await getFirebase()
-    const ref = await fs.addDoc(fs.collection(db, `users/${uid}/portfolios`), strip({
-      ...portfolio,
-      createdAt: new Date().toISOString(),
-    }))
-    return ref.id
-  }, [uid, isDemo])
+    const id = `portfolio-${Date.now()}`
+    const portfolioData = Object.fromEntries(Object.entries({ ...portfolio, createdAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
+    await fs.setDoc(fs.doc(db, `users/${uid}/portfolios`, id), portfolioData)
+    return id
+  }, [uid])
 
-  const deletePortfolio = useCallback(async (id) => {
-    if (!uid || isDemo) throw new Error('Not authenticated')
+  const deletePortfolio = useCallback(async (portfolioId) => {
+    if (!uid) return
     const { db, fs } = await getFirebase()
-    await fs.deleteDoc(fs.doc(db, `users/${uid}/portfolios`, id))
-  }, [uid, isDemo])
+    await fs.deleteDoc(fs.doc(db, `users/${uid}/portfolios`, portfolioId))
+  }, [uid])
 
-  const saveGoals = useCallback(async (data) => {
-    if (!uid || isDemo) throw new Error('Not authenticated')
-    const { db, fs } = await getFirebase()
-    await fs.setDoc(fs.doc(db, `users/${uid}/config`, 'goals'), strip(data), { merge: true })
-  }, [uid, isDemo])
+  // v3: static-item historical values are now currency-converted to base.
+  // v4: market-asset past-month share counts are reconstructed from real trade
+  // history (transactions), not import-stamped lots — invalidates docs that
+  // cached zeroed/understated stock values before the import date.
+  // v16: crypto historical prices now come from CoinGecko (not Yahoo, which
+  // collided crypto tickers with unrelated equities) — invalidates docs that
+  // cached garbage crypto values.
+  const SNAPSHOT_VERSION = 17
 
-  const saveSettings = useCallback(async (data) => {
-    if (!uid || isDemo) throw new Error('Not authenticated')
-    const { db, fs } = await getFirebase()
-    await fs.setDoc(fs.doc(db, `users/${uid}/config`, 'settings'), strip(data), { merge: true })
-  }, [uid, isDemo])
-
-  // ---- Item price snapshots (monthly per-item close, for the spreadsheet) ----
-  const SNAPSHOT_VERSION = 1
-
-  const saveItemSnapshots = useCallback(async (monthKey, itemValues, currency) => {
-    if (!uid || isDemo) return
+  const saveItemSnapshots = useCallback(async (monthKey, itemsData, currency) => {
+    if (!uid || !monthKey || !itemsData) return
+    // Same demo-mode veto as saveSnapshot: no persistent history from sample data.
+    if (items.some((i) => i._source === 'demo')) return
     const { db, fs } = await getFirebase()
     const ref = fs.doc(db, `users/${uid}/itemSnapshots`, monthKey)
-    const snapData = strip(Object.entries({
-      items: itemValues,
+    const existing = await fs.getDoc(ref)
+    const existingItems = existing.exists() ? (existing.data().items || {}) : {}
+    const snapData = Object.fromEntries(Object.entries({
+      monthKey,
+      items: { ...existingItems, ...itemsData },
       savedAt: new Date().toISOString(),
       _version: SNAPSHOT_VERSION,
       ...(currency ? { _currency: currency } : {}),
