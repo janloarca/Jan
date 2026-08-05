@@ -6,7 +6,7 @@ import { useDashboardData } from '@/hooks/useDashboardData'
 import { computeCosts } from '@/lib/costsSummary'
 import PageShell, { PageTitle } from '@/components/PageShell'
 import { SkeletonCard } from '@/components/dashboard/Skeleton'
-import { Receipt, TrendingDown, Landmark, Percent, ArrowDownRight } from 'lucide-react'
+import { Receipt, TrendingDown, Landmark, Percent, ArrowDownRight, Wallet } from 'lucide-react'
 
 export default function CostsPage() {
   const router = useRouter()
@@ -43,7 +43,7 @@ export default function CostsPage() {
     return () => unsubscribe()
   }, [router])
 
-  const { transactions, convert, baseCurrency, settings, dataLoading } =
+  const { transactions, portfolioItems, convert, baseCurrency, settings, dataLoading } =
     useDashboardData({ user, lang, activePortfolio: '__all__' })
 
   const t = useCallback((es, en) => (lang === 'es' ? es : en), [lang])
@@ -53,12 +53,18 @@ export default function CostsPage() {
     for (const tx of transactions || []) {
       if (tx.date && tx.date.length >= 4) set.add(tx.date.slice(0, 4))
     }
+    // Item-level costs (entryFee) are dated at acquisitionDate, not a
+    // transaction — without this an account whose only cost is a manually
+    // entered entry fee never gets a year button to filter by.
+    for (const it of portfolioItems || []) {
+      if (it.acquisitionDate && it.acquisitionDate.length >= 4) set.add(it.acquisitionDate.slice(0, 4))
+    }
     return [...set].sort().reverse()
-  }, [transactions])
+  }, [transactions, portfolioItems])
 
   const costs = useMemo(
-    () => computeCosts({ transactions, convert, baseCurrency, year: year === 'all' ? null : year }),
-    [transactions, convert, baseCurrency, year]
+    () => computeCosts({ transactions, items: portfolioItems, convert, baseCurrency, year: year === 'all' ? null : year }),
+    [transactions, portfolioItems, convert, baseCurrency, year]
   )
 
   const fmt = useCallback((n) => {
@@ -95,6 +101,7 @@ export default function CostsPage() {
     { key: 'fees', label: t('Cargos', 'Fees'), value: costs.fees, Icon: Receipt, hint: t('Cargos del broker', 'Broker fees') },
     { key: 'taxes', label: t('Impuestos', 'Taxes'), value: costs.taxes, Icon: Landmark, hint: t('Retención de impuestos', 'Withholding tax') },
     { key: 'interestPaid', label: t('Intereses', 'Interest'), value: costs.interestPaid, Icon: Percent, hint: t('Interés de margen', 'Margin interest') },
+    { key: 'assetCosts', label: t('Costos de cuenta', 'Account costs'), value: costs.assetCosts, Icon: Wallet, hint: t('Entrada, manejo y gastos que registraste a mano', 'Entry, management and expenses you entered by hand') },
   ].filter((b) => b.value > 0)
 
   const maxMonth = Math.max(1, ...costs.months.map((m) => costs.byMonth[m].total))
@@ -124,8 +131,8 @@ export default function CostsPage() {
             <Receipt size={36} className="mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
             <p className="text-sm font-medium text-white mb-1">{t('Aún no hay costos registrados', 'No costs recorded yet')}</p>
             <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
-              {t('Los costos aparecen cuando tus operaciones traen comisiones o cuando importas cargos, impuestos e intereses de tu broker. Sincroniza IBKR o importa un Activity Statement para verlos aquí.',
-                 'Costs appear when your trades carry commissions or when you import fees, taxes and interest from your broker. Sync IBKR or import an Activity Statement to see them here.')}
+              {t('Los costos aparecen cuando tus operaciones traen comisiones, cuando importas cargos/impuestos/intereses de tu broker, o cuando le agregas "Costos y comisiones" a una cuenta manual (bono, banco) al crearla o editarla.',
+                 'Costs appear when your trades carry commissions, when you import fees/taxes/interest from your broker, or when you add "Costs & fees" to a manual account (bond, bank) when creating or editing it.')}
             </p>
           </div>
         ) : (

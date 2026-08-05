@@ -1086,16 +1086,15 @@ export default function DashboardPage() {
           )
         })()}
 
-        {/* ═══ INGRESOS ═══ */}
-        <div className="stagger-4"><SectionCollapse title={lang === 'es' ? 'Ingresos' : 'Income'} id="income">
+        {/* ═══ INGRESOS & COSTOS ═══ — both are "what your money did to you this
+            year" (money it made / money it cost), so they read as one section
+            instead of Costs sitting as an unrelated card right below it. */}
+        <div className="stagger-4"><SectionCollapse title={lang === 'es' ? 'Ingresos & Costos' : 'Income & Costs'} id="income">
           <ErrorBoundary lang={lang}>
             <CardBoundary id="IG-01"><DividendIncome transactions={transactions} items={portfolioItems} convert={convert} baseCurrency={baseCurrency} lang={lang} totalAssets={totalAssets} /></CardBoundary>
+            <CardBoundary id="COST-01"><CostsCard transactions={transactions} items={portfolioItems} convert={convert} baseCurrency={baseCurrency} lang={lang} /></CardBoundary>
           </ErrorBoundary>
         </SectionCollapse></div>
-
-        <div className="stagger-4">
-          <CardBoundary id="COST-01"><CostsCard transactions={transactions} convert={convert} baseCurrency={baseCurrency} lang={lang} /></CardBoundary>
-        </div>
 
         {/* ═══ ACTIVIDAD RECIENTE ═══ */}
         <div className="stagger-5"><SectionCollapse title={lang === 'es' ? 'Actividad Reciente' : 'Recent Activity'} id="activity" defaultOpen={false}>

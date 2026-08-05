@@ -8,6 +8,15 @@ const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN',
 
 export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, onExecuteContribution, existingItems = [], lang = 'es', baseCurrency = 'USD', prefill = null }) {
   const trapRef = useFocusTrap()
+  const t = (es, en) => lang === 'es' ? es : en
+
+  const isBank = (item) => /bank|banco|cash/i.test(item.type)
+  const getValue = (item) => isBank(item)
+    ? (item.currentPrice || item.purchasePrice || 0)
+    : (item.quantity || 0) * (item.currentPrice || item.purchasePrice || 0)
+  const formatOption = (item) =>
+    `${item.name || item.symbol} (${item.institution || '-'}) - ${item.currency || 'USD'} ${getValue(item).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
   const [flowType, setFlowType] = useState(prefill?.flowType || 'DEPOSIT')
   // Where the money comes from (DEPOSIT) / goes to (WITHDRAWAL):
   // 'external' = new money in / money leaving the portfolio (a real flow for Dietz)
@@ -24,7 +33,16 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
   // Backfilling history: the current balance already includes this amount, so
   // only record the transaction (returns/history) without touching the balance.
   const [alreadyReflected, setAlreadyReflected] = useState(!!prefill?.alreadyReflected)
-  const [amount, setAmount] = useState('')
+  // "Capturar historia" already tells us the exact amount — it's the linked
+  // account's own current balance ("esa información ya la pusimos al agregar
+  // la cuenta"). Prefill it instead of making the user remember and retype it;
+  // they can still edit it if the real historical figure was slightly different.
+  const [amount, setAmount] = useState(() => {
+    if (!prefill?.alreadyReflected || !prefill?.linkedId) return ''
+    const item = existingItems.find((i) => i.id === prefill.linkedId)
+    const val = item ? getValue(item) : 0
+    return val > 0 ? String(Math.round(val * 100) / 100) : ''
+  })
   const [currency, setCurrency] = useState(baseCurrency)
   // Backfill prefills ("Capturar historia") start with an EMPTY date: the whole
   // point is recording WHEN the money arrived — defaulting to today would stamp
@@ -36,15 +54,8 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
   const [savedCount, setSavedCount] = useState(0)
   const [savedMsg, setSavedMsg] = useState('')
 
-  const t = (es, en) => lang === 'es' ? es : en
   const today = new Date().toISOString().split('T')[0]
-
-  const isBank = (item) => /bank|banco|cash/i.test(item.type)
-  const getValue = (item) => isBank(item)
-    ? (item.currentPrice || item.purchasePrice || 0)
-    : (item.quantity || 0) * (item.currentPrice || item.purchasePrice || 0)
-  const formatOption = (item) =>
-    `${item.name || item.symbol} (${item.institution || '-'}) - ${item.currency || 'USD'} ${getValue(item).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const prefilledItem = prefill?.linkedId ? existingItems.find((i) => i.id === prefill.linkedId) : null
 
   const assets = existingItems.filter((i) => !i.isDebt)
   const fromItem = assets.find((i) => i.id === fromId)
@@ -207,16 +218,34 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}
       style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
       <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
-          <h2 className="text-lg font-bold text-white">
-            {t('Registrar Movimiento', 'Log Cash Flow')}
-            {savedCount > 0 && (
-              <span className="ml-2 text-xs font-medium align-middle" style={{ color: 'var(--accent-green)' }}>
-                {savedCount} {t('registrados', 'recorded')}
-              </span>
-            )}
-          </h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label="Close">&times;</button>
+        <div className="px-6 py-4 border-b border-glass-border">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-white">
+              {t('Registrar Movimiento', 'Log Cash Flow')}
+              {savedCount > 0 && (
+                <span className="ml-2 text-xs font-medium align-middle" style={{ color: 'var(--accent-green)' }}>
+                  {savedCount} {t('registrados', 'recorded')}
+                </span>
+              )}
+            </h2>
+            <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label="Close">&times;</button>
+          </div>
+          {/* Oriented differently depending on how the user got here: a
+              "Capturar historia" prefill already knows the amount (it's the
+              account's own balance) and only needs the real date; a blank
+              open needs the full "what happened" story. Grounds the form
+              before any of its choices start, instead of asking the user to
+              infer the purpose from the field labels alone. */}
+          <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+            {prefill?.alreadyReflected
+              ? (prefilledItem
+                  ? t(`Ya sabemos que ${prefilledItem.name || prefilledItem.symbol} tiene este monto: el monto ya está puesto. Solo falta la fecha real en que entró, para que el historial y el retorno cuadren.`,
+                      `We already know ${prefilledItem.name || prefilledItem.symbol} holds this amount: the amount is already filled in. Just pick the real date it arrived, so history and returns line up.`)
+                  : t('El saldo ya está en tu cuenta: esto solo agrega la fecha real en que entró, para que el historial cuadre.',
+                      'The balance is already in your account: this only adds the real date it arrived, so history lines up.'))
+              : t('Anota dinero que entró o salió de tu portafolio (no una compra/venta), para que tus retornos no confundan un aporte con una ganancia.',
+                  'Log money that entered or left your portfolio (not a buy/sell), so your returns don\'t confuse a contribution with a gain.')}
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
@@ -348,8 +377,14 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
               <input type="checkbox" checked={alreadyReflected} onChange={(e) => setAlreadyReflected(e.target.checked)}
                 className="w-3.5 h-3.5 mt-0.5 rounded accent-blue-500 shrink-0" />
               <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                {t('El saldo actual ya incluye este monto (solo registrar el movimiento). Úsalo al capturar historia pasada.',
-                   'The current balance already includes this amount (only record the movement). Use this when backfilling history.')}
+                <span className="font-medium block" style={{ color: 'var(--text-primary)' }}>
+                  {t('El saldo ya está contado ahí: solo estoy explicando cuándo llegó', 'The balance is already counted there: I\'m only explaining when it arrived')}
+                </span>
+                {alreadyReflected
+                  ? t(`Marcado: ${balanceTarget.name || balanceTarget.symbol} NO cambia de saldo. Solo queda registrada la fecha, para el historial y el retorno.`,
+                      `Checked: ${balanceTarget.name || balanceTarget.symbol}'s balance stays the same. Only the date gets recorded, for history and returns.`)
+                  : t(`Sin marcar: esto SUMARÁ/RESTARÁ del saldo actual de ${balanceTarget.name || balanceTarget.symbol}. Úsalo solo si esta plata todavía no estaba contada ahí.`,
+                      `Unchecked: this WILL add/subtract from ${balanceTarget.name || balanceTarget.symbol}'s current balance. Only use that if this money wasn't counted there yet.`)}
               </span>
             </label>
           )}
