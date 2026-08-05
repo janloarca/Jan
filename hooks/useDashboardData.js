@@ -367,6 +367,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
         for (const { dateStr } of monthsToCheck) {
           if (cancelled) return
+          // Dates the user explicitly said did NOT happen (asked at account
+          // creation, when the schedule implied a payment already due) —
+          // never fabricate history for those, however the schedule reads.
+          if (Array.isArray(it.excludedPayDates) && it.excludedPayDates.includes(dateStr)) continue
           const alreadyProcessed = transactions.some((tx) =>
             (tx.type || '').toUpperCase() === 'DIVIDEND' && tx.date === dateStr &&
             (tx._linkedItemId === it.id || (!tx._linkedItemId && tx.symbol === (it.symbol || it.name)))

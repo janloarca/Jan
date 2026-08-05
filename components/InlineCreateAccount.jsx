@@ -1,8 +1,15 @@
 'use client'
 
 import { useState } from 'react'
+import { detectCurrency } from '@/lib/institutionCurrency'
 
 const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
+
+const SUBTYPES = [
+  { key: 'checking', es: 'Corriente', en: 'Checking' },
+  { key: 'savings', es: 'Ahorro', en: 'Savings' },
+  { key: 'cd', es: 'Plazo fijo', en: 'CD' },
+]
 
 // Inline form to create a destination (cash) account on the spot, so a user can
 // route income to an account that doesn't exist yet without leaving the modal.
@@ -12,7 +19,9 @@ export default function InlineCreateAccount({ onCreate, onCancel, onCreated, lan
   const t = (es, en) => (lang === 'es' ? es : en)
   const [name, setName] = useState('')
   const [institution, setInstitution] = useState('')
+  const [subtype, setSubtype] = useState('checking')
   const [currency, setCurrency] = useState(defaultCurrency)
+  const [currencyTouched, setCurrencyTouched] = useState(false)
   const [balance, setBalance] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -30,7 +39,7 @@ export default function InlineCreateAccount({ onCreate, onCancel, onCreated, lan
       const inst = institution.trim()
       const newItem = {
         type: 'Bank',
-        subtype: 'checking',
+        subtype,
         name: nm,
         symbol: `${(inst || nm).replace(/\s+/g, '-').toUpperCase().slice(0, 16)}-CASH`,
         institution: inst,
@@ -51,24 +60,41 @@ export default function InlineCreateAccount({ onCreate, onCancel, onCreated, lan
   }
 
   return (
-    <div className="mt-2 p-3 rounded-lg border space-y-2"
+    <div className="mt-2 p-3 rounded-lg border space-y-2.5"
       style={{ borderColor: 'rgba(37,99,235,0.4)', backgroundColor: 'rgba(37,99,235,0.06)' }}>
       <p className="text-xs font-medium" style={{ color: 'var(--accent-blue-soft, #60a5fa)' }}>
         {t('Nueva cuenta destino', 'New destination account')}
       </p>
       {err && <p className="text-xs" style={{ color: 'var(--text-negative, #f87171)' }}>{err}</p>}
       <input value={name} onChange={e => setName(e.target.value)}
-        placeholder={t('Nombre (ej. Cuenta Y)', 'Name (e.g. Account Y)')} className={inputCls} autoFocus />
+        placeholder={t('Nombre (ej. Cuenta líquida)', 'Name (e.g. Cash account)')} className={inputCls} autoFocus />
+      <input value={institution} onChange={e => {
+          setInstitution(e.target.value)
+          if (!currencyTouched) { const hint = detectCurrency(e.target.value); if (hint) setCurrency(hint) }
+        }}
+        placeholder={t('Banco (ej. BAM, IBKR...)', 'Bank (e.g. Chase, IBKR...)')} className={inputCls} />
+      <div>
+        <span className="text-xs text-[var(--text-muted,#64748b)] mb-1 block">{t('Tipo de cuenta', 'Account type')}</span>
+        <div className="flex gap-1.5">
+          {SUBTYPES.map(s => (
+            <button key={s.key} type="button" onClick={() => setSubtype(s.key)}
+              className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
+              style={subtype === s.key
+                ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' }
+                : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+              {lang === 'es' ? s.es : s.en}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="grid grid-cols-2 gap-2">
-        <input value={institution} onChange={e => setInstitution(e.target.value)}
-          placeholder={t('Banco (opcional)', 'Bank (optional)')} className={inputCls} />
-        <select value={currency} onChange={e => setCurrency(e.target.value)} className={inputCls}>
+        <input value={balance} onChange={e => setBalance(e.target.value)}
+          placeholder={t('Saldo inicial (opcional)', 'Initial balance (optional)')}
+          type="number" step="any" className={inputCls} />
+        <select value={currency} onChange={e => { setCurrency(e.target.value); setCurrencyTouched(true) }} className={inputCls}>
           {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
       </div>
-      <input value={balance} onChange={e => setBalance(e.target.value)}
-        placeholder={t('Saldo inicial (opcional)', 'Initial balance (optional)')}
-        type="number" step="any" className={inputCls} />
       <div className="flex gap-2 pt-1">
         <button type="button" onClick={onCancel}
           className="flex-1 py-1.5 text-xs rounded-lg border border-[var(--card-border,#38383A)] text-[var(--text-secondary,#cbd5e1)]">
