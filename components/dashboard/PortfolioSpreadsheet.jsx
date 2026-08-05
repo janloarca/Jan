@@ -51,6 +51,28 @@ function getMonthKey(d) {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
 }
 
+// Month-end timestamp (ms) for a 'YYYY-MM' key — used to decide whether an item
+// already existed by the end of a displayed month.
+function monthEndTs(mk) {
+  const [y, m] = mk.split('-').map(Number)
+  return Date.UTC(y, m, 0)
+}
+
+// Effective acquisition timestamp for an item: explicit acquisitionDate first,
+// then the earliest BUY transaction recorded for its symbol, then Jan 1 of its
+// createdAt year (a dateless item "always existed" within its add-year).
+// Mirrors effectiveAcqDate() in lib/historicalValues.js.
+function effAcqTs(it, firstBuyBySym) {
+  if (it.acquisitionDate) {
+    const a = Date.parse(it.acquisitionDate)
+    if (!isNaN(a)) return a
+  }
+  const sym = (it.symbol || '').toUpperCase()
+  if (sym && firstBuyBySym && firstBuyBySym[sym] != null) return firstBuyBySym[sym]
+  const c = it.createdAt ? new Date(it.createdAt) : null
+  return c && !isNaN(c.getTime()) ? Date.UTC(c.getUTCFullYear(), 0, 1) : null
+}
+
 function getMonthLabel(key, lang) {
   const [y, m] = key.split('-')
   const d = new Date(parseInt(y), parseInt(m) - 1, 1)
@@ -173,17 +195,45 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   const now = new Date()
   const currentMonthKey = getMonthKey(now)
 
+  // Earliest BUY timestamp per symbol — an item with no acquisitionDate still
+  // "existed" since its first recorded purchase, so the acquisition gates below
+  // and the year selector must reach back to it (e.g. crypto held since 2021
+  // but added to the app only now).
+  const firstBuyBySym = useMemo(() => {
+    const map = {}
+    ;(transactions || []).forEach(tx => {
+      if ((tx.type || '').toUpperCase() !== 'BUY') return
+      const sym = (tx.symbol || '').toUpperCase()
+      if (!sym) return
+      const ts = new Date(tx.date).getTime()
+      if (isNaN(ts)) return
+      if (map[sym] == null || ts < map[sym]) map[sym] = ts
+    })
+    return map
+  }, [transactions])
+
   const earliestYear = useMemo(() => {
     let earliest = now.getFullYear() - 1
-    items.forEach(it => {
-      const dateStr = it.acquisitionDate || it.createdAt
-      if (dateStr) {
-        const y = new Date(dateStr).getFullYear()
-        if (y >= 2000 && y < earliest) earliest = y
+    const considerYear = (raw) => {
+      if (!raw) return
+      // Prefer the string's year prefix over new Date().getFullYear(): a bare
+      // 'YYYY-MM-DD' parses as UTC midnight and can roll back a year in
+      // negative-UTC timezones (e.g. Guatemala).
+      const m = typeof raw === 'string' ? /^(\d{4})/.exec(raw) : null
+      let y = m ? parseInt(m[1], 10) : NaN
+      if (isNaN(y)) {
+        const d = new Date(raw)
+        y = isNaN(d.getTime()) ? NaN : d.getUTCFullYear()
       }
+      if (y >= 2000 && y < earliest) earliest = y
+    }
+    items.forEach(it => {
+      considerYear(it.acquisitionDate)
+      considerYear(it.createdAt)
     })
+    Object.values(firstBuyBySym).forEach(ts => considerYear(new Date(ts).toISOString()))
     return earliest
-  }, [items])
+  }, [items, firstBuyBySym])
 
   const availableYears = useMemo(() => {
     const years = []
@@ -239,19 +289,12 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     // Held flat at their current value, gated by an effective acquisition date so a
     // bond bought in June doesn't inflate May. This mirrors what the per-item
     // reconstruction produces (IBKR scaled to NAV + manual assets held flat).
-    const monthEndOf = (mk) => { const [y, m] = mk.split('-').map(Number); return Date.UTC(y, m, 0) }
-    const effAcqTs = (it) => {
-      const a = it.acquisitionDate ? Date.parse(it.acquisitionDate) : NaN
-      if (!isNaN(a)) return a
-      const c = it.createdAt ? new Date(it.createdAt) : null
-      return c && !isNaN(c.getTime()) ? Date.UTC(c.getUTCFullYear(), 0, 1) : null
-    }
     const nonIbkrItems = items
       .filter(it => it._source !== 'ibkr' && it.id && !isExcludedFromNetWorth(it))
-      .map(it => ({ value: getItemValue(it), acqTs: effAcqTs(it) }))
+      .map(it => ({ value: getItemValue(it), acqTs: effAcqTs(it, firstBuyBySym) }))
       .filter(it => it.value)
     const nonIbkrValueAtMonth = (mk) => {
-      const end = monthEndOf(mk)
+      const end = monthEndTs(mk)
       let sum = 0
       for (const it of nonIbkrItems) if (it.acqTs == null || it.acqTs <= end) sum += it.value
       return sum
@@ -287,7 +330,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       }
     })
     return result
-  }, [snapshots, convert, baseCurrency, historicalItems, items])
+  }, [snapshots, convert, baseCurrency, historicalItems, items, firstBuyBySym])
 
   // Months whose TOTAL comes from a snapshot NAV fallback (no per-item breakdown):
   // the category rows show "—" there while the TOTAL shows a figure, so we mark
@@ -386,11 +429,25 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
 
     const itemsWithIds = items.filter(it => it.id)
 
+    // Coverage is judged only against items that already existed by month end
+    // (acquisition-aware): a crypto bought in 2021 but added to the app in 2026
+    // counts as expected for 2021 months — otherwise a cache saved before it
+    // existed looks "complete enough" under the 70% rule and its history never
+    // gets reconstructed.
+    const expectedForMonth = (mk) => {
+      const end = monthEndTs(mk)
+      return itemsWithIds.filter(it => {
+        const acq = effAcqTs(it, firstBuyBySym)
+        return acq == null || acq <= end
+      })
+    }
     const missingMonths = pastMonths.filter(mk => {
       const monthData = historicalItems[mk]
+      const expected = expectedForMonth(mk)
+      if (expected.length === 0) return false
       if (!monthData || Object.keys(monthData).length === 0) return true
-      const covered = itemsWithIds.filter(it => monthData[it.id])
-      return covered.length < itemsWithIds.length * 0.7
+      const covered = expected.filter(it => monthData[it.id])
+      return covered.length < expected.length * 0.7
     })
     if (missingMonths.length === 0) {
       lastFetchedYearRef.current = selectedYear
@@ -423,7 +480,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       }).catch(() => { if (!cancelled) setLoadingHistory(false) })
     }).catch(() => { if (!cancelled) setLoadingHistory(false) })
     return () => { cancelled = true }
-  }, [items, months, currentMonthKey, historicalItems, convert, baseCurrency, onSaveItemSnapshots, lots, transactions, selectedYear, snapshots])
+  }, [items, months, currentMonthKey, historicalItems, convert, baseCurrency, onSaveItemSnapshots, lots, transactions, selectedYear, snapshots, firstBuyBySym])
 
   const itemValue = useCallback((item) => {
     return showOriginal ? getOriginalValue(item) : getItemValue(item)
