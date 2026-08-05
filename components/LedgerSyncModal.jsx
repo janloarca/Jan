@@ -19,7 +19,8 @@ const CHAINS = [
 // Where the coins are kept: becomes the item's institution so the portfolio
 // can group by custody. Watch-only either way, the device is never touched.
 // OTHER_WALLET reveals a free-text input ("which wallet?") whose value is used
-// as the institution and kept as its own option next time (savedWallets prop).
+// as the institution and kept as its own option next time (saved on the user's
+// preferences doc, loaded below when the modal opens).
 const BASE_CUSTODIES = ['Ledger', 'Trezor', 'Coldcard', 'Exchange']
 const OTHER_WALLET = 'Otra wallet'
 
@@ -45,7 +46,7 @@ function priceOnDate(prices, dateStr) {
   return bestDelta <= 3 * 86400000 ? best.close : null
 }
 
-export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es', savedWallets = [], onSaveWallet }) {
+export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }) {
   const trapRef = useFocusTrap()
   const [addresses, setAddresses] = useState([{ chain: 'BTC', address: '' }])
   const [custody, setCustody] = useState('Ledger')
@@ -54,6 +55,10 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es', 
   const [error, setError] = useState('')
   const [step, setStep] = useState('input')
   const [results, setResults] = useState(null)
+  // Custom "Otra wallet" names persist on the same preferences doc the data
+  // layer writes (users/{uid}/settings/preferences): loaded once on open so
+  // the select can offer them again, saved on confirm.
+  const [savedWallets, setSavedWallets] = useState([])
 
   const t = (es, en) => lang === 'es' ? es : en
 
@@ -64,6 +69,22 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es', 
     window.addEventListener('keydown', handleEsc)
     return () => window.removeEventListener('keydown', handleEsc)
   }, [onClose])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { auth, db } = await import('@/lib/firebase')
+        const fs = await import('firebase/firestore')
+        const uid = auth.currentUser?.uid
+        if (!uid || !db) return
+        const snap = await fs.getDoc(fs.doc(db, `users/${uid}/settings`, 'preferences'))
+        const ws = snap.data()?._customWallets
+        if (!cancelled && Array.isArray(ws)) setSavedWallets(ws)
+      } catch { /* saved wallets are a convenience: the select works regardless */ }
+    })()
+    return () => { cancelled = true }
+  }, [])
 
   const addRow = () => {
     setAddresses(prev => [...prev, { chain: 'BTC', address: '' }])
@@ -126,7 +147,18 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es', 
     if (custom) {
       const next = addSavedWallet(savedWallets, custom)
       if (next !== savedWallets) {
-        try { await onSaveWallet?.(next) } catch { /* the import still applies the name */ }
+        setSavedWallets(next)
+        // Same doc and merge semantics as useFirestoreItems.saveSettings, so
+        // the dashboard's settings listener picks the new option up by itself.
+        try {
+          const { auth, db } = await import('@/lib/firebase')
+          const fs = await import('firebase/firestore')
+          const uid = auth.currentUser?.uid
+          if (uid && db) {
+            await fs.setDoc(fs.doc(db, `users/${uid}/settings`, 'preferences'),
+              { _customWallets: next, updatedAt: new Date().toISOString() }, { merge: true })
+          }
+        } catch { /* the import still applies the name */ }
       }
     }
 
@@ -215,7 +247,7 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es', 
 
     onSyncComplete({ items, transactions, mode: 'merge' })
     onClose()
-  }, [results, custody, customName, savedWallets, onSaveWallet, onSyncComplete, onClose, t])
+  }, [results, custody, customName, savedWallets, onSyncComplete, onClose, t])
 
   const inputCls = 'w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50'
 
