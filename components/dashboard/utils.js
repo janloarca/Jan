@@ -221,6 +221,87 @@ export function augmentSnapshots(snapshots, items, convert) {
   })
 }
 
+// Per-account calibration: every broker app shows ITS OWN return, so "Calibrar"
+// must anchor each account separately. Account keys: 'ibkr' for Interactive
+// Brokers (imported positions carry institution variants, so match loosely),
+// else the normalized institution name (same normalization as
+// InstitutionPerformance). Items with no institution return null.
+export function accountKeyOfItem(it) {
+  if (!it) return null
+  if (it._source === 'ibkr' || (it.institution || '').toLowerCase().includes('interactive brokers')) return 'ibkr'
+  const name = (it.institution || '').trim().replace(/\s+/g, ' ').toLowerCase()
+  return name || null
+}
+
+// Estimated USD share of ONE account at a past anchor date: the account's items
+// at CURRENT prices, included only if they already existed then
+// (effectiveAcqTs <= anchorTs). This is exactly the held-flat formula
+// augmentSnapshots uses, so a calibrated start replaces the account's own
+// estimate 1:1 instead of double-counting it.
+export function heldFlatAccountValueUSD(items, accountKey, anchorTs, convert) {
+  let sum = 0
+  for (const it of items || []) {
+    if (!it || isExcludedFromNetWorth(it)) continue
+    if (accountKeyOfItem(it) !== accountKey) continue
+    const acq = effectiveAcqTs(it)
+    if (acq != null && anchorTs != null && acq > anchorTs) continue
+    sum += itemValueUSD(it, convert)
+  }
+  return sum
+}
+
+// Combine per-account calibrated starts with the portfolio-level anchor:
+//   start = base − Σ(estimated share of each calibrated account) + Σ(calibrated starts)
+// One global % cannot represent accounts with different returns (mixing them is
+// what clamped the badge at ±200%); this swaps each calibrated account's share
+// for the value solved from the % THAT broker shows.
+// For the IBKR account inside a FULL-portfolio anchor, the estimated share is
+// base − heldFlat(everything non-IBKR): the exact inverse of augmentSnapshots.
+// baseValueUSD may be null/<=0 (no portfolio anchor at all): the base is then
+// rebuilt as the held-flat value of all UNCALIBRATED items at anchorTs.
+// Returns { startValueUSD, applied } or null when there is nothing to apply.
+export function combineAccountCalibrations({ baseValueUSD, anchorTs, calibrations, items, convert }) {
+  const cals = (calibrations || []).filter(c => c && c._account && isFinite(c.netWorthUSD) && c.netWorthUSD > 0)
+  if (cals.length === 0) return null
+  const hasRealBase = baseValueUSD != null && isFinite(baseValueUSD) && baseValueUSD > 0
+  const calKeys = new Set(cals.map(c => c._account))
+  let start = hasRealBase ? baseValueUSD : 0
+  if (!hasRealBase) {
+    for (const it of items || []) {
+      if (!it || isExcludedFromNetWorth(it)) continue
+      const key = accountKeyOfItem(it)
+      if (key && calKeys.has(key)) continue
+      const acq = effectiveAcqTs(it)
+      if (acq != null && anchorTs != null && acq > anchorTs) continue
+      start += itemValueUSD(it, convert)
+    }
+  }
+  const applied = []
+  for (const cal of cals) {
+    // With a rebuilt base the calibrated accounts were already left out of it,
+    // so there is no estimated share to subtract; only a real portfolio anchor
+    // contains one.
+    let est = 0
+    if (!hasRealBase) {
+      // est stays 0
+    } else if (cal._account === 'ibkr') {
+      let nonIbkr = 0
+      for (const it of items || []) {
+        if (!it || isExcludedFromNetWorth(it) || accountKeyOfItem(it) === 'ibkr') continue
+        const acq = effectiveAcqTs(it)
+        if (acq != null && anchorTs != null && acq > anchorTs) continue
+        nonIbkr += itemValueUSD(it, convert)
+      }
+      est = Math.max(0, baseValueUSD - nonIbkr)
+    } else {
+      est = heldFlatAccountValueUSD(items, cal._account, anchorTs, convert)
+    }
+    start = start - est + cal.netWorthUSD
+    applied.push(cal._account)
+  }
+  return { startValueUSD: start, applied }
+}
+
 // The single source of truth for "what was the portfolio worth at year start":
 // the snapshot dated in January of `year`, else late December of `year - 1`,
 // accepted only within 15 days of Jan 1. Used by BOTH the YTD Dietz badge

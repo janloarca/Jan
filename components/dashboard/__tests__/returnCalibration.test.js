@@ -1,4 +1,4 @@
-import { computeModifiedDietz, solveDietzStartValue } from '../utils'
+import { computeModifiedDietz, solveDietzStartValue, accountKeyOfItem, heldFlatAccountValueUSD, combineAccountCalibrations } from '../utils'
 
 // solveDietzStartValue backs the "Calibrar rendimiento" modal: the user types
 // the return their broker shows and we solve for the start value that makes
@@ -76,5 +76,127 @@ describe('solveDietzStartValue', () => {
     expect(solveDietzStartValue({ endValue: 100, startTs, endTs, transactions: [], targetPct: 201 }).error).toBe('targetPct')
     expect(solveDietzStartValue({ endValue: 100, startTs, endTs, transactions: [], targetPct: NaN }).error).toBe('targetPct')
     expect(solveDietzStartValue({ endValue: 100, startTs: endTs, endTs, transactions: [], targetPct: 5 }).error).toBe('window')
+  })
+})
+
+// Per-account calibration: each broker shows ITS OWN return, so the modal
+// solves a start value per account and combineAccountCalibrations swaps each
+// calibrated account's estimated share of the global anchor for that solved
+// value. A single global % cannot represent accounts with different returns
+// (mixing them is what clamped the badge at ±200%).
+describe('accountKeyOfItem', () => {
+  it('maps IBKR items to the ibkr key, loosely on institution name', () => {
+    expect(accountKeyOfItem({ _source: 'ibkr' })).toBe('ibkr')
+    expect(accountKeyOfItem({ institution: 'Interactive Brokers' })).toBe('ibkr')
+    expect(accountKeyOfItem({ institution: 'interactive brokers llc' })).toBe('ibkr')
+  })
+
+  it('normalizes other institutions like InstitutionPerformance does', () => {
+    expect(accountKeyOfItem({ institution: '  Hapi   Securities ' })).toBe('hapi securities')
+    expect(accountKeyOfItem({ institution: 'Ledger' })).toBe('ledger')
+  })
+
+  it('returns null for items without institution', () => {
+    expect(accountKeyOfItem({ institution: '' })).toBeNull()
+    expect(accountKeyOfItem({})).toBeNull()
+    expect(accountKeyOfItem(null)).toBeNull()
+  })
+})
+
+describe('heldFlatAccountValueUSD', () => {
+  const anchorTs = Date.UTC(2026, 0, 1)
+  const items = [
+    { symbol: 'AAPL', institution: 'Hapi', quantity: 10, currentPrice: 100, currency: 'USD' },
+    { symbol: 'BTC', institution: 'Ledger', quantity: 0.5, currentPrice: 4000, currency: 'USD' },
+    { symbol: 'MSFT', _source: 'ibkr', institution: 'Interactive Brokers', quantity: 5, currentPrice: 200, currency: 'USD' },
+  ]
+
+  it('sums only the requested account at current prices', () => {
+    expect(heldFlatAccountValueUSD(items, 'hapi', anchorTs)).toBe(1000)
+    expect(heldFlatAccountValueUSD(items, 'ledger', anchorTs)).toBe(2000)
+    expect(heldFlatAccountValueUSD(items, 'ibkr', anchorTs)).toBe(1000)
+    expect(heldFlatAccountValueUSD(items, 'unknown', anchorTs)).toBe(0)
+  })
+
+  it('excludes items acquired after the anchor date', () => {
+    const withLate = [...items, { symbol: 'NVDA', institution: 'Hapi', quantity: 4, currentPrice: 250, currency: 'USD', acquisitionDate: '2026-03-01' }]
+    expect(heldFlatAccountValueUSD(withLate, 'hapi', anchorTs)).toBe(1000)
+    // null anchorTs means "right now": nothing is gated out
+    expect(heldFlatAccountValueUSD(withLate, 'hapi', null)).toBe(2000)
+  })
+
+  it('honors convert for non-USD items and skips net-worth exclusions', () => {
+    const convert = (amt, from, to) => (from === to ? amt : amt / 20)
+    const mxn = [
+      { symbol: 'WALMEX', institution: 'GBM', quantity: 100, currentPrice: 400, currency: 'MXN' },
+      { symbol: 'DEUD', institution: 'GBM', quantity: 1, currentPrice: 99999, currency: 'MXN', isReceivable: true, countInNetWorth: false },
+    ]
+    expect(heldFlatAccountValueUSD(mxn, 'gbm', anchorTs, convert)).toBe(2000)
+  })
+})
+
+describe('combineAccountCalibrations', () => {
+  const anchorTs = Date.UTC(2026, 0, 1)
+  // Portfolio: Hapi held flat at 6000, IBKR held flat at 4000, base anchor 10000.
+  const items = [
+    { symbol: 'AAPL', institution: 'Hapi', quantity: 60, currentPrice: 100, currency: 'USD' },
+    { symbol: 'MSFT', _source: 'ibkr', institution: 'Interactive Brokers', quantity: 20, currentPrice: 200, currency: 'USD' },
+  ]
+
+  it('returns null when there are no calibrations to apply', () => {
+    expect(combineAccountCalibrations({ baseValueUSD: 10000, anchorTs, calibrations: [], items })).toBeNull()
+    expect(combineAccountCalibrations({ baseValueUSD: 10000, anchorTs, calibrations: null, items })).toBeNull()
+  })
+
+  it('swaps a manual account estimated share for its calibrated start', () => {
+    const res = combineAccountCalibrations({
+      baseValueUSD: 10000, anchorTs,
+      calibrations: [{ _account: 'hapi', netWorthUSD: 5000 }],
+      items,
+    })
+    // 10000 - 6000 (hapi estimate) + 5000 (calibrated) = 9000
+    expect(res.startValueUSD).toBeCloseTo(9000, 8)
+    expect(res.applied).toEqual(['hapi'])
+  })
+
+  it('estimates the IBKR share as base minus non-IBKR held flat (inverse of augmentSnapshots)', () => {
+    const res = combineAccountCalibrations({
+      baseValueUSD: 10000, anchorTs,
+      calibrations: [{ _account: 'ibkr', netWorthUSD: 4500 }],
+      items,
+    })
+    // IBKR estimate = 10000 - 6000 (non-IBKR) = 4000; 10000 - 4000 + 4500 = 10500
+    expect(res.startValueUSD).toBeCloseTo(10500, 8)
+  })
+
+  it('combines several accounts at once', () => {
+    const res = combineAccountCalibrations({
+      baseValueUSD: 10000, anchorTs,
+      calibrations: [
+        { _account: 'hapi', netWorthUSD: 5000 },
+        { _account: 'ibkr', netWorthUSD: 4500 },
+      ],
+      items,
+    })
+    // 10000 - 4000 - 6000 + 5000 + 4500 = 9500
+    expect(res.startValueUSD).toBeCloseTo(9500, 8)
+  })
+
+  it('rebuilds the base from uncalibrated items when there is no portfolio anchor', () => {
+    const res = combineAccountCalibrations({
+      baseValueUSD: null, anchorTs,
+      calibrations: [{ _account: 'hapi', netWorthUSD: 5000 }],
+      items,
+    })
+    // Base = held-flat of uncalibrated items (IBKR 4000); calibrated account skipped: 4000 + 5000
+    expect(res.startValueUSD).toBeCloseTo(9000, 8)
+  })
+
+  it('ignores calibrations without a positive value', () => {
+    expect(combineAccountCalibrations({
+      baseValueUSD: 10000, anchorTs,
+      calibrations: [{ _account: 'hapi', netWorthUSD: 0 }],
+      items,
+    })).toBeNull()
   })
 })
