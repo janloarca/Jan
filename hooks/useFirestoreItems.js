@@ -817,7 +817,12 @@ export function useFirestoreItems() {
   // v16: crypto historical prices now come from CoinGecko (not Yahoo, which
   // collided crypto tickers with unrelated equities) — invalidates docs that
   // cached garbage crypto values.
-  const SNAPSHOT_VERSION = 17
+  // v18: the acquisition gate for historical values now falls back to the
+  // earliest BUY transaction per symbol (before, an asset with no
+  // acquisitionDate was gated to the year it was added to the app) — invalidates
+  // month docs that cached a long-held asset as absent before its add-year
+  // (e.g. crypto bought in 2021, added to the app in 2026).
+  const SNAPSHOT_VERSION = 18
 
   const saveItemSnapshots = useCallback(async (monthKey, itemsData, currency) => {
     if (!uid || !monthKey || !itemsData) return
