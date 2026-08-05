@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { formatCurrency, formatCompact, formatAxisTick, formatDate, getItemValue, buildIncomeEvents, isExcludedFromNetWorth, findYearStartAnchor, shouldHoldFlat, SNAPSHOT_SRC_PRIORITY } from './utils'
 import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
+import { isBankLikeItem } from '@/lib/contributions'
 import { computeTWRSeries, computeMWRSeries } from './analytics'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import ErrorState from '@/components/ui/ErrorState'
@@ -273,6 +274,23 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         ? (chartItems.find((it) => it._source === 'ibkr' && /^CASH-/i.test(it.symbol || ''))
            || chartItems.find((it) => it._source === 'ibkr' && /bank|cash/i.test(it.type || '')))
         : null
+      // Manual bank-like items (bonds, cash accounts, alternatives — anything
+      // with no market price series) don't ride the IBKR cash line above. A
+      // later "aporte" (EditAccountModal's contribution flow) just bumps the
+      // balance directly with no dated event the static reconstruction could
+      // otherwise see, so the whole balance showed flat since the item's
+      // original acquisitionDate instead of stepping up on the contribution's
+      // real date. Rewind each such item by its OWN linked DEPOSIT/WITHDRAWAL/
+      // DIVIDEND transactions — same mechanism as the IBKR cash line, just
+      // scoped per item instead of to one designated account.
+      const perItemCashFlows = {}
+      chartItems.forEach((it) => {
+        if (it._source === 'ibkr' || !isBankLikeItem(it)) return
+        const linkedTx = (scopedTransactions || []).filter((tx) => tx._linkedItemId === it.id)
+        if (linkedTx.length === 0) return
+        const flows = buildCashFlows(linkedTx, (amt, cur2) => convert ? convert(amt, cur2, 'USD') : amt)
+        if (flows.length > 0) perItemCashFlows[it.id] = flows
+      })
       const res = await authFetch('/api/prices/portfolio-history', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -290,7 +308,11 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
               acquisitionDate: it.acquisitionDate,
               _holdFlat: shouldHoldFlat(it, scopedTransactions, lots),
               txEvents: txEventsBySym[(it.symbol || '').toUpperCase()] || undefined,
-              ...(cashItem && it.id === cashItem.id ? { cashFlows: accountCashFlows } : {}),
+              // _flowIsAccountLevel: only the broker's real reconciled cash line
+              // promotes the response to "transactional" server-side — see the
+              // comment next to usedTransactional in the API route.
+              ...(cashItem && it.id === cashItem.id ? { cashFlows: accountCashFlows, _flowIsAccountLevel: true } : {}),
+              ...(perItemCashFlows[it.id] ? { cashFlows: perItemCashFlows[it.id] } : {}),
             }
           }),
           lots: allLots.length > 0 ? allLots.map(l => ({

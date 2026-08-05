@@ -319,7 +319,13 @@ export async function POST(request) {
       staticItems.forEach((it, si) => {
         const flows = staticCashFlows.get(si)
         if (flows) {
-          usedTransactional = true
+          // Only the ONE designated account-level cash line (the broker's real
+          // reconciled ledger) promotes the whole response to "transactional" —
+          // that flag relaxes flow-netting and rebase logic for the FULL scope,
+          // so an unrelated manual item's own contribution history (bonds, cash
+          // accounts with a later top-up) must not trip it for a scope that's
+          // otherwise still estimated.
+          if (it._flowIsAccountLevel) usedTransactional = true
           const v = cashAtTs((it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0), flows, ts)
           staticSubtotal += v
           total += v
