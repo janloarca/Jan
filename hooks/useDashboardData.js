@@ -995,7 +995,44 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     () => (transactions || []).filter((tx) => tx._source !== 'ibkr'),
     [transactions]
   )
-  const REAL_SNAPSHOT_SOURCES = ['ibkr', 'daily', 'manual']
+  // A transcribed quarter-end NAV is a real broker observation too: it already
+  // contains deposits and withdrawals, so the Dietz must net the flows against
+  // it exactly like a synced NAV.
+  const REAL_SNAPSHOT_SOURCES = ['ibkr', 'ibkr_quarterly', 'daily', 'manual']
+
+  // A per-account calibration holds ONE account's solved value, which is why it
+  // is kept out of the NAV series. But the user typed those percentages off the
+  // broker's screen precisely so the curve would stop guessing, and a number
+  // nothing reads is a number that was typed for nothing.
+  //
+  // So the 1W/1M/3M/1Y anchors are turned into PORTFOLIO values once, here,
+  // with the same helper the YTD math uses (swap the account's estimated share
+  // of that date for the solved one) and handed to the chart. 'ytd' and 'all'
+  // are deliberately excluded: the returns memo below applies those itself, and
+  // applying them twice would count the correction twice. Anchors are only
+  // added where no real observation exists: a real one always wins.
+  const chartSnapshots = useMemo(() => {
+    const CHART_ONLY_KINDS = new Set(['1w', '1m', '3m', '1y'])
+    const extra = []
+    for (const cal of accountCalibrations) {
+      if (!CHART_ONLY_KINDS.has(cal._calibrationKind)) continue
+      if ((snapshots || []).some((s) => s.date === cal.date && !s._calibrated)) continue
+      const anchorTs = new Date(`${cal.date}T00:00:00Z`).getTime()
+      if (!isFinite(anchorTs)) continue
+      const combined = combineAccountCalibrations({
+        baseValueUSD: null, anchorTs, calibrations: [cal], items: portfolioItems, convert,
+      })
+      const v = combined?.startValueUSD
+      if (v == null || !isFinite(v) || v <= 0) continue
+      extra.push({
+        id: `cal~${cal._calibrationKind}~${cal.date}`,
+        date: cal.date, netWorthUSD: v, totalActivosUSD: v,
+        _source: 'manual', _calibrated: true,
+      })
+    }
+    if (extra.length === 0) return snapshots
+    return [...snapshots, ...extra].sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+  }, [accountCalibrations, snapshots, portfolioItems, convert])
 
   const { returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated } = useMemo(() => {
     const year = new Date().getUTCFullYear()
@@ -1362,7 +1399,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
   return {
     // Raw Firestore data
-    items, snapshots, augmentedSnapshots, accountCalibrations, transactions, goals, settings, profile, effectiveProfile, alerts, lots, portfolios, financeTransactions,
+    items, snapshots, chartSnapshots, augmentedSnapshots, accountCalibrations, transactions, goals, settings, profile, effectiveProfile, alerts, lots, portfolios, financeTransactions,
     entityTransactions, entityFinanceTransactions,
     dataLoading,
 

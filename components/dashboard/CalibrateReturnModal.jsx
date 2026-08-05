@@ -25,6 +25,31 @@ export default function CalibrateReturnModal({ onClose, netWorth, transactions, 
   const year = new Date().getUTCFullYear()
   const todayStr = new Date().toISOString().split('T')[0]
 
+  // The six windows every broker app shows on its performance screen. Each one
+  // becomes its own anchor: the % is solved back into the account value at that
+  // date, so six numbers typed once give the curve six real touch points
+  // instead of one. 'all' is last because it needs the opening date.
+  const shiftDays = (days) => {
+    const d = new Date()
+    d.setUTCDate(d.getUTCDate() - days)
+    return d
+  }
+  const shiftMonths = (months) => {
+    const d = new Date()
+    d.setUTCMonth(d.getUTCMonth() - months)
+    return d
+  }
+  const asDateStr = (d) => d.toISOString().split('T')[0]
+  const PERIODS = [
+    { kind: '1w', label: '1W', startDate: asDateStr(shiftDays(7)), placeholder: '0.42' },
+    { kind: '1m', label: '1M', startDate: asDateStr(shiftMonths(1)), placeholder: '1.8' },
+    { kind: '3m', label: '3M', startDate: asDateStr(shiftMonths(3)), placeholder: '4.5' },
+    { kind: 'ytd', label: 'YTD', startDate: `${year}-01-01`, placeholder: '8.61' },
+    { kind: '1y', label: '1Y', startDate: asDateStr(shiftMonths(12)), placeholder: '14.2' },
+    { kind: 'all', label: t('Desde el inicio', 'Since inception'), startDate: null, placeholder: '87.24' },
+  ]
+  const KIND_LABEL = Object.fromEntries(PERIODS.map((p) => [p.kind, p.label]))
+
   // Accounts detected from the portfolio items, in first-seen order.
   const accounts = (() => {
     const seen = new Map()
@@ -51,8 +76,6 @@ export default function CalibrateReturnModal({ onClose, netWorth, transactions, 
   const calForSelected = (kind) => isGlobal
     ? globalCalibrated.some((s) => s._calibrationKind === kind)
     : accountCalibrated.some((s) => s._calibrationKind === kind && s._account === selKey)
-  const hasYtdCal = calForSelected('ytd')
-  const hasAllCal = calForSelected('all')
 
   // Default inception date: earliest dated transaction or snapshot we know.
   const earliestKnown = (() => {
@@ -63,8 +86,8 @@ export default function CalibrateReturnModal({ onClose, netWorth, transactions, 
     return dates[0] || ''
   })()
 
-  const [ytdPct, setYtdPct] = useState('')
-  const [allPct, setAllPct] = useState('')
+  const [pcts, setPcts] = useState({})
+  const setPct = (kind, v) => setPcts((p) => ({ ...p, [kind]: v }))
   const [inceptionDate, setInceptionDate] = useState(earliestKnown)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -99,21 +122,23 @@ export default function CalibrateReturnModal({ onClose, netWorth, transactions, 
   const save = async () => {
     setError('')
     setDoneMsg('')
-    const ytd = ytdPct.trim() === '' ? null : parseFloat(ytdPct)
-    const all = allPct.trim() === '' ? null : parseFloat(allPct)
-    if (ytd == null && all == null) {
-      setError(t('Escribe al menos uno de los dos porcentajes.', 'Fill in at least one of the two percentages.'))
+    const filled = PERIODS
+      .map((p) => ({ ...p, pct: (pcts[p.kind] ?? '').trim() === '' ? null : parseFloat(pcts[p.kind]) }))
+      .filter((p) => p.pct != null)
+    if (filled.length === 0) {
+      setError(t('Escribe al menos un porcentaje.', 'Fill in at least one percentage.'))
       return
     }
-    if ((ytd != null && !isFinite(ytd)) || (all != null && !isFinite(all))) {
+    if (filled.some((p) => !isFinite(p.pct))) {
       setError(t('Revisa los porcentajes: deben ser números (ej. 8.61 o -3.2).', 'Check the percentages: they must be numbers (e.g. 8.61 or -3.2).'))
       return
     }
-    if (all != null && !inceptionDate) {
+    const wantsAll = filled.some((p) => p.kind === 'all')
+    if (wantsAll && !inceptionDate) {
       setError(t('Para el retorno desde el inicio necesitas la fecha en que abriste la cuenta.', 'For the since-inception return you need the account opening date.'))
       return
     }
-    if (all != null && inceptionDate >= todayStr) {
+    if (wantsAll && inceptionDate >= todayStr) {
       setError(t('La fecha de inicio debe ser anterior a hoy.', 'The inception date must be before today.'))
       return
     }
@@ -127,20 +152,23 @@ export default function CalibrateReturnModal({ onClose, netWorth, transactions, 
     }
     const endTs = Date.now()
     const jobs = []
-    if (ytd != null) {
-      const dateStr = `${year}-01-01`
-      if (guardedByRealData && realSnapshotAt(dateStr)) {
-        setError(t('El 1 de enero ya tiene un dato real de tu broker: el YTD mostrado ya viene de datos reales y no necesita calibración.', 'January 1st already has real broker data: the displayed YTD already comes from real data and needs no calibration.'))
-        return
-      }
-      jobs.push({ kind: 'ytd', targetPct: ytd, startTs: Date.UTC(year, 0, 1), dateStr })
+    const skipped = []
+    for (const p of filled) {
+      const dateStr = p.kind === 'all' ? inceptionDate : p.startDate
+      // A day the broker already reported needs no calibration: a solved value
+      // would be a guess sitting on top of an observation.
+      if (guardedByRealData && realSnapshotAt(dateStr)) { skipped.push(p.label); continue }
+      jobs.push({
+        kind: p.kind, label: p.label, targetPct: p.pct, dateStr,
+        startTs: new Date(dateStr + 'T00:00:00Z').getTime(),
+      })
     }
-    if (all != null) {
-      if (guardedByRealData && realSnapshotAt(inceptionDate)) {
-        setError(t('La fecha de inicio ya tiene un dato real de tu broker: elige otra fecha o importa tu historial real.', 'The inception date already has real broker data: pick another date or import your real history.'))
-        return
-      }
-      jobs.push({ kind: 'all', targetPct: all, startTs: new Date(inceptionDate + 'T00:00:00Z').getTime(), dateStr: inceptionDate })
+    if (jobs.length === 0) {
+      setError(t(
+        `Esas fechas ya tienen datos reales de tu broker (${skipped.join(', ')}): esos retornos ya salen de datos reales y no necesitan calibración.`,
+        `Those dates already have real broker data (${skipped.join(', ')}): those returns already come from real data and need no calibration.`
+      ))
+      return
     }
     setSaving(true)
     try {
@@ -157,8 +185,8 @@ export default function CalibrateReturnModal({ onClose, netWorth, transactions, 
           })
         if (res.error) {
           setError(t(
-            `No se pudo cuadrar el ${job.kind === 'ytd' ? 'YTD' : 'retorno desde el inicio'} con los flujos registrados de esta cuenta: el valor de arranque implícito no es válido. Revisa el % o registra tus depósitos y retiros primero.`,
-            `Could not reconcile the ${job.kind === 'ytd' ? 'YTD' : 'since-inception return'} with this account's recorded flows: the implied start value is not valid. Check the % or record your deposits and withdrawals first.`
+            `No se pudo cuadrar el ${job.label} con los flujos registrados de esta cuenta: el valor de arranque implícito no es válido. Revisa el % o registra tus depósitos y retiros primero.`,
+            `Could not reconcile ${job.label} with this account's recorded flows: the implied start value is not valid. Check the % or record your deposits and withdrawals first.`
           ))
           setSaving(false)
           return
@@ -181,8 +209,8 @@ export default function CalibrateReturnModal({ onClose, netWorth, transactions, 
         })
       }
       setDoneMsg(t(
-        'Listo: tu rendimiento ahora cuadra con tu broker. Si después importas el historial real, esos datos reemplazan la calibración automáticamente.',
-        'Done: your return now matches your broker. If you later import the real history, that data automatically replaces the calibration.'
+        `Listo: ${solved.length} ${solved.length === 1 ? 'período calibrado' : 'períodos calibrados'}. Tu rendimiento ahora cuadra con tu broker.${skipped.length ? ` (${skipped.join(', ')} ya tenía dato real.)` : ''} Si después importas el historial real, esos datos reemplazan la calibración automáticamente.`,
+        `Done: ${solved.length} ${solved.length === 1 ? 'period calibrated' : 'periods calibrated'}. Your return now matches your broker.${skipped.length ? ` (${skipped.join(', ')} already had real data.)` : ''} If you later import the real history, that data automatically replaces the calibration.`
       ))
     } catch {
       setError(t('No se pudo guardar la calibración. Intenta de nuevo.', 'Could not save the calibration. Try again.'))
@@ -244,7 +272,7 @@ export default function CalibrateReturnModal({ onClose, netWorth, transactions, 
               {allCalibrated.map((s) => (
                 <div key={s.id || s.date} className="flex items-center justify-between text-xs">
                   <span style={{ color: 'var(--text-secondary)' }}>
-                    {s._label} · {s._calibrationKind === 'ytd' ? 'YTD' : t('Desde el inicio', 'Since inception')} · {s.date}
+                    {s._label} · {KIND_LABEL[s._calibrationKind] || s._calibrationKind || 'YTD'} · {s.date}
                   </span>
                   <button type="button" disabled={saving} onClick={() => removeCalibration(s)}
                     className="px-2 py-0.5 rounded transition-colors hover:bg-white/5"
@@ -282,23 +310,30 @@ export default function CalibrateReturnModal({ onClose, netWorth, transactions, 
 
           <div>
             <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
-              {t('Retorno YTD (%)', 'YTD return (%)')}
-              {hasYtdCal && <span className="ml-1" style={{ color: 'var(--accent-amber, #f59e0b)' }}>{t('(calibrado: se reemplaza)', '(calibrated: will be replaced)')}</span>}
+              {t('Retornos que muestra tu broker hoy (%)', 'Returns your broker shows today (%)')}
             </label>
-            <input type="number" step="any" value={ytdPct} onChange={(e) => setYtdPct(e.target.value)}
-              placeholder={t('ej. 8.61', 'e.g. 8.61')} className={inputCls} />
+            <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
+              {t('Llena los que veas. Cada uno ancla la curva en su fecha: mientras más pongas, menos se estima.',
+                 'Fill in the ones you can see. Each one anchors the curve at its own date: the more you give, the less is estimated.')}
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {PERIODS.map((p) => (
+                <div key={p.kind}>
+                  <span className="flex items-baseline gap-1 text-xs mb-1" style={{ color: 'var(--text-muted)' }}>
+                    {p.label}
+                    {calForSelected(p.kind) && (
+                      <span style={{ color: 'var(--accent-amber, #f59e0b)' }} title={t('Ya calibrado: se reemplaza', 'Already calibrated: will be replaced')}>&#9679;</span>
+                    )}
+                  </span>
+                  <input type="number" step="any" value={pcts[p.kind] ?? ''}
+                    onChange={(e) => setPct(p.kind, e.target.value)}
+                    placeholder={p.placeholder} className={inputCls} />
+                </div>
+              ))}
+            </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
-              {t('Retorno desde el inicio (%)', 'Since-inception return (%)')}
-              {hasAllCal && <span className="ml-1" style={{ color: 'var(--accent-amber, #f59e0b)' }}>{t('(calibrado: se reemplaza)', '(calibrated: will be replaced)')}</span>}
-            </label>
-            <input type="number" step="any" value={allPct} onChange={(e) => setAllPct(e.target.value)}
-              placeholder={t('ej. 87.24', 'e.g. 87.24')} className={inputCls} />
-          </div>
-
-          {allPct.trim() !== '' && (
+          {(pcts.all ?? '').trim() !== '' && (
             <div>
               <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
                 {t('Fecha de apertura de la cuenta', 'Account opening date')}

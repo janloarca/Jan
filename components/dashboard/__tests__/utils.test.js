@@ -18,6 +18,9 @@ import {
   formatMonth,
   shouldHoldFlat,
   computeDayChange,
+  quarterEndDate,
+  quartersBetween,
+  quarterSnapshotDate,
   getDividendIncomeByItem,
   getItemCostBasis,
   getItemPrincipalCost,
@@ -817,5 +820,46 @@ describe('computeDayChange', () => {
     const convert = (amt, from, to) => (from === 'EUR' && to === 'USD' ? amt * 1.1 : amt)
     expect(computeDayChange({ items, transactions, netWorth: 210, convert, baseCurrency: 'USD', today }).abs)
       .toBeCloseTo(110, 6)
+  })
+})
+
+describe('quarterly NAV helpers', () => {
+  it('maps a quarter to its last calendar day', () => {
+    expect(quarterEndDate(2026, 1)).toBe('2026-03-31')
+    expect(quarterEndDate(2026, 2)).toBe('2026-06-30')
+    expect(quarterEndDate(2026, 3)).toBe('2026-09-30')
+    expect(quarterEndDate(2026, 4)).toBe('2026-12-31')
+    expect(quarterEndDate(2026, 5)).toBeNull()
+  })
+
+  it('lists every quarter from a start up to the one containing today', () => {
+    const rows = quartersBetween(2025, 3, new Date('2026-08-05T12:00:00Z'))
+    expect(rows.map((r) => r.label)).toEqual([
+      'Q3 2025', 'Q4 2025', 'Q1 2026', 'Q2 2026', 'Q3 2026',
+    ])
+  })
+
+  it('caps the row count so a mistyped year cannot explode the grid', () => {
+    expect(quartersBetween(1900, 1, new Date('2026-08-05T12:00:00Z')).length).toBe(80)
+    expect(quartersBetween('abc', 1).length).toBe(0)
+  })
+
+  // The open quarter's figure is the value RIGHT NOW, so dating it at the
+  // future quarter end would put today's portfolio in the future.
+  it('stamps an unfinished quarter with today, a closed one with its end', () => {
+    const today = new Date('2026-08-05T12:00:00Z')
+    expect(quarterSnapshotDate(2026, 3, today)).toBe('2026-08-05')
+    expect(quarterSnapshotDate(2026, 2, today)).toBe('2026-06-30')
+  })
+})
+
+describe('augmentSnapshots with transcribed quarterly NAV', () => {
+  const idConvert = (v) => v
+  const bond = { id: 'b1', symbol: 'BND', quantity: 1, currentPrice: 300, _originalPrice: 300, _originalCurrency: 'USD', acquisitionDate: '2025-01-01' }
+
+  it('tops up a transcribed quarter like any other broker-only NAV', () => {
+    const snap = { date: '2026-03-31', _source: 'ibkr_quarterly', netWorthUSD: 1000, totalActivosUSD: 1000 }
+    const out = augmentSnapshots([snap], [bond], idConvert)
+    expect(out[0].netWorthUSD).toBe(1300)
   })
 })
