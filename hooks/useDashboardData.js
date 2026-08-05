@@ -958,14 +958,22 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             setJan1Value(val)
             setJan1Transactional(!!data.transactional)
           }
+          // The breakdown is only published when its start point IS the anchor
+          // the headline used. jan1Value takes the first point with a real
+          // total, which can be later than the first point of the series; if
+          // the two disagree, the parts would not add up to the number they
+          // claim to explain, and a breakdown that does not reconcile is worse
+          // than none.
           const withKeys = pts.filter((p) => p.byKey)
-          if (!cancelled && withKeys.length >= 2) {
+          if (!cancelled && withKeys.length >= 2 && firstReal && withKeys[0].ts === firstReal.ts) {
             const toBase = (v) => (baseCurrency !== 'USD' && convert) ? convert(v, 'USD', baseCurrency) : v
             const scale = (obj) => Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, toBase(v)]))
             setYtdEndpoints({
               start: scale(withKeys[0].byKey),
               end: scale(withKeys[withKeys.length - 1].byKey),
             })
+          } else if (!cancelled) {
+            setYtdEndpoints(null)
           }
         }
       } catch {}

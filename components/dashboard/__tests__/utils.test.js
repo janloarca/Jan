@@ -532,9 +532,16 @@ describe('computeScopedReturns', () => {
     expect(computeScopedReturns(args).mtd).toBeCloseTo(9.09, 1)
   })
 
-  it('computes daily change vs the last snapshot before today', () => {
-    // baseline 1180 (Jul 14) → (1200-1180)/1180 ≈ 1.69%.
-    expect(computeScopedReturns(args).day).toBeCloseTo(1.69, 1)
+  it('computes daily change from today\'s price moves inside the scope', () => {
+    // The scoped day change follows the same rule as the headline HOY: what
+    // prices did today, not a diff against yesterday's snapshot.
+    const moved = [{ ...items[0], change1d: 2 }, items[1]]
+    // 1200 × 2% = +24 on a 1176 start → ~2.04%.
+    expect(computeScopedReturns({ ...args, items: moved }).day).toBeCloseTo(2.04, 1)
+  })
+
+  it('claims nothing for the day when no scoped price moved', () => {
+    expect(computeScopedReturns(args).day).toBeNull()
   })
 
   it('returns nulls when the source has no snapshots or no value', () => {
@@ -542,17 +549,21 @@ describe('computeScopedReturns', () => {
     expect(computeScopedReturns({ ...args, items: [] })).toEqual({ ytd: null, mtd: null, day: null })
   })
 
-  it('nets out a same-day deposit from day change instead of reading it as market gain', () => {
+  it('never reads money that arrived today as a gain', () => {
     // A statement import lands today with a fresh $900 deposit on top of the
-    // Jul 14 baseline (1180). Without netting, (2100-1180)/1180 ≈ 78% "today".
+    // Jul 14 baseline (1180). A snapshot diff called that +78% "today"; the
+    // event-based rule only ever counts what prices and income actually did.
     const freshDeposit = [
       ...transactions,
       { type: 'DEPOSIT', totalAmount: 900, currency: 'USD', date: '2026-07-15', _source: 'ibkr' },
     ]
-    const bigItems = [items[0], items[1], { quantity: 1, currentPrice: 900, _source: 'ibkr' }]
+    const bigItems = [
+      { ...items[0], change1d: 2 }, items[1],
+      { quantity: 1, currentPrice: 900, _source: 'ibkr' },
+    ]
     const { day } = computeScopedReturns({ ...args, items: bigItems, transactions: freshDeposit })
-    // endValue now 2100, baseline 1180, deposit 900 netted out → (2100-1180-900)/1180 ≈ 1.69%
-    expect(day).toBeCloseTo(1.69, 1)
+    // Only the +24 from the priced position counts: 24 / (2100-24) ≈ 1.16%.
+    expect(day).toBeCloseTo(1.16, 1)
   })
 })
 

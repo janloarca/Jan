@@ -419,29 +419,18 @@ export function computeScopedReturns({ snapshots, items, transactions, source, c
   const ytd = at(findYearStartAnchor(snaps, year), Date.UTC(year, 0, 1))
   const mtd = at(findMonthStartAnchor(snaps, year, month), Date.UTC(year, month, 1))
 
-  // Daily change: value now vs the last snapshot strictly before today. Net out
-  // deposits/withdrawals since baseline (same bug as an un-netted dailyChange:
-  // a same-day import reads as market gain otherwise) — mirrors the Dietz
-  // treatment ytd/mtd already get above.
-  const todayStr = now.toISOString().slice(0, 10)
-  const prior = snaps.filter((s) => s.date < todayStr).sort((a, b) => new Date(a.date) - new Date(b.date))
-  let day = null
-  const baseline = prior[prior.length - 1]
-  if (baseline) {
-    const prevVal = cv(baseline.netWorthUSD ?? baseline.totalActivosUSD ?? 0)
-    if (prevVal > 0) {
-      let netFlow = 0
-      flows.forEach((tx) => {
-        if (!tx.date || tx.date <= baseline.date) return
-        const type = (tx.type || '').toUpperCase()
-        if (type !== 'DEPOSIT' && type !== 'WITHDRAWAL') return
-        const amt = Number(tx.totalAmount ?? tx.amount ?? 0)
-        const converted = convert ? convert(amt, tx.currency || 'USD', baseCurrency || 'USD') : amt
-        netFlow += type === 'DEPOSIT' ? converted : -converted
-      })
-      day = Math.max(-200, Math.min(200, ((endValue - prevVal - netFlow) / prevVal) * 100))
-    }
-  }
+  // Daily change from today's OWN events, same rule as the headline "HOY"
+  // (computeDayChange). It used to be a diff against the last snapshot before
+  // today, which cannot tell a market move apart from a position that was only
+  // entered today, and netting deposits by date does not save it when the
+  // purchase is backfilled to an earlier date. This number is published to
+  // friends, so it has to be the same number the card shows.
+  const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const scopedDay = computeDayChange({
+    items: scopedItems, transactions: flows, netWorth: endValue,
+    convert, baseCurrency, today: todayKey,
+  })
+  const day = scopedDay ? Math.max(-200, Math.min(200, scopedDay.pct)) : null
   return { ytd, mtd, day }
 }
 

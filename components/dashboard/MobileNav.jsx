@@ -3,9 +3,9 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Calculator, Plus, Menu, Upload, Download, Share2, Settings, Table, Users, Receipt } from 'lucide-react'
+import { Home, Calculator, Plus, Menu, Upload, Download, Share2, Settings, Table, Users, Receipt, Sparkles } from 'lucide-react'
 
-export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettings, onSearch, lang, friendsEnabled = true }) {
+export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettings, onSearch, lang, friendsEnabled = true, onEnrich, enrichGapCount = 0 }) {
   const [moreOpen, setMoreOpen] = useState(false)
   const t = (es, en) => lang === 'es' ? es : en
   const pathname = usePathname()
@@ -55,15 +55,25 @@ export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettin
               <span className="text-body">{t('Costos', 'Costs')}</span>
             </Link>
             {[
+              // On a phone the header's "Nuevo" menu is cramped and the big +
+              // goes straight to adding a position, so completing what is
+              // already there needs its own door here or it is unreachable.
+              onEnrich && { action: onEnrich, icon: Sparkles, label: t('Completar información', 'Complete your data'), badge: enrichGapCount > 0 ? enrichGapCount : null },
               { action: onImport, icon: Upload, label: t('Importar archivo', 'Import file') },
               { action: onExport, icon: Download, label: t('Exportar Excel', 'Export Excel') },
               { action: onShare, icon: Share2, label: t('Compartir resumen', 'Share summary') },
               { action: onSettings, icon: Settings, label: t('Configuración', 'Settings') },
-            ].map((item, i) => (
+            ].filter(Boolean).map((item, i) => (
               <button key={i} onClick={() => { item.action(); setMoreOpen(false) }}
                 className="w-full flex items-center gap-3 px-4 py-3 text-left text-white rounded-lg hover:bg-theme-elevated transition-colors">
                 <item.icon size={18} className="text-slate-400" />
-                <span className="text-body">{item.label}</span>
+                <span className="text-body flex-1">{item.label}</span>
+                {item.badge && (
+                  <span className="text-[11px] font-mono px-1.5 py-0.5 rounded-full"
+                    style={{ backgroundColor: 'var(--alert-warn-bg)', color: 'var(--alert-warn-icon)' }}>
+                    {item.badge}
+                  </span>
+                )}
               </button>
             ))}
           </div>
