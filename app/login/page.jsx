@@ -287,6 +287,9 @@ function LoginForm() {
         </div>
 
         <p className="text-center text-xs mt-6" style={{ color: 'var(--text-tertiary, var(--text-secondary))' }}>
+          Al continuar aceptas los <a href="/terms" className="underline" style={{ color: 'var(--accent-blue)' }}>Términos</a> y la <a href="/privacy" className="underline" style={{ color: 'var(--accent-blue)' }}>Política de Privacidad</a>
+        </p>
+        <p className="text-center text-xs mt-2" style={{ color: 'var(--text-tertiary, var(--text-secondary))' }}>
           Powered by Chispudo
         </p>
       </div>

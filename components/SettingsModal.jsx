@@ -740,8 +740,15 @@ function BuildVersionFooter({ lang }) {
     return () => { cancelled = true }
   }, [])
   return (
-    <p className="text-[10px] font-mono text-center pt-2" style={{ color: 'var(--text-muted)' }}>
-      {lang === 'es' ? 'Versión' : 'Build'}: {buildId || '…'}
-    </p>
+    <div className="text-center pt-2 space-y-1">
+      <p className="text-[10px] font-mono" style={{ color: 'var(--text-muted)' }}>
+        {lang === 'es' ? 'Versión' : 'Build'}: {buildId || '…'}
+      </p>
+      <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+        <a href="/terms" target="_blank" rel="noopener noreferrer" className="underline">{lang === 'es' ? 'Términos' : 'Terms'}</a>
+        {' · '}
+        <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline">{lang === 'es' ? 'Privacidad' : 'Privacy'}</a>
+      </p>
+    </div>
   )
 }
