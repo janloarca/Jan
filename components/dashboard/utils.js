@@ -661,6 +661,62 @@ export function getSectorFromItem(item) {
 // before that stamp — hold the current quantity flat back through the period instead.
 // Returns true only for IBKR items with NO genuine trade/lot history to reconstruct
 // from (a real recent buy would leave an in-window BUY trade or a multi-lot/closed
+// "How much did TODAY move?" built from today's own events, never from a
+// snapshot-to-snapshot difference.
+//
+// A diff against yesterday's snapshot cannot tell a market move apart from a
+// position you simply typed in this afternoon: entering a bond you have held
+// since January makes today's net worth jump by its whole balance while
+// yesterday's snapshot knows nothing about it. Netting deposits by date does
+// not save it either, because a backfilled purchase is DATED in January. That
+// is how the card came to claim "+$6,119.62 today (+60.94%)" on a day the
+// market had moved about $58.
+//
+// So today's change is only ever the two things that actually happened today:
+//   1. price moves:  Σ value × change1d
+//   2. income that LANDED today: a coupon or dividend credited today is a real
+//      gain on its payment date and on no other day. A semiannual coupon
+//      belongs to the two days it pays, not to the day it gets recorded.
+// New capital appears in neither, so funding an account can never read as gain.
+//
+// Returns null when there is nothing to measure (no priced holding, no income):
+// a confident "+0.00%" would be a claim the data does not support.
+export function computeDayChange({ items, transactions, netWorth, convert, baseCurrency = 'USD', today }) {
+  if (!(netWorth > 0)) return null
+  const todayKey = today || (() => {
+    const d = new Date()
+    const p = (n) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+  })()
+
+  let marketMove = 0
+  let priced = 0
+  ;(items || []).forEach((it) => {
+    if (it.isDebt || isExcludedFromNetWorth(it)) return
+    if (it.change1d == null || !isFinite(it.change1d)) return
+    priced += 1
+    marketMove += getItemValue(it) * (it.change1d / 100)
+  })
+
+  // String-prefix date compare per house rule: new Date('YYYY-MM-DD') runs the
+  // day backwards in UTC-6.
+  let incomeToday = 0
+  ;(transactions || []).forEach((tx) => {
+    const type = (tx.type || '').toUpperCase()
+    if (type !== 'DIVIDEND' && type !== 'INTEREST') return
+    if (!tx.date || String(tx.date).slice(0, 10) !== todayKey) return
+    const amt = Math.abs(Number(tx.totalAmount ?? tx.amount ?? 0))
+    if (!isFinite(amt) || amt === 0) return
+    incomeToday += convert ? convert(amt, tx.currency || 'USD', baseCurrency || 'USD') : amt
+  })
+
+  if (priced === 0 && incomeToday === 0) return null
+
+  const abs = marketMove + incomeToday
+  const startOfDay = netWorth - abs
+  return { abs, pct: startOfDay > 0 ? (abs / startOfDay) * 100 : 0 }
+}
+
 // history). Mirrors the `dateUnreliable` logic in lib/historicalValues.js so the chart
 // API and the spreadsheet agree on which positions are date-unreliable.
 export function shouldHoldFlat(item, transactions, lots) {

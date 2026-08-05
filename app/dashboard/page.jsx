@@ -46,6 +46,7 @@ const EditAccountModal = dynamic(() => import('@/components/EditAccountModal'), 
 const OptimizeModal = dynamic(() => import('@/components/OptimizeModal'))
 const AssetDetailModal = dynamic(() => import('@/components/dashboard/AssetDetailModal'), { loading: () => <ModalSkeleton /> })
 const AccountReviewModal = dynamic(() => import('@/components/dashboard/AccountReviewModal'), { loading: () => <ModalSkeleton /> })
+const EnrichModal = dynamic(() => import('@/components/dashboard/EnrichModal'), { loading: () => <ModalSkeleton /> })
 const CashFlowModal = dynamic(() => import('@/components/CashFlowModal'), { loading: () => <ModalSkeleton /> })
 const PrintSummary = dynamic(() => import('@/components/dashboard/PrintSummary'))
 const OnboardingTour = dynamic(() => import('@/components/dashboard/OnboardingTour'))
@@ -147,6 +148,10 @@ export default function DashboardPage() {
   const [activeEntity, setActiveEntity] = useState('__all__')
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
   const [showReview, setShowReview] = useState(false)
+  // Review wizard targeting: an item id to open on, and whether to walk only
+  // the accounts with gaps (the "let Chispu recommend" path).
+  const [reviewTarget, setReviewTarget] = useState({ itemId: null, guided: false })
+  const [showEnrich, setShowEnrich] = useState(false)
   const [toast, setToast] = useState(null)
   const toastTimer = useRef(null)
   const [staleCode, setStaleCode] = useState(false)
@@ -276,7 +281,7 @@ export default function DashboardPage() {
     ratesLoading, ratesError,
     handleRefresh,
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
-    returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated,
+    returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated, ytdBreakdown,
     annualDividends, estimatedAnnualIncome,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
     benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName,
@@ -339,7 +344,11 @@ export default function DashboardPage() {
   }, [ibkrConnected, ibkrAutoSyncing, triggerIBKRSync, lang])
   const handleOpenBlockchain = useCallback(() => setModal('blockchain'), [])
   const handleOpenPrint = useCallback(() => setModal('print'), [])
-  const handleOpenReview = useCallback(() => setShowReview(true), [])
+  const handleOpenReview = useCallback(() => { setReviewTarget({ itemId: null, guided: false }); setShowReview(true) }, [])
+  const handleOpenEnrich = useCallback(() => setShowEnrich(true), [])
+  const handleCloseEnrich = useCallback(() => setShowEnrich(false), [])
+  const handleEnrichGuided = useCallback(() => { setReviewTarget({ itemId: null, guided: true }); setShowReview(true) }, [])
+  const handleEnrichAccount = useCallback((it) => { setReviewTarget({ itemId: it?.id || null, guided: false }); setShowReview(true) }, [])
   const handleOpenCmdPalette = useCallback(() => setCmdPaletteOpen(true), [])
   const handleCloseCmdPalette = useCallback(() => setCmdPaletteOpen(false), [])
   const handleCloseModal = useCallback(() => { setModal(null); setImportBrokerHint(null) }, [])
@@ -797,6 +806,8 @@ export default function DashboardPage() {
         ibkrSyncStatus={ibkrSyncStatus}
         ibkrNeedsAttention={ibkrNeedsAttention}
         onIBKR={handleIBKRPillClick}
+        onEnrich={portfolioItems.length > 0 ? handleOpenEnrich : null}
+        enrichGapCount={dataCompleteness.findings.filter((f) => f.itemId).length}
         friendsEnabled={settings?.friendsEnabled !== false}
       />
 
@@ -1015,8 +1026,7 @@ export default function DashboardPage() {
               returnSinceStart={returnSinceStart} sinceStartDate={sinceStartDate}
               dailyChange={dailyChange} convert={convert}
               lang={lang} netContributions={netContributions} cashTotal={cashTotal} snapshots={augmentedSnapshots} items={portfolioItems}
-              contributionWarning={contributionWarning} onLogFlow={() => setModal('cashflow')}
-              ytdCalibrated={ytdCalibrated}
+              ytdCalibrated={ytdCalibrated} ytdBreakdown={ytdBreakdown}
             />
             </CardBoundary>
           </div>
@@ -1458,6 +1468,20 @@ export default function DashboardPage() {
           onEditItem={setEditItem}
           lang={lang}
           findings={dataCompleteness.findings}
+          startItemId={reviewTarget.itemId}
+          onlyWithFindings={reviewTarget.guided}
+        />
+      )}
+
+      {showEnrich && (
+        <EnrichModal
+          items={portfolioItems}
+          findings={dataCompleteness.findings}
+          contributionWarning={contributionWarning}
+          lang={lang}
+          onClose={handleCloseEnrich}
+          onPickAccount={handleEnrichAccount}
+          onGuided={handleEnrichGuided}
         />
       )}
 

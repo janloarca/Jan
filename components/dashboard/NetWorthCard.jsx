@@ -25,7 +25,7 @@ function getGreeting(lang) {
   return lang === 'es' ? 'Buenas noches' : 'Good evening'
 }
 
-export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, contributionWarning, onLogFlow, ytdCalibrated }) {
+export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, ytdCalibrated, ytdBreakdown }) {
   const hasYTD = returnYTD != null && isFinite(returnYTD)
   const displayReturn = hasYTD ? returnYTD : (returnSinceStart != null && isFinite(returnSinceStart) ? returnSinceStart : null)
   const hasReturn = displayReturn != null
@@ -125,6 +125,12 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
     return { gainers, losers }
   }, [items])
 
+  // The YTD figure opens into its own parts: which institutions, and inside
+  // them which holdings, actually produced the number. Closed by default so the
+  // card stays a headline; one tap turns it into an explanation.
+  const [showYTDDetail, setShowYTDDetail] = useState(false)
+  const canExpandYTD = hasYTD && !!ytdBreakdown && ytdBreakdown.groups.length > 0
+
   const [moversTab, setMoversTab] = useState('gainers')
   // If the tab the user is on empties out (e.g. everything is up today) and
   // the other one has content, land on the one with something to show.
@@ -202,10 +208,22 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
             </span>
             <span style={{ color: isYTDPositive ? 'var(--accent-green)' : 'var(--text-negative)' }}>{isYTDPositive ? '▲' : '▼'}</span>
             {' '}
-            <span className="font-mono tabular-nums" style={{ color: 'var(--text-primary)' }}>
-              {hasYTD && ytdChange != null && isFinite(ytdChange) && `${isYTDPositive ? '+' : ''}${formatCurrency(cv(ytdChange), displayCur)} `}
-              ({isYTDPositive ? '+' : ''}{displayReturn.toFixed(2)}%)
-            </span>
+            {canExpandYTD ? (
+              <button type="button" onClick={() => setShowYTDDetail((v) => !v)}
+                aria-expanded={showYTDDetail}
+                className="font-mono tabular-nums underline decoration-dotted underline-offset-4 cursor-pointer"
+                style={{ color: 'var(--text-primary)', textDecorationColor: 'var(--text-muted)' }}
+                title={lang === 'es' ? 'Ver de dónde viene este número' : 'See where this number comes from'}>
+                {ytdChange != null && isFinite(ytdChange) && `${isYTDPositive ? '+' : ''}${formatCurrency(cv(ytdChange), displayCur)} `}
+                ({isYTDPositive ? '+' : ''}{displayReturn.toFixed(2)}%)
+                <span className="ml-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>{showYTDDetail ? '▴' : '▾'}</span>
+              </button>
+            ) : (
+              <span className="font-mono tabular-nums" style={{ color: 'var(--text-primary)' }}>
+                {hasYTD && ytdChange != null && isFinite(ytdChange) && `${isYTDPositive ? '+' : ''}${formatCurrency(cv(ytdChange), displayCur)} `}
+                ({isYTDPositive ? '+' : ''}{displayReturn.toFixed(2)}%)
+              </span>
+            )}
             {hasYTD && <InfoTip text={lang === 'es' ? 'Year-to-Date: retorno desde el 1 de enero del año en curso. Calculado con el método Dietz Modificado, que descuenta tus depósitos y retiros para que solo cuente lo que ganaron tus inversiones (no el dinero nuevo que metiste).' : 'Year-to-Date: return since January 1st of the current year. Calculated with the Modified Dietz method, which adjusts for your deposits and withdrawals so only investment performance counts (not new money you put in).'} />}
             {ytdCalibrated && (
               <span className="ml-1 text-[10px]" style={{ color: 'var(--text-muted)' }}
@@ -217,21 +235,49 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
         )}
       </div>
 
-      {/* Quiet, non-alarming nudge: big growth with few logged deposits may mean
-          unrecorded contributions. A muted tip, NOT an amber warning banner. */}
-      {contributionWarning && (
-        <div className="mt-2 flex items-start gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
-          <span className="shrink-0">ⓘ</span>
-          <span>
-            {lang === 'es'
-              ? 'Para un retorno más preciso, agrega tus depósitos y retiros.'
-              : 'For a more accurate return, add your deposits and withdrawals.'}
-            {onLogFlow && (
-              <button onClick={onLogFlow} className="ml-1 underline transition-colors" style={{ color: 'var(--accent-blue)' }}>
-                {lang === 'es' ? 'Registrar' : 'Log'}
-              </button>
-            )}
-          </span>
+      {/* What is behind the YTD number, by institution and then by holding.
+          Each row is (value today − value on Jan 1) minus the money you moved
+          in or out of it this year, so financing an account never shows up here
+          as a profit. */}
+      {canExpandYTD && showYTDDetail && (
+        <div className="mt-3 rounded-xl p-3" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs uppercase tracking-wider font-medium" style={{ color: 'var(--text-muted)' }}>
+              {lang === 'es' ? 'De dónde viene tu YTD' : 'Where your YTD comes from'}
+            </span>
+            <InfoTip text={lang === 'es'
+              ? 'Por cada posición: valor de hoy menos valor del 1 de enero, restando el dinero que metiste o sacaste este año. Un cupón o dividendo cobrado en efectivo cuenta en la cuenta que lo recibió, no en el activo que lo generó.'
+              : 'Per position: today\'s value minus its January 1st value, less any money you moved in or out this year. A coupon or dividend paid out in cash counts on the account that received it, not on the asset that generated it.'} />
+          </div>
+          <div className="space-y-2.5">
+            {ytdBreakdown.groups.map((g) => (
+              <div key={g.key}>
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-sm truncate" style={{ color: 'var(--text-secondary)' }}>
+                    {g.institution || (lang === 'es' ? 'Sin institución' : 'No institution')}
+                  </span>
+                  <span className="text-sm font-mono tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>
+                    {g.share != null && (
+                      <span className="mr-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>{g.share.toFixed(0)}%</span>
+                    )}
+                    {g.gain >= 0 ? '+' : ''}{formatCurrency(cv(g.gain), displayCur)}
+                  </span>
+                </div>
+                {g.holdings.length > 1 && (
+                  <div className="mt-1 pl-3 space-y-0.5" style={{ borderLeft: '1px solid var(--glass-border)' }}>
+                    {g.holdings.map((h) => (
+                      <div key={h.key} className="flex items-baseline justify-between gap-2">
+                        <span className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{h.label}</span>
+                        <span className="text-xs font-mono tabular-nums shrink-0" style={{ color: 'var(--text-muted)' }}>
+                          {h.gain >= 0 ? '+' : ''}{formatCurrency(cv(h.gain), displayCur)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -240,9 +286,12 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
         <div className="mt-3 pt-3 border-t border-glass-border/50">
           <span className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2.5 block">{lang === 'es' ? 'Composición' : 'Composition'}</span>
           {/* Stacked bar */}
-          <div className="w-full h-2.5 rounded-full overflow-hidden flex mb-3" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+          {/* 2px of surface between segments: without the gap two adjacent
+              fills read as one block wherever their hues are close, which is
+              exactly where the eye needs the boundary most. */}
+          <div className="w-full h-2.5 rounded-full overflow-hidden flex gap-[2px] mb-3" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
             {allocation.map((seg) => (
-              <div key={seg.name} className="h-full first:rounded-l-full last:rounded-r-full"
+              <div key={seg.name} className="h-full rounded-full"
                 style={{ width: `${Math.max(seg.pct, 0.5)}%`, backgroundColor: seg.color }}
                 title={`${catLabel(seg)} · ${seg.pct.toFixed(1)}%`} />
             ))}

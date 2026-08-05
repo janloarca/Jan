@@ -17,6 +17,7 @@ import {
   effectiveAcqTs,
   formatMonth,
   shouldHoldFlat,
+  computeDayChange,
   getDividendIncomeByItem,
   getItemCostBasis,
   getItemPrincipalCost,
@@ -737,5 +738,73 @@ describe('getItemCostBasis', () => {
 
   it('defaults to separate mode when entryFeeMode is absent (no behavior change)', () => {
     expect(getItemCostBasis({ quantity: 1, purchasePrice: 100, entryFee: 5 })).toBe(105)
+  })
+})
+
+describe('computeDayChange', () => {
+  const usd = (a) => a
+  const today = '2026-08-05'
+
+  it('reports only what prices did today', () => {
+    const items = [
+      { id: 'a', quantity: 10, currentPrice: 100, change1d: 2 },   // 1000 → +20
+      { id: 'b', quantity: 5, currentPrice: 40, change1d: -1 },    // 200 → -2
+    ]
+    const r = computeDayChange({ items, transactions: [], netWorth: 1200, convert: usd, today })
+    expect(r.abs).toBeCloseTo(18, 6)
+    expect(r.pct).toBeCloseTo((18 / 1182) * 100, 6)
+  })
+
+  // The bug this function exists for: a $6,000 bond bought in January, typed in
+  // today, must not read as a $6,000 gain today.
+  it('ignores a position typed in today (new money is never a gain)', () => {
+    const items = [
+      { id: 'stock', quantity: 10, currentPrice: 100, change1d: 1 },      // +10
+      { id: 'vitali', quantity: 1, currentPrice: 6000, type: 'bond' },    // no change1d
+    ]
+    const transactions = [
+      { type: 'DEPOSIT', date: '2026-01-06', totalAmount: 6000, currency: 'USD', _linkedItemId: 'vitali' },
+    ]
+    const r = computeDayChange({ items, transactions, netWorth: 7000, convert: usd, today })
+    expect(r.abs).toBeCloseTo(10, 6)
+  })
+
+  it('counts a coupon on the day it was paid, not on any other day', () => {
+    const items = [{ id: 'stock', quantity: 10, currentPrice: 100, change1d: 0 }]
+    const coupon = { type: 'DIVIDEND', date: '2026-05-15', totalAmount: 240, currency: 'USD' }
+    expect(computeDayChange({ items, transactions: [coupon], netWorth: 1240, convert: usd, today }).abs)
+      .toBeCloseTo(0, 6)
+    expect(computeDayChange({ items, transactions: [coupon], netWorth: 1240, convert: usd, today: '2026-05-15' }).abs)
+      .toBeCloseTo(240, 6)
+  })
+
+  it('adds a coupon paid today on top of the day\'s market move', () => {
+    const items = [{ id: 'stock', quantity: 10, currentPrice: 100, change1d: 1 }]
+    const transactions = [{ type: 'DIVIDEND', date: today, totalAmount: 240, currency: 'USD' }]
+    expect(computeDayChange({ items, transactions, netWorth: 1250, convert: usd, today }).abs)
+      .toBeCloseTo(250, 6)
+  })
+
+  it('returns null when there is nothing to measure', () => {
+    const items = [{ id: 'cash', quantity: 1, currentPrice: 500, type: 'bank' }]
+    expect(computeDayChange({ items, transactions: [], netWorth: 500, convert: usd, today })).toBeNull()
+    expect(computeDayChange({ items, transactions: [], netWorth: 0, convert: usd, today })).toBeNull()
+  })
+
+  it('skips debt and excluded items', () => {
+    const items = [
+      { id: 'a', quantity: 10, currentPrice: 100, change1d: 1 },
+      { id: 'd', quantity: 1, currentPrice: 1000, change1d: 50, isDebt: true },
+    ]
+    expect(computeDayChange({ items, transactions: [], netWorth: 1000, convert: usd, today }).abs)
+      .toBeCloseTo(10, 6)
+  })
+
+  it('converts income to the base currency', () => {
+    const items = [{ id: 'a', quantity: 1, currentPrice: 100, change1d: 0 }]
+    const transactions = [{ type: 'INTEREST', date: today, totalAmount: 100, currency: 'EUR' }]
+    const convert = (amt, from, to) => (from === 'EUR' && to === 'USD' ? amt * 1.1 : amt)
+    expect(computeDayChange({ items, transactions, netWorth: 210, convert, baseCurrency: 'USD', today }).abs)
+      .toBeCloseTo(110, 6)
   })
 })

@@ -3,13 +3,13 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect, useRef } from 'react'
-import { Search, RefreshCw, Settings, LogOut, Plus, Upload, Zap, ChevronDown, Link2 } from 'lucide-react'
+import { Search, RefreshCw, Settings, LogOut, Plus, Upload, Zap, ChevronDown, Link2, Sparkles } from 'lucide-react'
 
 // ibkrNeedsAttention (not a raw `ibkrSyncStatus === 'error'`) drives the warning
 // triangle: a single transient sync failure is not news while auto-sync is still
 // retrying every 30min. The dashboard owns that rule so the pill, the top banner
 // and the ActionButtons dot always agree. See app/dashboard/page.jsx.
-export default function Header({ user, lang, setLang, onImport, onSignOut, onRefresh, onSettings, pricesLoading, onAddAccount, onCommandPalette, onOpenConnections, ibkrConnected, ibkrAutoSyncing, ibkrSyncStatus, ibkrNeedsAttention = false, ibkrSyncSummary, onIBKR, friendsEnabled = true }) {
+export default function Header({ user, lang, setLang, onImport, onSignOut, onRefresh, onSettings, pricesLoading, onAddAccount, onCommandPalette, onOpenConnections, ibkrConnected, ibkrAutoSyncing, ibkrSyncStatus, ibkrNeedsAttention = false, ibkrSyncSummary, onIBKR, friendsEnabled = true, onEnrich, enrichGapCount = 0 }) {
   const [newMenuOpen, setNewMenuOpen] = useState(false)
   const newMenuRef = useRef(null)
 
@@ -147,15 +147,30 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
                         onImport && { icon: Upload, label: lang === 'es' ? 'Importar archivo' : 'Import file',
                           desc: lang === 'es' ? 'Excel o CSV' : 'Excel or CSV',
                           onClick: onImport, tour: 'header-import' },
+                        // Enriching what is already here belongs next to the ways
+                        // of adding something new: both answer "my data is not
+                        // complete". It used to be a line of small print under the
+                        // YTD number, where it read as a complaint about the figure.
+                        onEnrich && { icon: Sparkles, label: lang === 'es' ? 'Completar información' : 'Complete your data',
+                          desc: enrichGapCount > 0
+                            ? (lang === 'es' ? `${enrichGapCount} ${enrichGapCount === 1 ? 'hueco' : 'huecos'} por llenar` : `${enrichGapCount} ${enrichGapCount === 1 ? 'gap' : 'gaps'} to fill`)
+                            : (lang === 'es' ? 'Fechas, costos y movimientos' : 'Dates, costs and movements'),
+                          onClick: onEnrich, badge: enrichGapCount > 0 ? enrichGapCount : null },
                       ].filter(Boolean).map((it) => (
                         <button key={it.label} role="menuitem" data-tour={it.tour}
                           onClick={() => { setNewMenuOpen(false); it.onClick() }}
                           className="w-full flex items-start gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors hover:bg-theme-elevated">
                           <it.icon size={15} className="mt-0.5 shrink-0" style={{ color: 'var(--accent-blue)' }} />
-                          <span className="min-w-0">
+                          <span className="min-w-0 flex-1">
                             <span className="block text-body font-medium" style={{ color: 'var(--text-primary)' }}>{it.label}</span>
                             <span className="block text-micro" style={{ color: 'var(--text-muted)' }}>{it.desc}</span>
                           </span>
+                          {it.badge && (
+                            <span className="shrink-0 mt-0.5 text-[11px] font-mono px-1.5 py-0.5 rounded-full"
+                              style={{ backgroundColor: 'var(--alert-warn-bg)', color: 'var(--alert-warn-icon)' }}>
+                              {it.badge}
+                            </span>
+                          )}
                         </button>
                       ))}
                     </div>
