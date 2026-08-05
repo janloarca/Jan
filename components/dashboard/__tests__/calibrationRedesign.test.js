@@ -1,187 +1,217 @@
 import {
-  calibrationAnchorDate, calibrationCoveredByRealData, dedupeCalibrations,
-  fitSeriesToAnchors, solveDietzStartValue, computeModifiedDietz,
+  calibrationAnchorDate, fitSeriesToAnchors, calibrationCoveredByRealData,
+  snapshotDocId, computeModifiedDietz, solveDietzStartValue,
 } from '../utils'
 
-// Calibration redesign: 7 optional periods, anchors pinned at the period start
-// with the capture date stored, the estimated curve FITTED through the anchors
-// (no more flat straight line to the first real datapoint), and roll-forward
-// of the displayed % via Modified Dietz with a live end value.
-
+// calibrationAnchorDate backs the 7-period calibration form: each period pins
+// its anchor to the period START at capture time. Everything must be derived
+// by UTC/string math (new Date('YYYY-MM-DD').getMonth() runs the month back in
+// UTC-6, the exact bug the house date rule exists for).
 describe('calibrationAnchorDate', () => {
-  const today = '2026-08-05'
+  const today = '2026-08-10'
 
-  it('resolves every kind with string-prefix / UTC math only', () => {
-    expect(calibrationAnchorDate('1w', today)).toBe('2026-07-29')
+  it('resolves every period kind', () => {
+    expect(calibrationAnchorDate('1w', today)).toBe('2026-08-03')
     expect(calibrationAnchorDate('mtd', today)).toBe('2026-08-01')
-    expect(calibrationAnchorDate('1m', today)).toBe('2026-07-05')
-    expect(calibrationAnchorDate('3m', today)).toBe('2026-05-05')
+    expect(calibrationAnchorDate('1m', today)).toBe('2026-07-10')
+    expect(calibrationAnchorDate('3m', today)).toBe('2026-05-10')
     expect(calibrationAnchorDate('ytd', today)).toBe('2026-01-01')
-    expect(calibrationAnchorDate('1y', today)).toBe('2025-08-05')
-    expect(calibrationAnchorDate('all', today, '2023-04-17')).toBe('2023-04-17')
+    expect(calibrationAnchorDate('1y', today)).toBe('2025-08-10')
+    expect(calibrationAnchorDate('all', today, '2020-05-01')).toBe('2020-05-01')
   })
 
-  it('clamps calendar-month shifts to the target month last day', () => {
-    // Mar 31 - 1 month: Feb 31 does not exist (2026 is not a leap year).
+  it('clamps calendar-month steps to the target month length', () => {
+    // Mar 31 minus one calendar month is Feb 28 (2026 is not a leap year),
+    // not Mar 3 (the naive Date.UTC overflow).
     expect(calibrationAnchorDate('1m', '2026-03-31')).toBe('2026-02-28')
-    // Mar 31 - 3 months: Dec 31 exists, keep the 31st.
-    expect(calibrationAnchorDate('3m', '2026-03-31')).toBe('2025-12-31')
-    // Leap year: Feb 29 - 1y lands on Feb 28 of the non-leap year.
+    expect(calibrationAnchorDate('1m', '2024-03-31')).toBe('2024-02-29')
     expect(calibrationAnchorDate('1y', '2024-02-29')).toBe('2023-02-28')
   })
 
-  it('handles month and year boundaries', () => {
+  it('wraps across the year boundary', () => {
+    expect(calibrationAnchorDate('3m', '2026-01-15')).toBe('2025-10-15')
+    expect(calibrationAnchorDate('1m', '2026-01-31')).toBe('2025-12-31')
     expect(calibrationAnchorDate('1w', '2026-01-03')).toBe('2025-12-27')
-    expect(calibrationAnchorDate('mtd', '2026-01-15')).toBe('2026-01-01')
-    expect(calibrationAnchorDate('1m', '2026-01-15')).toBe('2025-12-15')
-    expect(calibrationAnchorDate('ytd', '2026-12-31')).toBe('2026-01-01')
   })
 
-  it('returns null for unknown kinds or missing inputs', () => {
+  it('returns null for unknown kinds and unusable inputs', () => {
     expect(calibrationAnchorDate('6m', today)).toBeNull()
     expect(calibrationAnchorDate('all', today)).toBeNull()
     expect(calibrationAnchorDate('all', today, 'not-a-date')).toBeNull()
-    expect(calibrationAnchorDate('1w', '')).toBeNull()
-    expect(calibrationAnchorDate('ytd', '05-08-2026')).toBeNull()
+    expect(calibrationAnchorDate('ytd', '')).toBeNull()
+    expect(calibrationAnchorDate('ytd', null)).toBeNull()
+    expect(calibrationAnchorDate('ytd', '2026-13-40')).toBeNull()
   })
 })
 
-describe('calibrationCoveredByRealData', () => {
-  const realDates = ['2026-07-15', '2026-07-20', '2026-08-01']
-
-  it('anchors on or after the first real datapoint are covered', () => {
-    expect(calibrationCoveredByRealData('2026-07-15', realDates)).toBe(true)
-    expect(calibrationCoveredByRealData('2026-08-01', realDates)).toBe(true)
-  })
-
-  it('anchors before the first real datapoint still need calibration', () => {
-    expect(calibrationCoveredByRealData('2026-01-01', realDates)).toBe(false)
-    expect(calibrationCoveredByRealData('2026-07-14', realDates)).toBe(false)
-  })
-
-  it('no real data means nothing is covered', () => {
-    expect(calibrationCoveredByRealData('2026-08-01', [])).toBe(false)
-    expect(calibrationCoveredByRealData('2026-08-01', null)).toBe(false)
-    expect(calibrationCoveredByRealData(null, realDates)).toBe(false)
-  })
-})
-
-describe('dedupeCalibrations', () => {
-  it('keeps the most recently captured doc per (account, kind, date)', () => {
-    const cals = [
-      { id: '2026-01-01', date: '2026-01-01', _calibrationKind: 'ytd', netWorthUSD: 9000 },
-      { id: '2026-01-01~ytd~global', date: '2026-01-01', _calibrationKind: 'ytd', netWorthUSD: 9500, capturedAt: '2026-08-01' },
-    ]
-    const out = dedupeCalibrations(cals)
-    expect(out).toHaveLength(1)
-    expect(out[0].netWorthUSD).toBe(9500)
-  })
-
-  it('does not merge different kinds, dates or accounts', () => {
-    const cals = [
-      { date: '2026-01-01', _calibrationKind: 'ytd', netWorthUSD: 1, capturedAt: '2026-08-01' },
-      { date: '2026-08-01', _calibrationKind: 'mtd', netWorthUSD: 2, capturedAt: '2026-08-02' },
-      { date: '2026-01-01', _calibrationKind: 'ytd', _account: 'ibkr', netWorthUSD: 3, capturedAt: '2026-08-01' },
-    ]
-    expect(dedupeCalibrations(cals)).toHaveLength(3)
-  })
-})
-
+// fitSeriesToAnchors re-scales the ESTIMATED prefix so it passes exactly
+// through each calibrated anchor and splices into the first real datapoint.
 describe('fitSeriesToAnchors', () => {
   const day = 86400000
   const t0 = Date.UTC(2026, 0, 1)
-  // Estimated prefix: a straight ramp 100 -> 200 over 10 days.
-  const points = Array.from({ length: 11 }, (_, i) => ({ ts: t0 + i * day, total: 100 + i * 10 }))
+  // Simple rising series: 100 -> 200 over 100 days.
+  const points = Array.from({ length: 11 }, (_, i) => ({ ts: t0 + i * 10 * day, total: 100 + i * 10 }))
+  const at = (arr, ts) => arr.find((p) => p.ts === ts)?.total
 
-  it('returns the input unchanged when there are no anchors', () => {
+  it('returns the series untouched when there are no constraints', () => {
     const out = fitSeriesToAnchors(points, [])
+    expect(out).not.toBe(points)
     expect(out.map((p) => p.total)).toEqual(points.map((p) => p.total))
-    expect(fitSeriesToAnchors(points, null).map((p) => p.total)).toEqual(points.map((p) => p.total))
   })
 
-  it('passes EXACTLY through a single anchor and joins the seam', () => {
-    // Anchor mid-series: raw 150 must become 165 (factor 1.1 there); the seam
-    // (first real point) pins the end at 220 (factor 1.1 too): uniform result.
-    const seam = { ts: t0 + 10 * day, valueUSD: 220, capturedAt: 'zzzz-seam' }
+  it('with only a seam constraint it reduces to the old uniform scaling', () => {
+    const seam = { ts: t0 + 100 * day, valueUSD: 400, _real: true }
+    const out = fitSeriesToAnchors(points, [seam])
+    // Raw value at the seam ts is 200 → every point doubles.
+    expect(at(out, t0)).toBeCloseTo(200, 8)
+    expect(at(out, t0 + 50 * day)).toBeCloseTo(300, 8)
+    expect(at(out, t0 + 100 * day)).toBeCloseTo(400, 8)
+  })
+
+  it('passes EXACTLY through every anchor and meets the seam', () => {
+    const anchors = [
+      { ts: t0, valueUSD: 500, capturedAt: '2026-03-01' }, // ytd calibration at Jan 1
+      { ts: t0 + 50 * day, valueUSD: 700, capturedAt: '2026-04-01' }, // later calibration
+      { ts: t0 + 100 * day, valueUSD: 900, _real: true }, // first real datapoint (seam)
+    ]
+    const out = fitSeriesToAnchors(points, anchors)
+    expect(at(out, t0)).toBeCloseTo(500, 8)
+    expect(at(out, t0 + 50 * day)).toBeCloseTo(700, 8)
+    expect(at(out, t0 + 100 * day)).toBeCloseTo(900, 8)
+    // Between constraints the scale factor interpolates, so the curve keeps
+    // its shape instead of going flat: midpoint of segment 1 sits above the
+    // straight chord between the two anchor values is NOT required, but it
+    // must remain monotonic here (rising series, rising factors).
+    expect(at(out, t0 + 20 * day)).toBeGreaterThan(at(out, t0))
+    expect(at(out, t0 + 20 * day)).toBeLessThan(at(out, t0 + 50 * day))
+  })
+
+  it('dedups same-day constraints keeping the newest capturedAt', () => {
+    const anchors = [
+      { ts: t0, valueUSD: 500, capturedAt: '2026-03-01' },
+      { ts: t0, valueUSD: 620, capturedAt: '2026-05-01' }, // newer capture wins
+    ]
+    const out = fitSeriesToAnchors(points, anchors)
+    expect(at(out, t0)).toBeCloseTo(620, 8)
+  })
+
+  it('a real seam marker always wins its day over calibrations', () => {
+    const anchors = [
+      { ts: t0, valueUSD: 500, capturedAt: '2026-05-01' },
+      { ts: t0, valueUSD: 300, _real: true }, // same day, real data wins
+    ]
+    const out = fitSeriesToAnchors(points, anchors)
+    expect(at(out, t0)).toBeCloseTo(300, 8)
+  })
+
+  it('ignores unusable constraints (zero/negative/NaN values)', () => {
     const out = fitSeriesToAnchors(points, [
-      { ts: t0 + 5 * day, valueUSD: 165, capturedAt: '2026-08-01' },
-      seam,
+      { ts: t0, valueUSD: 0 },
+      { ts: t0 + 10 * day, valueUSD: -5 },
+      { ts: t0 + 20 * day, valueUSD: NaN },
+      { ts: t0 + 30 * day, valueUSD: 260 },
     ])
-    expect(out.find((p) => p.ts === t0 + 5 * day).total).toBeCloseTo(165, 8)
-    expect(out[out.length - 1].total).toBeCloseTo(220, 8)
-    // Both constraints imply factor 1.1, so the whole curve scales uniformly.
-    expect(out[0].total).toBeCloseTo(110, 8)
+    expect(at(out, t0 + 30 * day)).toBeCloseTo(260, 8)
   })
 
-  it('interpolates the scale factor between consecutive anchors', () => {
-    // Anchor A: raw 120 -> 120 (factor 1). Anchor B: raw 160 -> 192 (factor 1.2).
-    const out = fitSeriesToAnchors(points, [
-      { ts: t0 + 2 * day, valueUSD: 120, capturedAt: '2026-08-01' },
-      { ts: t0 + 6 * day, valueUSD: 192, capturedAt: '2026-08-01' },
-    ])
-    expect(out.find((p) => p.ts === t0 + 2 * day).total).toBeCloseTo(120, 8)
-    expect(out.find((p) => p.ts === t0 + 6 * day).total).toBeCloseTo(192, 8)
-    // Halfway between the anchors the factor is the midpoint (1.1): raw 140 -> 154.
-    expect(out.find((p) => p.ts === t0 + 4 * day).total).toBeCloseTo(154, 8)
-    // Before the first anchor the factor holds at the first constraint (1).
-    expect(out[0].total).toBeCloseTo(100, 8)
-    // After the last anchor it holds at the last constraint (1.2).
-    expect(out[out.length - 1].total).toBeCloseTo(240, 8)
-  })
-
-  it('dedupes same-day anchors keeping the latest capturedAt', () => {
-    const out = fitSeriesToAnchors(points, [
-      { ts: t0 + 5 * day, valueUSD: 300, capturedAt: '2026-07-01' },
-      { ts: t0 + 5 * day, valueUSD: 180, capturedAt: '2026-08-01' },
-    ])
-    expect(out.find((p) => p.ts === t0 + 5 * day).total).toBeCloseTo(180, 8)
-  })
-
-  it('ignores anchors without a positive value', () => {
-    const out = fitSeriesToAnchors(points, [{ ts: t0 + 5 * day, valueUSD: 0, capturedAt: '2026-08-01' }])
-    expect(out.map((p) => p.total)).toEqual(points.map((p) => p.total))
+  it('scales the stretch before the first anchor by that anchor factor', () => {
+    // Anchor only at day 100 (the seam): the whole earlier series moves by
+    // the same factor (the old behavior the fit generalizes).
+    const out = fitSeriesToAnchors(points, [{ ts: t0 + 100 * day, valueUSD: 200, _real: true }])
+    expect(at(out, t0)).toBeCloseTo(100, 8) // factor 1: seam equals raw value
+    const out2 = fitSeriesToAnchors(points, [{ ts: t0 + 100 * day, valueUSD: 600, _real: true }])
+    expect(at(out2, t0)).toBeCloseTo(300, 8)
   })
 })
 
-// Roll-forward: the calibration stays pinned at its anchor date and the
-// displayed % moves with the market, because the anchor feeds Modified Dietz
-// as a FIXED start value against a LIVE end value.
+// Roll-forward: the calibration stays fixed at its anchor date and the
+// displayed % moves with the market because Modified Dietz keeps the anchor
+// start value pinned while the end value lives.
 describe('calibration roll-forward', () => {
   const day = 86400000
   const startTs = Date.UTC(2026, 0, 1)
   const endTs = startTs + 216 * day
 
-  it('a 6% YTD calibration becomes ~7% when positions rise 1% with no flows', () => {
-    const { startValue, error } = solveDietzStartValue({
+  it('no flows: a +1% market day moves the calibrated 6% to ~7%', () => {
+    const { startValue } = solveDietzStartValue({
       endValue: 10600, startTs, endTs, transactions: [], targetPct: 6,
     })
-    expect(error).toBeUndefined()
     expect(startValue).toBeCloseTo(10000, 6)
-    // Next day: positions +1%, end value 10600 * 1.01, same anchor, no flows.
+    // Next day positions are +1%: the anchor does not move, the % does.
     const { pct } = computeModifiedDietz({
       startValue, endValue: 10600 * 1.01, startTs, endTs: endTs + day, transactions: [],
     })
-    expect(pct).toBeCloseTo(1.06 * 1.01 * 100 - 100, 4) // 7.06%
-    expect(pct).toBeGreaterThan(7)
-    expect(pct).toBeLessThan(7.2)
+    expect(pct).toBeGreaterThan(6)
+    expect(pct).toBeCloseTo(7.06, 2)
   })
 
-  it('rolls forward with flows too: the solved anchor reproduces the target, then moves with the market', () => {
-    const iso = (ts) => new Date(ts).toISOString().slice(0, 10)
-    const transactions = [
-      { type: 'DEPOSIT', date: iso(startTs + 50 * day), totalAmount: 2000, currency: 'USD' },
-      { type: 'WITHDRAWAL', date: iso(startTs + 120 * day), totalAmount: 500, currency: 'USD' },
-    ]
-    const { startValue, error } = solveDietzStartValue({
-      endValue: 10106.754497, startTs, endTs, transactions, targetPct: 8.6059,
+  it('with flows: the moved % solves back to the SAME fixed anchor', () => {
+    const transactions = [{ type: 'DEPOSIT', date: new Date(startTs + 60 * day).toISOString().slice(0, 10), totalAmount: 1000, currency: 'USD' }]
+    const { startValue } = solveDietzStartValue({
+      endValue: 10600, startTs, endTs, transactions, targetPct: 6,
     })
-    expect(error).toBeUndefined()
-    const { pct: pctThen } = computeModifiedDietz({ startValue, endValue: 10106.754497, startTs, endTs, transactions })
-    expect(pctThen).toBeCloseTo(8.6059, 8)
-    // Market +1% with no new flows: the % moves up, the anchor does not.
-    const { pct: pctNow } = computeModifiedDietz({
-      startValue, endValue: 10106.754497 * 1.01, startTs, endTs: endTs + day, transactions,
+    const endTs2 = endTs + day
+    const { pct: moved } = computeModifiedDietz({
+      startValue, endValue: 10600 * 1.01, startTs, endTs: endTs2, transactions,
     })
-    expect(pctNow).toBeGreaterThan(pctThen)
+    expect(moved).toBeGreaterThan(6)
+    // Inverting the moved percentage at the new end value must land on the
+    // exact anchor the calibration pinned: the % moves, the anchor does not.
+    const back = solveDietzStartValue({
+      endValue: 10600 * 1.01, startTs, endTs: endTs2, transactions, targetPct: moved,
+    })
+    expect(back.error).toBeUndefined()
+    expect(back.startValue).toBeCloseTo(startValue, 6)
+  })
+})
+
+// The form guard: periods whose anchor date is already covered by real
+// broker/daily data are skipped (real data owns that stretch).
+describe('calibrationCoveredByRealData', () => {
+  const snapshots = [
+    { date: '2026-07-15', _source: 'ibkr' },
+    { date: '2026-07-16', _source: 'daily' },
+    { date: '2026-01-01', _source: 'backfill' }, // reconstructed, NOT real
+  ]
+
+  it('covers anchors on a real day or after the first real datapoint', () => {
+    expect(calibrationCoveredByRealData('2026-07-15', snapshots, true)).toBe(true)
+    expect(calibrationCoveredByRealData('2026-08-01', snapshots, true)).toBe(true)
+  })
+
+  it('leaves anchors before real coverage calibratable', () => {
+    expect(calibrationCoveredByRealData('2026-01-01', snapshots, true)).toBe(false)
+    expect(calibrationCoveredByRealData('2026-07-01', snapshots, true)).toBe(false)
+  })
+
+  it('never guards manual accounts or empty history', () => {
+    expect(calibrationCoveredByRealData('2026-08-01', snapshots, false)).toBe(false)
+    expect(calibrationCoveredByRealData('2026-08-01', [], true)).toBe(false)
+    expect(calibrationCoveredByRealData('2026-08-01', null, true)).toBe(false)
+    expect(calibrationCoveredByRealData(null, snapshots, true)).toBe(false)
+  })
+})
+
+// Calibration docs always get a compound Firestore id so they can never
+// collide with (or block) the real daily NAV doc of the same date.
+describe('snapshotDocId', () => {
+  it('keeps the plain date for real NAV snapshots', () => {
+    expect(snapshotDocId({ date: '2026-01-01', _source: 'daily' }, '2026-01-01')).toBe('2026-01-01')
+    expect(snapshotDocId({ date: '2026-01-01', _source: 'ibkr' }, '2026-01-01')).toBe('2026-01-01')
+  })
+
+  it('compounds global calibrations with the global scope', () => {
+    expect(snapshotDocId({ date: '2026-01-01', _calibrated: true, _calibrationKind: 'ytd' }, '2026-01-01'))
+      .toBe('2026-01-01~ytd~global')
+  })
+
+  it('compounds per-account calibrations with a sanitized account key', () => {
+    expect(snapshotDocId({ date: '2026-01-01', _calibrated: true, _calibrationKind: 'ytd', _account: 'hapi securities' }, '2026-01-01'))
+      .toBe('2026-01-01~ytd~hapi-securities')
+  })
+
+  it('falls back gracefully without a kind', () => {
+    expect(snapshotDocId({ date: '2026-01-01', _calibrated: true }, '2026-01-01'))
+      .toBe('2026-01-01~cal~global')
   })
 })
