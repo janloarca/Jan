@@ -90,12 +90,21 @@ export default function InlineCreateAccount({ onCreate, onCancel, onCreated, lan
       </div>
       <div className="grid grid-cols-2 gap-2">
         <input value={balance} onChange={e => setBalance(e.target.value)}
-          placeholder={t('Saldo inicial (opcional)', 'Initial balance (optional)')}
+          placeholder={t('Saldo de hoy (opcional)', 'Balance today (optional)')}
           type="number" step="any" className={inputCls} />
         <select value={currency} onChange={e => { setCurrency(e.target.value); setCurrencyTouched(true) }} className={inputCls}>
           {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
       </div>
+      {/* It said "saldo inicial", which invites a 0 or an opening figure. The
+          engine treats this number as TODAY's balance: past income routed here
+          is reconstructed as history WITHOUT being added on top, precisely so a
+          coupon already sitting in the account is not counted twice. Asking for
+          the wrong figure here is what leaves the account short or long. */}
+      <p className="text-xs" style={{ color: 'var(--text-muted,#64748b)' }}>
+        {t('El saldo que tiene hoy, ya con los pagos que hayas recibido. No se le vuelven a sumar.',
+           'The balance it holds today, including payments already received. They are not added again.')}
+      </p>
       {/* Only matters once there's a balance to backdate — an empty new account
           has nothing for a wrong date to distort. Without this the account
           always saved dated "today", so a balance that really arrived months
