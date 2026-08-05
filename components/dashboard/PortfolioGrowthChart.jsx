@@ -849,31 +849,46 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   }, [sortedBenchmark, chartData])
 
   const contributionLine = useMemo(() => {
-    if (viewMode !== 'value' || !scopedTransactions?.length || chartData.length < 2) return null
+    if (viewMode !== 'value' || chartData.length < 2) return null
     const flowTypes = { DEPOSIT: 1, WITHDRAWAL: -1 }
     // scopedTransactions already restricts to the selected institution, so a
     // deposit into another account never shows as invested capital here.
-    const txs = scopedTransactions
+    const txEvents = (scopedTransactions || [])
       .filter(tx => flowTypes[tx.type] != null)
-      .sort((a, b) => new Date(a.date) - new Date(b.date))
+      .map(tx => {
+        const amt = tx.totalAmount || tx.amount || 0
+        const convertedAmt = convert ? convert(amt, tx.currency || 'USD', baseCurrency || 'USD') : amt
+        return { ts: new Date(tx.date).getTime(), amt: (flowTypes[tx.type] || 0) * convertedAmt }
+      })
+    // A one-time entry/brokerage fee is real cash that left your pocket at
+    // purchase, same as a deposit — without this, "capital invertido" (and
+    // any return % that divides gain by it) silently ignored fees you told
+    // the app about, even though costsSummary.js already counts them.
+    const feeEvents = (scopedItems || [])
+      .filter(it => Number(it.entryFee) > 0 && it.acquisitionDate)
+      .map(it => {
+        const cur = it._originalCurrency || it.currency || 'USD'
+        const amt = convert ? convert(Number(it.entryFee), cur, baseCurrency || 'USD') : Number(it.entryFee)
+        return { ts: new Date(`${it.acquisitionDate}T00:00:00`).getTime(), amt }
+      })
+    const events = [...txEvents, ...feeEvents]
+      .filter(e => Number.isFinite(e.ts) && e.amt)
+      .sort((a, b) => a.ts - b.ts)
     // No real flows → no line: a flat "invested capital" at the start value
     // suggests a contribution that never happened.
-    if (txs.length === 0) return null
+    if (events.length === 0) return null
 
     const startVal = chartData[0].value
     return chartData.map(dp => {
       let cum = startVal
-      for (const tx of txs) {
-        const txTs = new Date(tx.date).getTime()
-        if (txTs <= chartData[0].ts) continue
-        if (txTs > dp.ts) break
-        const amt = tx.totalAmount || tx.amount || 0
-        const convertedAmt = convert ? convert(amt, tx.currency || 'USD', baseCurrency || 'USD') : amt
-        cum += (flowTypes[tx.type] || 0) * convertedAmt
+      for (const ev of events) {
+        if (ev.ts <= chartData[0].ts) continue
+        if (ev.ts > dp.ts) break
+        cum += ev.amt
       }
       return cum
     })
-  }, [chartData, scopedTransactions, viewMode, convert, baseCurrency])
+  }, [chartData, scopedTransactions, scopedItems, viewMode, convert, baseCurrency])
 
   const drawdown = useMemo(() => {
     if (chartData.length < 3) return null
@@ -1035,20 +1050,25 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const lastVal = measuredData.length > 0 ? measuredData[measuredData.length - 1].value : 0
   const growthAbs = lastVal - firstVal
   // A brand-new account funded partway through the period legitimately starts
-  // at $0 — growthAbs/firstVal is undefined there, and silently falling back
-  // to a bare 0 read as "no return" next to a real dollar gain (e.g. a bond
-  // funded in January showing "+$6,240.00 (+0.00%) este año"). Fall back to
-  // the capital actually invested (contributionLine, same series the "Capital
-  // invertido" overlay draws) as the denominator instead — same idea as a
-  // return-on-invested-capital calc when there's no prior balance to compare
-  // against. If there's no contribution history either, don't fabricate a
-  // percentage at all: null hides it rather than lying with a 0%.
+  // at $0 — growthAbs/firstVal is undefined there. Two bugs to avoid: (1)
+  // silently falling back to a bare 0 read as "no return" next to a real
+  // dollar gain ("+$6,240.00 (+0.00%) este año"); (2) dividing the RAW value
+  // change (growthAbs, which — correctly, per "incluye depósitos" — includes
+  // the deposit itself) by invested capital counts the deposited principal
+  // AS IF it were return, e.g. $6,000 in + $240 gained read as "+52%" once a
+  // duplicate deposit doubled the denominator, but even at the right
+  // denominator it would've read as "+100%" for a same-day deposit with zero
+  // gain — new money is not a return, full stop. Net the invested capital
+  // OUT of the numerator too (contributionLine, same series the "Capital
+  // invertido" overlay draws, already includes entry fees) so only the
+  // actual gain drives the %. No contribution history at all → null hides
+  // the percentage rather than lying with a 0%.
   const investedBase = contributionLine && contributionLine.length > 0
     ? contributionLine[contributionLine.length - 1]
     : null
   const growthPct = firstVal > 0
     ? (growthAbs / firstVal) * 100
-    : (investedBase > 0 ? (growthAbs / investedBase) * 100 : null)
+    : (investedBase > 0 ? ((growthAbs - investedBase) / investedBase) * 100 : null)
   const lastReturn = returnData.length > 0 ? returnData[returnData.length - 1] : 0
   // Annualized (CAGR) companion for multi-year spans — "+180% ALL" over 6 years is
   // easy to misread as a yearly figure.

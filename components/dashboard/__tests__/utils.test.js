@@ -18,6 +18,7 @@ import {
   formatMonth,
   shouldHoldFlat,
   getDividendIncomeByItem,
+  getItemCostBasis,
 } from '../utils'
 
 describe('projectItemAnnualIncome', () => {
@@ -678,5 +679,23 @@ describe('getDividendIncomeByItem', () => {
   it('returns an empty map for no transactions', () => {
     expect(getDividendIncomeByItem([], [bond], null, 'USD').size).toBe(0)
     expect(getDividendIncomeByItem(null, [bond], null, 'USD').size).toBe(0)
+  })
+})
+
+describe('getItemCostBasis', () => {
+  it('is just quantity × purchasePrice when there is no entry fee', () => {
+    expect(getItemCostBasis({ quantity: 1, purchasePrice: 6000 })).toBe(6000)
+  })
+
+  it('adds the one-time entry fee on top of the purchase cost', () => {
+    expect(getItemCostBasis({ quantity: 1, purchasePrice: 6000, entryFee: 95.78 })).toBeCloseTo(6095.78)
+  })
+
+  it('scales with quantity for share-based items', () => {
+    expect(getItemCostBasis({ quantity: 10, purchasePrice: 150, entryFee: 5 })).toBeCloseTo(1505)
+  })
+
+  it('treats a missing quantity/price/fee as 0, never NaN', () => {
+    expect(getItemCostBasis({})).toBe(0)
   })
 })

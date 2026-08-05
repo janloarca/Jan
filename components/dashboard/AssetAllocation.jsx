@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { formatCurrency, getTypeCategory, TYPE_COLORS, CHART_PALETTE, getItemValue, getSectorFromItem, getGeographyFromItem, getInvestmentClass, INVESTMENT_CLASS_META, isExcludedFromNetWorth, getDividendIncomeByItem } from './utils'
+import { formatCurrency, getTypeCategory, TYPE_COLORS, CHART_PALETTE, getItemValue, getSectorFromItem, getGeographyFromItem, getInvestmentClass, INVESTMENT_CLASS_META, isExcludedFromNetWorth, getDividendIncomeByItem, getItemCostBasis } from './utils'
 import { InfoTip } from '../ui/Tooltip'
 
 export default function AssetAllocation({ items, lang, transactions, convert, baseCurrency }) {
@@ -24,17 +24,24 @@ export default function AssetAllocation({ items, lang, transactions, convert, ba
     const dividendIncome = getDividendIncomeByItem(transactions, items, convert, baseCurrency)
     const byGroup = {}
     const gainByGroup = {}
+    // costByGroup, NOT total portfolio value, is the % denominator — same
+    // gain÷cost formula "Rendimiento por Institución" uses. The two used to
+    // answer different questions (this one was "% of the WHOLE portfolio's
+    // gain"), which meant the same asset showed two different, unrelated
+    // numbers depending which card you looked at. One return definition,
+    // used everywhere.
+    const costByGroup = {}
     let total = 0
     items.forEach((it) => {
       if (it.isDebt || isExcludedFromNetWorth(it)) return
       const val = getItemValue(it)
       if (val <= 0) return
       const key = fn(it)
-      const qty = it.quantity || 0
-      const cost = qty * (it.purchasePrice || 0)
+      const cost = getItemCostBasis(it)
       const income = dividendIncome.get(it.id) || 0
       byGroup[key] = (byGroup[key] || 0) + val
       gainByGroup[key] = (gainByGroup[key] || 0) + (val - cost) + income
+      costByGroup[key] = (costByGroup[key] || 0) + cost
       total += val
     })
     return Object.entries(byGroup)
@@ -43,7 +50,7 @@ export default function AssetAllocation({ items, lang, transactions, convert, ba
         name,
         value,
         pct: total > 0 ? (value / total) * 100 : 0,
-        contribution: total > 0 ? ((gainByGroup[name] || 0) / total) * 100 : 0,
+        returnPct: costByGroup[name] > 0 ? ((gainByGroup[name] || 0) / costByGroup[name]) * 100 : null,
         color: view === 'type' ? (TYPE_COLORS[name]?.bg || CHART_PALETTE[i % CHART_PALETTE.length])
              : view === 'returnType' ? (INVESTMENT_CLASS_META[name]?.color || CHART_PALETTE[i % CHART_PALETTE.length])
              : CHART_PALETTE[i % CHART_PALETTE.length],
@@ -78,8 +85,8 @@ export default function AssetAllocation({ items, lang, transactions, convert, ba
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
           {t('ASIGNACIÓN DE ACTIVOS', 'ASSET ALLOCATION')}
           <InfoTip text={t(
-            'El % junto al monto es cuánto aportó ese grupo a la ganancia TOTAL del portafolio (no es el retorno propio del grupo). Por eso puede no coincidir con "Rendimiento por Institución", que sí muestra el retorno de cada institución sobre lo invertido en ella.',
-            'The % next to the amount is how much that group contributed to the portfolio\'s TOTAL gain (not that group\'s own return). That\'s why it can differ from "Institution Performance", which shows each institution\'s own return on what you invested there.'
+            'El % junto al monto es el retorno propio de ese grupo: ganancia ÷ lo que invertiste en él (incluye costos de entrada, excluye el capital nuevo). Misma fórmula que usa "Rendimiento por Institución": deberían coincidir para el mismo activo.',
+            'The % next to the amount is that group\'s own return: gain ÷ what you invested in it (includes entry costs, excludes new capital). Same formula "Institution Performance" uses: they should match for the same asset.'
           )} />
         </h3>
         <span className="text-sm font-bold text-white font-mono tabular-nums">
@@ -136,9 +143,9 @@ export default function AssetAllocation({ items, lang, transactions, convert, ba
                 <div className="flex items-center gap-3 shrink-0">
                   <span
                     className="text-xs w-14 text-right"
-                    style={{ color: seg.contribution >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}
+                    style={seg.returnPct == null ? { color: 'var(--text-muted)' } : { color: seg.returnPct >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}
                   >
-                    {seg.contribution >= 0 ? '+' : ''}{seg.contribution.toFixed(1)}%
+                    {seg.returnPct == null ? '-' : `${seg.returnPct >= 0 ? '+' : ''}${seg.returnPct.toFixed(1)}%`}
                   </span>
                   <span className="text-sm text-white font-mono tabular-nums text-right min-w-[80px]">
                     {formatCurrency(seg.value)}

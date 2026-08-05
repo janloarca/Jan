@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { formatCurrency, formatCompact, getItemValue, getDividendIncomeByItem } from './utils'
+import { formatCurrency, formatCompact, getItemValue, getDividendIncomeByItem, getItemCostBasis } from './utils'
 import { InfoTip } from '../ui/Tooltip'
 
 // Institution comparison card.
@@ -26,14 +26,13 @@ export default function InstitutionPerformance({ items, lang, baseCurrency, tran
       if (!map[key]) map[key] = { name: rawName.trim(), count: 0, value: 0, cost: 0, income: 0 }
       map[key].count += 1
       map[key].value += getItemValue(it)
-      const qty = Number(it.quantity) || 0
-      map[key].cost += qty * (it.purchasePrice || 0)
+      map[key].cost += getItemCostBasis(it)
       map[key].income += dividendIncome.get(it.id) || 0
     })
     return Object.values(map)
       .map((inst) => {
         const gainLoss = inst.value - inst.cost + inst.income
-        const gainPct = inst.cost > 0 ? (gainLoss / inst.cost) * 100 : 0
+        const gainPct = inst.cost > 0 ? (gainLoss / inst.cost) * 100 : null
         return { ...inst, gainLoss, gainPct }
       })
       .sort((a, b) => b.value - a.value)
@@ -68,7 +67,7 @@ export default function InstitutionPerformance({ items, lang, baseCurrency, tran
           {institutions.map((inst) => {
             const pctOfTotal = allTotal > 0 ? (inst.value / allTotal) * 100 : 0
             const isGain = inst.gainLoss >= 0
-            const gainColor = isGain ? 'var(--accent-green)' : 'var(--text-negative)'
+            const gainColor = inst.gainPct == null ? 'var(--text-muted)' : (isGain ? 'var(--accent-green)' : 'var(--text-negative)')
             return (
               <div key={inst.name}>
                 {/* Line 1: name · count — % of total · value */}
@@ -94,7 +93,7 @@ export default function InstitutionPerformance({ items, lang, baseCurrency, tran
                     />
                   </div>
                   <span className="text-xs font-medium font-mono tabular-nums w-16 text-right" style={{ color: gainColor }}>
-                    {isGain ? '+' : ''}{inst.gainPct.toFixed(2)}%
+                    {inst.gainPct == null ? '-' : `${isGain ? '+' : ''}${inst.gainPct.toFixed(2)}%`}
                   </span>
                 </div>
               </div>

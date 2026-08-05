@@ -156,6 +156,18 @@ export function isExcludedFromNetWorth(item) {
   return !!(item.isReceivable && !item.countInNetWorth)
 }
 
+// What you actually put in: purchase cost PLUS the one-time entry/brokerage
+// fee (Costos y comisiones). A fee is real money that left your pocket, so
+// leaving it out of "cost" overstates return the same way ignoring the fee
+// entirely does — every return-% calc that compares gain against cost must
+// use THIS, not qty*purchasePrice alone, or the same $ of fee shows up in
+// some numbers and not others.
+export function getItemCostBasis(item) {
+  const qty = Number(item.quantity) || 0
+  const base = qty * (Number(item.purchasePrice) || 0)
+  return base + (Number(item.entryFee) || 0)
+}
+
 // Effective acquisition timestamp for an item: the real acquisitionDate, else the
 // start of the year it was added to the app (createdAt), else null (no gate).
 // Mirrors effectiveAcqDate in lib/historicalValues.js.
