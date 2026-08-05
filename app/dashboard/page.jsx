@@ -1,539 +1,229 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import dynamic from 'next/dynamic'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic'
+import { useAuth } from '@/components/AuthProvider'
+import { useUserPreferences } from '@/hooks/useUserPreferences'
 import { useDashboardData } from '@/hooks/useDashboardData'
-import { getItemValue, formatCurrency, getTypeCategory, businessDaysSince } from '@/components/dashboard/utils'
+import { useEntityData } from '@/hooks/useEntityData'
+import { hasLiveSync } from '@/lib/connections'
+import { reconcileBrokerPositions } from '@/lib/brokerSync'
+import { businessDaysSince } from '@/components/dashboard/utils'
 import Header from '@/components/dashboard/Header'
-import AdBanner from '@/components/AdBanner'
-import MonthEndCheckin, { hasLiveSync } from '@/components/dashboard/MonthEndCheckin'
-import DashboardLoading from './loading'
 import NetWorthCard from '@/components/dashboard/NetWorthCard'
-import CalibrateReturnModal from '@/components/dashboard/CalibrateReturnModal'
+import PortfolioGrowthChart from '@/components/dashboard/PortfolioGrowthChart'
+import AssetAllocation from '@/components/dashboard/AssetAllocation'
+import InstitutionPerformance from '@/components/dashboard/InstitutionPerformance'
+import PriceAlerts from '@/components/dashboard/PriceAlerts'
+import AnalysisTabs from '@/components/dashboard/AnalysisTabs'
+import GoalTracker from '@/components/dashboard/GoalTracker'
+import DividendIncome from '@/components/dashboard/DividendIncome'
+import CostsCard from '@/components/dashboard/CostsCard'
 import ActionButtons from '@/components/dashboard/ActionButtons'
-import SectionCollapse from '@/components/dashboard/SectionCollapse'
-import MobileNav from '@/components/dashboard/MobileNav'
-import ErrorBoundary from '@/components/ErrorBoundary'
-import CardBoundary from '@/components/dashboard/CardBoundary'
-import { SkeletonCard, SkeletonChart } from '@/components/dashboard/Skeleton'
-
-function ModalSkeleton() {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" role="status" aria-live="polite" aria-label="Loading">
-      <div className="bg-theme-card border border-glass-border rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
-        <div className="h-5 w-32 bg-slate-700/50 rounded animate-pulse mb-4" />
-        <div className="space-y-3">
-          <div className="h-10 bg-slate-700/30 rounded animate-pulse" />
-          <div className="h-10 bg-slate-700/30 rounded animate-pulse" />
-          <div className="h-10 bg-slate-700/30 rounded animate-pulse w-2/3" />
-        </div>
-      </div>
-    </div>
-  )
-}
-
-const FileImportModal = dynamic(() => import('@/components/FileImportModal'), { loading: () => <ModalSkeleton /> })
-const AddAccountModal = dynamic(() => import('@/components/AddAccountModal'), { loading: () => <ModalSkeleton /> })
-const SellModal = dynamic(() => import('@/components/SellModal'), { loading: () => <ModalSkeleton /> })
-const TransferModal = dynamic(() => import('@/components/TransferModal'), { loading: () => <ModalSkeleton /> })
-const IBKRSyncModal = dynamic(() => import('@/components/IBKRSyncModal'), { loading: () => <ModalSkeleton /> })
-const BlockchainSyncModal = dynamic(() => import('@/components/BlockchainSyncModal'), { loading: () => <ModalSkeleton /> })
-const LedgerSyncModal = dynamic(() => import('@/components/LedgerSyncModal'), { loading: () => <ModalSkeleton /> })
-const SettingsModal = dynamic(() => import('@/components/SettingsModal'), { loading: () => <ModalSkeleton /> })
-const ConnectionsModal = dynamic(() => import('@/components/ConnectionsModal'), { loading: () => <ModalSkeleton /> })
-const EditAccountModal = dynamic(() => import('@/components/EditAccountModal'), { loading: () => <ModalSkeleton /> })
-const OptimizeModal = dynamic(() => import('@/components/OptimizeModal'))
-const AssetDetailModal = dynamic(() => import('@/components/dashboard/AssetDetailModal'), { loading: () => <ModalSkeleton /> })
-const AccountReviewModal = dynamic(() => import('@/components/dashboard/AccountReviewModal'), { loading: () => <ModalSkeleton /> })
-const CashFlowModal = dynamic(() => import('@/components/CashFlowModal'), { loading: () => <ModalSkeleton /> })
-const PrintSummary = dynamic(() => import('@/components/dashboard/PrintSummary'))
-const OnboardingTour = dynamic(() => import('@/components/dashboard/OnboardingTour'))
-const CommandPalette = dynamic(() => import('@/components/dashboard/CommandPalette'))
-const ChatWidget = dynamic(() => import('@/components/ChatWidget'), { ssr: false })
-
-const PortfolioGrowthChart = dynamic(() => import('@/components/dashboard/PortfolioGrowthChart'), { loading: () => <SkeletonChart /> })
-const DividendIncome = dynamic(() => import('@/components/dashboard/DividendIncome'), { loading: () => <SkeletonCard /> })
-const GoalTracker = dynamic(() => import('@/components/dashboard/GoalTracker'), { loading: () => <SkeletonCard /> })
-const FinancialHealth = dynamic(() => import('@/components/dashboard/FinancialHealth'), { loading: () => <SkeletonCard /> })
-const ConcentrationRisk = dynamic(() => import('@/components/dashboard/ConcentrationRisk'), { loading: () => <SkeletonCard /> })
-const GainsReport = dynamic(() => import('@/components/dashboard/GainsReport'), { loading: () => <SkeletonCard /> })
-const PerformanceAttribution = dynamic(() => import('@/components/dashboard/PerformanceAttribution'), { loading: () => <SkeletonCard /> })
-const RiskMetrics = dynamic(() => import('@/components/dashboard/RiskMetrics'), { loading: () => <SkeletonCard /> })
-const InstitutionPerformance = dynamic(() => import('@/components/dashboard/InstitutionPerformance'), { loading: () => <SkeletonCard /> })
-const RebalanceSuggestions = dynamic(() => import('@/components/dashboard/RebalanceSuggestions'), { loading: () => <SkeletonCard /> })
-
 import RecentTransactions from '@/components/dashboard/RecentTransactions'
 import DataQualityCard from '@/components/dashboard/DataQualityCard'
-import ChispuSuggestions from '@/components/dashboard/ChispuSuggestions'
-import CostsCard from '@/components/dashboard/CostsCard'
-import { reconcileBrokerPositions } from '@/lib/brokerReconcile'
-import { analyzeDataCompleteness } from '@/lib/dataCompleteness'
-import { detectPhantomFlows } from '@/lib/phantomFlows'
-import { detectFakeAggregateTrades, detectImportStampedAcquisitions, detectFakeCashReportItems, detectDuplicateCashDividends, detectCrossSourceDuplicateFlows } from '@/lib/badDataCleanup'
-import { IBKR_DISCONNECTED_FIELDS } from '@/lib/brokerRegistry'
-import { DEMO_ITEMS, DEMO_LOTS, DEMO_TRANSACTIONS, isDemoItem } from '@/lib/demoData'
-import AssetAllocation from '@/components/dashboard/AssetAllocation'
-import PriceAlerts from '@/components/dashboard/PriceAlerts'
 import NotificationCenter from '@/components/dashboard/NotificationCenter'
-import InstallPrompt from '@/components/dashboard/InstallPrompt'
+import MonthEndCheckin from '@/components/dashboard/MonthEndCheckin'
+import AdBanner from '@/components/dashboard/AdBanner'
+import ChispuSuggestions from '@/components/dashboard/ChispuSuggestions'
 import EmptyState from '@/components/dashboard/EmptyState'
-// MonthlyBreakdown removed — replaced by /spreadsheet page
-import PortfolioSelector from '@/components/dashboard/PortfolioSelector'
-import EntitySwitcher from '@/components/dashboard/EntitySwitcher'
-import { useEntities } from '@/hooks/useEntities'
-import { authFetch, safeJson } from '@/lib/authFetch'
+import DashboardLoading from '@/components/dashboard/DashboardLoading'
+import OnboardingTour from '@/components/OnboardingTour'
+import ErrorBoundary from '@/components/ErrorBoundary'
+import CardBoundary from '@/components/CardBoundary'
+import EntitySwitcher from '@/components/EntitySwitcher'
+import PortfolioSelector from '@/components/PortfolioSelector'
+import { InstallPrompt } from '@/components/PWAComponents'
+import { getTypeCategory, getItemValue, formatCurrency } from '@/components/dashboard/utils'
+import { stripEmojis } from '@/lib/utils'
+import { useToast } from '@/components/Toast'
+import SectionCollapse from '@/components/dashboard/SectionCollapse'
+import { MobileNav } from '@/components/MobileNav'
+import ChatWidget from '@/components/ChatWidget'
+import RebalanceSuggestions from '@/components/dashboard/RebalanceSuggestions'
+import { useDataCompleteness } from '@/hooks/useDataCompleteness'
 
-function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, lots, transactions, convert, baseCurrency, benchmarkData, benchmarkName, beginnerMode }) {
-  const [tab, setTab] = useState('health')
-  const t = (es, en) => lang === 'es' ? es : en
-  const hasLots = lots && lots.length > 0
-  // Beginner mode hides the most jargon-heavy tabs (Risk metrics, Attribution)
-  const tabs = [
-    { key: 'health', label: t('Salud', 'Health') },
-    ...(beginnerMode ? [] : [{ key: 'risk', label: t('Riesgo', 'Risk') }]),
-    { key: 'concentration', label: t('Concentración', 'Concentration') },
-    ...(hasLots ? [{ key: 'gains', label: t('Ganancias', 'Gains') }] : []),
-    ...(beginnerMode ? [] : [{ key: 'attribution', label: t('Atribución', 'Attribution') }]),
-  ]
-  return (
-    <div className="space-y-4">
-      <div className="inline-flex items-center gap-0.5 p-1 rounded-[10px] max-w-full overflow-x-auto" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-        {tabs.map(tb => (
-          <button key={tb.key} onClick={() => setTab(tb.key)}
-            className="px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap"
-            style={tab === tb.key
-              ? { backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 2px rgba(0,0,0,0.08)' }
-              : { color: 'var(--text-muted)' }}>
-            {tb.label}
-          </button>
-        ))}
-      </div>
-      {tab === 'health' && (
-        // Concentration lives in its own dedicated tab; don't duplicate it here.
-        <CardBoundary id="AN-01"><FinancialHealth items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} /></CardBoundary>
-      )}
-      {tab === 'risk' && !beginnerMode && (
-        <CardBoundary id="AN-05"><RiskMetrics snapshots={snapshots} benchmarkData={benchmarkData} netWorth={netWorth} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} benchmarkName={benchmarkName} /></CardBoundary>
-      )}
-      {tab === 'concentration' && (
-        <CardBoundary id="AN-02b"><ConcentrationRisk items={portfolioItems} lang={lang} /></CardBoundary>
-      )}
-      {tab === 'gains' && hasLots && (
-        <CardBoundary id="AN-03"><GainsReport lots={lots} items={portfolioItems} lang={lang} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
-      )}
-      {tab === 'attribution' && !beginnerMode && (
-        <CardBoundary id="AN-04"><PerformanceAttribution items={portfolioItems} lang={lang} /></CardBoundary>
-      )}
-    </div>
-  )
-}
+const FileImportModal = dynamic(() => import('@/components/FileImportModal'), { ssr: false })
+const IBKRSyncModal = dynamic(() => import('@/components/IBKRSyncModal'), { ssr: false })
+const BlockchainSyncModal = dynamic(() => import('@/components/BlockchainSyncModal'), { ssr: false })
+const LedgerSyncModal = dynamic(() => import('@/components/LedgerSyncModal'), { ssr: false })
+const AddAccountModal = dynamic(() => import('@/components/AddAccountModal'), { ssr: false })
+const EditAccountModal = dynamic(() => import('@/components/EditAccountModal'), { ssr: false })
+const AccountReviewModal = dynamic(() => import('@/components/dashboard/AccountReviewModal'), { ssr: false })
+const EnrichModal = dynamic(() => import('@/components/dashboard/EnrichModal'), { ssr: false })
+const AssetDetailModal = dynamic(() => import('@/components/AssetDetailModal'), { ssr: false })
+const SellModal = dynamic(() => import('@/components/SellModal'), { ssr: false })
+const TransferModal = dynamic(() => import('@/components/TransferModal'), { ssr: false })
+const CashFlowModal = dynamic(() => import('@/components/CashFlowModal'), { ssr: false })
+const SettingsModal = dynamic(() => import('@/components/SettingsModal'), { ssr: false })
+const ConnectionsModal = dynamic(() => import('@/components/dashboard/ConnectionsModal'), { ssr: false })
+const PrintSummary = dynamic(() => import('@/components/PrintSummary'), { ssr: false })
+const CalibrateReturnModal = dynamic(() => import('@/components/dashboard/CalibrateReturnModal'), { ssr: false })
+const CommandPalette = dynamic(() => import('@/components/CommandPalette'), { ssr: false })
+const OptimizeModal = dynamic(() => import('@/components/OptimizeModal'), { ssr: false })
 
 export default function DashboardPage() {
   const router = useRouter()
-  const [user, setUser] = useState(null)
-  const [authLoading, setAuthLoading] = useState(true)
-  const [modal, setModal] = useState(null)
-  const [cashflowPrefill, setCashflowPrefill] = useState(null)
-  const [importBrokerHint, setImportBrokerHint] = useState(null)
-  const [editItem, setEditItem] = useState(null)
-  const [sellItem, setSellItem] = useState(null)
-  const [detailItem, setDetailItem] = useState(null)
-  const [theme, setTheme] = useState('dark')
-  const [lang, setLang] = useState('es')
-  const [beginnerMode, setBeginnerMode] = useState(false)
-  const [showOnboarding, setShowOnboarding] = useState(false)
+  const { user, loading: authLoading } = useAuth()
+  const {
+    lang, theme, baseCurrency, beginnerMode,
+    setLang: handleSetLang, setTheme: handleSetTheme, toggleBeginner: handleToggleBeginner,
+    loading: prefsLoading,
+  } = useUserPreferences()
+
   const [activePortfolio, setActivePortfolio] = useState('__all__')
   const [activeEntity, setActiveEntity] = useState('__all__')
-  const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
+  const [modal, setModal] = useState(null)
+  const [importBrokerHint, setImportBrokerHint] = useState(null)
+  const [editItem, setEditItem] = useState(null)
+  const [detailItem, setDetailItem] = useState(null)
+  const [sellItem, setSellItem] = useState(null)
   const [showReview, setShowReview] = useState(false)
-  const [toast, setToast] = useState(null)
-  const toastTimer = useRef(null)
-  const [staleCode, setStaleCode] = useState(false)
+  const [reviewTarget, setReviewTarget] = useState({ itemId: null, guided: false })
+  const [showEnrich, setShowEnrich] = useState(false)
+  const [showOnboarding, setShowOnboarding] = useState(false)
+  const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
+  const [cashflowPrefill, setCashflowPrefill] = useState(null)
+  const [staleCode, setStaleCode] = useState(null)
+  const { toast, showToast, dismiss: handleDismissToast } = useToast()
 
-
-  const { entities, addEntity, updateEntity: updateEntityData, deleteEntity } = useEntities()
-
-  // Theme + lang init
+  // Version-staleness check: the SW-controlled page can fall behind the
+  // deployment; /api/version is network-first so it always reflects the server.
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('chispudo-lang')
-      if (saved === 'en' || saved === 'es') setLang(saved)
-      const savedTheme = localStorage.getItem('chispudo-theme')
-      if (savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'system') setTheme(savedTheme)
-      setBeginnerMode(localStorage.getItem('chispudo-beginner') === '1')
-      function applyTheme(t) {
-        if (t === 'system') {
-          const sys = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-          document.documentElement.setAttribute('data-theme', sys)
-        } else {
-          document.documentElement.setAttribute('data-theme', t)
-        }
-      }
-      applyTheme(savedTheme || 'dark')
-      const mq = window.matchMedia('(prefers-color-scheme: dark)')
-      const handler = () => {
-        const current = localStorage.getItem('chispudo-theme')
-        if (current === 'system') document.documentElement.setAttribute('data-theme', mq.matches ? 'dark' : 'light')
-      }
-      mq.addEventListener('change', handler)
-      return () => mq.removeEventListener('change', handler)
+    if (typeof window === 'undefined') return
+    const check = () => {
+      fetch('/api/version', { cache: 'no-store' })
+        .then(r => r.json())
+        .then(({ version }) => {
+          const current = process.env.NEXT_PUBLIC_APP_VERSION
+          if (current && version && version !== current) setStaleCode(version)
+        })
+        .catch(() => {})
     }
+    check()
+    const interval = setInterval(check, 5 * 60 * 1000)
+    return () => clearInterval(interval)
   }, [])
 
-  const handleSetTheme = useCallback((newTheme) => {
-    setTheme(newTheme)
-    if (typeof window !== 'undefined') {
-      document.documentElement.classList.add('theme-transitioning')
-      const resolved = newTheme === 'system'
-        ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-        : newTheme
-      document.documentElement.setAttribute('data-theme', resolved)
-      localStorage.setItem('chispudo-theme', newTheme)
-      const tc = resolved === 'light' ? '#F0F2F8' : '#0A0A12'
-      document.querySelectorAll('meta[name="theme-color"]').forEach(m => m.setAttribute('content', tc))
-      setTimeout(() => document.documentElement.classList.remove('theme-transitioning'), 400)
-    }
-  }, [])
-
-  const handleSetLang = useCallback((newLang) => {
-    const next = newLang === 'toggle' ? (lang === 'en' ? 'es' : 'en') : newLang
-    setLang(next)
-    if (typeof window !== 'undefined') localStorage.setItem('chispudo-lang', next)
-  }, [lang])
-
-  const handleToggleBeginner = useCallback((val) => {
-    const next = typeof val === 'boolean' ? val : !beginnerMode
-    setBeginnerMode(next)
-    if (typeof window !== 'undefined') localStorage.setItem('chispudo-beginner', next ? '1' : '0')
-  }, [beginnerMode])
-
-  // Auth
-  useEffect(() => {
-    let unsubscribe = () => {}
-    let refreshInterval = null
-    const secure = typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : ''
-    function setCookie(token) {
-      document.cookie = `__session=${token}; path=/; max-age=604800; SameSite=Lax${secure}`
-    }
-    async function initAuth() {
-      const { auth } = await import('@/lib/firebase')
-      const { onIdTokenChanged } = await import('firebase/auth')
-      if (!auth) { setAuthLoading(false); router.push('/login'); return }
-      unsubscribe = onIdTokenChanged(auth, async (currentUser) => {
-        if (!currentUser) {
-          document.cookie = '__session=; path=/; max-age=0'
-          router.push('/login')
-        } else {
-          const token = await currentUser.getIdToken()
-          setCookie(token)
-          setUser(currentUser)
-          if (!refreshInterval) {
-            refreshInterval = setInterval(async () => {
-              try {
-                if (auth.currentUser) {
-                  const t = await auth.currentUser.getIdToken(true)
-                  setCookie(t)
-                }
-              } catch {}
-            }, 50 * 60 * 1000)
-          }
-          setAuthLoading(false)
-        }
-      })
-    }
-    initAuth()
-    return () => { unsubscribe(); if (refreshInterval) clearInterval(refreshInterval) }
-  }, [router])
-
-  useEffect(() => {
-    const clientBuild = process.env.NEXT_BUILD_ID || '__dev__'
-    if (clientBuild === '__dev__') return
-    fetch('/api/version').then(r => r.json()).then(data => {
-      if (data.buildId && data.buildId !== '__dev__' && data.buildId !== clientBuild) {
-        setStaleCode(true)
-      }
-    }).catch(() => {})
-  }, [])
-
-  // Data layer
   const {
-    items, snapshots, augmentedSnapshots, accountCalibrations, transactions, goals, settings, profile, effectiveProfile, alerts, lots, portfolios, financeTransactions,
+    entities, addEntity, updateEntityData, deleteEntity,
+    items, snapshots, augmentedSnapshots, calibrations, transactions, goals, settings, profile, effectiveProfile, alerts, lots, portfolios, financeTransactions,
+    entityTransactions, entityFinanceTransactions,
     dataLoading,
     addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
     saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
-    addTransaction, deleteTransaction, deleteAllTransactions,
-    addAlert, deleteAlert,
+    addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,
+    addAlert, deleteAlert, updateAlert,
     addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution,
     addPortfolio, deletePortfolio,
     addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     bulkImport,
     saveGoals, saveSettings, saveProfile,
-    enrichedItems, portfolioItems: rawPortfolioItems, entityTransactions, entityFinanceTransactions,
-    marketPrices,
+    saveItemSnapshots, loadItemSnapshots,
+    enrichedItems, portfolioItems, marketPrices,
     pricesLoading, pricesError, pricesUpdate,
-    rates, convert,
-    ratesLoading, ratesError,
+    rates, convert, convertItemValue,
+    ratesLoading, ratesError, ratesUpdate,
     handleRefresh,
-    baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
-    returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated,
+    netWorth, totalAssets, dailyChange, yearlyChange,
+    returnYTD, ytdChange, returnSinceStart, sinceStartDate, returnMTD, ytdCalibrated, ytdBreakdown,
+    ibkrReturnYTD, ibkrReturnMTD, ibkrDayChange,
     annualDividends, estimatedAnnualIncome,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
-    benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName,
-    handleIBKRSync, triggerIBKRSync,
-    ibkrConnected, ibkrAutoSyncing,
-    ibkrSyncStatus, ibkrSyncErrorCode, ibkrLastSync, ibkrSyncSummary,
-  } = useDashboardData({ user, lang, activePortfolio, activeEntity })
+    benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName, benchmarkLoading,
+    handleIBKRSync, ibkrConnected, ibkrAutoSyncing, triggerIBKRSync,
+    ibkrSyncStatus, ibkrSyncSummary, ibkrSyncError, ibkrSyncErrorCode, ibkrLastSync,
+  } = useDashboardData({ lang, baseCurrency, activePortfolio, activeEntity })
 
-  const handleOpenImport = useCallback((bh) => {
-    setImportBrokerHint(bh || null)
+  const dataCompleteness = useDataCompleteness({ items: portfolioItems, transactions, snapshots, goals, profile: effectiveProfile, financeTransactions, lang })
+
+  const isDemoMode = useMemo(() => portfolioItems.some((it) => it._source === 'demo'), [portfolioItems])
+
+  const handleSeedDemo = useCallback(async () => {
+    const { seedDemoData } = await import('@/lib/demoItems')
+    await seedDemoData({ addItem, addLot, addTransaction })
+  }, [addItem, addLot, addTransaction])
+
+  const handleClearDemo = useCallback(async () => {
+    try { await deleteDemoData() } catch {}
+    try { localStorage.setItem('chispudo-onboarding-done', '1') } catch {}
+    setShowOnboarding(false)
+  }, [deleteDemoData])
+
+  const handleOpenImport = useCallback((brokerHint = null) => {
+    setImportBrokerHint(brokerHint)
     setModal('import')
   }, [])
   const handleOpenAccount = useCallback(() => setModal('account'), [])
-  const handleOpenSettings = useCallback(() => setModal('settings'), [])
-  const handleOpenConnections = useCallback(() => setModal('connections'), [])
   const handleOpenTransfer = useCallback(() => setModal('transfer'), [])
   const handleOpenCashflow = useCallback(() => { setCashflowPrefill(null); setModal('cashflow') }, [])
   const handleOpenCashflowPrefilled = useCallback((prefill) => { setCashflowPrefill(prefill || null); setModal('cashflow') }, [])
+  const handleOpenSettings = useCallback(() => setModal('settings'), [])
+  const handleOpenConnections = useCallback(() => setModal('connections'), [])
   const handleOpenIBKR = useCallback(() => setModal('ibkr'), [])
-
-  // Header IBKR pill: when connected, sync in the BACKGROUND (no blocking modal) and
-  // let the user keep working — the pill spins (ibkrAutoSyncing) and a toast reports the
-  // outcome. Not connected → open the modal to enter credentials the first time.
-  const handleIBKRPillClick = useCallback(async () => {
-    if (!ibkrConnected) { setModal('ibkr'); return }
-    if (ibkrAutoSyncing) return
-    showToast(lang === 'es' ? 'Sincronizando IBKR… puedes seguir usando la app' : 'Syncing IBKR… you can keep using the app', 'info', 2500)
-    const res = await triggerIBKRSync()
-    if (res?.ok) {
-      // Tell the user how much HISTORY arrived, not just position count: a short
-      // Flex period silently truncates equity/deposits/trades, and this toast is
-      // the only feedback on the background path.
-      const shortHistory = res.equityDays > 1 && res.equityOldest
-        && new Date(res.equityOldest).getTime() > Date.UTC(new Date().getUTCFullYear(), 0, 1) + 45 * 86400000
-      if (res.equityDays <= 1) {
-        showToast(lang === 'es'
-          ? `IBKR: ${res.count} posiciones, pero SIN historial de valor. Agrega "Equity Summary" a tu Flex Query.`
-          : `IBKR: ${res.count} positions but NO value history. Add "Equity Summary" to your Flex Query.`, 'error', 6000)
-      } else if (shortHistory) {
-        showToast(lang === 'es'
-          ? `IBKR: ${res.count} posiciones · solo ${res.equityDays} días de historial (desde ${res.equityOldest}). El período del Flex Query sigue corto: ponlo en "Year to Date".`
-          : `IBKR: ${res.count} positions · only ${res.equityDays} days of history (since ${res.equityOldest}). Your Flex Query period is still short: set it to "Year to Date".`, 'error', 8000)
-      } else if ((res.trades || 0) + (res.flows || 0) === 0) {
-        // History arrived but zero trades/deposits: the query is missing the
-        // Trades / Cash Transactions sections, so the rewound value curve and
-        // deposit-aware returns cannot be built.
-        showToast(lang === 'es'
-          ? `IBKR: ${res.count} posiciones · ${res.equityDays} días de historial, pero 0 trades y 0 depósitos. Agrega "Trades" y "Cash Transactions" a tu Flex Query.`
-          : `IBKR: ${res.count} positions · ${res.equityDays} days of history but 0 trades and 0 deposits. Add "Trades" and "Cash Transactions" to your Flex Query.`, 'error', 8000)
-      } else {
-        showToast(lang === 'es'
-          ? `IBKR: ${res.count} posiciones · ${res.equityDays} días de historial · ${res.trades || 0} trades · ${res.flows || 0} depósitos/retiros · ${res.dividends || 0} dividendos`
-          : `IBKR: ${res.count} positions · ${res.equityDays} days of history · ${res.trades || 0} trades · ${res.flows || 0} deposits/withdrawals · ${res.dividends || 0} dividends`, 'success', 7000)
-      }
-    } else if (res?.error === 'BUSY') {
-      // a sync is already running; the spinning pill already communicates this
-    } else if (res?.error !== 'NOT_CONNECTED') {
-      showToast(lang === 'es' ? 'IBKR no se pudo actualizar. Revisa la conexión en Ajustes.' : 'IBKR sync failed. Check the connection in Settings.', 'error', 4000)
-    }
-  }, [ibkrConnected, ibkrAutoSyncing, triggerIBKRSync, lang])
   const handleOpenBlockchain = useCallback(() => setModal('blockchain'), [])
   const handleOpenPrint = useCallback(() => setModal('print'), [])
-  const handleOpenReview = useCallback(() => setShowReview(true), [])
   const handleOpenCmdPalette = useCallback(() => setCmdPaletteOpen(true), [])
-  const handleCloseCmdPalette = useCallback(() => setCmdPaletteOpen(false), [])
   const handleCloseModal = useCallback(() => { setModal(null); setImportBrokerHint(null) }, [])
-  const handleCloseEdit = useCallback(() => setEditItem(null), [])
-  const handleCloseSell = useCallback(() => setSellItem(null), [])
+  const handleCloseEdit = useCallback(() => { setEditItem(null); if (showReview) setShowReview(false) }, [showReview])
   const handleCloseDetail = useCallback(() => setDetailItem(null), [])
-  const handleCloseReview = useCallback(() => setShowReview(false), [])
-  const handleDismissToast = useCallback(() => setToast(null), [])
+  const handleCloseSell = useCallback(() => setSellItem(null), [])
+  const handleCloseReview = useCallback(() => { setShowReview(false); setReviewTarget({ itemId: null, guided: false }) }, [])
+  const handleCloseEnrich = useCallback(() => setShowEnrich(false), [])
+  const handleCloseCmdPalette = useCallback(() => setCmdPaletteOpen(false), [])
 
-  // Demo mode (onboarding sample data): seed via the batch import path and
-  // clean up selectively by the _source:'demo' flag.
-  const handleSeedDemo = useCallback(async () => {
-    await bulkImport({ items: DEMO_ITEMS, lots: DEMO_LOTS, transactions: DEMO_TRANSACTIONS })
-  }, [bulkImport])
-
-  const showToast = useCallback((msg, type = 'success', duration = 3000) => {
-    if (toastTimer.current) clearTimeout(toastTimer.current)
-    setToast({ msg, type })
-    toastTimer.current = setTimeout(() => setToast(null), duration)
+  const handleOpenReview = useCallback((opts = {}) => {
+    setReviewTarget({ itemId: opts.itemId || null, guided: !!opts.guided })
+    setShowReview(true)
   }, [])
 
-  // Shared by the sync modal's "Desconectar IBKR" button and the red top
-  // banner's own dismiss action — a locked/expired token only ever offered
-  // "reconnect" as a way out, with no visible way to say "I'm fine on CSV
-  // imports, stop nagging me." Both call sites must clear the SAME fields
-  // (client mirror + every auto-sync status field), or the banner keeps
-  // showing even after the user disconnects.
-  const handleIbkrDisconnect = useCallback(async () => {
-    saveSettings(IBKR_DISCONNECTED_FIELDS)
-    // Also wipe the SERVER vault — clearing only the client doc left the
-    // encrypted token alive, so the connection resurfaced and auto-synced.
-    try {
-      await authFetch('/api/brokers/ibkr', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'save-credentials', token: '', queryId: '' }),
-      })
-    } catch (e) { console.error('[ibkr] vault clear on disconnect failed:', e?.message) }
+  const handleOpenEnrich = useCallback(() => setShowEnrich(true), [])
+  const handleEnrichAccount = useCallback((itemId) => {
+    setShowEnrich(false)
+    const it = portfolioItems.find((x) => x.id === itemId)
+    if (it) setEditItem(it)
+  }, [portfolioItems])
+  const handleEnrichGuided = useCallback(() => {
+    setShowEnrich(false)
+    handleOpenReview({ guided: true })
+  }, [handleOpenReview])
+
+  const handleIbkrDisconnect = useCallback(() => {
+    saveSettings({
+      ibkrToken: null, ibkrQueryId: null,
+      _ibkrVaultMigrated: null,
+      _ibkrLastSync: null, _ibkrLastAutoSync: null,
+      _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null,
+    })
     showToast(lang === 'es' ? 'IBKR desconectado' : 'IBKR disconnected')
   }, [saveSettings, showToast, lang])
 
-  // Self-heal rows THIS APP invented. Several shipped IBKR file-parser bugs
-  // (FASE BU/BV/BY, fixed 2026-07-28) wrote fake data into real imports: a
-  // "Total" row read as a deposit, a lifetime trade-aggregate misread as
-  // individual buys/sells, Cash Report line items misread as holdings, and a
-  // dividend duplicated under symbol CASH by two parsers claiming the same
-  // section. A fifth class isn't a parser bug at all: the SAME real deposit
-  // imported once via file and once via the live API sync lands as two docs,
-  // because the API path appends a txn-id suffix to the doc id the file path
-  // never had — doubling that flow's effect on every return calculation.
-  // None of these were the user's entry, so asking them to confirm removal
-  // would be handing them our mistake to clean up. We know these are wrong
-  // (lib/phantomFlows, lib/badDataCleanup — each detector proves a real row
-  // cannot match its predicate), so we fix them and say so.
-  // Order matters (lib/badDataCleanup): fake trades first, since clearing the
-  // acquisitionDate side effect (1b) needs to know WHICH symbols were faked.
-  const healedRef = useRef(false)
-  useEffect(() => {
-    if (dataLoading || healedRef.current || !deleteTransaction || !deleteItem || !updateItem) return
-    const fakeTrades = detectFakeAggregateTrades(transactions || [])
-    const fakeTradeSymbols = new Set(fakeTrades.map((t) => (t.symbol || '').toUpperCase()))
-    const stampedAcquisitions = detectImportStampedAcquisitions(items || [], fakeTradeSymbols)
-    const dupeDividends = detectDuplicateCashDividends(transactions || [])
-    const dupeFlows = detectCrossSourceDuplicateFlows(transactions || [])
-    const phantoms = detectPhantomFlows(transactions || [])
-    const fakeCashItems = detectFakeCashReportItems(items || [])
+  // The header pill: connected → fire a background sync; not connected → open the modal.
+  const handleIBKRPillClick = useCallback(async () => {
+    if (!ibkrConnected) { setModal('ibkr'); return }
+    const res = await triggerIBKRSync()
+    if (res?.ok) {
+      showToast(lang === 'es' ? `IBKR sincronizado: ${res.count || 0} posiciones` : `IBKR synced: ${res.count || 0} positions`, 'success')
+    } else if (res && res.error !== 'BUSY' && res.error !== 'NOT_CONNECTED') {
+      showToast(lang === 'es' ? `Error IBKR: ${res.error}` : `IBKR error: ${res.error}`, 'error')
+    }
+  }, [ibkrConnected, triggerIBKRSync, showToast, lang])
 
-    const txToDelete = [...fakeTrades, ...dupeDividends, ...dupeFlows, ...phantoms]
-    if (txToDelete.length === 0 && stampedAcquisitions.length === 0 && fakeCashItems.length === 0) return
-    healedRef.current = true
-    let cancelled = false
-    ;(async () => {
-      let removedTx = 0, clearedItems = 0, removedItems = 0
-      for (const p of txToDelete) {
-        try { await deleteTransaction(p.id); removedTx++ } catch { /* leave it; next load retries */ }
-      }
-      for (const a of stampedAcquisitions) {
-        try { await updateItem(a.id, { acquisitionDate: null, _historyIncomplete: true }); clearedItems++ } catch { /* leave it; next load retries */ }
-      }
-      for (const it of fakeCashItems) {
-        try { await deleteItem(it.id); removedItems++ } catch { /* leave it; next load retries */ }
-      }
-      if (cancelled || (removedTx === 0 && clearedItems === 0 && removedItems === 0)) return
-      const total = [...fakeTrades, ...phantoms, ...dupeDividends, ...dupeFlows].reduce((sum, p) => sum + Math.abs(p.amount || 0), 0)
-        + fakeCashItems.reduce((sum, it) => sum + Math.abs(it.value || 0), 0)
-      showToast(
-        lang === 'es'
-          ? `Corregimos ${removedTx + removedItems + clearedItems} error(es) nuestro(s) en tu importación (${formatCurrency(total)} en filas que en realidad no existían). Tu retorno ya estaba mal por eso.`
-          : `We fixed ${removedTx + removedItems + clearedItems} error(s) on our side in your import (${formatCurrency(total)} in rows that were never really there). Your return was wrong because of it.`,
-        'info', 8000
-      )
-    })()
-    return () => { cancelled = true }
-  }, [dataLoading, transactions, items, deleteTransaction, deleteItem, updateItem, lang, showToast])
-
-  const isDemoMode = useMemo(() => items.some(isDemoItem), [items])
-  const handleClearDemo = useCallback(async () => {
-    await deleteDemoData()
-    showToast(lang === 'es' ? 'Datos de ejemplo eliminados' : 'Sample data removed')
-  }, [deleteDemoData, showToast, lang])
-
-  useEffect(() => {
-    return () => { if (toastTimer.current) clearTimeout(toastTimer.current) }
-  }, [])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const params = new URLSearchParams(window.location.search)
-    // The auth callback now delivers the single-use code in the URL FRAGMENT
-    // (never sent in Referer headers or server logs). Query is kept as a
-    // fallback for redirects already in flight during a deploy.
-    const hashParams = new URLSearchParams((window.location.hash || '').replace(/^#/, ''))
-    const oauthCode = hashParams.get('oauth_code') || params.get('oauth_code')
-    const oauthBroker = hashParams.get('oauth_broker') || params.get('oauth_broker')
-    const oauthError = params.get('oauth_error')
-    if (oauthError) {
-      showToast(`OAuth error: ${oauthError}`, 'error', 5000)
-      window.history.replaceState({}, '', '/dashboard')
+  const handleExport = useCallback(async () => {
+    if (!enrichedItems || enrichedItems.length === 0) {
+      showToast(lang === 'es' ? 'Agrega activos antes de exportar' : 'Add assets before exporting')
       return
     }
-    if (oauthCode && oauthBroker) {
-      window.history.replaceState({}, '', '/dashboard')
-      authFetch(`/api/brokers/${oauthBroker}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'exchange-code', code: oauthCode }),
-      }).then(r => r.ok ? safeJson(r) : r.json().catch(() => ({})).then(d => { throw new Error(d.error || 'OAuth failed') }))
-        .then(() => showToast(lang === 'es' ? 'Broker vinculado via OAuth' : 'Broker linked via OAuth'))
-        .catch(e => showToast(e.message, 'error', 5000))
-    }
-  }, [])
-
-  const enrichCacheRef = useRef({})
-  const [enrichData, setEnrichData] = useState({})
-  useEffect(() => {
-    if (!rawPortfolioItems || rawPortfolioItems.length === 0) return
-    const needEnrich = rawPortfolioItems
-      .filter(it => it.symbol && !it.sector && !it.assetCountry && !enrichCacheRef.current[it.symbol])
-      .map(it => it.symbol)
-    const unique = [...new Set(needEnrich)].slice(0, 30)
-    if (unique.length === 0) return
-
-    unique.forEach(s => { enrichCacheRef.current[s] = 'pending' })
-    authFetch('/api/prices/enrich', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ symbols: unique }),
-    }).then(r => r.ok ? safeJson(r) : null).then(data => {
-      if (!data?.results) return
-      const newData = {}
-      for (const [sym, info] of Object.entries(data.results)) {
-        enrichCacheRef.current[sym] = info
-        if (info && typeof info === 'object') newData[sym] = info
-      }
-      if (Object.keys(newData).length > 0) {
-        setEnrichData(prev => ({ ...prev, ...newData }))
-      }
-    }).catch(() => {})
-  }, [rawPortfolioItems])
-
-  const portfolioItems = useMemo(() => {
-    if (Object.keys(enrichData).length === 0) return rawPortfolioItems
-    return rawPortfolioItems.map(item => {
-      const info = enrichData[item.symbol]
-      if (!info) return item
-      const patches = {}
-      if (info.sector && !item.sector) patches.sector = info.sector
-      if (info.country && !item.assetCountry) patches.assetCountry = info.country
-      if (info.industry && !item.industry) patches.industry = info.industry
-      return Object.keys(patches).length > 0 ? { ...item, ...patches } : item
-    })
-  }, [rawPortfolioItems, enrichData])
-
-  // Data-completeness engine: gap findings + score over RAW data (items carry
-  // their own currency; the engine converts per-tx via `convert`).
-  const dataCompleteness = useMemo(
-    () => analyzeDataCompleteness({ items, transactions, lots, convert, baseCurrency }),
-    [items, transactions, lots, convert, baseCurrency]
-  )
-
-  // Export XLSX
-  const handleExport = useCallback(async () => {
-    if (items.length === 0) return
-    showToast(lang === 'es' ? 'Generando Excel...' : 'Generating Excel...', 'info')
     const XLSX = await import('xlsx')
     const ws = XLSX.utils.json_to_sheet(enrichedItems.map((it) => {
-      const value = (it.quantity || 0) * (it.currentPrice || it.purchasePrice || 0)
       const row = {
         Symbol: it.symbol, Name: it.name, Type: it.type,
-        Subtype: it.subtype || '',
         Quantity: it.quantity, 'Purchase Price': it.purchasePrice,
-        'Current Price': it.currentPrice || '', Institution: it.institution,
-        Currency: it._displayCurrency || baseCurrency,
-        Value: it.isDebt ? -Math.abs(value) : value,
+        'Current Price': it.currentPrice, Currency: it.currency,
+        Institution: it.institution, 'Acquisition Date': it.acquisitionDate,
       }
+      if (it.incomeAmount) row['Income Amount'] = it.incomeAmount
       if (it.maturityDate) row['Maturity Date'] = it.maturityDate
       if (it.rateType) row['Rate Type'] = it.rateType
       if (it.incomeRate) row['Income Rate (%)'] = it.incomeRate
@@ -797,6 +487,8 @@ export default function DashboardPage() {
         ibkrSyncStatus={ibkrSyncStatus}
         ibkrNeedsAttention={ibkrNeedsAttention}
         onIBKR={handleIBKRPillClick}
+        onEnrich={portfolioItems.length > 0 ? handleOpenEnrich : null}
+        enrichGapCount={dataCompleteness.findings.filter((f) => f.itemId).length}
         friendsEnabled={settings?.friendsEnabled !== false}
       />
 
@@ -869,8 +561,8 @@ export default function DashboardPage() {
                 <svg className="w-4 h-4 shrink-0" style={{ color: '#f87171' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
-                <p className="text-sm font-medium" style={{ color: '#fca5a5' }}>
-                  {lang === 'es' ? 'IBKR bloqueó tu token: genera uno NUEVO en IBKR o importa un CSV mientras tanto' : 'IBKR locked your token: generate a NEW one in IBKR or import a CSV in the meantime'}
+                <p className="text-sm font-medium" style={{ color: '#f87171' }}>
+                  {lang === 'es' ? 'IBKR bloqueó temporalmente tu token por demasiados intentos: se reactiva solo en unas horas. Puedes reintentar más tarde.' : 'IBKR temporarily locked your token due to too many attempts: it reactivates on its own in a few hours. You can retry later.'}
                 </p>
               </div>
               <div className="flex items-center gap-3 shrink-0">
@@ -1015,14 +707,13 @@ export default function DashboardPage() {
               returnSinceStart={returnSinceStart} sinceStartDate={sinceStartDate}
               dailyChange={dailyChange} convert={convert}
               lang={lang} netContributions={netContributions} cashTotal={cashTotal} snapshots={augmentedSnapshots} items={portfolioItems}
-              contributionWarning={contributionWarning} onLogFlow={() => setModal('cashflow')}
-              ytdCalibrated={ytdCalibrated}
+              ytdCalibrated={ytdCalibrated} ytdBreakdown={ytdBreakdown}
             />
             </CardBoundary>
           </div>
 
           <div className="md:col-span-2 lg:col-span-3 flex flex-col gap-4">
-            <CardBoundary id="OR-01"><PortfolioGrowthChart items={portfolioItems} lots={lots} snapshots={snapshots} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} benchmarkSymbol={benchmarkSymbol} benchmarkName={benchmarkName} onSaveSnapshot={saveSnapshot} ibkrSyncSummary={ibkrSyncSummary} onImportBroker={handleOpenImport} /></CardBoundary>
+            <CardBoundary id="OR-01"><PortfolioGrowthChart items={portfolioItems} lots={lots} snapshots={snapshots} calibrations={calibrations} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} benchmarkSymbol={benchmarkSymbol} benchmarkName={benchmarkName} onSaveSnapshot={saveSnapshot} ibkrSyncSummary={ibkrSyncSummary} onImportBroker={handleOpenImport} /></CardBoundary>
           </div>
         </div>
         </ErrorBoundary>
@@ -1409,7 +1100,7 @@ export default function DashboardPage() {
       {modal === 'calibrate' && (
         <CalibrateReturnModal
           netWorth={netWorth} transactions={transactions} convert={convert} baseCurrency={baseCurrency}
-          snapshots={snapshots} accountSnapshots={accountCalibrations} items={portfolioItems}
+          snapshots={snapshots} calibrations={calibrations} items={portfolioItems}
           saveSnapshot={saveSnapshot} deleteSnapshot={deleteSnapshot}
           lang={lang} onClose={handleCloseModal} />
       )}
@@ -1427,6 +1118,7 @@ export default function DashboardPage() {
           }}
           onAddTransaction={addTransaction}
           onDeleteTransaction={deleteTransaction}
+          onUpdateTransaction={updateTransaction}
           onExecuteContribution={executeContribution}
           onCreateDestination={addItem}
           transactions={transactions}
@@ -1457,6 +1149,20 @@ export default function DashboardPage() {
           onEditItem={setEditItem}
           lang={lang}
           findings={dataCompleteness.findings}
+          startItemId={reviewTarget.itemId}
+          onlyWithFindings={reviewTarget.guided}
+        />
+      )}
+
+      {showEnrich && (
+        <EnrichModal
+          items={portfolioItems}
+          findings={dataCompleteness.findings}
+          contributionWarning={contributionWarning}
+          lang={lang}
+          onClose={handleCloseEnrich}
+          onPickAccount={handleEnrichAccount}
+          onGuided={handleEnrichGuided}
         />
       )}
 
