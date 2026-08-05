@@ -332,12 +332,14 @@ export function useFirestoreItems() {
     if (items.some((i) => i._source === 'demo')) return
     const { db, fs } = await getFirebase()
     const dateStr = snapshot.date || new Date().toISOString().split('T')[0]
-    // Per-account calibration anchors share their date with real NAV snapshots
-    // (a YTD calibration sits on Jan 1, where a daily snapshot may also live):
-    // a compound id keeps them from overwriting each other. Portfolio-wide
-    // snapshots keep the plain date id so dedup/precedence logic is untouched.
-    const id = snapshot._account
-      ? `${dateStr}~${snapshot._calibrationKind || 'cal'}~${String(snapshot._account).replace(/[^a-z0-9]+/gi, '-')}`
+    // Calibration anchors share their date with real NAV snapshots (a YTD
+    // calibration sits on Jan 1, where a daily snapshot may also live), and
+    // one date can hold SEVERAL calibrations (YTD + MTD + 1M all anchored the
+    // same day): a compound id keeps them from overwriting each other or a
+    // real NAV doc. Real portfolio-wide snapshots keep the plain date id so
+    // dedup/precedence logic is untouched.
+    const id = snapshot._calibrated
+      ? `${dateStr}~${snapshot._calibrationKind || 'cal'}~${snapshot._account ? String(snapshot._account).replace(/[^a-z0-9]+/gi, '-') : 'global'}`
       : dateStr
     const clean = Object.fromEntries(Object.entries({ ...snapshot, createdAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
     await fs.setDoc(fs.doc(db, `users/${uid}/snapshots`, id), clean, { merge: true })
