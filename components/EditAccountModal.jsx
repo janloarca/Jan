@@ -159,12 +159,22 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
   const isBank = /bank|banco/i.test(form.type)
   const isBankLike = isBank || (!isMarket && (parseFloat(form.quantity) || 1) === 1)
 
-  const linkedTransactions = useMemo(() =>
-    (transactions || [])
-      .filter(tx => tx._linkedItemId === item.id && (tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL' || tx.type === 'DIVIDEND'))
-      .sort((a, b) => (b.date || '').localeCompare(a.date || '')),
-    [transactions, item.id]
-  )
+  // Movements that count against THIS asset. Matching has to mirror what the
+  // chart does (PortfolioGrowthChart's scopedTransactions: id OR symbol) or the
+  // two disagree in the worst possible way: a row with no _linkedItemId still
+  // inflates "capital invertido" and the return %, but never appeared in this
+  // list, so a duplicate was literally impossible to find and delete from the
+  // UI. A row explicitly linked to a DIFFERENT item is still excluded.
+  const linkedTransactions = useMemo(() => {
+    const sym = (item.symbol || '').toUpperCase()
+    return (transactions || [])
+      .filter(tx => {
+        if (!['DEPOSIT', 'WITHDRAWAL', 'DIVIDEND'].includes(tx.type)) return false
+        if (tx._linkedItemId) return tx._linkedItemId === item.id
+        return !!sym && (tx.symbol || '').toUpperCase() === sym
+      })
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+  }, [transactions, item.id, item.symbol])
 
   const handleContribution = async () => {
     const amt = parseFloat(contribAmount)
@@ -670,6 +680,13 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                             <span style={{ color: isPositive ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                               {isPositive ? '+' : '-'}{tx.currency || form.currency} {(tx.totalAmount || 0).toLocaleString()}
                             </span>
+                            {!tx._linkedItemId && (
+                              <span className="ml-1 px-1 py-0.5 rounded text-[9px] align-middle"
+                                style={{ color: 'var(--accent-orange)', backgroundColor: 'color-mix(in srgb, var(--accent-orange) 15%, transparent)' }}
+                                title={t('Este movimiento se detectó por el símbolo, no está vinculado a la cuenta. Suele ser un registro viejo o duplicado.', 'This movement was matched by symbol, it isn\'t linked to the account. Usually an old or duplicate record.')}>
+                                {t('sin vincular', 'unlinked')}
+                              </span>
+                            )}
                             {tx.description && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{tx.description}</p>}
                           </div>
                           {onDeleteTransaction && (
