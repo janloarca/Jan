@@ -637,17 +637,26 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                     {t('Historial de movimientos', 'Transaction history')}
                   </p>
                   <div className="space-y-1 max-h-28 overflow-y-auto">
-                    {linkedTransactions.map(tx => (
-                      <div key={tx.id} className="flex items-center justify-between text-xs py-1 border-b border-[var(--card-border,#38383A)]/30 last:border-0">
-                        <span style={{ color: 'var(--text-muted)' }}>{tx.date}</span>
-                        <div className="text-right">
-                          <span style={{ color: tx.type === 'DEPOSIT' ? 'var(--accent-green)' : 'var(--text-negative)' }}>
-                            {tx.type === 'DEPOSIT' ? '+' : '-'}{tx.currency || form.currency} {(tx.totalAmount || 0).toLocaleString()}
-                          </span>
-                          {tx.description && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{tx.description}</p>}
+                    {linkedTransactions.map(tx => {
+                      // A DIVIDEND linked to this item means it GENERATED that
+                      // income — a positive event for it — even when the cash
+                      // settles in a different destination account. Only a
+                      // WITHDRAWAL is actually money leaving this item's own
+                      // value; showing the dividend red/negative here read as
+                      // "VITALI lost $240" when its own value never changed.
+                      const isPositive = tx.type === 'DEPOSIT' || tx.type === 'DIVIDEND'
+                      return (
+                        <div key={tx.id} className="flex items-center justify-between text-xs py-1 border-b border-[var(--card-border,#38383A)]/30 last:border-0">
+                          <span style={{ color: 'var(--text-muted)' }}>{tx.date}</span>
+                          <div className="text-right">
+                            <span style={{ color: isPositive ? 'var(--accent-green)' : 'var(--text-negative)' }}>
+                              {isPositive ? '+' : '-'}{tx.currency || form.currency} {(tx.totalAmount || 0).toLocaleString()}
+                            </span>
+                            {tx.description && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{tx.description}</p>}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               )}
