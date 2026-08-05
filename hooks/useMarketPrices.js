@@ -9,6 +9,12 @@ let _cachedPrices = {}
 let _cachedDividends = {}
 let _cachedLastUpdate = null
 
+// Minimum time the spinner stays on for a MANUAL refresh: a fast response
+// (server cache hit) would otherwise flash it for a single frame and the
+// click feels dead. Background polls never wait — they only show loading on
+// a cold cache, exactly as before.
+const MANUAL_MIN_VISIBLE_MS = 600
+
 export function useMarketPrices(items) {
   const [prices, setPrices] = useState(_cachedPrices)
   const [dividends, setDividends] = useState(_cachedDividends)
@@ -23,21 +29,26 @@ export function useMarketPrices(items) {
   // shouldn't alarm the user with an error they can't do anything about.
   const consecutiveFailuresRef = useRef(0)
 
-  const fetchPrices = useCallback(async () => {
-    if (!items || items.length === 0) return
+  // manual=true (header button, ⌘R): ALWAYS show the spinner — even when a
+  // cache exists — and report success back so the page can toast the outcome.
+  // Background polls (manual=false) stay silent over cached data as before.
+  const fetchPrices = useCallback(async (manual = false) => {
+    if (!items || items.length === 0) return true
     // Whitelist, not blacklist — see isMarketPriced. A cash bucket named "USD"
     // must never be quoted as the "USD" ETF.
     const symbols = items
       .filter((it) => isMarketPriced(it))
       .map((it) => ({ symbol: it.symbol, type: it.type }))
-    if (symbols.length === 0) return
+    if (symbols.length === 0) return true
 
     abortRef.current?.abort()
     abortRef.current = new AbortController()
     const { signal } = abortRef.current
 
-    if (Object.keys(_cachedPrices).length === 0) setLoading(true)
+    const startedAt = Date.now()
+    if (manual || Object.keys(_cachedPrices).length === 0) setLoading(true)
     setError(null)
+    let ok = false
     try {
       const stockSyms = symbols.filter((s) => !/crypto|cripto|blockchain/i.test(s.type || ''))
 
@@ -65,6 +76,7 @@ export function useMarketPrices(items) {
         setPrices(_cachedPrices)
         setLastUpdate(_cachedLastUpdate)
         consecutiveFailuresRef.current = 0
+        ok = true
       } else {
         consecutiveFailuresRef.current += 1
         if (consecutiveFailuresRef.current >= 2) setError('Failed to fetch prices')
@@ -76,12 +88,16 @@ export function useMarketPrices(items) {
         setDividends(_cachedDividends)
       }
     } catch (err) {
-      if (err.name === 'AbortError') return
+      if (err.name === 'AbortError') return false
       console.error('Failed to fetch market prices:', err)
       consecutiveFailuresRef.current += 1
       if (consecutiveFailuresRef.current >= 2) setError(err.message)
     }
-    setLoading(false)
+    const elapsed = Date.now() - startedAt
+    const wait = manual ? Math.max(0, MANUAL_MIN_VISIBLE_MS - elapsed) : 0
+    if (wait > 0) setTimeout(() => setLoading(false), wait)
+    else setLoading(false)
+    return ok
   }, [items])
 
   useEffect(() => {
@@ -131,5 +147,5 @@ export function useMarketPrices(items) {
     })
   }, [items, prices, dividends])
 
-  return { enrichedItems, prices, loading, error, lastUpdate, refresh: fetchPrices }
+  return { enrichedItems, prices, loading, error, lastUpdate, refresh: () => fetchPrices(true) }
 }
