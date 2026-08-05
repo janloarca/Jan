@@ -357,6 +357,25 @@ lo que sobre se agrupa en un "Otros" neutro.
   cubre el caso espejo (subida en Λ). Dos copias de la misma regla es como este
   tipo de bug se cuela: una se actualiza, la otra no.
 
+### Preguntas que solo se hacen una vez: `_newMoneyConfirmed` (FASE DP)
+- El finding `no-history`/`partial-history` de `lib/dataCompleteness.js` pregunta
+  "¿de dónde vino este dinero?" leyendo `flows` (derivado en vivo de las
+  transacciones). Es un cálculo LIVE, no cacheado, así que si el DEPOSIT inicial
+  se edita, se borra en una limpieza de duplicados, o nunca llegó a escribirse
+  del todo, la pregunta vuelve a aparecer, aunque el usuario YA la respondió al
+  crear la cuenta ("es dinero nuevo" en `AddAccountModal`).
+- **Regla:** responder la pregunta la deja contestada para siempre, vía un flag
+  en el ITEM (`_newMoneyConfirmed`), no vía la transacción. Se estampa en dos
+  puntos: `AddAccountModal` (cuando `isNewMoney && !isDebt`, al crear la cuenta)
+  y `CashFlowModal` (cuando "Capturar historia" se usa con "ya está incluido en
+  el saldo" marcado). El finding lo respeta y no vuelve a evaluar `flows` para
+  ese item, salvo `stale-value`: es una pregunta distinta (¿sigue valiendo lo
+  mismo?) y sigue sonando aunque el origen ya esté confirmado.
+- Sin este flag, un clic bien intencionado en "Capturar historia" para
+  "resolver" un finding que en realidad ya estaba resuelto arriesgaba crear un
+  segundo DEPOSIT (aunque `alreadyReflected` evita que toque el saldo, sí
+  duplicaba la transacción en el historial).
+
 ### Credenciales IBKR: DOS almacenes que deben mantenerse sincronizados (FASE AF)
 - Hay dos almacenes: (a) el **vault del servidor** (`users/{uid}/settings/ibkr`, token encriptado)
   vía `/api/brokers/ibkr` `save/get-credentials`; (b) el **doc `settings` del cliente**

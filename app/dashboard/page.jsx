@@ -1334,6 +1334,7 @@ export default function DashboardPage() {
             await executeContribution(payload)
             showToast(lang === 'es' ? 'Movimiento registrado' : 'Movement recorded')
           }}
+          onConfirmNewMoney={(itemId) => updateItem(itemId, { _newMoneyConfirmed: true })}
           existingItems={items}
           lang={lang}
           baseCurrency={baseCurrency}

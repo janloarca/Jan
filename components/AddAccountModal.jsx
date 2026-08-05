@@ -527,6 +527,15 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
         item.entityId = activeEntity
       }
 
+      // The user already answered "¿de dónde vino este dinero?" right here in
+      // this form — the data-completeness engine (lib/dataCompleteness.js)
+      // must never ask it again for this item, no matter what happens to the
+      // linked DEPOSIT transaction afterward (edited, or lost to some future
+      // dedup pass). Answering once should mean once, or "Capturar historia"
+      // reads as the app not having listened, and worse, invites a real
+      // duplicate deposit from a well-meaning second click.
+      if (isNewMoney && !isDebt) item._newMoneyConfirmed = true
+
       // Same guardrails as file imports (future dates, absurd values, bad currency) —
       // manual entry previously skipped them entirely.
       const validationErrors = validateItem(item)
