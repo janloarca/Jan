@@ -18,10 +18,19 @@ const CATEGORY_LABELS = {
 
 const SEV_WEIGHT = { high: 3, medium: 2, low: 1 }
 
-export default function AccountReviewModal({ items, onClose, onEditItem, lang, transactions, findings = [], startItemId = null, onlyWithFindings = false }) {
+export default function AccountReviewModal({ items: allItems, onClose, onEditItem, lang, transactions, findings = [], startItemId = null, onlyWithFindings = false, institutionFilter = null }) {
   const t = (es, en) => lang === 'es' ? es : en
   const trapRef = useFocusTrap()
   const [reviewed, setReviewed] = useState({})
+
+  // "Revisar por institución" scope: everything else about the wizard (order,
+  // findings, progress count) stays untouched, it just walks a narrower list —
+  // the whole point being "fix everything IDC holds" instead of hopping
+  // between VITALI and Fondo Líquido one modal at a time.
+  const items = useMemo(
+    () => (institutionFilter ? allItems.filter((it) => (it.institution || '') === institutionFilter) : allItems),
+    [allItems, institutionFilter]
+  )
 
   // Findings come from the shared data-completeness engine (lib/dataCompleteness)
   // so this wizard and the "Chispu te sugiere" card always agree.

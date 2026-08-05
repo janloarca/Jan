@@ -1262,7 +1262,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   </select>
                   {creatingDest && onCreateDestination && (
                     <InlineCreateAccount onCreate={onCreateDestination} onCancel={() => setCreatingDest(false)}
-                      onCreated={handleDestCreated} lang={lang} defaultCurrency={form.currency} />
+                      onCreated={handleDestCreated} lang={lang} defaultCurrency={form.currency}
+                      sourceAcquisitionDate={form.acquisitionDate || item.acquisitionDate || null} />
                   )}
                 </div>
               )}
@@ -1419,7 +1420,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   </select>
                   {creatingDest && onCreateDestination && (
                     <InlineCreateAccount onCreate={onCreateDestination} onCancel={() => setCreatingDest(false)}
-                      onCreated={handleDestCreated} lang={lang} defaultCurrency={form.currency} />
+                      onCreated={handleDestCreated} lang={lang} defaultCurrency={form.currency}
+                      sourceAcquisitionDate={form.acquisitionDate || item.acquisitionDate || null} />
                   )}
                 </div>
               )}

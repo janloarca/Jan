@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useRef, useEffect, useCallback, Fragment, memo } from 'react'
-import { formatCurrency, getItemValue, getTypeCategory, isExcludedFromNetWorth, TYPE_COLORS } from './utils'
+import { formatCurrency, getItemValue, getTypeCategory, isExcludedFromNetWorth, TYPE_COLORS, BROKER_NAV_SOURCES } from './utils'
 
 const CATEGORY_ORDER = ['banks', 'funds', 'stocks', 'crypto', 'alternatives', 'bonds', 'realestate', 'other', 'receivables', 'debts']
 const CATEGORY_LABELS = {
@@ -173,6 +173,12 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   const now = new Date()
   const currentMonthKey = getMonthKey(now)
 
+  // The earliest year the picker offers must reflect what history actually
+  // EXISTS, not just what an item's own date claims — a Flex Query import or a
+  // transcribed quarterly NAV can reach back further than any single item's
+  // acquisitionDate (which, for IBKR items, is often just the sync date and
+  // unreliable anyway). Without this, importing years of real history left the
+  // year selector still capped at whatever the items themselves implied.
   const earliestYear = useMemo(() => {
     let earliest = now.getFullYear() - 1
     items.forEach(it => {
@@ -182,8 +188,13 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         if (y >= 2000 && y < earliest) earliest = y
       }
     })
+    ;(snapshots || []).forEach(s => {
+      if (!s || !s.date) return
+      const y = new Date(s.date).getFullYear()
+      if (y >= 2000 && y < earliest) earliest = y
+    })
     return earliest
-  }, [items])
+  }, [items, snapshots])
 
   const availableYears = useMemo(() => {
     const years = []
@@ -223,7 +234,9 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         if (!dates[key] || sDate > dates[key]) {
           dates[key] = sDate
           snapByMonth[key] = convert ? convert(val, 'USD', base) : val
-          ibkrSourceByMonth[key] = s._source === 'ibkr'
+          // Both a synced daily NAV and a transcribed quarterly one hold ONLY the
+          // broker's slice (no manually-added assets), so both need the top-up below.
+          ibkrSourceByMonth[key] = BROKER_NAV_SOURCES.includes(s._source)
         }
       })
       const keys = Object.keys(snapByMonth).sort()

@@ -15,7 +15,15 @@ const SUBTYPES = [
 // route income to an account that doesn't exist yet without leaving the modal.
 // `onCreate` must return the new item id (e.g. addItem). On success it calls
 // `onCreated(id, item)` so the caller can select it as the destination.
-export default function InlineCreateAccount({ onCreate, onCancel, onCreated, lang = 'es', defaultCurrency = 'USD' }) {
+// `sourceAcquisitionDate`: when this account is being created AS the income or
+// capital destination of another item (VITALI's Fondo Líquido, say), it should
+// exist from the SAME date that item does, not from today. Defaulting to today
+// used to gate every historical reconstruction: the destination's effective
+// acquisition date came out later than its first real payment, so the whole
+// past (including the payment that already landed) got dropped from the
+// spreadsheet — a real coupon the app had correctly tracked simply vanished
+// from history because the account "hadn't been created yet" on that date.
+export default function InlineCreateAccount({ onCreate, onCancel, onCreated, lang = 'es', defaultCurrency = 'USD', sourceAcquisitionDate = null }) {
   const t = (es, en) => (lang === 'es' ? es : en)
   const [name, setName] = useState('')
   const [institution, setInstitution] = useState('')
@@ -23,7 +31,7 @@ export default function InlineCreateAccount({ onCreate, onCancel, onCreated, lan
   const [currency, setCurrency] = useState(defaultCurrency)
   const [currencyTouched, setCurrencyTouched] = useState(false)
   const [balance, setBalance] = useState('')
-  const [acquisitionDate, setAcquisitionDate] = useState(new Date().toLocaleDateString('en-CA'))
+  const [acquisitionDate, setAcquisitionDate] = useState(sourceAcquisitionDate || new Date().toLocaleDateString('en-CA'))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
 
@@ -105,19 +113,27 @@ export default function InlineCreateAccount({ onCreate, onCancel, onCreated, lan
         {t('El saldo que tiene hoy, ya con los pagos que hayas recibido. No se le vuelven a sumar.',
            'The balance it holds today, including payments already received. They are not added again.')}
       </p>
-      {/* Only matters once there's a balance to backdate — an empty new account
-          has nothing for a wrong date to distort. Without this the account
-          always saved dated "today", so a balance that really arrived months
-          ago (e.g. an income payout routed here) showed as flat $0 the whole
-          history and only jumped at the very last point of the chart. */}
-      {parseFloat(balance) > 0 && (
+      {/* Shown whenever there's a balance to backdate OR a source item already
+          fixed the date for us — an empty NEW account with no source has
+          nothing for a wrong date to distort, so it stays hidden there.
+          Without this the account always saved dated "today", so a balance
+          that really arrived months ago (e.g. an income payout routed here)
+          showed as flat $0 the whole history and only jumped at the very last
+          point of the chart. */}
+      {(parseFloat(balance) > 0 || sourceAcquisitionDate) && (
         <div>
           <span className="text-xs text-[var(--text-muted,#64748b)] mb-1 block">{t('¿Desde cuándo tiene ese saldo?', 'Since when does it hold that balance?')}</span>
           <input value={acquisitionDate} onChange={e => setAcquisitionDate(e.target.value)}
             type="date" max={new Date().toISOString().split('T')[0]} className={inputCls} />
-          <p className="text-xs mt-1" style={{ color: 'var(--accent-orange)' }}>
-            {t('Si ya tenía ese dinero desde antes, pon la fecha real: si no, el historial la muestra plana hasta hoy.', 'If it already had that money before, use the real date: otherwise the history shows it flat until today.')}
-          </p>
+          {sourceAcquisitionDate ? (
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted,#64748b)' }}>
+              {t('Prellenada con la fecha del activo que la usa: cámbiala si esta cuenta ya existía antes.', 'Prefilled with the date of the asset using it: change it if this account existed before that.')}
+            </p>
+          ) : (
+            <p className="text-xs mt-1" style={{ color: 'var(--accent-orange)' }}>
+              {t('Si ya tenía ese dinero desde antes, pon la fecha real: si no, el historial la muestra plana hasta hoy.', 'If it already had that money before, use the real date: otherwise the history shows it flat until today.')}
+            </p>
+          )}
         </div>
       )}
       <div className="flex gap-2 pt-1">

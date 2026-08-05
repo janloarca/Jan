@@ -11,18 +11,18 @@
 // want Chispu to tell you.
 
 import { useState, useMemo } from 'react'
-import { Search, Sparkles, ChevronRight, ListChecks, CalendarRange, Percent } from 'lucide-react'
+import { Search, Sparkles, ChevronRight, ListChecks, CalendarRange, Percent, Building2 } from 'lucide-react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { getItemValue, formatCurrency } from './utils'
 
 export default function EnrichModal({
   items = [], findings = [], lang = 'es', onClose,
-  onPickAccount, onGuided, contributionWarning = false,
+  onPickAccount, onPickInstitution, onGuided, contributionWarning = false,
   onQuarterlyHistory, onCalibrate, hasBroker = false,
 }) {
   const t = (es, en) => (lang === 'es' ? es : en)
   const trapRef = useFocusTrap()
-  const [mode, setMode] = useState(null) // null = chooser, 'pick' = account list
+  const [mode, setMode] = useState(null) // null = chooser, 'pick' = institution/account list
   const [query, setQuery] = useState('')
 
   const gapsByItem = useMemo(() => {
@@ -34,22 +34,31 @@ export default function EnrichModal({
     return m
   }, [findings])
 
-  // Accounts with gaps first (that is the whole point of being here), then by
-  // size, so the position that moves your number most is never buried.
-  const sorted = useMemo(() => {
+  // Grouped by institution, not by account: a broker/bank is usually where the
+  // gap actually lives (one missing statement affects every position under
+  // it), so fixing "IDC" as a unit beats clicking into VITALI, then Fondo
+  // Líquido, then whatever else IDC holds, one at a time. Institutions with
+  // gaps first, then by total value, so the one that moves your number most
+  // is never buried.
+  const groups = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return [...items]
-      .filter((it) => {
-        if (!q) return true
-        return `${it.name || ''} ${it.symbol || ''} ${it.institution || ''}`.toLowerCase().includes(q)
-      })
-      .sort((a, b) => {
-        const ga = gapsByItem.get(a.id) || 0
-        const gb = gapsByItem.get(b.id) || 0
-        if (ga !== gb) return gb - ga
-        return Math.abs(getItemValue(b)) - Math.abs(getItemValue(a))
-      })
-  }, [items, query, gapsByItem])
+    const byInst = new Map()
+    for (const it of items) {
+      if (q && !`${it.name || ''} ${it.symbol || ''} ${it.institution || ''}`.toLowerCase().includes(q)) continue
+      const key = it.institution || t('Sin institución', 'No institution')
+      if (!byInst.has(key)) byInst.set(key, [])
+      byInst.get(key).push(it)
+    }
+    return [...byInst.entries()]
+      .map(([name, its]) => ({
+        name, items: its,
+        gaps: its.reduce((s, it) => s + (gapsByItem.get(it.id) || 0), 0),
+        total: its.reduce((s, it) => s + Math.abs(getItemValue(it)), 0),
+      }))
+      .sort((a, b) => (b.gaps - a.gaps) || (b.total - a.total))
+  }, [items, query, gapsByItem, lang])
+
+  const [openGroup, setOpenGroup] = useState(null)
 
   const withGaps = useMemo(() => items.filter((it) => gapsByItem.get(it.id)).length, [items, gapsByItem])
   const guidedCount = withGaps + (contributionWarning ? 1 : 0)
@@ -83,10 +92,10 @@ export default function EnrichModal({
               <ListChecks size={18} className="mt-0.5 shrink-0" style={{ color: 'var(--accent-blue)' }} />
               <span className="min-w-0 flex-1">
                 <span className="block text-body font-medium" style={{ color: 'var(--text-primary)' }}>
-                  {t('Una cuenta en específico', 'One specific account')}
+                  {t('Una institución en específico', 'One specific institution')}
                 </span>
                 <span className="block text-micro mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                  {t('Tú eliges cuál y la revisas a fondo: fechas, costos, movimientos.', 'You pick it and go through it: dates, costs, movements.')}
+                  {t('Elige un banco o broker y revisa TODO lo que tiene ahí: fechas, costos, movimientos.', 'Pick a bank or broker and go through everything it holds: dates, costs, movements.')}
                 </span>
               </span>
               <ChevronRight size={16} className="mt-0.5 shrink-0" style={{ color: 'var(--text-muted)' }} />
@@ -122,9 +131,6 @@ export default function EnrichModal({
                 neither has anything to attach to. */}
             {hasBroker && (onQuarterlyHistory || onCalibrate) && (
               <>
-                <p className="text-micro pt-2 pb-0.5" style={{ color: 'var(--text-muted)' }}>
-                  {t('Tu broker solo deja exportar los últimos 12 meses. Lo de antes:', 'Your broker only exports the last 12 months. Anything older:')}
-                </p>
                 {onQuarterlyHistory && (
                   <button type="button" onClick={() => { onClose(); onQuarterlyHistory() }}
                     className="w-full flex items-start gap-3 p-3.5 rounded-xl text-left transition-colors hover:bg-theme-elevated"
@@ -176,43 +182,83 @@ export default function EnrichModal({
                 style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--card-border)' }}>
                 <Search size={14} style={{ color: 'var(--text-muted)' }} />
                 <input value={query} onChange={(e) => setQuery(e.target.value)} autoFocus
-                  placeholder={t('Buscar cuenta', 'Search account')}
+                  placeholder={t('Buscar institución o cuenta', 'Search institution or account')}
                   className="flex-1 bg-transparent outline-none text-body"
                   style={{ color: 'var(--text-primary)' }} />
               </div>
             </div>
             <div className="px-3 pb-4 overflow-y-auto">
-              {sorted.length === 0 && (
+              {groups.length === 0 && (
                 <p className="px-2 py-6 text-center text-body" style={{ color: 'var(--text-muted)' }}>
-                  {t('Ninguna cuenta coincide.', 'No account matches.')}
+                  {t('Ninguna institución coincide.', 'No institution matches.')}
                 </p>
               )}
-              {sorted.map((it) => {
-                const gaps = gapsByItem.get(it.id) || 0
+              {groups.map((g) => {
+                const isOpen = openGroup === g.name
                 return (
-                  <button key={it.id} type="button"
-                    onClick={() => { onClose(); onPickAccount && onPickAccount(it) }}
-                    className="w-full flex items-center justify-between gap-3 px-2.5 py-2.5 rounded-lg text-left transition-colors hover:bg-theme-elevated">
-                    <span className="min-w-0">
-                      <span className="block text-body truncate" style={{ color: 'var(--text-primary)' }}>
-                        {it.name || it.symbol}
-                      </span>
-                      <span className="block text-micro truncate" style={{ color: 'var(--text-muted)' }}>
-                        {it.institution || it.type || ''}
-                      </span>
-                    </span>
-                    <span className="shrink-0 flex items-center gap-2">
-                      {gaps > 0 && (
-                        <span className="text-[11px] font-mono px-1.5 py-0.5 rounded-full"
-                          style={{ backgroundColor: 'var(--alert-warn-bg)', color: 'var(--alert-warn-icon)' }}>
-                          {gaps}
+                  <div key={g.name} className="mb-1">
+                    <button type="button" onClick={() => setOpenGroup(isOpen ? null : g.name)}
+                      className="w-full flex items-center justify-between gap-3 px-2.5 py-2.5 rounded-lg text-left transition-colors hover:bg-theme-elevated">
+                      <span className="min-w-0 flex items-center gap-2">
+                        <Building2 size={15} className="shrink-0" style={{ color: 'var(--text-muted)' }} />
+                        <span className="min-w-0">
+                          <span className="block text-body font-medium truncate" style={{ color: 'var(--text-primary)' }}>{g.name}</span>
+                          <span className="block text-micro truncate" style={{ color: 'var(--text-muted)' }}>
+                            {g.items.length} {g.items.length === 1 ? t('activo', 'asset') : t('activos', 'assets')}
+                          </span>
                         </span>
-                      )}
-                      <span className="text-body font-mono tabular-nums" style={{ color: 'var(--text-secondary)' }}>
-                        {formatCurrency(getItemValue(it))}
                       </span>
-                    </span>
-                  </button>
+                      <span className="shrink-0 flex items-center gap-2">
+                        {g.gaps > 0 && (
+                          <span className="text-[11px] font-mono px-1.5 py-0.5 rounded-full"
+                            style={{ backgroundColor: 'var(--alert-warn-bg)', color: 'var(--alert-warn-icon)' }}>
+                            {g.gaps}
+                          </span>
+                        )}
+                        <span className="text-body font-mono tabular-nums" style={{ color: 'var(--text-secondary)' }}>
+                          {formatCurrency(g.total)}
+                        </span>
+                        <ChevronRight size={14} className={isOpen ? 'rotate-90 transition-transform' : 'transition-transform'} style={{ color: 'var(--text-muted)' }} />
+                      </span>
+                    </button>
+                    {isOpen && (
+                      <div className="pl-6 pb-1.5 space-y-0.5">
+                        {onPickInstitution && g.items.length > 1 && (
+                          <button type="button" onClick={() => { onClose(); onPickInstitution(g.name, g.items) }}
+                            className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left transition-colors hover:bg-theme-elevated"
+                            style={{ color: 'var(--accent-blue)' }}>
+                            <ListChecks size={14} className="shrink-0" />
+                            <span className="text-micro font-medium">
+                              {t(`Revisar las ${g.items.length} de una vez`, `Review all ${g.items.length} at once`)}
+                            </span>
+                          </button>
+                        )}
+                        {g.items.map((it) => {
+                          const gaps = gapsByItem.get(it.id) || 0
+                          return (
+                            <button key={it.id} type="button"
+                              onClick={() => { onClose(); onPickAccount && onPickAccount(it) }}
+                              className="w-full flex items-center justify-between gap-3 px-2.5 py-2 rounded-lg text-left transition-colors hover:bg-theme-elevated">
+                              <span className="min-w-0 text-body truncate" style={{ color: 'var(--text-secondary)' }}>
+                                {it.name || it.symbol}
+                              </span>
+                              <span className="shrink-0 flex items-center gap-2">
+                                {gaps > 0 && (
+                                  <span className="text-[11px] font-mono px-1.5 py-0.5 rounded-full"
+                                    style={{ backgroundColor: 'var(--alert-warn-bg)', color: 'var(--alert-warn-icon)' }}>
+                                    {gaps}
+                                  </span>
+                                )}
+                                <span className="text-micro font-mono tabular-nums" style={{ color: 'var(--text-muted)' }}>
+                                  {formatCurrency(getItemValue(it))}
+                                </span>
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
                 )
               })}
             </div>

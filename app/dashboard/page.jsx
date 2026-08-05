@@ -149,9 +149,10 @@ export default function DashboardPage() {
   const [activeEntity, setActiveEntity] = useState('__all__')
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
   const [showReview, setShowReview] = useState(false)
-  // Review wizard targeting: an item id to open on, and whether to walk only
-  // the accounts with gaps (the "let Chispu recommend" path).
-  const [reviewTarget, setReviewTarget] = useState({ itemId: null, guided: false })
+  // Review wizard targeting: an item id to open on, whether to walk only the
+  // accounts with gaps ("let Chispu recommend"), or narrow the whole wizard to
+  // one institution ("fix everything IDC holds").
+  const [reviewTarget, setReviewTarget] = useState({ itemId: null, guided: false, institution: null })
   const [showEnrich, setShowEnrich] = useState(false)
   const [toast, setToast] = useState(null)
   const toastTimer = useRef(null)
@@ -345,12 +346,13 @@ export default function DashboardPage() {
   }, [ibkrConnected, ibkrAutoSyncing, triggerIBKRSync, lang])
   const handleOpenBlockchain = useCallback(() => setModal('blockchain'), [])
   const handleOpenPrint = useCallback(() => setModal('print'), [])
-  const handleOpenReview = useCallback(() => { setReviewTarget({ itemId: null, guided: false }); setShowReview(true) }, [])
+  const handleOpenReview = useCallback(() => { setReviewTarget({ itemId: null, guided: false, institution: null }); setShowReview(true) }, [])
   const handleOpenEnrich = useCallback(() => setShowEnrich(true), [])
   const handleOpenQuarterly = useCallback(() => setModal('quarterly'), [])
   const handleCloseEnrich = useCallback(() => setShowEnrich(false), [])
-  const handleEnrichGuided = useCallback(() => { setReviewTarget({ itemId: null, guided: true }); setShowReview(true) }, [])
-  const handleEnrichAccount = useCallback((it) => { setReviewTarget({ itemId: it?.id || null, guided: false }); setShowReview(true) }, [])
+  const handleEnrichGuided = useCallback(() => { setReviewTarget({ itemId: null, guided: true, institution: null }); setShowReview(true) }, [])
+  const handleEnrichAccount = useCallback((it) => { setReviewTarget({ itemId: it?.id || null, guided: false, institution: null }); setShowReview(true) }, [])
+  const handleEnrichInstitution = useCallback((name) => { setReviewTarget({ itemId: null, guided: false, institution: name }); setShowReview(true) }, [])
   const handleOpenCmdPalette = useCallback(() => setCmdPaletteOpen(true), [])
   const handleCloseCmdPalette = useCallback(() => setCmdPaletteOpen(false), [])
   const handleCloseModal = useCallback(() => { setModal(null); setImportBrokerHint(null) }, [])
@@ -1473,6 +1475,7 @@ export default function DashboardPage() {
           findings={dataCompleteness.findings}
           startItemId={reviewTarget.itemId}
           onlyWithFindings={reviewTarget.guided}
+          institutionFilter={reviewTarget.institution}
         />
       )}
 
@@ -1496,6 +1499,7 @@ export default function DashboardPage() {
           lang={lang}
           onClose={handleCloseEnrich}
           onPickAccount={handleEnrichAccount}
+          onPickInstitution={handleEnrichInstitution}
           onGuided={handleEnrichGuided}
           onQuarterlyHistory={handleOpenQuarterly}
           onCalibrate={() => { setShowEnrich(false); setModal('calibrate') }}
