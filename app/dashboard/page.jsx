@@ -370,6 +370,21 @@ export default function DashboardPage() {
     toastTimer.current = setTimeout(() => setToast(null), duration)
   }, [])
 
+  // Refresh WITH feedback. handleRefresh (the hook) now forces the spinner even
+  // over cached data; this wrapper confirms the outcome with a toast — before,
+  // clicking the header button revalidated silently and the user could not tell
+  // the click did anything ("lo apacho pero no hace ninguna animación").
+  const handleRefreshWithFeedback = useCallback(async () => {
+    const res = await handleRefresh()
+    if (!res || (res.pricesOk && res.ratesOk)) {
+      showToast(lang === 'es' ? 'Precios actualizados' : 'Prices updated', 'success', 2500)
+    } else {
+      showToast(lang === 'es'
+        ? 'No se pudo actualizar todo: reintenta en un momento'
+        : 'Could not refresh everything: try again in a moment', 'error', 4000)
+    }
+  }, [handleRefresh, showToast, lang])
+
   // Shared by the sync modal's "Desconectar IBKR" button and the red top
   // banner's own dismiss action — a locked/expired token only ever offered
   // "reconnect" as a way out, with no visible way to say "I'm fine on CSV
@@ -620,11 +635,11 @@ export default function DashboardPage() {
       else if ((e.metaKey || e.ctrlKey) && e.key === 'i') { e.preventDefault(); setModal('import') }
       else if ((e.metaKey || e.ctrlKey) && e.key === 'e') { e.preventDefault(); handleExport() }
       else if ((e.metaKey || e.ctrlKey) && e.key === 'd') { e.preventDefault(); setModal('cashflow') }
-      else if ((e.metaKey || e.ctrlKey) && e.key === 'r' && !e.shiftKey) { e.preventDefault(); handleRefresh() }
+      else if ((e.metaKey || e.ctrlKey) && e.key === 'r' && !e.shiftKey) { e.preventDefault(); handleRefreshWithFeedback() }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [handleExport, handleRefresh])
+  }, [handleExport, handleRefreshWithFeedback])
 
   const handleReport = useCallback(async () => {
     if (!enrichedItems || enrichedItems.length === 0) {
@@ -715,7 +730,7 @@ export default function DashboardPage() {
       case 'transfer': handleOpenTransfer(); break
       case 'cashflow': case 'deposit': case 'withdrawal': handleOpenCashflow(); break
       case 'settings': handleOpenSettings(); break
-      case 'refresh': handleRefresh(); break
+      case 'refresh': handleRefreshWithFeedback(); break
       case 'theme': handleSetTheme(theme === 'dark' ? 'light' : 'dark'); break
       case 'lang': handleSetLang('toggle'); break
       case 'ibkr': handleOpenIBKR(); break
@@ -723,7 +738,7 @@ export default function DashboardPage() {
       case 'ledger': setModal('ledger'); break
       case 'viewItem': setDetailItem(data); break
     }
-  }, [handleExport, handleReport, handleRefresh, handleSetTheme, handleSetLang, theme, handleOpenAccount, handleOpenImport, handleOpenPrint, handleOpenTransfer, handleOpenCashflow, handleOpenSettings, handleOpenIBKR, handleOpenBlockchain])
+  }, [handleExport, handleReport, handleRefreshWithFeedback, handleSetTheme, handleSetLang, theme, handleOpenAccount, handleOpenImport, handleOpenPrint, handleOpenTransfer, handleOpenCashflow, handleOpenSettings, handleOpenIBKR, handleOpenBlockchain])
 
   useEffect(() => {
     if (!dataLoading && enrichedItems.length === 0 && !showOnboarding && typeof window !== 'undefined' && !localStorage.getItem('chispudo-onboarding-done')) {
@@ -795,7 +810,7 @@ export default function DashboardPage() {
         onImport={handleOpenImport}
         onSettings={handleOpenSettings}
         onSignOut={handleSignOut}
-        onRefresh={handleRefresh}
+        onRefresh={handleRefreshWithFeedback}
         pricesLoading={pricesLoading || ratesLoading}
         onAddAccount={handleOpenAccount}
         onCommandPalette={handleOpenCmdPalette}
@@ -927,7 +942,7 @@ export default function DashboardPage() {
                       : (lang === 'es' ? 'Tasas de cambio desactualizadas' : 'Exchange rates outdated')}
                 </p>
               </div>
-              <button onClick={handleRefresh}
+              <button onClick={handleRefreshWithFeedback}
                 className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
                 style={{ backgroundColor: '#d97706', color: '#fff' }}>
                 {lang === 'es' ? 'Reintentar' : 'Retry'}
@@ -974,7 +989,7 @@ export default function DashboardPage() {
                 : (lang === 'es' ? 'Sin datos aún' : 'No data yet')}
           </span>
           {dataAge != null && dataAge >= 14 && (
-            <button onClick={handleRefresh} className="text-micro underline transition-colors" style={{ color: 'var(--accent-blue)' }}>
+            <button onClick={handleRefreshWithFeedback} className="text-micro underline transition-colors" style={{ color: 'var(--accent-blue)' }}>
               {lang === 'es' ? 'Actualizar' : 'Refresh'}
             </button>
           )}
