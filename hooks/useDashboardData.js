@@ -7,6 +7,7 @@ import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations } from '@/components/dashboard/utils'
 import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
+import { hasDividendInMonth, redundantAutoDividendIds } from '@/lib/autoDividends'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
 
@@ -289,37 +290,19 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       }
       for (const it of scheduled) {
         if (cancelled) return
-        const sym = it.symbol || it.name
-        const autoDivs = transactions.filter(tx =>
-          tx._source === 'auto' &&
-          (tx.type || '').toUpperCase() === 'DIVIDEND' &&
-          (tx._linkedItemId === it.id || (!tx._linkedItemId && tx.symbol === sym))
+        // Auto payments that should no longer exist: a month the schedule
+        // dropped, a second auto payment in the same month, or an auto payment
+        // in a month where the REAL one is already recorded. Deleting them also
+        // reverses the credit out of the destination account, which is the whole
+        // point: a duplicated coupon leaves the destination permanently high.
+        const stale = new Set(
+          redundantAutoDividendIds(transactions, it, it.incomeMonths, it.incomeMonthsExplicit === true)
         )
-        if (it.incomeMonthsExplicit) {
-          // Explicit schedule: drop any auto-dividend whose month is no longer
-          // configured to pay, and de-duplicate within a configured month.
-          const payMonths = Array.isArray(it.incomeMonths) ? it.incomeMonths : []
-          const seen = new Set()
-          for (const tx of [...autoDivs].sort((a, b) => (a.date || '').localeCompare(b.date || ''))) {
-            if (!tx.date || !tx.id || !deleteTransaction) continue
-            const d = new Date(tx.date)
-            const key = `${d.getUTCFullYear()}-${d.getUTCMonth()}`
-            const inSchedule = payMonths.includes(d.getUTCMonth())
-            if (!inSchedule || seen.has(key)) {
-              queueReversal(it, tx)
-              await deleteTransaction(tx.id)
-            } else {
-              seen.add(key)
-            }
-          }
-        } else if (autoDivs.length > 1) {
-          // No explicit schedule: keep only the most recent auto-dividend.
-          const sorted = [...autoDivs].sort((a, b) => (b.date || '').localeCompare(a.date || ''))
-          for (let i = 1; i < sorted.length; i++) {
-            if (sorted[i].id && deleteTransaction) {
-              queueReversal(it, sorted[i])
-              await deleteTransaction(sorted[i].id)
-            }
+        if (stale.size > 0 && deleteTransaction) {
+          for (const tx of transactions) {
+            if (!tx.id || !stale.has(tx.id)) continue
+            queueReversal(it, tx)
+            await deleteTransaction(tx.id)
           }
         }
       }
@@ -371,11 +354,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           // creation, when the schedule implied a payment already due) —
           // never fabricate history for those, however the schedule reads.
           if (Array.isArray(it.excludedPayDates) && it.excludedPayDates.includes(dateStr)) continue
-          const alreadyProcessed = transactions.some((tx) =>
-            (tx.type || '').toUpperCase() === 'DIVIDEND' && tx.date === dateStr &&
-            (tx._linkedItemId === it.id || (!tx._linkedItemId && tx.symbol === (it.symbol || it.name)))
-          )
-          if (alreadyProcessed) continue
+          // Matched by MONTH, not by exact date. The schedule pays on
+          // `incomePayDay` while a coupon recorded by hand carries the day it
+          // really landed, so an exact-date check saw no payment and wrote a
+          // second one, crediting the destination account twice for good.
+          if (hasDividendInMonth(transactions, it, dateStr)) continue
 
         try {
           const originalPrice = it._originalPrice || it.currentPrice || it.purchasePrice || 0

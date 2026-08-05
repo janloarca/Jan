@@ -143,6 +143,30 @@ movió unos $58 (FASE DG).
 - Ventaja lateral: "HOY" y "Mayores movimientos hoy" ahora salen de la misma
   fuente, así que la tarjeta ya no se contradice a sí misma.
 
+## Ingresos automáticos: dedup por MES, y la cuenta destino debe VER lo que recibe
+
+`lib/autoDividends.js` (puro, con tests) decide qué paga el motor de
+`processDividends`. Dos reglas que costaron un bug de saldo permanente (FASE DH):
+
+- **"¿Ya se pagó?" se compara por MES (`YYYY-MM`), nunca por fecha exacta.** El
+  calendario paga en `incomePayDay` (día 1), pero un cupón que el usuario captura
+  a mano trae el día real (el 15). Con comparación exacta el motor no veía pago y
+  escribía el suyo: DOS transacciones y, peor, DOS `addToDestination`. El saldo de
+  la cuenta destino sube el doble y SE QUEDA ahí, y todos los meses pasados que se
+  reconstruyen desde ese saldo heredan el número malo (Fondo Líquido en 480 desde
+  julio en vez de 240).
+- **Al limpiar duplicados gana el registro REAL.** `redundantAutoDividendIds`
+  borra el `_source:'auto'` cuando el mes ya tiene un pago no-auto, nunca al revés,
+  y cada borrado revierte su crédito en el destino (`queueReversal`).
+
+**La cuenta destino tiene que poder ver el dinero que le llega.** Un cupón se
+archiva contra el activo que lo generó (`_linkedItemId` = VITALI), así que el
+`EditAccountModal` del Fondo Líquido no listaba NADA: el saldo crecía sin
+explicación y un pago duplicado no se podía ni ver ni borrar. `linkedTransactions`
+ahora suma también lo entrante (`_destinationItemId`, o dividendo cuyo origen
+tiene `incomeDestination` = esta cuenta), marcado `_incomingFrom`: se ve y se
+borra, pero no se edita ni se re-vincula (el movimiento vive en el origen).
+
 ## Paleta de clases de activo (`lib/colors.js`)
 
 Seis clases invertidas con color (`stocks/bonds/funds/crypto/realestate/
