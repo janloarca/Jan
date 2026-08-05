@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { formatCurrency, formatCompact, getItemValue, getDividendIncomeByItem } from './utils'
+import { InfoTip } from '../ui/Tooltip'
 
 // Institution comparison card.
 // The portfolio NAV over time already lives in PortfolioGrowthChart (top of the
@@ -50,6 +51,10 @@ export default function InstitutionPerformance({ items, lang, baseCurrency, tran
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue)' }} />
         {t('RENDIMIENTO POR INSTITUCIÓN', 'INSTITUTION PERFORMANCE')}
+        <InfoTip text={t(
+          'El % es el retorno de ESA institución sobre lo que invertiste ahí (ganancia ÷ costo de sus posiciones). No es su aporte al portafolio total, por eso puede no coincidir con "Asignación de Activos".',
+          'The % is that institution\'s own return on what you invested there (gain ÷ cost of its positions). It\'s not its contribution to the whole portfolio, so it can differ from "Asset Allocation".'
+        )} />
       </h3>
 
       {institutions.length === 0 ? (

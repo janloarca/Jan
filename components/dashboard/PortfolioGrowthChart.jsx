@@ -1029,7 +1029,21 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const firstVal = measuredData.length > 0 ? measuredData[0].value : 0
   const lastVal = measuredData.length > 0 ? measuredData[measuredData.length - 1].value : 0
   const growthAbs = lastVal - firstVal
-  const growthPct = firstVal > 0 ? (growthAbs / firstVal) * 100 : 0
+  // A brand-new account funded partway through the period legitimately starts
+  // at $0 — growthAbs/firstVal is undefined there, and silently falling back
+  // to a bare 0 read as "no return" next to a real dollar gain (e.g. a bond
+  // funded in January showing "+$6,240.00 (+0.00%) este año"). Fall back to
+  // the capital actually invested (contributionLine, same series the "Capital
+  // invertido" overlay draws) as the denominator instead — same idea as a
+  // return-on-invested-capital calc when there's no prior balance to compare
+  // against. If there's no contribution history either, don't fabricate a
+  // percentage at all: null hides it rather than lying with a 0%.
+  const investedBase = contributionLine && contributionLine.length > 0
+    ? contributionLine[contributionLine.length - 1]
+    : null
+  const growthPct = firstVal > 0
+    ? (growthAbs / firstVal) * 100
+    : (investedBase > 0 ? (growthAbs / investedBase) * 100 : null)
   const lastReturn = returnData.length > 0 ? returnData[returnData.length - 1] : 0
   // Annualized (CAGR) companion for multi-year spans — "+180% ALL" over 6 years is
   // easy to misread as a yearly figure.
@@ -1221,7 +1235,10 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         <div className="mb-3">
           <p className="text-3xl font-bold text-white font-mono tabular-nums">{formatCurrency(hd ? hd.value : currentTotal)}</p>
           <p className="text-sm mt-0.5" style={{ color: growthAbs >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
-            <span className="font-mono tabular-nums">{growthAbs >= 0 ? '+' : ''}{formatCurrency(growthAbs)} ({growthAbs >= 0 ? '+' : ''}{growthPct.toFixed(2)}%)</span>
+            <span className="font-mono tabular-nums">
+              {growthAbs >= 0 ? '+' : ''}{formatCurrency(growthAbs)}
+              {growthPct != null && ` (${growthPct >= 0 ? '+' : ''}${growthPct.toFixed(2)}%)`}
+            </span>
             {/* Never claim "this year" when the measured window starts at the first
                 real data point instead of January. */}
             <span className="text-slate-500 ml-1">

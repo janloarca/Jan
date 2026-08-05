@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { formatCurrency, getTypeCategory, TYPE_COLORS, CHART_PALETTE, getItemValue, getSectorFromItem, getGeographyFromItem, getInvestmentClass, INVESTMENT_CLASS_META, isExcludedFromNetWorth, getDividendIncomeByItem } from './utils'
+import { InfoTip } from '../ui/Tooltip'
 
 export default function AssetAllocation({ items, lang, transactions, convert, baseCurrency }) {
   const [view, setView] = useState('type')
@@ -76,6 +77,10 @@ export default function AssetAllocation({ items, lang, transactions, convert, ba
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
           {t('ASIGNACIÓN DE ACTIVOS', 'ASSET ALLOCATION')}
+          <InfoTip text={t(
+            'El % junto al monto es cuánto aportó ese grupo a la ganancia TOTAL del portafolio (no es el retorno propio del grupo). Por eso puede no coincidir con "Rendimiento por Institución", que sí muestra el retorno de cada institución sobre lo invertido en ella.',
+            'The % next to the amount is how much that group contributed to the portfolio\'s TOTAL gain (not that group\'s own return). That\'s why it can differ from "Institution Performance", which shows each institution\'s own return on what you invested there.'
+          )} />
         </h3>
         <span className="text-sm font-bold text-white font-mono tabular-nums">
           {formatCurrency(totalValue)}
