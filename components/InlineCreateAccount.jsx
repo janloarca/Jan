@@ -23,6 +23,7 @@ export default function InlineCreateAccount({ onCreate, onCancel, onCreated, lan
   const [currency, setCurrency] = useState(defaultCurrency)
   const [currencyTouched, setCurrencyTouched] = useState(false)
   const [balance, setBalance] = useState('')
+  const [acquisitionDate, setAcquisitionDate] = useState(new Date().toLocaleDateString('en-CA'))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
 
@@ -48,7 +49,7 @@ export default function InlineCreateAccount({ onCreate, onCancel, onCreated, lan
         purchasePrice: bal,
         currentPrice: bal,
         accountType: 'taxable',
-        acquisitionDate: new Date().toLocaleDateString('en-CA'),
+        acquisitionDate,
       }
       const newId = await onCreate(newItem)
       if (!newId) throw new Error(t('No se pudo crear la cuenta', 'Could not create account'))
@@ -95,6 +96,21 @@ export default function InlineCreateAccount({ onCreate, onCancel, onCreated, lan
           {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
       </div>
+      {/* Only matters once there's a balance to backdate — an empty new account
+          has nothing for a wrong date to distort. Without this the account
+          always saved dated "today", so a balance that really arrived months
+          ago (e.g. an income payout routed here) showed as flat $0 the whole
+          history and only jumped at the very last point of the chart. */}
+      {parseFloat(balance) > 0 && (
+        <div>
+          <span className="text-xs text-[var(--text-muted,#64748b)] mb-1 block">{t('¿Desde cuándo tiene ese saldo?', 'Since when does it hold that balance?')}</span>
+          <input value={acquisitionDate} onChange={e => setAcquisitionDate(e.target.value)}
+            type="date" max={new Date().toISOString().split('T')[0]} className={inputCls} />
+          <p className="text-xs mt-1" style={{ color: 'var(--accent-orange)' }}>
+            {t('Si ya tenía ese dinero desde antes, pon la fecha real: si no, el historial la muestra plana hasta hoy.', 'If it already had that money before, use the real date: otherwise the history shows it flat until today.')}
+          </p>
+        </div>
+      )}
       <div className="flex gap-2 pt-1">
         <button type="button" onClick={onCancel}
           className="flex-1 py-1.5 text-xs rounded-lg border border-[var(--card-border,#38383A)] text-[var(--text-secondary,#cbd5e1)]">
