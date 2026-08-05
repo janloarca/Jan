@@ -564,7 +564,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   // First timestamp with REAL broker NAV (vs reconstructed estimates). Drives the
   // performance-view rebase, the flow gating, and the short-history banner.
   const firstRealTs = useMemo(() => {
-    const p = snapshotData.find((s) => ['ibkr', 'daily', 'manual'].includes(s?.src))
+    const p = snapshotData.find((s) => ['ibkr', 'ibkr_quarterly', 'daily', 'manual'].includes(s?.src))
     return p ? p.ts : null
   }, [snapshotData])
 
@@ -791,7 +791,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   //   deposits implicitly (current qty held flat), so subtracting the flows again
   //   double-counts. Flows must be excluded (the original AD2 rationale).
   const flowAware = useMemo(
-    () => snapshotData.length >= 2 && ['ibkr', 'daily', 'manual'].includes(snapshotData[0]?.src),
+    () => snapshotData.length >= 2 && ['ibkr', 'ibkr_quarterly', 'daily', 'manual'].includes(snapshotData[0]?.src),
     [snapshotData]
   )
   const returnTransactions = useMemo(

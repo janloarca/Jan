@@ -300,6 +300,29 @@ lo que sobre se agrupa en un "Otros" neutro.
   y periodos acotados; **ALL sigue limitado** porque el chart no antepone el API antes del primer
   snapshot en ALL (línea `period !== 'ALL'`). Para ALL real: ensanchar el Flex Query o valor de inicio manual.
 
+### El Flex Query tope 365 días: los otros dos caminos al historial (FASE DL)
+- **El límite es de IBKR, no nuestro.** Un Flex Query no entrega más de 365 días por
+  archivo, así que una cuenta de 2023 llega con historia desde hace un año y una gráfica
+  donde el dinero aparece de la nada. Las instrucciones (`lib/brokerHowTo.js`) ahora lo
+  dicen explícito en vez de dejar que el usuario lo descubra.
+- **Camino 2, transcribir por trimestre.** Portfolio Analyst SÍ muestra toda la historia,
+  pero solo como gráfica (no hay export detrás): "Holdings" + "Since Inception" +
+  "Quarterly" sin benchmarks. `QuarterlyHistoryModal` recibe esos ~4 números por año y
+  escribe un snapshot por trimestre con `_source:'ibkr_quarterly'`. Esa fuente es
+  observación real del broker (gana sobre reconstrucciones) pero más gruesa que un NAV
+  diario sincronizado (pierde contra `ibkr`): prioridad 3 de 5. Va en `BROKER_NAV_SOURCES`
+  para que `augmentSnapshots` le sume los activos manuales de esa fecha; si no, la curva
+  sería solo la rebanada del broker. El trimestre EN CURSO se fecha HOY, no en su cierre
+  futuro.
+- **Camino 3, apalancarse en los % del broker.** `CalibrateReturnModal` toma los seis
+  períodos que toda app de broker muestra (1W, 1M, 3M, YTD, 1Y, desde el inicio) y
+  resuelve cada uno a un valor de arranque (`solveDietzStartValue`). YTD y ALL los
+  consume el memo de retornos; los otros cuatro se convierten UNA vez en anclas de
+  portafolio (`chartSnapshots` en `useDashboardData`, vía `combineAccountCalibrations`) y
+  se le pasan a la gráfica. **Ojo: ytd/all se excluyen de esa conversión a propósito** —
+  el memo de retornos ya los aplica y aplicarlos dos veces cuenta la corrección doble.
+  Un ancla nunca pisa una observación real de esa fecha.
+
 ### Credenciales IBKR: DOS almacenes que deben mantenerse sincronizados (FASE AF)
 - Hay dos almacenes: (a) el **vault del servidor** (`users/{uid}/settings/ibkr`, token encriptado)
   vía `/api/brokers/ibkr` `save/get-credentials`; (b) el **doc `settings` del cliente**

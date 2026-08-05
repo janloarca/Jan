@@ -47,6 +47,7 @@ const OptimizeModal = dynamic(() => import('@/components/OptimizeModal'))
 const AssetDetailModal = dynamic(() => import('@/components/dashboard/AssetDetailModal'), { loading: () => <ModalSkeleton /> })
 const AccountReviewModal = dynamic(() => import('@/components/dashboard/AccountReviewModal'), { loading: () => <ModalSkeleton /> })
 const EnrichModal = dynamic(() => import('@/components/dashboard/EnrichModal'), { loading: () => <ModalSkeleton /> })
+const QuarterlyHistoryModal = dynamic(() => import('@/components/dashboard/QuarterlyHistoryModal'), { loading: () => <ModalSkeleton /> })
 const CashFlowModal = dynamic(() => import('@/components/CashFlowModal'), { loading: () => <ModalSkeleton /> })
 const PrintSummary = dynamic(() => import('@/components/dashboard/PrintSummary'))
 const OnboardingTour = dynamic(() => import('@/components/dashboard/OnboardingTour'))
@@ -263,7 +264,7 @@ export default function DashboardPage() {
 
   // Data layer
   const {
-    items, snapshots, augmentedSnapshots, accountCalibrations, transactions, goals, settings, profile, effectiveProfile, alerts, lots, portfolios, financeTransactions,
+    items, snapshots, chartSnapshots, augmentedSnapshots, accountCalibrations, transactions, goals, settings, profile, effectiveProfile, alerts, lots, portfolios, financeTransactions,
     dataLoading,
     addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
     saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
@@ -346,6 +347,7 @@ export default function DashboardPage() {
   const handleOpenPrint = useCallback(() => setModal('print'), [])
   const handleOpenReview = useCallback(() => { setReviewTarget({ itemId: null, guided: false }); setShowReview(true) }, [])
   const handleOpenEnrich = useCallback(() => setShowEnrich(true), [])
+  const handleOpenQuarterly = useCallback(() => setModal('quarterly'), [])
   const handleCloseEnrich = useCallback(() => setShowEnrich(false), [])
   const handleEnrichGuided = useCallback(() => { setReviewTarget({ itemId: null, guided: true }); setShowReview(true) }, [])
   const handleEnrichAccount = useCallback((it) => { setReviewTarget({ itemId: it?.id || null, guided: false }); setShowReview(true) }, [])
@@ -1033,7 +1035,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="md:col-span-2 lg:col-span-3 flex flex-col gap-4">
-            <CardBoundary id="OR-01"><PortfolioGrowthChart items={portfolioItems} lots={lots} snapshots={snapshots} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} benchmarkSymbol={benchmarkSymbol} benchmarkName={benchmarkName} onSaveSnapshot={saveSnapshot} ibkrSyncSummary={ibkrSyncSummary} onImportBroker={handleOpenImport} /></CardBoundary>
+            <CardBoundary id="OR-01"><PortfolioGrowthChart items={portfolioItems} lots={lots} snapshots={chartSnapshots} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} benchmarkSymbol={benchmarkSymbol} benchmarkName={benchmarkName} onSaveSnapshot={saveSnapshot} ibkrSyncSummary={ibkrSyncSummary} onImportBroker={handleOpenImport} /></CardBoundary>
           </div>
         </div>
         </ErrorBoundary>
@@ -1474,6 +1476,18 @@ export default function DashboardPage() {
         />
       )}
 
+      {modal === 'quarterly' && (
+        <QuarterlyHistoryModal
+          saveSnapshot={saveSnapshot}
+          convert={convert}
+          baseCurrency={baseCurrency}
+          snapshots={snapshots}
+          lang={lang}
+          onClose={handleCloseModal}
+          onSaved={(n) => showToast(lang === 'es' ? `${n} trimestres guardados` : `${n} quarters saved`, 'success')}
+        />
+      )}
+
       {showEnrich && (
         <EnrichModal
           items={portfolioItems}
@@ -1483,6 +1497,9 @@ export default function DashboardPage() {
           onClose={handleCloseEnrich}
           onPickAccount={handleEnrichAccount}
           onGuided={handleEnrichGuided}
+          onQuarterlyHistory={handleOpenQuarterly}
+          onCalibrate={() => { setShowEnrich(false); setModal('calibrate') }}
+          hasBroker={portfolioItems.some((it) => it._source === 'ibkr')}
         />
       )}
 

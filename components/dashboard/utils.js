@@ -227,11 +227,19 @@ function itemValueUSD(it, convert) {
 // between the chart's same-day dedup and bulkImport's write-time precedence
 // check — a divergence between the two IS the bug (one used to rank backfill
 // above manual/daily).
-export const SNAPSHOT_SRC_PRIORITY = { ibkr: 4, manual: 3, daily: 2, backfill: 1 }
+// 'ibkr_quarterly' = a quarter-end NAV the user transcribed from IBKR's own
+// Portfolio Analyst chart. It is a real broker observation, so it outranks our
+// reconstructions, but a day-level NAV straight from a Flex Query is finer, so
+// it stays below 'ibkr'.
+export const SNAPSHOT_SRC_PRIORITY = { ibkr: 5, manual: 4, ibkr_quarterly: 3, daily: 2, backfill: 1 }
 
-// IBKR equityHistory snapshots (_source:'ibkr') store only the broker NAV and omit
-// manually-added assets (bonds, crypto, cash). For consumers that want the FULL
-// portfolio NAV (returns, drawdown, sparkline…), augment ONLY those entries with the
+// Sources that hold the BROKER's NAV alone, with none of the manually-added
+// assets in it. Those are the ones augmentSnapshots has to top up.
+export const BROKER_NAV_SOURCES = ['ibkr', 'ibkr_quarterly']
+
+// Broker-NAV snapshots store only what the broker holds and omit manually-added
+// assets (bonds, crypto, cash). For consumers that want the FULL portfolio NAV
+// (returns, drawdown, sparkline…), augment ONLY those entries with the
 // held-flat USD value of non-IBKR items that already existed at the snapshot date.
 // Daily/backfill snapshots already include everything, so they are left untouched
 // (no double-counting). Returns a new array; the originals are never mutated.
@@ -248,7 +256,7 @@ export function augmentSnapshots(snapshots, items, convert) {
     return sum
   }
   return snapshots.map(s => {
-    if (!s || s._source !== 'ibkr' || !s.date) return s
+    if (!s || !BROKER_NAV_SOURCES.includes(s._source) || !s.date) return s
     const ts = new Date(s.date).getTime()
     if (isNaN(ts)) return s
     const add = manualAt(ts)
@@ -874,4 +882,52 @@ export function businessDaysSince(since, now = Date.now()) {
     guard++
   }
   return guard >= 400 ? Infinity : count
+}
+
+// ── Quarterly NAV history (IBKR Portfolio Analyst) ──────────────────────────
+// A Flex Query only reaches back 365 days, so anything older has to be read off
+// the broker's own chart and typed in. These helpers turn a "Qn YYYY" label
+// into the snapshot date it belongs to and back, so the entry grid and the
+// chart agree on where each figure sits.
+
+// Last calendar day of a quarter (1-4), as 'YYYY-MM-DD'. Never a Date object:
+// new Date('YYYY-MM-DD') runs the day backwards in UTC-6 (house rule).
+export function quarterEndDate(year, quarter) {
+  const ends = { 1: '03-31', 2: '06-30', 3: '09-30', 4: '12-31' }
+  const end = ends[quarter]
+  if (!end || !year) return null
+  return `${year}-${end}`
+}
+
+export function quarterLabel(year, quarter) {
+  return `Q${quarter} ${year}`
+}
+
+// Every quarter from `from` (inclusive) to the quarter containing `to`,
+// oldest first. Bounded so a mistyped year cannot generate thousands of rows.
+export function quartersBetween(fromYear, fromQuarter, toDate = new Date(), maxRows = 80) {
+  const out = []
+  const toYear = toDate.getFullYear()
+  const toQuarter = Math.floor(toDate.getMonth() / 3) + 1
+  let y = Number(fromYear)
+  let q = Number(fromQuarter)
+  if (!isFinite(y) || !isFinite(q) || q < 1 || q > 4) return out
+  while ((y < toYear || (y === toYear && q <= toQuarter)) && out.length < maxRows) {
+    out.push({ year: y, quarter: q, label: quarterLabel(y, q), endDate: quarterEndDate(y, q) })
+    q += 1
+    if (q > 4) { q = 1; y += 1 }
+  }
+  return out
+}
+
+// The date a quarter's figure should be stamped with. A quarter that has not
+// closed yet gets TODAY: the number the broker shows for it is the value right
+// now, and dating it at the future quarter end would put the portfolio's
+// current value in the future.
+export function quarterSnapshotDate(year, quarter, today = new Date()) {
+  const end = quarterEndDate(year, quarter)
+  if (!end) return null
+  const p = (n) => String(n).padStart(2, '0')
+  const todayStr = `${today.getFullYear()}-${p(today.getMonth() + 1)}-${p(today.getDate())}`
+  return end > todayStr ? todayStr : end
 }
