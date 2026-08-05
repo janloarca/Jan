@@ -332,16 +332,27 @@ export function useFirestoreItems() {
     if (items.some((i) => i._source === 'demo')) return
     const { db, fs } = await getFirebase()
     const dateStr = snapshot.date || new Date().toISOString().split('T')[0]
-    // Per-account calibration anchors share their date with real NAV snapshots
-    // (a YTD calibration sits on Jan 1, where a daily snapshot may also live):
-    // a compound id keeps them from overwriting each other. Portfolio-wide
+    // Calibration anchors share their date with real NAV snapshots (a YTD
+    // calibration sits on Jan 1, where a daily snapshot may also live): a
+    // compound id keeps them from overwriting each other. This now applies to
+    // GLOBAL calibrations too ('global' suffix) — they used to take the plain
+    // date id and clobbered the real NAV doc of that day. Real (non-calibrated)
     // snapshots keep the plain date id so dedup/precedence logic is untouched.
-    const id = snapshot._account
-      ? `${dateStr}~${snapshot._calibrationKind || 'cal'}~${String(snapshot._account).replace(/[^a-z0-9]+/gi, '-')}`
+    const id = snapshot._calibrated
+      ? `${dateStr}~${snapshot._calibrationKind || 'cal'}~${snapshot._account ? String(snapshot._account).replace(/[^a-z0-9]+/gi, '-') : 'global'}`
       : dateStr
     const clean = Object.fromEntries(Object.entries({ ...snapshot, createdAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
     await fs.setDoc(fs.doc(db, `users/${uid}/snapshots`, id), clean, { merge: true })
-  }, [uid, items])
+    // Legacy migration: a global calibration previously saved under the plain
+    // date id is now superseded by the compound-id doc. Remove the old one so
+    // the same anchor doesn't apply twice (only when the legacy doc really is
+    // a calibration of the same kind — never delete a real NAV observation).
+    if (snapshot._calibrated && !snapshot._account) {
+      const legacy = (snapshots || []).find((s) => s && s.id === dateStr && s._calibrated
+        && (s._calibrationKind || 'cal') === (snapshot._calibrationKind || 'cal'))
+      if (legacy) await fs.deleteDoc(fs.doc(db, `users/${uid}/snapshots`, dateStr))
+    }
+  }, [uid, items, snapshots])
 
   // Single-doc delete: the snapshot doc id IS its date string, so re-stamping
   // a mis-dated snapshot (badDataCleanup class 6) means writing the corrected
@@ -408,6 +419,7 @@ export function useFirestoreItems() {
       for (const ref of refs.slice(i, i + CHUNK)) batch.delete(ref)
       await batch.commit()
     }
+
   }, [uid, items, lots, transactions])
 
   // Delete a specific set of items (by id) plus their lots and transactions — the
