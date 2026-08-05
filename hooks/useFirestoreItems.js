@@ -332,7 +332,13 @@ export function useFirestoreItems() {
     if (items.some((i) => i._source === 'demo')) return
     const { db, fs } = await getFirebase()
     const dateStr = snapshot.date || new Date().toISOString().split('T')[0]
-    const id = dateStr
+    // Per-account calibration anchors share their date with real NAV snapshots
+    // (a YTD calibration sits on Jan 1, where a daily snapshot may also live):
+    // a compound id keeps them from overwriting each other. Portfolio-wide
+    // snapshots keep the plain date id so dedup/precedence logic is untouched.
+    const id = snapshot._account
+      ? `${dateStr}~${snapshot._calibrationKind || 'cal'}~${String(snapshot._account).replace(/[^a-z0-9]+/gi, '-')}`
+      : dateStr
     const clean = Object.fromEntries(Object.entries({ ...snapshot, createdAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
     await fs.setDoc(fs.doc(db, `users/${uid}/snapshots`, id), clean, { merge: true })
   }, [uid, items])
@@ -885,7 +891,10 @@ export function useFirestoreItems() {
     // a gap or refresh same-or-higher-tier data. Without this, re-importing an
     // older/narrower file (or one that estimates where an earlier one
     // observed) silently downgrades a real NAV to a worse one.
-    const existingSnapByDate = new Map((snapshots || []).map((s) => [s.date || s.id, s]))
+    // Per-account calibration anchors (_account) are NOT portfolio NAV: they
+    // must not participate in same-date precedence or their 'manual' priority
+    // would block a real daily/ibkr import landing on the anchor date.
+    const existingSnapByDate = new Map((snapshots || []).filter((s) => s && !s._account).map((s) => [s.date || s.id, s]))
     for (const snap of (newSnaps || [])) {
       const id = snap.date || now.split('T')[0]
       const existing = existingSnapByDate.get(id)
