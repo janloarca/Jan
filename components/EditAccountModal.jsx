@@ -203,16 +203,50 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
   // inflates "capital invertido" and the return %, but never appeared in this
   // list, so a duplicate was literally impossible to find and delete from the
   // UI. A row explicitly linked to a DIFFERENT item is still excluded.
+  // Movements of THIS account: the ones filed against it, plus the ones that
+  // paid INTO it from somewhere else.
+  //
+  // Incoming money used to be invisible here. A coupon is filed against the
+  // asset that generated it (VITALI), so the cash account that actually
+  // received the $240 listed nothing at all: the balance had grown and there
+  // was no way to see why, or to find a duplicate payment and delete it. They
+  // are marked `_incomingFrom` so the row can say where the money came from and
+  // stay read-only for linking (it belongs to the source, not to this account).
   const linkedTransactions = useMemo(() => {
     const sym = (item.symbol || '').toUpperCase()
-    return (transactions || [])
-      .filter(tx => {
-        if (!['DEPOSIT', 'WITHDRAWAL', 'DIVIDEND'].includes(tx.type)) return false
-        if (tx._linkedItemId) return tx._linkedItemId === item.id
-        return !!sym && (tx.symbol || '').toUpperCase() === sym
-      })
-      .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
-  }, [transactions, item.id, item.symbol])
+    const pool = allItems || existingItems || []
+    const byId = new Map(pool.map((it) => [it.id, it]))
+    const bySym = new Map(pool.filter((it) => it.symbol).map((it) => [String(it.symbol).toUpperCase(), it]))
+    const byName = new Map(pool.filter((it) => it.name).map((it) => [String(it.name).toUpperCase(), it]))
+    const resolve = (ref) => (ref
+      ? (byId.get(ref) || bySym.get(String(ref).toUpperCase()) || byName.get(String(ref).toUpperCase()))
+      : null)
+
+    const own = []
+    const incoming = []
+    ;(transactions || []).forEach((tx) => {
+      if (!['DEPOSIT', 'WITHDRAWAL', 'DIVIDEND', 'INTEREST'].includes(tx.type)) return
+      const isOwn = tx._linkedItemId
+        ? tx._linkedItemId === item.id
+        : (!!sym && (tx.symbol || '').toUpperCase() === sym)
+      if (isOwn) { own.push(tx); return }
+      // Routed here explicitly, or routed here by the source's income setting.
+      let source = null
+      if (tx._destinationItemId && tx._destinationItemId === item.id) {
+        source = tx._linkedItemId ? byId.get(tx._linkedItemId) : null
+      } else if (tx.type === 'DIVIDEND' || tx.type === 'INTEREST') {
+        const src = tx._linkedItemId ? byId.get(tx._linkedItemId) : null
+        if (src && !tx._reinvested && src.dividendAction !== 'reinvest') {
+          const dest = resolve(src.incomeDestination)
+          if (dest && dest.id === item.id) source = src
+        }
+      } else return
+      if (source || (tx._destinationItemId && tx._destinationItemId === item.id)) {
+        incoming.push({ ...tx, _incomingFrom: source ? (source.name || source.symbol) : null })
+      }
+    })
+    return [...own, ...incoming].sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+  }, [transactions, item.id, item.symbol, allItems, existingItems])
 
   const handleContribution = async () => {
     const amt = parseFloat(contribAmount)
@@ -712,9 +746,14 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                       // WITHDRAWAL is actually money leaving this item's own
                       // value; showing the dividend red/negative here read as
                       // "VITALI lost $240" when its own value never changed.
-                      const isPositive = tx.type === 'DEPOSIT' || tx.type === 'DIVIDEND'
+                      const isPositive = tx.type === 'DEPOSIT' || tx.type === 'DIVIDEND' || tx.type === 'INTEREST'
                       const confirming = confirmDeleteTxId === tx.id
-                      const editing = editingTxId === tx.id
+                      // Money that arrived FROM another asset. It is filed against
+                      // that asset, so editing or re-linking it here would move
+                      // someone else's record. Visible and deletable (that is how
+                      // you find a duplicated coupon), but not editable.
+                      const incoming = tx._incomingFrom !== undefined
+                      const editing = editingTxId === tx.id && !incoming
                       if (editing) {
                         return (
                           <div key={tx.id} className="py-2 border-b border-[var(--card-border,#38383A)]/30 last:border-0 space-y-2">
@@ -765,7 +804,14 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                             <span style={{ color: isPositive ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                               {isPositive ? '+' : '-'}{tx.currency || form.currency} {(tx.totalAmount || 0).toLocaleString()}
                             </span>
-                            {!tx._linkedItemId && (
+                            {incoming && (
+                              <span className="ml-1 px-1 py-0.5 rounded text-[9px] align-middle"
+                                style={{ color: 'var(--accent-cyan)', backgroundColor: 'color-mix(in srgb, var(--accent-cyan) 15%, transparent)' }}
+                                title={t('Este dinero llegó desde otro activo. El movimiento vive en ese activo: aquí solo se ve entrar.', 'This money arrived from another asset. The record lives on that asset: here you only see it come in.')}>
+                                {tx._incomingFrom ? t(`de ${tx._incomingFrom}`, `from ${tx._incomingFrom}`) : t('recibido', 'received')}
+                              </span>
+                            )}
+                            {!incoming && !tx._linkedItemId && (
                               <span className="ml-1 px-1 py-0.5 rounded text-[9px] align-middle"
                                 style={{ color: 'var(--accent-orange)', backgroundColor: 'color-mix(in srgb, var(--accent-orange) 15%, transparent)' }}
                                 title={t('Este movimiento se detectó por el símbolo, no está vinculado a la cuenta. Suele ser un registro viejo o duplicado.', 'This movement was matched by symbol, it isn\'t linked to the account. Usually an old or duplicate record.')}>
@@ -775,7 +821,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                             {tx.description && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{tx.description}</p>}
                           </div>
                           <span className="flex items-center gap-1 shrink-0">
-                            {onUpdateTransaction && (
+                            {onUpdateTransaction && !incoming && (
                               <button type="button" onClick={() => startEditTx(tx)}
                                 className="px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors"
                                 style={{ color: 'var(--text-muted)', borderColor: 'var(--card-border,#38383A)' }}
