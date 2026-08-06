@@ -1316,16 +1316,17 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // ── Inferred deposits/withdrawals (FASE DQ) ──────────────────────────────
   // Fills the ONE gap real data can't reach: the quarterly-transcribed stretch
   // (Portfolio Analyst screenshot → ~4 numbers a year, no cash-transaction
-  // detail). Everything else — the last ~365 days via Flex Query, prior years
-  // uploaded as Flex XML — already has exact deposits/withdrawals imported as
-  // real transactions; nothing to infer there.
+  // detail). Everything else — the trailing ~365 days via Flex Query (API or
+  // file, IBKR's cap is per account, not per file — see FASE DR) — already
+  // has exact deposits/withdrawals imported as real transactions; nothing to
+  // infer there.
   //
   // Gated hard on hasCompleteBrokerData: an account still missing a checklist
-  // step (no quarterly transcription, no history upload, no connection) never
-  // reaches this — same "no data to guess from" reasoning as the plan this
-  // implements. Right now only IBKR has real steps (lib/brokerCompletion.js);
-  // this block is written broker-agnostic so a future broker's own steps slot
-  // in without changes here.
+  // step (no quarterly transcription, no connection) never reaches this —
+  // same "no data to guess from" reasoning as the plan this implements. Right
+  // now only IBKR has real steps (lib/brokerCompletion.js); this block is
+  // written broker-agnostic so a future broker's own steps slot in without
+  // changes here.
   const brokerCompletionState = useMemo(() => ({
     ibkrConnected: !!((settings?.ibkrToken || settings?._ibkrVaultMigrated) && settings?.ibkrQueryId),
     ibkrSnapshotSpanDays: computeIbkrSnapshotSpanDays(snapshots),

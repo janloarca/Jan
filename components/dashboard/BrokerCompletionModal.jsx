@@ -32,7 +32,10 @@ export default function BrokerCompletionModal({
   const howTo = getBrokerHowTo(brokerId)
   const steps = useMemo(() => getBrokerCompletionSteps(brokerId, howTo), [brokerId, howTo])
 
-  const ACTIONS = { connect: onConnect, history: onImportHistory, quarterly: onQuarterlyHistory, returns: onCalibrate, import: onImportHistory }
+  // 'history' (Flex-XML-per-year) no longer exists as a step — see FASE DR in
+  // lib/brokerCompletion.js. 'import' stays: it's the generic non-IBKR
+  // broker's single csv door, unrelated to that removed step.
+  const ACTIONS = { connect: onConnect, quarterly: onQuarterlyHistory, returns: onCalibrate, import: onImportHistory }
 
   const doneCount = steps.filter((s) => s.done(completionState)).length
   const allDone = steps.length > 0 && doneCount === steps.length

@@ -300,12 +300,24 @@ lo que sobre se agrupa en un "Otros" neutro.
   y periodos acotados; **ALL sigue limitado** porque el chart no antepone el API antes del primer
   snapshot en ALL (línea `period !== 'ALL'`). Para ALL real: ensanchar el Flex Query o valor de inicio manual.
 
-### El Flex Query tope 365 días: los otros dos caminos al historial (FASE DL)
-- **El límite es de IBKR, no nuestro.** Un Flex Query no entrega más de 365 días por
-  archivo, así que una cuenta de 2023 llega con historia desde hace un año y una gráfica
-  donde el dinero aparece de la nada. Las instrucciones (`lib/brokerHowTo.js`) ahora lo
-  dicen explícito en vez de dejar que el usuario lo descubra.
-- **Camino 2, transcribir por trimestre.** Portfolio Analyst SÍ muestra toda la historia,
+### El Flex Query tope 365 días: el otro camino al historial (FASE DL, corregida en DR)
+- **El límite es de IBKR, no nuestro, y es por CUENTA, no por archivo.** Un Flex Query
+  nunca entrega más de ~365 días atrás desde hoy, sin importar el rango que pidas, así
+  que una cuenta de 2023 llega con historia desde hace un año y una gráfica donde el
+  dinero aparece de la nada. Las instrucciones (`lib/brokerHowTo.js`) ahora lo dicen
+  explícito en vez de dejar que el usuario lo descubra.
+- **FASE DR, corrección:** esta sección tenía un "Camino 1" que ya no existe: "descarga
+  un Flex Query por año calendario (Custom Date Range) y sube uno por uno para llegar
+  más atrás de 365 días". Sonaba razonable (un archivo, un rango; otro archivo, otro
+  rango) pero es falso: el tope es de la CUENTA, no del archivo, así que ningún rango
+  de fecha, sin importar qué tan viejo, trae de vuelta datos de hace más de ~365 días.
+  El usuario lo confirmó de primera mano (`BrokerCompletionModal` seguía mostrando el
+  paso como pendiente y accionable). Se sacó por completo de `IBKR_STEPS`
+  (`lib/brokerCompletion.js`, ahora 3 pasos: conectar → transcribir → copiar retornos),
+  de `brokerHowTo.js` (steps + notes de csv y api) y de `ConnectionsModal` ("Completar
+  historial (3 pasos)"). El único camino real más allá de esos ~365 días es transcribir
+  por trimestre.
+- **Transcribir por trimestre.** Portfolio Analyst SÍ muestra toda la historia,
   pero solo como gráfica (no hay export detrás): "Holdings" + "Since Inception" +
   "Quarterly" sin benchmarks. `QuarterlyHistoryModal` recibe esos ~4 números por año y
   escribe un snapshot por trimestre con `_source:'ibkr_quarterly'`. Esa fuente es
@@ -314,7 +326,7 @@ lo que sobre se agrupa en un "Otros" neutro.
   para que `augmentSnapshots` le sume los activos manuales de esa fecha; si no, la curva
   sería solo la rebanada del broker. El trimestre EN CURSO se fecha HOY, no en su cierre
   futuro.
-- **Camino 3, apalancarse en los % del broker.** `CalibrateReturnModal` toma los seis
+- **Apalancarse en los % del broker.** `CalibrateReturnModal` toma los seis
   períodos que toda app de broker muestra (1W, 1M, 3M, YTD, 1Y, desde el inicio) y
   resuelve cada uno a un valor de arranque (`solveDietzStartValue`). YTD y ALL los
   consume el memo de retornos; los otros cuatro se convierten UNA vez en anclas de
@@ -323,12 +335,14 @@ lo que sobre se agrupa en un "Otros" neutro.
   el memo de retornos ya los aplica y aplicarlos dos veces cuenta la corrección doble.
   Un ancla nunca pisa una observación real de esa fecha.
 
-### El checklist post-conexión (FASE DN)
+### El checklist post-conexión (FASE DN, corregido en DR)
 - Conectar ya no es el final del flujo: `lib/brokerCompletion.js` define, por broker,
-  los pasos para llegar al 100% de historial. Solo IBKR tiene los cuatro reales
-  (conectar → subir años anteriores → transcribir trimestres → copiar retornos);
-  el resto cae al fallback genérico (un solo paso: el que tenga en `brokerHowTo.js`,
-  api primero). Ningún paso es obligatorio, es un nudge con checkmarks, no un gate.
+  los pasos para llegar al 100% de historial. Solo IBKR tiene los tres reales
+  (conectar → transcribir trimestres → copiar retornos; el paso "subir años
+  anteriores" que hubo entre conectar y transcribir se quitó en FASE DR, no existía
+  de verdad); el resto cae al fallback genérico (un solo paso: el que tenga en
+  `brokerHowTo.js`, api primero). Ningún paso es obligatorio, es un nudge con
+  checkmarks, no un gate.
 - `done`/`skippable` son funciones puras sobre un objeto de estado
   (`ibkrConnected`, `ibkrSnapshotSpanDays`, `hasQuarterlyHistory`,
   `hasIbkrCalibration`, `earliestNeededDays`), no leen Firestore directo: así el
@@ -379,7 +393,7 @@ lo que sobre se agrupa en un "Otros" neutro.
 ### Depósitos/retiros inferidos: SOLO con el broker al 100% (FASE DQ)
 - El único hueco real que queda una vez completado el checklist de FASE DL/DN es el
   tramo transcrito por trimestre: 4 números al año, sin detalle de Cash Transactions.
-  Todo lo demás (últimos ~365 días vía API, años subidos como Flex XML) ya trae
+  Todo lo demás (los ~365 días que el Flex Query alcanza, vía API o archivo) ya trae
   depósitos/retiros EXACTOS, importados como transacciones reales; ahí no hay nada
   que inferir.
 - **La compuerta es dura y compartida.** `hasCompleteBrokerData(brokerId, howTo,
@@ -402,10 +416,10 @@ lo que sobre se agrupa en un "Otros" neutro.
   total del trimestre). `computeModifiedDietz` la neta igual que cualquier otra:
   cero motor de retorno nuevo.
 - **Se reconcilia sola con cada sync nuevo.** Si un Flex Query real (sync diario, o
-  un XML de año anterior recién subido) alcanza una fecha que antes solo tenía
-  inferencia, esa inferencia ya no aporta nada: el dato real la confirmó o la
-  refutó por su cuenta. `staleInferredFlowIds` + un efecto en `useDashboardData`
-  la borra automáticamente — el dato real SIEMPRE gana, nunca queda una
+  un XML recién subido cubriendo los ~365 días que sí alcanza) llega a una fecha que
+  antes solo tenía inferencia, esa inferencia ya no aporta nada: el dato real la
+  confirmó o la refutó por su cuenta. `staleInferredFlowIds` + un efecto en
+  `useDashboardData` la borra automáticamente — el dato real SIEMPRE gana, nunca queda una
   adivinanza vieja compitiendo al lado de un hecho.
 - **Decisión del usuario, memoria persistida.** Un hueco que el usuario ya
   descartó (o aceptó) se marca `_flowReviewed:true` en el snapshot trimestral del
