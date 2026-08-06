@@ -10,6 +10,7 @@ import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { indexBalanceEvents } from '@/lib/historicalValues'
 import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills } from '@/lib/autoDividends'
 import { unlinkedOpeningDeposits } from '@/lib/originDeposits'
+import { staleBackfillDates } from '@/lib/snapshotBackfill'
 import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanDays, earliestNeededDays as computeEarliestNeededDays } from '@/lib/brokerCompletion'
 import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds } from '@/lib/inferredFlows'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes } from '@/components/dashboard/analytics'
@@ -150,21 +151,30 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
   }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, snapshots, saveSnapshot, convert, baseCurrency, transactions])
 
-  // Backfill missing snapshots for the last 30 days
+  // Backfill missing snapshots for the last 30 days.
+  // A 'backfill' doc is a RECONSTRUCTION from whatever items existed the
+  // moment it was written, not an observation — so a day already covered by
+  // an OLD backfill estimate is exactly as re-fillable as a day with no doc
+  // at all, or an asset added later with a real past acquisitionDate (a
+  // second bond, backdated to a prior year) leaves it stuck forever excluding
+  // that asset while fresher days include it, sawtoothing by its whole value
+  // (FASE EG, see lib/snapshotBackfill.js for the full story and the test
+  // that pins this down).
   const backfillRef = useRef(false)
   useEffect(() => {
     if (backfillRef.current) return
     if (!user || dataLoading || pricesLoading || ratesLoading) return
     if (enrichedItems.length === 0 || !snapshots) return
-    const existingDates = new Set(snapshots.map(s => s.date || s.id))
-    const today = new Date()
-    const gaps = []
-    for (let d = 1; d <= 30; d++) {
-      const dt = new Date(today)
-      dt.setDate(dt.getDate() - d)
-      const dateStr = dt.toISOString().split('T')[0]
-      if (!existingDates.has(dateStr)) gaps.push(dateStr)
-    }
+    // With no broker-synced item, a 'daily' doc is not an external truth
+    // either — it is the SAME "sum of whatever items the app knew about that
+    // day" that 'backfill' is, just computed live instead of after the fact.
+    // A fresh reconstruction (with everything now on file) is at least as
+    // good, and it is the only way a backdated asset stops flip-flopping
+    // between two different pasts (lib/snapshotBackfill.js). A broker-synced
+    // portfolio never opts in: its old 'daily' total cannot be recomputed
+    // from a hold-flat guess without a real accuracy downgrade.
+    const hasBrokerItem = enrichedItems.some((it) => it && it._source === 'ibkr')
+    const gaps = staleBackfillDates(snapshots, { treatDailyAsStale: !hasBrokerItem })
     if (gaps.length === 0) { backfillRef.current = true; return }
     backfillRef.current = true
 
