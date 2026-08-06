@@ -271,7 +271,16 @@ export async function POST(request) {
     // Static-only scope (e.g. a single fixed-value account) has no market history
     // to anchor timestamps, which would leave the chart empty. Synthesize a weekly
     // series across the period so fixed-value assets still plot a line.
-    if (allTs.size === 0 && staticItems.length > 0) {
+    //
+    // Gated on "no REAL market series" (allTimeSeries), not "allTs is still
+    // empty": for period ALL, the block above already added ONE lone point
+    // (earliest acquisitionDate minus a day) to allTs before this runs, so a
+    // portfolio with zero market items still had allTs.size === 1 here — the
+    // gate never fired, and ALL rendered that single point instead of the
+    // full weekly-synthesized history back to the account's real first
+    // movement (FASE EJ; the chart-side half of this fix is
+    // PortfolioGrowthChart's reconstructionIsExact gate on ALL).
+    if (Object.keys(allTimeSeries).length === 0 && staticItems.length > 0) {
       const now = Date.now()
       const acqs = staticItems.map((it) => validAcqTs(it.acquisitionDate)).filter((t) => t != null)
       const SPAN = { DAY: 1, '1W': 7, '1M': 30, '3M': 90, '6M': 180, '1Y': 365 }

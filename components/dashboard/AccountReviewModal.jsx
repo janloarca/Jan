@@ -18,7 +18,7 @@ const CATEGORY_LABELS = {
 
 const SEV_WEIGHT = { high: 3, medium: 2, low: 1 }
 
-export default function AccountReviewModal({ items: allItems, onClose, onEditItem, onOpenCashflow, lang, transactions, findings = [], startItemId = null, onlyWithFindings = false, institutionFilter = null }) {
+export default function AccountReviewModal({ items: allItems, onClose, onEditItem, onOpenCashflow, onConfirmDistinct, lang, transactions, findings = [], startItemId = null, onlyWithFindings = false, institutionFilter = null }) {
   const t = (es, en) => lang === 'es' ? es : en
   const trapRef = useFocusTrap()
   const [reviewed, setReviewed] = useState({})
@@ -236,12 +236,23 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
                 {itemFindings.map(f => (
                   <li key={f.id} className="text-xs flex items-start justify-between gap-2" style={{ color: '#d97706' }}>
                     <span>· {lang === 'es' ? f.textEs : f.textEn}</span>
-                    {f.action?.kind === 'cashflow' && (
-                      <button type="button" onClick={() => handleResolve(f)}
-                        className="shrink-0 underline font-medium" style={{ color: '#b45309' }}>
-                        {t('Resolver', 'Resolve')}
-                      </button>
-                    )}
+                    <span className="shrink-0 flex items-center gap-2">
+                      {f.action?.kind === 'cashflow' && (
+                        <button type="button" onClick={() => handleResolve(f)}
+                          className="underline font-medium" style={{ color: '#b45309' }}>
+                          {t('Resolver', 'Resolve')}
+                        </button>
+                      )}
+                      {/* Same permanent answer ChispuSuggestions offers: stamps
+                          _dupConfirmedDistinct on both items so this exact pair
+                          stops asking anywhere, not just in this modal. */}
+                      {f.code === 'dup-suspect' && f.action?.itemIds?.length > 1 && onConfirmDistinct && (
+                        <button type="button" onClick={() => onConfirmDistinct(f)}
+                          className="underline font-medium" style={{ color: '#b45309' }}>
+                          {t('No son iguales', 'Not the same')}
+                        </button>
+                      )}
+                    </span>
                   </li>
                 ))}
               </ul>
