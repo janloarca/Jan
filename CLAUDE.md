@@ -369,6 +369,17 @@ lo que sobre se agrupa en un "Otros" neutro.
   encabezado, condicionadas por tipo de activo, todas detrás de "Detalles avanzados") ya
   existía y ya era razonable; el ajuste fue solo de consistencia visual, no una reescritura.
 
+### La última superficie que dividía entre el valor y no entre el costo (FASE EE)
+- La gráfica de rendimiento marcaba 4.00% junto a 3.94% en todas las demás: su
+  serie dividía entre el VALOR del ancla (6,000) en vez de entre el efectivo que
+  salió del bolsillo (6,098). Con la ventana ya sin flujos adentro, Dietz es
+  lineal en la base, así que re-basear es UNA escala de toda la serie
+  (`anchorVal / funded`).
+- **La escala no toca el numerador**, a propósito: subir el ancla metería la
+  comisión también en la ganancia y caería otra vez en el 2.33% que el caso
+  VITALI documenta. Tres superficies, una sola definición: ganancia contra el
+  principal, porcentaje contra el costo total.
+
 ### Un retorno necesita capital contra el cual medirse (FASE ED)
 - **La línea de rendimiento salía plana en 0%** sobre un año que de verdad rindió
   3.94%. La ventana YTD abre el 1 de enero, pero el portafolio nació el 6: sus
