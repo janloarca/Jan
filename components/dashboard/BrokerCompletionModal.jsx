@@ -8,40 +8,33 @@
 
 import { useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
-import { CheckCircle2, Circle, ChevronRight, KeyRound, FileSpreadsheet, CalendarRange, Percent } from 'lucide-react'
-import { getBrokerCompletionSteps, ibkrSnapshotSpanDays, earliestNeededDays } from '@/lib/brokerCompletion'
+import { CheckCircle2, Circle, ChevronRight, KeyRound, FileSpreadsheet, CalendarRange, Percent, Sparkles } from 'lucide-react'
+import { getBrokerCompletionSteps } from '@/lib/brokerCompletion'
 import { getBrokerHowTo } from '@/lib/brokerHowTo'
 
 const KIND_ICON = { api: KeyRound, csv: FileSpreadsheet, quarterly: CalendarRange, calibrate: Percent }
 
+// `completionState` is the SAME object useDashboardData.js's
+// brokerCompletionState computes and hasCompleteBrokerData gates the inferred-
+// flows feature on — passed down rather than recomputed here, so the
+// checklist and the inference gate can never quietly disagree about what
+// "done" means for this account.
 export default function BrokerCompletionModal({
   brokerId = 'ibkr', brokerName = 'Interactive Brokers',
   onClose, lang = 'es',
-  ibkrConnected = false, snapshots = [], items = [], accountCalibrations = [],
+  completionState = {},
   onConnect, onImportHistory, onQuarterlyHistory, onCalibrate,
+  inferredFlowCount = 0, onReviewInferredFlows,
 }) {
   const t = (es, en) => (lang === 'es' ? es : en)
   const trapRef = useFocusTrap()
-
-  const state = useMemo(() => {
-    const span = ibkrSnapshotSpanDays(snapshots)
-    return {
-      ibkrConnected,
-      ibkrSnapshotSpanDays: span,
-      earliestNeededDays: earliestNeededDays(items),
-      hasQuarterlyHistory: (snapshots || []).some((s) => s && s._source === 'ibkr_quarterly'),
-      hasIbkrCalibration: (accountCalibrations || []).some((c) => c && c._account === 'ibkr'),
-      connected: ibkrConnected,
-      imported: (snapshots || []).some((s) => s && s._source === brokerId),
-    }
-  }, [ibkrConnected, snapshots, items, accountCalibrations, brokerId])
 
   const howTo = getBrokerHowTo(brokerId)
   const steps = useMemo(() => getBrokerCompletionSteps(brokerId, howTo), [brokerId, howTo])
 
   const ACTIONS = { connect: onConnect, history: onImportHistory, quarterly: onQuarterlyHistory, returns: onCalibrate, import: onImportHistory }
 
-  const doneCount = steps.filter((s) => s.done(state)).length
+  const doneCount = steps.filter((s) => s.done(completionState)).length
   const allDone = steps.length > 0 && doneCount === steps.length
 
   return (
@@ -67,8 +60,8 @@ export default function BrokerCompletionModal({
 
         <div className="px-5 pb-5 space-y-2">
           {steps.map((step, i) => {
-            const isDone = step.done(state)
-            const isSkippable = !isDone && step.skippable && step.skippable(state)
+            const isDone = step.done(completionState)
+            const isSkippable = !isDone && step.skippable && step.skippable(completionState)
             const Icon = KIND_ICON[step.kind] || Circle
             const action = ACTIONS[step.id]
             return (
@@ -109,6 +102,36 @@ export default function BrokerCompletionModal({
             )
           })}
         </div>
+
+        {/* Only ever reachable once every step above is done — an account
+            still missing one has nothing here (see hasCompleteBrokerData in
+            useDashboardData.js, the single gate both this button's visibility
+            and the candidates themselves are computed from). */}
+        {allDone && onReviewInferredFlows && (
+          <div className="px-5 pb-5">
+            <button type="button" onClick={() => { onClose(); onReviewInferredFlows() }}
+              className="w-full flex items-center gap-3 p-3 rounded-xl text-left transition-colors hover:bg-theme-elevated"
+              style={{ border: '1px solid var(--card-border)' }}>
+              <Sparkles size={16} className="shrink-0" style={{ color: 'var(--accent-blue)' }} />
+              <span className="min-w-0 flex-1">
+                <span className="block text-body font-medium" style={{ color: 'var(--text-primary)' }}>
+                  {t('Buscar depósitos o retiros que faltan', 'Look for missing deposits or withdrawals')}
+                </span>
+                <span className="block text-micro mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                  {inferredFlowCount > 0
+                    ? t(`Encontró ${inferredFlowCount} para revisar.`, `Found ${inferredFlowCount} to review.`)
+                    : t('Con todo esto ya completo, Chispu puede detectarlos solo.', 'With all of this complete, Chispu can detect them on its own.')}
+                </span>
+              </span>
+              {inferredFlowCount > 0 && (
+                <span className="shrink-0 text-[11px] font-mono px-1.5 py-0.5 rounded-full"
+                  style={{ backgroundColor: 'var(--alert-warn-bg)', color: 'var(--alert-warn-icon)' }}>
+                  {inferredFlowCount}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

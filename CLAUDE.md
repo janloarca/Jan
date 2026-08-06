@@ -376,6 +376,47 @@ lo que sobre se agrupa en un "Otros" neutro.
   segundo DEPOSIT (aunque `alreadyReflected` evita que toque el saldo, sí
   duplicaba la transacción en el historial).
 
+### Depósitos/retiros inferidos: SOLO con el broker al 100% (FASE DQ)
+- El único hueco real que queda una vez completado el checklist de FASE DL/DN es el
+  tramo transcrito por trimestre: 4 números al año, sin detalle de Cash Transactions.
+  Todo lo demás (últimos ~365 días vía API, años subidos como Flex XML) ya trae
+  depósitos/retiros EXACTOS, importados como transacciones reales; ahí no hay nada
+  que inferir.
+- **La compuerta es dura y compartida.** `hasCompleteBrokerData(brokerId, howTo,
+  state)` (`lib/brokerCompletion.js`) reusa los mismos `done`/`skippable` del
+  checklist — si a la cuenta le falta un paso, `lib/inferredFlows.js` ni corre.
+  `brokerCompletionState` se calcula UNA vez en `useDashboardData` y se pasa a
+  `BrokerCompletionModal` en vez de que el modal lo recalcule por su cuenta: two
+  copies of the same gate is exactly how se cuela un bug de este tipo.
+- **El techo de "esto es plausible" sale de la propia cuenta, no de una constante.**
+  `plausibleReturnCeiling` escala por `√tiempo` (una regla de trimestre recibe la
+  mitad del rango de un año) usando la volatilidad REAL de la cuenta
+  (`computeVolatility` sobre los snapshots `_source:'ibkr'`, nunca los trimestrales).
+  Un cambio de valor que cabe en esa banda se asume mercado puro; el excedente es
+  el flujo inferido (depósito si es positivo, retiro si es negativo).
+- **Nunca se escribe solo.** Cada candidato pasa por `InferredFlowsModal`: el
+  usuario acepta (edita el monto si quiere), o descarta ("fue puro mercado"). Solo
+  al aceptar se escribe una transacción real (`_source:'inferred_flow'`, symbol
+  'CASH', sin `_linkedItemId` — mismo shape que un cash transaction real de IBKR),
+  fechada al punto medio del hueco (la fecha exacta no se puede saber con solo el
+  total del trimestre). `computeModifiedDietz` la neta igual que cualquier otra:
+  cero motor de retorno nuevo.
+- **Se reconcilia sola con cada sync nuevo.** Si un Flex Query real (sync diario, o
+  un XML de año anterior recién subido) alcanza una fecha que antes solo tenía
+  inferencia, esa inferencia ya no aporta nada: el dato real la confirmó o la
+  refutó por su cuenta. `staleInferredFlowIds` + un efecto en `useDashboardData`
+  la borra automáticamente — el dato real SIEMPRE gana, nunca queda una
+  adivinanza vieja compitiendo al lado de un hecho.
+- **Decisión del usuario, memoria persistida.** Un hueco que el usuario ya
+  descartó (o aceptó) se marca `_flowReviewed:true` en el snapshot trimestral del
+  extremo del hueco (mismo patrón que `_newMoneyConfirmed`), no se recalcula en
+  vivo cada render.
+- El spreadsheet (`lib/historicalValues.js`) no necesitó cableado aparte: ya
+  reconstruye meses desde transacciones DEPOSIT/WITHDRAWAL por `_linkedItemId`
+  sin mirar `_source`, así que un flujo inferido aceptado aparece ahí automático.
+  Sí hubo que subir `SNAPSHOT_VERSION` (19) para invalidar el caché calculado
+  antes de que esta lógica existiera.
+
 ### Credenciales IBKR: DOS almacenes que deben mantenerse sincronizados (FASE AF)
 - Hay dos almacenes: (a) el **vault del servidor** (`users/{uid}/settings/ibkr`, token encriptado)
   vía `/api/brokers/ibkr` `save/get-credentials`; (b) el **doc `settings` del cliente**

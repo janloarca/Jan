@@ -49,6 +49,7 @@ const AccountReviewModal = dynamic(() => import('@/components/dashboard/AccountR
 const EnrichModal = dynamic(() => import('@/components/dashboard/EnrichModal'), { loading: () => <ModalSkeleton /> })
 const QuarterlyHistoryModal = dynamic(() => import('@/components/dashboard/QuarterlyHistoryModal'), { loading: () => <ModalSkeleton /> })
 const BrokerCompletionModal = dynamic(() => import('@/components/dashboard/BrokerCompletionModal'), { loading: () => <ModalSkeleton /> })
+const InferredFlowsModal = dynamic(() => import('@/components/dashboard/InferredFlowsModal'), { loading: () => <ModalSkeleton /> })
 const CashFlowModal = dynamic(() => import('@/components/CashFlowModal'), { loading: () => <ModalSkeleton /> })
 const PrintSummary = dynamic(() => import('@/components/dashboard/PrintSummary'))
 const OnboardingTour = dynamic(() => import('@/components/dashboard/OnboardingTour'))
@@ -292,6 +293,7 @@ export default function DashboardPage() {
     returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated, ytdBreakdown,
     annualDividends, estimatedAnnualIncome,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
+    brokerCompletionState, ibkrDataComplete, inferredFlowCandidates, acceptInferredFlow, dismissInferredFlow,
     benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName,
     handleIBKRSync, triggerIBKRSync,
     ibkrConnected, ibkrAutoSyncing,
@@ -1098,7 +1100,7 @@ export default function DashboardPage() {
               {/* ═══ COMPOSICIÓN: Allocation + Rendimiento por institución ═══ */}
               <div className="stagger-3 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 items-start">
                 <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
-                <CardBoundary id="INST-01"><InstitutionPerformance items={portfolioItems} lang={lang} baseCurrency={baseCurrency} transactions={transactions} convert={convert} /></CardBoundary>
+                <CardBoundary id="INST-01"><InstitutionPerformance items={portfolioItems} lang={lang} baseCurrency={baseCurrency} transactions={transactions} convert={convert} ibkrDataComplete={ibkrDataComplete} /></CardBoundary>
                 <CardBoundary id="OL-03"><PriceAlerts items={portfolioItems} alerts={alerts} marketPrices={marketPrices} addAlert={addAlert} deleteAlert={deleteAlert} lang={lang} /></CardBoundary>
               </div>
 
@@ -1534,14 +1536,26 @@ export default function DashboardPage() {
           brokerName={brokerCompletionId === 'ibkr' ? 'Interactive Brokers' : brokerCompletionId}
           lang={lang}
           onClose={() => setBrokerCompletionId(null)}
-          ibkrConnected={ibkrConnected}
-          snapshots={snapshots}
-          items={portfolioItems}
-          accountCalibrations={accountCalibrations}
+          completionState={brokerCompletionState}
           onConnect={() => setModal('ibkr')}
           onImportHistory={() => handleOpenImport('ibkr')}
           onQuarterlyHistory={handleOpenQuarterly}
           onCalibrate={() => setModal('calibrate')}
+          inferredFlowCount={inferredFlowCandidates.length}
+          onReviewInferredFlows={() => setModal('inferredFlows')}
+        />
+      )}
+
+      {modal === 'inferredFlows' && (
+        <InferredFlowsModal
+          candidates={inferredFlowCandidates}
+          lang={lang}
+          onClose={handleCloseModal}
+          onAccept={async (c) => {
+            await acceptInferredFlow(c)
+            showToast(lang === 'es' ? 'Movimiento registrado' : 'Movement recorded', 'success')
+          }}
+          onDismiss={dismissInferredFlow}
         />
       )}
 
