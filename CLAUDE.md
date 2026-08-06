@@ -307,6 +307,42 @@ lo que sobre se agrupa en un "Otros" neutro.
   vieja (`estimated:true` en un bono exacto, o un mes que nunca se re-fetcheó) se queda
   ahí para siempre sin el bump forzando el recálculo completo.
 
+### El "journey" de conectar un broker, y leer más que las barras de la captura (FASE DT)
+- **Un solo componente visual para las dos secuencias de pasos que ya existían.**
+  `lib/brokerHowTo.js` (instrucciones "cómo consigo esto") y `lib/brokerCompletion.js`
+  (checklist "llevar esto al 100%") son conceptualmente lo mismo: una secuencia
+  ordenada de pasos hacia "totalmente conectado". Antes se veían como dos UIs sin
+  relación: una `<ol>` plana (`BrokerSteps`) y una lista de tarjetas con check
+  (`BrokerCompletionModal`, código propio). Unificadas en `components/ui/StepJourney.jsx`:
+  timeline vertical con círculos conectados por una línea (verde donde ya se completó),
+  el paso actual resaltado con fondo/borde propio ("estás aquí"), acción inline por
+  paso. `BrokerSteps` ahora es un wrapper delgado sobre `StepJourney` (mismo API, cero
+  cambios en los callers de ConnectionsModal/FileImportModal); `BrokerCompletionModal`
+  mapea su estado `done`/`skippable` a `status: 'done'|'skippable'|'active'|'todo'`
+  (`active` = el primer paso ni hecho ni saltable). Aplica a CUALQUIER broker: los
+  pasos son datos (`brokerHowTo.js`/`brokerCompletion.js`), el componente no conoce IBKR.
+- **La captura de Portfolio Analyst trae más que las barras.** El reporte de IBKR
+  (`FullSizeRender.jpeg` de referencia) trae, arriba de la gráfica, "Net Asset Value"
+  (Beginning/Ending/Change), "Return" (Best/Worst con fecha, y Period) y
+  "Deposits & Withdrawals" (Net); y sobre algunas barras, marcadores "D"/"W" señalando
+  en qué trimestre entró o salió dinero. `app/api/import/parse-chart-image/route.js`
+  ahora pide ese resumen también (`summary: {...} | null`, solo si la imagen
+  realmente lo trae) y por barra `deposit`/`withdrawal` (true solo si esa barra
+  específica tiene el marcador visible). `QuarterlyHistoryModal` muestra el resumen
+  como panel de cross-check (nunca se guarda, es solo para comparar) y un badge
+  D/W junto a cada trimestre marcado.
+- **Un marcador D/W es evidencia real, no una adivinanza estadística.** Se persiste
+  como `_flowMarker` en el snapshot trimestral guardado. `lib/inferredFlows.js`
+  (`quarterlyOnlyPoints`) lo pasa como `marker`, y `detectGapFlow` lo trata distinto
+  de su detección normal: con marcador, SIEMPRE genera un candidato (salta el techo de
+  "esto es plausible", que solo aplica cuando estamos adivinando puramente del salto de
+  valor) y el TIPO lo decide el marcador, no el signo del delta, porque un depósito
+  compensado por pérdidas de mercado en el mismo trimestre puede bajar el NAV aunque sí
+  entró dinero. Cada candidato lleva `source: 'photo'|'estimate'` para que
+  `InferredFlowsModal` distinga "tu captura marca esto" (badge azul) de "posible,
+  estimado" (framing genérico) — mismo flujo de revisión/edición para ambos, la
+  diferencia es solo de dónde salió la evidencia.
+
 ### Reconstrucción transaccional: rebobinar, no aplanar (FASE AO)
 - La reconstrucción CORRECTA del pasado rebobina las transacciones importadas desde el estado
   actual: `qty_t = qty_actual − compras_post_t + ventas_post_t` y `cash_t = cash_actual −
