@@ -16,7 +16,7 @@ const SEV_STYLE = {
 }
 const SEV_ICON = { high: '⚠', medium: '●', low: 'ℹ' }
 
-export default function ChispuSuggestions({ findings = [], globalScore = 100, lang = 'es', onEditItem, onOpenCashflow, onOpenReview, items = [] }) {
+export default function ChispuSuggestions({ findings = [], globalScore = 100, lang = 'es', onEditItem, onOpenCashflow, onOpenReview, onConfirmDistinct, items = [] }) {
   const t = (es, en) => lang === 'es' ? es : en
   const [dismissed, setDismissed] = useState(() => {
     if (typeof window === 'undefined') return new Set()
@@ -111,6 +111,17 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
                 style={{ color: 'var(--accent-blue)', border: '1px solid rgba(37,99,235,0.35)' }}>
                 {actionLabel(f)}
               </button>
+              {/* dup-suspect only: a stronger answer than "dismiss this box" — it
+                  stamps BOTH items (_dupConfirmedDistinct, dataCompleteness.js) so
+                  the same pair stops being asked about everywhere this check runs,
+                  not just here. A plain ✕ only ever hid THIS card's copy of it. */}
+              {f.code === 'dup-suspect' && f.action?.itemIds?.length > 1 && onConfirmDistinct && (
+                <button onClick={() => onConfirmDistinct(f)}
+                  className="text-xs px-2 py-1 rounded-lg font-medium whitespace-nowrap"
+                  style={{ color: 'var(--text-muted)', border: '1px solid var(--card-border)' }}>
+                  {t('No son iguales', 'Not the same')}
+                </button>
+              )}
               <button onClick={() => dismiss(f.id)} aria-label={t('Descartar sugerencia', 'Dismiss suggestion')}
                 className="text-xs w-6 h-6 rounded-lg" style={{ color: 'var(--text-muted)' }}>
                 ✕

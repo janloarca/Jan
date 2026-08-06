@@ -5,7 +5,7 @@ import { formatCurrency, formatCompact, formatAxisTick, formatDate, getItemValue
 import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { indexBalanceEvents } from '@/lib/historicalValues'
 import { isBankLikeItem } from '@/lib/contributions'
-import { computeTWRSeries, computeMWRSeries, filterValueSpikes } from './analytics'
+import { computeTWRSeries, computeAnchoredReturnSeries, filterValueSpikes } from './analytics'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import ErrorState from '@/components/ui/ErrorState'
 
@@ -24,15 +24,27 @@ function buildGeometry(values, mode, height, width, pad, extraSeries, timestamps
   const cw = width - pad.left - pad.right
 
   let allVals = values.filter(v => isFinite(v))
-  // extraSeries shares the Y scale (benchmark in performance mode, invested-capital
-  // line in value mode) — both lines must live on ONE axis or comparisons lie.
+  // extraSeries shares the Y scale (the invested-capital line in value mode) —
+  // both lines must live on ONE axis or the comparison lies.
   if (extraSeries && extraSeries.length > 0) {
     allVals = [...allVals, ...extraSeries.filter(v => isFinite(v))]
   }
   if (allVals.length === 0) allVals = [0]
   const min = Math.min(...allVals)
   const max = Math.max(...allVals)
-  const paddingVal = mode === 'performance' ? 0 : (max - min) * 0.05
+  let paddingVal = mode === 'performance' ? 0 : (max - min) * 0.05
+  // A genuinely flat series (a fully static portfolio over a few days) can
+  // still differ by a few cents or dollars between points — rounding, a
+  // slightly different rate snapshot. With no floor the Y-axis auto-zooms to
+  // that sliver of a range and draws sub-1%-of-value noise as a dramatic
+  // plunge on an otherwise unmoved total — the headline says flat, the line
+  // says it crashed (FASE EI). Floor the padding at a fraction of the value
+  // LEVEL itself, not just the local max-min, so that reads as the flat line
+  // it actually is; a real move bigger than the floor still shows normally.
+  if (mode !== 'performance') {
+    const level = Math.max(Math.abs(max), Math.abs(min), 1)
+    paddingVal = Math.max(paddingVal, level * 0.0075)
+  }
   const adjustedMin = mode === 'performance' ? Math.min(min, 0) - Math.abs(min || 1) * 0.1 : min - paddingVal
   const adjustedMax = mode === 'performance' ? Math.max(max, 0) + Math.abs(max || 1) * 0.1 : max + paddingVal
   const range = adjustedMax - adjustedMin || 1
@@ -68,18 +80,7 @@ function buildGeometry(values, mode, height, width, pad, extraSeries, timestamps
   return { points, baselineY, yTicks, cw, ch, adjustedMin, range }
 }
 
-function findClosestBenchmark(sorted, targetTs) {
-  let lo = 0, hi = sorted.length - 1
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1
-    if (sorted[mid].ts < targetTs) lo = mid + 1
-    else hi = mid
-  }
-  if (lo > 0 && Math.abs(sorted[lo - 1].ts - targetTs) < Math.abs(sorted[lo].ts - targetTs)) lo--
-  return sorted[lo]
-}
-
-export default function PortfolioGrowthChart({ items, lots, snapshots, transactions, lang, convert, baseCurrency, benchmarkSymbol, benchmarkName, onSaveSnapshot, ibkrSyncSummary = null, onImportBroker = null }) {
+export default function PortfolioGrowthChart({ items, lots, snapshots, transactions, lang, convert, baseCurrency, onSaveSnapshot, ibkrSyncSummary = null, onImportBroker = null }) {
   const [period, setPeriod] = useState('YTD')
   const [hoverIdx, setHoverIdx] = useState(null)
   const [dataPoints, setDataPoints] = useState([])
@@ -93,7 +94,6 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const [staticTotal, setStaticTotal] = useState(0)
   const [staticPoints, setStaticPoints] = useState([])
   const [viewMode, setViewMode] = useState('value')
-  const [benchmarkPts, setBenchmarkPts] = useState(null)
   // Opt-in, not opt-on: a second dashed line that diverges sharply from the
   // value line (money invested vs. what it's worth today) reads as a stray
   // rendering glitch to someone who hasn't been told what it means. Showing
@@ -167,7 +167,6 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       .filter((t) => isFinite(t))
     return ts.length > 0 ? Math.min(...ts) : 0
   }, [items])
-  const benchmarkPeriodMap = { DAY: '1M', '1W': '1M', MTD: '1M', '1M': '1M', '3M': '3M', '6M': '6M', YTD: 'YTD', '1Y': '1Y', ALL: 'ALL' }
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -409,25 +408,6 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     const interval = setInterval(fetchHistory, 300000)
     return () => { mountedRef.current = false; clearInterval(interval) }
   }, [fetchHistory])
-
-  useEffect(() => {
-    let bp = benchmarkPeriodMap[period] || 'YTD'
-    // CUSTOM used to silently fall back to YTD — the "vs SPX" box then compared
-    // your custom window against the index's year-to-date. Match the window.
-    if (period === 'CUSTOM' && customRange.from) {
-      const fromDate = new Date(customRange.from)
-      const toDate = customRange.to ? new Date(customRange.to) : new Date()
-      const diffDays = Math.ceil((toDate - fromDate) / 86400000)
-      bp = diffDays <= 30 ? '1M' : diffDays <= 90 ? '3M' : diffDays <= 180 ? '6M' : diffDays <= 365 ? '1Y' : 'ALL'
-    }
-    let cancelled = false
-    const sym = benchmarkSymbol || '%5EGSPC'
-    authFetch(`/api/prices/benchmark?period=${encodeURIComponent(bp)}&symbol=${encodeURIComponent(sym)}`)
-      .then((res) => res.ok ? safeJson(res) : null)
-      .then((data) => { if (!cancelled && data) setBenchmarkPts(data.dataPoints || null) })
-      .catch(() => {})
-    return () => { cancelled = true }
-  }, [period, benchmarkSymbol, customRange])
 
   const currentTotal = useMemo(() => {
     if (!scopedItems) return 0
@@ -732,7 +712,18 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       const firstSnapTs = snapPts[0].ts
       const firstSnapVal = snapPts[0].value
       const lastSnapTs = snapPts[snapPts.length - 1].ts
-      if (period !== 'ALL') {
+      // ALL used to never prepend older API history, full stop — the older
+      // segment is an ESTIMATE for a broker-synced position (a real IBKR
+      // account's true inception isn't knowable from a hold-flat guess, and
+      // the Flex Query's own 365-day cap means "estimate" there can mean
+      // "invented"), so the caution made sense there. It made no sense for a
+      // portfolio of only static assets (a bond, a bank balance): that
+      // reconstruction is EXACT, not a guess (reconstructionIsExact, same
+      // signal the dotted-line/rebase logic above already trusts), so ALL
+      // was truncating to whatever real Firestore snapshots happened to exist
+      // (the last ~30 days) instead of starting from the account's actual
+      // first recorded movement (FASE EJ).
+      if (period !== 'ALL' || reconstructionIsExact) {
         const olderApi = apiPts.filter(p => p.ts < firstSnapTs - 3600000)
         if (olderApi.length > 0) {
           // The API segment is an ESTIMATE (Σ qty×historical price) and can sit at
@@ -818,7 +809,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       if (real.length >= 2) return real
     }
     return pts
-  }, [dataPoints, snapshotData, currentTotal, period, staticPoints, selectedInst, manualAddedTs, snapshots, items, convert, baseCurrency, viewMode, firstRealTs, apiTransactional])
+  }, [dataPoints, snapshotData, currentTotal, period, staticPoints, selectedInst, manualAddedTs, snapshots, items, convert, baseCurrency, viewMode, firstRealTs, apiTransactional, reconstructionIsExact])
 
   // Whether the auto-imported IBKR cash flows (_source:'ibkr') enter the return math
   // depends on the SOURCE of the value series (lesson from the +1.98% vs IBKR's
@@ -842,60 +833,13 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   // sub-period). The MWR alternative was dropped: two numbers for "my return"
   // that disagreed with the broker's app eroded trust; one number, one truth.
   // ⛔ LÓGICA CONGELADA (D). Ver lib/assetLogic/corporateBondWithEntryFee.js:
-  // PREGUNTAR antes de cambiar el ancla o el re-base de esta serie.
-  const returnData = useMemo(() => {
-    if (chartData.length < 2) return []
-    // A return needs capital to measure against. When the window opens BEFORE
-    // the portfolio existed, its first points are legitimately 0 and Dietz
-    // returns 0 for every one of them (startValue <= 0), which drew a flat 0%
-    // line across a year that really returned 3.94% (FASE ED). Start measuring
-    // where the money first appears, exactly like the YTD headline does with
-    // jan1Ts, and pad the leading zero-value stretch with 0% so the series still
-    // lines up 1:1 with chartData for the geometry below.
-    const firstFunded = chartData.findIndex((p) => (p.value ?? p.total ?? 0) > 0)
-    const measured = firstFunded > 0 ? chartData.slice(firstFunded) : chartData
-    if (measured.length < 2) return []
-    // Hold-flat prefixes pre-date flows implicitly, so flows inside them are
-    // ignored (flowFromTs). A TRANSACTIONAL prefix contains real flow effects,
-    // so every flow nets, exactly like a broker's full-year TWR.
-    const hasHoldFlatPrefix = !apiTransactional && firstRealTs != null && chartData[0].ts < firstRealTs - 3600000
-    // The deposit that FUNDED the first measured point is inside that point's
-    // value already, so netting it again would read the funding as a loss (the
-    // same trap the headline's dropped-flows filter exists for). Anything at or
-    // before the anchor is out.
-    const opts = hasHoldFlatPrefix
-      ? { flowFromTs: firstRealTs }
-      : (firstFunded > 0 ? { flowFromTs: measured[0].ts + 1 } : {})
-    let series = computeMWRSeries(measured, returnTransactions, convert, baseCurrency, opts)
-    if (series.length === 0) return []
-    // Same denominator every other surface uses: the gain measures against the
-    // VALUE at the anchor, but the % divides by the cash that actually left the
-    // pocket. Those differ by the entry fee (6,098 deposited into a 6,000
-    // bond), which is why this chart still read 4.00% next to 3.94% everywhere
-    // else (FASE EE). Dietz is linear in the base with no flows left inside the
-    // window, so re-basing is a single scale of the whole series — and never
-    // touching the anchor keeps the fee out of the numerator, the double-charge
-    // the VITALI case in CLAUDE.md warns about.
-    if (firstFunded > 0) {
-      const anchorTs = measured[0].ts
-      const anchorVal = measured[0].value ?? measured[0].total ?? 0
-      let funded = 0
-      for (const tx of returnTransactions || []) {
-        const ty = (tx.type || '').toUpperCase()
-        if (ty !== 'DEPOSIT' && ty !== 'WITHDRAWAL') continue
-        const ts = tx.date ? new Date(tx.date).getTime() : NaN
-        if (!isFinite(ts) || ts > anchorTs) continue
-        const raw = Number(tx.totalAmount ?? 0)
-        const amt = convert ? convert(raw, tx.currency || 'USD', baseCurrency || 'USD') : raw
-        if (isFinite(amt)) funded += ty === 'DEPOSIT' ? amt : -amt
-      }
-      if (funded > anchorVal && anchorVal > 0) {
-        const scale = anchorVal / funded
-        series = series.map((v) => v * scale)
-      }
-    }
-    return firstFunded > 0 ? [...Array(firstFunded).fill(0), ...series] : series
-  }, [chartData, returnTransactions, convert, baseCurrency, firstRealTs, apiTransactional])
+  // PREGUNTAR antes de cambiar el ancla o el re-base de esta serie. La
+  // fórmula vive en computeAnchoredReturnSeries (analytics.js) — recalculada
+  // con las funciones reales en lib/__tests__/corporateBondWithEntryFee.test.js.
+  const returnData = useMemo(
+    () => computeAnchoredReturnSeries(chartData, returnTransactions, convert, baseCurrency, { firstRealTs, apiTransactional }),
+    [chartData, returnTransactions, convert, baseCurrency, firstRealTs, apiTransactional]
+  )
 
   // Non-null when the performance view was rebased to the first real broker
   // datapoint (IBKR's "Jan 1 or account open, whichever is later" convention).
@@ -906,32 +850,6 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     && firstRealTs > Date.UTC(new Date().getUTCFullYear(), 0, 1) + 45 * 86400000
     && chartData.length > 0 && chartData[0].ts >= firstRealTs - 3600000
     ? firstRealTs : null
-
-  const sortedBenchmark = useMemo(() => {
-    if (!benchmarkPts || benchmarkPts.length < 2) return null
-    return [...benchmarkPts].sort((a, b) => a.ts - b.ts)
-  }, [benchmarkPts])
-
-  const benchmarkReturn = useMemo(() => {
-    if (!sortedBenchmark || chartData.length < 2) return null
-    const bStart = findClosestBenchmark(sortedBenchmark, chartData[0].ts)
-    const bEnd = findClosestBenchmark(sortedBenchmark, chartData[chartData.length - 1].ts)
-    return bStart.close > 0 ? ((bEnd.close - bStart.close) / bStart.close) * 100 : null
-  }, [sortedBenchmark, chartData])
-
-  const benchmarkReturnSeries = useMemo(() => {
-    if (!sortedBenchmark || chartData.length < 2) return null
-    // Rebase to the benchmark close at the PORTFOLIO's start — the benchmark
-    // window can be wider than the chart (DAY/1W/MTD fetch 1M of data), and
-    // rebasing to its own first point made the SPX line start above/below 0%
-    // and disagree with the "vs SPX" figure in the insight box.
-    const baseClose = findClosestBenchmark(sortedBenchmark, chartData[0].ts).close
-    if (baseClose <= 0) return null
-    return chartData.map((dp) => {
-      const closest = findClosestBenchmark(sortedBenchmark, dp.ts)
-      return ((closest.close - baseClose) / baseClose) * 100
-    })
-  }, [sortedBenchmark, chartData])
 
   const contributionLine = useMemo(() => {
     if (viewMode !== 'value' || chartData.length < 2) return null
@@ -1107,14 +1025,13 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const geo = useMemo(() => {
     const vals = viewMode === 'value' ? growthValues : returnData
     if (vals.length < 2) return null
-    // Extra series shares the axis: benchmark (performance) / invested capital
-    // (value). Including it here is what keeps both lines on ONE scale.
-    const extra = viewMode === 'performance'
-      ? (benchmarkReturnSeries || null)
-      : (showContributions ? contributionLine : null)
+    // Extra series shares the axis: invested capital, in value mode only, when
+    // the user opts into showing it. Including it here is what keeps both
+    // lines on ONE scale.
+    const extra = viewMode === 'value' && showContributions ? contributionLine : null
     const timestamps = chartData.map((d) => d.ts)
     return buildGeometry(vals, viewMode === 'value' ? 'value' : 'performance', chartHeight, width, pad, extra, timestamps)
-  }, [viewMode, growthValues, returnData, benchmarkReturnSeries, contributionLine, showContributions, chartData, width])
+  }, [viewMode, growthValues, returnData, contributionLine, showContributions, chartData, width])
 
   const contributionGeoPoints = useMemo(() => {
     if (!geo || !contributionLine || viewMode !== 'value' || !showContributions) return null
@@ -1133,17 +1050,6 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     return xLabels.map((xl) => ({ ...xl, x: geo.points[xl.idx]?.x })).filter((xl) => xl.x != null)
   }, [xLabels, geo])
 
-  const benchmarkGeoPoints = useMemo(() => {
-    if (!geo || !benchmarkReturnSeries || viewMode !== 'performance') return null
-    // Derive from geo (which already includes the benchmark in its extent) so the
-    // SPX line is guaranteed to share axis AND time-scaled X with the portfolio.
-    const ch = chartHeight - pad.top - pad.bottom
-    return benchmarkReturnSeries.map((v, i) => ({
-      x: geo.points[i]?.x ?? pad.left,
-      y: pad.top + ch - ((v - geo.adjustedMin) / geo.range) * ch,
-      v,
-    }))
-  }, [geo, benchmarkReturnSeries, viewMode, chartHeight, pad])
 
   // The value headline must never be computed against a RECONSTRUCTED start. With only
   // a few days of real broker data, the hold-flat prefix projects today's positions back
@@ -1221,15 +1127,6 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const annualizedReturn = spanYears > 1.5 && isFinite(lastReturn) && (1 + lastReturn / 100) > 0
     ? (Math.pow(1 + lastReturn / 100, 1 / spanYears) - 1) * 100
     : null
-
-  const microInsight = useMemo(() => {
-    if (benchmarkReturn == null || returnData.length < 2) return null
-    // Sanity bound: a degenerate portfolio figure shouldn't be broadcast as a
-    // triumphant "you beat the S&P by 500%" box.
-    if (!isFinite(lastReturn) || Math.abs(lastReturn) > 200) return null
-    const delta = lastReturn - benchmarkReturn
-    return { portfolioRet: lastReturn, benchmarkRet: benchmarkReturn, delta, isOut: delta >= 0 }
-  }, [benchmarkReturn, lastReturn, returnData])
 
   const handleSaveSnapshots = useCallback(async () => {
     if (!onSaveSnapshot) return
@@ -1447,28 +1344,6 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         </div>
       )}
 
-      {/* Benchmark insight (performance mode only). Alert tokens (not hardcoded
-          rgba) so light theme works; the DELTA leads — three raw percentages in
-          one line were hard to scan, especially on mobile. */}
-      {viewMode === 'performance' && microInsight && (
-        <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs mb-3"
-          style={microInsight.isOut
-            ? { backgroundColor: 'var(--alert-success-bg)', border: '1px solid var(--alert-success-border)', color: 'var(--accent-green)' }
-            : { backgroundColor: 'var(--alert-error-bg)', border: '1px solid var(--alert-error-border)', color: 'var(--text-negative)' }
-          }>
-          <span>{microInsight.isOut ? '▲' : '▼'}</span>
-          <span>
-            <span className="font-semibold">
-              {microInsight.isOut
-                ? t(`Superas al ${benchmarkName || 'S&P 500'} por +${Math.abs(microInsight.delta).toFixed(2)}%`, `Beating ${benchmarkName || 'S&P 500'} by +${Math.abs(microInsight.delta).toFixed(2)}%`)
-                : t(`Vas debajo del ${benchmarkName || 'S&P 500'} por ${Math.abs(microInsight.delta).toFixed(2)}%`, `Trailing ${benchmarkName || 'S&P 500'} by ${Math.abs(microInsight.delta).toFixed(2)}%`)}
-            </span>
-            <span className="opacity-70 ml-1.5">
-              ({t('tú', 'you')} {microInsight.portfolioRet >= 0 ? '+' : ''}{microInsight.portfolioRet.toFixed(2)}% · {benchmarkName || 'SPX'} {microInsight.benchmarkRet >= 0 ? '+' : ''}{microInsight.benchmarkRet.toFixed(2)}%)
-            </span>
-          </span>
-        </div>
-      )}
 
       {/* Drawdown indicator */}
       {viewMode === 'value' && drawdown && (
@@ -1746,12 +1621,6 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
                 <path d={polyline(geo.points)} fill="none" stroke="var(--text-negative)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
                   clipPath="url(#clip-below-baseline)" />
-
-                {/* No in-chart label: the legend already names the benchmark, and the
-                    old label started 12px from the right edge → always clipped ("SP"). */}
-                {benchmarkGeoPoints && benchmarkGeoPoints.length >= 2 && (
-                  <path d={polyline(benchmarkGeoPoints)} fill="none" stroke="var(--accent-orange)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="4 3" strokeOpacity="0.85" />
-                )}
               </>
             )}
 
@@ -1817,11 +1686,6 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                   <div className="font-bold" style={{ color: (returnData[hoverIdx] ?? 0) >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                     {t('Portafolio', 'Portfolio')}: {(returnData[hoverIdx] ?? 0) >= 0 ? '+' : ''}{(returnData[hoverIdx] ?? 0).toFixed(2)}%
                   </div>
-                  {benchmarkReturnSeries && benchmarkReturnSeries[hoverIdx] != null && (
-                    <div style={{ color: 'var(--accent-orange)' }}>
-                      {benchmarkName || 'S&P 500'}: {benchmarkReturnSeries[hoverIdx] >= 0 ? '+' : ''}{benchmarkReturnSeries[hoverIdx].toFixed(2)}%
-                    </div>
-                  )}
                   <div className="text-slate-300">{formatCurrency(hd.value)}</div>
                   <div className="text-slate-500">{formatTooltipDate(hd.date)}</div>
                 </>
@@ -1867,12 +1731,6 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
             <span className="w-1.5 h-1.5 rounded-full inline-block -ml-1" style={{ backgroundColor: 'var(--text-negative)' }} />
             {t('Tu portafolio (MWR): verde sobre 0%, rojo debajo', 'Your portfolio (MWR): green above 0%, red below')}
           </span>
-          {benchmarkReturnSeries && (
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-0.5 rounded-full inline-block" style={{ backgroundColor: 'var(--accent-orange)', borderBottom: '1px dashed' }} />
-              {benchmarkName || 'S&P 500'}
-            </span>
-          )}
         </div>
       )}
       <div className="flex justify-center mt-2">

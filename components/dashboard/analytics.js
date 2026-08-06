@@ -671,3 +671,98 @@ export function computeMWRSeries(chartData, transactions, convert, baseCurrency,
 
   return series
 }
+
+// ⛔ LÓGICA CONGELADA (D). Antes de tocar el ancla o el re-base de esta serie,
+// leer lib/assetLogic/corporateBondWithEntryFee.js y seguir el protocolo de
+// su cabecera: hay que PREGUNTAR antes de cambiarla.
+//
+// FASE EJ. The %-per-point twin of computeWindowGrowth (dashboard/utils.js):
+// new capital that arrives mid-window is never counted as return, whether the
+// window opens at $0 (a brand-new account) or already holding value (XOCHI,
+// bought years earlier, giving the window a nonzero start before VITALI's own
+// deposit lands on top of it). The old code only caught the first case
+// (findIndex(value>0) === 0 told it nothing when the window didn't start at
+// zero), so the deposit's fee showed up as an immediate loss right when it
+// landed — a dip that only "healed" as Dietz's own time-weighting caught up,
+// exactly the fee-in-the-numerator error CLAUDE.md's VITALI case documents,
+// just spread across a whole series instead of a single number.
+//
+// Two anchor cases, one series after that:
+//  - zeroIdx > 0: the window opens before the portfolio existed. The funding
+//    moment IS where value turns nonzero (FASE ED).
+//  - zeroIdx === 0 (something already had value at the window's start): look
+//    for the first DEPOSIT/WITHDRAWAL landing STRICTLY inside the window —
+//    the same "new capital" signal computeWindowGrowth already uses for the
+//    value headline, just needing an index here instead of a delta.
+//
+// Once anchored, the measured sub-series' own internal base (its startValue,
+// via computeMWRSeries) is the anchor's VALUE — which already nets to
+// firstVal + principal (fee excluded, since flowFromTs drops the funding flow
+// itself). That is the numerator side of the VITALI formula. The final
+// rescale (anchorVal / (firstVal + funded)) converts it to the denominator
+// side (all-in cost, fee included) — same math as computeWindowGrowth, just
+// applied to a whole series at once because Dietz is linear in the base once
+// no flows are left inside the (sub-)window.
+export function computeAnchoredReturnSeries(chartData, transactions, convert, baseCurrency, opts = {}) {
+  if (!chartData || chartData.length < 2) return []
+  const windowStartTs = chartData[0].ts
+  const zeroIdx = chartData.findIndex((p) => (p.value ?? p.total ?? 0) > 0)
+  let anchorIdx = zeroIdx > 0 ? zeroIdx : -1
+  if (anchorIdx === -1 && zeroIdx === 0) {
+    let earliestTs = null
+    for (const tx of transactions || []) {
+      const ty = (tx.type || '').toUpperCase()
+      if (ty !== 'DEPOSIT' && ty !== 'WITHDRAWAL') continue
+      const ts = tx.date ? new Date(tx.date).getTime() : NaN
+      if (!isFinite(ts) || ts <= windowStartTs) continue
+      if (earliestTs == null || ts < earliestTs) earliestTs = ts
+    }
+    if (earliestTs != null) {
+      const idx = chartData.findIndex((p) => p.ts >= earliestTs)
+      if (idx > 0) anchorIdx = idx
+    }
+  }
+
+  const measured = anchorIdx > 0 ? chartData.slice(anchorIdx) : chartData
+  if (measured.length < 2) return []
+
+  // Hold-flat prefixes pre-date flows implicitly, so flows inside them are
+  // ignored (flowFromTs). A TRANSACTIONAL prefix contains real flow effects,
+  // so every flow nets, exactly like a broker's full-year TWR.
+  const hasHoldFlatPrefix = !opts.apiTransactional && opts.firstRealTs != null
+    && chartData[0].ts < opts.firstRealTs - 3600000
+  // The deposit that FUNDED the anchor point is inside that point's value
+  // already, so netting it again would read the funding as a loss.
+  const flowOpts = hasHoldFlatPrefix
+    ? { flowFromTs: opts.firstRealTs }
+    : (anchorIdx > 0 ? { flowFromTs: measured[0].ts + 1 } : {})
+
+  let series = computeMWRSeries(measured, transactions, convert, baseCurrency, flowOpts)
+  if (series.length === 0) return []
+
+  if (anchorIdx > 0) {
+    const anchorTs = measured[0].ts
+    const anchorVal = measured[0].value ?? measured[0].total ?? 0
+    const firstVal = chartData[0].value ?? chartData[0].total ?? 0
+    // Only NEW capital — anything at/before the window's own start is already
+    // folded into firstVal (a flow from years before the window, like XOCHI's
+    // own original funding, must never be summed again here).
+    let funded = 0
+    for (const tx of transactions || []) {
+      const ty = (tx.type || '').toUpperCase()
+      if (ty !== 'DEPOSIT' && ty !== 'WITHDRAWAL') continue
+      const ts = tx.date ? new Date(tx.date).getTime() : NaN
+      if (!isFinite(ts) || ts > anchorTs || ts <= windowStartTs) continue
+      const raw = Number(tx.totalAmount ?? 0)
+      const amt = convert ? convert(raw, tx.currency || 'USD', baseCurrency || 'USD') : raw
+      if (isFinite(amt)) funded += ty === 'DEPOSIT' ? amt : -amt
+    }
+    const costBase = firstVal + funded
+    if (costBase > 0 && anchorVal > 0) {
+      const scale = anchorVal / costBase
+      series = series.map((v) => v * scale)
+    }
+  }
+
+  return anchorIdx > 0 ? [...Array(anchorIdx).fill(0), ...series] : series
+}

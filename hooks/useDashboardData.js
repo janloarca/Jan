@@ -125,7 +125,18 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     if (!user || dataLoading || pricesLoading || ratesLoading) return
     if (enrichedItems.length === 0) return
     const alreadyExists = snapshots.some((s) => s.date === todayStr || s.id === todayStr)
-    if (alreadyExists) { snapshotSavedRef.current = todayStr; return }
+    // FASE EI. A 'daily' doc for TODAY, once written, used to be final for the
+    // rest of the day no matter what — a price tick, a new item added mid-day
+    // (XOCHI, this morning), nothing could refresh it, so the value chart's
+    // very last point stayed stuck at whatever total happened to be true the
+    // moment it first wrote, while every day before it (self-healed by the
+    // trailing-30-day backfill, FASE EG) was correct: a cliff appears at
+    // "today" even though the headline number is right. With no broker-synced
+    // item, 'daily' is just a live computation, not an external truth, same
+    // reasoning as FASE EG — let ONE mount overwrite it if the live total
+    // now differs, never mid-session (the ref below still guards that).
+    const hasBrokerItem = enrichedItems.some((it) => it && it._source === 'ibkr')
+    if (alreadyExists && hasBrokerItem) { snapshotSavedRef.current = todayStr; return }
     let totalAssetsUSD = 0
     let totalDebtUSD = 0
     enrichedItems.forEach((it) => {
