@@ -859,8 +859,34 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     const opts = hasHoldFlatPrefix
       ? { flowFromTs: firstRealTs }
       : (firstFunded > 0 ? { flowFromTs: measured[0].ts + 1 } : {})
-    const series = computeMWRSeries(measured, returnTransactions, convert, baseCurrency, opts)
+    let series = computeMWRSeries(measured, returnTransactions, convert, baseCurrency, opts)
     if (series.length === 0) return []
+    // Same denominator every other surface uses: the gain measures against the
+    // VALUE at the anchor, but the % divides by the cash that actually left the
+    // pocket. Those differ by the entry fee (6,098 deposited into a 6,000
+    // bond), which is why this chart still read 4.00% next to 3.94% everywhere
+    // else (FASE EE). Dietz is linear in the base with no flows left inside the
+    // window, so re-basing is a single scale of the whole series — and never
+    // touching the anchor keeps the fee out of the numerator, the double-charge
+    // the VITALI case in CLAUDE.md warns about.
+    if (firstFunded > 0) {
+      const anchorTs = measured[0].ts
+      const anchorVal = measured[0].value ?? measured[0].total ?? 0
+      let funded = 0
+      for (const tx of returnTransactions || []) {
+        const ty = (tx.type || '').toUpperCase()
+        if (ty !== 'DEPOSIT' && ty !== 'WITHDRAWAL') continue
+        const ts = tx.date ? new Date(tx.date).getTime() : NaN
+        if (!isFinite(ts) || ts > anchorTs) continue
+        const raw = Number(tx.totalAmount ?? 0)
+        const amt = convert ? convert(raw, tx.currency || 'USD', baseCurrency || 'USD') : raw
+        if (isFinite(amt)) funded += ty === 'DEPOSIT' ? amt : -amt
+      }
+      if (funded > anchorVal && anchorVal > 0) {
+        const scale = anchorVal / funded
+        series = series.map((v) => v * scale)
+      }
+    }
     return firstFunded > 0 ? [...Array(firstFunded).fill(0), ...series] : series
   }, [chartData, returnTransactions, convert, baseCurrency, firstRealTs, apiTransactional])
 
