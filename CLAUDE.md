@@ -369,6 +369,71 @@ lo que sobre se agrupa en un "Otros" neutro.
   encabezado, condicionadas por tipo de activo, todas detrás de "Detalles avanzados") ya
   existía y ya era razonable; el ajuste fue solo de consistencia visual, no una reescritura.
 
+### El ancla del YTD tiene FECHA, y el capital invertido no se siembra dos veces (FASE DV)
+
+Caso: bono manual (IDC/VITALI) comprado el 2026-01-06 por USD 6,000 con corretaje
+de 98 y un cupón de 240. Tres números mentían al mismo tiempo, por tres causas
+distintas. Vale la pena separarlas porque comparten un mismo patrón: **un valor y
+su fecha se separaron**.
+
+- **`YTD -$6,098 (-51%)` con el portafolio quieto.** `jan1Value` se define como
+  "el primer punto de la serie YTD con total > 0", que NO siempre es el 1 de
+  enero: un activo comprado a mitad de año hace que todos los puntos anteriores
+  valgan 0 legítimamente, así que el primer punto real es el día en que entró el
+  dinero. Pero el Dietz medía igual desde `yearStartTs`, así que restaba el
+  DEPOSIT de 6,098 que había CREADO ese valor de arranque: `gain = 6000 − 6000 −
+  6098` y denominador `6000 + 6098×0.977 ≈ 11,958` → exactamente el −51% de la
+  captura. Arreglado con `jan1Ts`: el ancla viaja con su fecha, y cuando esa
+  fecha se mueve hacia adelante los flujos anteriores o iguales a ella se
+  descartan (`computeModifiedDietz` cuenta un flujo fechado justo en `startTs`,
+  así que mover la ventana sola no bastaba). Mismo arreglo en el fallback de
+  `returnSinceStart`.
+  **No toca IBKR:** una posición con `_holdFlat` mantiene la cantidad plana hasta
+  el 1 de enero, así que su primer punto con total > 0 YA es el 1 de enero y
+  `startTs` no se mueve; y si hay snapshot real cerca de enero, esta rama ni
+  corre.
+- **"Invertido" marcando ~12.2K sobre 6,098 reales.** Dos siembras dobles en
+  `contributionLine` (`PortfolioGrowthChart`): (a) el `entryFee` se sumaba como
+  evento propio aunque el DEPOSIT de apertura de `AddAccountModal` YA lo trae
+  adentro (`principal + entryFee`, tag `_source:'manual_new_account'`) — mismo
+  motivo por el que ya se saltaba el modo `'deducted'`, otro lugar donde la
+  comisión ya está contada; (b) la semilla era `chartData[0].value`, que es la
+  respuesta correcta para una posición que ANTECEDE la ventana (una cuenta IBKR
+  cuyo ledger de depósitos solo llega 365 días atrás: su valor el día uno ES el
+  capital cuyos flujos no vemos), pero es falsa cuando nada la antecede: ahí el
+  valor del borde izquierdo existe solo porque la reconstrucción mantiene plana
+  hacia atrás la posición de hoy, y los depósitos que la fundaron se suman
+  ADEMÁS como eventos. Ahora la semilla es 0 salvo que algún ítem del scope
+  pueda haber existido antes (`shouldHoldFlat`, sin fecha, o fecha anterior);
+  `shouldHoldFlat` es justo el helper que marca las fechas no confiables de
+  IBKR, así que esas cuentas conservan la semilla vieja.
+- **Un aviso de broker en un activo sin broker.** El banner de "historial corto"
+  usaba `primaryBrokerId === 'ibkr' || primaryBrokerId == null`, así que un scope
+  SIN broker sincronizado (`null`) caía en la rama de IBKR: un bono tecleado a
+  mano terminaba leyendo "IDC: ... En IBKR: Flex Queries → Period ..." más una
+  línea forense contando secciones XML que nunca tuvo. Todo remedio que ofrece
+  ese aviso es una acción de broker (ensanchar un Flex Query, subir el export),
+  así que sin broker sincronizado no tiene nada verdadero que decir: ahora el
+  bloque entero exige `primaryBrokerId != null`. Un activo estático mantenido
+  plano entre sus propios eventos rastreados no es un hueco de sincronización
+  (ver FASE DS), y mandar al usuario a IBKR a arreglarlo es simplemente falso.
+- **Un cupón backfilleado contra una cuenta destino en CERO.** FASE DI decidió
+  que un cupón de un mes ya cerrado no acredita el saldo del destino, porque el
+  saldo que el usuario escribió es una foto de HOY y ya lo contiene
+  (`_destinationCredited:false`). Esa suposición es seguramente falsa en un solo
+  caso: saldo 0. Una cuenta vacía no puede "ya contener" 240. El Fondo Líquido
+  creado junto al activo que lo alimenta (abierto en 0) cayó justo ahí: la
+  transacción existía y se veía al abrir la cuenta, pero el saldo seguía en 0, y
+  el spreadsheet (que reconstruye rebobinando desde el saldo) mostraba 0 en TODOS
+  los meses. `creditableBackfills` (puro, con tests) lo acredita después del
+  hecho y voltea el flag para que una limpieza posterior sí revierta un crédito
+  que ahora sí ocurrió. **A propósito solo `balance <= 0`**, nunca "el saldo se
+  ve chico": un saldo tecleado de 100 contra un cupón de 240 es genuinamente
+  ambiguo (¿salieron 140, o el 100 está viejo?) y adivinar ahí reabre el
+  doble-crédito que este flag existe para evitar. Cero no es ambiguo.
+  Bump a `SNAPSHOT_VERSION` (21): los meses cacheados se calcularon desde un
+  saldo de 0.
+
 ### Reconstrucción transaccional: rebobinar, no aplanar (FASE AO)
 - La reconstrucción CORRECTA del pasado rebobina las transacciones importadas desde el estado
   actual: `qty_t = qty_actual − compras_post_t + ventas_post_t` y `cash_t = cash_actual −

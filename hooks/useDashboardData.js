@@ -7,7 +7,7 @@ import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations } from '@/components/dashboard/utils'
 import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
-import { hasDividendInMonth, redundantAutoDividendIds } from '@/lib/autoDividends'
+import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills } from '@/lib/autoDividends'
 import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanDays, earliestNeededDays as computeEarliestNeededDays } from '@/lib/brokerCompletion'
 import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds } from '@/lib/inferredFlows'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes } from '@/components/dashboard/analytics'
@@ -322,6 +322,39 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         }
       }
 
+      // Repair pass: a backfilled coupon skips crediting its destination because
+      // the balance the user typed is assumed to already contain it. On a
+      // destination sitting at ZERO that assumption is provably false (nothing
+      // is inside an empty account), and the payment ended up existing as a
+      // transaction while contributing to no balance and to no month of the
+      // reconstructed history. Credit it now and flip the flag, so a later
+      // cleanup reverses a credit that really happened. See creditableBackfills.
+      for (const it of scheduled) {
+        if (cancelled) return
+        const dest = it.incomeDestination
+          ? enrichedItems.find((d) => (d.id || d.symbol) === it.incomeDestination)
+          : null
+        if (!dest) continue
+        const destBalance = (dest.quantity || 1) * (dest._originalPrice ?? dest.purchasePrice ?? 0)
+        const pending = creditableBackfills(transactions, it, destBalance)
+        if (pending.length === 0) continue
+        // One credit for the whole batch, same reason the reversal above batches:
+        // addToDestination reads the balance off the item object it was handed,
+        // so calling it per payment would have every call start from the SAME
+        // stale balance and the last write would win instead of accumulating.
+        const total = pending.reduce((s, tx) => s + Number(tx.totalAmount ?? tx.amount ?? 0), 0)
+        const cur = pending[0].currency || it._originalCurrency || 'USD'
+        try {
+          await addToDestination(dest, total, cur)
+          if (updateTransaction) {
+            for (const tx of pending) {
+              if (cancelled) return
+              await updateTransaction(tx.id, { _destinationCredited: true })
+            }
+          }
+        } catch (e) { console.error('[dividend-backfill-credit]', e.message) }
+      }
+
       for (const it of scheduled) {
         if (cancelled) return
         const payMonths = Array.isArray(it.incomeMonths) ? it.incomeMonths : [0,1,2,3,4,5,6,7,8,9,10,11]
@@ -475,7 +508,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       dividendsProcessedRef.current = todayKey
     }).catch((err) => console.error('[dividends]', err))
     return () => { cancelled = true }
-  }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, transactions, addTransaction, deleteTransaction, updateItem, convert])
+  }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, transactions, addTransaction, deleteTransaction, updateTransaction, updateItem, convert])
 
   const handleRefresh = useCallback(() => {
     refreshPrices()
@@ -884,6 +917,15 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   }, [augmentedSnapshots, netWorth, convertSnapshot])
 
   const [jan1Value, setJan1Value] = useState(null)
+  // WHEN jan1Value is the value of. It is the first point of the YTD series with
+  // a non-zero total, which is NOT always Jan 1: a position acquired mid-year
+  // (a bond bought Jan 6) makes every earlier point legitimately 0, so the first
+  // real point is the day the money arrived. Measuring Dietz from Jan 1 while
+  // the start VALUE is really Jan 6's then subtracts the very deposit that
+  // created it: a $6,000 bond funded with a $6,098 deposit read as
+  // -$6,098 (-51%) YTD on a portfolio that had not moved a cent (FASE DV).
+  // The anchor's date has to travel with the anchor's value.
+  const [jan1Ts, setJan1Ts] = useState(null)
   // True when jan1Value came from a TRANSACTIONAL reconstruction (rewound through
   // imported deposits/buys/sells): that baseline reflects real flow timing, so the
   // YTD Dietz must net the flows like it would against a real snapshot anchor.
@@ -958,6 +1000,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
               ? convert(firstReal.total, 'USD', baseCurrency)
               : firstReal.total
             setJan1Value(val)
+            setJan1Ts(Number.isFinite(firstReal.ts) ? firstReal.ts : null)
             setJan1Transactional(!!data.transactional)
           }
           // The breakdown is only published when its start point IS the anchor
@@ -1051,6 +1094,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     let flowAware = false
     let anchorUSD = null
     let anchorCalibrated = false
+    // When the start value is not actually Jan 1's, the window starts where the
+    // value does (see jan1Ts). Only ever moves FORWARD from Jan 1.
+    let startTs = yearStartTs
     if (augmentedSnapshots.length >= 2) {
       // Shared anchor (also used by the chart's YTD starting point) so the
       // Dietz badge and the chart never start the year from different values.
@@ -1062,7 +1108,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         anchorCalibrated = !!bestSnap._calibrated
       }
     }
-    if (startVal == null || startVal <= 0) { startVal = jan1Value; flowAware = jan1Transactional }
+    if (startVal == null || startVal <= 0) {
+      startVal = jan1Value
+      flowAware = jan1Transactional
+      if (jan1Ts != null && jan1Ts > yearStartTs) startTs = jan1Ts
+    }
 
     // Per-account calibration: swap each calibrated account's ESTIMATED share
     // of the year-start anchor for the start value solved from the % that
@@ -1122,6 +1172,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           if (startVal == null || startVal <= 0) {
             startVal = firstVal
             flowAware = firstFlowAware
+            // Same rule as jan1Ts: this value is the FIRST snapshot's, which is
+            // usually well after Jan 1, so the YTD window starts there too.
+            if (firstTs > yearStartTs) startTs = firstTs
           }
         }
       }
@@ -1129,14 +1182,26 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
     const calibrated = ytdCalApplied || anchorCalibrated
     if (startVal == null || startVal <= 0) return { returnYTD: null, ytdChange: null, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated }
+    let ytdFlows = flowAware ? transactions : dietzTransactions
+    // The anchor moved off Jan 1 because that is where the money first appeared,
+    // so the flow that PUT it there is already inside startVal. Dietz counts a
+    // flow dated exactly on startTs (`txTs >= startTs`), so moving the window is
+    // not enough on its own: the flows at or before the anchor have to go too,
+    // or the deposit is subtracted from a start value that already contains it.
+    if (startTs > yearStartTs) {
+      ytdFlows = (ytdFlows || []).filter((tx) => {
+        const txTs = tx.date ? new Date(tx.date).getTime() : NaN
+        return !isFinite(txTs) || txTs > startTs
+      })
+    }
     const { pct, abs } = computeModifiedDietz({
       startValue: startVal, endValue: netWorth,
-      startTs: yearStartTs, endTs: Date.now(),
-      transactions: flowAware ? transactions : dietzTransactions, convert, baseCurrency,
+      startTs, endTs: Date.now(),
+      transactions: ytdFlows, convert, baseCurrency,
     })
     const clampedPct = Math.max(-200, Math.min(200, pct))
     return { returnYTD: clampedPct, ytdChange: abs, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated }
-  }, [jan1Value, jan1Transactional, netWorth, transactions, dietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot, accountCalibrations, portfolioItems])
+  }, [jan1Value, jan1Ts, jan1Transactional, netWorth, transactions, dietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot, accountCalibrations, portfolioItems])
 
   // "What is actually driving my YTD" — the number broken into the holdings and
   // institutions behind it, so the headline stops being a figure you have to
