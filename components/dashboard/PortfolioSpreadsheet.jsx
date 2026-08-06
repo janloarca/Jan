@@ -51,6 +51,19 @@ function getMonthKey(d) {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
 }
 
+function monthEndOf(mk) { const [y, m] = mk.split('-').map(Number); return Date.UTC(y, m, 0) }
+
+// Same "when did this item start existing" fallback historicalValues.js uses
+// (acquisitionDate, else Jan 1 of its add-year) — shared here so the missing-
+// months detector below knows which items are even ELIGIBLE for a given month
+// instead of just counting raw coverage.
+function effAcqTs(it) {
+  const a = it.acquisitionDate ? Date.parse(it.acquisitionDate) : NaN
+  if (!isNaN(a)) return a
+  const c = it.createdAt ? new Date(it.createdAt) : null
+  return c && !isNaN(c.getTime()) ? Date.UTC(c.getUTCFullYear(), 0, 1) : null
+}
+
 function getMonthLabel(key, lang) {
   const [y, m] = key.split('-')
   const d = new Date(parseInt(y), parseInt(m) - 1, 1)
@@ -252,13 +265,6 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     // Held flat at their current value, gated by an effective acquisition date so a
     // bond bought in June doesn't inflate May. This mirrors what the per-item
     // reconstruction produces (IBKR scaled to NAV + manual assets held flat).
-    const monthEndOf = (mk) => { const [y, m] = mk.split('-').map(Number); return Date.UTC(y, m, 0) }
-    const effAcqTs = (it) => {
-      const a = it.acquisitionDate ? Date.parse(it.acquisitionDate) : NaN
-      if (!isNaN(a)) return a
-      const c = it.createdAt ? new Date(it.createdAt) : null
-      return c && !isNaN(c.getTime()) ? Date.UTC(c.getUTCFullYear(), 0, 1) : null
-    }
     const nonIbkrItems = items
       .filter(it => it._source !== 'ibkr' && it.id && !isExcludedFromNetWorth(it))
       .map(it => ({ value: getItemValue(it), acqTs: effAcqTs(it) }))
@@ -399,11 +405,23 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
 
     const itemsWithIds = items.filter(it => it.id)
 
+    // A month needs (re)fetching if ANY item that already existed by that
+    // month's end is missing from the cache — never a blanket percentage of
+    // the whole portfolio. A percentage bar let one item added after the rest
+    // (e.g. a bond added months later, alongside its own destination account)
+    // get stuck uncovered forever: the other 80-90% of the portfolio already
+    // "passed" that month, so it was never marked missing and never re-fetched
+    // (FASE DS — this is what left Bonos Corporativos/VITALI blank for months
+    // it demonstrably existed).
     const missingMonths = pastMonths.filter(mk => {
       const monthData = historicalItems[mk]
-      if (!monthData || Object.keys(monthData).length === 0) return true
-      const covered = itemsWithIds.filter(it => monthData[it.id])
-      return covered.length < itemsWithIds.length * 0.7
+      if (!monthData) return true
+      const end = monthEndOf(mk)
+      const eligible = itemsWithIds.filter(it => {
+        const acq = effAcqTs(it)
+        return acq == null || acq <= end
+      })
+      return eligible.some(it => !monthData[it.id])
     })
     if (missingMonths.length === 0) {
       lastFetchedYearRef.current = selectedYear
@@ -794,21 +812,31 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                       return <td key={mk} className="text-right py-3 px-2 font-bold tabular-nums font-mono text-sm" style={{ backgroundColor: '#eff6ff', color: '#0f172a' }}>{formatCurrency(cat.total)}</td>
                     }
                     const histMonth = historicalItems[mk]
-                    let catHistTotal = null
+                    let catHistTotal = 0
+                    // Track whether any real per-item entry actually contributed,
+                    // separately from the sum itself — a category whose reconstructed
+                    // total legitimately IS 0 (e.g. everything sold off) must still
+                    // show "0", not fall through to "-" as if there were no data at
+                    // all (FASE DS: `!== 0` used to conflate "no data" with "data that
+                    // happens to sum to zero").
+                    let foundAny = false
                     if (histMonth) {
-                      catHistTotal = 0
                       cat.institutions.forEach(inst => {
                         inst.items.forEach(it => {
-                          if (it.id && histMonth[it.id]) catHistTotal += histMonth[it.id].value || 0
+                          if (it.id && histMonth[it.id]) {
+                            catHistTotal += histMonth[it.id].value || 0
+                            foundAny = true
+                          }
                         })
                       })
                       Object.entries(histMonth).forEach(([itemId, data]) => {
                         if (!currentItemIds.has(itemId) && data.category === cat.key) {
                           catHistTotal += data.value || 0
+                          foundAny = true
                         }
                       })
                     }
-                    if (catHistTotal != null && catHistTotal !== 0) {
+                    if (foundAny) {
                       return (
                         <td key={mk} className="text-right py-3 px-2 tabular-nums font-mono text-sm text-slate-600">
                           {formatNum(catHistTotal)}

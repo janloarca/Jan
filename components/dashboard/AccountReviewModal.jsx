@@ -18,7 +18,7 @@ const CATEGORY_LABELS = {
 
 const SEV_WEIGHT = { high: 3, medium: 2, low: 1 }
 
-export default function AccountReviewModal({ items: allItems, onClose, onEditItem, lang, transactions, findings = [], startItemId = null, onlyWithFindings = false, institutionFilter = null }) {
+export default function AccountReviewModal({ items: allItems, onClose, onEditItem, onOpenCashflow, lang, transactions, findings = [], startItemId = null, onlyWithFindings = false, institutionFilter = null }) {
   const t = (es, en) => lang === 'es' ? es : en
   const trapRef = useFocusTrap()
   const [reviewed, setReviewed] = useState({})
@@ -97,6 +97,19 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
 
   const handleEdit = () => {
     if (onEditItem) onEditItem(item)
+  }
+
+  // Same "cashflow" action ChispuSuggestions already offers on the dashboard —
+  // wired here too so the guided/per-institution review flow can resolve a
+  // finding (e.g. "confirm this is new money") without the user having to
+  // remember to close this modal and go find that button elsewhere.
+  const handleResolve = (f) => {
+    if (f.action?.kind === 'cashflow' && onOpenCashflow) {
+      onClose()
+      onOpenCashflow(f.action.prefill || { flowType: 'DEPOSIT', origin: 'external', linkedId: item.id, alreadyReflected: true })
+    } else {
+      handleEdit()
+    }
   }
 
   const itemFindings = findingsByItem.get(item.id) || []
@@ -219,10 +232,16 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
           {itemFindings.length > 0 && (
             <div className="rounded-lg p-3 mb-4" style={{ backgroundColor: '#fffbeb', borderWidth: '1px', borderStyle: 'solid', borderColor: '#fde68a' }}>
               <p className="text-xs font-medium" style={{ color: '#b45309' }}>{t('Chispu detectó:', 'Chispu detected:')}</p>
-              <ul className="mt-1 space-y-1">
+              <ul className="mt-1.5 space-y-1.5">
                 {itemFindings.map(f => (
-                  <li key={f.id} className="text-xs" style={{ color: '#d97706' }}>
-                    · {lang === 'es' ? f.textEs : f.textEn}
+                  <li key={f.id} className="text-xs flex items-start justify-between gap-2" style={{ color: '#d97706' }}>
+                    <span>· {lang === 'es' ? f.textEs : f.textEn}</span>
+                    {f.action?.kind === 'cashflow' && (
+                      <button type="button" onClick={() => handleResolve(f)}
+                        className="shrink-0 underline font-medium" style={{ color: '#b45309' }}>
+                        {t('Resolver', 'Resolve')}
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>
