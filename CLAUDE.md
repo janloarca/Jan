@@ -343,6 +343,32 @@ lo que sobre se agrupa en un "Otros" neutro.
   estimado" (framing genérico) — mismo flujo de revisión/edición para ambos, la
   diferencia es solo de dónde salió la evidencia.
 
+### Agregar/editar cuenta: dinero saliendo, y huecos visibles sin cambiar de pantalla (FASE DU)
+- **Una transferencia SALIENTE era invisible en la cuenta de origen.** `EditAccountModal`
+  ya mostraba dinero ENTRANTE de otro activo (`_incomingFrom`, ver FASE previa), pero su
+  `linkedTransactions` ni siquiera incluía el tipo `TRANSFER` en el filtro de tipos: una
+  cuenta que mandó dinero a otra (`TransferModal`/`CashFlowModal`, `_originItemId` →
+  `_linkedItemId`) no mostraba nada explicando por qué bajó su saldo. Agregado un tercer
+  bucket `outgoing` (simétrico a `incoming`, marcado `_outgoingTo`), visible y borrable
+  pero no editable aquí: una transferencia toca el saldo de DOS cuentas, y este editor de
+  una sola cuenta no está armado para tocar las dos a la vez. `isPositive` para un
+  `TRANSFER` ya no puede leerse del tipo de transacción (no es DEPOSIT ni WITHDRAWAL):
+  depende de qué lado de la transferencia es esta cuenta (`incoming` → verde, `outgoing`
+  → rojo).
+- **Los findings de completitud de datos solo vivían en dos pantallas, no en el editor
+  mismo.** `AccountReviewModal` (el wizard) y `ChispuSuggestions` (la card del dashboard)
+  ya mostraban "Chispu detectó: ..." con un botón "Resolver"; quien abre `EditAccountModal`
+  directamente (clic en el nombre de la cuenta desde cualquier lista) no veía nada de esto.
+  Mismo patrón agregado ahí: `findings` filtrado por `itemId === item.id`, mismo botón
+  "Resolver" → `onOpenCashflow` con el mismo prefill. Tres superficies, un solo motor
+  (`lib/dataCompleteness.js`), nunca pueden divergir en qué cuenta con qué se ve mal.
+- **`AddAccountModal`**: los encabezados de sección de "detalles avanzados" (🏦 Cuenta,
+  📅 Vencimiento, 💰 Costos, 💧 Liquidez, 🔐 Custodia, 🔮 SAFE, 🌍 Fiscal, 📝 Notas)
+  usaban `text-slate-500` fijo en vez de `var(--text-muted)`: el único lugar del formulario
+  que no seguía el sistema de variables de tema. La estructura por secciones (icono +
+  encabezado, condicionadas por tipo de activo, todas detrás de "Detalles avanzados") ya
+  existía y ya era razonable; el ajuste fue solo de consistencia visual, no una reescritura.
+
 ### Reconstrucción transaccional: rebobinar, no aplanar (FASE AO)
 - La reconstrucción CORRECTA del pasado rebobina las transacciones importadas desde el estado
   actual: `qty_t = qty_actual − compras_post_t + ventas_post_t` y `cash_t = cash_actual −

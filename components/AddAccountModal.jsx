@@ -1361,7 +1361,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               <div className="space-y-4">
                 {/* Cuenta */}
                 <div>
-                  <span className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2 block">🏦 {t('Cuenta', 'Account')}</span>
+                  <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>🏦 {t('Cuenta', 'Account')}</span>
                   <select id="add-accountType" value={form.accountType} onChange={e => set('accountType', e.target.value)} className={inputCls}>
                     {ACCOUNT_TYPES.map(at => <option key={at.key} value={at.key}>{lang === 'es' ? at.es : at.en}</option>)}
                   </select>
@@ -1375,7 +1375,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 {/* Vencimiento (bonds/alternatives) */}
                 {(isBond || isAlternative) && (
                   <div className="pt-3.5 border-t border-glass-border/50">
-                    <span className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2 block">📅 {t('Vencimiento', 'Maturity')}</span>
+                    <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>📅 {t('Vencimiento', 'Maturity')}</span>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className={labelCls}>{t('Fecha', 'Date')}</label>
@@ -1398,7 +1398,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     plus (bonds only) interest already accrued at purchase. */}
                 {(isBond || isAlternative) && (
                   <div className="pt-3.5 border-t border-glass-border/50">
-                    <span className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2 block">💰 {t('Costos y comisiones', 'Costs & fees')}</span>
+                    <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>💰 {t('Costos y comisiones', 'Costs & fees')}</span>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <div>
                         <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">
@@ -1495,7 +1495,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 {/* Liquidez */}
                 {(isProperty || isAlternative || (isBond && subtype === 'private_debt')) && (
                   <div className="pt-3.5 border-t border-glass-border/50">
-                    <span className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2 block">💧 {t('Liquidez', 'Liquidity')}</span>
+                    <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>💧 {t('Liquidez', 'Liquidity')}</span>
                     <div className="flex items-center gap-3 px-3 py-2 border border-[var(--card-border,#38383A)] rounded-lg">
                       <button type="button" onClick={() => set('isIlliquid', !form.isIlliquid)}
                         className="w-8 h-4 rounded-full transition-colors relative shrink-0"
@@ -1515,7 +1515,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 {/* Custodia (crypto) */}
                 {isCrypto && (
                   <div className="pt-3.5 border-t border-glass-border/50">
-                    <span className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2 block">🔐 {t('Custodia', 'Custody')}</span>
+                    <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>🔐 {t('Custodia', 'Custody')}</span>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <select value={form.custodyType} onChange={e => set('custodyType', e.target.value)} className={inputCls}>
@@ -1537,7 +1537,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 {/* SAFE Note */}
                 {isAlternative && subtype === 'safe_note' && (
                   <div className="pt-3.5 border-t border-glass-border/50">
-                    <span className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2 block">🔮 SAFE Note</span>
+                    <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>🔮 SAFE Note</span>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <div>
                         <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tipo', 'Type')}</label>
@@ -1563,7 +1563,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
                 {/* Fiscal */}
                 <div className="pt-3.5 border-t border-glass-border/50">
-                  <span className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2 block">🌍 {t('Fiscal', 'Tax')}</span>
+                  <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>🌍 {t('Fiscal', 'Tax')}</span>
                   <select value={form.taxJurisdiction} onChange={e => set('taxJurisdiction', e.target.value)} className={inputCls}>
                     <option value="">{t('-- Opcional --', '-- Optional --')}</option>
                     <option value="GT">Guatemala</option>
@@ -1581,7 +1581,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 {/* Notas */}
                 {(isBond || isAlternative || isProperty) && (
                   <div className="pt-3.5 border-t border-glass-border/50">
-                    <span className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2 block">📝 {t('Notas', 'Notes')}</span>
+                    <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>📝 {t('Notas', 'Notes')}</span>
                     <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
                       placeholder={t('Detalles adicionales...', 'Additional details...')}
                       rows={2} className={inputCls + ' resize-none'} />
