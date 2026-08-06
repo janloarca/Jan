@@ -350,7 +350,14 @@ export async function POST(request) {
           // accounts with a later top-up) must not trip it for a scope that's
           // otherwise still estimated.
           if (it._flowIsAccountLevel) usedTransactional = true
-          const v = cashAtTs((it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0), flows, ts)
+          const raw = cashAtTs((it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0), flows, ts)
+          // A MANUAL account's opening deposit can be larger than the asset it
+          // funded, because it carries the entry fee (6,098 deposited into a
+          // 6,000 bond). Rewinding past it then lands on -98, which is not "what
+          // it was worth", it is "it did not exist yet" — so those flows come
+          // flagged and floor at 0. The broker's own reconciled ledger is left
+          // alone: a real cash line can legitimately go negative (margin).
+          const v = it._flowClampZero ? Math.max(0, raw) : raw
           staticSubtotal += v
           total += v
           return

@@ -372,6 +372,11 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         })
         return next
       })
+      // Re-check "what's still missing" now that the cache landed, WITHOUT
+      // making historicalItems itself a dependency of the compute effect (see
+      // historicalItemsRef). One bump per resolved load, so the compute effect
+      // gets its cache-first pass and then settles instead of restarting.
+      setCacheEpoch((n) => n + 1)
     })
     return () => { cancelled = true }
   }, [onLoadItemSnapshots, months, currentMonthKey, baseCurrency, convert])
@@ -391,6 +396,20 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     })
     onSaveItemSnapshots(currentMonthKey, data, baseCurrency || 'USD')
   }, [onSaveItemSnapshots, items, currentMonthKey, baseCurrency])
+
+  // What the compute effect below READS to decide which months are missing, kept
+  // in a ref on purpose. `historicalItems` cannot be a dependency of that effect:
+  // the effect itself calls setHistoricalItems, and the load-from-cache effect
+  // above sets it too, so every write re-ran the effect and its cleanup marked
+  // the in-flight fetch `cancelled` — which returns BEFORE setLoadingHistory
+  // (false) and before lastFetchedYearRef is stamped. The result was a fetch that
+  // restarted forever: "Calculando historial..." pinned on screen and every past
+  // month stuck on "-" (FASE DW). The 70% coverage bar used to paper over this by
+  // emptying missingMonths almost immediately; the stricter per-item test of FASE
+  // DS removed that accident and exposed the real loop.
+  const historicalItemsRef = useRef({})
+  useEffect(() => { historicalItemsRef.current = historicalItems }, [historicalItems])
+  const [cacheEpoch, setCacheEpoch] = useState(0)
 
   useEffect(() => {
     if (!items || items.length === 0) return
@@ -413,8 +432,9 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     // "passed" that month, so it was never marked missing and never re-fetched
     // (FASE DS — this is what left Bonos Corporativos/VITALI blank for months
     // it demonstrably existed).
+    const cached = historicalItemsRef.current || {}
     const missingMonths = pastMonths.filter(mk => {
-      const monthData = historicalItems[mk]
+      const monthData = cached[mk]
       if (!monthData) return true
       const end = monthEndOf(mk)
       const eligible = itemsWithIds.filter(it => {
@@ -454,7 +474,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       }).catch(() => { if (!cancelled) setLoadingHistory(false) })
     }).catch(() => { if (!cancelled) setLoadingHistory(false) })
     return () => { cancelled = true }
-  }, [items, months, currentMonthKey, historicalItems, convert, baseCurrency, onSaveItemSnapshots, lots, transactions, selectedYear, snapshots])
+  }, [items, months, currentMonthKey, convert, baseCurrency, onSaveItemSnapshots, lots, transactions, selectedYear, snapshots, cacheEpoch])
 
   const itemValue = useCallback((item) => {
     return showOriginal ? getOriginalValue(item) : getItemValue(item)

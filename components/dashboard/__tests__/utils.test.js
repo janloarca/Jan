@@ -73,22 +73,45 @@ describe('augmentSnapshots', () => {
   const ibkrSnap = { date: '2026-03-31', _source: 'ibkr', netWorthUSD: 1000, totalActivosUSD: 1000 }
   const dailySnap = { date: '2026-03-31', netWorthUSD: 5000, totalActivosUSD: 5000 }
   const bond = { id: 'b1', symbol: 'BND', quantity: 1, currentPrice: 300, _originalPrice: 300, _originalCurrency: 'USD', acquisitionDate: '2025-01-01' }
+  // A synced IBKR NAV only describes the portfolio when the portfolio actually
+  // holds IBKR positions, so the top-up fixtures carry one (see the orphan test).
+  const ibkrPos = { id: 'i1', symbol: 'AAPL', _source: 'ibkr', quantity: 1, currentPrice: 10, _originalPrice: 10, _originalCurrency: 'USD', acquisitionDate: '2025-01-01' }
 
   test('augments only IBKR entries with non-IBKR held-flat value', () => {
-    const out = augmentSnapshots([ibkrSnap], [bond], idConvert)
+    const out = augmentSnapshots([ibkrSnap], [bond, ibkrPos], idConvert)
     expect(out[0].netWorthUSD).toBe(1300)
     expect(out[0].totalActivosUSD).toBe(1300)
   })
 
   test('leaves non-IBKR (daily) snapshots untouched', () => {
-    const out = augmentSnapshots([dailySnap], [bond], idConvert)
+    const out = augmentSnapshots([dailySnap], [bond, ibkrPos], idConvert)
     expect(out[0].netWorthUSD).toBe(5000)
   })
 
   test('gates by acquisition date (asset bought after the snapshot is not added)', () => {
     const future = { ...bond, acquisitionDate: '2026-06-01' }
-    const out = augmentSnapshots([ibkrSnap], [future], idConvert)
+    const out = augmentSnapshots([ibkrSnap], [future, ibkrPos], idConvert)
     expect(out[0].netWorthUSD).toBe(1000)
+  })
+
+  // FASE DW: a synced IBKR NAV left behind by an account whose positions are no
+  // longer in the portfolio measures money netWorth does not count. Topping it up
+  // with the manual assets produced a series worth 2x the headline.
+  test('drops a synced IBKR NAV when the portfolio holds no IBKR position', () => {
+    const out = augmentSnapshots([ibkrSnap], [bond], idConvert)
+    expect(out).toEqual([])
+  })
+
+  test('keeps a transcribed quarter even with no IBKR position (typed by hand, often before any import)', () => {
+    const q = { date: '2026-03-31', _source: 'ibkr_quarterly', netWorthUSD: 1000, totalActivosUSD: 1000 }
+    const out = augmentSnapshots([q], [bond], idConvert)
+    expect(out).toHaveLength(1)
+    expect(out[0].netWorthUSD).toBe(1300)
+  })
+
+  test('never drops anything before the items have loaded', () => {
+    const snaps = [ibkrSnap]
+    expect(augmentSnapshots(snaps, [], idConvert)).toBe(snaps)
   })
 
   test('no non-IBKR items → original array, snapshots not mutated', () => {
