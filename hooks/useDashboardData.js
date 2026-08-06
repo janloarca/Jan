@@ -8,7 +8,7 @@ import { authFetch, safeJson } from '@/lib/authFetch'
 import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations } from '@/components/dashboard/utils'
 import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { indexBalanceEvents } from '@/lib/historicalValues'
-import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills } from '@/lib/autoDividends'
+import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance } from '@/lib/autoDividends'
 import { unlinkedOpeningDeposits } from '@/lib/originDeposits'
 import { staleBackfillDates } from '@/lib/snapshotBackfill'
 import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanDays, earliestNeededDays as computeEarliestNeededDays } from '@/lib/brokerCompletion'
@@ -280,15 +280,16 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       return payDay
     }
 
+    // FASE EL. Shared across EVERY addToDestination call in this processDividends
+    // run, keyed by destination id — the running balance a second bond sharing
+    // the same destination (XOCHI + CrediCorp, both into Fondo Líquido Q) needs
+    // to build on instead of clobbering. See creditDestinationBalance
+    // (lib/autoDividends.js) for the bug this fixes and why.
+    const destRunningBalances = {}
     async function addToDestination(dest, amount, sourceCurrency) {
-      const destCur = dest.currency || dest._originalCurrency || 'USD'
-      const converted = convert ? convert(amount, sourceCurrency, destCur) : amount
       const cat = getTypeCategory(dest)
       if (cat === 'stocks' || cat === 'crypto' || cat === 'funds') return
-      const oldBalance = (dest.quantity || 1) * (dest._originalPrice ?? dest.purchasePrice ?? 0)
-      const newBalance = oldBalance + converted
-      const qty = dest.quantity || 1
-      const newPrice = newBalance / qty
+      const { newPrice } = creditDestinationBalance(destRunningBalances, dest, amount, sourceCurrency, convert)
       // Banks track their balance in purchasePrice; for bonds/alternatives purchasePrice
       // is the cost basis and must survive income payments
       const isBankDest = /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i.test(dest.type || '')

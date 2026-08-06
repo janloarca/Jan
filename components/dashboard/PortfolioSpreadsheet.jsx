@@ -331,8 +331,23 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   const lastFetchedYearRef = useRef(null)
 
   const snapshotSig = snapshots?.length ?? 0
-  const txSig = transactions?.length ?? 0
-  const lotSig = lots?.length ?? 0
+  // FASE EL. A plain count missed the exact case that started this: editing a
+  // dividend's date/amount, or relinking it to a different account, changes
+  // NOTHING about how many transactions exist — deleting one is the only edit
+  // a length-based signature could ever catch. An in-place edit left the
+  // spreadsheet's cache untouched and every past month kept showing the
+  // pre-edit numbers ("cuando se intenta editar es cuando se pone loco").
+  // Same fix as itemContentSig below, over the fields indexBalanceEvents
+  // (historicalValues.js) actually reads to decide which transaction moves
+  // which item's balance.
+  const txSig = useMemo(() => (transactions || []).map(tx =>
+    `${tx.id || ''}:${tx.type || ''}:${tx.date || ''}:${tx.totalAmount ?? tx.amount ?? 0}:${tx.currency || ''}:${tx._linkedItemId || ''}:${tx._destinationItemId || ''}`
+  ).sort().join('|'), [transactions])
+  // Same reasoning as txSig: editing a lot's quantity/acquisition/close date in
+  // place doesn't change how many lots exist.
+  const lotSig = useMemo(() => (lots || []).map(l =>
+    `${l.id || ''}:${l.symbol || ''}:${l.quantity || 0}:${l.acquisitionDate || ''}:${l.status || ''}:${l.closedDate || ''}`
+  ).sort().join('|'), [lots])
   // Content signature over the edit-sensitive item fields. Counts alone miss in-place
   // edits (quantity/symbol/date/cost), which must invalidate the cached history or
   // past columns keep showing stale values. Live price ticks are deliberately
