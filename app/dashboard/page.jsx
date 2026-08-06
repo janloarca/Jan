@@ -1473,6 +1473,8 @@ export default function DashboardPage() {
           baseCurrency={baseCurrency}
           existingItems={items} lang={lang}
           allItems={portfolioItems}
+          findings={dataCompleteness.findings}
+          onOpenCashflow={handleOpenCashflowPrefilled}
           onNavigate={showReview ? null : (dir) => {
             if (dir === 'next') {
               const sorted = [...portfolioItems].sort((a, b) => Math.abs(getItemValue(b)) - Math.abs(getItemValue(a)))

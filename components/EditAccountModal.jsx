@@ -57,7 +57,7 @@ function InfoTip({ text }) {
   )
 }
 
-export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es', allItems, onNavigate, onAddTransaction, onDeleteTransaction, onUpdateTransaction, transactions, onExecuteContribution, onCreateDestination, baseCurrency, entities = [] }) {
+export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es', allItems, onNavigate, onAddTransaction, onDeleteTransaction, onUpdateTransaction, transactions, onExecuteContribution, onCreateDestination, baseCurrency, entities = [], findings = [], onOpenCashflow }) {
   const trapRef = useFocusTrap()
   const [creatingDest, setCreatingDest] = useState(false)
   const [extraItems, setExtraItems] = useState([])
@@ -218,8 +218,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
   // inflates "capital invertido" and the return %, but never appeared in this
   // list, so a duplicate was literally impossible to find and delete from the
   // UI. A row explicitly linked to a DIFFERENT item is still excluded.
-  // Movements of THIS account: the ones filed against it, plus the ones that
-  // paid INTO it from somewhere else.
+  // Movements of THIS account: the ones filed against it, the ones that paid
+  // INTO it from somewhere else, and the ones that left it FOR somewhere else.
   //
   // Incoming money used to be invisible here. A coupon is filed against the
   // asset that generated it (VITALI), so the cash account that actually
@@ -227,6 +227,14 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
   // was no way to see why, or to find a duplicate payment and delete it. They
   // are marked `_incomingFrom` so the row can say where the money came from and
   // stay read-only for linking (it belongs to the source, not to this account).
+  //
+  // Outgoing transfers had the same blind spot the other way: TRANSFER moves
+  // money between two tracked accounts (_originItemId → _linkedItemId), but
+  // the type wasn't even in the filter list below, so an account that SENT
+  // money showed nothing explaining why its balance dropped (FASE DU). Marked
+  // `_outgoingTo` and, like incoming rows, read-only here: editing a transfer
+  // means touching both accounts' balances, which this single-account editor
+  // isn't set up to do safely.
   const linkedTransactions = useMemo(() => {
     const sym = (item.symbol || '').toUpperCase()
     const pool = allItems || existingItems || []
@@ -239,7 +247,18 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
     const own = []
     const incoming = []
+    const outgoing = []
     ;(transactions || []).forEach((tx) => {
+      if (tx.type === 'TRANSFER') {
+        if (tx._linkedItemId === item.id) {
+          const source = tx._originItemId ? byId.get(tx._originItemId) : null
+          incoming.push({ ...tx, _incomingFrom: source ? (source.name || source.symbol) : null })
+        } else if (tx._originItemId === item.id) {
+          const dest = tx._linkedItemId ? byId.get(tx._linkedItemId) : null
+          outgoing.push({ ...tx, _outgoingTo: dest ? (dest.name || dest.symbol) : null })
+        }
+        return
+      }
       if (!['DEPOSIT', 'WITHDRAWAL', 'DIVIDEND', 'INTEREST'].includes(tx.type)) return
       const isOwn = tx._linkedItemId
         ? tx._linkedItemId === item.id
@@ -260,8 +279,10 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         incoming.push({ ...tx, _incomingFrom: source ? (source.name || source.symbol) : null })
       }
     })
-    return [...own, ...incoming].sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+    return [...own, ...incoming, ...outgoing].sort((a, b) => (b.date || '').localeCompare(a.date || ''))
   }, [transactions, item.id, item.symbol, allItems, existingItems])
+
+  const itemFindings = useMemo(() => (findings || []).filter((f) => f.itemId === item.id), [findings, item.id])
 
   const handleContribution = async () => {
     const amt = parseFloat(contribAmount)
@@ -572,6 +593,30 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && <div className="p-3 border rounded-lg text-sm" role="alert" aria-live="assertive" style={{ backgroundColor: 'color-mix(in srgb, var(--text-negative) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--text-negative) 20%, transparent)', color: 'var(--text-negative)' }}>{error}</div>}
 
+          {/* Data-gap findings for THIS item, same engine + same "Resolver"
+              action as ChispuSuggestions and AccountReviewModal — someone who
+              opened the editor directly (not through "Completar información")
+              should still see and fix a gap without having to know that other
+              screen exists (FASE DU). */}
+          {itemFindings.length > 0 && (
+            <div className="rounded-lg p-3" style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)' }}>
+              <p className="text-xs font-medium" style={{ color: 'var(--alert-warn-icon)' }}>{t('Chispu detectó:', 'Chispu detected:')}</p>
+              <ul className="mt-1.5 space-y-1.5">
+                {itemFindings.map((f) => (
+                  <li key={f.id} className="text-xs flex items-start justify-between gap-2" style={{ color: 'var(--alert-warn-icon)' }}>
+                    <span>· {lang === 'es' ? f.textEs : f.textEn}</span>
+                    {f.action?.kind === 'cashflow' && onOpenCashflow && (
+                      <button type="button" onClick={() => { onClose(); onOpenCashflow(f.action.prefill || { flowType: 'DEPOSIT', origin: 'external', linkedId: item.id, alreadyReflected: true }) }}
+                        className="shrink-0 underline font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
+                        {t('Resolver', 'Resolve')}
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* Sector badge */}
           {item.sector && (
             <div className="flex gap-2 flex-wrap">
@@ -761,14 +806,24 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                       // WITHDRAWAL is actually money leaving this item's own
                       // value; showing the dividend red/negative here read as
                       // "VITALI lost $240" when its own value never changed.
-                      const isPositive = tx.type === 'DEPOSIT' || tx.type === 'DIVIDEND' || tx.type === 'INTEREST'
-                      const confirming = confirmDeleteTxId === tx.id
+                      const outgoing = tx._outgoingTo !== undefined
                       // Money that arrived FROM another asset. It is filed against
                       // that asset, so editing or re-linking it here would move
                       // someone else's record. Visible and deletable (that is how
                       // you find a duplicated coupon), but not editable.
                       const incoming = tx._incomingFrom !== undefined
-                      const editing = editingTxId === tx.id && !incoming
+                      // A TRANSFER's sign depends on which side of it THIS account
+                      // is on, not its type (it's neither a DEPOSIT nor a
+                      // WITHDRAWAL) — incoming is a gain to this account, outgoing
+                      // a loss, same green/red convention as everything else.
+                      const isPositive = tx.type === 'TRANSFER'
+                        ? incoming
+                        : (tx.type === 'DEPOSIT' || tx.type === 'DIVIDEND' || tx.type === 'INTEREST')
+                      const confirming = confirmDeleteTxId === tx.id
+                      // Same story the other way: a transfer OUT touches the
+                      // destination account's balance too, so it isn't editable
+                      // from a single-account form either.
+                      const editing = editingTxId === tx.id && !incoming && !outgoing
                       if (editing) {
                         return (
                           <div key={tx.id} className="py-2 border-b border-[var(--card-border,#38383A)]/30 last:border-0 space-y-2">
@@ -826,7 +881,14 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                                 {tx._incomingFrom ? t(`de ${tx._incomingFrom}`, `from ${tx._incomingFrom}`) : t('recibido', 'received')}
                               </span>
                             )}
-                            {!incoming && !tx._linkedItemId && (
+                            {outgoing && (
+                              <span className="ml-1 px-1 py-0.5 rounded text-[9px] align-middle"
+                                style={{ color: 'var(--accent-orange)', backgroundColor: 'color-mix(in srgb, var(--accent-orange) 15%, transparent)' }}
+                                title={t('Este dinero salió hacia otro activo. El movimiento vive en ambas cuentas: aquí solo se ve salir.', 'This money left for another asset. The record lives on both accounts: here you only see it go out.')}>
+                                {tx._outgoingTo ? t(`hacia ${tx._outgoingTo}`, `to ${tx._outgoingTo}`) : t('transferido', 'transferred')}
+                              </span>
+                            )}
+                            {!incoming && !outgoing && !tx._linkedItemId && (
                               <span className="ml-1 px-1 py-0.5 rounded text-[9px] align-middle"
                                 style={{ color: 'var(--accent-orange)', backgroundColor: 'color-mix(in srgb, var(--accent-orange) 15%, transparent)' }}
                                 title={t('Este movimiento se detectó por el símbolo, no está vinculado a la cuenta. Suele ser un registro viejo o duplicado.', 'This movement was matched by symbol, it isn\'t linked to the account. Usually an old or duplicate record.')}>
@@ -836,7 +898,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                             {tx.description && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{tx.description}</p>}
                           </div>
                           <span className="flex items-center gap-1 shrink-0">
-                            {onUpdateTransaction && !incoming && (
+                            {onUpdateTransaction && !incoming && !outgoing && (
                               <button type="button" onClick={() => startEditTx(tx)}
                                 className="px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors"
                                 style={{ color: 'var(--text-muted)', borderColor: 'var(--card-border,#38383A)' }}
