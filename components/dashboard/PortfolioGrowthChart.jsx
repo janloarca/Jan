@@ -1321,9 +1321,14 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
             {lastReturn >= 0 ? '+' : ''}{(hoverIdx != null && returnData[hoverIdx] != null ? returnData[hoverIdx] : lastReturn).toFixed(2)}%
             {/* Mode chip inline with the number — the tiny caption below was easy
                 to miss, and an unlabeled return % invites misreading. */}
+            {/* FASE EN. The badge said MWR (dollar-weighted/IRR-style) but the
+                method behind it (computeAnchoredReturnSeries, chained
+                sub-period returns off the NAV series) is TWR — same
+                methodology IBKR itself uses, per the comment above this JSX
+                block. Label only; the math underneath does not change. */}
             <span className="text-xs font-sans font-semibold px-1.5 py-0.5 rounded" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-tertiary)' }}
-              title={t('Retorno ponderado por dinero: cuenta cuándo pusiste cada aporte, así que mide lo que rindió TU dinero', 'Money-weighted return: it counts when you added each contribution, so it measures what YOUR money earned')}>
-              MWR
+              title={t('Retorno ponderado por tiempo: cadena el retorno de cada sub-período, la misma metodología que usa tu broker', 'Time-weighted return: chains each sub-period\'s return, the same methodology your broker uses')}>
+              TWR
             </span>
             {annualizedReturn != null && hoverIdx == null && (
               <span className="text-xs font-sans font-normal text-slate-500 font-mono tabular-nums">
@@ -1729,7 +1734,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           <span className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: 'var(--accent-green)' }} />
             <span className="w-1.5 h-1.5 rounded-full inline-block -ml-1" style={{ backgroundColor: 'var(--text-negative)' }} />
-            {t('Tu portafolio (MWR): verde sobre 0%, rojo debajo', 'Your portfolio (MWR): green above 0%, red below')}
+            {t('Tu portafolio (TWR): verde sobre 0%, rojo debajo', 'Your portfolio (TWR): green above 0%, red below')}
           </span>
         </div>
       )}
