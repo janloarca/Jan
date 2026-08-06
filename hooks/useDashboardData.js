@@ -8,7 +8,7 @@ import { authFetch, safeJson } from '@/lib/authFetch'
 import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations } from '@/components/dashboard/utils'
 import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { indexBalanceEvents } from '@/lib/historicalValues'
-import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance } from '@/lib/autoDividends'
+import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget } from '@/lib/autoDividends'
 import { unlinkedOpeningDeposits } from '@/lib/originDeposits'
 import { staleBackfillDates } from '@/lib/snapshotBackfill'
 import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanDays, earliestNeededDays as computeEarliestNeededDays } from '@/lib/brokerCompletion'
@@ -1545,6 +1545,49 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     return () => { cancelled = true }
   }, [transactions, portfolioItems, updateTransaction])
 
+  // FASE EP. Deleting or editing a DIVIDEND transaction by hand (EditAccountModal's
+  // per-row delete/edit, RecentTransactions' delete) used to just touch the
+  // transaction doc, blind to whether the payment had already moved a
+  // destination account's balance (addToDestination, above). A coupon the user
+  // marked as paid by mistake, or one whose amount needed a correction, left the
+  // destination permanently off by the stale amount, with no way to fix it
+  // short of deleting the whole account and rebuilding it from zero.
+  // dividendCreditTarget (lib/autoDividends.js) identifies whether a payment
+  // touched a balance and where; applyDestinationDelta below reuses the SAME
+  // credit math processDividends already runs on its own stale payments
+  // (creditDestinationBalance). A fresh {} runningBalances per call is correct
+  // here (unlike the shared accumulator above): each of these touches exactly
+  // one destination, never a batch.
+  const applyDestinationDelta = useCallback(async (dest, delta, currency) => {
+    if (delta === 0) return
+    const isBankDest = /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i.test(dest.type || '')
+    const { newPrice } = creditDestinationBalance({}, dest, delta, currency, convert)
+    await updateItem(dest.id, isBankDest ? { currentPrice: newPrice, purchasePrice: newPrice } : { currentPrice: newPrice })
+  }, [updateItem, convert])
+
+  const deleteTransactionWithReversal = useCallback(async (txId) => {
+    const tx = transactions.find((t) => t.id === txId)
+    const credit = tx && dividendCreditTarget(tx, enrichedItems)
+    if (credit) {
+      const amt = Number(tx.totalAmount ?? tx.amount ?? 0)
+      await applyDestinationDelta(credit.dest, -amt, credit.currency)
+    }
+    await deleteTransaction(txId)
+  }, [transactions, enrichedItems, applyDestinationDelta, deleteTransaction])
+
+  const updateTransactionWithReversal = useCallback(async (txId, fields) => {
+    const tx = transactions.find((t) => t.id === txId)
+    const newAmt = Number(fields?.totalAmount)
+    if (tx && Number.isFinite(newAmt)) {
+      const credit = dividendCreditTarget(tx, enrichedItems)
+      if (credit) {
+        const oldAmt = Number(tx.totalAmount ?? tx.amount ?? 0)
+        await applyDestinationDelta(credit.dest, newAmt - oldAmt, credit.currency)
+      }
+    }
+    await updateTransaction(txId, fields)
+  }, [transactions, enrichedItems, applyDestinationDelta, updateTransaction])
+
   // Accept: writes an ordinary DEPOSIT/WITHDRAWAL (symbol 'CASH', no
   // _linkedItemId — mirrors how a REAL IBKR cash transaction is shaped,
   // lib/parsers/ibkrFileParser.js) so computeModifiedDietz nets it out exactly
@@ -1688,6 +1731,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
     saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,
+    deleteTransactionWithReversal, updateTransactionWithReversal,
     addAlert, deleteAlert, updateAlert,
     addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution,
     addPortfolio, deletePortfolio,

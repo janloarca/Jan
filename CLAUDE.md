@@ -208,6 +208,25 @@ movió unos $58 (FASE DG).
   `_destinationCredited:false` para que una limpieza posterior no "revierta" un
   crédito que nunca ocurrió. Solo el pago del mes EN CURSO acredita.
 
+**Borrar/editar un dividendo A MANO tenía la misma trampa, sin el mismo arreglo
+(FASE EP).** Todo lo de arriba protegía al motor automático de sí mismo
+(`queueReversal` vive DENTRO de `processDividends`); el botón de borrar/editar
+una fila de `EditAccountModal` o `RecentTransactions` llamaba a
+`deleteTransaction`/`updateTransaction` directo, sin idea de que ese pago ya
+había movido el saldo de otra cuenta. Un cupón que el usuario marcó pagado por
+error (o cuyo monto había que corregir) dejaba la cuenta destino permanentemente
+mal, sin forma de arreglarlo salvo borrar la cuenta entera y rehacerla desde
+cero. `dividendCreditTarget` (`lib/autoDividends.js`, puro, con tests) es la
+misma pregunta que ya resolvía `queueReversal` pero expuesta para cualquier
+caller: dado un tx y los items, ¿movió un saldo, y de cuál cuenta? Si sí,
+`deleteTransactionWithReversal`/`updateTransactionWithReversal`
+(`useDashboardData`) reversan o ajustan ese crédito con la MISMA
+`creditDestinationBalance` antes de tocar la transacción, y son los que ahora
+se pasan como `onDeleteTransaction`/`onUpdateTransaction` en las tres
+superficies (dashboard, spreadsheet, RecentTransactions) en vez de las
+funciones crudas. Los backfilleados (`_destinationCredited:false`) siguen sin
+tocar nada al borrarse, por la misma razón que nunca se creditaron al escribirse.
+
 **La cuenta destino tiene que poder ver el dinero que le llega.** Un cupón se
 archiva contra el activo que lo generó (`_linkedItemId` = VITALI), así que el
 `EditAccountModal` del Fondo Líquido no listaba NADA: el saldo crecía sin

@@ -71,7 +71,8 @@ export default function SpreadsheetPage() {
     items, enrichedItems, netWorth, transactions, financeTransactions, returnYTD,
     snapshots, addItem, updateItem, deleteItem, portfolioItems, convert, rates,
     baseCurrency, saveItemSnapshots, loadItemSnapshots, lots,
-    addTransaction, updateTransaction, deleteTransaction, addLot, closeLotsFIFO, executeContribution, dataLoading, settings,
+    addTransaction, updateTransaction, deleteTransaction, deleteTransactionWithReversal, updateTransactionWithReversal,
+    addLot, closeLotsFIFO, executeContribution, dataLoading, settings,
     handleRefresh, pricesLoading, ratesLoading,
   } = useDashboardData({ user, lang, activePortfolio: '__all__' })
 
@@ -361,7 +362,7 @@ export default function SpreadsheetPage() {
           }}
           onDelete={deleteItem} existingItems={items} lang={lang}
           onAddTransaction={addTransaction} onExecuteContribution={executeContribution}
-          onDeleteTransaction={deleteTransaction} onUpdateTransaction={updateTransaction}
+          onDeleteTransaction={deleteTransactionWithReversal} onUpdateTransaction={updateTransactionWithReversal}
           onCreateDestination={addItem}
           transactions={transactions} baseCurrency={baseCurrency} convert={convert} />
       )}
