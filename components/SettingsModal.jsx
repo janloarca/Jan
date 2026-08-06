@@ -707,7 +707,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                                 key: `group:${g.key}`,
                                 label: g.institution || t('Sin institución', 'No institution'),
                                 desc: `${g.count} ${g.count === 1 ? t('posición', 'position') : t('posiciones', 'positions')} · ${sourceLabel(g.source, g.origin)}`,
-                                warn: t('Se borra solo esta cuenta (posiciones, lots y transacciones); las demás no se tocan.', 'Deletes only this account (positions, lots and transactions); the others are untouched.'),
+                                warn: t('Se borra solo esta cuenta: posiciones, lots, transacciones y su historial de valor. Las demás no se tocan.', 'Deletes only this account: positions, lots, transactions and its value history. The others are untouched.'),
                               }))}
                             </div>
                           </div>
