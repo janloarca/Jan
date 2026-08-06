@@ -279,13 +279,29 @@ export async function POST(request) {
       if (per === 'YTD') start = Date.UTC(new Date().getUTCFullYear(), 0, 1)
       else if (per === 'ALL') start = acqs.length > 0 ? Math.min(...acqs) : now - 365 * 86400000
       else start = now - (SPAN[per] || 365) * 86400000
-      if (acqs.length > 0) start = Math.min(start, ...acqs)
+      // Only ALL cares about the true earliest acquisition. A BOUNDED window
+      // (1M, YTD, ...) must stay bounded to what it asked for — dragging start
+      // back to an old acquisitionDate turns e.g. a 1M request into a
+      // multi-year one, and since the step below goes weekly past 1 day, the
+      // resulting grid is phased off a two-year-old anchor instead of the
+      // requested window. The 30-day snapshot backfill (useDashboardData)
+      // calls this with period '1M' and matches points by EXACT date string —
+      // a caller like it never sees the dates it asked for, so a bond added
+      // later with a real past acquisitionDate leaves some days holding a
+      // stale reconstruction next to fresh ones forever, sawtoothing by that
+      // asset's whole value (FASE EG; the other half of the fix is
+      // lib/snapshotBackfill.js, which stops treating an old backfill day as
+      // "already covered").
+      if (per === 'ALL' && acqs.length > 0) start = Math.min(start, ...acqs)
       // Floor the synthesized range: a far-past acquisitionDate (attacker-controlled)
       // could otherwise generate thousands of weekly points and blow up the income-
       // reversal inner loop below (|ts| × |staticItems| × |income|).
       const FLOOR = now - 12 * 365.25 * 86400000
       if (start < FLOOR) start = FLOOR
-      const step = per === 'DAY' || per === '1W' ? 86400000 : 7 * 86400000
+      // '1M' joins the daily set: it's the period the 30-day backfill asks
+      // for, and a purely static reconstruction is cheap enough (no external
+      // price fetch) that daily resolution costs nothing extra.
+      const step = per === 'DAY' || per === '1W' || per === '1M' ? 86400000 : 7 * 86400000
       for (let t = start; t < now; t += step) allTs.add(t)
       allTs.add(now)
     }
