@@ -1,5 +1,39 @@
 # Jan — Portfolio Tracker
 
+## ⛔ LÓGICA CONGELADA: preguntar ANTES de cambiar
+
+Hay tipos de activo cuya lógica ya se estabilizó después de muchas iteraciones de
+bugs reales y quedó CONGELADA. Están especificados en `lib/assetLogic/`.
+
+**Hoy hay uno: `lib/assetLogic/corporateBondWithEntryFee.js`** (bono corporativo
+con comisión de entrada que paga cupón en efectivo a otra cuenta; caso de
+referencia VITALI/IDC). Ese archivo describe la fórmula, las tres cantidades que
+NO son la misma, las ocho superficies donde está implementada, y los dos errores
+concretos que ya se cometieron (2.33% y 4.00%, cuando el número correcto es
+3.94%).
+
+**El protocolo, para quien haga el cambio (persona, IA o refactor automático):**
+
+1. Antes de tocar cualquier fórmula, campo o superficie que ese archivo liste,
+   DETENERSE y preguntar explícitamente a quien pidió el cambio:
+   *"Este cambio toca lógica congelada (`lib/assetLogic/<archivo>.js`). Se
+   estabilizó después de muchas iteraciones de bugs reales. ¿Confirmás que querés
+   cambiarla, y por qué? ¿Revisaste los comentarios y los invariantes que fija?
+   ¿Sigue siendo viable lo que describe?"*
+2. NO proceder hasta tener respuesta.
+3. Si aun así se cambia, actualizar la spec Y sus tests en el MISMO commit. La
+   especificación y el código no pueden divergir.
+4. `lib/__tests__/corporateBondWithEntryFee.test.js` recalcula el caso completo
+   con las funciones reales. **Si ese test falla, la respuesta correcta NO es
+   actualizar el número esperado**: es volver al paso 1.
+
+**Alcance:** lo congelado aplica a ESE tipo de activo con ESA configuración
+exacta. Cada tipo de activo tiene su propia lógica y ninguno hereda esto
+automáticamente. No es limitante: si aparece otro activo con costo de entrada
+(bonos, fondos, alternativos, CDs) apalancarse en esta lógica es lo correcto. Lo
+que no se vale es CAMBIARLA para acomodar al activo nuevo: se extiende, no se
+reescribe.
+
 ## Pendientes
 
 - [ ] (usuario) Verificar en el dashboard de Vercel que los deploys corren bien — el límite de 100/día del free tier bloqueó PR #62 en junio 2026; si vuelve a pasar, considerar Pro o menos deploys.
@@ -57,6 +91,11 @@
 - El cron usa fechas UTC y queries de Firestore por rango de string `'YYYY-MM-01'..'YYYY-MM-31'` (funciona para todos los meses por comparación lexicográfica)
 
 ## Rendimiento de activos con costo de entrada (caso de referencia: VITALI)
+
+> **⛔ CONGELADO.** La especificación completa y verificada vive en
+> `lib/assetLogic/corporateBondWithEntryFee.js`, con el protocolo de cambio
+> arriba. Lo de abajo es el resumen histórico; ante cualquier duda manda el
+> archivo de spec, que además está cubierto por tests que recalculan el caso.
 
 Caso real que fija la convención para CUALQUIER activo con comisión de entrada
 (bonos, fondos, alternativos, CDs). Si aparece otro, copiar esta lógica.

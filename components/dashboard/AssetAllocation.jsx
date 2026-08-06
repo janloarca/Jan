@@ -21,6 +21,10 @@ export default function AssetAllocation({ items, lang, transactions, convert, ba
     // A bond/bank account that pays cash to a different account (rather than
     // reinvesting) never moves its own currentPrice — without this, it always
     // shows 0% here no matter how much it actually paid out.
+    // ⛔ LÓGICA CONGELADA (A). Antes de tocar la fórmula de retorno de este
+    // archivo, leer lib/assetLogic/corporateBondWithEntryFee.js
+    // y seguir el protocolo de su cabecera: hay que PREGUNTAR antes de cambiarla.
+    // gain contra principalCost, % contra getInvestedCapital. 3.94%, 2 decimales.
     const dividendIncome = getDividendIncomeByItem(transactions, items, convert, baseCurrency)
     // Income that LANDED in an account is not capital the user invested, so it
     // never belongs in the denominator (see getIncomeReceivedByItem). Same

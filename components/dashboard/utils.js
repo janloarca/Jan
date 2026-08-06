@@ -156,6 +156,13 @@ export function isExcludedFromNetWorth(item) {
   return !!(item.isReceivable && !item.countInNetWorth)
 }
 
+// ⛔ LÓGICA CONGELADA. Estas dos funciones (getItemCostBasis y
+// getItemPrincipalCost) son las dos de las tres cantidades sobre las que se
+// apoya TODA la fórmula de retorno de un activo con costo de entrada. Antes de
+// tocarlas, leer lib/assetLogic/corporateBondWithEntryFee.js y seguir el
+// protocolo de su cabecera: hay que PREGUNTAR antes de cambiarlas.
+// El invariante que no se puede romper: costBasis - principalCost === entryFee.
+//
 // What you actually put in: purchase cost PLUS the one-time entry/brokerage
 // fee (Costos y comisiones). A fee is real money that left your pocket, so
 // leaving it out of "cost" overstates return the same way ignoring the fee
@@ -548,6 +555,10 @@ export function getDividendIncomeByItem(transactions, items, convert, baseTo = '
 // Same resolution order the reconstruction engines use: an explicit
 // _destinationItemId first, else the source's incomeDestination (by id, symbol or
 // name). Reinvested income never lands here — it stays inside its own asset.
+// ⛔ LÓGICA CONGELADA (E). Antes de tocar la fórmula de retorno de este
+// archivo, leer lib/assetLogic/corporateBondWithEntryFee.js
+// y seguir el protocolo de su cabecera: hay que PREGUNTAR antes de cambiarla.
+// El ingreso recibido sale del capital invertido, nunca del numerador.
 export function getIncomeReceivedByItem(transactions, items, convert, baseTo = 'USD') {
   const out = new Map()
   if (!transactions || transactions.length === 0) return out
@@ -749,6 +760,9 @@ export function getSectorFromItem(item) {
 //
 // Returns null when there is nothing to measure (no priced holding, no income):
 // a confident "+0.00%" would be a claim the data does not support.
+// ⛔ LÓGICA CONGELADA (H). El cupón de un activo con costo de entrada aparece
+// aquí el día que PAGA, y la comisión ya se pagó al comprar: no vuelve a restar.
+// Ver lib/assetLogic/corporateBondWithEntryFee.js: PREGUNTAR antes de cambiar.
 export function computeDayChange({ items, transactions, netWorth, convert, baseCurrency = 'USD', today }) {
   if (!(netWorth > 0)) return null
   const todayKey = today || (() => {

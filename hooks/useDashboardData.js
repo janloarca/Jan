@@ -1205,6 +1205,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     let ytdFlows = flowAware ? transactions : dietzTransactions
     // Denominator override: stays null unless the anchor moved and the capital
     // that created it was larger than the value it bought (see below).
+    // ⛔ LÓGICA CONGELADA (C). Este bloque (jan1Ts + ytdCostBase) es la version
+    // YTD de la misma formula de las tarjetas. Antes de tocarlo, leer
+    // lib/assetLogic/corporateBondWithEntryFee.js y seguir el protocolo de su
+    // cabecera: hay que PREGUNTAR antes de cambiarlo. En corto: la comision va
+    // en el DENOMINADOR y solo ahi. Subir startVal en su lugar la mete tambien
+    // en el numerador y devuelve el 2.33% que ese archivo documenta como bug.
     let ytdCostBase = null
     // The anchor moved off Jan 1 because that is where the money first appeared,
     // so the flow that PUT it there is already inside startVal. Dietz counts a

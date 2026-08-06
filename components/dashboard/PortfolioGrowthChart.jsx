@@ -573,6 +573,11 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   // A market-priced or broker-synced position is the opposite: holding today's
   // quantity flat backwards genuinely assumes something we do not know, and
   // there the estimate framing stays exactly as it was.
+  // ⛔ LÓGICA CONGELADA (D). reconstructionIsExact, el ancla del primer punto
+  // fondeado y el re-base final de returnData son las tres piezas que hacen que
+  // esta grafica muestre el MISMO % que las tarjetas. Antes de tocarlas, leer
+  // lib/assetLogic/corporateBondWithEntryFee.js y seguir el protocolo de su
+  // cabecera: hay que PREGUNTAR antes de cambiarlas.
   const reconstructionIsExact = useMemo(() => {
     const list = scopedItems || []
     if (list.length === 0) return false
@@ -836,6 +841,8 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   // sub-period returns off the NAV series, external flows at the start of each
   // sub-period). The MWR alternative was dropped: two numbers for "my return"
   // that disagreed with the broker's app eroded trust; one number, one truth.
+  // ⛔ LÓGICA CONGELADA (D). Ver lib/assetLogic/corporateBondWithEntryFee.js:
+  // PREGUNTAR antes de cambiar el ancla o el re-base de esta serie.
   const returnData = useMemo(() => {
     if (chartData.length < 2) return []
     // A return needs capital to measure against. When the window opens BEFORE

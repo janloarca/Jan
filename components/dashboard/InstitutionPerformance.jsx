@@ -17,6 +17,10 @@ export default function InstitutionPerformance({ items, lang, baseCurrency, tran
     // A bond/bank account that pays cash to a different account (rather than
     // reinvesting) never moves its own currentPrice — without this, it always
     // shows a flat 0% gain regardless of how much it actually paid out.
+    // ⛔ LÓGICA CONGELADA (B). Antes de tocar la fórmula de retorno de este
+    // archivo, leer lib/assetLogic/corporateBondWithEntryFee.js
+    // y seguir el protocolo de su cabecera: hay que PREGUNTAR antes de cambiarla.
+    // Misma fórmula que AssetAllocation, agrupada por institución.
     const dividendIncome = getDividendIncomeByItem(transactions, items, convert, baseCurrency)
     // Income that LANDED in an account here is not capital the user invested,
     // so it never belongs in the denominator (see getIncomeReceivedByItem).
