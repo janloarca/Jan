@@ -2,11 +2,12 @@
 
 import { useState } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
+import { isOriginFullyRecorded } from '@/lib/originDeposits'
 import { buildContributionFields } from '@/lib/contributions'
 
 const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
 
-export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, onExecuteContribution, onConfirmNewMoney, existingItems = [], lang = 'es', baseCurrency = 'USD', prefill = null }) {
+export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, onExecuteContribution, onConfirmNewMoney, existingItems = [], transactions = [], lang = 'es', baseCurrency = 'USD', prefill = null }) {
   const trapRef = useFocusTrap()
   const t = (es, en) => lang === 'es' ? es : en
 
@@ -162,7 +163,19 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
               ...(balanceTarget ? { _linkedItemId: balanceTarget.id } : {}),
             }
 
-        if (willTouchBalance) {
+        // Recording an origin that is ALREADY fully on file adds nothing and
+        // files the same money twice (see lib/originDeposits.js). The question
+        // still gets answered for good below; only the duplicate write is
+        // skipped. Never blocks a real contribution: this branch only runs in
+        // "ya está incluido en el saldo" mode, and only when the deposits on
+        // file already cover the whole balance.
+        const originAlreadyOnFile = alreadyReflected && !!balanceTarget
+          && isOriginFullyRecorded(transactions, balanceTarget, null)
+
+        if (originAlreadyOnFile) {
+          setSavedMsg(t('Ese origen ya estaba registrado: no dupliqué el movimiento.',
+                        'That origin was already on file: no duplicate movement was created.'))
+        } else if (willTouchBalance) {
           const isAdd = flowType === 'DEPOSIT' // yield is always a DEPOSIT-side inflow
           const { itemFields, newLot, lotClose } = buildContributionFields({
             item: balanceTarget,

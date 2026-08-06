@@ -1338,6 +1338,7 @@ export default function DashboardPage() {
           }}
           onConfirmNewMoney={(itemId) => updateItem(itemId, { _newMoneyConfirmed: true })}
           existingItems={items}
+          transactions={transactions}
           lang={lang}
           baseCurrency={baseCurrency}
           prefill={cashflowPrefill}
