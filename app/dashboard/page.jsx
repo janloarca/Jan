@@ -1207,6 +1207,9 @@ export default function DashboardPage() {
         <AddAccountModal
           onClose={handleCloseModal}
           onAdd={async (item) => {
+            // ⛔ LÓGICA CONGELADA (G). Ver
+            // lib/assetLogic/corporateBondWithEntryFee.js: PREGUNTAR antes de
+            // cambiar este wrapper.
             // MUST return the new id: AddAccountModal links the opening DEPOSIT
             // to it (_linkedItemId). Swallowing it left that deposit "sin
             // vincular", which is not cosmetic — every engine that asks "what

@@ -602,6 +602,11 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
         // 'deducted' means the fee came OUT of the amount typed, so the cash
         // that left the pocket is already that amount: adding it again would
         // overstate the deposit (and understate every return measured against it).
+        // ⛔ LÓGICA CONGELADA (G). El DEPOSIT de apertura vale principal +
+        // comisión y DEBE llevar _linkedItemId (el wrapper de onAdd tiene que
+        // devolver el id, si no nace huérfano). Ver
+        // lib/assetLogic/corporateBondWithEntryFee.js: PREGUNTAR antes de
+        // cambiar esto.
         const feeOnEntry = (isMerge || form.entryFeeMode === 'deducted')
           ? 0
           : (parseFloat(form.entryFee) || 0)
