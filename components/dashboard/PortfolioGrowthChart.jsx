@@ -642,11 +642,25 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       for (const sp of staticPoints) { if (sp.ts <= ts) v = sp.value; else break }
       return v
     }
-    const overlay = selectedInst === 'ALL' && staticPoints.length > 0
+    // The overlay only ever exists to patch a snapshot that is BROKER-ONLY. With
+    // no synced broker position in the portfolio there is no such snapshot: every
+    // row is a whole-portfolio figure that already contains these very assets, so
+    // adding them again just doubles the portfolio. That is how a $6,240 portfolio
+    // drew a flat $12,480 line and a -50% "drawdown" into its own real value
+    // (FASE DY) — same shape as the orphaned-NAV bug, one layer up.
+    const hasBrokerItems = (items || []).some((it) => it && it._source === 'ibkr')
+    const overlay = selectedInst === 'ALL' && staticPoints.length > 0 && hasBrokerItems
     // NOTE: 'backfill' snapshots are deliberately NOT overlaid — the backfill API
     // call already includes manual assets (gated by acquisitionDate, exactly like
     // staticAt), so adding staticAt again would double-count them.
-    const needsOverlay = (p) => p.src === 'ibkr' || (manualAddedTs > 0 && p.ts < manualAddedTs)
+    //
+    // The date test runs on whole DAYS on purpose: a snapshot's ts is its date at
+    // UTC midnight while createdAt is a moment during that day, so a same-day
+    // snapshot (written minutes AFTER the asset was added, and therefore already
+    // holding it) still compared as "before" and got overlaid on top of itself.
+    const manualAddedDay = manualAddedTs > 0 ? Math.floor(manualAddedTs / 86400000) : 0
+    const needsOverlay = (p) => p.src === 'ibkr'
+      || (manualAddedDay > 0 && Math.floor(p.ts / 86400000) < manualAddedDay)
     let snapSource = overlay
       ? snapshotData.map((p) => needsOverlay(p) ? { ...p, value: p.value + staticAt(p.ts) } : p)
       : snapshotData
@@ -785,7 +799,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       if (real.length >= 2) return real
     }
     return pts
-  }, [dataPoints, snapshotData, currentTotal, period, staticPoints, selectedInst, manualAddedTs, snapshots, convert, baseCurrency, viewMode, firstRealTs, apiTransactional])
+  }, [dataPoints, snapshotData, currentTotal, period, staticPoints, selectedInst, manualAddedTs, snapshots, items, convert, baseCurrency, viewMode, firstRealTs, apiTransactional])
 
   // Whether the auto-imported IBKR cash flows (_source:'ibkr') enter the return math
   // depends on the SOURCE of the value series (lesson from the +1.98% vs IBKR's

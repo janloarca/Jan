@@ -532,6 +532,58 @@ export function getDividendIncomeByItem(transactions, items, convert, baseTo = '
   return out
 }
 
+// The mirror image of getDividendIncomeByItem: income keyed by the account that
+// RECEIVED it, not the asset that produced it.
+//
+// It exists because that money is not invested capital. A cash account funded by
+// a bond's coupon holds a balance the user never put in, yet a bank-like item
+// stores its balance in purchasePrice (that IS its cost, by design), so the group
+// return divided by a denominator that had grown with every payment. The same 240
+// was then counted twice — once as income in the numerator, once as capital in
+// the denominator — and the institution card drifted from the asset-class card
+// that only ever saw the bond: 240/6,338 = 3.79% against 240/6,098 = 3.94%
+// (FASE DY). Subtracting this from the cost basis makes the two agree by
+// construction.
+//
+// Same resolution order the reconstruction engines use: an explicit
+// _destinationItemId first, else the source's incomeDestination (by id, symbol or
+// name). Reinvested income never lands here — it stays inside its own asset.
+export function getIncomeReceivedByItem(transactions, items, convert, baseTo = 'USD') {
+  const out = new Map()
+  if (!transactions || transactions.length === 0) return out
+  const list = items || []
+  const byId = new Map(list.map((it) => [it.id, it]))
+  const bySym = new Map(list.filter((it) => it.symbol).map((it) => [String(it.symbol).toUpperCase(), it]))
+  const byName = new Map(list.filter((it) => it.name).map((it) => [String(it.name).toUpperCase(), it]))
+  const resolve = (ref) => (ref
+    ? (byId.get(ref) || bySym.get(String(ref).toUpperCase()) || byName.get(String(ref).toUpperCase()))
+    : null)
+  for (const tx of transactions) {
+    const ty = (tx.type || '').toUpperCase()
+    if (ty !== 'DIVIDEND' && ty !== 'INTEREST') continue
+    const amtRaw = Number(tx.totalAmount ?? tx.amount ?? 0)
+    if (!(amtRaw > 0)) continue
+    const linked = tx._linkedItemId ? byId.get(tx._linkedItemId) : null
+    if (tx._reinvested === true || (linked && linked.dividendAction === 'reinvest')) continue
+    const dest = tx._destinationItemId ? byId.get(tx._destinationItemId) : resolve(linked?.incomeDestination)
+    if (!dest || !dest.id) continue
+    const amount = convert ? convert(amtRaw, tx.currency || 'USD', baseTo) : amtRaw
+    out.set(dest.id, (out.get(dest.id) || 0) + amount)
+  }
+  return out
+}
+
+// What the user actually PUT IN for this item: its cost basis minus whatever
+// arrived as income from elsewhere in the portfolio. Never negative — a balance
+// smaller than the income it received (money was spent) still means zero capital
+// invested, not negative capital.
+export function getInvestedCapital(item, incomeReceived) {
+  const base = getItemCostBasis(item)
+  const received = Number(incomeReceived) || 0
+  if (!(received > 0)) return base
+  return Math.max(0, base - received)
+}
+
 export const TYPE_ICONS = {
   stocks: 'TrendingUp',
   crypto: 'Bitcoin',

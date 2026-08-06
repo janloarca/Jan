@@ -22,6 +22,8 @@ import {
   quartersBetween,
   quarterSnapshotDate,
   getDividendIncomeByItem,
+  getIncomeReceivedByItem,
+  getInvestedCapital,
   getItemCostBasis,
   getItemPrincipalCost,
 } from '../utils'
@@ -884,5 +886,64 @@ describe('augmentSnapshots with transcribed quarterly NAV', () => {
     const snap = { date: '2026-03-31', _source: 'ibkr_quarterly', netWorthUSD: 1000, totalActivosUSD: 1000 }
     const out = augmentSnapshots([snap], [bond], idConvert)
     expect(out[0].netWorthUSD).toBe(1300)
+  })
+})
+
+// FASE DY: the same 240 was counted as income in the numerator AND as invested
+// capital in the denominator (a bank item stores its balance in purchasePrice,
+// which IS its cost basis by design), so the institution card read 3.79% where
+// the asset-class card read 3.94% on the very same holdings.
+describe('getIncomeReceivedByItem / getInvestedCapital', () => {
+  const bond = { id: 'vitali', symbol: 'VITALI', name: 'Vitali', quantity: 1, purchasePrice: 6000, currentPrice: 6000, entryFee: 98, incomeDestination: 'fondo' }
+  const fondo = { id: 'fondo', symbol: 'IDC-CASH', name: 'Fondo', type: 'bank', quantity: 1, purchasePrice: 240, currentPrice: 240 }
+  const coupon = { type: 'DIVIDEND', date: '2026-05-15', totalAmount: 240, currency: 'USD', _linkedItemId: 'vitali' }
+
+  it('credits the DESTINATION, never the asset that produced it', () => {
+    const m = getIncomeReceivedByItem([coupon], [bond, fondo], null, 'USD')
+    expect(m.get('fondo')).toBe(240)
+    expect(m.get('vitali')).toBeUndefined()
+  })
+
+  it('follows an explicit _destinationItemId over incomeDestination', () => {
+    const other = { id: 'otra', name: 'Otra', type: 'bank', quantity: 1, purchasePrice: 0 }
+    const tx = { ...coupon, _destinationItemId: 'otra' }
+    const m = getIncomeReceivedByItem([tx], [bond, fondo, other], null, 'USD')
+    expect(m.get('otra')).toBe(240)
+    expect(m.get('fondo')).toBeUndefined()
+  })
+
+  it('ignores reinvested income (it never left its own asset)', () => {
+    const m = getIncomeReceivedByItem([{ ...coupon, _reinvested: true }], [bond, fondo], null, 'USD')
+    expect(m.size).toBe(0)
+  })
+
+  it('ignores income with nowhere tracked to land', () => {
+    const orphan = { ...coupon }
+    const m = getIncomeReceivedByItem([orphan], [{ ...bond, incomeDestination: null }], null, 'USD')
+    expect(m.size).toBe(0)
+  })
+
+  it('takes the income back out of the invested capital', () => {
+    const received = getIncomeReceivedByItem([coupon], [bond, fondo], null, 'USD')
+    expect(getInvestedCapital(fondo, received.get('fondo'))).toBe(0)
+    // The bond keeps its full all-in cost: principal plus the entry fee.
+    expect(getInvestedCapital(bond, received.get('vitali'))).toBe(6098)
+  })
+
+  it('never goes negative when more income arrived than the balance holds', () => {
+    const spent = { ...fondo, purchasePrice: 100, currentPrice: 100 }
+    expect(getInvestedCapital(spent, 240)).toBe(0)
+  })
+
+  it('leaves an item with no income received untouched', () => {
+    expect(getInvestedCapital(bond, undefined)).toBe(6098)
+    expect(getInvestedCapital(bond, 0)).toBe(6098)
+  })
+
+  it('makes the two cards agree: 240 gain over 6,098 invested, either grouping', () => {
+    const received = getIncomeReceivedByItem([coupon], [bond, fondo], null, 'USD')
+    const invested = [bond, fondo].reduce((s, it) => s + getInvestedCapital(it, received.get(it.id)), 0)
+    expect(invested).toBe(6098)
+    expect((240 / invested) * 100).toBeCloseTo(3.936, 2)
   })
 })

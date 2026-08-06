@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { formatCurrency, formatCompact, getItemValue, getDividendIncomeByItem, getItemCostBasis, getItemPrincipalCost } from './utils'
+import { formatCurrency, formatCompact, getItemValue, getDividendIncomeByItem, getIncomeReceivedByItem, getInvestedCapital, getItemPrincipalCost } from './utils'
 import { InfoTip } from '../ui/Tooltip'
 
 // Institution comparison card.
@@ -18,6 +18,9 @@ export default function InstitutionPerformance({ items, lang, baseCurrency, tran
     // reinvesting) never moves its own currentPrice — without this, it always
     // shows a flat 0% gain regardless of how much it actually paid out.
     const dividendIncome = getDividendIncomeByItem(transactions, items, convert, baseCurrency)
+    // Income that LANDED in an account here is not capital the user invested,
+    // so it never belongs in the denominator (see getIncomeReceivedByItem).
+    const incomeReceived = getIncomeReceivedByItem(transactions, items, convert, baseCurrency)
     const map = {}
     items.forEach((it) => {
       const rawName = it.institution || t('Sin institución', 'No institution')
@@ -30,7 +33,7 @@ export default function InstitutionPerformance({ items, lang, baseCurrency, tran
       // Gain measures against principal; the % divides by all-in cost (with
       // fees) — see getItemPrincipalCost for why the two differ.
       map[key].principal += getItemPrincipalCost(it)
-      map[key].cost += getItemCostBasis(it)
+      map[key].cost += getInvestedCapital(it, incomeReceived.get(it.id))
       map[key].income += dividendIncome.get(it.id) || 0
     })
     return Object.values(map)
