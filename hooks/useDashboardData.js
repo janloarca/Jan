@@ -9,6 +9,7 @@ import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItem
 import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { indexBalanceEvents } from '@/lib/historicalValues'
 import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills } from '@/lib/autoDividends'
+import { unlinkedOpeningDeposits } from '@/lib/originDeposits'
 import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanDays, earliestNeededDays as computeEarliestNeededDays } from '@/lib/brokerCompletion'
 import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds } from '@/lib/inferredFlows'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes } from '@/components/dashboard/analytics'
@@ -1472,6 +1473,25 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     })()
     return () => { cancelled = true }
   }, [transactions, ibkrRealCoverage, deleteTransaction])
+
+  // Self-heal: opening deposits our own onAdd wrapper left without a link
+  // (FASE EA). Only unambiguous, self-inflicted rows — see
+  // unlinkedOpeningDeposits. Runs once per orphan: patching it sets
+  // _linkedItemId, so the next pass finds nothing.
+  useEffect(() => {
+    if (!updateTransaction) return
+    const orphans = unlinkedOpeningDeposits(transactions, portfolioItems)
+    if (orphans.length === 0) return
+    let cancelled = false
+    ;(async () => {
+      for (const { id, itemId } of orphans) {
+        if (cancelled) return
+        try { await updateTransaction(id, { _linkedItemId: itemId }) }
+        catch (e) { console.error('[opening-deposit-relink]', e.message) }
+      }
+    })()
+    return () => { cancelled = true }
+  }, [transactions, portfolioItems, updateTransaction])
 
   // Accept: writes an ordinary DEPOSIT/WITHDRAWAL (symbol 'CASH', no
   // _linkedItemId — mirrors how a REAL IBKR cash transaction is shaped,

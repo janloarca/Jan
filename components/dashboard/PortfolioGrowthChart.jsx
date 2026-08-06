@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { formatCurrency, formatCompact, formatAxisTick, formatDate, getItemValue, buildIncomeEvents, isExcludedFromNetWorth, findYearStartAnchor, shouldHoldFlat, SNAPSHOT_SRC_PRIORITY } from './utils'
 import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
+import { indexBalanceEvents } from '@/lib/historicalValues'
 import { isBankLikeItem } from '@/lib/contributions'
 import { computeTWRSeries, computeMWRSeries, filterValueSpikes } from './analytics'
 import { authFetch, safeJson } from '@/lib/authFetch'
@@ -299,31 +300,19 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       // Mirrors the redirect lib/historicalValues.js already does for the
       // spreadsheet: reinvested (or destination-less) dividends stay with the
       // source; everything else moves to incomeDestination.
-      const itemById = new Map(chartItems.map((it) => [it.id, it]))
-      const txByTrueOwner = {}
-      ;(scopedTransactions || []).forEach((tx) => {
-        const type = (tx.type || '').toUpperCase()
-        if (!['DEPOSIT', 'WITHDRAWAL', 'DIVIDEND'].includes(type) || !tx._linkedItemId) return
-        let ownerId = tx._linkedItemId
-        if (type === 'DIVIDEND' && !tx._reinvested) {
-          const source = itemById.get(tx._linkedItemId)
-          if (source?.dividendAction !== 'reinvest') {
-            if (source?.incomeDestination && itemById.has(source.incomeDestination)) {
-              ownerId = source.incomeDestination
-            } else {
-              return // cash with no tracked destination left the portfolio — don't attribute it anywhere
-            }
-          }
-        }
-        ;(txByTrueOwner[ownerId] = txByTrueOwner[ownerId] || []).push(tx)
-      })
+      // ONE indexer for "which transaction moves which item's balance", shared
+      // with the spreadsheet (lib/historicalValues.js) and with the YTD baseline
+      // (useDashboardData's fetchJan1). This block used to re-implement it, and
+      // the copies drifted: this one only fed BANK-like items, so a bond's own
+      // opening deposit never rewound it and the chart held it flat across the
+      // whole year — the value line read +0.00% while the net-worth card, using
+      // the other copy, read +4% on the very same holdings (FASE EA).
+      const { balanceEventsById } = indexBalanceEvents(scopedTransactions, chartItems, convert, 'USD')
       const perItemCashFlows = {}
       chartItems.forEach((it) => {
-        if (it._source === 'ibkr' || !isBankLikeItem(it)) return
-        const linkedTx = txByTrueOwner[it.id] || []
-        if (linkedTx.length === 0) return
-        const flows = buildCashFlows(linkedTx, (amt, cur2) => convert ? convert(amt, cur2, 'USD') : amt)
-        if (flows.length > 0) perItemCashFlows[it.id] = flows
+        if (it._source === 'ibkr') return
+        const flows = balanceEventsById[it.id]
+        if (flows && flows.length > 0) perItemCashFlows[it.id] = flows
       })
       const res = await authFetch('/api/prices/portfolio-history', {
         method: 'POST',
@@ -346,7 +335,10 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
               // promotes the response to "transactional" server-side — see the
               // comment next to usedTransactional in the API route.
               ...(cashItem && it.id === cashItem.id ? { cashFlows: accountCashFlows, _flowIsAccountLevel: true } : {}),
-              ...(perItemCashFlows[it.id] ? { cashFlows: perItemCashFlows[it.id] } : {}),
+              // _flowClampZero: an opening deposit can exceed the asset it funded
+              // (it carries the entry fee), so rewinding past it lands on a negative
+              // that means "did not exist yet", not "was worth less than nothing".
+              ...(perItemCashFlows[it.id] ? { cashFlows: perItemCashFlows[it.id], _flowClampZero: true } : {}),
             }
           }),
           lots: allLots.length > 0 ? allLots.map(l => ({

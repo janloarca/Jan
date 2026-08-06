@@ -3,13 +3,14 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect, useRef } from 'react'
+import RefreshRing from '@/components/ui/RefreshRing'
 import { Search, RefreshCw, Settings, LogOut, Plus, Upload, Zap, ChevronDown, Link2, Sparkles } from 'lucide-react'
 
 // ibkrNeedsAttention (not a raw `ibkrSyncStatus === 'error'`) drives the warning
 // triangle: a single transient sync failure is not news while auto-sync is still
 // retrying every 30min. The dashboard owns that rule so the pill, the top banner
 // and the ActionButtons dot always agree. See app/dashboard/page.jsx.
-export default function Header({ user, lang, setLang, onImport, onSignOut, onRefresh, onSettings, pricesLoading, onAddAccount, onCommandPalette, onOpenConnections, ibkrConnected, ibkrAutoSyncing, ibkrSyncStatus, ibkrNeedsAttention = false, ibkrSyncSummary, onIBKR, friendsEnabled = true, onEnrich, enrichGapCount = 0 }) {
+export default function Header({ user, lang, setLang, onImport, onSignOut, onRefresh, onSettings, pricesLoading, loadStagesDone = 0, loadStagesTotal = 0, onAddAccount, onCommandPalette, onOpenConnections, ibkrConnected, ibkrAutoSyncing, ibkrSyncStatus, ibkrNeedsAttention = false, ibkrSyncSummary, onIBKR, friendsEnabled = true, onEnrich, enrichGapCount = 0 }) {
   const [newMenuOpen, setNewMenuOpen] = useState(false)
   const newMenuRef = useRef(null)
 
@@ -83,11 +84,16 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
               </button>
             )}
 
-            <button onClick={onRefresh} disabled={pricesLoading} aria-label={lang === 'es' ? 'Actualizar precios' : 'Refresh prices'}
-              className={`${iconBtn} disabled:opacity-50 hover:bg-theme-elevated`}
-              style={{ color: 'var(--accent-blue)', borderColor: 'var(--card-border)' }}>
-              <RefreshCw size={14} className={pricesLoading ? 'animate-spin' : ''} />
-            </button>
+            <RefreshRing
+              onClick={onRefresh}
+              disabled={pricesLoading}
+              stagesDone={loadStagesDone}
+              stagesTotal={loadStagesTotal}
+              label={lang === 'es' ? 'Actualizar precios' : 'Refresh prices'}
+              title={loadStagesTotal > loadStagesDone
+                ? (lang === 'es' ? `Actualizando: ${loadStagesDone} de ${loadStagesTotal} listo` : `Updating: ${loadStagesDone} of ${loadStagesTotal} done`)
+                : (lang === 'es' ? 'Actualizar precios' : 'Refresh prices')}
+            />
 
             {ibkrConnected && (
               <button onClick={onIBKR} disabled={ibkrAutoSyncing}

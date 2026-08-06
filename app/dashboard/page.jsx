@@ -818,6 +818,10 @@ export default function DashboardPage() {
         onSignOut={handleSignOut}
         onRefresh={handleRefresh}
         pricesLoading={pricesLoading || ratesLoading}
+        // Real stages, not a timer: your data, the exchange rates, the market
+        // prices. The ring fills as each one actually lands.
+        loadStagesDone={[!dataLoading, !ratesLoading, !pricesLoading].filter(Boolean).length}
+        loadStagesTotal={3}
         onAddAccount={handleOpenAccount}
         onCommandPalette={handleOpenCmdPalette}
         onOpenConnections={handleOpenConnections}
@@ -1203,8 +1207,14 @@ export default function DashboardPage() {
         <AddAccountModal
           onClose={handleCloseModal}
           onAdd={async (item) => {
-            await addItem(item)
+            // MUST return the new id: AddAccountModal links the opening DEPOSIT
+            // to it (_linkedItemId). Swallowing it left that deposit "sin
+            // vincular", which is not cosmetic — every engine that asks "what
+            // explains this account's balance" keys on _linkedItemId, so the
+            // account read as having no history at all (FASE EA).
+            const id = await addItem(item)
             showToast(lang === 'es' ? `${item.symbol || item.name} agregado` : `${item.symbol || item.name} added`)
+            return id
           }}
           onAddTransaction={addTransaction} onAddLot={addLot}
           onCreateDestination={addItem}
