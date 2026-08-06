@@ -3,6 +3,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback, Fragment, memo } from 'react'
 import { ZoomIn, ZoomOut, FileText, FileSpreadsheet, LoaderCircle } from 'lucide-react'
 import { formatCurrency, getItemValue, getTypeCategory, isExcludedFromNetWorth, TYPE_COLORS, BROKER_NAV_SOURCES } from './utils'
+import { yearEndMonthKeys } from '@/lib/yearOverYear'
 
 const CATEGORY_ORDER = ['banks', 'funds', 'stocks', 'crypto', 'alternatives', 'bonds', 'realestate', 'other', 'receivables', 'debts']
 const CATEGORY_LABELS = {
@@ -76,6 +77,14 @@ function getMonthLabel(key, lang) {
   const d = new Date(parseInt(y), parseInt(m) - 1, 1)
   const label = d.toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short' })
   return label.charAt(0).toUpperCase() + label.slice(1) + ' ' + y.slice(2)
+}
+
+// FASE ER. A year-over-year column's key is still "YYYY-MM" under the hood
+// (December, or currentMonthKey for the year in progress) — same shape every
+// other helper here already expects — but it should READ as just the year.
+function getColumnLabel(key, lang, viewMode) {
+  if (viewMode === 'yoy') return key.split('-')[0]
+  return getMonthLabel(key, lang)
 }
 
 function getOriginalValue(item) {
@@ -224,14 +233,24 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
 
   const [selectedYear, setSelectedYear] = useState(now.getFullYear())
 
+  // 'monthly' = the existing month-by-month matrix for one year. 'yoy' = one
+  // column per YEAR instead, reusing every row/footer/export below unchanged
+  // (see the `months` branch right below): the whole rest of this component
+  // only ever asks "what does historicalItems/monthlyTotals say for column
+  // key mk, and is mk === currentMonthKey", so handing it year-end keys
+  // instead of month keys is enough to turn the exact same table into a
+  // year-over-year view, no second render tree needed (FASE ER).
+  const [viewMode, setViewMode] = useState('monthly')
+
   const months = useMemo(() => {
+    if (viewMode === 'yoy') return yearEndMonthKeys(availableYears, currentMonthKey)
     const result = []
     const endMonth = selectedYear === now.getUTCFullYear() ? now.getUTCMonth() : 11
     for (let m = 0; m <= endMonth; m++) {
       result.push(getMonthKey(new Date(Date.UTC(selectedYear, m, 1))))
     }
     return result
-  }, [selectedYear])
+  }, [selectedYear, viewMode, availableYears, currentMonthKey])
 
   const [historicalItems, setHistoricalItems] = useState({})
 
@@ -458,10 +477,17 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   // presence-only check below is exactly what ran before this fix.
   const monthGenRef = useRef({})
 
+  // yoy's target months don't depend on selectedYear at all (every year
+  // shows at once), so it gets its own constant key — without this, toggling
+  // INTO yoy right after monthly had already finished fetching selectedYear
+  // made this guard think "nothing to do" and yoy's December columns never
+  // fetched at all.
+  const fetchKey = viewMode === 'yoy' ? 'yoy' : `monthly:${selectedYear}`
+
   useEffect(() => {
     if (!items || items.length === 0) return
     if (!onSaveItemSnapshots) return
-    if (lastFetchedYearRef.current === selectedYear) return
+    if (lastFetchedYearRef.current === fetchKey) return
     // IBKR items are reconstructed from equity snapshots — wait for them to load
     // before computing/caching, so we never bake unscaled values into the cache.
     const hasIBKR = items.some(it => it._source === 'ibkr')
@@ -492,19 +518,19 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       return eligible.some(it => !monthData[it.id])
     })
     if (missingMonths.length === 0) {
-      lastFetchedYearRef.current = selectedYear
+      lastFetchedYearRef.current = fetchKey
       return
     }
     setLoadingHistory(true)
 
     const itemsWithCategory = items.map(it => ({ ...it, _category: getTypeCategory(it) }))
-    const fetchYear = selectedYear
+    const fetchedKey = fetchKey
 
     let cancelled = false
     import('@/lib/historicalValues').then(({ getHistoricalItemValues }) => {
       getHistoricalItemValues(itemsWithCategory, missingMonths, convert, baseCurrency, lots, transactions, snapshots).then(async (data) => {
         if (cancelled) return
-        lastFetchedYearRef.current = fetchYear
+        lastFetchedYearRef.current = fetchedKey
         Object.keys(data).forEach((mk) => { monthGenRef.current[mk] = generation })
         setHistoricalItems(prev => {
           const merged = { ...prev }
@@ -534,7 +560,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     // sigs deliberately exclude currentPrice, so a price refresh no longer
     // throws away work in progress.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itemContentSig, txSig, lotSig, snapshotSig, months, currentMonthKey, convert, baseCurrency, onSaveItemSnapshots, selectedYear, cacheEpoch, generation])
+  }, [itemContentSig, txSig, lotSig, snapshotSig, months, currentMonthKey, convert, baseCurrency, onSaveItemSnapshots, fetchKey, cacheEpoch, generation])
 
   const itemValue = useCallback((item) => {
     return showOriginal ? getOriginalValue(item) : getItemValue(item)
@@ -679,17 +705,17 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `chispudo-spreadsheet-${selectedYear}.csv`
+    a.download = viewMode === 'yoy' ? 'chispudo-spreadsheet-anual.csv' : `chispudo-spreadsheet-${selectedYear}.csv`
     a.click()
     URL.revokeObjectURL(url)
-  }, [categories, months, currentMonthKey, historicalItems, monthlyTotals, grandTotal, selectedYear, lang])
+  }, [categories, months, currentMonthKey, historicalItems, monthlyTotals, grandTotal, selectedYear, lang, viewMode])
 
   // Same data walk as the CSV, as a real workbook: month labels as headers,
   // numbers as numbers (not strings), fallback-month totals flagged with * and
   // a footnote. xlsx is already a dependency (dashboard export uses it).
   const handleExportXlsx = useCallback(async () => {
     const XLSX = await import('xlsx')
-    const header = [t('Categoría', 'Category'), t('Activo', 'Asset'), ...months.map((mk) => getMonthLabel(mk, lang))]
+    const header = [t('Categoría', 'Category'), t('Activo', 'Asset'), ...months.map((mk) => getColumnLabel(mk, lang, viewMode))]
     const rows = [header]
     categories.forEach(cat => {
       cat.institutions.forEach(inst => {
@@ -718,9 +744,9 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     const ws = XLSX.utils.aoa_to_sheet(rows)
     ws['!cols'] = [{ wch: 18 }, { wch: 22 }, ...months.map(() => ({ wch: 12 }))]
     const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, `${t('Matriz', 'Matrix')} ${selectedYear}`)
-    XLSX.writeFile(wb, `chispudo-spreadsheet-${selectedYear}.xlsx`)
-  }, [categories, months, currentMonthKey, historicalItems, monthlyTotals, grandTotal, fallbackMonths, selectedYear, lang])
+    XLSX.utils.book_append_sheet(wb, ws, viewMode === 'yoy' ? t('Año a año', 'Year over year') : `${t('Matriz', 'Matrix')} ${selectedYear}`)
+    XLSX.writeFile(wb, viewMode === 'yoy' ? 'chispudo-spreadsheet-anual.xlsx' : `chispudo-spreadsheet-${selectedYear}.xlsx`)
+  }, [categories, months, currentMonthKey, historicalItems, monthlyTotals, grandTotal, fallbackMonths, selectedYear, lang, viewMode])
 
   const isCurrentYear = selectedYear === now.getFullYear()
   const prevMonthKey = months.length >= 2 ? months[months.length - 2] : null
@@ -808,15 +834,33 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
             </div>
           </div>
           <div className="flex items-center gap-2 pr-2 border-r border-slate-200 last:border-r-0 last:pr-0">
+            {/* Mensual/Año a año picks WHICH axis months means (see the
+                `months` useMemo above); the year picker only makes sense in
+                Mensual (Año a año already shows every year at once), so it
+                swaps out instead of sitting there disabled. */}
             <div className="flex bg-slate-100 rounded-md border border-slate-200 p-0.5">
-              {availableYears.map(y => (
-                <button key={y} onClick={() => setSelectedYear(y)}
-                  className="px-2.5 py-1 text-xs rounded font-semibold transition-colors hover:text-slate-600"
-                  style={selectedYear === y ? pillActiveStyle : pillInactiveStyle}>
-                  {y}
-                </button>
-              ))}
+              <button onClick={() => setViewMode('monthly')}
+                className="px-2.5 py-1 text-xs rounded font-semibold transition-colors hover:text-slate-600"
+                style={viewMode === 'monthly' ? pillActiveStyle : pillInactiveStyle}>
+                {t('Mensual', 'Monthly')}
+              </button>
+              <button onClick={() => setViewMode('yoy')}
+                className="px-2.5 py-1 text-xs rounded font-semibold transition-colors hover:text-slate-600"
+                style={viewMode === 'yoy' ? pillActiveStyle : pillInactiveStyle}>
+                {t('Año a año', 'Year over year')}
+              </button>
             </div>
+            {viewMode === 'monthly' && (
+              <div className="flex bg-slate-100 rounded-md border border-slate-200 p-0.5">
+                {availableYears.map(y => (
+                  <button key={y} onClick={() => setSelectedYear(y)}
+                    className="px-2.5 py-1 text-xs rounded font-semibold transition-colors hover:text-slate-600"
+                    style={selectedYear === y ? pillActiveStyle : pillInactiveStyle}>
+                    {y}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           {/* CSV and Excel now carry their own icon + a light tint apiece
               (blue for CSV, the spreadsheet green Excel itself uses) instead
@@ -878,7 +922,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                 const isCurrent = mk === currentMonthKey
                 return (
                   <th scope="col" key={mk} className="text-right py-2.5 px-2 font-semibold text-xs w-32 sticky top-0 bg-slate-50 z-20" style={isCurrent ? { backgroundColor: '#eff6ff', color: 'var(--accent-blue-strong)' } : { color: '#94a3b8' }}>
-                    {getMonthLabel(mk, lang)}
+                    {getColumnLabel(mk, lang, viewMode)}
                     {isCurrent && <div className="text-xs font-normal text-blue-400">{t('actual', 'current')}</div>}
                   </th>
                 )
@@ -1207,7 +1251,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
             {months.length >= 2 && (
               <tr className="bg-white border-t border-slate-100">
                 <td className="py-2 pl-8 pr-2 sticky left-0 bg-white z-10 text-slate-500 text-xs">
-                  {t('Retorno Mensual (bruto)', 'Monthly Return (gross)')}
+                  {viewMode === 'yoy' ? t('Retorno Anual (bruto)', 'Annual Return (gross)') : t('Retorno Mensual (bruto)', 'Monthly Return (gross)')}
                 </td>
                 <td />
                 {showOriginal && <td />}
@@ -1250,7 +1294,11 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                 })}
               </tr>
             )}
-            {janTotal && grandTotal > 0 && (
+            {/* Jan-anchored, so it only means something inside ONE selected
+                year — Año a año already shows the equivalent (this column vs
+                last) via Retorno Anual above, so this row steps aside there
+                instead of repeating a January that isn't even on screen. */}
+            {viewMode === 'monthly' && janTotal && grandTotal > 0 && (
               <tr className="bg-white border-t border-slate-100">
                 <td className="py-2 pl-8 pr-2 sticky left-0 bg-white z-10 text-slate-500 text-xs">
                   {t('Crecimiento Portafolio', 'Portfolio Growth')}
