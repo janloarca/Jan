@@ -6,6 +6,7 @@ import { validateItem } from '@/lib/validation'
 import { buildContributionFields } from '@/lib/contributions'
 import InlineCreateAccount from './InlineCreateAccount'
 import FormSection from './FormSection'
+import { InfoTip } from './ui/Tooltip'
 
 const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
 const ACCOUNT_TYPES = [
@@ -56,25 +57,6 @@ function FxHint({ amount, from, to, convert, t }) {
     <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
       ≈ {out.toLocaleString(undefined, { style: 'currency', currency: to, maximumFractionDigits: 2 })} {t('(referencia, no se guarda)', '(reference only, not saved)')}
     </p>
-  )
-}
-
-function InfoTip({ text }) {
-  const [show, setShow] = useState(false)
-  return (
-    <span className="relative inline-block ml-1">
-      <button type="button" onClick={(e) => { e.preventDefault(); setShow(!show) }}
-        className="w-4 h-4 rounded-full bg-slate-600/50 text-xs text-slate-300 hover:bg-blue-500/30 hover:text-blue-300 inline-flex items-center justify-center transition-colors leading-none">
-        i
-      </button>
-      {show && (
-        <div className="absolute z-50 bottom-6 left-1/2 -translate-x-1/2 w-52 p-2 bg-theme-base border border-[#475569] rounded-lg text-xs text-slate-300 shadow-xl"
-          onClick={(e) => e.stopPropagation()}>
-          {text}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-theme-base border-r border-b border-[#475569] rotate-45 -mt-1" />
-        </div>
-      )}
-    </span>
   )
 }
 
@@ -671,8 +653,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           {/* Sector badge */}
           {item.sector && (
             <div className="flex gap-2 flex-wrap">
-              <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'rgba(37,99,235,0.1)', color: 'var(--accent-blue)' }}>{item.sector}</span>
-              {item.industry && <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'rgba(168,85,247,0.1)', color: 'var(--accent-purple)' }}>{item.industry}</span>}
+              <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 10%, transparent)', color: 'var(--accent-blue)' }}>{item.sector}</span>
+              {item.industry && <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-purple) 10%, transparent)', color: 'var(--accent-purple)' }}>{item.industry}</span>}
               {item.exchangeName && <span className="text-xs bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] px-2 py-0.5 rounded">{item.exchangeName}</span>}
             </div>
           )}
@@ -1114,12 +1096,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="edit-interest-rate" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa interés %', 'Interest rate %')}</label>
+                  <label htmlFor="edit-interest-rate" className={labelCls}>{t('Tasa interés %', 'Interest rate %')}</label>
                   <input id="edit-interest-rate" value={form.interestRate} onChange={e => set('interestRate', e.target.value)}
                     placeholder="7.5" type="number" step="any" className={inputCls} />
                 </div>
                 <div>
-                  <label htmlFor="edit-debt-term" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Plazo', 'Term')}</label>
+                  <label htmlFor="edit-debt-term" className={labelCls}>{t('Plazo', 'Term')}</label>
                   <select id="edit-debt-term" value={form.debtTerm} onChange={e => set('debtTerm', e.target.value)} className={inputCls}>
                     <option value="">{t('-- Seleccionar --', '-- Select --')}</option>
                     <option value="3m">3 {t('meses', 'months')}</option>
@@ -1136,17 +1118,17 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label htmlFor="edit-monthly-payment" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Pago mensual', 'Monthly payment')}</label>
+                  <label htmlFor="edit-monthly-payment" className={labelCls}>{t('Pago mensual', 'Monthly payment')}</label>
                   <input id="edit-monthly-payment" value={form.monthlyPayment} onChange={e => set('monthlyPayment', e.target.value)}
                     placeholder="500" type="number" step="any" className={inputCls} />
                 </div>
                 <div>
-                  <label htmlFor="edit-installments-total" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Cuotas total', 'Total pmts')}</label>
+                  <label htmlFor="edit-installments-total" className={labelCls}>{t('Cuotas total', 'Total pmts')}</label>
                   <input id="edit-installments-total" value={form.installmentsTotal} onChange={e => set('installmentsTotal', e.target.value)}
                     placeholder="24" type="number" step="1" className={inputCls} />
                 </div>
                 <div>
-                  <label htmlFor="edit-installments-remaining" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Cuotas rest.', 'Pmts left')}</label>
+                  <label htmlFor="edit-installments-remaining" className={labelCls}>{t('Cuotas rest.', 'Pmts left')}</label>
                   <input id="edit-installments-remaining" value={form.installmentsRemaining} onChange={e => set('installmentsRemaining', e.target.value)}
                     placeholder="18" type="number" step="1" className={inputCls} />
                 </div>
@@ -1154,12 +1136,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="edit-min-payment" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Pago mínimo', 'Min payment')}</label>
+                  <label htmlFor="edit-min-payment" className={labelCls}>{t('Pago mínimo', 'Min payment')}</label>
                   <input id="edit-min-payment" value={form.minimumPayment} onChange={e => set('minimumPayment', e.target.value)}
                     placeholder="500" type="number" step="any" className={inputCls} />
                 </div>
                 <div>
-                  <label htmlFor="edit-debt-maturity-date" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Fecha vencimiento', 'Maturity date')}</label>
+                  <label htmlFor="edit-debt-maturity-date" className={labelCls}>{t('Fecha vencimiento', 'Maturity date')}</label>
                   <input id="edit-debt-maturity-date" value={form.maturityDate} onChange={e => set('maturityDate', e.target.value)}
                     type="date" className={inputCls} />
                 </div>
@@ -1170,7 +1152,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   <p className="text-xs uppercase tracking-wide" style={{ color: 'var(--text-negative)' }}>{t('Tarjeta de crédito', 'Credit Card')}</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label htmlFor="edit-card-brand" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Marca', 'Brand')}</label>
+                      <label htmlFor="edit-card-brand" className={labelCls}>{t('Marca', 'Brand')}</label>
                       <select id="edit-card-brand" value={form.cardBrand} onChange={e => set('cardBrand', e.target.value)} className={inputCls}>
                         <option value="">{t('-- Seleccionar --', '-- Select --')}</option>
                         <option value="visa">Visa</option>
@@ -1179,7 +1161,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                       </select>
                     </div>
                     <div>
-                      <label htmlFor="edit-reward-type" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tipo reward', 'Reward type')}</label>
+                      <label htmlFor="edit-reward-type" className={labelCls}>{t('Tipo reward', 'Reward type')}</label>
                       <select id="edit-reward-type" value={form.rewardType} onChange={e => set('rewardType', e.target.value)} className={inputCls}>
                         <option value="">{t('Ninguno', 'None')}</option>
                         <option value="miles">{t('Millas', 'Miles')}</option>
@@ -1191,12 +1173,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   {form.rewardType && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label htmlFor="edit-reward-rate" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa reward %', 'Reward rate %')}</label>
+                        <label htmlFor="edit-reward-rate" className={labelCls}>{t('Tasa reward %', 'Reward rate %')}</label>
                         <input id="edit-reward-rate" value={form.rewardRate} onChange={e => set('rewardRate', e.target.value)}
                           placeholder="1.5" type="number" step="any" className={inputCls} />
                       </div>
                       <div>
-                        <label htmlFor="edit-reward-balance" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Balance acumulado', 'Accumulated balance')}</label>
+                        <label htmlFor="edit-reward-balance" className={labelCls}>{t('Balance acumulado', 'Accumulated balance')}</label>
                         <input id="edit-reward-balance" value={form.rewardBalance} onChange={e => set('rewardBalance', e.target.value)}
                           placeholder="5000" type="number" step="any" className={inputCls} />
                       </div>
@@ -1213,7 +1195,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               <p className="text-xs font-medium" style={{ color: 'var(--accent-pink)' }}>🔮 SAFE Note</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <div>
-                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tipo', 'Type')}</label>
+                  <label className={labelCls}>{t('Tipo', 'Type')}</label>
                   <select value={form.safeType} onChange={e => set('safeType', e.target.value)} className={inputCls}>
                     <option value="post_money">Post-Money</option>
                     <option value="pre_money">Pre-Money</option>
@@ -1221,12 +1203,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">Cap</label>
+                  <label className={labelCls}>Cap</label>
                   <input value={form.safeCap} onChange={e => set('safeCap', e.target.value)}
                     placeholder="10000000" type="number" step="any" className={inputCls} />
                 </div>
                 <div>
-                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Desc %', 'Disc %')}</label>
+                  <label className={labelCls}>{t('Desc %', 'Disc %')}</label>
                   <input value={form.safeDiscount} onChange={e => set('safeDiscount', e.target.value)}
                     placeholder="20" type="number" step="any" className={inputCls} />
                 </div>
@@ -1244,13 +1226,13 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           })()}>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <div>
-                <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Costo entrada', 'Entry fee')} <InfoTip text={t('Monto fijo en tu moneda (ej: $80). NO es porcentaje. Es el costo de entrada o comisión que pagaste una sola vez.', 'Fixed amount in your currency (e.g. $80). NOT a percentage. One-time entry cost or commission you paid.')} /></label>
+                <label className={labelCls}>{t('Costo entrada', 'Entry fee')} <InfoTip text={t('Monto fijo en tu moneda (ej: $80). NO es porcentaje. Es el costo de entrada o comisión que pagaste una sola vez.', 'Fixed amount in your currency (e.g. $80). NOT a percentage. One-time entry cost or commission you paid.')} /></label>
                 <input value={form.entryFee} onChange={e => set('entryFee', e.target.value)}
                   placeholder="80" type="number" step="any" className={inputCls}
                   title={t('Costo de incorporación, comisión de entrada, etc.', 'Incorporation cost, entry commission, etc.')} />
               </div>
               <div>
-                <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">
+                <label className={labelCls}>
                   {t('Mgmt fee', 'Mgmt fee')}
                   {' '}
                   <button type="button" onClick={() => set('managementFeeType', form.managementFeeType === 'fixed' ? 'percent' : 'fixed')}
@@ -1267,7 +1249,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   placeholder={form.managementFeeType === 'fixed' ? '50' : '0.50'} type="number" step="any" className={inputCls} />
               </div>
               <div>
-                <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Expense %', 'Expense %')} <InfoTip text={t('Ratio de gastos ANUAL en porcentaje. Ej: 0.03 = 0.03% por año. Este es un costo operativo del fondo/instrumento.', 'Annual expense ratio as a PERCENTAGE. E.g. 0.03 = 0.03% per year. This is the fund/instrument operating cost.')} /></label>
+                <label className={labelCls}>{t('Expense %', 'Expense %')} <InfoTip text={t('Ratio de gastos ANUAL en porcentaje. Ej: 0.03 = 0.03% por año. Este es un costo operativo del fondo/instrumento.', 'Annual expense ratio as a PERCENTAGE. E.g. 0.03 = 0.03% per year. This is the fund/instrument operating cost.')} /></label>
                 <input value={form.expenseRatio} onChange={e => set('expenseRatio', e.target.value)}
                   placeholder="0.03" type="number" step="any" className={inputCls}
                   title={t('Ratio de gastos anual %', 'Annual expense ratio %')} />
@@ -1288,7 +1270,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               ]
               return (
                 <div>
-                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">
+                  <label className={labelCls}>
                     {t('¿Cómo se cobró ese costo de entrada?', 'How was that entry cost charged?')}
                     {' '}
                     <InfoTip text={t(
@@ -1421,7 +1403,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
           {/* Section 3: Income/Dividends */}
           {isMarket && item.dividendYield > 0 && (
-            <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'rgba(37,99,235,0.2)', backgroundColor: 'rgba(37,99,235,0.05)' }}>
+            <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 5%, transparent)' }}>
               <p className="text-xs font-medium" style={{ color: 'var(--accent-green)' }}>💰 {t('Dividendo', 'Dividend')}: {item.dividendYield}% {item.incomeFrequency || ''}</p>
               <div>
                 <p className="text-xs text-[var(--text-muted,#475569)] mb-1">{t('Acción con dividendos:', 'Dividend action:')}</p>
@@ -1433,14 +1415,14 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   </button>
                   <button type="button" onClick={() => set('dividendAction', 'reinvest')}
                     className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                    style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                    style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                     🔄 {t('Reinvertir', 'Reinvest')}
                   </button>
                 </div>
               </div>
               {form.dividendAction === 'cash' && (
                 <div>
-                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Dividendos van a:', 'Dividends go to:')}</label>
+                  <label className={labelCls}>{t('Dividendos van a:', 'Dividends go to:')}</label>
                   <select value={form.incomeDestination}
                     onChange={e => { if (e.target.value === '__new__') { setCreatingDest(true); return } set('incomeDestination', e.target.value) }}
                     className={inputCls}>
@@ -1472,12 +1454,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               })()}>
               {/* Rate type */}
               <div>
-                <label className="text-xs text-[var(--text-muted,#475569)] mb-1.5 block">{t('Tipo de tasa', 'Rate type')}</label>
+                <label className={labelCls}>{t('Tipo de tasa', 'Rate type')}</label>
                 <div className="flex gap-1">
                   {[{ key: 'fixed', es: 'Fija', en: 'Fixed' }, { key: 'variable', es: 'Variable', en: 'Variable' }, { key: 'continuous', es: 'Continua', en: 'Continuous' }].map(rt => (
                     <button key={rt.key} type="button" onClick={() => set('rateType', rt.key)}
                       className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                      style={form.rateType === rt.key ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                      style={form.rateType === rt.key ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                       {lang === 'es' ? rt.es : rt.en}
                     </button>
                   ))}
@@ -1488,12 +1470,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               <div className="flex gap-1">
                 <button type="button" onClick={() => set('incomeMode', 'fixed')}
                   className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                  style={form.incomeMode === 'fixed' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                  style={form.incomeMode === 'fixed' ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                   {t('Monto fijo', 'Fixed amount')}
                 </button>
                 <button type="button" onClick={() => set('incomeMode', 'percent')}
                   className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                  style={form.incomeMode === 'percent' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                  style={form.incomeMode === 'percent' ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                   {t('% del saldo', '% of balance')}
                 </button>
               </div>
@@ -1502,17 +1484,17 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               {form.rateType === 'variable' ? (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <div>
-                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa mín %', 'Min %')}</label>
+                    <label className={labelCls}>{t('Tasa mín %', 'Min %')}</label>
                     <input value={form.rateMin} onChange={e => set('rateMin', e.target.value)}
                       placeholder="4.5" type="number" step="any" className={inputCls} />
                   </div>
                   <div>
-                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa máx %', 'Max %')}</label>
+                    <label className={labelCls}>{t('Tasa máx %', 'Max %')}</label>
                     <input value={form.rateMax} onChange={e => set('rateMax', e.target.value)}
                       placeholder="5.5" type="number" step="any" className={inputCls} />
                   </div>
                   <div>
-                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Día pago', 'Pay day')}</label>
+                    <label className={labelCls}>{t('Día pago', 'Pay day')}</label>
                     <input value={form.incomePayDay} onChange={e => set('incomePayDay', e.target.value)}
                       type="number" min="1" max="31" className={inputCls} />
                   </div>
@@ -1521,18 +1503,18 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
                     {form.incomeMode === 'fixed' ? (<>
-                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Monto por pago', 'Per payment')} <InfoTip text={t('Monto fijo que recibes en cada pago, en la moneda del activo.', 'Fixed amount you receive each payment, in the asset\'s currency.')} /></label>
+                      <label className={labelCls}>{t('Monto por pago', 'Per payment')} <InfoTip text={t('Monto fijo que recibes en cada pago, en la moneda del activo.', 'Fixed amount you receive each payment, in the asset\'s currency.')} /></label>
                       <input value={form.incomeAmount} onChange={e => set('incomeAmount', e.target.value)}
                         type="number" step="any" className={inputCls} />
                     </>) : (<>
-                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa anual %', 'Annual rate %')} <InfoTip text={t('Tasa de rendimiento anual en porcentaje. Se divide entre los meses de pago seleccionados.', 'Annual yield rate as percentage. Divided among selected payment months.')} /></label>
+                      <label className={labelCls}>{t('Tasa anual %', 'Annual rate %')} <InfoTip text={t('Tasa de rendimiento anual en porcentaje. Se divide entre los meses de pago seleccionados.', 'Annual yield rate as percentage. Divided among selected payment months.')} /></label>
                       <input value={form.incomeRate} onChange={e => set('incomeRate', e.target.value)}
                         type="number" step="any" className={inputCls} />
                     </>)}
                   </div>
                   {form.rateType !== 'continuous' && (
                     <div>
-                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Día de pago', 'Pay day')}</label>
+                      <label className={labelCls}>{t('Día de pago', 'Pay day')}</label>
                       <input value={form.incomePayDay} onChange={e => set('incomePayDay', e.target.value)}
                         type="number" min="1" max="31" className={inputCls} />
                     </div>
@@ -1555,7 +1537,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               {/* Payment months */}
               {form.rateType !== 'continuous' && (
                 <div>
-                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1.5 block">{t('Meses de pago', 'Payment months')}</label>
+                  <label className={labelCls}>{t('Meses de pago', 'Payment months')}</label>
                   <div className="flex flex-wrap gap-1">
                     {['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'].map((label, i) => {
                       const active = form.incomeMonths.includes(i)
@@ -1563,7 +1545,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                         <button key={i} type="button"
                           onClick={() => set('incomeMonths', active ? form.incomeMonths.filter(x => x !== i) : [...form.incomeMonths, i].sort((a, b) => a - b))}
                           className="px-2 py-1 text-xs font-medium rounded transition-all border"
-                          style={active ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.25)', borderColor: 'rgba(37,99,235,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                          style={active ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 25%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                           {label}
                         </button>
                       )
@@ -1576,7 +1558,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   dividend stocks; bonds/CDT/alternatives can reinvest too
                   (processDividends already supports it for any asset). */}
               <div>
-                <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('¿Qué haces con los pagos?', 'What do you do with payments?')}</label>
+                <label className={labelCls}>{t('¿Qué haces con los pagos?', 'What do you do with payments?')}</label>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => set('dividendAction', 'cash')}
                     className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
@@ -1585,7 +1567,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   </button>
                   <button type="button" onClick={() => set('dividendAction', 'reinvest')}
                     className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                    style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                    style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                     🔄 {t('Se reinvierten', 'They reinvest')}
                   </button>
                 </div>
@@ -1598,7 +1580,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 </p>
               ) : (
                 <div>
-                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Pagos van a:', 'Payments go to:')}</label>
+                  <label className={labelCls}>{t('Pagos van a:', 'Payments go to:')}</label>
                   <select value={form.incomeDestination}
                     onChange={e => { if (e.target.value === '__new__') { setCreatingDest(true); return } set('incomeDestination', e.target.value) }}
                     className={inputCls}>
@@ -1618,7 +1600,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
               {/* Capital return */}
               <div>
-                <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Capital devuelto por pago', 'Capital returned per payment')}</label>
+                <label className={labelCls}>{t('Capital devuelto por pago', 'Capital returned per payment')}</label>
                 <input value={form.capitalReturn} onChange={e => set('capitalReturn', e.target.value)}
                   placeholder="0" type="number" step="any" className={inputCls} />
               </div>
