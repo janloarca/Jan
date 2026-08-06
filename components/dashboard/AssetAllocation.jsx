@@ -153,7 +153,9 @@ export default function AssetAllocation({ items, lang, transactions, convert, ba
                     className="text-xs w-14 text-right"
                     style={seg.returnPct == null ? { color: 'var(--text-muted)' } : { color: seg.returnPct >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}
                   >
-                    {seg.returnPct == null ? '-' : `${seg.returnPct >= 0 ? '+' : ''}${seg.returnPct.toFixed(1)}%`}
+                    {/* 2 decimals, same as InstitutionPerformance and the YTD headline: the
+                        same return shown three ways must not read as three numbers. */}
+                    {seg.returnPct == null ? '-' : `${seg.returnPct >= 0 ? '+' : ''}${seg.returnPct.toFixed(2)}%`}
                   </span>
                   <span className="text-sm text-white font-mono tabular-nums text-right min-w-[80px]">
                     {formatCurrency(seg.value)}
