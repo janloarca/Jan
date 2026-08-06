@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { sanitizeImportItem } from '@/lib/validation'
 import { SNAPSHOT_SRC_PRIORITY } from '@/components/dashboard/utils'
 import { detectMisstampedMonthlyNavSnapshots } from '@/lib/badDataCleanup'
+import { orphanedAccountSnapshotIds } from '@/lib/accountCleanup'
 
 let _db = null
 let _auth = null
@@ -424,6 +425,16 @@ export function useFirestoreItems() {
     const groupSyms = new Set(groupItems.map((i) => (i.symbol || '').toUpperCase()).filter(Boolean))
     const survivingSyms = new Set(items.filter((i) => !idSet.has(i.id)).map((i) => (i.symbol || '').toUpperCase()))
     const symDeletable = (s) => !!s && groupSyms.has(s) && !survivingSyms.has(s)
+    // Snapshots that describe the ACCOUNT rather than the portfolio (a broker's
+    // NAV history, a per-account calibration anchor) have to go with it. Without
+    // this the group delete removed the positions and left their NAV behind, so
+    // the chart kept plotting an account the portfolio no longer held — a
+    // leftover IBKR NAV of 5,760 topped up with a manual 6,240 bond drew a flat
+    // 12,000 line over a portfolio worth 6,240 (FASE DX). Portfolio-wide
+    // snapshots ('daily' and friends) are never touched: they also measure what
+    // survives.
+    const survivingItems = items.filter((i) => !idSet.has(i.id))
+    const orphanSnapIds = orphanedAccountSnapshotIds(snapshots, groupItems, survivingItems)
     const refs = [
       ...groupItems.map((i) => fs.doc(db, `users/${uid}/items`, i.id)),
       ...lots.filter((l) => symDeletable((l.symbol || '').toUpperCase())).map((l) => fs.doc(db, `users/${uid}/lots`, l.id)),
@@ -431,6 +442,7 @@ export function useFirestoreItems() {
         idSet.has(t._linkedItemId) || idSet.has(t._destinationItemId) || idSet.has(t._originItemId)
         || symDeletable((t.symbol || '').toUpperCase())
       ).map((t) => fs.doc(db, `users/${uid}/transactions`, t.id)),
+      ...orphanSnapIds.map((id) => fs.doc(db, `users/${uid}/snapshots`, id)),
     ]
     const CHUNK = 30
     for (let i = 0; i < refs.length; i += CHUNK) {
@@ -439,8 +451,12 @@ export function useFirestoreItems() {
       await batch.commit()
     }
     setItems((cur) => cur.filter((it) => !idSet.has(it.id)))
+    if (orphanSnapIds.length > 0) {
+      const goneSnaps = new Set(orphanSnapIds)
+      setSnapshots((cur) => cur.filter((s) => !goneSnaps.has(s.id)))
+    }
     return groupItems.length
-  }, [uid, items, lots, transactions])
+  }, [uid, items, lots, transactions, snapshots])
 
   const addTransaction = useCallback(async (transaction) => {
     if (!uid) return

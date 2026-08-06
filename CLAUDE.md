@@ -369,6 +369,26 @@ lo que sobre se agrupa en un "Otros" neutro.
   encabezado, condicionadas por tipo de activo, todas detrás de "Detalles avanzados") ya
   existía y ya era razonable; el ajuste fue solo de consistencia visual, no una reescritura.
 
+### Borrar una cuenta se lleva lo que solo esa cuenta explicaba (FASE DX)
+- **De dónde salió el NAV huérfano de FASE DW.** `deleteItemGroup` (el borrado
+  "Por cuenta" de Settings) borraba ítems, lots y transacciones, pero NUNCA un
+  snapshot. `deleteAllItems({cascade:true})` sí los borra, así que el hueco solo
+  aparecía al borrar UN grupo: las posiciones de IBKR se iban y su historial de
+  NAV se quedaba describiendo una cuenta que el portafolio ya no tenía.
+- **No todo snapshot es del portafolio.** Un NAV de broker es el saldo de UNA
+  cuenta y un ancla de calibración es el arranque resuelto de UNA cuenta; un
+  snapshot `daily` (o sin `_source`) mide TODO lo que el usuario tenía ese día,
+  incluido lo que sobrevive al borrado. `orphanedAccountSnapshotIds`
+  (`lib/accountCleanup.js`, puro, con tests) solo devuelve los del primer tipo.
+- **La condición es "se fue el ÚLTIMO ítem de esa cuenta", no "se fue un ítem".**
+  IBKR puede estar partido en varios grupos (API + archivo), así que borrar uno
+  no puede llevarse el NAV que el otro todavía explica. Mismo criterio para el
+  `_account` de las anclas de calibración, que aplica también a instituciones
+  manuales (borrar el último ítem de IDC se lleva el ancla de IDC).
+- El read-time guard de FASE DW (descartar NAV sincronizado huérfano) se queda:
+  arregla la data que YA quedó sucia y cubre cualquier otro camino que deje un
+  huérfano. Este arreglo evita ensuciarla de entrada. Los dos, no uno.
+
 ### Una serie de valor mide el MISMO portafolio que el netWorth (FASE DW)
 
 Tres síntomas del mismo caso (IDC/VITALI), tres causas separadas. El hilo común:
