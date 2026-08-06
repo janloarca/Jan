@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useRef, useEffect, useCallback, Fragment, memo } from 'react'
+import { ZoomIn, ZoomOut, FileText, FileSpreadsheet, LoaderCircle } from 'lucide-react'
 import { formatCurrency, getItemValue, getTypeCategory, isExcludedFromNetWorth, TYPE_COLORS, BROKER_NAV_SOURCES } from './utils'
 
 const CATEGORY_ORDER = ['banks', 'funds', 'stocks', 'crypto', 'alternatives', 'bonds', 'realestate', 'other', 'receivables', 'debts']
@@ -46,6 +47,12 @@ const REWARD_ICONS = {
   cashback: '$',
   points: '★',
 }
+
+// Toolbar segmented-control pill states (currency, zoom omitted since it has
+// no "active" state, year). Static objects, not computed per render — module
+// scope keeps them out of the component's render path entirely.
+const pillActiveStyle = { backgroundColor: '#ffffff', color: '#1d4ed8', boxShadow: '0 1px 2px 0 rgba(0,0,0,0.06)' }
+const pillInactiveStyle = { color: '#94a3b8' }
 
 function getMonthKey(d) {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
@@ -767,25 +774,36 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         <h2 className="text-sm font-bold text-slate-900">{t('Portfolio Spreadsheet', 'Portfolio Spreadsheet')}</h2>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2 pr-2 border-r border-slate-200 last:border-r-0 last:pr-0">
+            {/* Active state gets a light-blue tint (not just white/shadow) so
+                the current pick reads at a glance instead of blending into the
+                same gray as everything else in the group. Color-by-state goes
+                through inline style, not a conditional Tailwind class — the
+                house rule (CLAUDE.md) that keeps state-dependent color out of
+                Next.js's aggressively-cached JS chunks. */}
             <div className="flex bg-slate-100 rounded-md border border-slate-200 p-0.5">
               <button onClick={() => setShowOriginal(false)}
-                className={`px-2.5 py-1 text-xs rounded transition-colors ${!showOriginal ? 'bg-white text-slate-900 font-semibold shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+                className="px-2.5 py-1 text-xs rounded font-semibold transition-colors hover:text-slate-600"
+                style={!showOriginal ? pillActiveStyle : pillInactiveStyle}>
                 {baseCurrency || 'USD'}
               </button>
               <button onClick={() => setShowOriginal(true)}
-                className={`px-2.5 py-1 text-xs rounded transition-colors ${showOriginal ? 'bg-white text-slate-900 font-semibold shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+                className="px-2.5 py-1 text-xs rounded font-semibold transition-colors hover:text-slate-600"
+                style={showOriginal ? pillActiveStyle : pillInactiveStyle}>
                 {t('Original', 'Original')}
               </button>
             </div>
-            <div className="flex items-center gap-1 bg-slate-100 rounded-md border border-slate-200 p-0.5">
+            <div className="flex items-center gap-0.5 bg-slate-100 rounded-md border border-slate-200 p-0.5"
+              role="group" aria-label={t('Zoom', 'Zoom')}>
               <button onClick={zoomOut} disabled={zoom <= ZOOM_LEVELS[0]}
-                className="w-6 h-6 flex items-center justify-center text-xs rounded text-slate-500 hover:bg-white hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-                −
+                aria-label={t('Reducir zoom', 'Zoom out')}
+                className="w-6 h-6 flex items-center justify-center rounded text-slate-500 hover:bg-white hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                <ZoomOut size={13} strokeWidth={2} />
               </button>
               <span className="text-xs text-slate-400 w-8 text-center tabular-nums">{Math.round(zoom * 100)}%</span>
               <button onClick={zoomIn} disabled={zoom >= ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
-                className="w-6 h-6 flex items-center justify-center text-xs rounded text-slate-500 hover:bg-white hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-                +
+                aria-label={t('Aumentar zoom', 'Zoom in')}
+                className="w-6 h-6 flex items-center justify-center rounded text-slate-500 hover:bg-white hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                <ZoomIn size={13} strokeWidth={2} />
               </button>
             </div>
           </div>
@@ -793,26 +811,34 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
             <div className="flex bg-slate-100 rounded-md border border-slate-200 p-0.5">
               {availableYears.map(y => (
                 <button key={y} onClick={() => setSelectedYear(y)}
-                  className={`px-2 py-1 text-xs rounded transition-colors ${selectedYear === y ? 'bg-white text-slate-900 font-semibold shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+                  className="px-2.5 py-1 text-xs rounded font-semibold transition-colors hover:text-slate-600"
+                  style={selectedYear === y ? pillActiveStyle : pillInactiveStyle}>
                   {y}
                 </button>
               ))}
             </div>
           </div>
+          {/* CSV and Excel now carry their own icon + a light tint apiece
+              (blue for CSV, the spreadsheet green Excel itself uses) instead
+              of two identical flat-gray boxes a user had to read the letters
+              on to tell apart. */}
           <div className="flex items-center gap-2">
             <button onClick={handleExportCsv}
-              className="px-2.5 py-1 text-xs rounded-md border border-slate-200 bg-slate-100 text-slate-500 hover:bg-white hover:text-slate-900 transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
               title={t('Descargar la matriz mensual como CSV', 'Download the monthly matrix as CSV')}>
-              CSV
+              <FileText size={13} strokeWidth={2} /> CSV
             </button>
             <button onClick={handleExportXlsx}
-              className="px-2.5 py-1 text-xs rounded-md border border-slate-200 bg-slate-100 text-slate-500 hover:bg-white hover:text-slate-900 transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
               title={t('Descargar la matriz mensual como Excel', 'Download the monthly matrix as Excel')}>
-              Excel
+              <FileSpreadsheet size={13} strokeWidth={2} /> Excel
             </button>
           </div>
           {loadingHistory && (
-            <span className="text-xs text-blue-500 animate-pulse">{t('Calculando historial...', 'Calculating history...')}</span>
+            <span className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded-md bg-blue-50 text-blue-600 border border-blue-100">
+              <LoaderCircle size={12} strokeWidth={2.5} className="animate-spin" />
+              {t('Calculando historial...', 'Calculating history...')}
+            </span>
           )}
           <span className="text-xs text-slate-400 hidden sm:inline">{t('Click para editar', 'Click to edit')}</span>
         </div>
