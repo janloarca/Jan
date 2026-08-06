@@ -24,6 +24,27 @@ function stripEnriched(item) {
   return rawItem
 }
 
+// FASE EK. "Existe valor actual y valor de compra y son los valores en
+// equivalente en dólares lo que lo hace confuso" — a bare number with no
+// currency in sight reads as baseCurrency by default, especially once it's a
+// small number for a GTQ/MXN/etc. item. This never asks the user to do a
+// mental conversion to sanity-check what they typed: it shows the live
+// baseCurrency equivalent right under the field, computed from whatever is
+// typed RIGHT NOW (not a stored value), so a wrong number or wrong currency
+// pick is visible before Guardar, not after.
+function FxHint({ amount, from, to, convert, t }) {
+  if (!convert || !from || !to || from === to) return null
+  const n = parseFloat(amount)
+  if (!isFinite(n) || n === 0) return null
+  const out = convert(n, from, to)
+  if (!isFinite(out)) return null
+  return (
+    <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
+      ≈ {out.toLocaleString(undefined, { style: 'currency', currency: to, maximumFractionDigits: 2 })} {t('(referencia, no se guarda)', '(reference only, not saved)')}
+    </p>
+  )
+}
+
 function InfoTip({ text }) {
   const [show, setShow] = useState(false)
   return (
@@ -43,7 +64,7 @@ function InfoTip({ text }) {
   )
 }
 
-export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es', allItems, onNavigate, onAddTransaction, onDeleteTransaction, onUpdateTransaction, transactions, onExecuteContribution, onCreateDestination, baseCurrency, entities = [], findings = [], onOpenCashflow }) {
+export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es', allItems, onNavigate, onAddTransaction, onDeleteTransaction, onUpdateTransaction, transactions, onExecuteContribution, onCreateDestination, baseCurrency, entities = [], findings = [], onOpenCashflow, convert }) {
   const trapRef = useFocusTrap()
   const [creatingDest, setCreatingDest] = useState(false)
   const [extraItems, setExtraItems] = useState([])
@@ -187,6 +208,36 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
   const t = (es, en) => lang === 'es' ? es : en
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
+  // FASE EK. The currency select used to just relabel the SAME number under a
+  // new currency — switching USD → GTQ left the price field reading, say,
+  // "1967.45", now claimed to be 1967.45 GTQ (≈ $258), a silent ~87% value
+  // change with no visible warning. That silent relabeling is exactly what
+  // corrupted XOCHI's real data in the first place (via a stripping bug
+  // upstream that showed the item's USD-converted price as if it were its
+  // own GTQ price — see app/spreadsheet/page.jsx). Never guess the intent
+  // (mistyped currency vs. genuinely switching currency are OPPOSITE fixes);
+  // ask instead, with the exact converted number shown, so a currency change
+  // can never again silently rewrite what a price means.
+  const [pendingCurrency, setPendingCurrency] = useState(null) // { from, to }
+  const requestCurrencyChange = (to) => {
+    const from = form.currency
+    if (to === from) return
+    const hasPrice = (parseFloat(form.purchasePrice) || 0) > 0 || (parseFloat(form.currentPrice) || 0) > 0
+    if (!hasPrice || !convert) { set('currency', to); return }
+    setPendingCurrency({ from, to })
+  }
+  const resolveCurrencyChange = (mode) => {
+    if (!pendingCurrency) return
+    const { from, to } = pendingCurrency
+    if (mode === 'convert' && convert) {
+      const p = parseFloat(form.purchasePrice)
+      const c = parseFloat(form.currentPrice)
+      if (isFinite(p)) set('purchasePrice', convert(p, from, to).toString())
+      if (isFinite(c)) set('currentPrice', convert(c, from, to).toString())
+    }
+    set('currency', to)
+    setPendingCurrency(null)
+  }
   const handleDestCreated = (newId, newItem) => {
     setExtraItems(prev => [...prev, { id: newId, ...newItem }])
     set('incomeDestination', newId)
@@ -653,7 +704,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
             </div>
             <div>
               <label htmlFor="edit-currency" className={labelCls}>{t('Moneda', 'Currency')}</label>
-              <select id="edit-currency" value={form.currency} onChange={e => set('currency', e.target.value)} className={inputCls}>
+              <select id="edit-currency" value={form.currency} onChange={e => requestCurrencyChange(e.target.value)} className={inputCls}>
                 {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
@@ -665,12 +716,37 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
             </div>
           </div>
 
+          {/* Un cambio de moneda con precios ya cargados NUNCA se aplica solo
+              — adivinar entre "convertir" y "solo re-etiquetar" es adivinar
+              la intención, y las dos son arreglos opuestos. */}
+          {pendingCurrency && (
+            <div className="rounded-lg p-3 text-xs space-y-2" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-orange) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--accent-orange) 30%, transparent)' }}>
+              <p style={{ color: 'var(--text-secondary)' }}>
+                {t(
+                  `Cambiaste la moneda de ${pendingCurrency.from} a ${pendingCurrency.to}. ¿Los montos que ves están en ${pendingCurrency.from} y hay que convertirlos, o solo escribiste mal la moneda y el número ya está bien en ${pendingCurrency.to}?`,
+                  `You changed the currency from ${pendingCurrency.from} to ${pendingCurrency.to}. Are the amounts you see in ${pendingCurrency.from} and need converting, or was ${pendingCurrency.from} just the wrong pick and the number is already right in ${pendingCurrency.to}?`
+                )}
+              </p>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => resolveCurrencyChange('convert')}
+                  className="px-2.5 py-1.5 rounded-lg font-medium" style={{ backgroundColor: 'var(--accent-orange)', color: '#fff' }}>
+                  {t('Convertir los montos', 'Convert the amounts')}
+                </button>
+                <button type="button" onClick={() => resolveCurrencyChange('relabel')}
+                  className="px-2.5 py-1.5 rounded-lg font-medium border" style={{ borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
+                  {t('Solo cambiar la etiqueta', 'Just change the label')}
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Section 2: Position */}
           {isBank ? (
             <div>
-              <label htmlFor="edit-current-balance" className={labelCls}>{t('Saldo actual', 'Current balance')}</label>
+              <label htmlFor="edit-current-balance" className={labelCls}>{t('Saldo actual', 'Current balance')} {t('en', 'in')} {form.currency}</label>
               <input id="edit-current-balance" value={form.purchasePrice} onChange={e => { set('purchasePrice', e.target.value); set('quantity', '1') }}
                 type="number" step="any" className={inputCls} />
+              <FxHint amount={form.purchasePrice} from={form.currency} to={baseCurrency} convert={convert} t={t} />
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3">
@@ -680,19 +756,27 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   type="number" step="any" className={inputCls} />
               </div>
               <div>
-                <label htmlFor="edit-purchase-price" className={labelCls}>{isMarket ? t('Precio compra', 'Buy price') : t('Valor compra', 'Purchase value')} <InfoTip text={t('Precio por unidad al momento de la compra. Valor total = cantidad × precio.', 'Price per unit at time of purchase. Total value = quantity × price.')} /></label>
+                <label htmlFor="edit-purchase-price" className={labelCls}>
+                  {isMarket ? t('Precio compra', 'Buy price') : t('Valor compra', 'Purchase value')} {t('en', 'in')} {form.currency}
+                  <InfoTip text={t('Precio por unidad al momento de la compra. Valor total = cantidad × precio.', 'Price per unit at time of purchase. Total value = quantity × price.')} />
+                </label>
                 <input id="edit-purchase-price" value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
                   type="number" step="any" className={inputCls} />
+                <FxHint amount={form.purchasePrice} from={form.currency} to={baseCurrency} convert={convert} t={t} />
               </div>
             </div>
           )}
 
           {!isMarket && !isBank && (
             <div>
-              <label htmlFor="edit-current-price" className={labelCls}>{t('Valor actual', 'Current value')} <InfoTip text={t('El valor de mercado actual. Si lo dejas vacío, se usa el precio de compra. Para activos de mercado se actualiza automáticamente.', 'Current market value. If empty, purchase price is used. Market assets update automatically.')} /></label>
+              <label htmlFor="edit-current-price" className={labelCls}>
+                {t('Valor actual', 'Current value')} {t('en', 'in')} {form.currency}
+                <InfoTip text={t('El valor de mercado actual. Si lo dejas vacío, se usa el precio de compra. Para activos de mercado se actualiza automáticamente.', 'Current market value. If empty, purchase price is used. Market assets update automatically.')} />
+              </label>
               <input id="edit-current-price" value={form.currentPrice} onChange={e => set('currentPrice', e.target.value)}
                 type="number" step="any" placeholder={t('Dejar vacío = precio de compra', 'Empty = purchase price')}
                 className={inputCls} />
+              <FxHint amount={form.currentPrice} from={form.currency} to={baseCurrency} convert={convert} t={t} />
             </div>
           )}
 

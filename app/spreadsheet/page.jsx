@@ -333,10 +333,19 @@ export default function SpreadsheetPage() {
       )}
 
       {editItem && (
-        <EditAccountModal key={editItem.id} item={(() => {
-            const { _originalPrice, _originalPurchasePrice, _originalCurrency, _displayCurrency, totalValue, percentOfPortfolio, change1d, change7d, change30d, pnlPercent, ...rawItem } = editItem
-            return rawItem
-          })()} onClose={() => setEditItem(null)}
+        // Pass editItem AS-IS — no local stripping. editItem comes from the
+        // enriched array (portfolioItems/enrichedItems), whose currentPrice/
+        // purchasePrice are already converted to baseCurrency; the ONLY way
+        // back to the item's own currency is _originalPrice/
+        // _originalPurchasePrice/_originalCurrency. EditAccountModal already
+        // prefers those fields itself (its own stripEnriched, plus the form's
+        // initial state) — dropping them here before the modal ever saw them
+        // defeated that fallback, so a GTQ item's form showed its USD-
+        // converted number as if it were GTQ, and saving without changing it
+        // wrote that wrong number back as the item's real GTQ price (XOCHI,
+        // FASE EK). app/dashboard/page.jsx never had this bug: it always
+        // passed editItem straight through.
+        <EditAccountModal key={editItem.id} item={editItem} onClose={() => setEditItem(null)}
           onSave={async (updated) => {
             const { id, ...fields } = updated
             await updateItem(editItem.id, fields)
@@ -345,7 +354,7 @@ export default function SpreadsheetPage() {
           onAddTransaction={addTransaction} onExecuteContribution={executeContribution}
           onDeleteTransaction={deleteTransaction} onUpdateTransaction={updateTransaction}
           onCreateDestination={addItem}
-          transactions={transactions} baseCurrency={baseCurrency} />
+          transactions={transactions} baseCurrency={baseCurrency} convert={convert} />
       )}
 
       {showAddModal && (

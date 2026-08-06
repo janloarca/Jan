@@ -1488,6 +1488,7 @@ export default function DashboardPage() {
           onCreateDestination={addItem}
           transactions={transactions}
           baseCurrency={baseCurrency}
+          convert={convert}
           existingItems={items} lang={lang}
           allItems={portfolioItems}
           findings={dataCompleteness.findings}
