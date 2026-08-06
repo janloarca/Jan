@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { auth } from '@/lib/firebase'
 import Logo from '@/components/ui/Logo'
+import ChispudoLoader from '@/components/ui/ChispudoLoader'
 
 function setSessionCookie(token) {
   const secure = window.location.protocol === 'https:' ? '; Secure' : ''
@@ -152,10 +153,7 @@ function LoginForm() {
   if (checkingAuth) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-theme-base" style={{ background: 'radial-gradient(ellipse at 20% 50%, rgba(37,99,235,0.08) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(37,99,235,0.06) 0%, transparent 50%), var(--bg-primary)' }}>
-        <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-          <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--text-secondary)', borderTopColor: 'transparent' }} />
-          Verificando sesión...
-        </div>
+        <ChispudoLoader mode="inline" size="medium" state="initial-loading" message="Verificando sesión..." showLabel />
       </div>
     )
   }

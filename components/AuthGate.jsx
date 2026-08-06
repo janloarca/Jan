@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { auth } from '@/lib/firebase'
+import ChispudoLoader from '@/components/ui/ChispudoLoader'
 
 // Misma cookie que setea la página de login. La renovamos en cada cambio de ID
 // token para que el check de __session del middleware no expire (el JWT dura 1h)
@@ -22,6 +23,7 @@ export default function AuthGate({ children }) {
   const [status, setStatus] = useState(_sessionAlive ? 'authed' : 'checking') // 'checking' | 'authed'
   const router = useRouter()
   const pathname = usePathname()
+  const [lang] = useState(() => (typeof window !== 'undefined' && localStorage.getItem('chispudo-lang') === 'en' ? 'en' : 'es'))
 
   useEffect(() => {
     // Sin config de Firebase (dev local sin env vars) no bloqueamos la pantalla.
@@ -59,14 +61,10 @@ export default function AuthGate({ children }) {
   }, [pathname, router])
 
   if (status !== 'authed') {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-theme-base" style={{ background: 'var(--bg-primary)' }}>
-        <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-          <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--text-secondary)', borderTopColor: 'transparent' }} />
-          Verificando sesión...
-        </div>
-      </div>
-    )
+    // Chispudo's own splash, not a raw spinner — a warm-cache session
+    // resolves near-instantly, so the default show-delay is what keeps this
+    // from flashing on screen at all for most returning users.
+    return <ChispudoLoader mode="fullscreen" state="initial-loading" lang={lang} />
   }
 
   return children

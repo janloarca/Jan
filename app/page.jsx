@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import Logo from '@/components/ui/Logo'
+import ChispudoLoader from '@/components/ui/ChispudoLoader'
 
 export default function Home() {
   const router = useRouter()
@@ -25,11 +26,7 @@ export default function Home() {
   }, [router])
 
   if (checking) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-theme-base">
-        <Logo size={28} className="animate-pulse" />
-      </div>
-    )
+    return <ChispudoLoader mode="fullscreen" state="initial-loading" />
   }
 
   return (

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useDashboardData } from '@/hooks/useDashboardData'
 import { getItemValue, formatCurrency, getTypeCategory, businessDaysSince } from '@/components/dashboard/utils'
 import Header from '@/components/dashboard/Header'
+import ChispudoLoader from '@/components/ui/ChispudoLoader'
 import AdBanner from '@/components/AdBanner'
 import MonthEndCheckin, { hasLiveSync } from '@/components/dashboard/MonthEndCheckin'
 import DashboardLoading from './loading'
@@ -989,6 +990,14 @@ export default function DashboardPage() {
             top — buried at page-bottom they were invisible on mobile. */}
         <NotificationCenter items={portfolioItems} transactions={transactions} lang={lang} settings={settings} />
         <div className="flex items-center gap-3 flex-wrap">
+          {/* A refresh in flight gets its OWN small confirmation right next to
+              the freshness text — the header button already shows full
+              progress, this is a second, lightweight "yes, it's really
+              happening" cue for whoever's looking at the body instead of the
+              header. Inline, tiny, never blocks the row it sits in. */}
+          {(pricesLoading || ratesLoading) && (
+            <ChispudoLoader mode="inline" size="small" state="refreshing" delay={250} lang={lang} />
+          )}
           {/* Freshness dot: 1-day-old data is normal (snapshots are daily), so
               1-13d stays neutral/muted — amber only kicks in at ≥14d. */}
           {dataAge === 0 ? (

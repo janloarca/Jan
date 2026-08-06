@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useMemo, useRef, useEffect, useCallback, Fragment, memo } from 'react'
-import { ZoomIn, ZoomOut, FileText, FileSpreadsheet, LoaderCircle } from 'lucide-react'
+import { ZoomIn, ZoomOut, FileText, FileSpreadsheet } from 'lucide-react'
+import ChispudoLoader from '@/components/ui/ChispudoLoader'
 import { formatCurrency, getItemValue, getTypeCategory, isExcludedFromNetWorth, TYPE_COLORS, BROKER_NAV_SOURCES } from './utils'
 import { yearEndMonthKeys } from '@/lib/yearOverYear'
 
@@ -879,9 +880,10 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
             </button>
           </div>
           {loadingHistory && (
-            <span className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded-md bg-blue-50 text-blue-600 border border-blue-100">
-              <LoaderCircle size={12} strokeWidth={2.5} className="animate-spin" />
-              {t('Calculando historial...', 'Calculating history...')}
+            <span className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-blue-50 border border-blue-100">
+              <ChispudoLoader mode="inline" size="small" state="section-loading" delay={0}
+                message={t('Calculando historial...', 'Calculating history...')} showLabel
+                className="text-xs font-medium text-blue-600" />
             </span>
           )}
           <span className="text-xs text-slate-400 hidden sm:inline">{t('Click para editar', 'Click to edit')}</span>
