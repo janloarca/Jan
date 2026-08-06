@@ -356,9 +356,25 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   const itemContentSig = useMemo(() => (items || []).map(it =>
     `${it.id}:${it.symbol || ''}:${it.quantity || 0}:${it._originalPurchasePrice ?? it.purchasePrice ?? 0}:${it.acquisitionDate || ''}`
   ).sort().join('|'), [items])
+  // FASE EQ. This used to also do `setHistoricalItems({})` — wiping every
+  // past-month column to blank the INSTANT any of these signatures changed,
+  // even for an edit to a single dividend in one account. The recompute below
+  // (a live fetch, sometimes seconds) then had to repopulate the WHOLE table
+  // from nothing, so every edit made the spreadsheet flash to "-" across every
+  // month and every row, reading as broken rather than as "updating" — exactly
+  // the complaint ("se queda en blanco... da la sensación que no funciona").
+  // The numbers on screen stay put now (briefly one edit stale, never wrong for
+  // long) while `generation` tells the effect below which cached months are
+  // still trustworthy; genuinely stale ones get silently replaced once the
+  // live recompute lands, never blanked first. Skips its own mount (nothing
+  // to invalidate yet, and bumping here would force every cold load into a
+  // live recompute even when the Firestore cache is already sufficient).
+  const contentMountedRef = useRef(false)
+  const [generation, setGeneration] = useState(0)
   useEffect(() => {
+    if (!contentMountedRef.current) { contentMountedRef.current = true; return }
     lastFetchedYearRef.current = null
-    setHistoricalItems({})
+    setGeneration((g) => g + 1)
   }, [snapshotSig, txSig, lotSig, itemContentSig])
 
   useEffect(() => {
@@ -425,6 +441,15 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   const historicalItemsRef = useRef({})
   useEffect(() => { historicalItemsRef.current = historicalItems }, [historicalItems])
   const [cacheEpoch, setCacheEpoch] = useState(0)
+  // FASE EQ. Which generation each month's cached data was last LIVE-recomputed
+  // at — the freshness half of the fix above. Only the live recompute below
+  // tags a month here, never the Firestore cache-load effect: a month loaded
+  // from Firestore after an edit (e.g. switching to a year not touched yet) must
+  // still count as stale and get recomputed, exactly like today, just without
+  // ever blanking the screen to get there. generation stays 0 until the first
+  // real edit, so cold mount (nothing to distrust yet) is untouched — the
+  // presence-only check below is exactly what ran before this fix.
+  const monthGenRef = useRef({})
 
   useEffect(() => {
     if (!items || items.length === 0) return
@@ -449,6 +474,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     // it demonstrably existed).
     const cached = historicalItemsRef.current || {}
     const missingMonths = pastMonths.filter(mk => {
+      if (generation > 0 && monthGenRef.current[mk] !== generation) return true
       const monthData = cached[mk]
       if (!monthData) return true
       const end = monthEndOf(mk)
@@ -472,6 +498,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       getHistoricalItemValues(itemsWithCategory, missingMonths, convert, baseCurrency, lots, transactions, snapshots).then(async (data) => {
         if (cancelled) return
         lastFetchedYearRef.current = fetchYear
+        Object.keys(data).forEach((mk) => { monthGenRef.current[mk] = generation })
         setHistoricalItems(prev => {
           const merged = { ...prev }
           Object.entries(data).forEach(([mk, itemData]) => {
@@ -500,7 +527,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     // sigs deliberately exclude currentPrice, so a price refresh no longer
     // throws away work in progress.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itemContentSig, txSig, lotSig, snapshotSig, months, currentMonthKey, convert, baseCurrency, onSaveItemSnapshots, selectedYear, cacheEpoch])
+  }, [itemContentSig, txSig, lotSig, snapshotSig, months, currentMonthKey, convert, baseCurrency, onSaveItemSnapshots, selectedYear, cacheEpoch, generation])
 
   const itemValue = useCallback((item) => {
     return showOriginal ? getOriginalValue(item) : getItemValue(item)
