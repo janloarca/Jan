@@ -1209,10 +1209,25 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // not enough on its own: the flows at or before the anchor have to go too,
     // or the deposit is subtracted from a start value that already contains it.
     if (startTs > yearStartTs) {
+      let droppedIn = 0
       ytdFlows = (ytdFlows || []).filter((tx) => {
         const txTs = tx.date ? new Date(tx.date).getTime() : NaN
-        return !isFinite(txTs) || txTs > startTs
+        if (!isFinite(txTs) || txTs > startTs) return true
+        const ty = (tx.type || '').toUpperCase()
+        const amt = convert
+          ? convert(Number(tx.totalAmount ?? 0), tx.currency || 'USD', baseCurrency || 'USD')
+          : Number(tx.totalAmount ?? 0)
+        if (isFinite(amt)) droppedIn += ty === 'DEPOSIT' ? amt : ty === 'WITHDRAWAL' ? -amt : 0
+        return false
       })
+      // Those dropped deposits ARE the capital that created startVal, and they
+      // can be bigger than the value they bought: an opening deposit carries the
+      // entry fee (6,098 into a 6,000 bond). Dividing the year's gain by the
+      // post-fee VALUE quietly forgives the fee, so the headline read +4.00%
+      // while every per-asset card, dividing by all-in cost the way CLAUDE.md
+      // requires, read +3.94% on the same holdings. Measure against the cash
+      // that actually left the pocket and the whole app agrees (FASE EB).
+      if (droppedIn > startVal) startVal = droppedIn
     }
     const { pct, abs } = computeModifiedDietz({
       startValue: startVal, endValue: netWorth,

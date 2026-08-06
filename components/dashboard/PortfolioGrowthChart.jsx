@@ -559,12 +559,34 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     return pts
   }, [snapshots, period, convert, baseCurrency, customRange, currentTotal, selectedInst, scopedItems])
 
+  // "Estimado" is not the same question as "incierto" — the lesson FASE DS
+  // already settled for the spreadsheet, now applied to the chart.
+  //
+  // A portfolio made only of STATIC assets (a bond, a bank balance: no market
+  // price of their own) moves exclusively through events we have on file, so
+  // rewinding it from today's balance is EXACT, not a guess. Marking that region
+  // as unreliable had three visible consequences at once: the value line drew
+  // dotted over data that was complete, the change collapsed to "+0.00% desde 5
+  // ago" (a 2-day window), and the performance view rebased to those same two
+  // days so it showed nothing at all (FASE EB).
+  //
+  // A market-priced or broker-synced position is the opposite: holding today's
+  // quantity flat backwards genuinely assumes something we do not know, and
+  // there the estimate framing stays exactly as it was.
+  const reconstructionIsExact = useMemo(() => {
+    const list = scopedItems || []
+    if (list.length === 0) return false
+    return list.every((it) => it && it._source !== 'ibkr'
+      && !(/stock|crypto|fund|etf/i.test(it.type || '') && !/realestate|inmueble/i.test(it.type || '')))
+  }, [scopedItems])
+
   // First timestamp with REAL broker NAV (vs reconstructed estimates). Drives the
   // performance-view rebase, the flow gating, and the short-history banner.
   const firstRealTs = useMemo(() => {
+    if (reconstructionIsExact) return null
     const p = snapshotData.find((s) => ['ibkr', 'ibkr_quarterly', 'daily', 'manual'].includes(s?.src))
     return p ? p.ts : null
-  }, [snapshotData])
+  }, [snapshotData, reconstructionIsExact])
 
   // Which broker the hold-flat estimate belongs to, so the short-history notice
   // points at the RIGHT place to fix it (only IBKR has a Flex Query "period" to

@@ -369,6 +369,35 @@ lo que sobre se agrupa en un "Otros" neutro.
   encabezado, condicionadas por tipo de activo, todas detrás de "Detalles avanzados") ya
   existía y ya era razonable; el ajuste fue solo de consistencia visual, no una reescritura.
 
+### "Estimado" tampoco es "incierto" en la gráfica, y el denominador del YTD lleva la comisión (FASE EB)
+- **La gráfica dibujaba punteado sobre datos completos.** `firstRealTs` marca dónde
+  empieza el NAV real y todo lo anterior se trata como estimado: se dibuja
+  punteado, el cambio se mide solo desde ahí, y la vista de Rendimiento se rebasea
+  a esa región. Con un portafolio de puros activos ESTÁTICOS (un bono, un saldo
+  bancario: sin precio de mercado propio) eso es falso — se mueven solo por
+  eventos que ya tenemos en el archivo, así que rebobinarlos desde el saldo de hoy
+  es EXACTO. Tres síntomas de una causa: línea punteada sobre información
+  completa, "+0.00% desde 5 ago" (ventana de 2 días) y la gráfica de rendimiento
+  vacía. `reconstructionIsExact` apaga `firstRealTs` en ese caso. Una posición con
+  precio de mercado o sincronizada es lo contrario (mantener la cantidad de hoy
+  hacia atrás sí asume algo que no sabemos) y ahí el framing de estimado se queda
+  igual. Misma lección que FASE DS, una capa más arriba.
+- **El YTD dividía entre el valor post-comisión.** Cuando el ancla se mueve al día
+  en que entró el dinero, los depósitos hasta ahí se descartan (ya están dentro
+  del valor de arranque). Pero esos depósitos SON el capital que lo creó, y pueden
+  ser mayores que lo que compraron: 6,098 desembolsados por un bono de 6,000. Al
+  dividir la ganancia del año entre 6,000 la comisión se perdona en silencio y el
+  encabezado marcaba +4.00% mientras cada tarjeta por activo, dividiendo entre el
+  costo total como manda la convención de CLAUDE.md, marcaba +3.94% sobre los
+  mismos activos. Ahora `startVal` se levanta al total de los depósitos
+  descartados cuando ese total es mayor.
+- **Mismos decimales.** `AssetAllocation` imprimía 1 decimal y las otras dos
+  superficies 2: el mismo retorno mostrado de tres formas no puede leerse como
+  tres números. Todo a 2.
+- **El refresh confirma que pasó algo.** `RefreshRing` hace un flash verde corto en
+  su propio espacio al pasar de "cargando" a "listo"; sin eso el anillo
+  simplemente desaparecía y nada te decía que la actualización llegó.
+
 ### Un wrapper que se come el id deja el depósito huérfano (FASE EA)
 - **"sin vincular" no era cosmético.** `AddAccountModal` hace
   `const itemId = await onAdd(item)` y le pone `_linkedItemId: itemId` al DEPOSIT
