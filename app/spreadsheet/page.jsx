@@ -72,6 +72,7 @@ export default function SpreadsheetPage() {
     snapshots, addItem, updateItem, deleteItem, portfolioItems, convert, rates,
     baseCurrency, saveItemSnapshots, loadItemSnapshots, lots,
     addTransaction, updateTransaction, deleteTransaction, addLot, closeLotsFIFO, executeContribution, dataLoading, settings,
+    handleRefresh, pricesLoading, ratesLoading,
   } = useDashboardData({ user, lang, activePortfolio: '__all__' })
 
   const [editItem, setEditItem] = useState(null)
@@ -175,10 +176,18 @@ export default function SpreadsheetPage() {
   return (
     <div className="min-h-screen flex flex-col bg-theme-base">
       <a href="#main-content" className="skip-link">{t('Ir al contenido', 'Skip to content')}</a>
+      {/* FASE EM. onRefresh was a no-op and loadStagesDone/Total weren't passed
+          at all, so the refresh button on this page never did anything AND
+          its ring could never show real progress — it looked broken because
+          it was. Same handleRefresh + 3-stage signal app/dashboard/page.jsx
+          already uses, so the ring here means the same thing it does there. */}
       <Header user={user} lang={lang} setLang={handleSetLang}
         friendsEnabled={settings?.friendsEnabled !== false}
         onImport={() => router.push('/dashboard')} onSettings={() => router.push('/dashboard')}
-        onSignOut={handleSignOut} onRefresh={() => {}} pricesLoading={false} />
+        onSignOut={handleSignOut} onRefresh={handleRefresh}
+        pricesLoading={pricesLoading || ratesLoading}
+        loadStagesDone={[!dataLoading, !ratesLoading, !pricesLoading].filter(Boolean).length}
+        loadStagesTotal={3} />
       <PageTour pageKey="spreadsheet" nextRoute="/friends" nextFlag="friends" lang={lang} steps={[
         {
           tab: t('Hoja de Cálculo', 'Spreadsheet'),
