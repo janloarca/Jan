@@ -8,6 +8,8 @@ import { authFetch, safeJson } from '@/lib/authFetch'
 import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations } from '@/components/dashboard/utils'
 import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { hasDividendInMonth, redundantAutoDividendIds } from '@/lib/autoDividends'
+import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanDays, earliestNeededDays as computeEarliestNeededDays } from '@/lib/brokerCompletion'
+import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds } from '@/lib/inferredFlows'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
 
@@ -992,7 +994,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   //   subtracting the flows again double-counts. Exclude them there.
   // Manual deposits (no _source:'ibkr') always count.
   const dietzTransactions = useMemo(
-    () => (transactions || []).filter((tx) => tx._source !== 'ibkr'),
+    // Inferred flows carry the same "real account-level money movement"
+    // semantics as a synced ibkr transaction, so a hold-flat baseline that
+    // pre-dates deposits implicitly must exclude them too, for the same
+    // double-count reason ibkr transactions are excluded here.
+    () => (transactions || []).filter((tx) => tx._source !== 'ibkr' && tx._source !== 'inferred_flow'),
     [transactions]
   )
   // A transcribed quarter-end NAV is a real broker observation too: it already
@@ -1307,6 +1313,112 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     return { sharpe: sharpeResult.sharpe, volatility: vol, maxDrawdown: drawdown.maxDrawdownPct }
   }, [snapshots, transactions, convert, baseCurrency])
 
+  // ── Inferred deposits/withdrawals (FASE DQ) ──────────────────────────────
+  // Fills the ONE gap real data can't reach: the quarterly-transcribed stretch
+  // (Portfolio Analyst screenshot → ~4 numbers a year, no cash-transaction
+  // detail). Everything else — the last ~365 days via Flex Query, prior years
+  // uploaded as Flex XML — already has exact deposits/withdrawals imported as
+  // real transactions; nothing to infer there.
+  //
+  // Gated hard on hasCompleteBrokerData: an account still missing a checklist
+  // step (no quarterly transcription, no history upload, no connection) never
+  // reaches this — same "no data to guess from" reasoning as the plan this
+  // implements. Right now only IBKR has real steps (lib/brokerCompletion.js);
+  // this block is written broker-agnostic so a future broker's own steps slot
+  // in without changes here.
+  const brokerCompletionState = useMemo(() => ({
+    ibkrConnected: !!((settings?.ibkrToken || settings?._ibkrVaultMigrated) && settings?.ibkrQueryId),
+    ibkrSnapshotSpanDays: computeIbkrSnapshotSpanDays(snapshots),
+    hasQuarterlyHistory: (snapshots || []).some((s) => s && s._source === 'ibkr_quarterly'),
+    hasIbkrCalibration: accountCalibrations.some((c) => c && c._account === 'ibkr'),
+    earliestNeededDays: computeEarliestNeededDays(portfolioItems),
+  }), [settings, snapshots, accountCalibrations, portfolioItems])
+
+  const ibkrDataComplete = useMemo(
+    () => hasCompleteBrokerData('ibkr', null, brokerCompletionState),
+    [brokerCompletionState]
+  )
+
+  // Real (day-level, synced) IBKR NAV only — never the quarterly-transcribed
+  // points, which is exactly the series being tested against. This account's
+  // OWN realized volatility, not a house constant: a genuinely volatile
+  // account is held to its own bar for "is this move plausible market noise".
+  const ibkrRealSnapshots = useMemo(
+    () => (snapshots || []).filter((s) => s && s._source === 'ibkr' && s.date),
+    [snapshots]
+  )
+  const ibkrRealCoverage = useMemo(() => {
+    if (ibkrRealSnapshots.length === 0) return null
+    const ts = ibkrRealSnapshots.map((s) => new Date(s.date).getTime()).filter((t) => isFinite(t))
+    if (ts.length === 0) return null
+    return { earliestTs: Math.min(...ts), latestTs: Math.max(...ts) }
+  }, [ibkrRealSnapshots])
+  const ibkrVolatility = useMemo(() => {
+    if (ibkrRealSnapshots.length < 3) return null
+    const returns = computePeriodicReturns(ibkrRealSnapshots, transactions, convert, 'USD')
+    const ppy = inferPeriodsPerYear(ibkrRealSnapshots)
+    return computeVolatility({ returns, periodsPerYear: ppy })
+  }, [ibkrRealSnapshots, transactions, convert])
+
+  // Candidates only ever surface for review — never written on their own. See
+  // acceptInferredFlow/dismissInferredFlow below for the write path.
+  const inferredFlowCandidates = useMemo(() => {
+    if (!ibkrDataComplete || !ibkrRealCoverage) return []
+    const pts = quarterlyOnlyPoints(snapshots, ibkrRealCoverage.earliestTs)
+    return detectInferredFlows(pts, { annualizedVolatilityPct: ibkrVolatility })
+  }, [ibkrDataComplete, ibkrRealCoverage, snapshots, ibkrVolatility])
+
+  // Reconciliation: once real Flex Query coverage reaches a date that used to
+  // be inference-only (a new sync extended the window, or a prior-year XML
+  // landed), whatever was guessed there is stale — the real Cash Transactions
+  // import already wrote the true answer independently (or confirmed there
+  // was none). An inferred flow never survives past the day the truth
+  // arrives; it has nothing left to add once a real one covers its date.
+  useEffect(() => {
+    if (!ibkrRealCoverage || !deleteTransaction) return
+    const staleIds = staleInferredFlowIds(transactions, ibkrRealCoverage)
+    if (staleIds.length === 0) return
+    let cancelled = false
+    ;(async () => {
+      for (const id of staleIds) {
+        if (cancelled) return
+        try { await deleteTransaction(id) } catch (e) { console.error('[inferred-flow-reconcile]', e.message) }
+      }
+    })()
+    return () => { cancelled = true }
+  }, [transactions, ibkrRealCoverage, deleteTransaction])
+
+  // Accept: writes an ordinary DEPOSIT/WITHDRAWAL (symbol 'CASH', no
+  // _linkedItemId — mirrors how a REAL IBKR cash transaction is shaped,
+  // lib/parsers/ibkrFileParser.js) so computeModifiedDietz nets it out exactly
+  // like any other flow, no special-casing anywhere downstream. Marks the
+  // gap's end-point snapshot _flowReviewed so it never resurfaces.
+  const acceptInferredFlow = useCallback(async (candidate) => {
+    if (!candidate || !addTransaction || !saveSnapshot) return
+    await addTransaction({
+      type: candidate.type,
+      symbol: 'CASH',
+      description: candidate.type === 'DEPOSIT'
+        ? 'Depósito inferido (histórico trimestral)'
+        : 'Retiro inferido (histórico trimestral)',
+      date: candidate.midDate,
+      totalAmount: candidate.amount,
+      currency: 'USD',
+      institution: 'Interactive Brokers',
+      _source: 'inferred_flow',
+    })
+    await saveSnapshot({ date: candidate.toDate, _flowReviewed: true })
+  }, [addTransaction, saveSnapshot])
+
+  // Dismiss: "no, that gap was pure market movement" — marks it reviewed
+  // WITHOUT writing anything, so a legitimately-plausible-but-flagged edge
+  // case (this account's own volatility estimate was too tight for one real
+  // rally) doesn't force a fake transaction just to silence the nudge.
+  const dismissInferredFlow = useCallback(async (candidate) => {
+    if (!candidate || !saveSnapshot) return
+    await saveSnapshot({ date: candidate.toDate, _flowReviewed: true })
+  }, [saveSnapshot])
+
   const insights = useMemo(() => {
     const hhiResult = computeHHI(portfolioItems.map((it) => ({ value: getItemValue(it) })))
     // Yield over total assets, not net worth — dividing by (assets − debt) would
@@ -1428,6 +1540,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     ibkrReturnYTD: ibkrReturns.ytd, ibkrReturnMTD: ibkrReturns.mtd, ibkrDayChange: ibkrReturns.day,
     annualDividends, estimatedAnnualIncome,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
+    brokerCompletionState, ibkrDataComplete, inferredFlowCandidates, acceptInferredFlow, dismissInferredFlow,
 
     // Benchmark
     benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName, benchmarkLoading,

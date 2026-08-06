@@ -9,7 +9,7 @@ import { InfoTip } from '../ui/Tooltip'
 // dashboard, with its own institution pills). This card answers the question that
 // chart does NOT show at a glance: how each institution compares right now —
 // value, share of the portfolio, and gain/loss. No duplicate NAV chart, no fetch.
-export default function InstitutionPerformance({ items, lang, baseCurrency, transactions, convert }) {
+export default function InstitutionPerformance({ items, lang, baseCurrency, transactions, convert, ibkrDataComplete }) {
   const t = (es, en) => (lang === 'es' ? es : en)
 
   const institutions = useMemo(() => {
@@ -23,9 +23,10 @@ export default function InstitutionPerformance({ items, lang, baseCurrency, tran
       const rawName = it.institution || t('Sin institución', 'No institution')
       // Normalized key: "IDC VALORES" and "IDC Valores" are one custodian, not two rows.
       const key = rawName.trim().replace(/\s+/g, ' ').toLowerCase()
-      if (!map[key]) map[key] = { name: rawName.trim(), count: 0, value: 0, cost: 0, principal: 0, income: 0 }
+      if (!map[key]) map[key] = { name: rawName.trim(), count: 0, value: 0, cost: 0, principal: 0, income: 0, hasIbkr: false }
       map[key].count += 1
       map[key].value += getItemValue(it)
+      if (it._source === 'ibkr') map[key].hasIbkr = true
       // Gain measures against principal; the % divides by all-in cost (with
       // fees) — see getItemPrincipalCost for why the two differ.
       map[key].principal += getItemPrincipalCost(it)
@@ -78,6 +79,21 @@ export default function InstitutionPerformance({ items, lang, baseCurrency, tran
                   <div className="flex items-baseline gap-2 min-w-0">
                     <span className="text-sm font-medium text-white truncate">{inst.name}</span>
                     <span className="text-xs text-slate-500 shrink-0">{inst.count} {t('pos.', 'pos.')}</span>
+                    {/* Same gate as the checklist and the inferred-flows
+                        feature (hasCompleteBrokerData) — one signal, shown
+                        wherever the user is looking at this institution's
+                        numbers, dashboard or spreadsheet alike. */}
+                    {inst.hasIbkr && ibkrDataComplete != null && (
+                      <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+                        style={ibkrDataComplete
+                          ? { color: 'var(--accent-green)', backgroundColor: 'color-mix(in srgb, var(--accent-green) 15%, transparent)' }
+                          : { color: 'var(--accent-orange)', backgroundColor: 'color-mix(in srgb, var(--accent-orange) 15%, transparent)' }}
+                        title={ibkrDataComplete
+                          ? t('Historial y retornos completos: los 4 pasos de conexión están hechos.', 'History and returns complete: all 4 connection steps are done.')
+                          : t('Historial incompleto: faltan pasos en "Nuevo → Completar información".', 'History incomplete: steps missing in "New → Complete your data".')}>
+                        {ibkrDataComplete ? t('100% historial', '100% history') : t('historial parcial', 'partial history')}
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-baseline gap-2.5 shrink-0">
                     <span className="text-xs text-slate-500 font-mono tabular-nums">{pctOfTotal.toFixed(1)}%</span>

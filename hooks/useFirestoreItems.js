@@ -826,7 +826,10 @@ export function useFirestoreItems() {
   // A merge-on-save cache never self-heals a stale entry short of this version
   // bump: `saveItemSnapshots` merges new values OVER old ones, so a wrong number
   // computed once just sits there until the whole month is forced to recompute.
-  const SNAPSHOT_VERSION = 18
+  // v19: inferred deposits/withdrawals (lib/inferredFlows.js) can now fill the
+  // quarterly-transcribed gap — invalidates docs cached before an accepted
+  // inferred flow existed to explain that stretch.
+  const SNAPSHOT_VERSION = 19
 
   const saveItemSnapshots = useCallback(async (monthKey, itemsData, currency) => {
     if (!uid || !monthKey || !itemsData) return
