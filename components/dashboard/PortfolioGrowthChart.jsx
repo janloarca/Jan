@@ -1136,9 +1136,29 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const investedBase = contributionLine && contributionLine.length > 0
     ? contributionLine[contributionLine.length - 1]
     : null
+  // Entry fees are a cost of ENTERING, not a performance loss — the convention
+  // the whole app measures by (see the VITALI reference case in CLAUDE.md):
+  // gain measures against the principal, the % divides by the all-in cost.
+  // Putting the fee on both sides charges it twice and lands on 2.33% where
+  // every other card says 3.94% (FASE EC).
+  const entryFeesInScope = (scopedItems || []).reduce((sum, it) => {
+    const fee = Number(it.entryFee) || 0
+    if (!(fee > 0) || it.entryFeeMode === 'deducted') return sum
+    const cur = it._originalCurrency || it.currency || 'USD'
+    const conv = convert ? convert(fee, cur, baseCurrency || 'USD') : fee
+    return sum + (isFinite(conv) ? conv : 0)
+  }, 0)
+  const principalBase = investedBase != null ? Math.max(0, investedBase - entryFeesInScope) : null
+  // Started from nothing inside the window: the raw value change IS the money
+  // put in plus what it earned, so the contribution has to come out of the
+  // numerator or funding an account reads as pure return.
+  const growthFromZero = principalBase != null ? growthAbs - principalBase : null
   const growthPct = firstVal > 0
     ? (growthAbs / firstVal) * 100
-    : (investedBase > 0 ? ((growthAbs - investedBase) / investedBase) * 100 : null)
+    : (investedBase > 0 && growthFromZero != null ? (growthFromZero / investedBase) * 100 : null)
+  // The headline dollar figure follows the same split: the gain, not the
+  // deposit that funded it ("+$6,240.00" on a portfolio that gained $240).
+  const displayAbs = firstVal > 0 ? growthAbs : (growthFromZero != null ? growthFromZero : growthAbs)
   const lastReturn = returnData.length > 0 ? returnData[returnData.length - 1] : 0
   // Annualized (CAGR) companion for multi-year spans — "+180% ALL" over 6 years is
   // easy to misread as a yearly figure.
@@ -1329,9 +1349,9 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       {viewMode === 'value' ? (
         <div className="mb-3">
           <p className="text-3xl font-bold text-white font-mono tabular-nums">{formatCurrency(hd ? hd.value : currentTotal)}</p>
-          <p className="text-sm mt-0.5" style={{ color: growthAbs >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
+          <p className="text-sm mt-0.5" style={{ color: displayAbs >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
             <span className="font-mono tabular-nums">
-              {growthAbs >= 0 ? '+' : ''}{formatCurrency(growthAbs)}
+              {displayAbs >= 0 ? '+' : ''}{formatCurrency(displayAbs)}
               {growthPct != null && ` (${growthPct >= 0 ? '+' : ''}${growthPct.toFixed(2)}%)`}
             </span>
             {/* Never claim "this year" when the measured window starts at the first
