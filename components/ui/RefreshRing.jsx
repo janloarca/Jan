@@ -14,7 +14,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { RefreshCw, Zap } from 'lucide-react'
 
-const R = 13
+const R = 13.5
 const C = 2 * Math.PI * R
 
 export default function RefreshRing({
@@ -53,25 +53,30 @@ export default function RefreshRing({
       {active ? (
         <>
           <svg width={size} height={size} viewBox="0 0 32 32" className="absolute inset-0" aria-hidden="true">
-            <circle cx="16" cy="16" r={R} fill="none" strokeWidth="2.5"
-              style={{ stroke: 'var(--card-border)' }} />
+            <circle cx="16" cy="16" r={R} fill="none" strokeWidth="2"
+              style={{ stroke: 'var(--card-border)', opacity: 0.7 }} />
             {/* Starts at 12 o'clock and fills clockwise. A floor of 8% keeps the
                 very first stage visible instead of showing an empty ring. */}
-            <circle cx="16" cy="16" r={R} fill="none" strokeWidth="2.5" strokeLinecap="round"
+            <circle cx="16" cy="16" r={R} fill="none" strokeWidth="2" strokeLinecap="round"
               transform="rotate(-90 16 16)"
               style={{
                 stroke: 'var(--accent-blue)',
                 strokeDasharray: C,
-                strokeDashoffset: C * (1 - Math.max(0.08, pct)),
-                transition: 'stroke-dashoffset 400ms ease-out',
+                strokeDashoffset: C * (1 - Math.max(0.1, pct)),
+                transition: 'stroke-dashoffset 450ms cubic-bezier(0.4, 0, 0.2, 1)',
               }} />
           </svg>
-          <Zap size={13} className="relative animate-pulse" style={{ fill: 'currentColor' }} />
+          <Zap size={12} className="relative" strokeWidth={2.25}
+            style={{ fill: 'currentColor', animation: 'chispuPulse 1.4s ease-in-out infinite' }} />
         </>
       ) : (
         <RefreshCw size={14} className="relative" style={flash ? { color: 'var(--accent-green)' } : undefined} />
       )}
       <style jsx>{`
+        @keyframes chispuPulse {
+          0%, 100% { opacity: 1;    transform: scale(1); }
+          50%      { opacity: 0.55; transform: scale(0.88); }
+        }
         @keyframes chispuFlash {
           0%   { opacity: 0.55; transform: scale(0.4); }
           60%  { opacity: 0.22; transform: scale(1); }

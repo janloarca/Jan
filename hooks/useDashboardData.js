@@ -1203,6 +1203,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const calibrated = ytdCalApplied || anchorCalibrated
     if (startVal == null || startVal <= 0) return { returnYTD: null, ytdChange: null, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated }
     let ytdFlows = flowAware ? transactions : dietzTransactions
+    // Denominator override: stays null unless the anchor moved and the capital
+    // that created it was larger than the value it bought (see below).
+    let ytdCostBase = null
     // The anchor moved off Jan 1 because that is where the money first appeared,
     // so the flow that PUT it there is already inside startVal. Dietz counts a
     // flow dated exactly on startTs (`txTs >= startTs`), so moving the window is
@@ -1221,20 +1224,26 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         return false
       })
       // Those dropped deposits ARE the capital that created startVal, and they
-      // can be bigger than the value they bought: an opening deposit carries the
-      // entry fee (6,098 into a 6,000 bond). Dividing the year's gain by the
-      // post-fee VALUE quietly forgives the fee, so the headline read +4.00%
-      // while every per-asset card, dividing by all-in cost the way CLAUDE.md
-      // requires, read +3.94% on the same holdings. Measure against the cash
-      // that actually left the pocket and the whole app agrees (FASE EB).
-      if (droppedIn > startVal) startVal = droppedIn
+      // can exceed the value they bought: an opening deposit carries the entry
+      // fee (6,098 into a 6,000 bond). That fee belongs in the DENOMINATOR only.
+      // Raising startVal instead puts it on both sides and charges it twice, as
+      // a capital loss in the numerator AND as a bigger base — the exact error
+      // the VITALI reference case in CLAUDE.md warns about, which lands on
+      // 2.33% instead of 3.94%. So the gain keeps measuring against the value
+      // (240), and only the base it divides by becomes the all-in cost.
+      if (droppedIn > startVal) ytdCostBase = droppedIn
     }
     const { pct, abs } = computeModifiedDietz({
       startValue: startVal, endValue: netWorth,
       startTs, endTs: Date.now(),
       transactions: ytdFlows, convert, baseCurrency,
     })
-    const clampedPct = Math.max(-200, Math.min(200, pct))
+    // With every flow dropped, Dietz's weighted capital IS startVal, so swapping
+    // the base is just re-dividing the same gain. This is the one place the
+    // headline can be made to agree, to the decimal, with AssetAllocation and
+    // InstitutionPerformance, which have always divided by all-in cost.
+    const effPct = (ytdCostBase > 0 && startVal > 0) ? (abs / ytdCostBase) * 100 : pct
+    const clampedPct = Math.max(-200, Math.min(200, effPct))
     return { returnYTD: clampedPct, ytdChange: abs, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated }
   }, [jan1Value, jan1Ts, jan1Transactional, netWorth, transactions, dietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot, accountCalibrations, portfolioItems])
 
@@ -1591,7 +1600,19 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     return impliedPct > 40 && deposits.length < 3
   }, [netWorth, snapshots, transactions, convert, baseCurrency])
 
-  const dataAge = latestSnapshot ? Math.round((Date.now() - new Date(latestSnapshot.date).getTime()) / 86400000) : null
+  // How stale the numbers on screen are. The snapshot date alone was misleading:
+  // a daily snapshot is written once per day, so the moment before today's got
+  // written the banner claimed "hace 1d" on a dashboard whose prices had just
+  // been refreshed. Freshness is whichever is MORE recent, the last price
+  // refresh or the last snapshot, floored at 0 so a same-day figure never reads
+  // as a day old (FASE EC).
+  const dataAge = useMemo(() => {
+    const snapTs = latestSnapshot ? new Date(latestSnapshot.date).getTime() : NaN
+    const priceTs = pricesUpdate ? new Date(pricesUpdate).getTime() : NaN
+    const freshest = Math.max(isFinite(snapTs) ? snapTs : -Infinity, isFinite(priceTs) ? priceTs : -Infinity)
+    if (!isFinite(freshest)) return null
+    return Math.max(0, Math.floor((Date.now() - freshest) / 86400000))
+  }, [latestSnapshot, pricesUpdate])
 
   // Profile figures for insights. The user types monthlyIncome/monthlyExpenses by
   // hand in Settings, but also records the real thing as finance transactions —

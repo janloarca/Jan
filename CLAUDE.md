@@ -369,6 +369,27 @@ lo que sobre se agrupa en un "Otros" neutro.
   encabezado, condicionadas por tipo de activo, todas detrás de "Detalles avanzados") ya
   existía y ya era razonable; el ajuste fue solo de consistencia visual, no una reescritura.
 
+### La comisión va en el denominador y SOLO ahí, en las tres superficies (FASE EC)
+- **Reincidencia del error que el caso VITALI ya documenta.** Al mover el ancla del
+  YTD levanté `startVal` al capital desembolsado (6,098). Eso pone la comisión en
+  AMBOS lados: como pérdida en el numerador (6,240 − 6,098 = 142) y como base más
+  grande. Da 2.33%, exactamente el número que CLAUDE.md advierte desde FASE DD.
+  La forma correcta es la de las tarjetas: la ganancia mide contra el PRINCIPAL
+  (240) y solo el divisor es el costo total (6,098) → 3.94%. Implementado como un
+  override del denominador (`ytdCostBase`), nunca tocando `startVal`.
+- **La gráfica cometía el mismo error por su cuenta.** Con la serie arrancando en 0
+  (cuenta fundada dentro de la ventana), `growthPct` hacía
+  `(growthAbs − investedBase) / investedBase` con `investedBase` = costo total:
+  misma doble cobranza. Ahora el numerador resta el PRINCIPAL (costo total menos
+  las comisiones de entrada del scope) y el divisor sigue siendo el costo total.
+  De paso el monto en dólares mostraba `+$6,240.00` (el depósito completo) en un
+  portafolio que ganó 240: ahora muestra la ganancia, no el aporte.
+- **"Actualizado hace 1d" medía la edad del SNAPSHOT.** Un snapshot diario se
+  escribe una vez al día, así que en el rato previo a que se escribiera el de hoy
+  el banner decía "hace 1d" sobre un dashboard cuyos precios se acababan de
+  refrescar. Ahora toma lo MÁS reciente entre el último refresco de precios y el
+  último snapshot, con piso en 0.
+
 ### "Estimado" tampoco es "incierto" en la gráfica, y el denominador del YTD lleva la comisión (FASE EB)
 - **La gráfica dibujaba punteado sobre datos completos.** `firstRealTs` marca dónde
   empieza el NAV real y todo lo anterior se trata como estimado: se dibuja
