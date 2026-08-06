@@ -843,7 +843,10 @@ export function useFirestoreItems() {
   // credited after the fact (creditableBackfills), so that account's balance
   // changes and every month reconstructed by rewinding from it changes with it
   // — the cached months were all computed from a balance of 0.
-  const SNAPSHOT_VERSION = 21
+  // v22 (FASE DW): el loop de "Calculando historial..." dejaba meses guardados a
+  // medias (o vacíos) mientras se cancelaba a sí mismo, así que lo cacheado bajo
+  // v21 no es confiable y tiene que recalcularse entero.
+  const SNAPSHOT_VERSION = 22
 
   const saveItemSnapshots = useCallback(async (monthKey, itemsData, currency) => {
     if (!uid || !monthKey || !itemsData) return

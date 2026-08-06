@@ -245,17 +245,36 @@ export const BROKER_NAV_SOURCES = ['ibkr', 'ibkr_quarterly']
 // (no double-counting). Returns a new array; the originals are never mutated.
 export function augmentSnapshots(snapshots, items, convert) {
   if (!Array.isArray(snapshots) || snapshots.length === 0) return snapshots
-  const nonIbkr = (items || [])
+  const list = items || []
+  // A SYNCED broker NAV is one account's balance. Once the portfolio holds no
+  // position from that broker at all, that snapshot measures money netWorth does
+  // not count, and topping it up with the manual assets invents a total that
+  // never existed: a leftover IBKR NAV of 5,760 plus a manually typed 6,240 bond
+  // produced a flat 12,000 line across the whole year, a fake -48% "drawdown"
+  // into today's real value, and a chart contradicting the headline by 2x
+  // (FASE DW). The series has to measure the SAME portfolio netWorth does.
+  //
+  // Scoped to `_source:'ibkr'` on purpose. A transcribed quarter
+  // ('ibkr_quarterly') is history the user typed by hand and routinely lands
+  // BEFORE any position is imported (that is the whole point of the Portfolio
+  // Analyst flow, FASE DL) — dropping it would delete work they just did.
+  // `list.length > 0` so a render before the items load never drops history.
+  const orphanBrokerNav = list.length > 0 && !list.some(it => it && it._source === 'ibkr')
+  const kept = orphanBrokerNav
+    ? snapshots.filter(s => !(s && s._source === 'ibkr'))
+    : snapshots
+  if (kept.length === 0) return kept
+  const nonIbkr = list
     .filter(it => it._source !== 'ibkr' && !isExcludedFromNetWorth(it))
     .map(it => ({ usd: itemValueUSD(it, convert), acqTs: effectiveAcqTs(it) }))
     .filter(x => x.usd)
-  if (nonIbkr.length === 0) return snapshots
+  if (nonIbkr.length === 0) return kept
   const manualAt = (ts) => {
     let sum = 0
     for (const x of nonIbkr) if (x.acqTs == null || x.acqTs <= ts) sum += x.usd
     return sum
   }
-  return snapshots.map(s => {
+  return kept.map(s => {
     if (!s || !BROKER_NAV_SOURCES.includes(s._source) || !s.date) return s
     const ts = new Date(s.date).getTime()
     if (isNaN(ts)) return s

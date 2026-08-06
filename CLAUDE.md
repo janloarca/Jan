@@ -369,6 +369,53 @@ lo que sobre se agrupa en un "Otros" neutro.
   encabezado, condicionadas por tipo de activo, todas detrás de "Detalles avanzados") ya
   existía y ya era razonable; el ajuste fue solo de consistencia visual, no una reescritura.
 
+### Una serie de valor mide el MISMO portafolio que el netWorth (FASE DW)
+
+Tres síntomas del mismo caso (IDC/VITALI), tres causas separadas. El hilo común:
+**algo medía un portafolio distinto al que mide `netWorth`.**
+
+- **Un NAV de broker huérfano inflaba todo al doble.** Un Flex Query que trae la
+  sección NAV pero NO Open Positions deja snapshots `_source:'ibkr'` sin un solo
+  ítem de IBKR en el portafolio. `augmentSnapshots` les sumaba encima los activos
+  manuales, así que la serie marcaba 12,000 (5,760 del NAV huérfano + 6,240 real)
+  contra un `netWorth` de 6,240: línea plana en 12K todo el año, "drawdown" falso
+  de −48% al caer al valor de hoy, y una gráfica que se contradecía con su propio
+  encabezado. Ahora un NAV **sincronizado** (`_source:'ibkr'`) se descarta cuando
+  el portafolio no tiene ninguna posición de ese broker. **Solo `'ibkr'`, nunca
+  `'ibkr_quarterly'`**: un trimestre transcrito a mano normalmente se escribe
+  ANTES de importar posiciones (es el punto del flujo de Portfolio Analyst, FASE
+  DL) y borrarlo destruiría trabajo recién hecho. Y solo con `items.length > 0`,
+  para que un render antes de que carguen los ítems nunca borre historia real.
+- **YTD en +0.00% con un cupón realmente cobrado.** Dos motores reconstruyen el
+  pasado y solo uno sabía de cuentas destino: `lib/historicalValues.js` (el
+  spreadsheet) indexa qué transacción mueve el saldo de qué ítem, incluyendo un
+  dividendo ruteado por `incomeDestination`; la reconstrucción que pide
+  `useDashboardData` a `/api/prices/portfolio-history` no. Así el Fondo Líquido
+  se mantenía plano en 240 hasta enero, o sea el año "empezaba" con un ingreso
+  que todavía no se había ganado: `start == end` → 0%. El indexado se extrajo a
+  `indexBalanceEvents` (exportado, un solo lugar) y ahora alimenta las dos rutas.
+  Con eso: enero = 6,000 (bono solo), hoy = 6,240 → **+4%**, que es el mismo
+  número que ya mostraban AssetAllocation e InstitutionPerformance.
+  **`_flowClampZero`:** el DEPOSIT de apertura puede ser MAYOR que el activo que
+  fundó (trae la comisión: 6,098 para un bono de 6,000), así que rebobinar más
+  atrás cae en −98. Eso no es "cuánto valía", es "todavía no existía", así que
+  esos flujos van marcados y el API los pisa en 0. El ledger reconciliado del
+  broker se queda igual: una línea de efectivo real SÍ puede ser negativa
+  (margen).
+- **"Calculando historial..." infinito y todos los meses en "-".** El efecto que
+  computa el historial del spreadsheet tenía `historicalItems` en sus deps Y
+  llamaba `setHistoricalItems`; cada escritura lo re-ejecutaba y su cleanup
+  marcaba `cancelled` en el fetch en vuelo, que retorna ANTES de
+  `setLoadingHistory(false)` y antes de estampar `lastFetchedYearRef`. Fetch que
+  se reinicia para siempre. La barra del 70% de FASE DS tapaba esto por accidente
+  (vaciaba `missingMonths` casi de inmediato); el chequeo por ítem lo destapó.
+  Arreglado con `historicalItemsRef` (leer sin depender) + un `cacheEpoch` que el
+  efecto de carga sube UNA vez, para conservar el paso "primero el caché" sin
+  volver a meter la identidad del objeto en las dependencias.
+  **Regla:** un efecto que escribe un estado no puede depender de ese estado si
+  su cleanup cancela trabajo asíncrono. Bump a `SNAPSHOT_VERSION` (22): lo
+  guardado durante el loop quedó a medias.
+
 ### El ancla del YTD tiene FECHA, y el capital invertido no se siembra dos veces (FASE DV)
 
 Caso: bono manual (IDC/VITALI) comprado el 2026-01-06 por USD 6,000 con corretaje

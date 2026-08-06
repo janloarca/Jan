@@ -7,6 +7,7 @@ import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations } from '@/components/dashboard/utils'
 import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
+import { indexBalanceEvents } from '@/lib/historicalValues'
 import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills } from '@/lib/autoDividends'
 import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanDays, earliestNeededDays as computeEarliestNeededDays } from '@/lib/brokerCompletion'
 import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds } from '@/lib/inferredFlows'
@@ -962,6 +963,14 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           ? (jan1Items.find((it) => it._source === 'ibkr' && /^CASH-/i.test(it.symbol || ''))
              || jan1Items.find((it) => it._source === 'ibkr' && /bank|cash/i.test(it.type || '')))
           : null
+        // Per-item balance history for the MANUAL side, from the same index the
+        // spreadsheet reconstructs with. Without it a destination account was
+        // held flat at today's balance all the way back, so a coupon earned in
+        // May was already sitting there on Jan 1: start and end matched and YTD
+        // read +0.00% on a bond that had really paid 240 (FASE DW). Note these
+        // never carry _flowIsAccountLevel — only the broker's own reconciled
+        // cash ledger promotes the whole response to "transactional".
+        const { balanceEventsById } = indexBalanceEvents(transactions, jan1Items, convert, 'USD')
         const res = await authFetch('/api/prices/portfolio-history', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -978,7 +987,17 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
                 acquisitionDate: it.acquisitionDate,
                 _holdFlat: shouldHoldFlat(it, transactions, lots),
                 txEvents: txEventsBySym[(it.symbol || '').toUpperCase()] || undefined,
-                ...(cashItem && it.id === cashItem.id ? { cashFlows: accountCashFlows } : {}),
+                // The broker's own reconciled ledger keeps the shape it always
+                // had. A manual account's flows are marked _flowClampZero: an
+                // opening DEPOSIT can exceed the asset's own value (it carries
+                // the entry fee: 6,098 deposited into a 6,000 bond), and
+                // rewinding past it would leave the asset at -98 instead of
+                // "did not exist yet".
+                ...(cashItem && it.id === cashItem.id
+                  ? { cashFlows: accountCashFlows }
+                  : (balanceEventsById[it.id]?.length
+                    ? { cashFlows: balanceEventsById[it.id], _flowClampZero: true }
+                    : {})),
               }
             }),
             lots: allLots.length > 0 ? allLots.map(l => ({
