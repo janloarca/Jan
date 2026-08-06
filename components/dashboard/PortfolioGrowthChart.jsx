@@ -838,12 +838,30 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   // that disagreed with the broker's app eroded trust; one number, one truth.
   const returnData = useMemo(() => {
     if (chartData.length < 2) return []
+    // A return needs capital to measure against. When the window opens BEFORE
+    // the portfolio existed, its first points are legitimately 0 and Dietz
+    // returns 0 for every one of them (startValue <= 0), which drew a flat 0%
+    // line across a year that really returned 3.94% (FASE ED). Start measuring
+    // where the money first appears, exactly like the YTD headline does with
+    // jan1Ts, and pad the leading zero-value stretch with 0% so the series still
+    // lines up 1:1 with chartData for the geometry below.
+    const firstFunded = chartData.findIndex((p) => (p.value ?? p.total ?? 0) > 0)
+    const measured = firstFunded > 0 ? chartData.slice(firstFunded) : chartData
+    if (measured.length < 2) return []
     // Hold-flat prefixes pre-date flows implicitly, so flows inside them are
     // ignored (flowFromTs). A TRANSACTIONAL prefix contains real flow effects,
     // so every flow nets, exactly like a broker's full-year TWR.
     const hasHoldFlatPrefix = !apiTransactional && firstRealTs != null && chartData[0].ts < firstRealTs - 3600000
-    return computeMWRSeries(chartData, returnTransactions, convert, baseCurrency,
-      hasHoldFlatPrefix ? { flowFromTs: firstRealTs } : {})
+    // The deposit that FUNDED the first measured point is inside that point's
+    // value already, so netting it again would read the funding as a loss (the
+    // same trap the headline's dropped-flows filter exists for). Anything at or
+    // before the anchor is out.
+    const opts = hasHoldFlatPrefix
+      ? { flowFromTs: firstRealTs }
+      : (firstFunded > 0 ? { flowFromTs: measured[0].ts + 1 } : {})
+    const series = computeMWRSeries(measured, returnTransactions, convert, baseCurrency, opts)
+    if (series.length === 0) return []
+    return firstFunded > 0 ? [...Array(firstFunded).fill(0), ...series] : series
   }, [chartData, returnTransactions, convert, baseCurrency, firstRealTs, apiTransactional])
 
   // Non-null when the performance view was rebased to the first real broker

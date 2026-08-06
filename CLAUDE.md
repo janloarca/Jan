@@ -369,6 +369,23 @@ lo que sobre se agrupa en un "Otros" neutro.
   encabezado, condicionadas por tipo de activo, todas detrás de "Detalles avanzados") ya
   existía y ya era razonable; el ajuste fue solo de consistencia visual, no una reescritura.
 
+### Un retorno necesita capital contra el cual medirse (FASE ED)
+- **La línea de rendimiento salía plana en 0%** sobre un año que de verdad rindió
+  3.94%. La ventana YTD abre el 1 de enero, pero el portafolio nació el 6: sus
+  primeros puntos valen 0 legítimamente, y `computeModifiedDietz` devuelve 0
+  cuando `startValue <= 0`. Cada punto de la serie salía 0 y el resultado era una
+  raya recta. La gráfica ahora empieza a medir donde aparece el dinero
+  (`findIndex(value > 0)`), igual que el encabezado con `jan1Ts`, y rellena con 0%
+  el tramo previo para que la serie siga alineada 1:1 con `chartData` (la
+  geometría del SVG indexa por posición).
+- **El depósito que fundó el primer punto medido ya está adentro de ese punto**,
+  así que no puede netearse otra vez o el propio acto de fondear se lee como
+  pérdida. Es la misma trampa que el filtro de flujos descartados del encabezado.
+  `computeMWRSeries` de hecho ya abre cada subperíodo DESPUÉS del ancla, así que
+  el gate es cinturón y tirantes: queda un test que lo fija, para que un cambio
+  futuro en ese borde aparezca ahí y no como un retorno negativo en un portafolio
+  que ganó.
+
 ### La comisión va en el denominador y SOLO ahí, en las tres superficies (FASE EC)
 - **Reincidencia del error que el caso VITALI ya documenta.** Al mover el ancla del
   YTD levanté `startVal` al capital desembolsado (6,098). Eso pone la comisión en
