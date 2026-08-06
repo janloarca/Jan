@@ -81,10 +81,18 @@ export default function InferredFlowsModal({
                   <span>{formatDate(c.fromDate)} → {formatDate(c.toDate)}</span>
                   <span className="font-mono">{formatCurrency(c.startVal, 'USD')} → {formatCurrency(c.endVal, 'USD')}</span>
                 </div>
-                <p className="text-body mb-2" style={{ color: 'var(--text-primary)' }}>
-                  {c.type === 'DEPOSIT'
-                    ? t(`Posible depósito de aproximadamente`, `Possible deposit of approximately`)
-                    : t(`Posible retiro de aproximadamente`, `Possible withdrawal of approximately`)}
+                <p className="text-body mb-2 flex items-center gap-1.5 flex-wrap" style={{ color: 'var(--text-primary)' }}>
+                  <span>
+                    {c.source === 'photo'
+                      ? (c.type === 'DEPOSIT' ? t('Depósito marcado en tu captura, de aproximadamente', 'Deposit flagged in your screenshot, of approximately') : t('Retiro marcado en tu captura, de aproximadamente', 'Withdrawal flagged in your screenshot, of approximately'))
+                      : (c.type === 'DEPOSIT' ? t('Posible depósito de aproximadamente', 'Possible deposit of approximately') : t('Posible retiro de aproximadamente', 'Possible withdrawal of approximately'))}
+                  </span>
+                  {c.source === 'photo' && (
+                    <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded font-medium"
+                      style={{ color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' }}>
+                      {t('de tu captura', 'from your screenshot')}
+                    </span>
+                  )}
                 </p>
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-xs font-mono shrink-0" style={{ color: 'var(--text-muted)' }}>USD</span>

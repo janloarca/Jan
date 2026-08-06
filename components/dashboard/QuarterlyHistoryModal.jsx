@@ -54,6 +54,15 @@ export default function QuarterlyHistoryModal({
   const [aiFilled, setAiFilled] = useState(() => new Set())
   const [aiReading, setAiReading] = useState(false)
   const [aiNotice, setAiNotice] = useState(null) // { count, confidence, notes }
+  // label -> 'deposit' | 'withdrawal', read off a "D"/"W" marker on that bar.
+  // Persisted onto the saved snapshot as `_flowMarker` so lib/inferredFlows.js
+  // can trust a real read instead of guessing purely from the value jump.
+  const [aiMarkers, setAiMarkers] = useState(() => new Map())
+  // Cross-check panel from the screenshot's own summary table (Beginning/
+  // Ending/Change, Return Best/Worst/Period, Deposits & Withdrawals) — never
+  // saved anywhere itself, just shown so the user can compare it against what
+  // landed in the grid below.
+  const [aiSummary, setAiSummary] = useState(null)
   const fileInputRef = useRef(null)
 
   const rows = useMemo(
@@ -146,6 +155,13 @@ export default function QuarterlyHistoryModal({
         return next
       })
       setAiFilled(new Set(quarters.map((q) => q.label)))
+      const markers = new Map()
+      for (const q of quarters) {
+        if (q.deposit) markers.set(q.label, 'deposit')
+        else if (q.withdrawal) markers.set(q.label, 'withdrawal')
+      }
+      setAiMarkers(markers)
+      setAiSummary(data.summary || null)
       setAiNotice({ count: quarters.length, confidence: data.confidence, notes: data.notes })
     } catch (err) {
       setError(t(`Error leyendo la imagen: ${err.message}`, `Error reading the image: ${err.message}`))
@@ -177,7 +193,8 @@ export default function QuarterlyHistoryModal({
         setError(t('No se pudo convertir a USD. Intenta con USD.', 'Could not convert to USD. Try USD.'))
         return
       }
-      jobs.push({ date: quarterSnapshotDate(r.year, r.quarter, now), netWorthUSD: usd, label: r.label })
+      const marker = aiMarkers.get(r.label) || null
+      jobs.push({ date: quarterSnapshotDate(r.year, r.quarter, now), netWorthUSD: usd, label: r.label, marker })
     }
     if (jobs.length === 0) {
       setError(t('Escribe al menos un valor.', 'Fill in at least one value.'))
@@ -191,6 +208,7 @@ export default function QuarterlyHistoryModal({
           netWorthUSD: j.netWorthUSD,
           totalActivosUSD: j.netWorthUSD,
           _source: 'ibkr_quarterly',
+          ...(j.marker ? { _flowMarker: j.marker } : {}),
         })
       }
       setDoneMsg(t(
@@ -314,6 +332,42 @@ export default function QuarterlyHistoryModal({
                 {aiNotice.notes ? ` ${aiNotice.notes}` : ''}
               </p>
             )}
+            {/* The screenshot's own summary table (when present), shown so the
+                user can cross-check it against what the grid below ends up
+                with — never itself saved anywhere, it's just a second source
+                of truth for the same numbers. */}
+            {aiSummary && (
+              <div className="rounded-lg p-2.5 grid grid-cols-3 gap-x-3 gap-y-1.5 text-[11px]" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                {aiSummary.ending != null && (
+                  <div>
+                    <p style={{ color: 'var(--text-muted)' }}>{t('Ending', 'Ending')}</p>
+                    <p className="font-mono font-medium" style={{ color: 'var(--text-primary)' }}>{formatCurrency(aiSummary.ending, currency)}</p>
+                  </div>
+                )}
+                {aiSummary.change != null && (
+                  <div>
+                    <p style={{ color: 'var(--text-muted)' }}>{t('Cambio', 'Change')}</p>
+                    <p className="font-mono font-medium" style={{ color: aiSummary.change >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
+                      {aiSummary.change >= 0 ? '+' : ''}{formatCurrency(aiSummary.change, currency)}
+                    </p>
+                  </div>
+                )}
+                {aiSummary.returnPeriodPct != null && (
+                  <div>
+                    <p style={{ color: 'var(--text-muted)' }}>{t('Retorno del período', 'Period return')}</p>
+                    <p className="font-mono font-medium" style={{ color: aiSummary.returnPeriodPct >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
+                      {aiSummary.returnPeriodPct >= 0 ? '+' : ''}{aiSummary.returnPeriodPct.toFixed(2)}%
+                    </p>
+                  </div>
+                )}
+                {aiSummary.netFlows != null && (
+                  <div className="col-span-3 pt-1" style={{ borderTop: '1px solid var(--card-border)' }}>
+                    <p style={{ color: 'var(--text-muted)' }}>{t('Depósitos y retiros netos (todo el período)', 'Net deposits & withdrawals (whole period)')}</p>
+                    <p className="font-mono font-medium" style={{ color: 'var(--text-primary)' }}>{formatCurrency(aiSummary.netFlows, currency)}</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Range + currency */}
@@ -347,9 +401,24 @@ export default function QuarterlyHistoryModal({
               {rows.map((r) => {
                 const already = existing.get(quarterSnapshotDate(r.year, r.quarter, now))
                 const fromAi = aiFilled.has(r.label)
+                const marker = aiMarkers.get(r.label)
                 return (
                   <div key={r.label} className="flex items-center gap-2">
-                    <span className="w-20 shrink-0 text-body font-mono" style={{ color: 'var(--text-secondary)' }}>{r.label}</span>
+                    <span className="w-20 shrink-0 text-body font-mono flex items-center gap-1" style={{ color: 'var(--text-secondary)' }}>
+                      {r.label}
+                      {marker && (
+                        <span
+                          className="shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold"
+                          style={marker === 'deposit'
+                            ? { color: 'var(--accent-green)', backgroundColor: 'color-mix(in srgb, var(--accent-green) 18%, transparent)' }
+                            : { color: 'var(--accent-orange)', backgroundColor: 'color-mix(in srgb, var(--accent-orange) 18%, transparent)' }}
+                          title={marker === 'deposit'
+                            ? t('Tu captura marca un depósito en este trimestre', 'Your screenshot flags a deposit this quarter')
+                            : t('Tu captura marca un retiro en este trimestre', 'Your screenshot flags a withdrawal this quarter')}>
+                          {marker === 'deposit' ? 'D' : 'W'}
+                        </span>
+                      )}
+                    </span>
                     <input
                       value={values[r.label] ?? ''}
                       onChange={(e) => {

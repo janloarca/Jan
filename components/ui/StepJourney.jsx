@@ -1,0 +1,146 @@
+'use client'
+
+// Shared "journey" visual: a connected vertical timeline of steps, used for
+// BOTH kinds of step sequences the app has — pure instructions (lib/brokerHowTo.js,
+// "how do I get this file/key") and stateful completion checklists
+// (lib/brokerCompletion.js, "get this broker to 100%"). Same visual language
+// everywhere a broker asks the user to do a sequence of things, instead of the
+// old flat numbered `<ol>` that didn't read as a journey at all (FASE DT).
+//
+// Per-step shape (all optional except title):
+//   { key, title, desc, detail, status: 'done'|'active'|'todo'|'skippable',
+//     icon: LucideIcon, action: { label, onClick } }
+// `status` is optional — when every step omits it, the first step is treated
+// as 'active' and the rest as 'todo' (the pure-instructions case, which has no
+// real completion state to track).
+
+import { useState } from 'react'
+import { CheckCircle2, ChevronDown, Circle } from 'lucide-react'
+
+function resolveText(v, lang) {
+  if (v == null) return null
+  if (typeof v === 'string') return v
+  return lang === 'es' ? v.es : v.en
+}
+
+export default function StepJourney({ steps, note, variant = 'csv', lang = 'es', title = null, accent: accentProp = null, headerIcon: HeaderIcon = null }) {
+  const t = (es, en) => (lang === 'es' ? es : en)
+  const [openStep, setOpenStep] = useState(null)
+  if (!steps || steps.length === 0) return null
+
+  const accent = accentProp || (variant === 'api' ? 'var(--accent-blue)' : 'var(--accent-green)')
+
+  // No caller supplied real status → this is the pure-instructions case: the
+  // first step reads as "you're here", the rest as upcoming. Gives the flat
+  // how-to list the same "journey" feel without inventing a false done state.
+  const hasRealStatus = steps.some((s) => s.status)
+  const resolved = steps.map((s, i) => ({
+    ...s,
+    status: s.status || (hasRealStatus ? 'todo' : (i === 0 ? 'active' : 'todo')),
+  }))
+
+  const firstActiveIdx = resolved.findIndex((s) => s.status === 'active')
+  const doneCount = resolved.filter((s) => s.status === 'done').length
+
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${accent}33`, backgroundColor: `${accent}0a` }}>
+      {title && (
+        <div className="flex items-center gap-2 px-4 pt-4 pb-1">
+          {HeaderIcon && <HeaderIcon size={14} style={{ color: accent }} />}
+          <span className="text-xs font-semibold" style={{ color: accent }}>{title}</span>
+          {hasRealStatus && (
+            <span className="text-[10px] font-medium ml-auto" style={{ color: 'var(--text-muted)' }}>
+              {doneCount}/{resolved.length}
+            </span>
+          )}
+        </div>
+      )}
+      <ol className="px-4 py-4">
+        {resolved.map((step, i) => {
+          const isLast = i === resolved.length - 1
+          const isOpen = openStep === i
+          const isDone = step.status === 'done'
+          const isActive = step.status === 'active'
+          const isSkippable = step.status === 'skippable'
+          const lineColor = isDone ? accent : 'var(--card-border)'
+          const desc = resolveText(step.desc, lang)
+          const detail = resolveText(step.detail, lang)
+          const stepTitle = resolveText(step.title, lang)
+          const StepIcon = step.icon
+
+          return (
+            <li key={step.key ?? i} className="relative flex gap-3" style={{ paddingBottom: isLast ? 0 : '0.9rem' }}>
+              {/* connector line to the next step */}
+              {!isLast && (
+                <span
+                  className="absolute left-[13px] top-[28px] w-[2px] rounded-full transition-colors"
+                  style={{ bottom: 4, backgroundColor: lineColor }}
+                />
+              )}
+              {/* circle indicator */}
+              <span
+                className="shrink-0 z-10 w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold transition-all"
+                style={isDone
+                  ? { backgroundColor: accent, color: 'var(--bg-card)' }
+                  : isActive
+                    ? { backgroundColor: 'var(--bg-card)', color: accent, border: `2px solid ${accent}`, boxShadow: `0 0 0 3px ${accent}22` }
+                    : isSkippable
+                      ? { backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)', opacity: 0.6 }
+                      : { backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}
+              >
+                {isDone ? <CheckCircle2 size={15} /> : (StepIcon ? <StepIcon size={13} /> : i + 1)}
+              </span>
+
+              {/* body */}
+              <div className="flex-1 min-w-0 rounded-lg transition-colors"
+                style={isActive ? { backgroundColor: `${accent}12`, border: `1px solid ${accent}33`, padding: '0.55rem 0.7rem', marginTop: '-2px' } : { padding: '0.15rem 0' }}>
+                <div className="flex items-start gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs leading-relaxed font-medium"
+                      style={{ color: isDone ? 'var(--text-muted)' : 'var(--text-primary)', textDecoration: isDone && !desc ? 'line-through' : 'none' }}>
+                      {stepTitle}
+                    </p>
+                    {desc && !isDone && (
+                      <p className="text-[11px] leading-relaxed mt-0.5" style={{ color: 'var(--text-muted)' }}>{desc}</p>
+                    )}
+                    {isSkippable && (
+                      <p className="text-[11px] leading-relaxed mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                        {t('No hace falta: ya está cubierto.', 'Not needed: already covered.')}
+                      </p>
+                    )}
+                  </div>
+                  {detail && (
+                    <button type="button" onClick={() => setOpenStep(isOpen ? null : i)} aria-expanded={isOpen}
+                      aria-label={t('Más detalle de este paso', 'More detail for this step')}
+                      className="shrink-0 mt-0.5 p-0.5 rounded transition-colors hover:bg-white/5" style={{ color: 'var(--text-muted)' }}>
+                      <ChevronDown size={13} style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} />
+                    </button>
+                  )}
+                </div>
+                {detail && isOpen && (
+                  <p className="text-[11px] leading-relaxed mt-1 pt-1" style={{ color: 'var(--text-muted)', borderTop: '1px solid var(--card-border)' }}>
+                    {detail}
+                  </p>
+                )}
+                {step.action && !isDone && !isSkippable && (
+                  <button type="button" onClick={step.action.onClick}
+                    className="mt-2 text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-opacity hover:opacity-85"
+                    style={{ backgroundColor: accent, color: 'var(--bg-card)' }}>
+                    {resolveText(step.action.label, lang)}
+                  </button>
+                )}
+              </div>
+            </li>
+          )
+        })}
+      </ol>
+      {note && (
+        <div className="flex items-start gap-2 mx-4 mb-4 px-2.5 py-2 rounded-lg text-[11px] leading-relaxed"
+          style={{ backgroundColor: 'var(--alert-info-bg)', color: 'var(--text-muted)' }}>
+          <Circle size={10} className="shrink-0 mt-0.5" fill="currentColor" style={{ color: 'var(--alert-info-icon)' }} />
+          <span>{resolveText(note, lang)}</span>
+        </div>
+      )}
+    </div>
+  )
+}
