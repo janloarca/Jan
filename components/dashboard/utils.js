@@ -595,6 +595,41 @@ export function getInvestedCapital(item, incomeReceived) {
   return Math.max(0, base - received)
 }
 
+// FASE EH. The value-chart headline's gain/%: how much of a window's raw
+// value change is real gain vs. new capital that arrived DURING the window.
+//
+// Real bug: XOCHI (a bond bought 2024) already gave the YTD window a nonzero
+// starting value ($2,203.54). VITALI (bought that January) then deposited
+// $6,098 into the SAME scope. The chart's old logic branched on "did the
+// window start at zero" and, since it didn't, took the raw value diff as pure
+// gain: "+$6,318.70 (+286.75%) este año" on a portfolio that actually made
+// $318.70. `investedBase - firstVal` is the fix's whole idea: contributionLine
+// (the caller) seeds AT the window's own starting value when something
+// predates it, so that subtraction is exactly the NEW capital, cleanly,
+// whether firstVal is zero (a brand-new account funding its very first
+// position) or not (an existing position that then received more). One
+// formula, no branch — see the corporate-bond gain-vs-cost convention this
+// mirrors in lib/assetLogic/corporateBondWithEntryFee.js.
+//
+// @param firstVal           value at the window's start
+// @param lastVal            value at the window's end (today)
+// @param investedBase       cumulative contributions line's last value, or
+//                            null when there is no contribution history at all
+// @param entryFeesInScope   entry fees paid for positions acquired DURING the
+//                            window (never one that predates it — that fee is
+//                            already inside firstVal, not newCapital)
+export function computeWindowGrowth({ firstVal, lastVal, investedBase, entryFeesInScope = 0 }) {
+  const start = Number(firstVal) || 0
+  const end = Number(lastVal) || 0
+  const growthAbs = end - start
+  const newCapital = investedBase != null ? Math.max(0, investedBase - start) : 0
+  const newCapitalPrincipal = Math.max(0, newCapital - (Number(entryFeesInScope) || 0))
+  const growthDenom = start + newCapital
+  const growthPct = growthDenom > 0 ? ((growthAbs - newCapitalPrincipal) / growthDenom) * 100 : null
+  const displayAbs = growthAbs - newCapitalPrincipal
+  return { growthAbs, newCapital, newCapitalPrincipal, growthDenom, growthPct, displayAbs }
+}
+
 export const TYPE_ICONS = {
   stocks: 'TrendingUp',
   crypto: 'Bitcoin',

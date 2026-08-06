@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { formatCurrency, formatCompact, formatAxisTick, formatDate, getItemValue, buildIncomeEvents, isExcludedFromNetWorth, findYearStartAnchor, shouldHoldFlat, SNAPSHOT_SRC_PRIORITY } from './utils'
+import { formatCurrency, formatCompact, formatAxisTick, formatDate, getItemValue, buildIncomeEvents, isExcludedFromNetWorth, findYearStartAnchor, shouldHoldFlat, SNAPSHOT_SRC_PRIORITY, computeWindowGrowth } from './utils'
 import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { indexBalanceEvents } from '@/lib/historicalValues'
 import { isBankLikeItem } from '@/lib/contributions'
@@ -1170,20 +1170,18 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const firstVal = measuredData.length > 0 ? measuredData[0].value : 0
   const lastVal = measuredData.length > 0 ? measuredData[measuredData.length - 1].value : 0
   const growthAbs = lastVal - firstVal
-  // A brand-new account funded partway through the period legitimately starts
-  // at $0 — growthAbs/firstVal is undefined there. Two bugs to avoid: (1)
-  // silently falling back to a bare 0 read as "no return" next to a real
-  // dollar gain ("+$6,240.00 (+0.00%) este año"); (2) dividing the RAW value
-  // change (growthAbs, which — correctly, per "incluye depósitos" — includes
-  // the deposit itself) by invested capital counts the deposited principal
-  // AS IF it were return, e.g. $6,000 in + $240 gained read as "+52%" once a
-  // duplicate deposit doubled the denominator, but even at the right
-  // denominator it would've read as "+100%" for a same-day deposit with zero
-  // gain — new money is not a return, full stop. Net the invested capital
-  // OUT of the numerator too (contributionLine, same series the "Capital
-  // invertido" overlay draws, already includes entry fees) so only the
-  // actual gain drives the %. No contribution history at all → null hides
-  // the percentage rather than lying with a 0%.
+  // FASE EH. New capital that arrives DURING the window is not return, full
+  // stop — whether the window opened at $0 (a brand-new account) or already
+  // holding value (XOCHI, bought 2024, giving the YTD window a $2,203 start
+  // before VITALI's own $6,098 deposit landed in January on top of it). A
+  // branch that only netted the deposit out when firstVal was exactly zero
+  // missed that second case and took the raw diff as pure gain:
+  // "+$6,318.70 (+286.75%) este año" on a portfolio that actually made
+  // $318.70. computeWindowGrowth (utils.js) needs only ONE formula for both:
+  // contributionLine seeds AT chartData[0]'s own value whenever something
+  // predates the window (its own header comment), so investedBase - firstVal
+  // IS the new piece cleanly either way — no branch needed. No contribution
+  // history at all → null hides the percentage rather than lying with a 0%.
   const investedBase = contributionLine && contributionLine.length > 0
     ? contributionLine[contributionLine.length - 1]
     : null
@@ -1191,25 +1189,25 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   // the whole app measures by (see the VITALI reference case in CLAUDE.md):
   // gain measures against the principal, the % divides by the all-in cost.
   // Putting the fee on both sides charges it twice and lands on 2.33% where
-  // every other card says 3.94% (FASE EC).
+  // every other card says 3.94% (FASE EC). Scoped to items acquired AFTER the
+  // window opened: a fee paid before the window is already inside firstVal,
+  // not part of newCapital, and must not be subtracted from it twice.
+  const windowStartTs = measuredData.length > 0 ? measuredData[0].ts : null
   const entryFeesInScope = (scopedItems || []).reduce((sum, it) => {
     const fee = Number(it.entryFee) || 0
     if (!(fee > 0) || it.entryFeeMode === 'deducted') return sum
+    if (windowStartTs != null && it.acquisitionDate) {
+      const acqTs = new Date(`${it.acquisitionDate}T00:00:00`).getTime()
+      if (Number.isFinite(acqTs) && acqTs <= windowStartTs) return sum
+    }
     const cur = it._originalCurrency || it.currency || 'USD'
     const conv = convert ? convert(fee, cur, baseCurrency || 'USD') : fee
     return sum + (isFinite(conv) ? conv : 0)
   }, 0)
-  const principalBase = investedBase != null ? Math.max(0, investedBase - entryFeesInScope) : null
-  // Started from nothing inside the window: the raw value change IS the money
-  // put in plus what it earned, so the contribution has to come out of the
-  // numerator or funding an account reads as pure return.
-  const growthFromZero = principalBase != null ? growthAbs - principalBase : null
-  const growthPct = firstVal > 0
-    ? (growthAbs / firstVal) * 100
-    : (investedBase > 0 && growthFromZero != null ? (growthFromZero / investedBase) * 100 : null)
-  // The headline dollar figure follows the same split: the gain, not the
-  // deposit that funded it ("+$6,240.00" on a portfolio that gained $240).
-  const displayAbs = firstVal > 0 ? growthAbs : (growthFromZero != null ? growthFromZero : growthAbs)
+  // The actual math lives in computeWindowGrowth (utils.js), pinned by a test
+  // that recalculates the XOCHI+VITALI regression case above with the real
+  // function.
+  const { growthPct, displayAbs } = computeWindowGrowth({ firstVal, lastVal, investedBase, entryFeesInScope })
   const lastReturn = returnData.length > 0 ? returnData[returnData.length - 1] : 0
   // Annualized (CAGR) companion for multi-year spans — "+180% ALL" over 6 years is
   // easy to misread as a yearly figure.
