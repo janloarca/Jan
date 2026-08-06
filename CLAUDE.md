@@ -369,6 +369,41 @@ lo que sobre se agrupa en un "Otros" neutro.
   encabezado, condicionadas por tipo de activo, todas detrás de "Detalles avanzados") ya
   existía y ya era razonable; el ajuste fue solo de consistencia visual, no una reescritura.
 
+### Los 240 del cupón no son capital invertido, y un overlay sin broker duplica todo (FASE DY)
+- **Un ingreso que ATERRIZA en una cuenta no es capital que el usuario puso.**
+  Un ítem tipo banco guarda su saldo en `purchasePrice` (ahí ESE es su costo, por
+  diseño), así que cada cupón que caía en el Fondo Líquido subía el denominador
+  del retorno. Los mismos 240 se contaban dos veces: como ingreso en el
+  numerador y como capital en el denominador. Por eso "Rendimiento por
+  institución" marcaba 240/6,338 = 3.79% mientras "Asignación de activos" (que
+  solo ve el bono) marcaba 240/6,098 = 3.94%. `getIncomeReceivedByItem`
+  (espejo de `getDividendIncomeByItem`: por cuenta que RECIBE, no por activo que
+  produce) + `getInvestedCapital` lo restan del costo, y **las dos tarjetas usan
+  el mismo helper**, así que agrupar por tipo y agrupar por institución no puede
+  volver a divergir sobre los mismos activos.
+- **El overlay de activos manuales solo existe para un snapshot que es del
+  BROKER.** `PortfolioGrowthChart` le suma `staticAt(ts)` a los snapshots que no
+  incluyen los activos manuales. Sin ninguna posición sincronizada en el
+  portafolio no existe tal snapshot: cada fila ya es el patrimonio completo, así
+  que sumarle esos activos otra vez duplica la cartera entera. Un portafolio de
+  6,240 dibujaba una línea plana de 12,480 y un "drawdown" de −50% contra su
+  propio valor real. Ahora el overlay exige `_source:'ibkr'` entre los ítems.
+  Misma forma que el NAV huérfano de FASE DW, una capa más arriba.
+- **La regla "snapshot anterior a que agregaras el activo" se compara por DÍA.**
+  El `ts` de un snapshot es su fecha a medianoche UTC y `createdAt` es un momento
+  de ese día, así que un snapshot escrito minutos DESPUÉS de agregar el activo
+  (y que por lo tanto ya lo contiene) comparaba como "anterior" y recibía el
+  overlay encima de sí mismo.
+- **Un efecto no puede depender de identidades de arrays que cambian con cada
+  tick de precio.** El cómputo del historial del spreadsheet dependía de `items`,
+  `transactions`, `snapshots` y `lots`; cada refresco de precios los recrea, el
+  efecto se re-ejecutaba y su cleanup cancelaba el fetch en vuelo, que retorna
+  antes de apagar el spinner. Ahora depende de las MISMAS firmas de contenido que
+  ya usaba el efecto de limpieza (`itemContentSig` excluye `currentPrice` a
+  propósito), y el spinner se apaga ANTES de escribir el caché: los números ya
+  están en pantalla en ese punto, y dejar que una cancelación a media escritura
+  se saltara esa línea es lo que dejaba "Calculando historial..." pegado.
+
 ### Borrar una cuenta se lleva lo que solo esa cuenta explicaba (FASE DX)
 - **De dónde salió el NAV huérfano de FASE DW.** `deleteItemGroup` (el borrado
   "Por cuenta" de Settings) borraba ítems, lots y transacciones, pero NUNCA un

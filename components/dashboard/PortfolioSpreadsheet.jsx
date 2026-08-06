@@ -464,17 +464,28 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
           })
           return merged
         })
+        // The spinner is turned off BEFORE the cache writes: the numbers are
+        // already on screen at this point, and letting a cancel mid-save skip
+        // this line is what pinned "Calculando historial..." on forever.
+        setLoadingHistory(false)
         for (const mk of Object.keys(data)) {
-          if (cancelled) break
           if (Object.keys(data[mk]).length > 0) {
             try { await onSaveItemSnapshots(mk, data[mk], baseCurrency || 'USD') } catch {}
           }
         }
-        if (!cancelled) setLoadingHistory(false)
-      }).catch(() => { if (!cancelled) setLoadingHistory(false) })
-    }).catch(() => { if (!cancelled) setLoadingHistory(false) })
+      }).catch(() => { setLoadingHistory(false) })
+    }).catch(() => { setLoadingHistory(false) })
     return () => { cancelled = true }
-  }, [items, months, currentMonthKey, convert, baseCurrency, onSaveItemSnapshots, lots, transactions, selectedYear, snapshots, cacheEpoch])
+    // Depends on CONTENT signatures, never on the array identities. `items`,
+    // `transactions`, `snapshots` and `lots` get new identities on every price
+    // tick and every Firestore event, and each re-run's cleanup marks the
+    // in-flight fetch cancelled — which returns before setLoadingHistory(false)
+    // and before lastFetchedYearRef is stamped, so the fetch restarted forever
+    // and every past month stayed on "-" (FASE DY, the other half of DW). The
+    // sigs deliberately exclude currentPrice, so a price refresh no longer
+    // throws away work in progress.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemContentSig, txSig, lotSig, snapshotSig, months, currentMonthKey, convert, baseCurrency, onSaveItemSnapshots, selectedYear, cacheEpoch])
 
   const itemValue = useCallback((item) => {
     return showOriginal ? getOriginalValue(item) : getItemValue(item)
