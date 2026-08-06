@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect, useRef } from 'react'
-import RefreshRing from '@/components/ui/RefreshRing'
+import ChispudoRefreshButton from '@/components/ui/ChispudoRefreshButton'
 import Logo from '@/components/ui/Logo'
 import { Search, RefreshCw, Settings, LogOut, Plus, Upload, ChevronDown, Link2, Sparkles } from 'lucide-react'
 
@@ -11,7 +11,7 @@ import { Search, RefreshCw, Settings, LogOut, Plus, Upload, ChevronDown, Link2, 
 // triangle: a single transient sync failure is not news while auto-sync is still
 // retrying every 30min. The dashboard owns that rule so the pill, the top banner
 // and the ActionButtons dot always agree. See app/dashboard/page.jsx.
-export default function Header({ user, lang, setLang, onImport, onSignOut, onRefresh, onSettings, pricesLoading, loadStagesDone = 0, loadStagesTotal = 0, onAddAccount, onCommandPalette, onOpenConnections, ibkrConnected, ibkrAutoSyncing, ibkrSyncStatus, ibkrNeedsAttention = false, ibkrSyncSummary, onIBKR, friendsEnabled = true, onEnrich, enrichGapCount = 0 }) {
+export default function Header({ user, lang, setLang, onImport, onSignOut, onRefresh, onSettings, pricesLoading, loadStagesDone = 0, loadStagesTotal = 0, refreshError = false, onAddAccount, onCommandPalette, onOpenConnections, ibkrConnected, ibkrAutoSyncing, ibkrSyncStatus, ibkrNeedsAttention = false, ibkrSyncSummary, onIBKR, friendsEnabled = true, onEnrich, enrichGapCount = 0 }) {
   const [newMenuOpen, setNewMenuOpen] = useState(false)
   const newMenuRef = useRef(null)
 
@@ -81,15 +81,13 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
               </button>
             )}
 
-            <RefreshRing
+            <ChispudoRefreshButton
               onClick={onRefresh}
-              disabled={pricesLoading}
-              stagesDone={loadStagesDone}
-              stagesTotal={loadStagesTotal}
-              label={lang === 'es' ? 'Actualizar precios' : 'Refresh prices'}
-              title={loadStagesTotal > loadStagesDone
-                ? (lang === 'es' ? `Actualizando: ${loadStagesDone} de ${loadStagesTotal} listo` : `Updating: ${loadStagesDone} of ${loadStagesTotal} done`)
-                : (lang === 'es' ? 'Actualizar precios' : 'Refresh prices')}
+              loading={pricesLoading}
+              progress={loadStagesTotal > 0 ? Math.round((loadStagesDone / loadStagesTotal) * 100) : null}
+              error={refreshError}
+              lang={lang}
+              size={44}
             />
 
             {ibkrConnected && (

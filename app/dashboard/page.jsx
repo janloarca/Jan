@@ -823,6 +823,12 @@ export default function DashboardPage() {
         // prices. The ring fills as each one actually lands.
         loadStagesDone={[!dataLoading, !ratesLoading, !pricesLoading].filter(Boolean).length}
         loadStagesTotal={3}
+        // Reflects the SAME error signal the "prices" banner already uses
+        // (see staleCode above) — the button's error state and the banner
+        // can never disagree about whether the last refresh actually failed.
+        // Both hooks clear their own error on the next fetch attempt, so a
+        // retry click clears this automatically once the retry lands.
+        refreshError={!!(pricesError || ratesError)}
         onAddAccount={handleOpenAccount}
         onCommandPalette={handleOpenCmdPalette}
         onOpenConnections={handleOpenConnections}
