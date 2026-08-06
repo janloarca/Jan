@@ -369,6 +369,34 @@ lo que sobre se agrupa en un "Otros" neutro.
   encabezado, condicionadas por tipo de activo, todas detrás de "Detalles avanzados") ya
   existía y ya era razonable; el ajuste fue solo de consistencia visual, no una reescritura.
 
+### Un wrapper que se come el id deja el depósito huérfano (FASE EA)
+- **"sin vincular" no era cosmético.** `AddAccountModal` hace
+  `const itemId = await onAdd(item)` y le pone `_linkedItemId: itemId` al DEPOSIT
+  de apertura. Pero el wrapper de `onAdd` en el dashboard hacía `await addItem(item)`
+  y NO devolvía el id, así que `itemId` salía `undefined` y el depósito nacía sin
+  vínculo. La fila igual se ve (el editor de cuenta también empareja por símbolo),
+  pero TODO motor que pregunta "¿qué explica este saldo?" indexa por
+  `_linkedItemId`: `dataCompleteness` (por eso el finding de origen seguía
+  saliendo), `indexBalanceEvents` (por eso la reconstrucción no bajaba el valor
+  antes de la compra) y hasta el guard nuevo de FASE DZ. Un `return` faltante
+  alimentaba media docena de síntomas.
+- `unlinkedOpeningDeposits` (`lib/originDeposits.js`) repara lo que ya quedó
+  escrito, pero SOLO lo inequívoco y de nuestra propia autoría:
+  `_source:'manual_new_account'`, sin vínculo, y símbolo que empareja con
+  EXACTAMENTE un ítem. Dos cuentas con el mismo símbolo (el mismo bono en dos
+  brokers) se dejan en paz: adivinar ahí archiva el dinero contra la cuenta
+  equivocada, que es peor que el badge.
+- **La gráfica reconstruía con su propia copia del indexado.** `PortfolioGrowthChart`
+  re-implementaba "qué transacción mueve qué saldo" y su copia solo alimentaba
+  ítems tipo banco, así que el depósito de un bono nunca lo rebobinaba: la línea de
+  valor daba +0.00% mientras la tarjeta de patrimonio, usando la otra copia, daba
+  +4% sobre los mismos activos. Ahora las tres rutas (spreadsheet, YTD, gráfica)
+  llaman a `indexBalanceEvents`, con `_flowClampZero` en las tres.
+- **El anillo de carga cuenta etapas REALES** (`dataLoading`, `ratesLoading`,
+  `pricesLoading`), nunca un temporizador disfrazado de progreso: una barra
+  inventada que se arrastra al 90% y espera es la misma clase de mentira que un
+  número inventado en una gráfica. `components/ui/RefreshRing.jsx`.
+
 ### El origen de una cuenta se registra UNA vez (FASE DZ)
 - **"Capturar historia" / "Resolver" no tenía dedupe.** Escribe un DEPOSIT que el
   usuario declara YA incluido en el saldo: no mueve dinero, solo registra de
