@@ -870,10 +870,23 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     // purchase, same as a deposit — without this, "capital invertido" (and
     // any return % that divides gain by it) silently ignored fees you told
     // the app about, even though costsSummary.js already counts them.
+    //
+    // ...unless a DEPOSIT already carries it. AddAccountModal writes the
+    // opening deposit as principal + entryFee (that IS the cash that left the
+    // pocket) and tags it `_source:'manual_new_account'`, so adding the fee
+    // here again charged a $98 brokerage twice (FASE DV). Same double-count
+    // reason the 'deducted' mode is skipped, just a different place the fee is
+    // already accounted for.
+    const feeAlreadyInDeposit = new Set(
+      (scopedTransactions || [])
+        .filter(tx => tx._source === 'manual_new_account' && tx.type === 'DEPOSIT' && tx._linkedItemId)
+        .map(tx => tx._linkedItemId)
+    )
     const feeEvents = (scopedItems || [])
       // 'deducted' fees are already inside the deposit that funded the asset,
       // so adding them again would double-count the invested capital.
-      .filter(it => Number(it.entryFee) > 0 && it.acquisitionDate && it.entryFeeMode !== 'deducted')
+      .filter(it => Number(it.entryFee) > 0 && it.acquisitionDate && it.entryFeeMode !== 'deducted'
+        && !feeAlreadyInDeposit.has(it.id))
       .map(it => {
         const cur = it._originalCurrency || it.currency || 'USD'
         const amt = convert ? convert(Number(it.entryFee), cur, baseCurrency || 'USD') : Number(it.entryFee)
@@ -886,17 +899,38 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     // suggests a contribution that never happened.
     if (events.length === 0) return null
 
-    const startVal = chartData[0].value
+    // What was ALREADY invested when the window opened. Seeding with the value
+    // at the window's start is the right guess for a position that predates our
+    // records (an IBKR account whose deposit ledger only reaches 365 days back:
+    // its value on day one IS the capital we can't see the flows for).
+    //
+    // It is flat wrong when nothing predates the window: there, the value on the
+    // left edge exists only because the reconstruction holds today's positions
+    // flat backwards, and the deposits that funded them are ALSO added as events
+    // below. That counted the same money twice — a $6,000 bond bought Jan 6 with
+    // a $98 fee showed ~$12.2K of "capital invertido" (FASE DV).
+    //
+    // "Predates the window" is per item: a real earlier acquisition date, no date
+    // at all, or an unreliable one (shouldHoldFlat — an IBKR position stamped
+    // with the sync date, which is exactly the case the seed exists for).
+    const windowStartTs = chartData[0].ts
+    const anyPredatesWindow = (scopedItems || []).some(it => {
+      if (shouldHoldFlat(it, scopedTransactions, lots)) return true
+      if (!it.acquisitionDate) return true
+      const acqTs = new Date(`${it.acquisitionDate}T00:00:00`).getTime()
+      return !Number.isFinite(acqTs) || acqTs < windowStartTs
+    })
+    const startVal = anyPredatesWindow ? chartData[0].value : 0
     return chartData.map(dp => {
       let cum = startVal
       for (const ev of events) {
-        if (ev.ts <= chartData[0].ts) continue
+        if (ev.ts <= windowStartTs) continue
         if (ev.ts > dp.ts) break
         cum += ev.amt
       }
       return cum
     })
-  }, [chartData, scopedTransactions, scopedItems, viewMode, convert, baseCurrency])
+  }, [chartData, scopedTransactions, scopedItems, viewMode, convert, baseCurrency, lots])
 
   const drawdown = useMemo(() => {
     if (chartData.length < 3) return null
@@ -1361,9 +1395,20 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           history for whatever the sync can't reach (multi-year "ALL" in
           particular, which 365 days never covers). Dismissible per (broker,
           anchor date): re-syncing with MORE real history changes the anchor and
-          un-dismisses it, instead of hiding a newer, more actionable message. */}
+          un-dismisses it, instead of hiding a newer, more actionable message.
+
+          Requires a SYNCED BROKER in scope (`primaryBrokerId != null`). Every
+          remedy this notice offers is a broker action — widen a Flex Query
+          period, upload the broker's export — so on a scope with no synced
+          broker at all (a manually-typed bond and its cash account, say) it had
+          nothing true to say and said it anyway: `primaryBrokerId == null` used
+          to fall into the IBKR branch, so a manual IDC bond got told to go fix
+          its "Flex Queries → Period", plus a forensic line counting IBKR XML
+          sections it never had. A manual asset held flat between its own tracked
+          events is not a broker sync gap, and pointing at IBKR to fix it is just
+          wrong (FASE DV). */}
       {(period === 'YTD' || period === 'ALL') && !apiTransactional && firstRealTs != null && chartData.length > 1
-        && !estimateNoticeDismissed
+        && !estimateNoticeDismissed && primaryBrokerId != null
         && firstRealTs > Date.UTC(new Date().getUTCFullYear(), 0, 1) + 45 * 86400000
         && (viewMode === 'performance' || chartData[0].ts < firstRealTs - 3600000) && (
         <div className="relative flex items-start gap-2 px-2.5 py-1.5 pr-7 rounded-lg text-xs mb-3"
@@ -1380,7 +1425,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
               : t(`datos reales desde ${formatDate(new Date(firstRealTs).toISOString())}; antes es un estimado.`,
                   `real data starts ${formatDate(new Date(firstRealTs).toISOString())}; earlier values are an estimate.`)}
             {' '}
-            {primaryBrokerId === 'ibkr' || primaryBrokerId == null
+            {primaryBrokerId === 'ibkr'
               ? t('En IBKR: Flex Queries → tu query → Period → "Last 365 Calendar Days", y vuelve a sincronizar.',
                   'In IBKR: Flex Queries → your query → Period → "Last 365 Calendar Days", then sync again.')
               : t('Este broker no sincroniza historial por API: la única forma de tener el año completo es subir tu archivo.',
@@ -1388,7 +1433,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
             {' '}
             {t('¿Querés tu historial COMPLETO ya, sin depender de eso?', 'Want your FULL history right now, without depending on that?')}
             {onImportBroker && (
-              <button onClick={() => onImportBroker(primaryBrokerId || 'ibkr')}
+              <button onClick={() => onImportBroker(primaryBrokerId)}
                 className="block mt-1.5 px-2 py-1 rounded-md text-[11px] font-medium"
                 style={{ backgroundColor: 'var(--alert-info-icon)', color: 'var(--bg-card)' }}>
                 {t('Subir historial completo (archivo)', 'Upload full history (file)')}
@@ -1410,7 +1455,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                 screenshot of this banner pins down where the data stops flowing.
                 IBKR-only (Flex Query XML sections) — showing it under a different
                 broker's notice would reference sections that broker doesn't have. */}
-            {(primaryBrokerId === 'ibkr' || primaryBrokerId == null) && ibkrSyncSummary?.sections && (
+            {primaryBrokerId === 'ibkr' && ibkrSyncSummary?.sections && (
               <span className="block mt-1.5 font-mono text-[10px] opacity-80">
                 {t('Último sync', 'Last sync')} {ibkrSyncSummary.at ? formatDate(ibkrSyncSummary.at) : ''}: XML{' '}
                 {ibkrSyncSummary.sections.trades ?? 0} trades, {ibkrSyncSummary.sections.cashTransactions ?? 0} cash tx,{' '}

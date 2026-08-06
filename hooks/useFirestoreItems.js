@@ -839,7 +839,11 @@ export function useFirestoreItems() {
   // rest (VITALI + its destination account) could get permanently stuck
   // uncovered for any month that crossed that blanket bar. Invalidates docs
   // cached under either old behavior.
-  const SNAPSHOT_VERSION = 20
+  // v21 (FASE DV): a backfilled coupon whose destination sat at zero now gets
+  // credited after the fact (creditableBackfills), so that account's balance
+  // changes and every month reconstructed by rewinding from it changes with it
+  // — the cached months were all computed from a balance of 0.
+  const SNAPSHOT_VERSION = 21
 
   const saveItemSnapshots = useCallback(async (monthKey, itemsData, currency) => {
     if (!uid || !monthKey || !itemsData) return
