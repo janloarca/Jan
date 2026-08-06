@@ -273,6 +273,40 @@ lo que sobre se agrupa en un "Otros" neutro.
 3. Calcular Modified Dietz: `(endValue - startValue - netDeposits) / startValue`
 4. Transactions de tipo DEPOSIT/WITHDRAWAL se restan del retorno (no son ganancia)
 
+### Spreadsheet: cobertura por ítem, y "estimado" ≠ "incierto" (FASE DS)
+- **Un ítem agregado después que el resto del portafolio se quedaba sin historial para
+  siempre.** `PortfolioSpreadsheet.jsx` decidía qué meses re-computar con una barra de
+  70%: si la mayoría de los ítems ya tenían dato en un mes, ese mes se daba por
+  "cubierto" y nunca se volvía a pedir, aunque UN ítem específico (ej. VITALI, agregado
+  meses después que el resto) siguiera sin entrada ahí. Ese ítem quedaba en blanco en
+  esos meses de forma permanente: el 70% ya lo había "pasado". Arreglado: un mes se
+  marca para re-fetch si CUALQUIER ítem elegible (ya existía para esa fecha, según
+  `effAcqTs`) le falta dato, nunca según un porcentaje del portafolio completo.
+- **`estimated` mezclaba dos preguntas distintas.** `applyStaticHistory`
+  (`lib/historicalValues.js`) marcaba TODO lo que reconstruye como "mantener plano"
+  con `estimated:true`, sin importar la razón. Pero hay dos razones muy distintas: (a)
+  un activo de verdad estático (un bono, un saldo bancario) mantenido plano entre
+  eventos rastreados es su valor REAL, no una suposición, porque solo se mueve por
+  transacciones que ya conocemos exactas; (b) una acción/cripto que cayó a este mismo
+  camino porque Yahoo no tenía precio SÍ es una suposición (asumimos que la cantidad no
+  cambió). Confundir (a) con (b) hacía que un bono de exactamente 6,000 se mostrara como
+  "~6,000" en el spreadsheet, con el tooltip de "valor estimado" sobre un número que no
+  tenía nada de incierto. Arreglado con un parámetro `trueStatic` en
+  `applyStaticHistory`: `true` solo en la llamada directa para ítems no-mercado
+  (`staticItems`), `false` (default, sin cambio de comportamiento) en las tres llamadas
+  de fallback dentro del loop de `marketItems`.
+- **El total de una categoría no debe confundir "no hay dato" con "el dato suma cero".**
+  La fila de categoría en el spreadsheet decidía mostrar "-" con `catHistTotal !== 0`,
+  así que una categoría cuyo total reconstruido de verdad fuera 0 (ej. todo vendido)
+  mostraba el mismo guión que un mes sin ningún dato real. Se cambió a un booleano
+  `foundAny` que se marca cuando al menos un ítem real contribuyó, independiente del
+  signo o magnitud de la suma.
+- Bump a `SNAPSHOT_VERSION` (20): el caché de `itemSnapshots` en Firestore es
+  merge-on-save y nunca se autocorrige (`saveItemSnapshots` pisa valores nuevos SOBRE
+  los viejos, nunca invalida uno malo por su cuenta) — un doc cacheado bajo la lógica
+  vieja (`estimated:true` en un bono exacto, o un mes que nunca se re-fetcheó) se queda
+  ahí para siempre sin el bump forzando el recálculo completo.
+
 ### Reconstrucción transaccional: rebobinar, no aplanar (FASE AO)
 - La reconstrucción CORRECTA del pasado rebobina las transacciones importadas desde el estado
   actual: `qty_t = qty_actual − compras_post_t + ventas_post_t` y `cash_t = cash_actual −
@@ -389,6 +423,16 @@ lo que sobre se agrupa en un "Otros" neutro.
   "resolver" un finding que en realidad ya estaba resuelto arriesgaba crear un
   segundo DEPOSIT (aunque `alreadyReflected` evita que toque el saldo, sí
   duplicaba la transacción en el historial).
+- **El botón para confirmarlo solo vivía en UNA de las dos pantallas que muestran
+  findings (FASE DS).** `ChispuSuggestions` (la card del dashboard) sí traía un botón
+  "Capturar historia" que abre `CashFlowModal` con `alreadyReflected` prefileado, pero
+  `AccountReviewModal` (el wizard de "Completar información" → revisar por cuenta o
+  institución) solo mostraba el texto del finding, sin ninguna acción: el único botón
+  era "Editar" (abre el editor de ítem, no el flujo que estampa `_newMoneyConfirmed`).
+  Un finding visto DESDE ahí no tenía forma de resolverse sin cerrar el modal y buscar
+  el otro camino. Arreglado con un botón "Resolver" por finding accionable
+  (`f.action.kind === 'cashflow'`) que cierra el wizard y abre `CashFlowModal` con el
+  mismo prefill, vía un nuevo prop `onOpenCashflow`.
 
 ### Depósitos/retiros inferidos: SOLO con el broker al 100% (FASE DQ)
 - El único hueco real que queda una vez completado el checklist de FASE DL/DN es el

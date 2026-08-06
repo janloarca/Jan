@@ -1495,6 +1495,7 @@ export default function DashboardPage() {
           transactions={transactions}
           onClose={handleCloseReview}
           onEditItem={setEditItem}
+          onOpenCashflow={handleOpenCashflowPrefilled}
           lang={lang}
           findings={dataCompleteness.findings}
           startItemId={reviewTarget.itemId}

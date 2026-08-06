@@ -829,7 +829,17 @@ export function useFirestoreItems() {
   // v19: inferred deposits/withdrawals (lib/inferredFlows.js) can now fill the
   // quarterly-transcribed gap — invalidates docs cached before an accepted
   // inferred flow existed to explain that stretch.
-  const SNAPSHOT_VERSION = 19
+  // v20 (FASE DS): two spreadsheet-correctness fixes land together — (1) a true
+  // static asset (bond, bank balance) held-flat with tracked events is now
+  // marked `estimated:false` instead of always `true`, so an exact figure
+  // (e.g. a bond worth precisely 6,000) stops showing the "~" uncertain marker
+  // it never deserved; (2) the missing-months detector in
+  // PortfolioSpreadsheet.jsx no longer skips a month just because MOST of the
+  // portfolio already has data there — a single item added later than the
+  // rest (VITALI + its destination account) could get permanently stuck
+  // uncovered for any month that crossed that blanket bar. Invalidates docs
+  // cached under either old behavior.
+  const SNAPSHOT_VERSION = 20
 
   const saveItemSnapshots = useCallback(async (monthKey, itemsData, currency) => {
     if (!uid || !monthKey || !itemsData) return
