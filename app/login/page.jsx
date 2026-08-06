@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { auth } from '@/lib/firebase'
+import Logo from '@/components/ui/Logo'
 
 function setSessionCookie(token) {
   const secure = window.location.protocol === 'https:' ? '; Secure' : ''
@@ -163,9 +164,8 @@ function LoginForm() {
     <div className="flex items-center justify-center min-h-screen bg-theme-base" style={{ background: 'radial-gradient(ellipse at 20% 50%, rgba(37,99,235,0.08) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(37,99,235,0.06) 0%, transparent 50%), var(--bg-primary)' }}>
       <div className="w-full max-w-md px-6">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 mb-2">
-            <span className="text-3xl" style={{ color: 'var(--accent-blue)' }}>⚡</span>
-            <h1 className="text-3xl font-bold" style={{ color: 'var(--accent-blue)' }}>Chispudo</h1>
+          <div className="inline-flex mb-2">
+            <Logo size={32} as="h1" />
           </div>
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Tu control financiero personal</p>
         </div>

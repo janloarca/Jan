@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect, useRef } from 'react'
 import RefreshRing from '@/components/ui/RefreshRing'
-import { Search, RefreshCw, Settings, LogOut, Plus, Upload, Zap, ChevronDown, Link2, Sparkles } from 'lucide-react'
+import Logo from '@/components/ui/Logo'
+import { Search, RefreshCw, Settings, LogOut, Plus, Upload, ChevronDown, Link2, Sparkles } from 'lucide-react'
 
 // ibkrNeedsAttention (not a raw `ibkrSyncStatus === 'error'`) drives the warning
 // triangle: a single transient sync failure is not news while auto-sync is still
@@ -46,11 +47,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14">
           <div className="flex items-center gap-4">
-            {/* Logo — lightning integrated with the wordmark */}
-            <div className="flex items-center gap-1.5" title={lang === 'es' ? 'Tu dinero, tu control' : 'Your money, your control'}>
-              <Zap size={18} style={{ color: 'var(--accent-blue)' }} fill="var(--accent-blue)" />
-              <h1 className="text-base font-bold leading-none tracking-tight" style={{ color: 'var(--text-primary)' }}>Chispudo</h1>
-            </div>
+            <Logo size={19} as="h1" title={lang === 'es' ? 'Tu dinero, tu control' : 'Your money, your control'} />
 
             {/* Navigation — segmented control */}
             <nav className="hidden sm:flex items-center gap-0.5 p-1 rounded-[10px]"

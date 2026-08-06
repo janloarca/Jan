@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import Logo from '@/components/ui/Logo'
 
 export default function Home() {
   const router = useRouter()
@@ -26,7 +27,7 @@ export default function Home() {
   if (checking) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-theme-base">
-        <div className="animate-pulse text-lg font-bold" style={{ color: 'var(--accent-blue)' }}>Chispudo</div>
+        <Logo size={28} className="animate-pulse" />
       </div>
     )
   }
@@ -35,7 +36,7 @@ export default function Home() {
     <div className="min-h-screen bg-theme-base text-white">
       {/* Hero */}
       <header className="max-w-5xl mx-auto px-6 py-6 flex items-center justify-between">
-        <span className="font-bold text-xl" style={{ color: 'var(--accent-blue)' }}>Chispudo</span>
+        <Logo size={24} />
         <div className="flex items-center gap-3">
           <button onClick={() => router.push('/login')}
             className="px-4 py-2 text-sm text-slate-300 hover:text-white transition-colors">

@@ -1,3 +1,5 @@
+import Logo from '@/components/ui/Logo'
+
 export const metadata = { title: 'Política de Privacidad · Chispudo' }
 
 function Section({ title, children }) {
@@ -19,9 +21,8 @@ export default function PrivacyPage() {
           <a href="/login" className="inline-flex items-center gap-2 mb-6 text-sm" style={{ color: 'var(--accent-blue)' }}>
             ← Volver
           </a>
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-2xl" style={{ color: 'var(--accent-blue)' }}>⚡</span>
-            <h1 className="text-2xl font-bold" style={{ color: 'var(--accent-blue)' }}>Chispudo</h1>
+          <div className="flex mb-2">
+            <Logo size={22} />
           </div>
           <h1 className="text-xl font-bold text-white">Política de Privacidad</h1>
           <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary, var(--text-secondary))' }}>

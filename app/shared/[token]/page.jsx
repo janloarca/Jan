@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { formatCurrency, getItemPrice, getItemValue, getTypeCategory, TYPE_COLORS, TYPE_ICONS } from '@/components/dashboard/utils'
+import Logo from '@/components/ui/Logo'
 
 export default function SharedPortfolioPage() {
   const { token } = useParams()
@@ -119,7 +120,7 @@ function SharedDashboard({ items, snapshots, baseCurrency, label, display }) {
       <header className="border-b border-glass-border" style={{ backgroundColor: 'var(--bg-card)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="font-bold text-lg" style={{ color: 'var(--accent-green)' }}>Chispudo</span>
+            <Logo size={18} />
             <span className="text-xs text-slate-500 bg-slate-800 px-2 py-0.5 rounded">Read-only</span>
             {label && <span className="text-xs text-slate-400 truncate max-w-[160px]" title={label}>· {label}</span>}
           </div>

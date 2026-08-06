@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Logo from '@/components/ui/Logo'
 
 export default function InstallPrompt({ lang }) {
   const t = (es, en) => lang === 'es' ? es : en
@@ -48,15 +49,20 @@ export default function InstallPrompt({ lang }) {
   return (
     <div className="rounded-xl p-4 flex items-center justify-between gap-3 border"
       style={{ backgroundColor: 'rgba(37,99,235,0.1)', borderColor: 'rgba(37,99,235,0.2)' }}>
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-white">
-          {t('Instala Chispudo', 'Install Chispudo')}
-        </p>
-        <p className="text-xs text-slate-400">
-          {isIOS
-            ? t('Toca Compartir → Agregar a pantalla de inicio', 'Tap Share → Add to Home Screen')
-            : t('Acceso rápido desde tu pantalla de inicio', 'Quick access from your home screen')}
-        </p>
+      <div className="flex items-center gap-3 min-w-0">
+        <span className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'var(--accent-blue)' }}>
+          <Logo variant="icon" size={18} tone="inverted" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-white">
+            {t('Instala Chispudo', 'Install Chispudo')}
+          </p>
+          <p className="text-xs text-slate-400">
+            {isIOS
+              ? t('Toca Compartir → Agregar a pantalla de inicio', 'Tap Share → Add to Home Screen')
+              : t('Acceso rápido desde tu pantalla de inicio', 'Quick access from your home screen')}
+          </p>
+        </div>
       </div>
       <div className="flex items-center gap-2 shrink-0">
         {!isIOS && (

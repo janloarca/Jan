@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Zap, Plus, Wallet, Calendar, Globe, BarChart3 } from 'lucide-react'
+import Logo from '@/components/ui/Logo'
 
 const ICON_MAP = { Zap, Plus, Wallet, Calendar, Globe, BarChart3 }
 
@@ -344,7 +345,7 @@ export default function OnboardingTour({ lang, onAction, onComplete, onSeedDemo,
         style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
         <div className="modal-glass max-w-md w-full overflow-hidden">
           <div className="p-8 text-center">
-            <div className="flex justify-center mb-4"><Zap size={40} style={{ color: 'var(--accent-blue)' }} /></div>
+            <div className="flex justify-center mb-4"><Logo variant="icon" size={40} /></div>
             <h2 className="text-xl font-bold text-white mb-3">{t('¿Listo para lo tuyo?', 'Ready for your own?')}</h2>
             <p className="text-slate-400 text-sm leading-relaxed">
               {t('Puedes borrar los datos de ejemplo y agregar tu primer activo, o seguir explorando un rato: el banner de arriba siempre te deja salir del modo demo.',
