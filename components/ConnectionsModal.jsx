@@ -433,7 +433,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                 {ibkrConfigured && onOpenBrokerChecklist && (
                   <button onClick={() => { onClose(); setTimeout(() => onOpenBrokerChecklist('ibkr'), 50) }}
                     className="text-xs mt-2 pl-9 hover:underline transition-colors" style={{ color: 'var(--accent-blue)' }}>
-                    {t('Completar historial (4 pasos)', 'Complete history (4 steps)')}
+                    {t('Completar historial (3 pasos)', 'Complete history (3 steps)')}
                   </button>
                 )}
               </div>

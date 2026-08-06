@@ -89,7 +89,7 @@ export default function InstitutionPerformance({ items, lang, baseCurrency, tran
                           ? { color: 'var(--accent-green)', backgroundColor: 'color-mix(in srgb, var(--accent-green) 15%, transparent)' }
                           : { color: 'var(--accent-orange)', backgroundColor: 'color-mix(in srgb, var(--accent-orange) 15%, transparent)' }}
                         title={ibkrDataComplete
-                          ? t('Historial y retornos completos: los 4 pasos de conexión están hechos.', 'History and returns complete: all 4 connection steps are done.')
+                          ? t('Historial y retornos completos: los pasos de conexión están hechos.', 'History and returns complete: all connection steps are done.')
                           : t('Historial incompleto: faltan pasos en "Nuevo → Completar información".', 'History incomplete: steps missing in "New → Complete your data".')}>
                         {ibkrDataComplete ? t('100% historial', '100% history') : t('historial parcial', 'partial history')}
                       </span>
