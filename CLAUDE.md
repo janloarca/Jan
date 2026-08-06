@@ -369,6 +369,25 @@ lo que sobre se agrupa en un "Otros" neutro.
   encabezado, condicionadas por tipo de activo, todas detrás de "Detalles avanzados") ya
   existía y ya era razonable; el ajuste fue solo de consistencia visual, no una reescritura.
 
+### El origen de una cuenta se registra UNA vez (FASE DZ)
+- **"Capturar historia" / "Resolver" no tenía dedupe.** Escribe un DEPOSIT que el
+  usuario declara YA incluido en el saldo: no mueve dinero, solo registra de
+  dónde vino. Pero `addTransaction` le pone un nonce aleatorio al id de todo lo
+  `manual*` (a propósito: dos aportes reales del mismo día no se pueden pisar),
+  así que apretarlo en una cuenta cuyo origen ya está en el archivo lo archiva
+  dos veces. FASE DP ya lo había señalado; DS y DU pusieron el botón en dos
+  superficies más y lo volvieron fácil de tocar.
+- **El guard NO es "nunca escribas un segundo depósito".** Aportar cada mes a la
+  misma cuenta es normal y tiene que seguir funcionando. `isOriginFullyRecorded`
+  (`lib/originDeposits.js`, puro, con tests) es más angosto: rechaza solo cuando
+  los depósitos YA registrados cubren todo el saldo, porque entonces no queda
+  dinero sin explicar que este pueda explicar. Es el mismo test que
+  `lib/dataCompleteness.js` usa para decidir si preguntar, así que la pregunta y
+  la respuesta no pueden contradecirse. Tolerancia de 1% para la comisión que
+  viaja dentro del depósito de apertura (6,098 fundando un activo de 6,000).
+- Cuando el guard corta, la pregunta igual queda contestada (`_newMoneyConfirmed`
+  se estampa) y el modal lo dice: el usuario no se queda sin saber qué pasó.
+
 ### Los 240 del cupón no son capital invertido, y un overlay sin broker duplica todo (FASE DY)
 - **Un ingreso que ATERRIZA en una cuenta no es capital que el usuario puso.**
   Un ítem tipo banco guarda su saldo en `purchasePrice` (ahí ESE es su costo, por
