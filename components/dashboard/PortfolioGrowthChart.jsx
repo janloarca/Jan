@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { formatCurrency, formatCompact, formatAxisTick, formatDate, getItemValue, buildIncomeEvents, isExcludedFromNetWorth, findYearStartAnchor, shouldHoldFlat, SNAPSHOT_SRC_PRIORITY, computeWindowGrowth } from './utils'
+import { formatCurrency, formatCompact, formatAxisTick, formatDate, getItemValue, buildIncomeEvents, isExcludedFromNetWorth, findYearStartAnchor, shouldHoldFlat, SNAPSHOT_SRC_PRIORITY, BROKER_NAV_SOURCES, computeWindowGrowth } from './utils'
 import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { indexBalanceEvents } from '@/lib/historicalValues'
 import { isBankLikeItem } from '@/lib/contributions'
@@ -436,7 +436,8 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     if (period === 'DAY') {
       const threeDaysAgo = now - 3 * 86400000
       const recentSnaps = [...snapshots]
-        .filter(s => s.date && new Date(s.date).getTime() >= threeDaysAgo && !(s._calibrated && selectedInst !== 'ALL'))
+        .filter(s => s.date && new Date(s.date).getTime() >= threeDaysAgo
+          && (selectedInst === 'ALL' ? !s._calibrated : BROKER_NAV_SOURCES.includes(s._source)))
         .sort((a, b) => new Date(a.date) - new Date(b.date))
         .map(s => ({ ts: new Date(s.date).getTime(), date: new Date(s.date), value: convertVal(s), src: s._source || null }))
         .filter(p => p.value > 0)
@@ -473,8 +474,20 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         // because VITALI's $6,000 (a different institution entirely) rode
         // along inside the same anchor. Real per-broker NAV (`ibkr`,
         // `ibkr_quarterly`) carries no such ambiguity — it IS that account's
-        // value by construction — so only the synthetic anchors are gated here.
-        if (s._calibrated && selectedInst !== 'ALL') return false
+        // value by construction.
+        //
+        // The SAME ambiguity applies to the daily/manual/backfill docs the
+        // whole-portfolio snapshot effect writes once a day — they are not
+        // flagged _calibrated but they are exactly as whole-portfolio. Left
+        // unfiltered, a day with no real IBKR NAV sync (or any day before one
+        // ever ran) let that day's full-portfolio total plot as if it were
+        // IBKR's own value: a lone ~$24K spike on top of the correctly scoped
+        // ~$10K "now" point, both dated the same day, read as a same-day
+        // "-56.8% drawdown" that never happened (FASE FG). So when scoped to
+        // one institution, only real per-broker NAV sources are trusted —
+        // everything else falls back to the (correctly scoped) API series
+        // below, same as any institution with no synced broker at all.
+        if (selectedInst !== 'ALL' && !BROKER_NAV_SOURCES.includes(s._source)) return false
         const ts = new Date(s.date).getTime()
         if (ts < cutoff) return false
         if (ceiling && ts > ceiling) return false
@@ -517,7 +530,8 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
     if (period === 'MTD' && pts.length < 2) {
       const sorted = [...snapshots]
-        .filter(s => s.date && new Date(s.date).getTime() < cutoff && !(s._calibrated && selectedInst !== 'ALL'))
+        .filter(s => s.date && new Date(s.date).getTime() < cutoff
+          && (selectedInst === 'ALL' ? !s._calibrated : BROKER_NAV_SOURCES.includes(s._source)))
         .sort((a, b) => new Date(b.date) - new Date(a.date))
       if (sorted.length > 0) {
         const prevSnap = sorted[0]
@@ -770,8 +784,19 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         // the same value; converted with this chart's own path so the point stays
         // consistent with the rest of the series. Flat backfill only when no
         // anchor snapshot exists.
+        //
+        // findYearStartAnchor picks by DATE only — it has no idea a snapshot is
+        // whole-portfolio. Feeding it the unscoped list for an institution view
+        // handed back a portfolio-wide Jan-1 total as "IBKR's" own starting
+        // value: firstVal (below) came out wrong while lastVal (currentTotal)
+        // stayed correctly scoped, inflating the year's % return (FASE FG,
+        // same root cause as the snapshotData filter above). Scope the anchor
+        // search the same way: real per-broker NAV only, or (if none exists
+        // near Jan 1) the existing pts[0].value fallback — never a whole-
+        // portfolio figure standing in for one institution's slice of it.
         const bc = baseCurrency || 'USD'
-        const anchorSnap = findYearStartAnchor(snapshots, year)
+        const anchorSource = selectedInst === 'ALL' ? snapshots : (snapshots || []).filter(s => BROKER_NAV_SOURCES.includes(s._source))
+        const anchorSnap = findYearStartAnchor(anchorSource, year)
         const anchorVal = anchorSnap
           ? (anchorSnap._source === 'manual' && anchorSnap._rawValue != null && anchorSnap._rawCurrency === bc
             ? anchorSnap._rawValue
