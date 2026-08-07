@@ -917,7 +917,24 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
           &#10003; {saveMsg}
         </div>
       )}
-      <div className="overflow-x-auto">
+      {/* This div HAS to be a real, self-contained 2D scroll container, not just
+          "horizontal only": the CSS overflow spec says that whenever overflow-x
+          is set to anything but visible, the browser computes overflow-y as auto
+          too, no matter what — an explicit overflow-y:visible here gets silently
+          overridden back to auto by that rule, so fighting it is not an option.
+          Left half-fixed, that quirk makes THIS div count as the nearest
+          scrolling ancestor for the table's own `sticky top-0` header row and
+          `sticky left-0` name column, while spreadsheet/page.jsx's outer wrapper
+          is the one that actually receives wheel scroll and moves — so the
+          sticky header/column never had a moving scroll offset to stick against
+          and just scrolled away with everything else. Confirmed with a live
+          scroll test: max-h + overflow-auto here (own scrollbar, own sticky
+          reference frame) fixes both the silently-broken sticky header AND the
+          "scroll down doesn't work on some computers" report in one shot,
+          because both trace back to the same accidental second scroll
+          container. A small portfolio that already fits on screen is
+          unaffected: max-height only ever caps what would otherwise overflow. */}
+      <div className="overflow-auto max-h-[75vh]">
         {/* CSS zoom (not transform: scale) — a transform creates a containing
             block that disables position:sticky on the name column at zoom ≠ 1. */}
         <div style={{ zoom }}>
