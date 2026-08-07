@@ -3,7 +3,7 @@ import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
 import { fetchWithRetry } from '@/lib/fetchWithRetry'
 import { isMarketPriced } from '@/components/dashboard/utils'
-import { qtyAtTs, cashAtTs, isTradeLedgerComplete, lotsReconcile } from '@/lib/portfolioRewind'
+import { qtyAtTs, staticItemValueAtTs, isTradeLedgerComplete, lotsReconcile } from '@/lib/portfolioRewind'
 import { CRYPTO_MAP } from '@/lib/cryptoMap'
 import { saveLastGood, getLastGood } from '@/lib/priceCache'
 
@@ -367,6 +367,8 @@ export async function POST(request) {
 
       staticItems.forEach((it, si) => {
         const flows = staticCashFlows.get(si)
+        const itId = it.id || null
+        const itSym = (it.symbol || '').toUpperCase().trim() || null
         if (flows) {
           // Only the ONE designated account-level cash line (the broker's real
           // reconciled ledger) promotes the whole response to "transactional" —
@@ -375,14 +377,25 @@ export async function POST(request) {
           // accounts with a later top-up) must not trip it for a scope that's
           // otherwise still estimated.
           if (it._flowIsAccountLevel) usedTransactional = true
-          const raw = cashAtTs((it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0), flows, ts)
-          // A MANUAL account's opening deposit can be larger than the asset it
-          // funded, because it carries the entry fee (6,098 deposited into a
-          // 6,000 bond). Rewinding past it then lands on -98, which is not "what
-          // it was worth", it is "it did not exist yet" — so those flows come
-          // flagged and floor at 0. The broker's own reconciled ledger is left
-          // alone: a real cash line can legitimately go negative (margin).
-          const v = it._flowClampZero ? Math.max(0, raw) : raw
+          // Reverses BOTH the deposit/withdrawal flows AND (FASE FD) any income
+          // this item reinvested into itself — an item with its own opening
+          // deposit AND self-reinvesting yield (ClubCashIn) used to reverse only
+          // the deposit, so the chart never showed the accrued interest. See
+          // staticItemValueAtTs's own comment for the full story; the two event
+          // streams are disjoint per item so combining them can't double-count.
+          const v = staticItemValueAtTs((it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0), ts, {
+            flows,
+            incomeEvents,
+            itemId: itId,
+            itemSym: itSym,
+            // A MANUAL account's opening deposit can be larger than the asset it
+            // funded, because it carries the entry fee (6,098 deposited into a
+            // 6,000 bond). Rewinding past it then lands on -98, which is not "what
+            // it was worth", it is "it did not exist yet" — so those flows come
+            // flagged and floor at 0. The broker's own reconciled ledger is left
+            // alone: a real cash line can legitimately go negative (margin).
+            clampZero: !!it._flowClampZero,
+          })
           staticSubtotal += v
           total += v
           return
@@ -392,24 +405,20 @@ export async function POST(request) {
         // through the whole period — their acquisitionDate is a sync stamp, not a
         // real purchase date, so it must not zero out the past.
         if (!it._holdFlat && ts < acqTs) return
-        let v = (it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0)
         // The current value already includes interest/dividends paid INTO this
         // asset (a bond that reinvests, or a cash account credited by another
         // asset's dividend). So reconstruct the past by REVERSING income that
         // happened AFTER ts — the value steps down before each payment. Market
         // assets get their reinvested shares via lots (qtyAtTime) instead, so
-        // this applies only to static items, avoiding double-counting.
-        if (incomeEvents.length > 0) {
-          const itId = it.id || null
-          const itSym = (it.symbol || '').toUpperCase().trim() || null
-          for (const ev of incomeEvents) {
-            if (ev.ts <= ts) continue
-            const match = (ev.itemId && itId && ev.itemId === itId)
-              || (!ev.itemId && ev.symbol && itSym && ev.symbol === itSym)
-            if (match) v -= ev.amount
-          }
-          if (v < 0) v = 0
-        }
+        // this applies only to static items, avoiding double-counting. Always
+        // floors at 0 (unconditional, same as before this item ever had a
+        // clampZero flag to check).
+        const v = staticItemValueAtTs((it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0), ts, {
+          incomeEvents,
+          itemId: itId,
+          itemSym: itSym,
+          clampZero: true,
+        })
         staticSubtotal += v
         total += v
       })
