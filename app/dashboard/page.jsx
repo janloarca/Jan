@@ -769,15 +769,20 @@ export default function DashboardPage() {
   // their own (`ibkrSyncStatus === 'error'`), so a single transient failure lit up
   // a warning triangle over data synced hours ago. Split by whether the failure
   // can heal itself:
-  //   - TOKEN_EXPIRED / INVALID_QUERY / LOCKED need the USER to act, so they warn
-  //     immediately (auto-sync is halted or backed off for these).
-  //   - Everything else (RATE_LIMITED/TIMEOUT/UNKNOWN) retries on its own every
-  //     30min, so it only becomes news once the data is genuinely stale: 5 BUSINESS
-  //     days without a successful sync. Business days because the market is shut on
-  //     weekends and a Friday sync has nothing to add on Sunday.
+  //   - TOKEN_EXPIRED / INVALID_QUERY need the USER to act, so they warn
+  //     immediately (auto-sync halts entirely for these).
+  //   - Everything else, INCLUDING LOCKED, retries on its own (LOCKED backs off
+  //     to a 12h cadence specifically so a fresh attempt doesn't refresh IBKR's
+  //     own temporary lock — see the FATAL_ERROR_CODES comment in
+  //     useDashboardData.js), so it only becomes news once the data is
+  //     genuinely stale: 5 BUSINESS days without a successful sync. LOCKED used
+  //     to warn on the very first failed attempt, which reads as "your token is
+  //     dead" over what's usually IBKR's own rate limiting clearing itself
+  //     within a day. Business days because the market is shut on weekends and
+  //     a Friday sync has nothing to add on Sunday.
   const ibkrNeedsAttention = useMemo(() => {
     if (!ibkrSyncErrorCode) return false
-    if (['TOKEN_EXPIRED', 'INVALID_QUERY', 'LOCKED'].includes(ibkrSyncErrorCode)) return true
+    if (['TOKEN_EXPIRED', 'INVALID_QUERY'].includes(ibkrSyncErrorCode)) return true
     return businessDaysSince(settings?._ibkrLastSync || settings?._ibkrLastAutoSync) >= 5
   }, [ibkrSyncErrorCode, settings?._ibkrLastSync, settings?._ibkrLastAutoSync])
 
@@ -789,10 +794,12 @@ export default function DashboardPage() {
     if (staleCode) return 'stale'
     if (ibkrSyncErrorCode === 'TOKEN_EXPIRED') return 'ibkr-expired'
     if (ibkrSyncErrorCode === 'INVALID_QUERY') return 'ibkr-query'
-    if (ibkrSyncErrorCode === 'LOCKED') return 'ibkr-locked'
-    // Any other auto-sync failure self-heals; ibkrNeedsAttention holds the shared
-    // staleness rule so this banner can never disagree with the header pill.
-    if (ibkrNeedsAttention) return 'ibkr-failed'
+    // LOCKED (and everything else) self-heals; ibkrNeedsAttention holds the
+    // shared 5-business-day staleness rule so this banner can never disagree
+    // with the header pill. LOCKED still gets its own more useful copy
+    // ("generate a new token") once it actually crosses that bar, instead of
+    // falling through to the generic "sync failed" wording.
+    if (ibkrNeedsAttention) return ibkrSyncErrorCode === 'LOCKED' ? 'ibkr-locked' : 'ibkr-failed'
     if (pricesError || ratesError) return 'prices'
     // The contribution hint is not an alarm anywhere: it is one line inside the
     // "Completar información" flow (Nuevo menu), reachable when the user goes
