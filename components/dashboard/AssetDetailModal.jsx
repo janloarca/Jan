@@ -205,8 +205,12 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
           {/* Extra details */}
           {(item.maturityDate || item.incomeRate || item.rateType === 'variable' || item.custodyType || item.taxJurisdiction || item.notes) && (
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs" style={{ color: 'var(--text-secondary)' }}>
+              {/* formatDate() en vez del string crudo o un toLocaleDateString()
+                  sin locale: ese último cae al formato numérico por defecto
+                  del navegador (MM/DD/YYYY en uno en-US), y el string crudo
+                  mostraba el ISO tal cual ("2027-06-15") sin formatear. */}
               {item.maturityDate && (
-                <span>{t('Vence', 'Matures')}: <span className="font-medium" style={{ color: 'var(--accent-orange)' }}>{typeof item.maturityDate === 'string' ? item.maturityDate : new Date(item.maturityDate?.seconds ? item.maturityDate.seconds * 1000 : item.maturityDate).toLocaleDateString()}</span></span>
+                <span>{t('Vence', 'Matures')}: <span className="font-medium" style={{ color: 'var(--accent-orange)' }}>{formatDate(item.maturityDate)}</span></span>
               )}
               {item.rateType === 'variable' && item.rateMin > 0 && (
                 <span>{t('Tasa', 'Rate')}: <span className="font-medium" style={{ color: 'var(--accent-blue)' }}>{item.rateMin}% - {item.rateMax}%</span></span>

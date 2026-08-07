@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { formatCurrency, getItemPrice } from './utils'
+import { formatCurrency, formatDate, getItemPrice } from './utils'
 
 export default function MaturityCalendar({ items, lang }) {
   const t = (es, en) => lang === 'es' ? es : en
@@ -18,7 +18,13 @@ export default function MaturityCalendar({ items, lang }) {
           const value = (it.quantity || 1) * getItemPrice(it)
           result.push({
             type: 'maturity',
-            date: typeof it.maturityDate === 'string' ? it.maturityDate : new Date(it.maturityDate?.seconds ? it.maturityDate.seconds * 1000 : it.maturityDate).toLocaleDateString(),
+            // Raw value (string o Firestore Timestamp), sin formatear acá:
+            // formatDate() lo hace al renderizar (línea de abajo), igual que
+            // para los eventos de tipo 'payment'. Antes esta rama mostraba el
+            // ISO crudo ("2027-06-15") para fechas string y el formato
+            // numérico por defecto del navegador (MM/DD/YYYY en uno en-US)
+            // para Timestamps, dos formatos distintos según el tipo de dato.
+            date: it.maturityDate,
             days,
             name: it.name || it.symbol,
             symbol: it.symbol,
@@ -117,7 +123,7 @@ export default function MaturityCalendar({ items, lang }) {
             </span>
             <div className="flex-1 min-w-0">
               <span className="text-xs text-white truncate block">{ev.name}</span>
-              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{ev.date}</span>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{formatDate(ev.date)}</span>
             </div>
             <div className="text-right shrink-0">
               <span className="text-xs font-medium" style={{ color: ev.type === 'maturity' ? 'var(--accent-orange)' : 'var(--accent-green)' }}>

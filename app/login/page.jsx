@@ -284,7 +284,17 @@ function LoginForm() {
           </p>
         </div>
 
-        <p className="text-center text-xs mt-6" style={{ color: 'var(--text-tertiary, var(--text-secondary))' }}>
+        {/* Mismo destino que el enlace de abajo (/terms), solo con el
+            tratamiento visual pedido: círculo "i" + label, igual al ícono
+            de InfoTip (components/ui/Tooltip.jsx) pero como link real en vez
+            de tooltip por hover, porque unos términos de servicio no caben
+            en un tooltip y hay que poder tocarlo en celular. Visible tanto
+            al crear cuenta como al iniciar sesión: es el mismo formulario. */}
+        <a href="/terms" className="mt-5 mx-auto flex items-center justify-center gap-1.5 text-xs w-fit transition-colors hover:opacity-80" style={{ color: 'var(--text-secondary)' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '14px', height: '14px', fontSize: '10px', lineHeight: 1, color: 'var(--text-muted)', borderRadius: '50%', border: '1px solid var(--border-primary)', flexShrink: 0 }}>i</span>
+          Terms of Service
+        </a>
+        <p className="text-center text-xs mt-3" style={{ color: 'var(--text-tertiary, var(--text-secondary))' }}>
           Al continuar aceptas los <a href="/terms" className="underline" style={{ color: 'var(--accent-blue)' }}>Términos</a> y la <a href="/privacy" className="underline" style={{ color: 'var(--accent-blue)' }}>Política de Privacidad</a>
         </p>
         <p className="text-center text-xs mt-2" style={{ color: 'var(--text-tertiary, var(--text-secondary))' }}>

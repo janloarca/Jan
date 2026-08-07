@@ -26,7 +26,7 @@ export default function PrivacyPage() {
           </div>
           <h1 className="text-xl font-bold text-white">Política de Privacidad</h1>
           <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary, var(--text-secondary))' }}>
-            Última actualización: 29 de julio de 2026
+            Última actualización: 7 de agosto de 2026
           </p>
         </div>
 
@@ -54,7 +54,7 @@ export default function PrivacyPage() {
           <ul className="list-disc pl-5 space-y-1.5">
             <li><span className="text-white">Firebase / Google Cloud</span>: autenticación y base de datos (Firestore).</li>
             <li><span className="text-white">Anthropic (Claude)</span>: solo si subís un PDF para convertirlo — el archivo se envía a su API para extraer los datos, con tu confirmación antes de guardar cualquier cosa.</li>
-            <li><span className="text-white">Yahoo Finance / CoinGecko</span>: precios de mercado en tiempo real.</li>
+            <li><span className="text-white">Fuentes de datos públicas</span>: precios de mercado en tiempo real (acciones, cripto, tipos de cambio).</li>
             <li><span className="text-white">Proveedores de tipo de cambio</span>: para convertir entre monedas.</li>
             <li><span className="text-white">Vercel</span>: hosting de la aplicación.</li>
           </ul>
