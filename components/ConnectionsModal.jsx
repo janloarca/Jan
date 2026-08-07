@@ -13,6 +13,15 @@ import { getBrokerRegistry, IBKR_DISCONNECTED_FIELDS } from '@/lib/brokerRegistr
 import { getBrokerHowTo } from '@/lib/brokerHowTo'
 import BrokerConnectModal from '@/components/BrokerConnectModal'
 
+// Not a lib/brokerRegistry.js entry: IBKR's /api/brokers/ibkr endpoint takes
+// {token, queryId}, not the generic {fields: [...]} shape every registry
+// broker uses, so it's excluded on purpose from getBrokerRegistry() (e.g.
+// disconnectAllSyncs iterates hasApi brokers and handles IBKR separately).
+// This is just enough of a broker-shaped object to feed the SAME wizard every
+// other broker gets — BrokerConnectModal special-cases id === 'ibkr' to
+// render the Token/Query ID pair instead of a generic credentials form.
+const IBKR_PSEUDO_BROKER = { id: 'ibkr', name: 'Interactive Brokers', icon: '🏦', hasApi: true, authType: null, fields: [] }
+
 export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, onBackgroundSync, onImport, onAddAccount, onOpenBlockchain, onOpenLedger, onSaveCredentials, onCalibrate, onOpenBrokerChecklist, lang = 'es', lastSyncTime, portfolioItems = [] }) {
   const trapRef = useFocusTrap()
   const t = (es, en) => lang === 'es' ? es : en
@@ -22,7 +31,6 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
   const [ibkrConfigured, setIbkrConfigured] = useState(false)
   const [ibkrSaving, setIbkrSaving] = useState(false)
   const [ibkrError, setIbkrError] = useState('')
-  const [showConfig, setShowConfig] = useState(false)
   const [confirmUnlink, setConfirmUnlink] = useState(false)
   const [saveStatus, setSaveStatus] = useState(null)
   const [brokerConnections, setBrokerConnections] = useState({})
@@ -102,6 +110,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
       if (res.ok) {
         setIbkrConfigured(true)
         setIbkrToken('')
+        setConnectBroker(null)
         // Mirror the credentials into the client settings doc so the rest of the app
         // (ibkrConnected → header pill, auto-sync, IBKRSyncModal "connected" state)
         // sees the connection. The token stays server-side only (vault); we persist
@@ -359,15 +368,17 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                         {t('Sincronizar', 'Sync')}
                       </button>
                     ) : (
-                      <button onClick={() => setShowConfig(true)}
-                        className="px-2.5 py-1 border text-xs font-medium rounded-md hover:bg-blue-500/10 transition-colors" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
-                        API
+                      /* Same single entry point every other broker got — the
+                         Token/Query ID pair (IBKR's own credential shape, not
+                         the generic fields form) lives inside the wizard's
+                         API step now instead of this inline expansion. */
+                      <button onClick={() => setConnectBroker(IBKR_PSEUDO_BROKER)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg hover:brightness-110 active:scale-[0.97] transition-all"
+                        style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)', boxShadow: '0 1px 4px rgba(37,99,235,0.35)' }}>
+                        <Rocket size={13} strokeWidth={2.25} />
+                        {t('Empezar', 'Get started')}
                       </button>
                     )}
-                    <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport('ibkr') }, 50) }}
-                      className="px-2.5 py-1 border border-glass-border text-xs font-medium rounded-md hover:bg-theme-elevated transition-colors" style={{ color: 'var(--text-secondary)' }}>
-                      CSV
-                    </button>
                   </div>
                 </div>
                 {ibkrConfigured && syncStatus === 'stale' && (
@@ -385,32 +396,6 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                   </button>
                 )}
               </div>
-
-              {!ibkrConfigured && showConfig && (
-                <div className="space-y-3 p-3 bg-theme-base border border-glass-border rounded-xl mt-2">
-                  <p className="text-xs text-slate-600">
-                    {t('Ve a IBKR → Performance & Reports → Flex Queries → crea un Activity Flex Query con Open Positions, Trades, Cash Transactions, Cash Report y "Net Asset Value (NAV) in Base" (el historial de valor), período "Year to Date". El Token se genera en la MISMA página: engranaje ⚙ junto a "Flex Web Service". El Query ID es el número junto a tu query en la lista.',
-                       'Go to IBKR → Performance & Reports → Flex Queries → create an Activity Flex Query with Open Positions, Trades, Cash Transactions, Cash Report and "Net Asset Value (NAV) in Base" (the value history), period "Year to Date". The Token is generated on the SAME page: gear ⚙ next to "Flex Web Service". The Query ID is the number next to your query in the list.')}
-                  </p>
-                  {ibkrError && <p className="text-xs" style={{ color: 'var(--text-negative)' }}>{ibkrError}</p>}
-                  <div>
-                    <label className="text-xs text-slate-500 mb-0.5 block">Flex Token</label>
-                    <input type="password" value={ibkrToken} onChange={(e) => setIbkrToken(e.target.value)}
-                      placeholder="••••••••••••••••"
-                      className="w-full px-3 py-1.5 bg-theme-surface border border-glass-border/60 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-slate-500 mb-0.5 block">Query ID</label>
-                    <input type="text" value={ibkrQueryId} onChange={(e) => setIbkrQueryId(e.target.value)}
-                      placeholder="123456"
-                      className="w-full px-3 py-1.5 bg-theme-surface border border-glass-border/60 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-                  </div>
-                  <button onClick={handleIbkrSave} disabled={ibkrSaving || !ibkrToken || !ibkrQueryId}
-                    className="w-full py-2 rounded-lg hover:bg-blue-500 disabled:opacity-50 text-xs font-medium" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
-                    {ibkrSaving ? '...' : t('Conectar', 'Connect')}
-                  </button>
-                </div>
-              )}
 
               {ibkrConfigured && !confirmUnlink && (
                 <button onClick={() => setConfirmUnlink(true)}
@@ -564,9 +549,13 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
         onImport={onImport}
         brokerForm={brokerForm}
         setBrokerForm={setBrokerForm}
-        onSubmitApi={() => handleBrokerConnect(connectBroker)}
-        isSyncing={brokerSyncing === connectBroker.id}
-        error={brokerError}
+        onSubmitApi={connectBroker.id === 'ibkr' ? handleIbkrSave : () => handleBrokerConnect(connectBroker)}
+        isSyncing={connectBroker.id === 'ibkr' ? ibkrSaving : brokerSyncing === connectBroker.id}
+        error={connectBroker.id === 'ibkr' ? ibkrError : brokerError}
+        ibkrToken={ibkrToken}
+        setIbkrToken={setIbkrToken}
+        ibkrQueryId={ibkrQueryId}
+        setIbkrQueryId={setIbkrQueryId}
       />
     )}
     </>

@@ -26,6 +26,7 @@ const STEP_ICON = { file: FileSpreadsheet, screenshot: Camera, api: KeyRound }
 export default function BrokerConnectModal({
   broker, howTo, lang = 'es', onClose, onCloseAll, onImport,
   brokerForm = {}, setBrokerForm, onSubmitApi, isSyncing = false, error,
+  ibkrToken, setIbkrToken, ibkrQueryId, setIbkrQueryId,
 }) {
   const t = (es, en) => (lang === 'es' ? es : en)
   const trapRef = useFocusTrap()
@@ -136,7 +137,29 @@ export default function BrokerConnectModal({
                 <BrokerSteps steps={step.instructionSteps} note={step.instructionNote} variant="api" lang={lang} />
               )}
               {error && <p className="text-xs" style={{ color: 'var(--text-negative)' }}>{error}</p>}
-              {step.authType !== 'oauth' && step.fields.map((f) => (
+              {/* IBKR's own credential shape (Flex Token + Query ID) is not a
+                  registry `fields` array — it's the one broker onboarded
+                  outside lib/brokerRegistry.js (see IBKR_PSEUDO_BROKER in
+                  ConnectionsModal.jsx), so it gets its own two inputs here
+                  instead of the generic fields.map below. */}
+              {broker.id === 'ibkr' ? (
+                <>
+                  <div>
+                    <label className="text-xs mb-0.5 block" style={{ color: 'var(--text-muted)' }}>Flex Token</label>
+                    <input type="password" value={ibkrToken || ''} onChange={(e) => setIbkrToken?.(e.target.value)}
+                      placeholder="••••••••••••••••"
+                      className="w-full px-3 py-1.5 bg-theme-surface border border-glass-border/60 rounded-lg text-xs focus:outline-none focus:border-blue-500/50"
+                      style={{ color: 'var(--text-primary)' }} />
+                  </div>
+                  <div>
+                    <label className="text-xs mb-0.5 block" style={{ color: 'var(--text-muted)' }}>Query ID</label>
+                    <input type="text" value={ibkrQueryId || ''} onChange={(e) => setIbkrQueryId?.(e.target.value)}
+                      placeholder="123456"
+                      className="w-full px-3 py-1.5 bg-theme-surface border border-glass-border/60 rounded-lg text-xs focus:outline-none focus:border-blue-500/50"
+                      style={{ color: 'var(--text-primary)' }} />
+                  </div>
+                </>
+              ) : step.authType !== 'oauth' && step.fields.map((f) => (
                 <div key={f.key}>
                   <label className="text-xs mb-0.5 block" style={{ color: 'var(--text-muted)' }}>{f.label}</label>
                   <input type={f.type || 'text'} value={brokerForm[f.key] || ''}
@@ -147,7 +170,7 @@ export default function BrokerConnectModal({
                 </div>
               ))}
               <button onClick={onSubmitApi}
-                disabled={isSyncing || (step.authType !== 'oauth' && step.fields.some((f) => !brokerForm[f.key]))}
+                disabled={isSyncing || (broker.id === 'ibkr' ? (!ibkrToken || !ibkrQueryId) : (step.authType !== 'oauth' && step.fields.some((f) => !brokerForm[f.key])))}
                 className="w-full py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity"
                 style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
                 {isSyncing ? '...' : step.cta}
