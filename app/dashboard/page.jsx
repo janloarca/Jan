@@ -544,10 +544,15 @@ export default function DashboardPage() {
   }, [rawPortfolioItems, enrichData])
 
   // Data-completeness engine: gap findings + score over RAW data (items carry
-  // their own currency; the engine converts per-tx via `convert`).
+  // their own currency; the engine converts per-tx via `convert`). marketPrices
+  // is passed so the price-completeness checks (no-market-price, no-cost-basis)
+  // can tell "genuinely no price resolves for this symbol" apart from "this
+  // market item's real price is resolved live and was never the right field to
+  // read on the raw item" — without it, every working stock/crypto position
+  // flagged as if its price were missing (it never IS the raw item's own field).
   const dataCompleteness = useMemo(
-    () => analyzeDataCompleteness({ items, transactions, lots, convert, baseCurrency }),
-    [items, transactions, lots, convert, baseCurrency]
+    () => analyzeDataCompleteness({ items, transactions, lots, convert, baseCurrency, marketPrices }),
+    [items, transactions, lots, convert, baseCurrency, marketPrices]
   )
 
   // Export XLSX
