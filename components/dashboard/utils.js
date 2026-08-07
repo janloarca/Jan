@@ -109,10 +109,29 @@ export function isMarketPriced(item) {
   if (!item || !item.symbol) return false
   if (item.isIlliquid || item.isDebt || item.isReceivable) return false
   const t = item.type || ''
+  // Acción común/preferente de empresa PRIVADA: item.type sigue siendo
+  // 'Stock' (matchea MARKET_TYPE_RE), pero subtype la distingue de una acción
+  // de mercado real. Sin esto, el symbol sintético que AddAccountModal arma
+  // del nombre (ej. "ACME-INC") dispararía un fetch a Yahoo Finance que
+  // puede COINCIDIR con un ticker real no relacionado — el mismo riesgo por
+  // el que este archivo ya es default-deny (ver comentario de arriba).
+  if (t === 'Stock' && (item.subtype === 'private_common' || item.subtype === 'private_preferred' || item.subtype === 'private')) return false
   if (NON_MARKET_TYPE_RE.test(t)) return false
   if (MARKET_TYPE_RE.test(t)) return true
   const cat = getTypeCategory(item)
   return cat === 'stocks' || cat === 'crypto' || cat === 'funds'
+}
+
+// Un pasivo (isDebt) es una obligación propia o de una empresa, no un
+// instrumento de inversión: no tiene retorno propio que medir (por eso todo
+// cálculo de ganancia/rendimiento de esta app lo excluye desde el filtro más
+// externo — AssetAllocation, InstitutionPerformance, NetWorthCard), solo resta
+// del patrimonio. Copy compartido para que cualquier superficie que lo
+// muestre junto a categorías de inversión (la fila "Pasivos" del Spreadsheet,
+// el selector de tipo de AddAccountModal) lo aclare con el MISMO texto.
+export const DEBT_CLARIFICATION = {
+  es: 'Pasivo propio o de empresa: no es un instrumento de inversión, no genera retorno, solo resta del patrimonio.',
+  en: 'A personal or company liability: not an investment instrument, it earns no return, it only subtracts from net worth.',
 }
 
 export function getTypeCategory(itemOrType) {

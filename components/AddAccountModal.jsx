@@ -9,6 +9,7 @@ import TimelineEditor, { validateTimelineRows } from './TimelineEditor'
 import { detectCurrency } from '@/lib/institutionCurrency'
 import { getScheduledPayDates, estimateIncomeAmount } from '@/lib/incomeSchedule'
 import { InfoTip } from './ui/Tooltip'
+import { DEBT_CLARIFICATION } from './dashboard/utils'
 
 const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
 
@@ -16,7 +17,14 @@ const TYPES = [
   { key: 'Stock', icon: '📈', es: 'Acción', en: 'Stock', subtypes: [
     { key: 'common', es: 'Común', en: 'Common' },
     { key: 'preferred', es: 'Preferente', en: 'Preferred' },
-    { key: 'private', es: 'Privada', en: 'Private' },
+    // Común y preferente de empresa PRIVADA son dos subtipos propios (no un
+    // solo "Privada" genérico) para poder tener las dos a la vez, ej. un
+    // fundador con acciones comunes y un inversionista con preferentes del
+    // mismo cap table. Sin cotización pública que buscar: isMarketAsset las
+    // excluye más abajo y entran manual, con la misma lógica de comisión de
+    // entrada/costBasis/dividendo a otra cuenta que el Bono (ver isPrivateStock).
+    { key: 'private_common', es: 'Privada Común', en: 'Private Common' },
+    { key: 'private_preferred', es: 'Privada Preferente', en: 'Private Preferred' },
   ]},
   { key: 'Crypto', icon: '₿', es: 'Crypto', en: 'Crypto', subtypes: [
     { key: 'holding', es: 'Holding', en: 'Holding' },
@@ -50,7 +58,7 @@ const TYPES = [
     { key: 'club_deal', es: 'Club Deal', en: 'Club Deal' },
     { key: 'safe_note', es: 'SAFE Note', en: 'SAFE Note' },
     { key: 'vc_fund', es: 'Fondo VC', en: 'VC Fund' },
-    { key: 'private_equity', es: 'Capital Privado', en: 'Private Equity' },
+    { key: 'private_equity', es: 'PE / Capital Privado', en: 'PE / Private Equity' },
     { key: 'collectible', es: 'Coleccionable', en: 'Collectible' },
     { key: 'other', es: 'Otro', en: 'Other' },
   ]},
@@ -138,7 +146,14 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     set(field, newId)
     setCreatingDest(null)
   }
-  const isMarketAsset = type === 'Stock' || type === 'Crypto' || type === 'Fund'
+  // Acción común/preferente de empresa PRIVADA: no tiene ticker que buscar
+  // (subtype lo distingue de la acción pública de mercado). Se trata como el
+  // Bono: entrada manual, sin isMarketAsset, con su propia sección de
+  // comisión de entrada/liquidez más abajo (⛔ lógica congelada consumida,
+  // no reescrita: getItemCostBasis/getItemPrincipalCost/getDividendIncomeByItem
+  // en components/dashboard/utils.js ya son genéricas por item, no por tipo).
+  const isPrivateStock = type === 'Stock' && (subtype === 'private_common' || subtype === 'private_preferred')
+  const isMarketAsset = (type === 'Stock' && !isPrivateStock) || type === 'Crypto' || type === 'Fund'
   const isProperty = type === 'RealEstate'
   const isBank = type === 'Bank'
   const isBond = type === 'Bond'
@@ -692,6 +707,16 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     </button>
                   ))}
                 </div>
+              )}
+              {/* Un pasivo no es un activo de inversión más entre las opciones
+                  de arriba: es la única categoría que RESTA del patrimonio y
+                  nunca tiene retorno. Mismo texto que la fila "Pasivos" del
+                  Spreadsheet (components/dashboard/utils.js DEBT_CLARIFICATION),
+                  para no decir dos cosas distintas del mismo concepto. */}
+              {type === 'Debt' && (
+                <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
+                  {DEBT_CLARIFICATION[lang]}
+                </p>
               )}
             </div>
 
@@ -1400,8 +1425,11 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 )}
 
                 {/* Costos y comisiones — entry fee, ongoing management fee,
-                    plus (bonds only) interest already accrued at purchase. */}
-                {(isBond || isAlternative) && (
+                    plus (bonds only) interest already accrued at purchase.
+                    Extendido a isPrivateStock: misma comisión de entrada que
+                    un Bono (ronda con carried interest o fee de originación),
+                    no una fórmula nueva. */}
+                {(isBond || isAlternative || isPrivateStock) && (
                   <div className="pt-3.5 border-t border-glass-border/50">
                     <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>💰 {t('Costos y comisiones', 'Costs & fees')}</span>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -1498,7 +1526,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 )}
 
                 {/* Liquidez */}
-                {(isProperty || isAlternative || (isBond && subtype === 'private_debt')) && (
+                {(isProperty || isAlternative || isPrivateStock || (isBond && subtype === 'private_debt')) && (
                   <div className="pt-3.5 border-t border-glass-border/50">
                     <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>💧 {t('Liquidez', 'Liquidity')}</span>
                     <div className="flex items-center gap-3 px-3 py-2 border border-[var(--card-border,#38383A)] rounded-lg">

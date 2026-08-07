@@ -241,7 +241,16 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     setCreatingDest(false)
   }
 
-  const isMarket = /stock|crypto|fund|etf/i.test(form.type) && !/realestate/i.test(form.type)
+  // Acción común/preferente de empresa PRIVADA: form.type sigue siendo
+  // 'Stock' (matchea el regex de abajo) pero subtype la distingue de una
+  // acción de mercado real. Sin este exclude, editar una ya creada perdía la
+  // sección de ingreso/distribución (hasIncome = !isMarket) y mostraba
+  // "Precio compra" (mercado) en vez de "Valor compra" (manual) — mismo bug
+  // que isMarketAsset en AddAccountModal.jsx, ver isMarketPriced en utils.js.
+  // 'private' es el subtype viejo (antes de separar común/preferente); se
+  // sigue reconociendo aquí para no romper items ya guardados con ese valor.
+  const isPrivateStock = form.type === 'Stock' && (form.subtype === 'private_common' || form.subtype === 'private_preferred' || form.subtype === 'private')
+  const isMarket = /stock|crypto|fund|etf/i.test(form.type) && !/realestate/i.test(form.type) && !isPrivateStock
   const isBank = /bank|banco/i.test(form.type)
   const isBankLike = isBank || (!isMarket && (parseFloat(form.quantity) || 1) === 1)
 

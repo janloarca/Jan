@@ -26,6 +26,8 @@ import {
   getInvestedCapital,
   getItemCostBasis,
   getItemPrincipalCost,
+  isMarketPriced,
+  DEBT_CLARIFICATION,
 } from '../utils'
 
 describe('projectItemAnnualIncome', () => {
@@ -372,6 +374,43 @@ describe('getTypeCategory', () => {
   test('returns other for unknown', () => {
     expect(getTypeCategory('misc_asset')).toBe('other')
     expect(getTypeCategory(null)).toBe('other')
+  })
+})
+
+describe('isMarketPriced', () => {
+  test('a public stock with a symbol is market-priced', () => {
+    expect(isMarketPriced({ type: 'Stock', symbol: 'AAPL' })).toBe(true)
+  })
+
+  test('private common/preferred stock is NOT market-priced despite type Stock', () => {
+    // Regression: item.type is still 'Stock' for a private company's shares
+    // (it matches MARKET_TYPE_RE on its own), so without checking subtype the
+    // synthetic slug symbol AddAccountModal builds from the company name
+    // would trigger a live Yahoo Finance fetch that can collide with an
+    // unrelated real ticker (FASE FB).
+    expect(isMarketPriced({ type: 'Stock', subtype: 'private_common', symbol: 'ACME-INC' })).toBe(false)
+    expect(isMarketPriced({ type: 'Stock', subtype: 'private_preferred', symbol: 'ACME-INC' })).toBe(false)
+  })
+
+  test('legacy private subtype (pre-split) is also excluded', () => {
+    expect(isMarketPriced({ type: 'Stock', subtype: 'private', symbol: 'ACME-INC' })).toBe(false)
+  })
+
+  test('an item with no symbol is never market-priced', () => {
+    expect(isMarketPriced({ type: 'Stock' })).toBe(false)
+  })
+
+  test('a bond is never market-priced regardless of symbol', () => {
+    expect(isMarketPriced({ type: 'Bond', symbol: 'VITALI' })).toBe(false)
+  })
+})
+
+describe('DEBT_CLARIFICATION', () => {
+  test('states in both locales that a liability is not an investment instrument', () => {
+    expect(DEBT_CLARIFICATION.es).toMatch(/pasivo/i)
+    expect(DEBT_CLARIFICATION.es).toMatch(/no es un instrumento de inversión/i)
+    expect(DEBT_CLARIFICATION.en).toMatch(/liability/i)
+    expect(DEBT_CLARIFICATION.en).toMatch(/not an investment instrument/i)
   })
 })
 

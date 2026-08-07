@@ -3,7 +3,8 @@
 import { useState, useMemo, useRef, useEffect, useCallback, Fragment, memo } from 'react'
 import { ZoomIn, ZoomOut, FileText, FileSpreadsheet } from 'lucide-react'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
-import { formatCurrency, getItemValue, getTypeCategory, isExcludedFromNetWorth, TYPE_COLORS, BROKER_NAV_SOURCES } from './utils'
+import { formatCurrency, getItemValue, getTypeCategory, isExcludedFromNetWorth, TYPE_COLORS, BROKER_NAV_SOURCES, DEBT_CLARIFICATION } from './utils'
+import { InfoTip } from '../ui/Tooltip'
 import { yearEndMonthKeys } from '@/lib/yearOverYear'
 
 const CATEGORY_ORDER = ['banks', 'funds', 'stocks', 'crypto', 'alternatives', 'bonds', 'realestate', 'other', 'receivables', 'debts']
@@ -969,9 +970,20 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
             const isCollapsed = collapsed[cat.key]
             const accent = CATEGORY_ACCENT[cat.key] || '#64748b'
 
+            // Pasivos no es una categoría de inversión: es lo único de la tabla
+            // que RESTA del patrimonio en vez de sumar retorno. Un separador
+            // visible (borde superior más grueso, en vez del mismo filete fino
+            // que separa dos categorías de inversión entre sí) más el InfoTip
+            // marcan que esta fila es de otra naturaleza, no solo otro tipo
+            // más en la lista. Ya existe una pestaña "Deudas" dedicada
+            // (app/spreadsheet/page.jsx); esta fila se queda porque el TOTAL
+            // de esta tabla sí necesita restarla para dar el patrimonio neto.
+            const isDebtsRow = cat.key === 'debts'
+
             return (
               <tbody key={cat.key}>
-                <tr className="cursor-pointer hover:bg-[var(--bg-card-hover)] transition-colors border-t border-[var(--border-color)] bg-theme-surface"
+                <tr className={`cursor-pointer hover:bg-[var(--bg-card-hover)] transition-colors bg-theme-surface ${isDebtsRow ? 'border-t-2' : 'border-t'}`}
+                  style={{ borderTopColor: isDebtsRow ? accent : 'var(--border-color)' }}
                   onClick={() => toggleCat(cat.key)}>
                   <td className="py-3 pl-4 pr-2 sticky left-0 bg-theme-surface z-10" style={{ borderLeft: `3px solid ${accent}` }}>
                     <div className="flex items-center gap-2">
@@ -979,6 +991,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                       <span className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>{cat.label}</span>
                       <span className="text-xs" style={{ color: 'var(--text-muted)' }}>({cat.institutions.reduce((s, i) => s + i.items.length, 0)})</span>
                       {cat.excludedFromTotal && <span className="text-xs ml-1" style={{ color: 'var(--accent-cyan)' }}>{t('(no incluido en total)', '(not in total)')}</span>}
+                      {isDebtsRow && <InfoTip text={DEBT_CLARIFICATION[lang]} />}
                     </div>
                   </td>
                   <td className="text-right py-3 px-1 font-semibold text-sm" style={{ color: 'var(--text-muted)' }}>{Math.abs(pct).toFixed(0)}%</td>
