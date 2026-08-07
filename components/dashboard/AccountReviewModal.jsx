@@ -18,10 +18,11 @@ const CATEGORY_LABELS = {
 
 const SEV_WEIGHT = { high: 3, medium: 2, low: 1 }
 
-export default function AccountReviewModal({ items: allItems, onClose, onEditItem, onOpenCashflow, onConfirmDistinct, lang, transactions, findings = [], startItemId = null, onlyWithFindings = false, institutionFilter = null }) {
+export default function AccountReviewModal({ items: allItems, onClose, onEditItem, onOpenCashflow, onConfirmDistinct, onApplySuggestion, lang, transactions, findings = [], startItemId = null, onlyWithFindings = false, institutionFilter = null }) {
   const t = (es, en) => lang === 'es' ? es : en
   const trapRef = useFocusTrap()
   const [reviewed, setReviewed] = useState({})
+  const [applied, setApplied] = useState(() => new Set())
 
   // "Revisar por institución" scope: everything else about the wizard (order,
   // findings, progress count) stays untouched, it just walks a narrower list —
@@ -110,6 +111,16 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
     } else {
       handleEdit()
     }
+  }
+
+  // Grounded in real data already on file (a past transaction, the account's
+  // own createdAt) — never a guess. See lib/dataCompleteness.js. Stays
+  // in this wizard (doesn't advance/close) so the next finding on the same
+  // account, if any, is still right there.
+  const applySuggestion = (f) => {
+    if (!f.suggestion || !onApplySuggestion) return
+    onApplySuggestion(item.id, f.suggestion.patch)
+    setApplied((p) => new Set(p).add(f.id))
   }
 
   const itemFindings = findingsByItem.get(item.id) || []
@@ -234,25 +245,42 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
               <p className="text-xs font-medium" style={{ color: '#b45309' }}>{t('Chispu detectó:', 'Chispu detected:')}</p>
               <ul className="mt-1.5 space-y-1.5">
                 {itemFindings.map(f => (
-                  <li key={f.id} className="text-xs flex items-start justify-between gap-2" style={{ color: '#d97706' }}>
-                    <span>· {lang === 'es' ? f.textEs : f.textEn}</span>
-                    <span className="shrink-0 flex items-center gap-2">
-                      {f.action?.kind === 'cashflow' && (
-                        <button type="button" onClick={() => handleResolve(f)}
-                          className="underline font-medium" style={{ color: '#b45309' }}>
-                          {t('Resolver', 'Resolve')}
-                        </button>
-                      )}
-                      {/* Same permanent answer ChispuSuggestions offers: stamps
-                          _dupConfirmedDistinct on both items so this exact pair
-                          stops asking anywhere, not just in this modal. */}
-                      {f.code === 'dup-suspect' && f.action?.itemIds?.length > 1 && onConfirmDistinct && (
-                        <button type="button" onClick={() => onConfirmDistinct(f)}
-                          className="underline font-medium" style={{ color: '#b45309' }}>
-                          {t('No son iguales', 'Not the same')}
-                        </button>
-                      )}
-                    </span>
+                  <li key={f.id} className="text-xs" style={{ color: '#d97706' }}>
+                    <div className="flex items-start justify-between gap-2">
+                      <span>· {lang === 'es' ? f.textEs : f.textEn}</span>
+                      <span className="shrink-0 flex items-center gap-2">
+                        {f.suggestion && onApplySuggestion && !applied.has(f.id) && (
+                          <button type="button" onClick={() => applySuggestion(f)}
+                            className="underline font-semibold" style={{ color: '#b45309' }}>
+                            {t('Usar esto', 'Use this')}
+                          </button>
+                        )}
+                        {applied.has(f.id) && (
+                          <span style={{ color: 'var(--accent-green)' }}>✓ {t('Aplicado', 'Applied')}</span>
+                        )}
+                        {f.action?.kind === 'cashflow' && !applied.has(f.id) && (
+                          <button type="button" onClick={() => handleResolve(f)}
+                            className="underline font-medium" style={{ color: '#b45309' }}>
+                            {t('Resolver', 'Resolve')}
+                          </button>
+                        )}
+                        {/* Same permanent answer ChispuSuggestions offers: stamps
+                            _dupConfirmedDistinct on both items so this exact pair
+                            stops asking anywhere, not just in this modal. */}
+                        {f.code === 'dup-suspect' && f.action?.itemIds?.length > 1 && onConfirmDistinct && !applied.has(f.id) && (
+                          <button type="button" onClick={() => onConfirmDistinct(f)}
+                            className="underline font-medium" style={{ color: '#b45309' }}>
+                            {t('No son iguales', 'Not the same')}
+                          </button>
+                        )}
+                      </span>
+                    </div>
+                    {/* Grounded in real data already on file — never invented. */}
+                    {f.suggestion && !applied.has(f.id) && (
+                      <p className="mt-0.5" style={{ color: '#b45309' }}>
+                        💡 {lang === 'es' ? f.suggestion.textEs : f.suggestion.textEn}
+                      </p>
+                    )}
                   </li>
                 ))}
               </ul>

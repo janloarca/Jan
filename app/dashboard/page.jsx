@@ -1113,6 +1113,7 @@ export default function DashboardPage() {
                 onConfirmDistinct={(f) => {
                   (f.action?.itemIds || []).forEach((id) => updateItem(id, { _dupConfirmedDistinct: true }))
                 }}
+                onApplySuggestion={updateItem}
               />
             </CardBoundary>
           )
@@ -1535,6 +1536,7 @@ export default function DashboardPage() {
           onConfirmDistinct={(f) => {
             (f.action?.itemIds || []).forEach((id) => updateItem(id, { _dupConfirmedDistinct: true }))
           }}
+          onApplySuggestion={updateItem}
           lang={lang}
           findings={dataCompleteness.findings}
           startItemId={reviewTarget.itemId}
