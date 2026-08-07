@@ -63,7 +63,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   useEffect(() => { setBaseCurrency(baseCurrency) }, [baseCurrency])
   useEffect(() => { setUtilsLang(lang) }, [lang])
 
-  const { enrichedItems: rawEnriched, prices: marketPrices, loading: pricesLoading, error: pricesError, lastUpdate: pricesUpdate, refresh: refreshPrices } = useMarketPrices(items)
+  const { enrichedItems: rawEnriched, prices: marketPrices, loading: pricesLoading, isFetching: pricesFetching, error: pricesError, lastUpdate: pricesUpdate, refresh: refreshPrices } = useMarketPrices(items)
   const { rates, convert, convertItemValue, loading: ratesLoading, error: ratesError, lastUpdate: ratesUpdate, refresh: refreshRates } = useExchangeRates(baseCurrency)
 
   const alertsCheckedRef = useRef(null)
@@ -122,7 +122,13 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   useEffect(() => {
     const todayStr = new Date().toLocaleDateString('en-CA')
     if (snapshotSavedRef.current === todayStr) return
-    if (!user || dataLoading || pricesLoading || ratesLoading) return
+    // pricesFetching (not just pricesLoading) guards every write here: loading
+    // only ever arms on the session's FIRST price fetch (see useMarketPrices),
+    // so without pricesFetching a background poll returning a transiently bad
+    // price could get written straight into a permanent snapshot/transaction
+    // before the next poll corrects it — the value-chart "bumps" a sync in
+    // progress can leave behind.
+    if (!user || dataLoading || pricesLoading || pricesFetching || ratesLoading) return
     if (enrichedItems.length === 0) return
     const alreadyExists = snapshots.some((s) => s.date === todayStr || s.id === todayStr)
     // FASE EI. A 'daily' doc for TODAY, once written, used to be final for the
@@ -160,7 +166,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       saveSnapshot({ date: todayStr, totalActivosUSD: totalAssetsUSD, totalDebtUSD, netWorthUSD, totalContributedUSD, rates: rates || {}, baseCurrency, _source: 'daily' })
       snapshotSavedRef.current = todayStr
     }
-  }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, snapshots, saveSnapshot, convert, baseCurrency, transactions])
+  }, [user, dataLoading, pricesLoading, pricesFetching, ratesLoading, enrichedItems, snapshots, saveSnapshot, convert, baseCurrency, transactions])
 
   // Backfill missing snapshots for the last 30 days.
   // A 'backfill' doc is a RECONSTRUCTION from whatever items existed the
@@ -174,7 +180,13 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   const backfillRef = useRef(false)
   useEffect(() => {
     if (backfillRef.current) return
-    if (!user || dataLoading || pricesLoading || ratesLoading) return
+    // pricesFetching (not just pricesLoading) guards every write here: loading
+    // only ever arms on the session's FIRST price fetch (see useMarketPrices),
+    // so without pricesFetching a background poll returning a transiently bad
+    // price could get written straight into a permanent snapshot/transaction
+    // before the next poll corrects it — the value-chart "bumps" a sync in
+    // progress can leave behind.
+    if (!user || dataLoading || pricesLoading || pricesFetching || ratesLoading) return
     if (enrichedItems.length === 0 || !snapshots) return
     // With no broker-synced item, a 'daily' doc is not an external truth
     // either — it is the SAME "sum of whatever items the app knew about that
@@ -248,7 +260,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
     doBackfill()
     return () => { cancelled = true }
-  }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, snapshots, lots, transactions, saveSnapshot, convert])
+  }, [user, dataLoading, pricesLoading, pricesFetching, ratesLoading, enrichedItems, snapshots, lots, transactions, saveSnapshot, convert])
 
   // Dividend processing
   const dividendsProcessedRef = useRef(null)
@@ -256,7 +268,13 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const now = new Date()
     const todayKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`
     if (dividendsProcessedRef.current === todayKey) return
-    if (!user || dataLoading || pricesLoading || ratesLoading) return
+    // pricesFetching (not just pricesLoading) guards every write here: loading
+    // only ever arms on the session's FIRST price fetch (see useMarketPrices),
+    // so without pricesFetching a background poll returning a transiently bad
+    // price could get written straight into a permanent snapshot/transaction
+    // before the next poll corrects it — the value-chart "bumps" a sync in
+    // progress can leave behind.
+    if (!user || dataLoading || pricesLoading || pricesFetching || ratesLoading) return
     if (enrichedItems.length === 0) return
     // Demo mode: never auto-generate real dividend transactions or credit
     // balances from sample data (snapshot writers are vetoed at the data layer).
@@ -532,7 +550,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       dividendsProcessedRef.current = todayKey
     }).catch((err) => console.error('[dividends]', err))
     return () => { cancelled = true }
-  }, [user, dataLoading, pricesLoading, ratesLoading, enrichedItems, transactions, addTransaction, deleteTransaction, updateTransaction, updateItem, convert])
+  }, [user, dataLoading, pricesLoading, pricesFetching, ratesLoading, enrichedItems, transactions, addTransaction, deleteTransaction, updateTransaction, updateItem, convert])
 
   const handleRefresh = useCallback(() => {
     refreshPrices()
