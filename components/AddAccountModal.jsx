@@ -125,6 +125,11 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
   const [error, setError] = useState('')
   const [divInfo, setDivInfo] = useState(null)
   const [divLoading, setDivLoading] = useState(false)
+  // Auto-detected dividend (divInfo, from Yahoo) is the default for a market
+  // asset; this lets the user correct it by hand if Yahoo's schedule is wrong
+  // or incomplete, without losing the auto-detected values as a starting
+  // point — seeded into form.incomeRate/incomeMonths when toggled on.
+  const [marketDivOverride, setMarketDivOverride] = useState(false)
   const [searchResults, setSearchResults] = useState([])
   const [searchLoading, setSearchLoading] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
@@ -272,7 +277,11 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
   // Dividend fetch
   useEffect(() => {
-    if (!isMarketAsset || !form.symbol || form.symbol.length < 1) { setDivInfo(null); return }
+    if (!isMarketAsset || !form.symbol || form.symbol.length < 1) { setDivInfo(null); setMarketDivOverride(false); return }
+    // A new symbol lookup starting invalidates any manual override made for
+    // the PREVIOUS symbol — otherwise switching AAPL → MSFT mid-form could
+    // silently keep AAPL's hand-edited rate/months on the new pick.
+    setMarketDivOverride(false)
     const timer = setTimeout(async () => {
       const sym = form.symbol.trim().toUpperCase()
       if (sym.length < 1) return
@@ -367,10 +376,19 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
         item.quantity = qty
         item.purchasePrice = price
         if (divInfo?.hasDividend) {
-          item.incomeAmount = divInfo.lastAmount || 0
-          item.incomeMonths = divInfo.paymentMonths || []
+          // marketDivOverride: the user corrected Yahoo's auto-detected
+          // schedule by hand (¿cuándo paga?) — form.incomeRate/incomeMonths
+          // win over divInfo. Same field names either way (incomeAmount/
+          // incomeMonths/incomeFrequency/dividendYield), so nothing
+          // downstream (EditAccountModal's `item.dividendYield > 0` gate,
+          // projectItemAnnualIncome, getEffectiveYield) needs to know which
+          // source it came from.
+          item.incomeAmount = marketDivOverride ? 0 : (divInfo.lastAmount || 0)
+          item.incomeMonths = marketDivOverride
+            ? (form.incomeMonths.length > 0 ? form.incomeMonths : (divInfo.paymentMonths || []))
+            : (divInfo.paymentMonths || [])
           item.incomeFrequency = divInfo.frequency
-          item.dividendYield = divInfo.dividendYield
+          item.dividendYield = marketDivOverride ? (parseFloat(form.incomeRate) || 0) : divInfo.dividendYield
           item.dividendAction = form.dividendAction || 'cash'
         }
       } else if (isProperty) {
@@ -518,21 +536,18 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
         }
       }
 
-      // Auto-create cash account for stock dividends
-      if (isMarketAsset && divInfo?.hasDividend && form.dividendAction === 'cash' && form.institution.trim()) {
-        const inst = form.institution.trim()
-        const cashSymbol = `${inst.replace(/\s+/g, '').toUpperCase()}-CASH`
-        const cashExists = existingItems.some(ei =>
-          (ei.symbol || '').toUpperCase() === cashSymbol ||
-          ((ei.type || '').toLowerCase() === 'bank' && (ei.institution || '').toLowerCase() === inst.toLowerCase() && /cash/i.test(ei.name || ei.symbol || ''))
-        )
-        if (!cashExists) {
-          // Inherit the source asset's purchase date so the cash account has real
-          // history (income paid into it can step up from the right month) instead
-          // of appearing to start the day it was auto-created.
-          await onAdd({ type: 'Bank', symbol: cashSymbol, name: `${inst} - Cash`, institution: inst, currency: form.currency, quantity: 1, purchasePrice: 0, currentPrice: 0, accountType: form.accountType, acquisitionDate: form.acquisitionDate || new Date().toISOString().split('T')[0], ...(activeEntity && activeEntity !== 'default' ? { entityId: activeEntity } : {}) })
-        }
-        item.incomeDestination = cashSymbol
+      // Dividend destination for a market asset (stock/crypto/fund): the user
+      // picks it explicitly below (marketDivDestination), same widget as the
+      // non-market flow (destItems + "crear cuenta nueva"). This used to
+      // silently auto-create a generic "{Institution}-Cash" account and route
+      // there without asking — correct for nothing but IBKR (which already
+      // knows the real destination from its own cash transactions and never
+      // reaches this branch: isMarketAsset here is only the manual-add flow).
+      // Left unset, `income-no-dest` in lib/dataCompleteness.js already
+      // surfaces this later via Enrich Data — better than inventing a
+      // destination the user never chose.
+      if (isMarketAsset && divInfo?.hasDividend && form.dividendAction === 'cash' && form.incomeDestination) {
+        item.incomeDestination = form.incomeDestination
       }
 
       if (activePortfolio && activePortfolio !== '__all__') {
@@ -685,7 +700,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               <label className={labelCls}>{t('Tipo de activo', 'Asset type')}</label>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                 {TYPES.map(tp => (
-                  <button key={tp.key} type="button" onClick={() => { setType(tp.key); setSubtype(''); setForm(prev => ({ ...prev, symbol: '', name: '', purchasePrice: '', currentPrice: '', sector: '', industry: '', isIlliquid: false, custodyType: '', maturityDate: '' })); setDivInfo(null); setValueTimeline('single'); setTimelineRows([]); setExcludedPayDates([]) }}
+                  <button key={tp.key} type="button" onClick={() => { setType(tp.key); setSubtype(''); setForm(prev => ({ ...prev, symbol: '', name: '', purchasePrice: '', currentPrice: '', sector: '', industry: '', isIlliquid: false, custodyType: '', maturityDate: '' })); setDivInfo(null); setMarketDivOverride(false); setValueTimeline('single'); setTimelineRows([]); setExcludedPayDates([]) }}
                     className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg transition-all text-center border ${
                       type !== tp.key ? 'bg-[var(--input-bg,#000000)] border-[var(--card-border,#38383A)] text-[var(--text-secondary,#94a3b8)] hover:border-[var(--text-secondary,#94a3b8)]' : ''
                     }`}
@@ -1120,6 +1135,60 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     <p className="text-sm font-semibold text-[var(--text-primary,white)]">{divInfo.nextPaymentDate?.slice(5)}</p>
                   </div>
                 </div>
+
+                {/* Automático por default; el link solo aparece si Yahoo trae
+                    algo mal o incompleto y hace falta corregirlo a mano.
+                    Seedea con lo detectado para no partir de campos vacíos. */}
+                {!marketDivOverride ? (
+                  <button type="button" onClick={() => {
+                    set('incomeMode', 'percent')
+                    set('incomeRate', divInfo.dividendYield ?? '')
+                    set('incomeMonths', divInfo.paymentMonths || [])
+                    if (divInfo.nextPaymentDate) {
+                      const day = parseInt(divInfo.nextPaymentDate.slice(8, 10), 10)
+                      if (day) set('incomePayDay', day)
+                    }
+                    setMarketDivOverride(true)
+                  }} className="text-xs underline" style={{ color: 'var(--text-muted,#475569)' }}>
+                    ✏️ {t('Editar manualmente (si Yahoo trae algo mal)', 'Edit manually (if Yahoo has it wrong)')}
+                  </button>
+                ) : (
+                  <div className="space-y-2 pt-1 border-t border-glass-border/50">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Rendimiento anual %', 'Annual yield %')}</label>
+                        <input value={form.incomeRate} onChange={e => set('incomeRate', e.target.value)}
+                          placeholder={String(divInfo.dividendYield ?? '')} type="number" step="any" className={inputCls} />
+                      </div>
+                      <div>
+                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Día de pago', 'Pay day')}</label>
+                        <input value={form.incomePayDay} onChange={e => set('incomePayDay', e.target.value)}
+                          placeholder="15" type="number" min="1" max="31" className={inputCls} />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1.5 block">{t('¿En qué meses paga?', 'Which months does it pay?')}</label>
+                      <div className="flex flex-wrap gap-1">
+                        {['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'].map((label, i) => {
+                          const active = form.incomeMonths.includes(i)
+                          return (
+                            <button key={i} type="button"
+                              onClick={() => set('incomeMonths', active ? form.incomeMonths.filter(x => x !== i) : [...form.incomeMonths, i].sort((a, b) => a - b))}
+                              className="px-2 py-1 text-xs font-medium rounded transition-all border"
+                              style={active ? { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 25%, transparent)', color: 'var(--accent-blue)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                              {label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                    <button type="button" onClick={() => setMarketDivOverride(false)}
+                      className="text-xs underline" style={{ color: 'var(--text-muted,#475569)' }}>
+                      {t('Usar lo detectado automáticamente', 'Use the auto-detected values')}
+                    </button>
+                  </div>
+                )}
+
                 <div>
                   <p className="text-xs text-[var(--text-muted,#475569)] mb-1">{t('¿Qué hacer con dividendos?', 'What to do with dividends?')}</p>
                   <div className="flex gap-2">
@@ -1135,6 +1204,32 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     </button>
                   </div>
                 </div>
+
+                {/* Opcional a propósito: sin flex query de por medio nadie
+                    sabe todavía a qué cuenta cae el efectivo, y adivinar acá
+                    (auto-crear una cuenta genérica) es peor que preguntar
+                    después. Dejarlo en blanco es válido: el hallazgo
+                    income-no-dest de Enrich Data (lib/dataCompleteness.js)
+                    lo agarra más adelante, con la misma pregunta. IBKR nunca
+                    llega a este flujo: su Flex Query ya trae el destino real
+                    de cada dividendo como una transacción de cash propia. */}
+                {form.dividendAction === 'cash' && (
+                  <div>
+                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('¿A dónde llega el efectivo?', 'Where does the cash land?')}</label>
+                    <select value={form.incomeDestination}
+                      onChange={e => { if (e.target.value === '__new__') { setCreatingDest('income'); return } set('incomeDestination', e.target.value) }}
+                      className={inputCls}>
+                      <option value="">{t('-- Sin definir todavía --', '-- Not set yet --')}</option>
+                      {destItems.map(it => <option key={it.id} value={it.id}>{it.name || it.symbol} {it.institution ? `(${it.institution})` : ''}</option>)}
+                      {onCreateDestination && <option value="__new__">+ {t('Crear cuenta nueva', 'Create new account')}</option>}
+                    </select>
+                    {creatingDest === 'income' && onCreateDestination && (
+                      <InlineCreateAccount onCreate={onCreateDestination} onCancel={() => setCreatingDest(null)}
+                        onCreated={(id, it) => handleDestCreated('incomeDestination', id, it)} lang={lang} defaultCurrency={form.currency}
+                        sourceAcquisitionDate={form.acquisitionDate || null} />
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
