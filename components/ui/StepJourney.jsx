@@ -23,6 +23,18 @@ function resolveText(v, lang) {
   return lang === 'es' ? v.es : v.en
 }
 
+// lib/brokerHowTo.js's own step shape puts the instruction text straight on
+// the step (`{ es, en, detail }`), not nested under `.title` — this resolves
+// EITHER shape so those steps (passed through completely unmapped by every
+// caller: FileImportModal, ConnectionsModal, BrokerConnectModal) render their
+// text instead of silently falling back to an empty circle with a number and
+// nothing next to it.
+function resolveTitle(step, lang) {
+  if (step.title != null) return resolveText(step.title, lang)
+  if (step.es != null || step.en != null) return resolveText({ es: step.es, en: step.en }, lang)
+  return null
+}
+
 export default function StepJourney({ steps, note, variant = 'csv', lang = 'es', title = null, accent: accentProp = null, headerIcon: HeaderIcon = null }) {
   const t = (es, en) => (lang === 'es' ? es : en)
   const [openStep, setOpenStep] = useState(null)
@@ -65,7 +77,7 @@ export default function StepJourney({ steps, note, variant = 'csv', lang = 'es',
           const lineColor = isDone ? accent : 'var(--card-border)'
           const desc = resolveText(step.desc, lang)
           const detail = resolveText(step.detail, lang)
-          const stepTitle = resolveText(step.title, lang)
+          const stepTitle = resolveTitle(step, lang)
           const StepIcon = step.icon
 
           return (

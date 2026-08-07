@@ -7,11 +7,11 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, Rocket } from 'lucide-react'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { getBrokerRegistry, connectorExplainer, IBKR_DISCONNECTED_FIELDS } from '@/lib/brokerRegistry'
+import { getBrokerRegistry, IBKR_DISCONNECTED_FIELDS } from '@/lib/brokerRegistry'
 import { getBrokerHowTo } from '@/lib/brokerHowTo'
-import BrokerSteps from '@/components/ui/BrokerSteps'
+import BrokerConnectModal from '@/components/BrokerConnectModal'
 
 export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, onBackgroundSync, onImport, onAddAccount, onOpenBlockchain, onOpenLedger, onSaveCredentials, onCalibrate, onOpenBrokerChecklist, lang = 'es', lastSyncTime, portfolioItems = [] }) {
   const trapRef = useFocusTrap()
@@ -26,7 +26,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
   const [confirmUnlink, setConfirmUnlink] = useState(false)
   const [saveStatus, setSaveStatus] = useState(null)
   const [brokerConnections, setBrokerConnections] = useState({})
-  const [expandedBroker, setExpandedBroker] = useState(null)
+  const [connectBroker, setConnectBroker] = useState(null)
   const [brokerForm, setBrokerForm] = useState({})
   const [brokerSyncing, setBrokerSyncing] = useState(null)
   const [brokerError, setBrokerError] = useState(null)
@@ -171,7 +171,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
       })
       if (res.ok) {
         setBrokerConnections(prev => ({ ...prev, [broker.id]: { configured: true } }))
-        setExpandedBroker(null)
+        setConnectBroker(null)
         setBrokerForm({})
         flash('ok', `${broker.name} ${t('vinculado', 'linked')}`)
       } else {
@@ -255,9 +255,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
 
   const renderBrokerCard = (broker) => {
     const conn = brokerConnections[broker.id]
-    const isExpanded = expandedBroker === broker.id
     const isSyncing = brokerSyncing === broker.id
-    const howTo = getBrokerHowTo(broker.id)
     return (
       <div key={broker.id} className="bg-theme-base border border-glass-border/60 rounded-lg overflow-hidden">
         <div className="flex items-center gap-3 px-3 py-2">
@@ -288,76 +286,26 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                   ✕
                 </button>
               </>
-            ) : broker.hasApi ? (
-              <button onClick={() => {
-                if (broker.authType === 'oauth') { handleBrokerConnect(broker); return }
-                setExpandedBroker(isExpanded ? null : broker.id); setBrokerForm({}); setBrokerError(null)
-              }}
-                className="px-2.5 py-1 border text-xs font-medium rounded-md hover:bg-blue-500/10 transition-colors" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
-                {isSyncing ? '...' : broker.authType === 'oauth' ? 'OAuth' : isExpanded ? t('Cancelar', 'Cancel') : 'API'}
-              </button>
-            ) : broker.apiNote ? (
-              <span className="px-2 py-0.5 text-xs text-slate-600 border border-glass-border/40 rounded">
-                {broker.apiNote}
-              </span>
-            ) : null}
-            {/* Brokers with no API (Hapi, DEGIRO, Trade Republic...) only get the
-                CSV path — but "click CSV, figure it out yourself" was the whole
-                gap being fixed here. A "Pasos" toggle previews the researched
-                steps inline, same data BrokerSteps renders inside the import
-                modal, before the user commits to leaving this modal at all. */}
-            {!broker.hasApi && howTo?.csv?.steps && (
-              <button onClick={() => setExpandedBroker(isExpanded ? null : broker.id)}
-                className="px-2.5 py-1 border text-xs font-medium rounded-md hover:bg-theme-elevated transition-colors" style={{ borderColor: 'var(--glass-border)', color: 'var(--text-secondary)' }}>
-                {isExpanded ? t('Ocultar', 'Hide') : t('Pasos', 'Steps')}
+            ) : (
+              /* One entry point instead of the old API / Pasos / CSV row: every
+                 way of bringing data in (file, screenshot, API) lives inside the
+                 step wizard now, so there is nothing left to choose between
+                 before even knowing what each button did (FASE EY). */
+              <button onClick={() => { setConnectBroker(broker); setBrokerForm({}); setBrokerError(null) }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg hover:brightness-110 active:scale-[0.97] transition-all"
+                style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)', boxShadow: '0 1px 4px rgba(37,99,235,0.35)' }}>
+                <Rocket size={13} strokeWidth={2.25} />
+                {t('Empezar', 'Get started')}
               </button>
             )}
-            <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport(broker.id) }, 50) }}
-              className="px-2.5 py-1 border border-glass-border text-xs font-medium rounded-md hover:bg-theme-elevated transition-colors" style={{ color: 'var(--text-secondary)' }}>
-              CSV
-            </button>
           </div>
         </div>
-        {isExpanded && broker.hasApi && !broker.authType && (
-          <div className="px-3 pb-3 pt-1 border-t border-glass-border/30 space-y-2">
-            {/* What happens / why it's safe, BEFORE the credential fields. */}
-            <p className="text-xs px-2.5 py-1.5 rounded-lg" style={{ backgroundColor: 'rgba(37,99,235,0.06)', color: 'var(--accent-blue)' }}>
-              🔒 {connectorExplainer(broker, t)}
-            </p>
-            {howTo?.api?.steps ? (
-              <BrokerSteps steps={howTo.api.steps} note={howTo.api.note} variant="api" lang={lang} />
-            ) : broker.instructions && (
-              <p className="text-xs text-slate-600">{broker.instructions[lang] || broker.instructions.en}</p>
-            )}
-            {brokerError && expandedBroker === broker.id && (
-              <p className="text-xs" style={{ color: 'var(--text-negative)' }}>{brokerError}</p>
-            )}
-            {broker.fields.map(f => (
-              <div key={f.key}>
-                <label className="text-xs text-slate-500 mb-0.5 block">{f.label}</label>
-                <input type={f.type || 'text'} value={brokerForm[f.key] || ''}
-                  onChange={(e) => setBrokerForm(prev => ({ ...prev, [f.key]: e.target.value }))}
-                  placeholder={f.placeholder}
-                  className="w-full px-3 py-1.5 bg-theme-surface border border-glass-border/60 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-              </div>
-            ))}
-            <button onClick={() => handleBrokerConnect(broker)}
-              disabled={isSyncing || broker.fields.some(f => !brokerForm[f.key])}
-              className="w-full py-2 rounded-lg hover:bg-blue-500 disabled:opacity-50 text-xs font-medium" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
-              {isSyncing ? '...' : t('Conectar', 'Connect')}
-            </button>
-          </div>
-        )}
-        {isExpanded && !broker.hasApi && howTo?.csv?.steps && (
-          <div className="px-3 pb-3 pt-1 border-t border-glass-border/30">
-            <BrokerSteps steps={howTo.csv.steps} note={howTo.csv.note} variant="csv" lang={lang} />
-          </div>
-        )}
       </div>
     )
   }
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="connections-modal-title"
       style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
       <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
@@ -606,5 +554,21 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
         </div>
       </div>
     </div>
+    {connectBroker && (
+      <BrokerConnectModal
+        broker={connectBroker}
+        howTo={getBrokerHowTo(connectBroker.id)}
+        lang={lang}
+        onClose={() => setConnectBroker(null)}
+        onCloseAll={onClose}
+        onImport={onImport}
+        brokerForm={brokerForm}
+        setBrokerForm={setBrokerForm}
+        onSubmitApi={() => handleBrokerConnect(connectBroker)}
+        isSyncing={brokerSyncing === connectBroker.id}
+        error={brokerError}
+      />
+    )}
+    </>
   )
 }
