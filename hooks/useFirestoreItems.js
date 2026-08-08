@@ -862,7 +862,14 @@ export function useFirestoreItems() {
   // v22 (FASE DW): el loop de "Calculando historial..." dejaba meses guardados a
   // medias (o vacíos) mientras se cancelaba a sí mismo, así que lo cacheado bajo
   // v21 no es confiable y tiene que recalcularse entero.
-  const SNAPSHOT_VERSION = 22
+  // v23 (FASE FT): FASE FH cambió los meses históricos de IBKR al bucket
+  // sintético (IBKR_UNKNOWN_KEY_PREFIX) pero NO subió la versión: el merge de
+  // saveItemSnapshots escribió el bucket AL LADO de las acciones por-item
+  // cacheadas bajo la lógica vieja, y la fila de categoría sumaba ambos
+  // ("Bolsa de Valores" al doble en cada mes pasado, reporte real del
+  // usuario). Los docs v22 con esa mezcla no se pueden reparar por merge:
+  // recálculo completo.
+  const SNAPSHOT_VERSION = 23
 
   const saveItemSnapshots = useCallback(async (monthKey, itemsData, currency) => {
     if (!uid || !monthKey || !itemsData) return
@@ -871,7 +878,15 @@ export function useFirestoreItems() {
     const { db, fs } = await getFirebase()
     const ref = fs.doc(db, `users/${uid}/itemSnapshots`, monthKey)
     const existing = await fs.getDoc(ref)
-    const existingItems = existing.exists() ? (existing.data().items || {}) : {}
+    // FASE FT: un doc de versión vieja es INVÁLIDO (loadItemSnapshots ya se
+    // niega a leerlo); fusionar datos nuevos sobre él lo resucita, con la
+    // versión nueva estampada encima del contenido viejo. Así fue como el
+    // bucket sintético de FH terminó sumándose al lado de las acciones
+    // por-item cacheadas bajo la lógica anterior. Versión vieja => reemplazo
+    // completo del doc, nunca merge.
+    const existingData = existing.exists() ? existing.data() : null
+    const staleVersion = existingData != null && (existingData._version || 0) < SNAPSHOT_VERSION
+    const existingItems = existingData && !staleVersion ? (existingData.items || {}) : {}
     const snapData = Object.fromEntries(Object.entries({
       monthKey,
       items: { ...existingItems, ...itemsData },
@@ -879,7 +894,7 @@ export function useFirestoreItems() {
       _version: SNAPSHOT_VERSION,
       ...(currency ? { _currency: currency } : {}),
     }).filter(([, v]) => v !== undefined))
-    await fs.setDoc(ref, snapData, { merge: true })
+    await fs.setDoc(ref, snapData, staleVersion ? undefined : { merge: true })
   }, [uid, items])
 
   const loadItemSnapshots = useCallback(async (monthKeys) => {

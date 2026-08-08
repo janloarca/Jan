@@ -6,6 +6,7 @@ import ChispudoLoader from '@/components/ui/ChispudoLoader'
 import { formatCurrency, getItemValue, getTypeCategory, isExcludedFromNetWorth, TYPE_COLORS, BROKER_NAV_SOURCES, DEBT_CLARIFICATION } from './utils'
 import { InfoTip } from '../ui/Tooltip'
 import { yearEndMonthKeys } from '@/lib/yearOverYear'
+import { stripStaleIbkrEntries } from '@/lib/spreadsheetSanitize'
 
 // Must match lib/historicalValues.js's IBKR_UNKNOWN_KEY_PREFIX exactly — not
 // imported statically because that file pulls in authFetch → Firebase Auth,
@@ -426,6 +427,13 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     setGeneration((g) => g + 1)
   }, [snapshotSig, txSig, lotSig, itemContentSig])
 
+  // Ids de los items IBKR ACTUALES, leídos vía ref para que ninguno de los dos
+  // merges de abajo tenga que depender de la identidad de `items` (la
+  // enfermedad de FASE DW/DY: se recrea con cada tick de precio). Solo se usa
+  // para sanear residuo del caché, nunca para decidir recomputos.
+  const ibkrIdsRef = useRef(new Set())
+  ibkrIdsRef.current = new Set((items || []).filter(it => it && it._source === 'ibkr').map(it => it.id))
+
   useEffect(() => {
     if (!onLoadItemSnapshots || months.length === 0) return
     const toLoad = months.filter(mk => mk !== currentMonthKey)
@@ -448,13 +456,18 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         })
         Object.entries(monthData).forEach(([mk, itemsForMonth]) => {
           const savedCur = __currencies[mk]
+          let entries = itemsForMonth
           if (savedCur && savedCur !== base && convert) {
-            next[mk] = Object.fromEntries(Object.entries(itemsForMonth).map(([id, v]) =>
+            entries = Object.fromEntries(Object.entries(itemsForMonth).map(([id, v]) =>
               [id, { ...v, value: convert(v.value, savedCur, base) }]
             ))
-          } else {
-            next[mk] = itemsForMonth
           }
+          // FASE FT: un doc que trae el bucket sintético de FH junto a las
+          // acciones por-item cacheadas bajo la lógica anterior sumaría ambos
+          // (la categoría al doble). El bump a v23 mata los docs ya
+          // envenenados; esto evita que la misma mezcla vuelva a renderizar
+          // doble si un merge futuro la recrea.
+          next[mk] = stripStaleIbkrEntries(entries, ibkrIdsRef.current, IBKR_UNKNOWN_KEY_PREFIX)
         })
         return next
       })
@@ -604,7 +617,14 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         setHistoricalItems(prev => {
           const merged = { ...prev }
           Object.entries(data).forEach(([mk, itemData]) => {
-            merged[mk] = { ...(merged[mk] || {}), ...itemData }
+            // FASE FT: mismo saneo que el merge del caché. Si lo recién
+            // computado trae el bucket sintético y `prev` traía las acciones
+            // por-item del caché viejo, el merge crudo las sumaría doble.
+            merged[mk] = stripStaleIbkrEntries(
+              { ...(merged[mk] || {}), ...itemData },
+              ibkrIdsRef.current,
+              IBKR_UNKNOWN_KEY_PREFIX
+            )
           })
           return merged
         })
