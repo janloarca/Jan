@@ -10,6 +10,7 @@ import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { indexBalanceEvents } from '@/lib/historicalValues'
 import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget } from '@/lib/autoDividends'
 import { unlinkedOpeningDeposits } from '@/lib/originDeposits'
+import { corruptSnapshotRunIds } from '@/lib/corruptSnapshots'
 import { staleBackfillDates } from '@/lib/snapshotBackfill'
 import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanDays, earliestNeededDays as computeEarliestNeededDays } from '@/lib/brokerCompletion'
 import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds } from '@/lib/inferredFlows'
@@ -1543,6 +1544,49 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     })()
     return () => { cancelled = true }
   }, [transactions, ibkrRealCoverage, deleteTransaction])
+
+  // FASE FR self-heal: corrupt daily-snapshot runs. The pre-FASE-FE hole let a
+  // price refresh in flight write an inflated net worth into the permanent
+  // daily snapshot; with a broker connected those docs never self-correct
+  // (FASE EI) and a ~2-week run poisons the value chart and the chained TWR
+  // (the single-window MWR is blind to mid-series points — that asymmetry is
+  // how the bug was confirmed). corruptSnapshotRunIds is deliberately strict:
+  // deletable sources only ('daily'/'backfill', both re-derivable), round-trip
+  // required, aborted by any real broker NAV inside the run, and never when a
+  // real deposit/withdrawal explains the level jump. Deleted days re-fill via
+  // the 30-day backfill at correct levels. Runs ONCE per session, only after
+  // every data stage settles (same gates as the snapshot writers: a cleanup
+  // must never judge levels computed from half-loaded prices).
+  const corruptSnapCleanupRef = useRef(false)
+  useEffect(() => {
+    if (corruptSnapCleanupRef.current) return
+    if (!user || dataLoading || pricesLoading || pricesFetching || ratesLoading) return
+    if (!deleteSnapshot || !snapshots || snapshots.length < 4) return
+    if ((items || []).some((it) => it && it._source === 'demo')) return
+    const flowsUSD = (transactions || [])
+      .filter((tx) => /^(DEPOSIT|WITHDRAWAL)$/i.test(tx.type || ''))
+      .map((tx) => {
+        const ts = tx.date ? new Date(tx.date).getTime() : NaN
+        const amt = Math.abs(Number(tx.totalAmount ?? tx.amount ?? 0))
+        const usd = convert ? convert(amt, tx.currency || 'USD', 'USD') : amt
+        return { ts, amount: usd, type: (tx.type || '').toUpperCase() }
+      })
+      .filter((f) => isFinite(f.ts) && isFinite(f.amount) && f.amount > 0)
+    const ids = corruptSnapshotRunIds(snapshots, flowsUSD)
+    corruptSnapCleanupRef.current = true
+    if (ids.length === 0) return
+    let cancelled = false
+    ;(async () => {
+      let removed = 0
+      for (const id of ids) {
+        if (cancelled) return
+        try { await deleteSnapshot(id); removed++ }
+        catch (e) { console.error('[corrupt-snapshot-cleanup]', e.message) }
+      }
+      if (removed > 0) console.info(`[corrupt-snapshot-cleanup] removed ${removed} corrupt snapshot(s); backfill will rebuild them`)
+    })()
+    return () => { cancelled = true }
+  }, [user, dataLoading, pricesLoading, pricesFetching, ratesLoading, snapshots, transactions, items, convert, deleteSnapshot])
 
   // Self-heal: opening deposits our own onAdd wrapper left without a link
   // (FASE EA). Only unambiguous, self-inflicted rows — see
