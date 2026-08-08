@@ -5,6 +5,7 @@ import { formatCurrency, getTypeCategory, projectItemAnnualIncome } from './util
 
 export default function DividendIncome({ transactions, items, convert, baseCurrency, lang, totalAssets }) {
   const t = (es, en) => lang === 'es' ? es : en
+  const now = new Date()
 
   const projected = useMemo(() => {
     if (!items || items.length === 0) return { annualTotal: 0, sources: [], upcoming: [] }
@@ -32,20 +33,47 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
     })
 
     const upcoming = []
+    // Rolling forward-looking projection, THIS month through +11 (a real
+    // "next 12 months" window, not "however much of the current calendar year
+    // is left") — the counterpart to the trailing 12-month history chart
+    // below. Built off the same per-source months/perPayment math as
+    // `upcoming`, just walked out further and bucketed by month instead of
+    // kept as a flat list.
+    const next12 = []
+    for (let offset = 0; offset < 12; offset++) {
+      const m = (currentMonth + offset) % 12
+      const y = now.getFullYear() + (currentMonth + offset >= 12 ? 1 : 0)
+      next12.push({ key: `${y}-${String(m).padStart(2, '0')}`, month: m, year: y, value: 0 })
+    }
     sources.forEach((s) => {
       const perPayment = s.annual / (s.months.length || 12)
-      for (let offset = 0; offset < 3; offset++) {
+      for (let offset = 0; offset < 12; offset++) {
         const m = (currentMonth + offset) % 12
         if (s.months.includes(m)) {
-          const y = now.getFullYear() + (currentMonth + offset >= 12 ? 1 : 0)
-          upcoming.push({ symbol: s.symbol, amount: perPayment, month: m, year: y, day: s.payDay })
+          next12[offset].value += perPayment
+          if (offset < 3) {
+            const y = now.getFullYear() + (currentMonth + offset >= 12 ? 1 : 0)
+            upcoming.push({ symbol: s.symbol, amount: perPayment, month: m, year: y, day: s.payDay })
+          }
         }
       }
     })
     upcoming.sort((a, b) => (a.year * 12 + a.month) - (b.year * 12 + b.month) || a.day - b.day)
 
     const annualTotal = sources.reduce((s, x) => s + x.annual, 0)
-    return { annualTotal, sources: sources.sort((a, b) => b.annual - a.annual), upcoming: upcoming.slice(0, 6) }
+    const next12Total = next12.reduce((s, m) => s + m.value, 0)
+    // "What's still coming this calendar year" — offset 0 is the current
+    // month, which may be partially elapsed, so it's included as-is (an
+    // estimate for the whole month, same convention incomeCalendar already
+    // uses) rather than trying to prorate a single in-progress month.
+    const restOfYearTotal = next12
+      .filter((m) => m.year === now.getFullYear())
+      .reduce((s, m) => s + m.value, 0)
+
+    return {
+      annualTotal, sources: sources.sort((a, b) => b.annual - a.annual), upcoming: upcoming.slice(0, 6),
+      next12, next12Total, restOfYearTotal,
+    }
   }, [items, convert, baseCurrency])
 
   const stats = useMemo(() => {
@@ -303,6 +331,22 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
         </div>
       </div>
 
+      {/* Projection: what's still coming, not what already arrived — the
+          counterpart to "YTD recibido" above and the trailing history chart
+          below. */}
+      {projected.next12Total > 0 && (
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="rounded-lg p-3 border" style={{ backgroundColor: 'var(--alert-info-bg)', borderColor: 'var(--card-border)' }}>
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{t(`Resto de ${now.getFullYear()} (proyectado)`, `Rest of ${now.getFullYear()} (projected)`)}</span>
+            <span className="text-sm font-semibold block" style={{ color: 'var(--accent-blue)' }}>{formatCurrency(projected.restOfYearTotal)}</span>
+          </div>
+          <div className="rounded-lg p-3 border" style={{ backgroundColor: 'var(--alert-info-bg)', borderColor: 'var(--card-border)' }}>
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('Próximos 12 meses (proyectado)', 'Next 12 months (projected)')}</span>
+            <span className="text-sm font-semibold block" style={{ color: 'var(--accent-blue)' }}>{formatCurrency(projected.next12Total)}</span>
+          </div>
+        </div>
+      )}
+
       {/* Upcoming payments */}
       {projected.upcoming.length > 0 && (
         <div className="mb-4">
@@ -336,6 +380,34 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
                     </div>
                   )}
                   <div className="w-full rounded-t" style={{ height: paid ? `${Math.max(h, 6)}%` : '4px', backgroundColor: paid ? 'var(--accent-green)' : 'var(--bg-tertiary)' }} />
+                  <span className="text-[10px] text-slate-500 mt-1">{monthName(b.month)}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Mini bar chart - forward-looking 12 months, mirrors the trailing
+          history chart above (same axis, opposite direction in time) so
+          "what I got" and "what's projected" read as one continuous strip. */}
+      {projected.next12Total > 0 && (
+        <div className="mb-4">
+          <span className="text-xs text-slate-500 mb-2 block">{t('Próximos 12 meses (proyectado)', 'Next 12 months (projected)')}</span>
+          <div className="flex items-end gap-1 h-16">
+            {projected.next12.map((b) => {
+              const paid = b.value > 0
+              const maxNext12 = Math.max(...projected.next12.map((x) => x.value), 1)
+              const h = paid ? (b.value / maxNext12) * 100 : 0
+              return (
+                <div key={b.key} className="flex-1 flex flex-col items-center justify-end h-full group relative">
+                  {paid && (
+                    <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 -translate-y-full opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 px-2 py-1 rounded text-xs font-mono tabular-nums whitespace-nowrap"
+                      style={{ backgroundColor: 'var(--text-primary)', color: 'var(--bg-primary)' }}>
+                      {formatCurrency(b.value)}
+                    </div>
+                  )}
+                  <div className="w-full rounded-t" style={{ height: paid ? `${Math.max(h, 6)}%` : '4px', backgroundColor: paid ? 'var(--accent-blue)' : 'var(--bg-tertiary)', opacity: paid ? 0.75 : 1 }} />
                   <span className="text-[10px] text-slate-500 mt-1">{monthName(b.month)}</span>
                 </div>
               )
