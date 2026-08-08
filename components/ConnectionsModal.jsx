@@ -101,6 +101,11 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
   const handleIbkrSave = async () => {
     setIbkrSaving(true)
     setIbkrError('')
+    // Captured BEFORE the write: whether this is a brand-new connection (the
+    // case the continuous flow below is for) vs. a token refresh on an
+    // already-configured account (where popping the checklist unprompted
+    // would just be noise on top of a routine credential update).
+    const wasFreshConnect = !ibkrConfigured
     try {
       const res = await authFetch('/api/brokers/ibkr', {
         method: 'POST',
@@ -117,6 +122,18 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
         // the queryId + a migration flag. Without this the vault holds creds but the
         // app still thinks IBKR is unconnected and re-prompts for the token.
         onSaveCredentials?.({ ibkrToken: null, ibkrQueryId: ibkrQueryId.trim(), _ibkrVaultMigrated: true })
+        // Continue straight into "llevar al 100%" instead of dropping the user
+        // back on the connections list to go find that button themselves — the
+        // user's own complaint: "hacer los pasos bien... mas UI paso por paso
+        // sin moverse mucho de pantallas, continuo". Same close+reopen pattern
+        // the existing "Completar historial" button already uses (onClose then
+        // a short delay before the next modal mounts), just fired automatically
+        // on the FIRST successful connect instead of requiring the user to find
+        // and click it.
+        if (wasFreshConnect && onOpenBrokerChecklist) {
+          onClose()
+          setTimeout(() => onOpenBrokerChecklist('ibkr'), 50)
+        }
       } else {
         const d = await safeJson(res) || {}
         setIbkrError(d.error || 'Error')

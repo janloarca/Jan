@@ -9,10 +9,12 @@
 // file format doesn't carry, an API keeps future syncs automatic), matching
 // what the user asked for explicitly: "entre mas informacion mejor".
 //
-// IBKR is NOT built from this — it keeps its own dedicated Flex Query flow
-// (still inline in ConnectionsModal) because its setup genuinely needs more
-// UI than a generic 3-step wizard (token + query id + its own completion
-// checklist in lib/brokerCompletion.js).
+// IBKR runs through this SAME wizard (FASE EZ2) — IBKR_PSEUDO_BROKER in
+// ConnectionsModal.jsx feeds it in, and the api step below special-cases
+// `broker.id === 'ibkr'` to swap the generic `fields` inputs for its real
+// Flex Token + Query ID shape. A successful IBKR connect continues straight
+// into the "llevar al 100%" checklist (ConnectionsModal's handleIbkrSave,
+// FASE FI) instead of stopping here — this wizard is only the first leg.
 
 import { useState } from 'react'
 import { FileSpreadsheet, Camera, KeyRound, ChevronLeft, Lock, CheckCircle2 } from 'lucide-react'
