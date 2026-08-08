@@ -7,6 +7,22 @@ const nextConfig = {
     NEXT_BUILD_ID: `b${Date.now().toString(36)}`,
   },
   transpilePackages: ['undici'],
+  // FASE FV. El helper de OAuth de Firebase (signInWithPopup/Redirect) vive en
+  // <proyecto>.firebaseapp.com: un dominio CRUZADO cuyo storage Safari bloquea
+  // (Intelligent Tracking Prevention), y el sign-in con Google muere en
+  // auth/internal-error o vuelve del redirect sin sesión. El arreglo
+  // documentado por Firebase es servir ese helper desde NUESTRO dominio:
+  // authDomain pasa a ser el host de la app (lib/firebase.js) y estas rutas
+  // hacen proxy de /__/auth y /__/firebase hacia firebaseapp.com, así el
+  // iframe/popup es same-origin y Safari no tiene nada que bloquear.
+  async rewrites() {
+    const project = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    if (!project) return []
+    return [
+      { source: '/__/auth/:path*', destination: `https://${project}.firebaseapp.com/__/auth/:path*` },
+      { source: '/__/firebase/:path*', destination: `https://${project}.firebaseapp.com/__/firebase/:path*` },
+    ]
+  },
   webpack: (config) => {
     config.externals = [...(config.externals || []), { 'undici': 'commonjs undici' }]
     return config
@@ -29,6 +45,11 @@ const nextConfig = {
           { key: 'Surrogate-Control', value: 'no-store' },
         ],
       },
+      // FASE FV: el helper de OAuth proxied (rewrites de abajo) corre DENTRO de
+      // un iframe de nuestra propia página de login. El X-Frame-Options: DENY
+      // global lo rompería; esta regla va ANTES del catch-all y Next aplica la
+      // ÚLTIMA que matchea por clave, así que el catch-all se anula aquí con
+      // SAMEORIGIN declarándolo después. (Ver la regla específica al final.)
       {
         source: '/(.*)',
         headers: [
@@ -58,6 +79,18 @@ const nextConfig = {
               "object-src 'none'",
             ].join('; '),
           },
+        ],
+      },
+      // FASE FV: override del catch-all para el helper de OAuth proxied, que
+      // corre dentro de un iframe de nuestra página de login. Va AL FINAL a
+      // propósito: para una misma clave, Next aplica la última regla que
+      // matchea, así que estas dos pisan el DENY/frame-ancestors globales solo
+      // en /__/auth. El contenido real lo sirve Google (rewrites de arriba).
+      {
+        source: '/__/auth/:path*',
+        headers: [
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'self'" },
         ],
       },
     ]

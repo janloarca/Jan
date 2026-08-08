@@ -41,8 +41,22 @@ function LoginForm() {
     if (!auth) { setCheckingAuth(false); return }
 
     let unsub
-    import('firebase/auth').then(({ onAuthStateChanged }) => {
-      firebaseAuthRef.current = true
+    import('firebase/auth').then((mod) => {
+      // Guardar el MÓDULO, no un booleano: handleGoogle lo necesita ya cargado
+      // para llamar signInWithPopup sin un `await import(...)` de por medio.
+      // Safari (sobre todo iOS) invalida el gesto del usuario si hay una espera
+      // de red entre el tap y window.open, y bloquea el popup.
+      firebaseAuthRef.current = mod
+      const { onAuthStateChanged, getRedirectResult } = mod
+      // Completar (o reportar) un sign-in por redirect que vuelve de Google:
+      // sin esto, un error del flujo de redirect (el fallback cuando el popup
+      // se bloquea) moría en silencio y el usuario solo veía la pantalla de
+      // login otra vez, sin pista de qué pasó.
+      getRedirectResult(auth).catch((err) => {
+        if (!err || !err.code) return
+        setError(`Error al conectar con Google. Intenta de nuevo. (${err.code})`)
+        setCheckingAuth(false)
+      })
       unsub = onAuthStateChanged(auth, async (u) => {
         if (u) {
           try {
@@ -101,7 +115,11 @@ function LoginForm() {
     setError('')
     setGoogleLoading(true)
     try {
-      const { GoogleAuthProvider, signInWithPopup, signInWithRedirect } = await import('firebase/auth')
+      // El módulo ya viene precargado desde el mount: usarlo directo mantiene
+      // el gesto del usuario intacto entre el tap y window.open (Safari
+      // bloquea el popup si hay una importación de red en medio). El await
+      // dinámico queda solo como fallback si el mount aún no terminó.
+      const { GoogleAuthProvider, signInWithPopup, signInWithRedirect } = firebaseAuthRef.current || await import('firebase/auth')
       if (!auth) throw new Error('Firebase not initialized')
       const provider = new GoogleAuthProvider()
       if (isInAppBrowser()) {
@@ -122,9 +140,11 @@ function LoginForm() {
           return
         } catch {}
       }
+      // El código del error viaja en el mensaje a propósito: "Error interno"
+      // a secas hacía imposible diagnosticar a distancia qué falló de verdad
+      // (auth/internal-error, unauthorized-domain, etc.).
       const msg = err.code === 'auth/network-request-failed' ? 'Error de red. Verifica tu conexión.'
-        : err.code === 'auth/internal-error' ? 'Error interno. Intenta de nuevo.'
-        : 'Error al conectar con Google. Intenta de nuevo.'
+        : `Error al conectar con Google. Intenta de nuevo.${err.code ? ` (${err.code})` : ''}`
       setError(msg)
     } finally {
       setGoogleLoading(false)
