@@ -433,6 +433,12 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     let cancelled = false
     const base = baseCurrency || 'USD'
     onLoadItemSnapshots(toLoad).then(data => {
+      // Gate-opening comes FIRST, before every early return: the compute
+      // effect below waits for this first settlement (cacheProbed) before
+      // evaluating missingMonths on a cold mount, and it must open on EVERY
+      // outcome (data, no data, cancelled mid-flight) or the spreadsheet
+      // would sit on "-" forever waiting for an answer that already came.
+      setCacheProbed(true)
       if (cancelled || !data) return
       const { __currencies = {}, ...monthData } = data
       setHistoricalItems(prev => {
@@ -457,6 +463,11 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       // historicalItemsRef). One bump per resolved load, so the compute effect
       // gets its cache-first pass and then settles instead of restarting.
       setCacheEpoch((n) => n + 1)
+    }).catch(() => {
+      // A failed cache read (e.g. Firebase init hiccup) is not a reason to
+      // never compute: open the gate so the live recompute takes over, same
+      // as if the cache had answered empty.
+      setCacheProbed(true)
     })
     return () => { cancelled = true }
   }, [onLoadItemSnapshots, months, currentMonthKey, baseCurrency, convert])
@@ -490,6 +501,23 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   const historicalItemsRef = useRef({})
   useEffect(() => { historicalItemsRef.current = historicalItems }, [historicalItems])
   const [cacheEpoch, setCacheEpoch] = useState(0)
+  // FASE FO. Has the Firestore itemSnapshots cache had its FIRST chance to
+  // answer? On a cold mount the compute effect below used to evaluate
+  // missingMonths against a still-empty historicalItemsRef IN PARALLEL with
+  // the cache read: with a slow network the fetch got discarded when the
+  // cache's epoch bump re-ran the effect (a wasted Yahoo/CoinGecko call every
+  // cold load), and with a FAST network the fetch landed first, stamped
+  // lastFetchedYearRef, and an empty cache answer then DELETED those freshly
+  // computed months with no recompute ever coming (the fetchKey guard was
+  // already stamped): past months stuck on "-". Waiting for the first
+  // settlement makes the order deterministic: cache always answers first,
+  // then one recompute for whatever is genuinely missing. Opens exactly once
+  // (success, empty, rejection or cancelled alike) and never closes again,
+  // so every later interaction (year switch, edits, epoch bumps) behaves
+  // exactly as before this fix. State, not a ref, on purpose: the false->true
+  // transition must re-run the compute effect even when the cache resolves
+  // without bumping cacheEpoch (no data / rejection).
+  const [cacheProbed, setCacheProbed] = useState(false)
   // FASE EQ. Which generation each month's cached data was last LIVE-recomputed
   // at — the freshness half of the fix above. Only the live recompute below
   // tags a month here, never the Firestore cache-load effect: a month loaded
@@ -517,6 +545,14 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     if (hasIBKR && (!snapshots || snapshots.length === 0)) return
     const pastMonths = months.filter(mk => mk !== currentMonthKey)
     if (pastMonths.length === 0) return
+    // Cold-mount gate (FASE FO, see cacheProbed above): don't evaluate
+    // missingMonths, flip the spinner, or fire the network fetch until the
+    // Firestore cache had its first chance to answer. Callers with no cache
+    // wired (no onLoadItemSnapshots prop) skip the wait entirely. The prop is
+    // read but deliberately NOT a dependency: this effect keys off content
+    // signatures, never identities (see the dep-array comment below), and
+    // cacheProbed alone drives the one re-run this gate needs.
+    if (onLoadItemSnapshots && !cacheProbed) return
 
     const itemsWithIds = items.filter(it => it.id)
 
@@ -593,7 +629,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     // sigs deliberately exclude currentPrice, so a price refresh no longer
     // throws away work in progress.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itemContentSig, txSig, lotSig, snapshotSig, months, currentMonthKey, convert, baseCurrency, onSaveItemSnapshots, fetchKey, cacheEpoch, generation])
+  }, [itemContentSig, txSig, lotSig, snapshotSig, months, currentMonthKey, convert, baseCurrency, onSaveItemSnapshots, fetchKey, cacheEpoch, cacheProbed, generation])
 
   const itemValue = useCallback((item) => {
     return showOriginal ? getOriginalValue(item) : getItemValue(item)
