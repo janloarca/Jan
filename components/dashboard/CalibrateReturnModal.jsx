@@ -254,6 +254,16 @@ export default function CalibrateReturnModal({ onClose, netWorth, transactions, 
               'Each broker shows the return of ITS account, so calibration is per account: pick the account and type the percentages you see in that app (in IBKR: Performance & Reports, PortfolioAnalyst). We adjust that account start value so the % is exact. The in-between curve is estimated and historical trades are not recovered: use history import for that.'
             )}
           </p>
+          {/* FASE FX. El solver reproduce un retorno MONEY-weighted (Dietz);
+              PortfolioAnalyst muestra TWR por defecto. Con flujos en el
+              período los dos números difieren y calibrar con el equivocado
+              corrompe el ancla, así que se pide el MWR explícitamente. */}
+          <div className="p-2.5 rounded-lg text-xs leading-relaxed" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--accent-blue) 25%, transparent)', color: 'var(--text-secondary)' }}>
+            {t(
+              'Precisión: en IBKR, PortfolioAnalyst muestra TWR por defecto. Cambia "Performance Measure" a MWR antes de copiar: nuestro cálculo es money-weighted, igual que el MWR del broker. Si no hiciste depósitos ni retiros en el período, TWR y MWR coinciden y puedes copiar el que veas.',
+              'Precision: in IBKR, PortfolioAnalyst shows TWR by default. Switch "Performance Measure" to MWR before copying: our math is money-weighted, same as the broker\'s MWR. If you made no deposits or withdrawals in the period, TWR and MWR match and either number works.'
+            )}
+          </div>
 
           {error && (
             <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--alert-error-bg)', border: '1px solid var(--alert-error-border)' }}>
