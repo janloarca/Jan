@@ -7,9 +7,23 @@ import { authFetch, safeJson } from '@/lib/authFetch'
 import { buildFriendStats } from '@/lib/friendsStats'
 import { getItemValue } from '@/components/dashboard/utils'
 import PageShell, { PageTitle } from '@/components/PageShell'
-import { Users } from 'lucide-react'
+import { Users, UserPlus, KeyRound } from 'lucide-react'
 import { SkeletonCard } from '@/components/dashboard/Skeleton'
 import PageTour from '@/components/dashboard/PageTour'
+import { CHART_PALETTE } from '@/lib/colors'
+
+// A distinct color per person, stable across renders/reloads (hashed from
+// their uid, never random) — the SAME validated palette the rest of the app
+// uses for chart series (OKLCH-checked, ΔE ≥ 18 between adjacent entries),
+// not a new one invented for this page. Every avatar was flat gray before;
+// this is what actually reads as "more colorful" without adding noise, since
+// it's carrying real information (which person is which) instead of decoration.
+function avatarColor(seed) {
+  const s = String(seed || '?')
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
+  return CHART_PALETTE[h % CHART_PALETTE.length]
+}
 
 // Tokens, not literals: these used to be the DARK-theme hex values hardcoded, so in
 // light theme every percentage on this page rendered as pale pastel on white while
@@ -78,6 +92,7 @@ export default function FriendsPage() {
     [profile, user]
   )
   const avatar = useMemo(() => (displayName || '?').trim().charAt(0).toUpperCase(), [displayName])
+  const myColor = useMemo(() => avatarColor(user?.uid || displayName), [user, displayName])
 
   const hasIbkr = useMemo(() => (enrichedItems || []).some((it) => it._source === 'ibkr'), [enrichedItems])
 
@@ -256,38 +271,43 @@ export default function FriendsPage() {
         title={t('Amigos', 'Friends')}
         subtitle={t('Compara tu retorno con tus amigos: sin revelar montos.', 'Compare your return with friends: without revealing amounts.')} />
 
-        {/* Your card */}
-        <div className="rounded-xl p-4 border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--card-border)' }}>
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-full flex items-center justify-center text-lg font-bold shrink-0"
-              style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 18%, transparent)', color: 'var(--accent-blue)' }}>
+        {/* Your card — a hero treatment (bigger avatar, ring in your own
+            color, soft gradient wash), so this reads as the anchor of the
+            page instead of just another row like everyone else's. */}
+        <div className="rounded-2xl p-4 sm:p-5 border relative overflow-hidden" style={{
+          borderColor: 'var(--card-border)',
+          background: `linear-gradient(135deg, color-mix(in srgb, ${myColor} 14%, var(--bg-card)) 0%, var(--bg-card) 65%)`,
+        }}>
+          <div className="flex items-center gap-3.5">
+            <div className="w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold shrink-0 ring-2"
+              style={{ backgroundColor: `color-mix(in srgb, ${myColor} 22%, transparent)`, color: myColor, boxShadow: `0 0 0 1px ${myColor}` }}>
               {avatar}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold text-white truncate flex items-center gap-1">
+              <div className="text-base font-bold text-white truncate flex items-center gap-1.5">
                 <span className="truncate">{displayName}</span>
                 {verified && <VerifiedBadge lang={lang} />}
               </div>
               <div className="text-xs text-slate-500">{t('Tú', 'You')}</div>
             </div>
-            <div className="text-right">
-              <div className="flex items-end gap-3 justify-end">
-                <div>
-                  <div className="text-lg font-bold font-mono tabular-nums" style={{ color: pctColor(my.ytd) }}>{fmtPct(my.ytd)}</div>
-                  <div className="text-[9px] text-slate-500 uppercase tracking-wide">YTD</div>
+            <div className="text-right shrink-0">
+              <div className="flex items-end gap-2.5 justify-end">
+                <div className="px-2 py-1 rounded-lg" style={{ backgroundColor: `color-mix(in srgb, ${pctColor(my.ytd)} 14%, transparent)` }}>
+                  <div className="text-lg font-bold font-mono tabular-nums leading-tight" style={{ color: pctColor(my.ytd) }}>{fmtPct(my.ytd)}</div>
+                  <div className="text-[9px] text-slate-500 uppercase tracking-wide text-center">YTD</div>
                 </div>
-                <div>
-                  <div className="text-lg font-bold font-mono tabular-nums" style={{ color: pctColor(my.mtd) }}>{fmtPct(my.mtd)}</div>
-                  <div className="text-[9px] text-slate-500 uppercase tracking-wide">{t('mes', 'month')}</div>
+                <div className="px-2 py-1 rounded-lg" style={{ backgroundColor: `color-mix(in srgb, ${pctColor(my.mtd)} 14%, transparent)` }}>
+                  <div className="text-lg font-bold font-mono tabular-nums leading-tight" style={{ color: pctColor(my.mtd) }}>{fmtPct(my.mtd)}</div>
+                  <div className="text-[9px] text-slate-500 uppercase tracking-wide text-center">{t('mes', 'month')}</div>
                 </div>
               </div>
-              <div className="text-[10px] text-slate-500 mt-0.5">{t('hoy', 'today')} <span style={{ color: pctColor(my.day) }}>{fmtPct(my.day)}</span></div>
+              <div className="text-[10px] text-slate-500 mt-1">{t('hoy', 'today')} <span className="font-semibold" style={{ color: pctColor(my.day) }}>{fmtPct(my.day)}</span></div>
             </div>
           </div>
-          <div className="flex items-center justify-between mt-3">
+          <div className="flex items-center justify-between mt-3.5 pt-3 border-t" style={{ borderColor: 'var(--card-border)' }}>
             <p className="text-[10px] text-slate-600">🔒 {t('Solo se comparte tu % y tus símbolos: nunca montos.', 'Only your % and symbols are shared: never amounts.')}</p>
             <button onClick={handleUpdate} disabled={busy}
-              className="shrink-0 px-2.5 py-1 text-xs font-medium rounded-md disabled:opacity-50" style={{ color: '#fff', backgroundColor: 'var(--accent-blue)' }}>
+              className="shrink-0 px-3 py-1.5 text-xs font-semibold rounded-lg transition-opacity hover:opacity-90 disabled:opacity-50" style={{ color: '#fff', backgroundColor: 'var(--accent-blue)' }}>
               {busy ? '…' : t('Actualizar', 'Update')}
             </button>
           </div>
@@ -296,12 +316,18 @@ export default function FriendsPage() {
         {/* Create / join */}
         <div className="flex gap-2">
           <button onClick={() => { setCreating((v) => !v); setJoining(false) }}
-            className="flex-1 px-3 py-2 text-xs font-medium rounded-lg border transition-colors" style={{ borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
-            + {t('Crear grupo', 'Create group')}
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-semibold rounded-xl border transition-colors"
+            style={creating
+              ? { borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', color: 'var(--accent-blue)' }
+              : { borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
+            <UserPlus size={14} /> {t('Crear grupo', 'Create group')}
           </button>
           <button onClick={() => { setJoining((v) => !v); setCreating(false) }}
-            className="flex-1 px-3 py-2 text-xs font-medium rounded-lg border transition-colors" style={{ borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
-            {t('Unirme con código', 'Join with code')}
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-semibold rounded-xl border transition-colors"
+            style={joining
+              ? { borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', color: 'var(--accent-blue)' }
+              : { borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
+            <KeyRound size={14} /> {t('Unirme con código', 'Join with code')}
           </button>
         </div>
 
@@ -368,8 +394,8 @@ export default function FriendsPage() {
         {groups === null ? (
           <p className="text-xs text-slate-500">…</p>
         ) : groups.length === 0 ? (
-          <div className="rounded-xl p-6 text-center border" style={{ borderColor: 'var(--card-border)' }}>
-            <div className="text-3xl mb-2">🏆</div>
+          <div className="rounded-2xl p-6 text-center border" style={{ borderColor: 'var(--card-border)', background: 'linear-gradient(135deg, color-mix(in srgb, var(--accent-blue) 6%, var(--bg-card)) 0%, var(--bg-card) 70%)' }}>
+            <div className="text-4xl mb-2">🏆</div>
             <p className="text-sm text-white font-medium">{t('Aún no estás en ningún grupo', 'You\'re not in any group yet')}</p>
             <p className="text-xs text-slate-500 mt-1">{t('Crea uno y comparte el código con tus amigos, o únete con el código de alguien.', 'Create one and share the code with friends, or join with someone\'s code.')}</p>
           </div>
@@ -441,14 +467,18 @@ function GroupCard({ group, lang, t, metric = 'ytd', expanded, setExpanded, onCo
           const key = `${group.id}:${r.uid}`
           const isOpen = !!expanded[key]
           const hasDetail = (r.movers && r.movers.length > 0) || r.day != null
+          const isPodium = i < 3
+          const color = avatarColor(r.uid || r.displayName)
           return (
             <div key={r.uid}>
               <button onClick={() => hasDetail && setExpanded((p) => ({ ...p, [key]: !p[key] }))}
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[var(--bg-card-hover)]"
-                style={r.isYou ? { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 8%, transparent)' } : undefined}>
-                <span className="w-6 text-center text-sm shrink-0">{metric === 'mtd' && i === 0 ? '👑' : i < 3 ? MEDALS[i] : <span className="text-xs text-slate-500">{i + 1}</span>}</span>
+                style={r.isYou
+                  ? { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 8%, transparent)' }
+                  : isPodium ? { backgroundColor: 'color-mix(in srgb, var(--text-primary) 3%, transparent)' } : undefined}>
+                <span className="w-6 text-center text-base shrink-0">{metric === 'mtd' && i === 0 ? '👑' : isPodium ? MEDALS[i] : <span className="text-xs text-slate-500">{i + 1}</span>}</span>
                 <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-                  style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
+                  style={{ backgroundColor: `color-mix(in srgb, ${color} 20%, transparent)`, color }}>
                   {(r.avatar || r.displayName || '?').charAt(0).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -531,18 +561,28 @@ function GlobalBoard({ global, lang, t, api, flash, onChanged }) {
         <p className="px-4 py-3 text-xs text-slate-500">{t('Participa para ver el ranking global.', 'Join to see the global ranking.')}</p>
       ) : (
         <div className="divide-y" style={{ borderColor: 'var(--card-border)' }}>
-          {top.map((r) => (
-            <div key={r.rank} className="flex items-center gap-3 px-4 py-2"
-              style={r.isYou ? { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 8%, transparent)' } : undefined}>
-              <span className="w-6 text-center text-sm shrink-0">{r.rank <= 3 ? MEDALS[r.rank - 1] : <span className="text-xs text-slate-500">{r.rank}</span>}</span>
-              <span className="flex-1 min-w-0 text-sm text-white truncate flex items-center gap-1">
-                <span className="truncate">{r.pseudonym}</span>
-                {r.verified && <VerifiedBadge lang={lang} />}
-                {r.isYou && <span className="text-[10px] text-slate-500">({t('tú', 'you')})</span>}
-              </span>
-              <span className="text-sm font-bold font-mono tabular-nums shrink-0" style={{ color: pctColor(r.ytd) }}>{fmtPct(r.ytd)}</span>
-            </div>
-          ))}
+          {top.map((r) => {
+            const isPodium = r.rank <= 3
+            const color = avatarColor(r.pseudonym)
+            return (
+              <div key={r.rank} className="flex items-center gap-3 px-4 py-2"
+                style={r.isYou
+                  ? { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 8%, transparent)' }
+                  : isPodium ? { backgroundColor: 'color-mix(in srgb, var(--text-primary) 3%, transparent)' } : undefined}>
+                <span className="w-6 text-center text-base shrink-0">{isPodium ? MEDALS[r.rank - 1] : <span className="text-xs text-slate-500">{r.rank}</span>}</span>
+                <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+                  style={{ backgroundColor: `color-mix(in srgb, ${color} 20%, transparent)`, color }}>
+                  {(r.pseudonym || '?').charAt(0).toUpperCase()}
+                </div>
+                <span className="flex-1 min-w-0 text-sm text-white truncate flex items-center gap-1">
+                  <span className="truncate">{r.pseudonym}</span>
+                  {r.verified && <VerifiedBadge lang={lang} />}
+                  {r.isYou && <span className="text-[10px] text-slate-500">({t('tú', 'you')})</span>}
+                </span>
+                <span className="text-sm font-bold font-mono tabular-nums shrink-0" style={{ color: pctColor(r.ytd) }}>{fmtPct(r.ytd)}</span>
+              </div>
+            )
+          })}
           {global?.yourRank != null && global.yourRank > top.length && (
             <div className="px-4 py-2 text-xs text-slate-500">{t('Tu posición', 'Your rank')}: #{global.yourRank} {t('de', 'of')} {global.total}</div>
           )}
