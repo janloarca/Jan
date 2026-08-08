@@ -7,6 +7,13 @@ import { formatCurrency, getItemValue, getTypeCategory, isExcludedFromNetWorth, 
 import { InfoTip } from '../ui/Tooltip'
 import { yearEndMonthKeys } from '@/lib/yearOverYear'
 
+// Must match lib/historicalValues.js's IBKR_UNKNOWN_KEY_PREFIX exactly — not
+// imported statically because that file pulls in authFetch → Firebase Auth,
+// which breaks under Jest (same reason lib/yearOverYear.js has no imports).
+// getHistoricalItemValues is already only ever reached via dynamic import
+// below, so this file never actually needs the live binding, just the string.
+const IBKR_UNKNOWN_KEY_PREFIX = '__ibkr_unknown__'
+
 const CATEGORY_ORDER = ['banks', 'funds', 'stocks', 'crypto', 'alternatives', 'bonds', 'realestate', 'other', 'receivables', 'debts']
 const CATEGORY_LABELS = {
   banks: { es: 'Caja & Bancos', en: 'Cash & Banks' },
@@ -187,7 +194,10 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   const [loadingHistory, setLoadingHistory] = useState(false)
   const historyFetchedRef = useRef(false)
 
-  const ZOOM_LEVELS = [0.75, 0.875, 1, 1.125, 1.25]
+  // 0.5/0.6 added below the old 0.75 floor so a full year (12 monthly columns,
+  // or all 6 year-over-year columns) can fit on screen without horizontal
+  // scroll on a normal laptop width — 75% alone still clipped Oct-Dec.
+  const ZOOM_LEVELS = [0.5, 0.6, 0.75, 0.875, 1, 1.125, 1.25]
   const [zoom, setZoom] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = parseFloat(localStorage.getItem('chispudo-spreadsheet-zoom'))
@@ -518,6 +528,16 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     // "passed" that month, so it was never marked missing and never re-fetched
     // (FASE DS — this is what left Bonos Corporativos/VITALI blank for months
     // it demonstrably existed).
+    // getHistoricalItemValues never writes an IBKR item under its OWN id (see
+    // IBKR_UNKNOWN_KEY_PREFIX) — it collapses every IBKR position into one
+    // synthetic per-institution bucket instead. Checking `monthData[it.id]`
+    // for those items would never find anything, so every IBKR-eligible month
+    // read as permanently "missing" and got re-fetched (and re-saved) on every
+    // render that touched this effect's deps, however long it had already been
+    // computed correctly — the cache literally could never catch up.
+    const cacheKeyFor = (it) => it._source === 'ibkr'
+      ? `${IBKR_UNKNOWN_KEY_PREFIX}${it.institution || ''}__${getTypeCategory(it)}`
+      : it.id
     const cached = historicalItemsRef.current || {}
     const missingMonths = pastMonths.filter(mk => {
       if (generation > 0 && monthGenRef.current[mk] !== generation) return true
@@ -528,7 +548,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         const acq = effAcqTs(it)
         return acq == null || acq <= end
       })
-      return eligible.some(it => !monthData[it.id])
+      return eligible.some(it => !monthData[cacheKeyFor(it)])
     })
     if (missingMonths.length === 0) {
       lastFetchedYearRef.current = fetchKey
@@ -708,6 +728,11 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
           })
           rows.push([cat.label, it.symbol || it.name || '', ...cells].map(esc).join(','))
         })
+        const ibkrUnknownKey = `${IBKR_UNKNOWN_KEY_PREFIX}${inst.name}__${cat.key}`
+        const unknownCells = months.map(mk => mk === currentMonthKey ? '' : (historicalItems[mk]?.[ibkrUnknownKey]?.value?.toFixed(2) ?? ''))
+        if (unknownCells.some(c => c !== '')) {
+          rows.push([cat.label, t('Posiciones no identificadas', 'Unidentified positions'), ...unknownCells].map(esc).join(','))
+        }
       })
     })
     rows.push(['TOTAL', '', ...months.map(mk => {
@@ -740,6 +765,15 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
           })
           rows.push([cat.label, it.symbol || it.name || '', ...cells])
         })
+        const ibkrUnknownKey = `${IBKR_UNKNOWN_KEY_PREFIX}${inst.name}__${cat.key}`
+        const unknownCells = months.map(mk => {
+          if (mk === currentMonthKey) return null
+          const v = historicalItems[mk]?.[ibkrUnknownKey]?.value
+          return v != null ? Math.round(v * 100) / 100 : null
+        })
+        if (unknownCells.some(c => c != null)) {
+          rows.push([cat.label, t('Posiciones no identificadas', 'Unidentified positions'), ...unknownCells])
+        }
       })
     })
     rows.push(['TOTAL', '', ...months.map(mk => {
@@ -775,6 +809,10 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     const found = {}
     Object.entries(historicalItems).forEach(([mk, monthData]) => {
       Object.entries(monthData).forEach(([itemId, data]) => {
+        // The synthetic IBKR "unknown positions" bucket (getHistoricalItemValues)
+        // is a STILL-HELD group, not a removed one — it's keyed off the current
+        // items too, just not by a real item id (see IBKR_UNKNOWN_KEY_PREFIX).
+        if (data._syntheticIbkr) return
         if (!currentItemIds.has(itemId) && data.value != null) {
           if (!found[itemId]) found[itemId] = { symbol: data.symbol || itemId, months: {} }
           found[itemId].months[mk] = data.value
@@ -1054,6 +1092,11 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                   const instOrigTotal = showOriginal && singleCurrency
                     ? inst.items.reduce((s, it) => s + getOriginalValue(it), 0)
                     : null
+                  // getHistoricalItemValues (lib/historicalValues.js) writes IBKR
+                  // history under this synthetic key instead of a real item id —
+                  // see IBKR_UNKNOWN_KEY_PREFIX's comment above for why.
+                  const ibkrUnknownKey = `${IBKR_UNKNOWN_KEY_PREFIX}${inst.name}__${cat.key}`
+                  const hasIbkrUnknown = months.some(mk => mk !== currentMonthKey && historicalItems[mk]?.[ibkrUnknownKey])
 
                   return (
                     <Fragment key={instKey}>
@@ -1081,6 +1124,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                               inst.items.forEach(it => {
                                 if (it.id && histMonth[it.id]) instHistTotal += histMonth[it.id].value || 0
                               })
+                              if (histMonth[ibkrUnknownKey]) instHistTotal += histMonth[ibkrUnknownKey].value || 0
                             }
                             return (
                               <td key={mk} className="text-right py-2 px-2 font-medium tabular-nums font-mono text-sm" style={{ color: 'var(--text-muted)' }}>
@@ -1201,6 +1245,46 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                           </Fragment>
                         )
                       })}
+
+                      {/* Past months of an IBKR account are NEVER a real per-stock
+                          breakdown (getHistoricalItemValues only ever knows the
+                          account's TOTAL for a past month, never which of today's
+                          named positions it was split across) — one honest row
+                          instead of pretending today's 18 tickers were held back
+                          then. Never shown for the current month: that column is
+                          each item's own real, live value above. */}
+                      {(!showInst || !isInstCollapsed) && hasIbkrUnknown && (
+                        <tr className="border-t border-[var(--border-subtle)]" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                          <td className={`py-2.5 ${showInst ? 'pl-12' : 'pl-8'} pr-2 sticky left-0 z-10`} style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                            <span className="text-sm italic" style={{ color: 'var(--text-muted)' }}>
+                              {t('Posiciones no identificadas', 'Unidentified positions')}
+                            </span>
+                          </td>
+                          <td />
+                          {showOriginal && <td />}
+                          {months.map(mk => {
+                            const isCurrent = mk === currentMonthKey
+                            if (isCurrent) {
+                              return <td key={mk} className="text-right py-2.5 px-2" style={{ backgroundColor: CURRENT_COL_BG }} />
+                            }
+                            const cell = historicalItems[mk]?.[ibkrUnknownKey]
+                            const histVal = cell?.value ?? null
+                            const isEst = histVal != null && cell?.estimated
+                            return (
+                              <td key={mk} className="text-right py-2.5 px-2 tabular-nums font-mono text-sm" style={{ color: histVal != null ? 'var(--text-muted)' : 'var(--text-muted)' }}>
+                                {histVal != null ? (
+                                  <>
+                                    {isEst && (
+                                      <span title={t('Valor estimado: reconstruido, no es el NAV real sincronizado de ese mes', 'Estimated: reconstructed, not that month\'s real synced NAV')} style={{ color: 'var(--text-muted)', marginRight: '1px' }}>~</span>
+                                    )}
+                                    {formatNum(histVal)}
+                                  </>
+                                ) : '-'}
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      )}
                     </Fragment>
                   )
                 })}
