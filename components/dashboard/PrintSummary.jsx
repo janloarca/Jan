@@ -1,7 +1,15 @@
 'use client'
 
 import { useMemo, useRef } from 'react'
-import { formatCurrency, getTypeCategory, getItemValue, getItemPrice, TYPE_COLORS } from './utils'
+import { formatCurrency, getTypeCategory, getItemValue, getItemPrice } from './utils'
+
+// A financial-statement look, not a dashboard screenshot: black/gray ink only,
+// no accent colors. The user asked for this explicitly ("más profesional y
+// sin colores") — a printed/PDF report doesn't get the dashboard's live
+// green/red cues anyway (a page sitting in a drawer six months from now has
+// no "today" to compare against), and monochrome is the convention actual
+// bank/broker statements use. Negative amounts (debt, a negative return) use
+// parentheses, the accounting convention, instead of color to signal sign.
 
 export default function PrintSummary({ items, netWorth, totalAssets, snapshots, transactions, lang, onClose }) {
   const t = (es, en) => lang === 'es' ? es : en
@@ -107,16 +115,18 @@ export default function PrintSummary({ items, netWorth, totalAssets, snapshots, 
             </div>
             <div className="border rounded-lg p-3 text-center">
               <div className="text-xs text-gray-500">{t('Activos', 'Assets')}</div>
-              <div className="text-xl font-bold text-green-600">{formatCurrency(totalAssets)}</div>
+              <div className="text-xl font-bold text-gray-900">{formatCurrency(totalAssets)}</div>
             </div>
             <div className="border rounded-lg p-3 text-center">
               <div className="text-xs text-gray-500">{t('Deuda', 'Debt')}</div>
-              <div className="text-xl font-bold text-red-600">{debtTotal > 0 ? formatCurrency(debtTotal) : '$0'}</div>
+              <div className="text-xl font-bold text-gray-900">{debtTotal > 0 ? `(${formatCurrency(debtTotal)})` : '$0'}</div>
             </div>
             <div className="border rounded-lg p-3 text-center">
               <div className="text-xs text-gray-500">{t('Rendimiento', 'Return')}</div>
-              <div className="text-xl font-bold" style={{ color: (growthPct || 0) >= 0 ? '#059669' : '#dc2626' }}>
-                {growthPct != null ? `${growthPct >= 0 ? '+' : ''}${growthPct.toFixed(1)}%` : '-'}
+              <div className="text-xl font-bold text-gray-900">
+                {growthPct != null
+                  ? (growthPct < 0 ? `(${Math.abs(growthPct).toFixed(1)}%)` : `+${growthPct.toFixed(1)}%`)
+                  : '-'}
               </div>
             </div>
           </div>
@@ -143,10 +153,7 @@ export default function PrintSummary({ items, netWorth, totalAssets, snapshots, 
                     <td className="py-2 text-right text-gray-500">{pct.toFixed(1)}%</td>
                     <td className="py-2">
                       <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full rounded-full" style={{
-                          width: `${pct}%`,
-                          backgroundColor: TYPE_COLORS[cat]?.bg || '#64748b',
-                        }} />
+                        <div className="h-full rounded-full bg-gray-700" style={{ width: `${pct}%` }} />
                       </div>
                     </td>
                   </tr>
@@ -197,7 +204,7 @@ export default function PrintSummary({ items, netWorth, totalAssets, snapshots, 
               <div className="grid grid-cols-3 gap-3 mb-3">
                 <div className="border rounded-lg p-3 text-center">
                   <div className="text-xs text-gray-500">{t('Anual', 'Annual')}</div>
-                  <div className="text-lg font-bold text-green-600">{formatCurrency(estIncome)}</div>
+                  <div className="text-lg font-bold text-gray-900">{formatCurrency(estIncome)}</div>
                 </div>
                 <div className="border rounded-lg p-3 text-center">
                   <div className="text-xs text-gray-500">{t('Mensual', 'Monthly')}</div>
@@ -227,14 +234,14 @@ export default function PrintSummary({ items, netWorth, totalAssets, snapshots, 
                   {debts.map((it) => (
                     <tr key={it.id} className="border-b border-gray-100">
                       <td className="py-1.5 font-medium">{it.name || it.symbol}</td>
-                      <td className="py-1.5 text-right text-red-600">{formatCurrency(Math.abs(getItemValue(it)))}</td>
+                      <td className="py-1.5 text-right text-gray-900">({formatCurrency(Math.abs(getItemValue(it)))})</td>
                       <td className="py-1.5 text-right text-gray-500">{it.interestRate ? `${it.interestRate}%` : '-'}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              <div className="text-right mt-2 font-bold text-red-600">
-                {t('Total deuda', 'Total debt')}: {formatCurrency(debtTotal)}
+              <div className="text-right mt-2 font-bold text-gray-900">
+                {t('Total deuda', 'Total debt')}: ({formatCurrency(debtTotal)})
               </div>
             </div>
           )}
