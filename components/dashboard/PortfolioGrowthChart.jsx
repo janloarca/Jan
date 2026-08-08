@@ -5,7 +5,7 @@ import { formatCurrency, formatCompact, formatAxisTick, formatDate, getItemValue
 import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { indexBalanceEvents } from '@/lib/historicalValues'
 import { isBankLikeItem } from '@/lib/contributions'
-import { computeTWRSeries, computeAnchoredReturnSeries, filterValueSpikes } from './analytics'
+import { computeTWRSeries, computeAnchoredReturnSeries, computeAnchoredMWRSeries, filterValueSpikes } from './analytics'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import ErrorState from '@/components/ui/ErrorState'
 
@@ -93,7 +93,14 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const [fetchError, setFetchError] = useState(null)
   const [staticTotal, setStaticTotal] = useState(0)
   const [staticPoints, setStaticPoints] = useState([])
+  // FASE FP. Three tabs: 'value' (untouched), 'performance' (the frozen
+  // anchored series, labeled TWR, the DEFAULT return view) and
+  // 'performance-mwr' (money-weighted sibling). Everything that used to gate
+  // on viewMode === 'performance' and means "any return view" gates on
+  // isPerf instead; everything gating on viewMode === 'value' is untouched
+  // by construction (a third mode can never equal 'value').
   const [viewMode, setViewMode] = useState('value')
+  const isPerf = viewMode === 'performance' || viewMode === 'performance-mwr'
   // Opt-in, not opt-on: a second dashed line that diverges sharply from the
   // value line (money invested vs. what it's worth today) reads as a stray
   // rendering glitch to someone who hasn't been told what it means. Showing
@@ -828,13 +835,13 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     // full-period TWR invents a number the broker never reported (user saw +0.32%
     // vs IBKR's +9.98%). Rebase the performance view to the real region; the
     // Value view keeps the (labeled) estimated history for wealth trajectory.
-    if (viewMode === 'performance' && !apiTransactional && firstRealTs != null && pts.length > 1
+    if (isPerf && !apiTransactional && firstRealTs != null && pts.length > 1
       && pts[0].ts < firstRealTs - 3600000) {
       const real = pts.filter((p) => p.ts >= firstRealTs - 3600000)
       if (real.length >= 2) return real
     }
     return pts
-  }, [dataPoints, snapshotData, currentTotal, period, staticPoints, selectedInst, manualAddedTs, snapshots, items, convert, baseCurrency, viewMode, firstRealTs, apiTransactional, reconstructionIsExact])
+  }, [dataPoints, snapshotData, currentTotal, period, staticPoints, selectedInst, manualAddedTs, snapshots, items, convert, baseCurrency, viewMode, isPerf, firstRealTs, apiTransactional, reconstructionIsExact])
 
   // Whether the auto-imported IBKR cash flows (_source:'ibkr') enter the return math
   // depends on the SOURCE of the value series (lesson from the +1.98% vs IBKR's
@@ -865,12 +872,27 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     () => computeAnchoredReturnSeries(chartData, returnTransactions, convert, baseCurrency, { firstRealTs, apiTransactional }),
     [chartData, returnTransactions, convert, baseCurrency, firstRealTs, apiTransactional]
   )
+  // FASE FP. The money-weighted sibling tab: same anchor, same window, same
+  // inputs, only the formula differs (one Dietz window, timing of the user's
+  // own flows counts, instead of chained timing-stripped segments). ADDITIVE
+  // next to the frozen series, never replacing it: the frozen TWR stays the
+  // default return tab, and computeAnchoredMWRSeries lives in analytics.js
+  // as its own function precisely so the frozen one is never edited. Only
+  // computed while its tab is active — no reason to run a second Dietz pass
+  // on every price tick for a series nobody is looking at.
+  const returnDataMWR = useMemo(
+    () => viewMode === 'performance-mwr'
+      ? computeAnchoredMWRSeries(chartData, returnTransactions, convert, baseCurrency, { firstRealTs, apiTransactional })
+      : [],
+    [viewMode, chartData, returnTransactions, convert, baseCurrency, firstRealTs, apiTransactional]
+  )
+  const activeReturnData = viewMode === 'performance-mwr' ? returnDataMWR : returnData
 
   // Non-null when the performance view was rebased to the first real broker
   // datapoint (IBKR's "Jan 1 or account open, whichever is later" convention).
   // Drives the "Retorno desde {fecha}" label so the number is never presented
   // as a full-year return it isn't.
-  const perfRebasedFrom = viewMode === 'performance' && !apiTransactional && firstRealTs != null
+  const perfRebasedFrom = isPerf && !apiTransactional && firstRealTs != null
     && (period === 'YTD' || period === 'ALL')
     && firstRealTs > Date.UTC(new Date().getUTCFullYear(), 0, 1) + 45 * 86400000
     && chartData.length > 0 && chartData[0].ts >= firstRealTs - 3600000
@@ -1048,7 +1070,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const growthValues = useMemo(() => chartData.map((d) => d.value), [chartData])
 
   const geo = useMemo(() => {
-    const vals = viewMode === 'value' ? growthValues : returnData
+    const vals = viewMode === 'value' ? growthValues : activeReturnData
     if (vals.length < 2) return null
     // Extra series shares the axis: invested capital, in value mode only, when
     // the user opts into showing it. Including it here is what keeps both
@@ -1056,7 +1078,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     const extra = viewMode === 'value' && showContributions ? contributionLine : null
     const timestamps = chartData.map((d) => d.ts)
     return buildGeometry(vals, viewMode === 'value' ? 'value' : 'performance', chartHeight, width, pad, extra, timestamps)
-  }, [viewMode, growthValues, returnData, contributionLine, showContributions, chartData, width])
+  }, [viewMode, growthValues, activeReturnData, contributionLine, showContributions, chartData, width])
 
   const contributionGeoPoints = useMemo(() => {
     if (!geo || !contributionLine || viewMode !== 'value' || !showContributions) return null
@@ -1139,7 +1161,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   // that recalculates the XOCHI+VITALI regression case above with the real
   // function.
   const { growthPct, displayAbs } = computeWindowGrowth({ firstVal, lastVal, investedBase, entryFeesInScope })
-  const lastReturn = returnData.length > 0 ? returnData[returnData.length - 1] : 0
+  const lastReturn = activeReturnData.length > 0 ? activeReturnData[activeReturnData.length - 1] : 0
   // Annualized (CAGR) companion for multi-year spans — "+180% ALL" over 6 years is
   // easy to misread as a yearly figure.
   const spanYears = chartData.length > 1 ? (chartData[chartData.length - 1].ts - chartData[0].ts) / (365.25 * 86400000) : 0
@@ -1261,8 +1283,13 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
   return (
     <div ref={containerRef} className="card-glass rounded-2xl p-5">
-      {/* Tab bar: Value | Performance */}
-      <div className="flex items-center gap-4 mb-4">
+      {/* Tab bar: Value | Performance TWR | Performance MWR (FASE FP).
+          Value is untouched. TWR is the frozen anchored series and the
+          default return view (the strategy's return, IBKR's headline
+          methodology); MWR is the money-weighted sibling where the timing
+          of the user's own deposits counts. Both run over whatever
+          institution scope is selected below. */}
+      <div className="flex items-center gap-4 mb-4 flex-wrap">
         <button onClick={() => setViewMode('value')}
           className="text-sm font-medium pb-1 transition-all border-b-2"
           style={viewMode === 'value'
@@ -1274,8 +1301,17 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           className="text-sm font-medium pb-1 transition-all border-b-2"
           style={viewMode === 'performance'
             ? { color: 'var(--text-primary)', borderColor: 'var(--text-primary)' }
-            : { color: 'var(--text-muted)', borderColor: 'transparent' }}>
-          {t('Rendimiento', 'Performance')}
+            : { color: 'var(--text-muted)', borderColor: 'transparent' }}
+          title={t('Retorno ponderado por tiempo: mide la estrategia, ignora el timing de tus aportes', 'Time-weighted return: measures the strategy, ignores the timing of your contributions')}>
+          {t('Rendimiento TWR', 'Performance TWR')}
+        </button>
+        <button onClick={() => setViewMode('performance-mwr')}
+          className="text-sm font-medium pb-1 transition-all border-b-2"
+          style={viewMode === 'performance-mwr'
+            ? { color: 'var(--text-primary)', borderColor: 'var(--text-primary)' }
+            : { color: 'var(--text-muted)', borderColor: 'transparent' }}
+          title={t('Retorno ponderado por dinero: tu rendimiento real, el timing de tus aportes cuenta', 'Money-weighted return: your actual return, the timing of your contributions counts')}>
+          {t('Rendimiento MWR', 'Performance MWR')}
         </button>
         <div className="ml-auto flex items-center gap-2">
           {viewMode === 'value' && contributionLine && (
@@ -1286,9 +1322,6 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
               {t('Invertido', 'Invested')}
             </button>
           )}
-          {/* Single return metric: TWR with IBKR's methodology (chained sub-period
-              returns, flows at start of period). The TWR/MWR toggle confused users
-              and the two numbers disagreed with the broker; one number, one truth. */}
         </div>
       </div>
 
@@ -1343,17 +1376,17 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       ) : (
         <div className="mb-3">
           <p className="text-3xl font-bold font-mono tabular-nums flex items-center gap-2" style={{ color: lastReturn >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
-            {lastReturn >= 0 ? '+' : ''}{(hoverIdx != null && returnData[hoverIdx] != null ? returnData[hoverIdx] : lastReturn).toFixed(2)}%
+            {lastReturn >= 0 ? '+' : ''}{(hoverIdx != null && activeReturnData[hoverIdx] != null ? activeReturnData[hoverIdx] : lastReturn).toFixed(2)}%
             {/* Mode chip inline with the number — the tiny caption below was easy
-                to miss, and an unlabeled return % invites misreading. */}
-            {/* FASE EN. The badge said MWR (dollar-weighted/IRR-style) but the
-                method behind it (computeAnchoredReturnSeries, chained
-                sub-period returns off the NAV series) is TWR — same
-                methodology IBKR itself uses, per the comment above this JSX
-                block. Label only; the math underneath does not change. */}
+                to miss, and an unlabeled return % invites misreading. Since FASE
+                FP the chip matches the ACTIVE tab: the frozen anchored series
+                (chained sub-periods, IBKR's methodology) is TWR; the sibling
+                money-weighted tab is MWR. */}
             <span className="text-xs font-sans font-semibold px-1.5 py-0.5 rounded" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-tertiary)' }}
-              title={t('Retorno ponderado por tiempo: cadena el retorno de cada sub-período, la misma metodología que usa tu broker', 'Time-weighted return: chains each sub-period\'s return, the same methodology your broker uses')}>
-              TWR
+              title={viewMode === 'performance-mwr'
+                ? t('Retorno ponderado por dinero (Dietz modificado): el timing de tus aportes cuenta, igual que el MWR de tu broker', 'Money-weighted return (Modified Dietz): the timing of your contributions counts, same as your broker\'s MWR')
+                : t('Retorno ponderado por tiempo: cadena el retorno de cada sub-período, la misma metodología que usa tu broker', 'Time-weighted return: chains each sub-period\'s return, the same methodology your broker uses')}>
+              {viewMode === 'performance-mwr' ? 'MWR' : 'TWR'}
             </span>
             {annualizedReturn != null && hoverIdx == null && (
               <span className="text-xs font-sans font-normal text-slate-500 font-mono tabular-nums">
@@ -1368,7 +1401,9 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                 : period === 'YTD' ? t('Retorno total del año', 'Total return this year') : period === 'DAY' ? t('Retorno hoy', 'Return today') : `${t('Retorno', 'Return')} ${period}`}
             </span>
             <span className="text-xs text-slate-600">
-              {t('Cuenta cuándo pusiste tu dinero', 'Counts when you put your money in')}
+              {viewMode === 'performance-mwr'
+                ? t('Tu rendimiento real: el timing de tus aportes cuenta', 'Your actual return: the timing of your contributions counts')
+                : t('El rendimiento de la estrategia: ignora el timing de tus aportes', 'The strategy\'s return: ignores the timing of your contributions')}
             </span>
           </div>
         </div>
@@ -1412,7 +1447,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       {(period === 'YTD' || period === 'ALL') && !apiTransactional && firstRealTs != null && chartData.length > 1
         && !estimateNoticeDismissed && primaryBrokerId != null
         && firstRealTs > Date.UTC(new Date().getUTCFullYear(), 0, 1) + 45 * 86400000
-        && (viewMode === 'performance' || chartData[0].ts < firstRealTs - 3600000) && (
+        && (isPerf || chartData[0].ts < firstRealTs - 3600000) && (
         <div className="relative flex items-start gap-2 px-2.5 py-1.5 pr-7 rounded-lg text-xs mb-3"
           style={{ backgroundColor: 'var(--alert-info-bg)', border: '1px solid var(--alert-info-border)', color: 'var(--alert-info-icon)' }}>
           <span>ℹ</span>
@@ -1421,7 +1456,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                 chart, "which of my accounts is this about?" is the question the
                 notice has to answer before anything else. */}
             <span className="font-semibold">{estimateScopeLabel || t('Tu broker', 'Your broker')}: </span>
-            {viewMode === 'performance'
+            {isPerf
               ? t(`el retorno se mide desde ${formatDate(new Date(firstRealTs).toISOString())}, el primer día con datos reales de esta cuenta (igual que haría IBKR con una cuenta nueva).`,
                   `return is measured from ${formatDate(new Date(firstRealTs).toISOString())}, the first day with real data for this account (just like IBKR would for a new account).`)
               : t(`datos reales desde ${formatDate(new Date(firstRealTs).toISOString())}; antes es un estimado.`,
@@ -1509,13 +1544,13 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                 few px from the dedicated "0%" baseline label — skip its text (keep
                 the gridline) so the two never collide ("-1.20%" over "0%"). */}
             {geo.yTicks.map((tk, i) => {
-              const collidesWithBaseline = viewMode === 'performance' && Math.abs(tk.y - geo.baselineY) < 12
+              const collidesWithBaseline = isPerf && Math.abs(tk.y - geo.baselineY) < 12
               return (
                 <g key={i}>
                   <line x1={pad.left} y1={tk.y} x2={width - pad.right} y2={tk.y} stroke="var(--card-border)" strokeDasharray="4 4" strokeOpacity="0.8" />
                   {!collidesWithBaseline && (
                     <text x={pad.left - 8} y={tk.y + 4} textAnchor="end" fill="var(--text-muted)" fontSize="10" fontFamily="system-ui">
-                      {viewMode === 'performance' ? `${tk.val >= 0 ? '+' : ''}${tk.val.toFixed(tk.val === 0 ? 0 : 2)}%` : formatAxisTick(tk.val, tk.step, baseCurrency)}
+                      {isPerf ? `${tk.val >= 0 ? '+' : ''}${tk.val.toFixed(tk.val === 0 ? 0 : 2)}%` : formatAxisTick(tk.val, tk.step, baseCurrency)}
                     </text>
                   )}
                 </g>
@@ -1713,8 +1748,8 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                 </>
               ) : (
                 <>
-                  <div className="font-bold" style={{ color: (returnData[hoverIdx] ?? 0) >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
-                    {t('Portafolio', 'Portfolio')}: {(returnData[hoverIdx] ?? 0) >= 0 ? '+' : ''}{(returnData[hoverIdx] ?? 0).toFixed(2)}%
+                  <div className="font-bold" style={{ color: (activeReturnData[hoverIdx] ?? 0) >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
+                    {t('Portafolio', 'Portfolio')}: {(activeReturnData[hoverIdx] ?? 0) >= 0 ? '+' : ''}{(activeReturnData[hoverIdx] ?? 0).toFixed(2)}%
                   </div>
                   <div className="text-slate-300">{formatCurrency(hd.value)}</div>
                   <div className="text-slate-500">{formatTooltipDate(hd.date)}</div>
@@ -1753,13 +1788,15 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           )}
         </div>
       )}
-      {viewMode === 'performance' && (
+      {isPerf && (
         <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 mt-2 text-xs text-slate-500">
           {/* The line renders green above 0% and red below — document both colors */}
           <span className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: 'var(--accent-green)' }} />
             <span className="w-1.5 h-1.5 rounded-full inline-block -ml-1" style={{ backgroundColor: 'var(--text-negative)' }} />
-            {t('Tu portafolio (TWR): verde sobre 0%, rojo debajo', 'Your portfolio (TWR): green above 0%, red below')}
+            {viewMode === 'performance-mwr'
+              ? t('Tu portafolio (MWR): verde sobre 0%, rojo debajo', 'Your portfolio (MWR): green above 0%, red below')
+              : t('Tu portafolio (TWR): verde sobre 0%, rojo debajo', 'Your portfolio (TWR): green above 0%, red below')}
           </span>
         </div>
       )}

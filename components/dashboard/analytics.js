@@ -837,3 +837,90 @@ export function computeAnchoredReturnSeries(chartData, transactions, convert, ba
 
   return out
 }
+
+// FASE FP. The money-weighted SIBLING of computeAnchoredReturnSeries — an
+// EXTENSION of the frozen logic, never a change to it (the protocol in
+// lib/assetLogic/corporateBondWithEntryFee.js permits extending, forbids
+// rewriting; the frozen function above stays byte-identical and remains the
+// chart's default "Rendimiento TWR" tab).
+//
+// Same anchor, same window, one difference: NO chained segments. The frozen
+// series opens a fresh segment at every funding boundary, which is exactly
+// what strips out the timing of the user's own deposits — capital arriving
+// late "contributes nothing until it itself earns something". That is the
+// time-weighted (strategy) reading. This function instead runs ONE Modified
+// Dietz window from the anchor to the end, with every later
+// DEPOSIT/WITHDRAWAL netting INSIDE the window at its time weight: capital
+// arriving right before a rally helps the number, capital sitting idle drags
+// it — the money-weighted ("how did MY money actually do", IBKR's MWR)
+// reading. With no flows inside the window the two coincide exactly, which
+// is the property that keeps VITALI at 3.94% on BOTH tabs.
+//
+// Fee convention, per event, still respects the frozen invariant
+// (costBasis - principal === fee, fee never charged twice):
+//  - The ANCHOR's own funding is folded into the anchor value (excluded as a
+//    flow), so its fee re-enters through an anchor-only rescale:
+//    principal-at-anchor / cash-that-funded-it — the exact rescale shape the
+//    frozen function uses, restricted to the anchor. VITALI-only: 4.00% raw
+//    × (6000/6098) = 3.94%, same as the TWR tab.
+//  - Every LATER funding nets as CASH (fee included) with its Dietz time
+//    weight — that is how IBKR's own MWR treats a purchase + commission
+//    (money out of pocket that bought less value than it cost), and it is
+//    charged exactly once: later boundaries are deliberately NOT part of the
+//    rescale, or their fee would count in both numerator and denominator
+//    (the documented 2.33% double-charge shape).
+export function computeAnchoredMWRSeries(chartData, transactions, convert, baseCurrency, opts = {}) {
+  if (!chartData || chartData.length < 2) return []
+  const windowStartTs = chartData[0].ts
+
+  // Hold-flat prefix branch: byte-for-byte the frozen function's own branch.
+  // It is already a single Dietz window there, so TWR and MWR coincide — a
+  // broker-synced prefix carries no per-item entry fee to differ over.
+  const hasHoldFlatPrefix = !opts.apiTransactional && opts.firstRealTs != null
+    && chartData[0].ts < opts.firstRealTs - 3600000
+  if (hasHoldFlatPrefix) {
+    const idx = chartData.findIndex((p) => p.ts >= opts.firstRealTs - 3600000)
+    const anchorIdx = idx > 0 ? idx : -1
+    const measured = anchorIdx > 0 ? chartData.slice(anchorIdx) : chartData
+    if (measured.length < 2) return []
+    const series = computeMWRSeries(measured, transactions, convert, baseCurrency, { flowFromTs: opts.firstRealTs })
+    return anchorIdx > 0 ? [...Array(anchorIdx).fill(0), ...series] : series
+  }
+
+  const zeroIdx = chartData.findIndex((p) => (p.value ?? p.total ?? 0) > 0)
+  if (zeroIdx === -1) return chartData.map(() => 0)
+
+  const measured = zeroIdx > 0 ? chartData.slice(zeroIdx) : chartData
+  if (measured.length < 2) return chartData.map(() => 0)
+  // flowFromTs excludes the anchor's own funding (already folded into
+  // measured[0].value — netting it again would double-count, same reasoning
+  // as every segment start in the frozen function). Later flows all net.
+  const local = computeMWRSeries(measured, transactions, convert, baseCurrency,
+    { flowFromTs: measured[0].ts + 1 })
+  const out = new Array(chartData.length).fill(0)
+  for (let j = 0; j < measured.length; j++) out[zeroIdx + j] = local[j] || 0
+
+  // Anchor-only fee rescale (see header comment): the cash that created the
+  // anchor value vs the value it actually bought.
+  if (zeroIdx > 0) {
+    const anchorTs = chartData[zeroIdx].ts
+    const prevVal = chartData[zeroIdx - 1].value ?? chartData[zeroIdx - 1].total ?? 0
+    const anchorPrincipal = (chartData[zeroIdx].value ?? chartData[zeroIdx].total ?? 0) - prevVal
+    let anchorCost = 0
+    for (const tx of transactions || []) {
+      const ty = (tx.type || '').toUpperCase()
+      if (ty !== 'DEPOSIT' && ty !== 'WITHDRAWAL') continue
+      const ts = tx.date ? new Date(tx.date).getTime() : NaN
+      if (!Number.isFinite(ts) || ts <= windowStartTs || ts > anchorTs) continue
+      const raw = Number(tx.totalAmount ?? 0)
+      const amt = convert ? convert(raw, tx.currency || 'USD', baseCurrency || 'USD') : raw
+      if (Number.isFinite(amt)) anchorCost += ty === 'DEPOSIT' ? amt : -amt
+    }
+    if (anchorCost > 0 && anchorPrincipal > 0) {
+      const scale = anchorPrincipal / anchorCost
+      for (let i = zeroIdx; i < out.length; i++) out[i] *= scale
+    }
+  }
+
+  return out
+}
