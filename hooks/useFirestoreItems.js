@@ -970,14 +970,21 @@ export function useFirestoreItems() {
     // would block a real daily/ibkr import landing on the anchor date.
     const existingSnapByDate = new Map((snapshots || []).filter((s) => s && !s._account).map((s) => [s.date || s.id, s]))
     for (const snap of (newSnaps || [])) {
-      const id = snap.date || now.split('T')[0]
-      const existing = existingSnapByDate.get(id)
-      if (existing) {
-        const incoming = SNAPSHOT_SRC_PRIORITY[snap._source] || 0
-        const current = SNAPSHOT_SRC_PRIORITY[existing._source] || 0
-        if (incoming < current) continue
+      // FASE FU: `_docId` es una decisión explícita del caller (el planificador
+      // de NAV de IBKR) de escribir un doc PARALELO (`fecha~nav~ibkr`) en vez
+      // de pelear por el doc plano de la fecha: la precedencia por fecha no
+      // aplica, el caller ya resolvió la colisión apartándose de ella.
+      const { _docId, ...body } = snap
+      const id = _docId || snap.date || now.split('T')[0]
+      if (!_docId) {
+        const existing = existingSnapByDate.get(id)
+        if (existing) {
+          const incoming = SNAPSHOT_SRC_PRIORITY[snap._source] || 0
+          const current = SNAPSHOT_SRC_PRIORITY[existing._source] || 0
+          if (incoming < current) continue
+        }
       }
-      ops.push({ type: 'set', ref: fs.doc(db, `users/${uid}/snapshots`, id), data: strip({ ...snap, createdAt: now }) })
+      ops.push({ type: 'set', ref: fs.doc(db, `users/${uid}/snapshots`, id), data: strip({ ...body, createdAt: now }) })
     }
 
     const CHUNK = 30

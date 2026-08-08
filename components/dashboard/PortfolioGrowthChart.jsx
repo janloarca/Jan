@@ -5,6 +5,7 @@ import { formatCurrency, formatCompact, formatAxisTick, formatDate, getItemValue
 import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { indexBalanceEvents } from '@/lib/historicalValues'
 import { isBankLikeItem } from '@/lib/contributions'
+import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
 import { computeTWRSeries, computeAnchoredReturnSeries, computeAnchoredMWRSeries, filterValueSpikes } from './analytics'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import ErrorState from '@/components/ui/ErrorState'
@@ -433,6 +434,15 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     // curve and then crash to the scoped value at the end — so fall back to the
     // (correctly scoped) API series. IBKR-backed views keep using snapshots.
     if (selectedInst !== 'ALL' && scopedItems.length > 0 && scopedItems.every(it => it._source !== 'ibkr')) return []
+    // FASE FU. Con los docs paralelos de NAV (`fecha~nav~ibkr`) una fecha puede
+    // traer la observación de portafolio COMPLETO y el NAV de UNA cuenta. La
+    // vista "Todas" mide el portafolio entero: un día con ambos usa la
+    // observación completa (idéntico a antes de que los docs paralelos
+    // existieran); un día solo-broker se queda y el overlay lo completa, como
+    // siempre. La vista escopada hace lo contrario más abajo (solo
+    // BROKER_NAV_SOURCES), donde los docs paralelos son exactamente el NAV
+    // real denso que antes se descartaba al importar.
+    const sourceSnaps = selectedInst === 'ALL' ? preferFullPortfolioPerDay(snapshots) : snapshots
     const now = Date.now()
     const bc = baseCurrency || 'USD'
     const convertVal = (s) => {
@@ -442,7 +452,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
     if (period === 'DAY') {
       const threeDaysAgo = now - 3 * 86400000
-      const recentSnaps = [...snapshots]
+      const recentSnaps = [...sourceSnaps]
         .filter(s => s.date && new Date(s.date).getTime() >= threeDaysAgo
           && (selectedInst === 'ALL' ? !s._calibrated : BROKER_NAV_SOURCES.includes(s._source)))
         .sort((a, b) => new Date(a.date) - new Date(b.date))
@@ -469,7 +479,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     else if (period === 'ALL') cutoff = 0
     else cutoff = now - (periodDays[period] || 365) * 86400000
 
-    let pts = [...snapshots]
+    let pts = [...sourceSnaps]
       .filter((s) => {
         if (!s.date) return false
         // A calibration anchor (chartSnapshots in useDashboardData) is always a
@@ -536,7 +546,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     }
 
     if (period === 'MTD' && pts.length < 2) {
-      const sorted = [...snapshots]
+      const sorted = [...sourceSnaps]
         .filter(s => s.date && new Date(s.date).getTime() < cutoff
           && (selectedInst === 'ALL' ? !s._calibrated : BROKER_NAV_SOURCES.includes(s._source)))
         .sort((a, b) => new Date(b.date) - new Date(a.date))
@@ -802,7 +812,10 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         // near Jan 1) the existing pts[0].value fallback — never a whole-
         // portfolio figure standing in for one institution's slice of it.
         const bc = baseCurrency || 'USD'
-        const anchorSource = selectedInst === 'ALL' ? snapshots : (snapshots || []).filter(s => BROKER_NAV_SOURCES.includes(s._source))
+        // FASE FU: mismo criterio que snapshotData. El ancla de la vista
+        // "Todas" nunca debe caer en un doc paralelo de NAV (una sola cuenta
+        // haciéndose pasar por el arranque del portafolio completo).
+        const anchorSource = selectedInst === 'ALL' ? preferFullPortfolioPerDay(snapshots) : (snapshots || []).filter(s => BROKER_NAV_SOURCES.includes(s._source))
         const anchorSnap = findYearStartAnchor(anchorSource, year)
         const anchorVal = anchorSnap
           ? (anchorSnap._source === 'manual' && anchorSnap._rawValue != null && anchorSnap._rawCurrency === bc

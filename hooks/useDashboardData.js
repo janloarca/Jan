@@ -11,6 +11,8 @@ import { indexBalanceEvents } from '@/lib/historicalValues'
 import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget } from '@/lib/autoDividends'
 import { unlinkedOpeningDeposits } from '@/lib/originDeposits'
 import { corruptSnapshotRunIds } from '@/lib/corruptSnapshots'
+import { planEquitySnapshotWrites } from '@/lib/ibkrSnapshotPlan'
+import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
 import { staleBackfillDates } from '@/lib/snapshotBackfill'
 import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanDays, earliestNeededDays as computeEarliestNeededDays } from '@/lib/brokerCompletion'
 import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds } from '@/lib/inferredFlows'
@@ -627,47 +629,20 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       }
     }
 
-    // Let a fresh IBKR equity entry overwrite a stale snapshot for the same date
-    // (a wrong value written once must be correctable by a later sync). But NEVER
-    // downgrade a FULL-portfolio snapshot (daily writer, sums all assets) to
-    // broker-only NAV — that same-date tug-of-war alternated the chart between
-    // ~broker-NAV and ~full-NAV days (the twin-spike artifact).
-    const byDate = new Map(snapshots.map(s => [s.date, s]))
-    const newSnaps = (data.equityHistory || [])
-      .filter(entry => {
-        const prev = byDate.get(entry.date)
-        if (!prev) return true
-        const nav = entry.netWorthUSD || 0
-        const prevVal = prev.netWorthUSD ?? 0
-        if (prev._source === 'ibkr') return prevVal !== nav
-        // A 'backfill' doc is a RECONSTRUCTION (today's holdings priced at past
-        // dates), not an observation, and for a portfolio grown by deposits it
-        // reads far too high: one real account had January estimated at 7,153
-        // against a true 5,424. Real broker NAV must be allowed to correct it in
-        // EITHER direction. The old rule only accepted a higher value, so
-        // importing the true, lower history silently changed nothing and the
-        // year kept measuring from an invented starting point.
-        if (prev._source === 'backfill') return prevVal !== nav
-        // A daily/manual snapshot is a FULL-portfolio observation while broker
-        // NAV covers one account, so downgrading it would lose the rest of the
-        // holdings. Only take the broker figure when it is higher.
-        return nav > prevVal
-      })
-      .map(entry => {
-        // IBKR equity is in the account's base currency. Convert to USD when it
-        // isn't already (uses the current FX rate — no historical FX available — so
-        // it's an approximation, but far better than treating EUR/etc. as USD). No-op
-        // for USD-base accounts (the common case).
-        const cur = entry._equityCurrency || 'USD'
-        const toUSD = (v) => (cur !== 'USD' && convert ? convert(v || 0, cur, 'USD') : (v || 0))
-        return {
-          date: entry.date,
-          totalActivosUSD: toUSD(entry.totalActivosUSD || entry.netWorthUSD || 0),
-          totalDebtUSD: toUSD(entry.totalDebtUSD || 0),
-          netWorthUSD: toUSD(entry.netWorthUSD || 0),
-          _source: 'ibkr',
-        }
-      })
+    // FASE FU. El NAV real del broker se guarda SIEMPRE. La regla vieja ("una
+    // fecha ocupada por el snapshot diario completo solo acepta el NAV si es
+    // mayor") descartaba casi TODO el Equity Summary: el usuario abre la app a
+    // diario, así que casi cada fecha tenía doc 'daily' (~portafolio completo,
+    // siempre mayor que una sola cuenta) y la vista escopada a IBKR quedaba
+    // dibujada con reconstrucción estimada en vez de los números del broker.
+    // planEquitySnapshotWrites resuelve la colisión escribiendo un doc
+    // PARALELO (`fecha~nav~ibkr`) cuando la fecha la ocupa una observación
+    // completa; preferFullPortfolioPerDay mantiene la vista "Todas" usando la
+    // observación completa, así que el twin-spike que la regla vieja evitaba
+    // no puede volver. La conversión usa el FX actual (no hay FX histórico):
+    // aproximación, pero muchísimo mejor que tratar EUR/etc. como USD.
+    const toUSDFrom = (v, cur) => (cur && cur !== 'USD' && convert ? convert(v || 0, cur, 'USD') : (v || 0))
+    const newSnaps = planEquitySnapshotWrites(data.equityHistory || [], snapshots, toUSDFrom)
 
     const incomingSymbols = new Set(data.items.filter(it => it.symbol).map(it => it.symbol.toUpperCase()))
     items.forEach(it => {
@@ -893,8 +868,14 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // IBKR-only snapshots omit manually-added assets; augment them with the held-flat
   // value of non-IBKR items so returns/changes below reflect the FULL portfolio.
   // (The growth chart and spreadsheet get the raw snapshots and do their own thing.)
+  // FASE FU: con los docs paralelos de NAV (`fecha~nav~ibkr`) una fecha puede
+  // traer la observación completa Y el NAV del broker; todo lo que mide el
+  // portafolio ENTERO (anclas YTD/MTD, drawdown, insights) debe seguir usando
+  // la observación completa, exactamente como antes de que los docs paralelos
+  // existieran. Un día que solo tiene NAV de broker se queda y el augment lo
+  // completa, comportamiento de siempre.
   const augmentedSnapshots = useMemo(
-    () => augmentSnapshots(snapshots, portfolioItems, convert),
+    () => augmentSnapshots(preferFullPortfolioPerDay(snapshots), portfolioItems, convert),
     [snapshots, portfolioItems, convert]
   )
   const latestSnapshot = augmentedSnapshots.length > 0 ? augmentedSnapshots[augmentedSnapshots.length - 1] : null
