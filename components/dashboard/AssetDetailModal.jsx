@@ -10,6 +10,19 @@ import DocumentVault from './DocumentVault'
 // blacklist disagreed with the movers/quotes filter, so the same asset could
 // show "no market data" here while plunging -9.66% in the movers list.
 
+// Mirrors the <option value=...> keys in AddAccountModal/EditAccountModal's
+// "Ronda de inversión" dropdown — item.investmentStage stores the key, not
+// the label, so this is the one place that turns it back into display text.
+const STAGE_LABELS = {
+  pre_seed: { es: 'Pre-seed', en: 'Pre-seed' },
+  seed: { es: 'Seed', en: 'Seed' },
+  series_a: { es: 'Series A', en: 'Series A' },
+  series_b: { es: 'Series B', en: 'Series B' },
+  series_c_plus: { es: 'Series C+', en: 'Series C+' },
+  growth: { es: 'Growth / Late stage', en: 'Growth / Late stage' },
+  buyout: { es: 'Buyout / PE', en: 'Buyout / PE' },
+}
+
 export default function AssetDetailModal({ item, onClose, lang = 'es', uid, transactions = [], convert, baseCurrency = 'USD' }) {
   const trapRef = useFocusTrap()
   const [chartData, setChartData] = useState(null)
@@ -201,6 +214,22 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
               </span>
             )}
           </div>
+
+          {/* VC/startup direct investment: cap-table snapshot, own row so it
+              reads as a unit ("Series A · $10M valuation · 0.50% of the
+              company") instead of scattering into the generic details line
+              below. A later round dilutes this — it's a manual snapshot the
+              user updates when they hear about a new one, not tracked
+              automatically. */}
+          {(item.investmentStage || item.roundValuation > 0 || item.ownershipPct > 0) && (
+            <div className="text-xs" style={{ color: 'var(--accent-purple)' }}>
+              🚀 {[
+                item.investmentStage ? (STAGE_LABELS[item.investmentStage]?.[lang] || STAGE_LABELS[item.investmentStage]?.es || item.investmentStage) : null,
+                item.roundValuation > 0 ? `${t('valuación', 'valuation')} ${formatCurrency(item.roundValuation)}` : null,
+                item.ownershipPct > 0 ? `${item.ownershipPct}% ${t('de la empresa', 'of the company')}` : null,
+              ].filter(Boolean).join(' · ')}
+            </div>
+          )}
 
           {/* Extra details */}
           {(item.maturityDate || item.incomeRate || item.rateType === 'variable' || item.custodyType || item.taxJurisdiction || item.notes) && (

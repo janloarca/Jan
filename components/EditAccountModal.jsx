@@ -105,6 +105,9 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     safeCap: item.safeCap?.toString() || '',
     safeDiscount: item.safeDiscount?.toString() || '',
     safeType: item.safeType || 'post_money',
+    investmentStage: item.investmentStage || '',
+    roundValuation: item.roundValuation?.toString() || '',
+    ownershipPct: item.ownershipPct?.toString() || '',
     interestRate: item.interestRate?.toString() || '',
     minimumPayment: item.minimumPayment?.toString() || '',
     debtTerm: item.debtTerm || '',
@@ -519,6 +522,14 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         updated.safeType = form.safeType
         updated.safeCap = parseFloat(form.safeCap) || 0
         updated.safeDiscount = parseFloat(form.safeDiscount) || 0
+      }
+
+      // VC/startup direct-investment fields — purely informational, see
+      // AddAccountModal's comment on the same fields.
+      if (isAlternative && form.subtype === 'private_equity') {
+        updated.investmentStage = form.investmentStage || ''
+        updated.roundValuation = parseFloat(form.roundValuation) || 0
+        updated.ownershipPct = parseFloat(form.ownershipPct) || 0
       }
 
       // Debt fields
@@ -1220,6 +1231,39 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   <label className={labelCls}>{t('Desc %', 'Disc %')}</label>
                   <input value={form.safeDiscount} onChange={e => set('safeDiscount', e.target.value)}
                     placeholder="20" type="number" step="any" className={inputCls} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* VC/startup direct investment fields — cap-table context, purely
+              informational (never feeds the return formula). */}
+          {isAlternative && form.subtype === 'private_equity' && (
+            <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'color-mix(in srgb, var(--accent-purple) 20%, transparent)', backgroundColor: 'color-mix(in srgb, var(--accent-purple) 5%, transparent)' }}>
+              <p className="text-xs font-medium" style={{ color: 'var(--accent-purple)' }}>🚀 {t('Ronda de inversión', 'Investment round')}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div>
+                  <label className={labelCls}>{t('Etapa', 'Stage')}</label>
+                  <select value={form.investmentStage} onChange={e => set('investmentStage', e.target.value)} className={inputCls}>
+                    <option value="">{t('-- Opcional --', '-- Optional --')}</option>
+                    <option value="pre_seed">Pre-seed</option>
+                    <option value="seed">Seed</option>
+                    <option value="series_a">Series A</option>
+                    <option value="series_b">Series B</option>
+                    <option value="series_c_plus">Series C+</option>
+                    <option value="growth">{t('Growth / Late stage', 'Growth / Late stage')}</option>
+                    <option value="buyout">Buyout / PE</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>{t('Valuación de la ronda', 'Round valuation')}</label>
+                  <input value={form.roundValuation} onChange={e => set('roundValuation', e.target.value)}
+                    placeholder="10000000" type="number" step="any" className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>% {t('de la empresa', 'of the company')}</label>
+                  <input value={form.ownershipPct} onChange={e => set('ownershipPct', e.target.value)}
+                    placeholder="0.5" type="number" step="any" className={inputCls} />
                 </div>
               </div>
             </div>

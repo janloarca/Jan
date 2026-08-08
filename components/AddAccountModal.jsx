@@ -103,6 +103,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     notes: '',
     taxJurisdiction: '',
     safeCap: '', safeDiscount: '', safeType: 'post_money',
+    investmentStage: '', roundValuation: '', ownershipPct: '',
     interestRate: '', minimumPayment: '',
     debtTerm: '', installmentsTotal: '', installmentsRemaining: '', monthlyPayment: '',
     cardBrand: '', rewardType: '', rewardRate: '', rewardBalance: '',
@@ -501,6 +502,17 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
         item.safeType = form.safeType
         if (form.safeCap) item.safeCap = parseFloat(form.safeCap) || 0
         if (form.safeDiscount) item.safeDiscount = parseFloat(form.safeDiscount) || 0
+      }
+
+      // VC/startup direct-investment fields — purely informational (cap-table
+      // context: what stage, at what valuation, how much of the company). None
+      // of it feeds the return formula: getItemPrincipalCost/getItemCostBasis
+      // (⛔ congeladas) already have everything they need from
+      // quantity/purchasePrice/entryFee, same as any other Alternativo.
+      if (isAlternative && subtype === 'private_equity') {
+        if (form.investmentStage) item.investmentStage = form.investmentStage
+        if (form.roundValuation) item.roundValuation = parseFloat(form.roundValuation) || 0
+        if (form.ownershipPct) item.ownershipPct = parseFloat(form.ownershipPct) || 0
       }
 
       // Debt fields
@@ -1686,6 +1698,67 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                           placeholder="20" type="number" step="any" className={inputCls} />
                       </div>
                     </div>
+                  </div>
+                )}
+
+                {/* VC / startup direct investment: cap-table context, purely
+                    informational (never feeds the return formula). */}
+                {isAlternative && subtype === 'private_equity' && (
+                  <div className="pt-3.5 border-t border-glass-border/50">
+                    <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>
+                      🚀 {t('Ronda de inversión', 'Investment round')}
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div>
+                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Etapa', 'Stage')}</label>
+                        <select value={form.investmentStage} onChange={e => set('investmentStage', e.target.value)} className={inputCls}>
+                          <option value="">{t('-- Opcional --', '-- Optional --')}</option>
+                          <option value="pre_seed">Pre-seed</option>
+                          <option value="seed">Seed</option>
+                          <option value="series_a">Series A</option>
+                          <option value="series_b">Series B</option>
+                          <option value="series_c_plus">Series C+</option>
+                          <option value="growth">{t('Growth / Late stage', 'Growth / Late stage')}</option>
+                          <option value="buyout">Buyout / PE</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">
+                          {t('Valuación de la ronda', 'Round valuation')}
+                          {' '}
+                          <InfoTip text={t('La valuación post-money de la ronda en la que entraste: se usa solo para calcular tu % de la empresa aquí abajo, no afecta el rendimiento del activo.', 'The round\'s post-money valuation: used only to calculate your % of the company below, it does not affect the asset\'s return.')} />
+                        </label>
+                        <input value={form.roundValuation} onChange={e => set('roundValuation', e.target.value)}
+                          placeholder="10000000" type="number" step="any" className={inputCls} />
+                      </div>
+                      <div>
+                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">% {t('de la empresa', 'of the company')}</label>
+                        <input value={form.ownershipPct} onChange={e => set('ownershipPct', e.target.value)}
+                          placeholder="0.5" type="number" step="any" className={inputCls} />
+                      </div>
+                    </div>
+                    {/* Suggested %, from what's already typed elsewhere in this
+                        form (invested amount) — never auto-filled, just shown
+                        so the user doesn't have to do the division by hand. A
+                        later round dilutes this; there's no attempt to track
+                        that automatically, this is a manual snapshot the user
+                        updates whenever they hear about a new round. */}
+                    {!form.ownershipPct && parseFloat(form.roundValuation) > 0 && (() => {
+                      const invested = (parseFloat(form.quantity) || 1) * (parseFloat(form.purchasePrice) || 0)
+                      if (invested <= 0) return null
+                      const suggested = (invested / parseFloat(form.roundValuation)) * 100
+                      return (
+                        <p className="text-xs mt-1.5" style={{ color: 'var(--text-secondary)' }}>
+                          {t(`Sugerido: ${suggested.toFixed(3)}% (invertiste ${form.currency} ${invested.toLocaleString()} sobre una valuación de ${form.currency} ${parseFloat(form.roundValuation).toLocaleString()}).`,
+                             `Suggested: ${suggested.toFixed(3)}% (you invested ${form.currency} ${invested.toLocaleString()} against a ${form.currency} ${parseFloat(form.roundValuation).toLocaleString()} valuation).`)}
+                          {' '}
+                          <button type="button" onClick={() => set('ownershipPct', suggested.toFixed(3))}
+                            className="underline" style={{ color: 'var(--accent-blue)' }}>
+                            {t('usar', 'use')}
+                          </button>
+                        </p>
+                      )
+                    })()}
                   </div>
                 )}
 
