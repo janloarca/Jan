@@ -101,7 +101,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     isIlliquid: false,
     custodyType: '', custodyDetails: '',
     notes: '',
-    taxJurisdiction: '',
+    taxJurisdiction: '', assetCountry: '',
     safeCap: '', safeDiscount: '', safeType: 'post_money',
     investmentStage: '', roundValuation: '', ownershipPct: '',
     interestRate: '', minimumPayment: '',
@@ -496,6 +496,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
       // Tax jurisdiction
       if (form.taxJurisdiction) item.taxJurisdiction = form.taxJurisdiction
+      if (form.assetCountry) item.assetCountry = form.assetCountry
 
       // SAFE Note fields
       if (isAlternative && subtype === 'safe_note') {
@@ -1762,21 +1763,59 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   </div>
                 )}
 
-                {/* Fiscal */}
+                {/* Fiscal + país del activo */}
                 <div className="pt-3.5 border-t border-glass-border/50">
                   <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>🌍 {t('Fiscal', 'Tax')}</span>
-                  <select value={form.taxJurisdiction} onChange={e => set('taxJurisdiction', e.target.value)} className={inputCls}>
-                    <option value="">{t('-- Opcional --', '-- Optional --')}</option>
-                    <option value="GT">Guatemala</option>
-                    <option value="MX">México</option>
-                    <option value="US">USA</option>
-                    <option value="CO">Colombia</option>
-                    <option value="CL">Chile</option>
-                    <option value="BR">Brasil</option>
-                    <option value="PE">Perú</option>
-                    <option value="AR">Argentina</option>
-                    <option value="OTHER">{t('Otro', 'Other')}</option>
-                  </select>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Jurisdicción fiscal', 'Tax jurisdiction')}</label>
+                      <select value={form.taxJurisdiction} onChange={e => set('taxJurisdiction', e.target.value)} className={inputCls}>
+                        <option value="">{t('-- Opcional --', '-- Optional --')}</option>
+                        <option value="GT">Guatemala</option>
+                        <option value="MX">México</option>
+                        <option value="US">USA</option>
+                        <option value="CO">Colombia</option>
+                        <option value="CL">Chile</option>
+                        <option value="BR">Brasil</option>
+                        <option value="PE">Perú</option>
+                        <option value="AR">Argentina</option>
+                        <option value="OTHER">{t('Otro', 'Other')}</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">
+                        {t('País del activo', 'Asset country')}
+                        {' '}
+                        <InfoTip text={t('De dónde es la empresa/activo en sí, para "Asignación de activos > Geo". Sin esto, un símbolo que no reconocemos (típico en bonos, alternativos o acciones privadas) se asume EE.UU. por defecto, no por la moneda en que lo tengas.', 'Where the company/asset itself is from, for "Asset Allocation > Geo". Without this, a symbol we don\'t recognize (typical for bonds, alternatives or private stock) defaults to the US, not based on the currency it\'s held in.')} />
+                      </label>
+                      <select value={form.assetCountry} onChange={e => set('assetCountry', e.target.value)} className={inputCls}>
+                        <option value="">{t('-- Opcional --', '-- Optional --')}</option>
+                        <option value="GT">Guatemala</option>
+                        <option value="MX">México</option>
+                        <option value="US">USA</option>
+                        <option value="CO">Colombia</option>
+                        <option value="CL">Chile</option>
+                        <option value="BR">Brasil</option>
+                        <option value="PE">Perú</option>
+                        <option value="AR">Argentina</option>
+                        <option value="CR">Costa Rica</option>
+                        <option value="PA">Panamá</option>
+                        <option value="ES">España</option>
+                        <option value="UK">UK</option>
+                        <option value="DE">Alemania</option>
+                        <option value="CH">Suiza</option>
+                        <option value="JP">Japón</option>
+                        <option value="CN">China</option>
+                        <option value="KR">Corea del Sur</option>
+                        <option value="HK">Hong Kong</option>
+                        <option value="SG">Singapur</option>
+                        <option value="AU">Australia</option>
+                        <option value="CA">Canadá</option>
+                        <option value="GLOBAL">{t('Global / Multi-país', 'Global / Multi-country')}</option>
+                        <option value="OTHER">{t('Otro', 'Other')}</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Notas */}
