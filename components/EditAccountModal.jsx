@@ -108,6 +108,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     investmentStage: item.investmentStage || '',
     roundValuation: item.roundValuation?.toString() || '',
     ownershipPct: item.ownershipPct?.toString() || '',
+    committedCapital: item.committedCapital?.toString() || '',
     interestRate: item.interestRate?.toString() || '',
     minimumPayment: item.minimumPayment?.toString() || '',
     debtTerm: item.debtTerm || '',
@@ -530,6 +531,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         updated.investmentStage = form.investmentStage || ''
         updated.roundValuation = parseFloat(form.roundValuation) || 0
         updated.ownershipPct = parseFloat(form.ownershipPct) || 0
+        updated.committedCapital = parseFloat(form.committedCapital) || 0
       }
 
       // Debt fields
@@ -1264,6 +1266,15 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   <label className={labelCls}>% {t('de la empresa', 'of the company')}</label>
                   <input value={form.ownershipPct} onChange={e => set('ownershipPct', e.target.value)}
                     placeholder="0.5" type="number" step="any" className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>
+                    {t('Capital comprometido', 'Committed capital')}
+                    {' '}
+                    <InfoTip text={t('El monto total que te comprometiste a aportar (se va llamando por partes). La tarjeta de métricas VC/PE lo usa para el PIC: qué % del compromiso ya se llamó. Opcional, no afecta el rendimiento.', 'The total amount you committed (called in pieces over time). The VC/PE metrics card uses it for PIC: what % of the commitment has been called. Optional, does not affect returns.')} />
+                  </label>
+                  <input value={form.committedCapital} onChange={e => set('committedCapital', e.target.value)}
+                    placeholder="50000" type="number" step="any" className={inputCls} />
                 </div>
               </div>
             </div>

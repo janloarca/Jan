@@ -103,7 +103,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     notes: '',
     taxJurisdiction: '', assetCountry: '',
     safeCap: '', safeDiscount: '', safeType: 'post_money',
-    investmentStage: '', roundValuation: '', ownershipPct: '',
+    investmentStage: '', roundValuation: '', ownershipPct: '', committedCapital: '',
     interestRate: '', minimumPayment: '',
     debtTerm: '', installmentsTotal: '', installmentsRemaining: '', monthlyPayment: '',
     cardBrand: '', rewardType: '', rewardRate: '', rewardBalance: '',
@@ -514,6 +514,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
         if (form.investmentStage) item.investmentStage = form.investmentStage
         if (form.roundValuation) item.roundValuation = parseFloat(form.roundValuation) || 0
         if (form.ownershipPct) item.ownershipPct = parseFloat(form.ownershipPct) || 0
+        if (form.committedCapital) item.committedCapital = parseFloat(form.committedCapital) || 0
       }
 
       // Debt fields
@@ -1736,6 +1737,15 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                         <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">% {t('de la empresa', 'of the company')}</label>
                         <input value={form.ownershipPct} onChange={e => set('ownershipPct', e.target.value)}
                           placeholder="0.5" type="number" step="any" className={inputCls} />
+                      </div>
+                      <div>
+                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">
+                          {t('Capital comprometido', 'Committed capital')}
+                          {' '}
+                          <InfoTip text={t('Si te comprometiste a un monto total que se va llamando por partes (capital calls), ponlo aquí: la tarjeta de métricas VC/PE lo usa para calcular el PIC (qué % del compromiso ya se llamó). Opcional, no afecta el rendimiento.', 'If you committed to a total amount that gets called in pieces (capital calls), put it here: the VC/PE metrics card uses it for PIC (what % of the commitment has been called). Optional, does not affect returns.')} />
+                        </label>
+                        <input value={form.committedCapital} onChange={e => set('committedCapital', e.target.value)}
+                          placeholder="50000" type="number" step="any" className={inputCls} />
                       </div>
                     </div>
                     {/* Suggested %, from what's already typed elsewhere in this
