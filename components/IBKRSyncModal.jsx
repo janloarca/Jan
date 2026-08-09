@@ -103,6 +103,25 @@ function DoneStep({ result, onClose, onComplementFile, t }) {
              `Your value history starts on ${result.equityOldest}. For your yearly return to match IBKR, set your Flex Query period to "Year to Date" (or "Last 365 Days") and sync again.`)}
         </p>
       )}
+      {/* Positions arrived but ZERO deposits/withdrawals did. This failure is
+          otherwise SILENT (the sync "succeeds") and its symptom shows up far
+          away: with no flows on file, every deposit reads as market gain in
+          YTD/TWR/MWR. Two shapes, one message: the Cash Transactions section
+          missing entirely from the XML, or present but with the
+          "Deposits & Withdrawals" TYPE unticked inside it (adding the section
+          alone does not include that type). Softly worded on purpose: an
+          account with genuinely no external flows in the window is legitimate
+          and rare, not wrong. Gated on result.sections so an older result
+          shape without the forensic counts can never false-alarm. */}
+      {result.items > 0 && result.sections && (result.impFlows ?? 0) === 0 && (
+        <p className="text-xs mt-3 mx-auto max-w-xs leading-relaxed" style={{ color: 'var(--alert-warn-icon)' }}>
+          {(result.sections.cashTransactions ?? 0) === 0
+            ? t('No llegó ningún depósito ni retiro (la sección "Cash Transactions" no vino en el archivo). Si depositaste o retiraste dinero en el período, edita tu Flex Query, agrega "Cash Transactions" con el tipo "Deposits & Withdrawals" marcado, y sincroniza de nuevo: sin esos movimientos, tus depósitos se cuentan como ganancia en los retornos.',
+                'No deposit or withdrawal arrived (the "Cash Transactions" section was not in the file). If you deposited or withdrew money in the period, edit your Flex Query, add "Cash Transactions" with the "Deposits & Withdrawals" type ticked, and sync again: without those movements, your deposits count as gains in your returns.')
+            : t('Llegó la sección "Cash Transactions" pero sin ningún depósito ni retiro. Si depositaste o retiraste dinero en el período, edita tu Flex Query y, dentro de "Cash Transactions", marca el tipo "Deposits & Withdrawals": sin esos movimientos, tus depósitos se cuentan como ganancia en los retornos.',
+                'The "Cash Transactions" section arrived but with no deposit or withdrawal in it. If you deposited or withdrew money in the period, edit your Flex Query and, inside "Cash Transactions", tick the "Deposits & Withdrawals" type: without those movements, your deposits count as gains in your returns.')}
+        </p>
+      )}
       {/* Forensic breakdown: what the Flex XML actually delivered per section vs
           what we imported. One screenshot of this pins the failure: low XML counts
           = the query period is short (fix in IBKR); high XML but low imported = our
