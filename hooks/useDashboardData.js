@@ -40,7 +40,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     deleteAllItems, deleteItemGroup, saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,
     alerts, addAlert, deleteAlert, updateAlert,
-    lots, addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution, bulkImport,
+    lots, addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution, bulkImport, bulkWriting,
     portfolios, addPortfolio, deletePortfolio,
     financeTransactions, addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     saveGoals, saveSettings, saveProfile,
@@ -68,6 +68,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
   const { enrichedItems: rawEnriched, prices: marketPrices, loading: pricesLoading, isFetching: pricesFetching, error: pricesError, lastUpdate: pricesUpdate, refresh: refreshPrices } = useMarketPrices(items)
   const { rates, convert, convertItemValue, loading: ratesLoading, error: ratesError, lastUpdate: ratesUpdate, refresh: refreshRates } = useExchangeRates(baseCurrency)
+
+  // FASE GB. Declarada AQUÍ (antes de los efectos escritores que la llevan en
+  // sus deps) porque una deps array se evalúa en render: referenciarla antes
+  // de su declaración sería un ReferenceError, no un undefined silencioso.
+  // La consume el bloque de auto-sync de IBKR más abajo.
+  const [ibkrAutoSyncing, setIbkrAutoSyncing] = useState(false)
 
   const alertsCheckedRef = useRef(null)
   useEffect(() => {
@@ -131,7 +137,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // price could get written straight into a permanent snapshot/transaction
     // before the next poll corrects it — the value-chart "bumps" a sync in
     // progress can leave behind.
-    if (!user || dataLoading || pricesLoading || pricesFetching || ratesLoading) return
+    if (!user || dataLoading || pricesLoading || pricesFetching || ratesLoading || bulkWriting || ibkrAutoSyncing) return
     if (enrichedItems.length === 0) return
     const alreadyExists = snapshots.some((s) => s.date === todayStr || s.id === todayStr)
     // FASE EI. A 'daily' doc for TODAY, once written, used to be final for the
@@ -169,7 +175,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       saveSnapshot({ date: todayStr, totalActivosUSD: totalAssetsUSD, totalDebtUSD, netWorthUSD, totalContributedUSD, rates: rates || {}, baseCurrency, _source: 'daily' })
       snapshotSavedRef.current = todayStr
     }
-  }, [user, dataLoading, pricesLoading, pricesFetching, ratesLoading, enrichedItems, snapshots, saveSnapshot, convert, baseCurrency, transactions])
+  }, [user, dataLoading, pricesLoading, pricesFetching, ratesLoading, bulkWriting, ibkrAutoSyncing, enrichedItems, snapshots, saveSnapshot, convert, baseCurrency, transactions])
 
   // Backfill missing snapshots for the last 30 days.
   // A 'backfill' doc is a RECONSTRUCTION from whatever items existed the
@@ -189,7 +195,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // price could get written straight into a permanent snapshot/transaction
     // before the next poll corrects it — the value-chart "bumps" a sync in
     // progress can leave behind.
-    if (!user || dataLoading || pricesLoading || pricesFetching || ratesLoading) return
+    if (!user || dataLoading || pricesLoading || pricesFetching || ratesLoading || bulkWriting || ibkrAutoSyncing) return
     if (enrichedItems.length === 0 || !snapshots) return
     // With no broker-synced item, a 'daily' doc is not an external truth
     // either — it is the SAME "sum of whatever items the app knew about that
@@ -263,7 +269,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
     doBackfill()
     return () => { cancelled = true }
-  }, [user, dataLoading, pricesLoading, pricesFetching, ratesLoading, enrichedItems, snapshots, lots, transactions, saveSnapshot, convert])
+  }, [user, dataLoading, pricesLoading, pricesFetching, ratesLoading, bulkWriting, ibkrAutoSyncing, enrichedItems, snapshots, lots, transactions, saveSnapshot, convert])
 
   // Dividend processing
   const dividendsProcessedRef = useRef(null)
@@ -277,7 +283,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // price could get written straight into a permanent snapshot/transaction
     // before the next poll corrects it — the value-chart "bumps" a sync in
     // progress can leave behind.
-    if (!user || dataLoading || pricesLoading || pricesFetching || ratesLoading) return
+    if (!user || dataLoading || pricesLoading || pricesFetching || ratesLoading || bulkWriting || ibkrAutoSyncing) return
     if (enrichedItems.length === 0) return
     // Demo mode: never auto-generate real dividend transactions or credit
     // balances from sample data (snapshot writers are vetoed at the data layer).
@@ -553,7 +559,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       dividendsProcessedRef.current = todayKey
     }).catch((err) => console.error('[dividends]', err))
     return () => { cancelled = true }
-  }, [user, dataLoading, pricesLoading, pricesFetching, ratesLoading, enrichedItems, transactions, addTransaction, deleteTransaction, updateTransaction, updateItem, convert])
+  }, [user, dataLoading, pricesLoading, pricesFetching, ratesLoading, bulkWriting, ibkrAutoSyncing, enrichedItems, transactions, addTransaction, deleteTransaction, updateTransaction, updateItem, convert])
 
   const handleRefresh = useCallback(() => {
     refreshPrices()
@@ -563,7 +569,6 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // IBKR auto-sync
   const { acquireLock, releaseLock } = useTabCoordination()
   const ibkrAutoSyncRef = useRef(false)
-  const [ibkrAutoSyncing, setIbkrAutoSyncing] = useState(false)
 
   const handleIBKRSync = useCallback(async (data, mode = 'merge', onProgress) => {
     const newItems = []
@@ -1541,7 +1546,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   const corruptSnapCleanupRef = useRef(false)
   useEffect(() => {
     if (corruptSnapCleanupRef.current) return
-    if (!user || dataLoading || pricesLoading || pricesFetching || ratesLoading) return
+    if (!user || dataLoading || pricesLoading || pricesFetching || ratesLoading || bulkWriting || ibkrAutoSyncing) return
     if (!deleteSnapshot || !snapshots || snapshots.length < 4) return
     if ((items || []).some((it) => it && it._source === 'demo')) return
     const flowsUSD = (transactions || [])
@@ -1574,7 +1579,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       if (removed > 0) console.info(`[corrupt-snapshot-cleanup] removed ${removed} corrupt snapshot(s); backfill will rebuild them`)
     })()
     return () => { cancelled = true }
-  }, [user, dataLoading, pricesLoading, pricesFetching, ratesLoading, snapshots, transactions, items, convert, deleteSnapshot])
+  }, [user, dataLoading, pricesLoading, pricesFetching, ratesLoading, bulkWriting, ibkrAutoSyncing, snapshots, transactions, items, convert, deleteSnapshot])
 
   // Self-heal: opening deposits our own onAdd wrapper left without a link
   // (FASE EA). Only unambiguous, self-inflicted rows — see

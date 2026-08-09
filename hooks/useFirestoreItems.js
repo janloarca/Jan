@@ -917,8 +917,22 @@ export function useFirestoreItems() {
     return { ...result, __currencies: currencies }
   }, [uid])
 
+  // FASE GB. Mientras un bulkImport está escribiendo, la colección de items
+  // pasa por estados INTERMEDIOS (los lotes van de a 30 operaciones: altas,
+  // updates y borrados aterrizan en commits distintos y el listener entrega
+  // cada estado a medio camino). Cualquier efecto que SUME el portafolio en
+  // esa ventana puede ver items duplicados y grabar un total inflado en un
+  // snapshot permanente: así se regeneraba la meseta de ~$35K cada vez que la
+  // limpieza la borraba y un sync estaba en vuelo (el gate de pricesFetching
+  // de FASE FE solo cubría refrescos de PRECIOS, no imports). Los escritores
+  // de useDashboardData (snapshot diario, backfill, dividendos, limpieza)
+  // consultan esta bandera igual que pricesFetching.
+  const [bulkWriting, setBulkWriting] = useState(false)
+
   const bulkImport = useCallback(async ({ items: newItems, lots: newLots, transactions: newTxs, snapshots: newSnaps, updateItems, deleteIds }, onProgress) => {
     if (!uid) throw new Error('Not authenticated')
+    setBulkWriting(true)
+    try {
     const { db, fs } = await getFirebase()
     const now = new Date().toISOString()
     // Drops undefined AND a caller-supplied `id` — see the hook-scope strip()
@@ -1025,6 +1039,12 @@ export function useFirestoreItems() {
       if (onProgress) onProgress(done, total)
     }
     if (failures > 0) throw new Error(`${failures} of ${total} operations failed`)
+    } finally {
+      // Un pequeño colchón tras el último commit: el listener de Firestore
+      // entrega el estado final un instante después; soltar la bandera en el
+      // mismo tick reabriría la ventana con el penúltimo estado aún en memoria.
+      setTimeout(() => setBulkWriting(false), 1500)
+    }
   }, [uid, snapshots])
 
   return {
@@ -1036,7 +1056,7 @@ export function useFirestoreItems() {
     addAlert, deleteAlert, updateAlert,
     addLot, updateLot, closeLotsFIFO,
     transferFunds, executeSaleAtomic, executeContribution,
-    bulkImport,
+    bulkImport, bulkWriting,
     addPortfolio, deletePortfolio,
     saveGoals, saveSettings, saveProfile,
     saveItemSnapshots, loadItemSnapshots,
