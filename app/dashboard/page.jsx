@@ -454,6 +454,36 @@ export default function DashboardPage() {
     showToast(lang === 'es' ? 'IBKR desconectado' : 'IBKR disconnected')
   }, [saveSettings, showToast, lang])
 
+  // FASE GO. El usuario pidió "desconexión completa": borrar la cuenta de
+  // IBKR desde la ruedita debe dejarla exactamente como si nunca se hubiera
+  // conectado, no solo sin historial (FASE GL) sino sin credenciales — sin
+  // esto, reabrir el viaje mostraba "IBKR Conectado" con un resumen de
+  // sync fantasma (262 días NAV, 317 trades) de una cuenta que ya no existe,
+  // porque `deleteItemGroup` deliberadamente conservaba token/queryId. Esta
+  // envoltura decide ANTES de borrar (con los items de HOY, mismo criterio
+  // last-item que `ibkrGone` en accountCleanup) si el grupo se lleva el
+  // último item de IBKR, y si es así corre la MISMA desconexión completa que
+  // el botón "Desconectar IBKR" ya usa — un solo camino para "IBKR ya no
+  // está", sin importar por cuál botón se llegó.
+  const handleDeleteItemGroup = useCallback(async (ids) => {
+    const idSet = new Set(ids)
+    const groupHasIbkr = (items || []).some((it) => it && idSet.has(it.id) && it._source === 'ibkr')
+    const survivesIbkr = (items || []).some((it) => it && !idSet.has(it.id) && it._source === 'ibkr')
+    const ibkrGone = groupHasIbkr && !survivesIbkr
+    const result = await deleteItemGroup(ids)
+    if (ibkrGone) await handleIbkrDisconnect()
+    return result
+  }, [items, deleteItemGroup, handleIbkrDisconnect])
+
+  // "Eliminar todo" se lleva TODAS las cuentas, IBKR incluida sin excepción:
+  // misma desconexión completa, sin necesidad de calcular last-item.
+  const handleDeleteAllItems = useCallback(async (opts) => {
+    const hadIbkr = (items || []).some((it) => it && it._source === 'ibkr')
+    const result = await deleteAllItems(opts)
+    if (hadIbkr) await handleIbkrDisconnect()
+    return result
+  }, [items, deleteAllItems, handleIbkrDisconnect])
+
   // Self-heal rows THIS APP invented. Several shipped IBKR file-parser bugs
   // (FASE BU/BV/BY, fixed 2026-07-28) wrote fake data into real imports: a
   // "Total" row read as a deposit, a lifetime trade-aggregate misread as
@@ -1466,10 +1496,10 @@ export default function DashboardPage() {
         <SettingsModal
           onClose={handleCloseModal} settings={settings}
           onSaveSettings={saveSettings}
-          onDeleteAllItems={deleteAllItems} onDeleteAllSnapshots={deleteAllSnapshots}
+          onDeleteAllItems={handleDeleteAllItems} onDeleteAllSnapshots={deleteAllSnapshots}
           onDeleteAllTransactions={deleteAllTransactions}
           onDeleteAllFinanceTransactions={deleteAllFinanceTransactions}
-          onDeleteItemGroup={deleteItemGroup}
+          onDeleteItemGroup={handleDeleteItemGroup}
           onSetLang={() => handleSetLang('toggle')}
           entities={entities}
           onAddEntity={addEntity}
