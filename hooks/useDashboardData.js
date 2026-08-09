@@ -15,7 +15,7 @@ import { planEquitySnapshotWrites, misplacedPlainNavMigrations } from '@/lib/ibk
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
 import { staleBackfillDates } from '@/lib/snapshotBackfill'
 import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanDays, earliestNeededDays as computeEarliestNeededDays } from '@/lib/brokerCompletion'
-import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds } from '@/lib/inferredFlows'
+import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds, applyLifetimeNetConstraint } from '@/lib/inferredFlows'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
 
@@ -1569,11 +1569,35 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
   // Candidates only ever surface for review — never written on their own. See
   // acceptInferredFlow/dismissInferredFlow below for the write path.
-  const inferredFlowCandidates = useMemo(() => {
-    if (!ibkrDataComplete || !ibkrRealCoverage) return []
+  // FASE GJ: when the user transcribed a PortfolioAnalyst screenshot whose
+  // summary carried lifetime Net Deposits & Withdrawals
+  // (settings.ibkrPaSummary, FASE GI), the per-gap candidates are reconciled
+  // against it: their net must equal lifetime net minus the exact flows
+  // already on file. Flows dated AFTER the screenshot was taken stay out of
+  // the "known" side: the screenshot could not have contained them.
+  const { inferredFlowCandidates, inferredFlowReconciliation } = useMemo(() => {
+    if (!ibkrDataComplete || !ibkrRealCoverage) return { inferredFlowCandidates: [], inferredFlowReconciliation: null }
     const pts = quarterlyOnlyPoints(snapshots, ibkrRealCoverage.earliestTs)
-    return detectInferredFlows(pts, { annualizedVolatilityPct: ibkrVolatility })
-  }, [ibkrDataComplete, ibkrRealCoverage, snapshots, ibkrVolatility])
+    const raw = detectInferredFlows(pts, { annualizedVolatilityPct: ibkrVolatility })
+    const pa = settings?.ibkrPaSummary
+    if (!pa || !isFinite(pa.netFlows) || raw.length === 0) {
+      return { inferredFlowCandidates: raw, inferredFlowReconciliation: null }
+    }
+    const asOf = typeof pa.savedAt === 'string' ? pa.savedAt.slice(0, 10) : null
+    const toUSDAmt = (v, cur) => (convert ? convert(Number(v) || 0, cur || 'USD', 'USD') : Number(v) || 0)
+    const lifetimeNetUSD = toUSDAmt(pa.netFlows, pa.currency)
+    const knownNetUSD = (transactions || []).reduce((s, tx) => {
+      if (!tx || (tx._source !== 'ibkr' && tx._source !== 'inferred_flow')) return s
+      const ty = (tx.type || '').toUpperCase()
+      if (ty !== 'DEPOSIT' && ty !== 'WITHDRAWAL') return s
+      if (asOf && tx.date && tx.date > asOf) return s
+      const amt = toUSDAmt(tx.totalAmount, tx.currency)
+      if (!isFinite(amt)) return s
+      return s + (ty === 'DEPOSIT' ? amt : -amt)
+    }, 0)
+    const { candidates, reconciliation } = applyLifetimeNetConstraint(raw, { lifetimeNetUSD, knownNetUSD })
+    return { inferredFlowCandidates: candidates, inferredFlowReconciliation: reconciliation }
+  }, [ibkrDataComplete, ibkrRealCoverage, snapshots, ibkrVolatility, settings, transactions, convert])
 
   // Reconciliation: once real Flex Query coverage reaches a date that used to
   // be inference-only (a new sync extended the window, or a prior-year XML
@@ -1872,7 +1896,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     ibkrReturnYTD: ibkrReturns.ytd, ibkrReturnMTD: ibkrReturns.mtd, ibkrDayChange: ibkrReturns.day,
     annualDividends, estimatedAnnualIncome,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
-    brokerCompletionState, ibkrDataComplete, inferredFlowCandidates, acceptInferredFlow, dismissInferredFlow,
+    brokerCompletionState, ibkrDataComplete, inferredFlowCandidates, inferredFlowReconciliation, acceptInferredFlow, dismissInferredFlow,
 
     // Benchmark
     benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName, benchmarkLoading,

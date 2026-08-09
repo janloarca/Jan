@@ -295,7 +295,7 @@ export default function DashboardPage() {
     returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated, ytdBreakdown,
     annualDividends, estimatedAnnualIncome,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
-    brokerCompletionState, ibkrDataComplete, inferredFlowCandidates, acceptInferredFlow, dismissInferredFlow,
+    brokerCompletionState, ibkrDataComplete, inferredFlowCandidates, inferredFlowReconciliation, acceptInferredFlow, dismissInferredFlow,
     benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName,
     handleIBKRSync, triggerIBKRSync,
     ibkrConnected, ibkrAutoSyncing,
@@ -1604,6 +1604,7 @@ export default function DashboardPage() {
       {modal === 'inferredFlows' && (
         <InferredFlowsModal
           candidates={inferredFlowCandidates}
+          reconciliation={inferredFlowReconciliation}
           lang={lang}
           onClose={handleCloseModal}
           onAccept={async (c) => {

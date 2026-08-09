@@ -19,7 +19,7 @@ const EXTRACTION_PROMPT_ES = `Esta es una captura de un gráfico de barras del v
 
 Lee todo lo que aparezca y responde SOLO con un objeto JSON (sin markdown, sin explicación):
 {
-  "quarters": [{ "label": "Q1 2024", "value": 1250.00, "deposit": false, "withdrawal": false }],
+  "quarters": [{ "label": "Q1 2024", "value": 1250.00, "deposit": false, "withdrawal": false, "flowAmount": null }],
   "currency": "USD",
   "confidence": "high" | "low",
   "notes": "lo que no pudiste leer bien, si algo",
@@ -36,6 +36,7 @@ Reglas:
 - "label" en formato "Q<1-4> <año de 4 dígitos>" (ej. "Q3 2025"), en el orden en que aparecen las barras
 - "value" es el número que representa esa barra: si hay etiquetas de valor sobre las barras, úsalas; si no, estima por la altura relativa contra el eje Y
 - "deposit"/"withdrawal": true SOLO si esa barra específica tiene un marcador "D" o "W" visible sobre o cerca de ella; si no ves marcadores en la imagen, deja ambos en false para todas las barras
+- "flowAmount": el reporte puede traer una SEGUNDA serie de barras más claras ("Cash Flows") junto a las de NAV; si esa barra existe y es legible para ese trimestre, pon su magnitud (número positivo, sin signo); si no existe, no se distingue o no es legible, deja null. NUNCA la estimes desde el salto del NAV: solo desde la barra de Cash Flows misma
 - Una fila por barra visible, sin inventar barras que no estén en la imagen
 - "confidence": "low" si tuviste que estimar por altura en vez de leer un número explícito
 - "summary": solo inclúyelo si la imagen realmente trae esa tabla de resumen arriba de la gráfica; si no la trae, responde "summary": null. Fechas en formato "AAAA-MM-DD" (si el reporte da fecha corta tipo "2026-06-30" úsala tal cual; si no puedes inferir el año con certeza, deja esa fecha en null)
@@ -45,7 +46,7 @@ const EXTRACTION_PROMPT_EN = `This is a screenshot of a bar chart showing an inv
 
 Read everything present and reply with ONLY a JSON object (no markdown, no explanation):
 {
-  "quarters": [{ "label": "Q1 2024", "value": 1250.00, "deposit": false, "withdrawal": false }],
+  "quarters": [{ "label": "Q1 2024", "value": 1250.00, "deposit": false, "withdrawal": false, "flowAmount": null }],
   "currency": "USD",
   "confidence": "high" | "low",
   "notes": "anything you could not read well",
@@ -62,6 +63,7 @@ Rules:
 - "label" formatted as "Q<1-4> <4-digit year>" (e.g. "Q3 2025"), in the order the bars appear
 - "value" is the number that bar represents: use value labels above the bars if present; otherwise estimate from relative height against the Y axis
 - "deposit"/"withdrawal": true ONLY if that specific bar has a visible "D" or "W" marker above or near it; if the image has no markers at all, leave both false for every bar
+- "flowAmount": the report may carry a SECOND, lighter bar series ("Cash Flows") next to the NAV bars; if that bar exists and is legible for that quarter, give its magnitude (positive number, unsigned); if it does not exist, cannot be told apart or is not legible, leave null. NEVER estimate it from the NAV jump: only from the Cash Flows bar itself
 - One row per bar visible, do not invent bars that are not in the image
 - "confidence": "low" if you had to estimate from height instead of reading an explicit number
 - "summary": only include it if the image actually has that summary table above the chart; otherwise reply "summary": null. Dates formatted "YYYY-MM-DD" (if the report gives a short date like "2026-06-30" use it as-is; if you cannot infer the year with confidence, leave that date null)
@@ -119,6 +121,10 @@ function normalize(p) {
         value: Number(q.value),
         deposit: q.deposit === true,
         withdrawal: q.withdrawal === true,
+        // Magnitude of that quarter's Cash Flows bar, when the screenshot has
+        // the series and the model could read it. Direction still comes from
+        // the D/W marker; this only refines the AMOUNT of the inferred flow.
+        flowAmount: isFinite(Number(q.flowAmount)) && Number(q.flowAmount) > 0 ? Number(q.flowAmount) : null,
       })),
     currency: typeof p.currency === 'string' ? p.currency.slice(0, 8) : 'USD',
     confidence: p.confidence === 'low' ? 'low' : 'high',

@@ -58,6 +58,10 @@ export default function QuarterlyHistoryModal({
   // Persisted onto the saved snapshot as `_flowMarker` so lib/inferredFlows.js
   // can trust a real read instead of guessing purely from the value jump.
   const [aiMarkers, setAiMarkers] = useState(() => new Map())
+  // label -> magnitude of that quarter's Cash Flows bar (FASE GJ), persisted
+  // as `_flowAmount`: the marker gives the direction, this gives the amount,
+  // so the inferred-flow candidate stops estimating it from the NAV jump.
+  const [aiFlowAmounts, setAiFlowAmounts] = useState(() => new Map())
   // Cross-check panel from the screenshot's own summary table (Beginning/
   // Ending/Change, Return Best/Worst/Period, Deposits & Withdrawals). Shown so
   // the user can compare it against what landed in the grid below, and since
@@ -158,11 +162,19 @@ export default function QuarterlyHistoryModal({
       })
       setAiFilled(new Set(quarters.map((q) => q.label)))
       const markers = new Map()
+      const flowAmts = new Map()
       for (const q of quarters) {
         if (q.deposit) markers.set(q.label, 'deposit')
         else if (q.withdrawal) markers.set(q.label, 'withdrawal')
+        // Magnitude of that quarter's Cash Flows bar (FASE GJ). Only useful
+        // WITH a D/W marker: the bar gives the amount, the marker the
+        // direction. Kept separate from the NAV value the user types.
+        if ((q.deposit || q.withdrawal) && isFinite(Number(q.flowAmount)) && Number(q.flowAmount) > 0) {
+          flowAmts.set(q.label, Number(q.flowAmount))
+        }
       }
       setAiMarkers(markers)
+      setAiFlowAmounts(flowAmts)
       setAiSummary(data.summary || null)
       setAiNotice({ count: quarters.length, confidence: data.confidence, notes: data.notes })
     } catch (err) {
@@ -196,7 +208,14 @@ export default function QuarterlyHistoryModal({
         return
       }
       const marker = aiMarkers.get(r.label) || null
-      jobs.push({ date: quarterSnapshotDate(r.year, r.quarter, now), netWorthUSD: usd, label: r.label, marker })
+      // The flow amount is read in the screenshot's currency; convert like the
+      // NAV value so both live in USD on the snapshot.
+      const rawFlow = marker ? aiFlowAmounts.get(r.label) : null
+      const flowUSD = rawFlow != null ? (currency === 'USD' || !convert ? rawFlow : convert(rawFlow, currency, 'USD')) : null
+      jobs.push({
+        date: quarterSnapshotDate(r.year, r.quarter, now), netWorthUSD: usd, label: r.label, marker,
+        flowAmount: isFinite(flowUSD) && flowUSD > 0 ? flowUSD : null,
+      })
     }
     if (jobs.length === 0) {
       setError(t('Escribe al menos un valor.', 'Fill in at least one value.'))
@@ -211,6 +230,7 @@ export default function QuarterlyHistoryModal({
           totalActivosUSD: j.netWorthUSD,
           _source: 'ibkr_quarterly',
           ...(j.marker ? { _flowMarker: j.marker } : {}),
+          ...(j.flowAmount ? { _flowAmount: j.flowAmount } : {}),
         })
       }
       // FASE GI (Fase 2a del plan): the screenshot's own summary table is

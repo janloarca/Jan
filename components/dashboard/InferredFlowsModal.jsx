@@ -13,7 +13,7 @@ import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { formatCurrency, formatDate } from './utils'
 
 export default function InferredFlowsModal({
-  candidates = [], onClose, onAccept, onDismiss, lang = 'es',
+  candidates = [], reconciliation = null, onClose, onAccept, onDismiss, lang = 'es',
 }) {
   const t = (es, en) => (lang === 'es' ? es : en)
   const trapRef = useFocusTrap()
@@ -66,6 +66,27 @@ export default function InferredFlowsModal({
         </div>
 
         <div className="px-5 pb-5 overflow-y-auto space-y-3">
+          {/* FASE GJ: the global reconciliation against the screenshot's own
+              lifetime Net Deposits & Withdrawals. Shown whenever the summary
+              was transcribed, so the user sees WHY these amounts close (or by
+              how much they miss). */}
+          {reconciliation && pending.length > 0 && (
+            <div className="rounded-xl px-3.5 py-2.5 text-[11px] leading-relaxed"
+              style={{ backgroundColor: 'var(--alert-info-bg)', border: '1px solid var(--alert-info-border)', color: 'var(--text-secondary)' }}>
+              {t('Cuadre con tu captura de PortfolioAnalyst: ', 'Reconciliation with your PortfolioAnalyst screenshot: ')}
+              {t('depósitos netos de por vida ', 'lifetime net deposits ')}
+              <span className="font-mono">{formatCurrency(reconciliation.lifetimeNetUSD, 'USD')}</span>
+              {t(', ya registrados ', ', already on file ')}
+              <span className="font-mono">{formatCurrency(reconciliation.knownNetUSD, 'USD')}</span>
+              {t(', por explicar ', ', left to explain ')}
+              <span className="font-mono">{formatCurrency(reconciliation.residualUSD, 'USD')}</span>.
+              {reconciliation.scaledBy != null
+                ? t(' Los montos estimados se ajustaron para que el total cierre; revisalos igual.', ' Estimated amounts were adjusted so the total closes; still review them.')
+                : reconciliation.mismatchUSD !== 0
+                  ? `${t(' Estos candidatos no cierran por ', ' These candidates miss by ')}${formatCurrency(Math.abs(reconciliation.mismatchUSD), 'USD')}${t(': revisá montos o si falta transcribir algún trimestre.', ': check the amounts or whether a quarter is missing from the transcription.')}`
+                  : t(' Estos candidatos cierran con ese total.', ' These candidates close against that total.')}
+            </div>
+          )}
           {pending.length === 0 && (
             <p className="text-body py-6 text-center" style={{ color: 'var(--text-muted)' }}>
               {candidates.length === 0
@@ -90,7 +111,15 @@ export default function InferredFlowsModal({
                   {c.source === 'photo' && (
                     <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded font-medium"
                       style={{ color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' }}>
-                      {t('de tu captura', 'from your screenshot')}
+                      {c.amountFromPhoto
+                        ? t('monto leído de la barra de Cash Flows', 'amount read off the Cash Flows bar')
+                        : t('de tu captura', 'from your screenshot')}
+                    </span>
+                  )}
+                  {c.adjustedToLifetimeNet && (
+                    <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded font-medium"
+                      style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-tertiary)' }}>
+                      {t('ajustado al neto de por vida', 'adjusted to lifetime net')}
                     </span>
                   )}
                 </p>
