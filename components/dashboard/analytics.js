@@ -797,7 +797,21 @@ export function computeAnchoredReturnSeries(chartData, transactions, convert, ba
       const last = segmentData[segmentData.length - 1]
       segmentData = [...segmentData.slice(0, -1), { ts: last.ts, value: (last.value ?? last.total ?? 0) - jump }]
     }
-    const mwrOpts = { flowFromTs: segmentData[0].ts + 1, flowBeforeTs: chartData[end].ts }
+    // FASE FZ. El límite superior de flujos de un segmento que CIERRA en una
+    // frontera tiene que cubrir el ÚLTIMO intervalo entre puntos completo, no
+    // solo el timestamp exacto de la frontera. El salto que se excluye arriba
+    // es el delta entre los DOS últimos puntos, así que los flujos fechados
+    // dentro de ese mismo intervalo (un depósito del 1 jun cuando el punto
+    // más cercano de la serie es el 2 jun) son exactamente el dinero que ese
+    // salto representa: dejarlos adentro los resta DOS veces (como flujo y
+    // como salto), que es como ClubCashIn marcó -125.74% sobre una cuenta
+    // que ganaba (+5.38% en la pestaña MWR, que no segmenta y no lo sufre).
+    // Con el flujo fechado EXACTO en la frontera (VITALI, todos los casos del
+    // candado) ambos límites excluyen lo mismo: byte-idéntico.
+    const mwrOpts = {
+      flowFromTs: segmentData[0].ts + 1,
+      flowBeforeTs: isLastSegment ? chartData[end].ts : chartData[end - 1].ts + 1,
+    }
     const local = computeMWRSeries(segmentData, transactions, convert, baseCurrency, mwrOpts)
     for (let j = 0; j < segmentData.length; j++) {
       out[start + j] = (carry * (1 + (local[j] || 0) / 100) - 1) * 100

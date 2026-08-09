@@ -100,6 +100,46 @@ describe('capital a media ventana: divergen, y en la dirección correcta', () =>
   })
 })
 
+describe('FASE FZ: flujo fechado ENTRE dos puntos de la serie (el caso ClubCashIn)', () => {
+  // El caso real: cuenta orgánica ~650 -> ~684, depósito de 866 el 1 jun, y
+  // la serie salta en su SIGUIENTE punto (2 jun; no hay punto exacto el 1 jun).
+  // El tramo que cierra excluía el salto pero solo excluía flujos fechados
+  // EXACTO en la frontera: el depósito se restaba dos veces (como flujo y
+  // como salto) y el TWR marcaba -126.89% sobre una cuenta ganando, mientras
+  // el MWR (una sola ventana, sin segmentar) daba +6.5% sano. Este test fija
+  // el comportamiento correcto Y la regresión exacta.
+  const chart = [
+    { ts: d('2026-01-01'), value: 650 },
+    { ts: d('2026-03-01'), value: 666 },
+    { ts: d('2026-05-30'), value: 684 },
+    { ts: d('2026-06-02'), value: 1550 },
+    { ts: d('2026-08-08'), value: 1576 },
+  ]
+  const deposit = { id: 'dep', type: 'DEPOSIT', date: '2026-06-01', totalAmount: 866, currency: 'USD' }
+
+  it('TWR: organico encadenado, jamas la perdida falsa de -126%', () => {
+    const twr = computeAnchoredReturnSeries(chart, [deposit], null, 'USD')
+    const final = twr[twr.length - 1]
+    // Tramo 1: 650 -> 684 = +5.2308%. Tramo 2: 1550 -> 1576 = +1.6774%.
+    // Cadena: 1.052308 x 1.016774 - 1 = +6.996%. Re-escale: principal
+    // (650 + salto 866) / costo (650 + 866) = 1: sin cambio.
+    expect(final).toBeCloseTo(6.996, 2)
+    expect(final).toBeGreaterThan(0)
+  })
+
+  it('MWR: sano e igual que antes del fix', () => {
+    const mwr = computeAnchoredMWRSeries(chart, [deposit], null, 'USD')
+    expect(mwr[mwr.length - 1]).toBeGreaterThan(0)
+    expect(mwr[mwr.length - 1]).toBeLessThan(15)
+  })
+
+  it('con el flujo fechado EXACTO en el punto de la frontera, nada cambia (paridad vieja)', () => {
+    const alignedDeposit = { ...deposit, date: '2026-06-02' }
+    const twr = computeAnchoredReturnSeries(chart, [alignedDeposit], null, 'USD')
+    expect(twr[twr.length - 1]).toBeCloseTo(6.996, 2)
+  })
+})
+
 describe('crecimiento orgánico puro: idénticas por definición', () => {
   const chart = [
     { ts: d('2026-01-01'), value: 1000 },
