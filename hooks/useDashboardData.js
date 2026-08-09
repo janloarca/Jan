@@ -32,6 +32,65 @@ export function ibkrSyncChanges(prev, next) {
   return any ? changes : null
 }
 
+// FASE GE. Un solo constructor del payload de items para
+// /api/prices/portfolio-history, compartido por el cálculo de jan1Value y por
+// el backfill. Antes el backfill mandaba items SIN txEvents/cashFlows: los
+// docs 'backfill' que escribía eran lot-aware para las posiciones con trades
+// reales (las compras de mitad de año NO existen en el valor de enero) pero
+// ciegos al timing de los depósitos, y el YTD anclado en uno de esos docs
+// excluía además los flujos de IBKR (regla de FASE AI, pensada para
+// reconstrucciones hold-flat puras donde el depósito ya vive dentro del valor
+// de arranque): cada depósito al broker durante el año se leía como ganancia.
+function buildHistoryItemsPayload({ items, transactions, lots, convert }) {
+  const txEventsBySym = buildTxEvents(transactions)
+  const accountCashFlows = buildCashFlows(transactions,
+    (amt, cur2) => convert ? convert(amt, cur2, 'USD') : amt)
+  // Only rewind the cash line when there is a REAL external flow
+  // (deposit/withdrawal). With hold-flat stocks, rewinding cash by BUY/SELL
+  // double-counts (the flat holding already implies the shares were owned),
+  // which collapses the January baseline and blows up the YTD Dietz. Without
+  // deposits, leave cash flat.
+  const hasExternalFlow = (transactions || []).some((t) => /^(DEPOSIT|WITHDRAWAL)$/i.test(t.type || ''))
+  // Prefer the CASH-{ccy} holding; fall back to any single IBKR bank-type item
+  // so the ledger still rebuilds cash when the symbol isn't exactly CASH-*.
+  const cashItem = (accountCashFlows.length > 0 && hasExternalFlow)
+    ? (items.find((it) => it._source === 'ibkr' && /^CASH-/i.test(it.symbol || ''))
+       || items.find((it) => it._source === 'ibkr' && /bank|cash/i.test(it.type || '')))
+    : null
+  // Per-item balance history for the MANUAL side, from the same index the
+  // spreadsheet reconstructs with. Without it a destination account was held
+  // flat at today's balance all the way back, so a coupon earned in May was
+  // already sitting there on Jan 1: start and end matched and YTD read +0.00%
+  // on a bond that had really paid 240 (FASE DW). Note these never carry
+  // _flowIsAccountLevel — only the broker's own reconciled cash ledger
+  // promotes the whole response to "transactional".
+  const { balanceEventsById } = indexBalanceEvents(transactions, items, convert, 'USD')
+  return items.map((it) => {
+    const cur = it._originalCurrency || it.currency || 'USD'
+    const toUSD = (p) => convert ? convert(p || 0, cur, 'USD') : (p || 0)
+    return {
+      id: it.id,
+      symbol: it.symbol, type: it.type, quantity: it.quantity,
+      currentPrice: toUSD(it._originalPrice ?? it.currentPrice),
+      purchasePrice: toUSD(it._originalPurchasePrice ?? it.purchasePrice),
+      currency: 'USD',
+      acquisitionDate: it.acquisitionDate,
+      _holdFlat: shouldHoldFlat(it, transactions, lots),
+      txEvents: txEventsBySym[(it.symbol || '').toUpperCase()] || undefined,
+      // The broker's own reconciled ledger keeps the shape it always had. A
+      // manual account's flows are marked _flowClampZero: an opening DEPOSIT
+      // can exceed the asset's own value (it carries the entry fee: 6,098
+      // deposited into a 6,000 bond), and rewinding past it would leave the
+      // asset at -98 instead of "did not exist yet".
+      ...(cashItem && it.id === cashItem.id
+        ? { cashFlows: accountCashFlows }
+        : (balanceEventsById[it.id]?.length
+          ? { cashFlows: balanceEventsById[it.id], _flowClampZero: true }
+          : {})),
+    }
+  })
+}
+
 export function useDashboardData({ user, lang, activePortfolio, activeEntity = '__all__' }) {
   const firestoreData = useFirestoreItems()
   const {
@@ -249,17 +308,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            items: assetItems.map((it) => {
-              const cur = it._originalCurrency || it.currency || 'USD'
-              const toUSD = (p) => convert ? convert(p || 0, cur, 'USD') : (p || 0)
-              return {
-                symbol: it.symbol, type: it.type, quantity: it.quantity,
-                currentPrice: toUSD(it._originalPrice ?? it.currentPrice),
-                purchasePrice: toUSD(it._originalPurchasePrice ?? it.purchasePrice),
-                currency: 'USD', acquisitionDate: it.acquisitionDate,
-                _holdFlat: shouldHoldFlat(it, transactions, lots),
-              }
-            }),
+            // FASE GE: el MISMO payload transaccional que jan1Value, no una
+            // versión recortada. Sin txEvents/cashFlows los docs 'backfill'
+            // ignoraban el timing de los depósitos, y el YTD/TWR anclado en
+            // ellos leía cada depósito a IBKR como ganancia (+27% sobre un
+            // año real menor).
+            items: buildHistoryItemsPayload({ items: assetItems, transactions, lots, convert }),
             lots: allLots.length > 0 ? allLots.map(l => ({
               symbol: l.symbol, quantity: l.quantity,
               acquisitionDate: l.acquisitionDate, closedDate: l.closedDate || null,
@@ -274,6 +328,13 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         const data = await safeJson(res)
         const pts = data.dataPoints || []
         if (pts.length === 0) return
+        // FASE GE: serie rebobinada a través del ledger real de depósitos y
+        // trades (transactional:true). Un doc marcado así refleja el timing de
+        // los flujos igual que un NAV real, y el YTD/TWR debe NETEARLOS contra
+        // él (incluidos los _source:'ibkr'). Se escribe SIEMPRE el booleano
+        // (nunca se omite): saveSnapshot fusiona con merge, y omitirlo dejaría
+        // un flag viejo pegado si una corrida futura deja de ser transaccional.
+        const isTransactional = !!data.transactional
         const gapSet = new Set(gaps)
         for (const pt of pts) {
           const dateStr = new Date(pt.ts).toISOString().split('T')[0]
@@ -285,6 +346,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             totalActivosUSD: pt.total,
             totalDebtUSD: currentDebtUSD,
             _source: 'backfill',
+            _transactional: isTransactional,
           })
         }
       } catch (err) {
@@ -1007,9 +1069,6 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     async function fetchJan1() {
       try {
         const allLots = (lots || []).filter(l => l.quantity > 0)
-        const txEventsBySym = buildTxEvents(transactions)
-        const accountCashFlows = buildCashFlows(transactions,
-          (amt, cur2) => convert ? convert(amt, cur2, 'USD') : amt)
         // Reconstruct the SAME portfolio that netWorth (endValue) measures — same
         // predicate as the chart (PortfolioGrowthChart) and the netWorth loop. Sending
         // raw enrichedItems here included excluded/debt items (e.g. an IBKR bank line)
@@ -1017,55 +1076,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         // collapsing jan1Value while netWorth excluded it → the YTD Dietz exploded
         // (start and end measuring different portfolios).
         const jan1Items = enrichedItems.filter((it) => !it.isDebt && !isExcludedFromNetWorth(it))
-        // Only rewind the cash line when there is a REAL external flow
-        // (deposit/withdrawal). With hold-flat stocks, rewinding cash by BUY/SELL
-        // double-counts (the flat holding already implies the shares were owned), which
-        // collapses the January baseline and blows up the YTD Dietz. Without deposits,
-        // leave cash flat.
-        const hasExternalFlow = (transactions || []).some((t) => /^(DEPOSIT|WITHDRAWAL)$/i.test(t.type || ''))
-        // Prefer the CASH-{ccy} holding; fall back to any single IBKR bank-type item
-        // so the ledger still rebuilds cash when the symbol isn't exactly CASH-*.
-        const cashItem = (accountCashFlows.length > 0 && hasExternalFlow)
-          ? (jan1Items.find((it) => it._source === 'ibkr' && /^CASH-/i.test(it.symbol || ''))
-             || jan1Items.find((it) => it._source === 'ibkr' && /bank|cash/i.test(it.type || '')))
-          : null
-        // Per-item balance history for the MANUAL side, from the same index the
-        // spreadsheet reconstructs with. Without it a destination account was
-        // held flat at today's balance all the way back, so a coupon earned in
-        // May was already sitting there on Jan 1: start and end matched and YTD
-        // read +0.00% on a bond that had really paid 240 (FASE DW). Note these
-        // never carry _flowIsAccountLevel — only the broker's own reconciled
-        // cash ledger promotes the whole response to "transactional".
-        const { balanceEventsById } = indexBalanceEvents(transactions, jan1Items, convert, 'USD')
         const res = await authFetch('/api/prices/portfolio-history', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            items: jan1Items.map((it) => {
-              const cur = it._originalCurrency || it.currency || 'USD'
-              const toUSD = (p) => convert ? convert(p || 0, cur, 'USD') : (p || 0)
-              return {
-                id: it.id,
-                symbol: it.symbol, type: it.type, quantity: it.quantity,
-                currentPrice: toUSD(it._originalPrice ?? it.currentPrice),
-                purchasePrice: toUSD(it._originalPurchasePrice ?? it.purchasePrice),
-                currency: 'USD',
-                acquisitionDate: it.acquisitionDate,
-                _holdFlat: shouldHoldFlat(it, transactions, lots),
-                txEvents: txEventsBySym[(it.symbol || '').toUpperCase()] || undefined,
-                // The broker's own reconciled ledger keeps the shape it always
-                // had. A manual account's flows are marked _flowClampZero: an
-                // opening DEPOSIT can exceed the asset's own value (it carries
-                // the entry fee: 6,098 deposited into a 6,000 bond), and
-                // rewinding past it would leave the asset at -98 instead of
-                // "did not exist yet".
-                ...(cashItem && it.id === cashItem.id
-                  ? { cashFlows: accountCashFlows }
-                  : (balanceEventsById[it.id]?.length
-                    ? { cashFlows: balanceEventsById[it.id], _flowClampZero: true }
-                    : {})),
-              }
-            }),
+            items: buildHistoryItemsPayload({ items: jan1Items, transactions, lots, convert }),
             lots: allLots.length > 0 ? allLots.map(l => ({
               symbol: l.symbol, quantity: l.quantity,
               acquisitionDate: l.acquisitionDate,
@@ -1189,7 +1204,15 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       if (bestSnap) {
         anchorUSD = bestSnap.netWorthUSD ?? bestSnap.totalActivosUSD ?? 0
         startVal = convertSnapshot(anchorUSD)
-        flowAware = REAL_SNAPSHOT_SOURCES.includes(bestSnap._source)
+        // FASE GE: un doc 'backfill' TRANSACCIONAL (rebobinado a través del
+        // ledger real de depósitos/trades, ver el efecto de backfill) refleja
+        // el timing de los flujos igual que un NAV real: las compras de mitad
+        // de año NO existen en su valor de enero, así que los depósitos que
+        // las fondearon son posteriores al ancla y DEBEN netearse. La regla
+        // vieja (solo fuentes reales) venía del mundo hold-flat puro, donde el
+        // depósito ya vivía dentro del valor de arranque; aplicada a un
+        // backfill lot-aware leía cada depósito a IBKR como ganancia.
+        flowAware = REAL_SNAPSHOT_SOURCES.includes(bestSnap._source) || !!bestSnap._transactional
         anchorCalibrated = !!bestSnap._calibrated
       }
     }
@@ -1230,7 +1253,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       if (first) {
         const firstUSD = first.netWorthUSD ?? first.totalActivosUSD ?? 0
         let firstVal = convertSnapshot(firstUSD)
-        let firstFlowAware = REAL_SNAPSHOT_SOURCES.includes(first._source)
+        let firstFlowAware = REAL_SNAPSHOT_SOURCES.includes(first._source) || !!first._transactional
         // Same per-account swap for the since-inception anchor.
         const cals = allCals.filter((c) => c.date <= first.date)
         if (cals.length > 0) {
@@ -1415,7 +1438,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const { pct } = computeModifiedDietz({
       startValue: startVal, endValue: netWorth,
       startTs: Date.UTC(year, month, 1), endTs: Date.now(),
-      transactions: REAL_SNAPSHOT_SOURCES.includes(anchor._source) ? transactions : dietzTransactions,
+      transactions: (REAL_SNAPSHOT_SOURCES.includes(anchor._source) || anchor._transactional) ? transactions : dietzTransactions,
       convert, baseCurrency,
     })
     return Math.max(-200, Math.min(200, pct))

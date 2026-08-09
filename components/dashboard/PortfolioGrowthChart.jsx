@@ -456,7 +456,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         .filter(s => s.date && new Date(s.date).getTime() >= threeDaysAgo
           && (selectedInst === 'ALL' ? !s._calibrated : BROKER_NAV_SOURCES.includes(s._source)))
         .sort((a, b) => new Date(a.date) - new Date(b.date))
-        .map(s => ({ ts: new Date(s.date).getTime(), date: new Date(s.date), value: convertVal(s), src: s._source || null }))
+        .map(s => ({ ts: new Date(s.date).getTime(), date: new Date(s.date), value: convertVal(s), src: s._source || null, transactional: !!s._transactional }))
         .filter(p => p.value > 0)
       if (currentTotal > 0) {
         // The live "now" point is real current NAV, not an estimate — tag it as
@@ -516,6 +516,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         date: new Date(s.date),
         value: convertVal(s),
         src: s._source || null,
+        transactional: !!s._transactional,
       }))
       .filter((p) => p.value > 0)
 
@@ -554,7 +555,10 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         const prevSnap = sorted[0]
         const val = convertVal(prevSnap)
         if (val > 0) {
-          pts.unshift({ ts: cutoff, date: new Date(cutoff), value: val })
+          // Carry the source doc's identity: flowAware (below) reads the FIRST
+          // point, and a bare point here read as "not real, not transactional"
+          // even when the anchor snapshot was either.
+          pts.unshift({ ts: cutoff, date: new Date(cutoff), value: val, src: prevSnap._source || null, transactional: !!prevSnap._transactional })
         }
       }
     }
@@ -865,8 +869,15 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   // - Reconstructed baselines (hold-flat Σqty×price, 'backfill' snapshots) pre-date
   //   deposits implicitly (current qty held flat), so subtracting the flows again
   //   double-counts. Flows must be excluded (the original AD2 rationale).
+  // FASE GE: a TRANSACTIONAL backfill doc (rewound through the real imported
+  // deposit/trade ledger, marked _transactional by the backfill effect) reflects
+  // flow timing exactly like a real NAV series does: mid-year buys do not exist
+  // in its January value, so the deposits that funded them MUST be netted. The
+  // sources-only rule dates from when 'backfill' meant pure hold-flat (deposits
+  // implicitly pre-dated); applied to a lot-aware backfill it read every IBKR
+  // deposit as market gain.
   const flowAware = useMemo(
-    () => snapshotData.length >= 2 && ['ibkr', 'ibkr_quarterly', 'daily', 'manual'].includes(snapshotData[0]?.src),
+    () => snapshotData.length >= 2 && (['ibkr', 'ibkr_quarterly', 'daily', 'manual'].includes(snapshotData[0]?.src) || !!snapshotData[0]?.transactional),
     [snapshotData]
   )
   const returnTransactions = useMemo(
