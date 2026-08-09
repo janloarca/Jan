@@ -435,12 +435,28 @@ export function useFirestoreItems() {
     // survives.
     const survivingItems = items.filter((i) => !idSet.has(i.id))
     const orphanSnapIds = orphanedAccountSnapshotIds(snapshots, groupItems, survivingItems)
+    // FASE GL. Account-LEVEL transactions (a broker's deposits/withdrawals,
+    // fees and taxes carry symbol 'CASH' and no _linkedItemId, and accepted
+    // inferred flows share that shape) never matched the per-item filters
+    // below, so deleting the account left them orphaned — and an orphan
+    // deposit is poison, not residue: every return engine keeps netting money
+    // into an account that no longer exists, and the spreadsheet's monthly
+    // recompute rebuilds history through flows no surviving item explains
+    // (real report: deleting IBKR from Settings left YTD at -29.62% and a
+    // -47.8% "drawdown" that was just the deletion itself). Deleting an
+    // account means it never appears in history again — a WITHDRAWAL is how
+    // you record money that actually left. Same last-item rule as
+    // orphanedAccountSnapshotIds: IBKR split across groups (API + file) must
+    // not lose its ledger while one group survives.
+    const ibkrGone = groupItems.some((i) => i._source === 'ibkr')
+      && !survivingItems.some((i) => i._source === 'ibkr')
     const refs = [
       ...groupItems.map((i) => fs.doc(db, `users/${uid}/items`, i.id)),
       ...lots.filter((l) => symDeletable((l.symbol || '').toUpperCase())).map((l) => fs.doc(db, `users/${uid}/lots`, l.id)),
       ...transactions.filter((t) =>
         idSet.has(t._linkedItemId) || idSet.has(t._destinationItemId) || idSet.has(t._originItemId)
         || symDeletable((t.symbol || '').toUpperCase())
+        || (ibkrGone && (t._source === 'ibkr' || t._source === 'inferred_flow'))
       ).map((t) => fs.doc(db, `users/${uid}/transactions`, t.id)),
       ...orphanSnapIds.map((id) => fs.doc(db, `users/${uid}/snapshots`, id)),
     ]
@@ -869,7 +885,13 @@ export function useFirestoreItems() {
   // ("Bolsa de Valores" al doble en cada mes pasado, reporte real del
   // usuario). Los docs v22 con esa mezcla no se pueden reparar por merge:
   // recálculo completo.
-  const SNAPSHOT_VERSION = 23
+  // v24 (FASE GL): borrar una cuenta desde Settings dejaba huérfanas sus
+  // transacciones de nivel de cuenta (símbolo CASH, sin _linkedItemId) y el
+  // recompute mensual posterior al borrado horneó meses con esos flujos sin
+  // dueño adentro (Caja & Bancos histórico inflado a ~$7-10K sobre cuentas de
+  // ~$600, reporte real). El caché nunca se autocorrige por merge: recálculo
+  // completo con el archivo ya limpio.
+  const SNAPSHOT_VERSION = 24
 
   const saveItemSnapshots = useCallback(async (monthKey, itemsData, currency) => {
     if (!uid || !monthKey || !itemsData) return
