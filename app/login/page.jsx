@@ -142,9 +142,20 @@ function LoginForm() {
       }
       // El código del error viaja en el mensaje a propósito: "Error interno"
       // a secas hacía imposible diagnosticar a distancia qué falló de verdad
-      // (auth/internal-error, unauthorized-domain, etc.).
+      // (auth/internal-error, unauthorized-domain, etc.). Y auth/internal-error
+      // en particular suele traer EMBEBIDO el mensaje real del servidor en
+      // err.message (un JSON con la razón): se muestra recortado porque es el
+      // único canal de diagnóstico en un teléfono, donde no hay consola.
+      console.error('[google-signin]', err.code, err.message)
+      let detail = ''
+      if (err.code === 'auth/internal-error' && typeof err.message === 'string') {
+        const cleaned = err.message.replace(/^Firebase:\s*/i, '').replace(/\s+/g, ' ').trim()
+        if (cleaned && cleaned.toLowerCase() !== 'an internal auth error has occurred.') {
+          detail = ` ${cleaned.slice(0, 160)}`
+        }
+      }
       const msg = err.code === 'auth/network-request-failed' ? 'Error de red. Verifica tu conexión.'
-        : `Error al conectar con Google. Intenta de nuevo.${err.code ? ` (${err.code})` : ''}`
+        : `Error al conectar con Google. Intenta de nuevo.${err.code ? ` (${err.code})` : ''}${detail}`
       setError(msg)
     } finally {
       setGoogleLoading(false)
