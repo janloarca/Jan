@@ -10,7 +10,7 @@ import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { indexBalanceEvents } from '@/lib/historicalValues'
 import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget } from '@/lib/autoDividends'
 import { unlinkedOpeningDeposits } from '@/lib/originDeposits'
-import { corruptSnapshotRunIds } from '@/lib/corruptSnapshots'
+import { corruptSnapshotRunIds, feEraSuspectDailyIds } from '@/lib/corruptSnapshots'
 import { planEquitySnapshotWrites } from '@/lib/ibkrSnapshotPlan'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
 import { staleBackfillDates } from '@/lib/snapshotBackfill'
@@ -1553,7 +1553,14 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         return { ts, amount: usd, type: (tx.type || '').toUpperCase() }
       })
       .filter((f) => isFinite(f.ts) && isFinite(f.amount) && f.amount > 0)
-    const ids = corruptSnapshotRunIds(snapshots, flowsUSD)
+    // FASE GA: además de las rachas estadísticas, la purga guiada por era: los
+    // docs 'daily' de la ventana en que el hueco de FASE FE estuvo abierto,
+    // cuando se desvían >5% del nivel real post-era. Atrapa el residuo que
+    // jumpExplained protege (un depósito real de la misma fecha, XOCHI, cubría
+    // más de la mitad del salto corrupto).
+    const runIds = corruptSnapshotRunIds(snapshots, flowsUSD)
+    const eraIds = feEraSuspectDailyIds(snapshots)
+    const ids = [...new Set([...runIds, ...eraIds])]
     corruptSnapCleanupRef.current = true
     if (ids.length === 0) return
     let cancelled = false
