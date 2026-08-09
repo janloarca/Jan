@@ -315,6 +315,15 @@ export function useFirestoreItems() {
     }
   }, [uid, items])
 
+  // FASE GM2. Sube con cada borrado de cuentas. Los efectos una-vez-por-sesión
+  // de useDashboardData (el backfill de 366 días que re-deriva el historial de
+  // portafolio completo) ya corrieron ANTES de un borrado hecho a mitad de
+  // sesión, así que sin esta señal el auto-reparado no ocurre hasta la próxima
+  // recarga: el usuario se queda mirando el snapshot de ayer (que aún contiene
+  // la cuenta borrada) como un pico gigante y una serie punteada, creyendo que
+  // el borrado dejó registro para siempre.
+  const [deletionEpoch, setDeletionEpoch] = useState(0)
+
   const deleteAllItems = useCallback(async ({ cascade } = {}) => {
     if (!uid) return
     const { db, fs } = await getFirebase()
@@ -323,6 +332,7 @@ export function useFirestoreItems() {
       collections.push(`users/${uid}/lots`, `users/${uid}/transactions`, `users/${uid}/snapshots`, `users/${uid}/itemSnapshots`)
     }
     for (const path of collections) await deleteAllDocsIn(db, fs, path)
+    setDeletionEpoch((e) => e + 1)
   }, [uid])
 
   const saveSnapshot = useCallback(async (snapshot) => {
@@ -471,6 +481,7 @@ export function useFirestoreItems() {
       const goneSnaps = new Set(orphanSnapIds)
       setSnapshots((cur) => cur.filter((s) => !goneSnaps.has(s.id)))
     }
+    setDeletionEpoch((e) => e + 1)
     return groupItems.length
   }, [uid, items, lots, transactions, snapshots])
 
@@ -1078,7 +1089,7 @@ export function useFirestoreItems() {
     addAlert, deleteAlert, updateAlert,
     addLot, updateLot, closeLotsFIFO,
     transferFunds, executeSaleAtomic, executeContribution,
-    bulkImport, bulkWriting,
+    bulkImport, bulkWriting, deletionEpoch,
     addPortfolio, deletePortfolio,
     saveGoals, saveSettings, saveProfile,
     saveItemSnapshots, loadItemSnapshots,

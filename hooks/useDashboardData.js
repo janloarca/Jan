@@ -100,7 +100,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     deleteAllItems, deleteItemGroup, saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,
     alerts, addAlert, deleteAlert, updateAlert,
-    lots, addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution, bulkImport, bulkWriting,
+    lots, addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution, bulkImport, bulkWriting, deletionEpoch,
     portfolios, addPortfolio, deletePortfolio,
     financeTransactions, addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     saveGoals, saveSettings, saveProfile,
@@ -247,6 +247,18 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // (FASE EG, see lib/snapshotBackfill.js for the full story and the test
   // that pins this down).
   const backfillRef = useRef(false)
+  // FASE GM2. Un borrado de cuentas a mitad de sesión re-arma el backfill: la
+  // regeneración del historial de portafolio completo ya corrió al inicio de
+  // la sesión, y sin este reset el auto-reparado post-borrado (re-derivar los
+  // días que aún contenían la cuenta borrada, incluido el snapshot de AYER
+  // que se queda como un pico gigante) no ocurría hasta la próxima recarga.
+  const deletionEpochRef = useRef(deletionEpoch)
+  useEffect(() => {
+    if (deletionEpoch !== deletionEpochRef.current) {
+      deletionEpochRef.current = deletionEpoch
+      backfillRef.current = false
+    }
+  }, [deletionEpoch])
   useEffect(() => {
     if (backfillRef.current) return
     // pricesFetching (not just pricesLoading) guards every write here: loading
