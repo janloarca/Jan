@@ -25,10 +25,15 @@ export default function CalibrateReturnModal({ onClose, netWorth, transactions, 
   const year = new Date().getUTCFullYear()
   const todayStr = new Date().toISOString().split('T')[0]
 
-  // The six windows every broker app shows on its performance screen. Each one
-  // becomes its own anchor: the % is solved back into the account value at that
-  // date, so six numbers typed once give the curve six real touch points
-  // instead of one. 'all' is last because it needs the opening date.
+  // The eight windows, mirroring the chart's period tabs exactly (DAY, 1W,
+  // MTD, 1M, 3M, YTD, 1Y, ALL). Each one becomes its own anchor: the % is
+  // solved back into the account value at that date, so numbers typed once
+  // give the curve that many real touch points instead of one. 'day' solves
+  // yesterday's close (a "today" % measures against the prior close); 'all'
+  // is last because it needs the opening date. FASE GI: every saved anchor
+  // also records the exact MOMENT it was typed (_calibratedAt), so a % entered
+  // at 9:00 stays anchored to 9:00 and everything measured after simply
+  // accumulates on top of it.
   const shiftDays = (days) => {
     const d = new Date()
     d.setUTCDate(d.getUTCDate() - days)
@@ -40,14 +45,19 @@ export default function CalibrateReturnModal({ onClose, netWorth, transactions, 
     return d
   }
   const asDateStr = (d) => d.toISOString().split('T')[0]
+  const monthStartStr = `${year}-${String(new Date().getUTCMonth() + 1).padStart(2, '0')}-01`
   const PERIODS = [
+    { kind: 'day', label: t('Hoy', 'Today'), startDate: asDateStr(shiftDays(1)), placeholder: '0.15' },
     { kind: '1w', label: '1W', startDate: asDateStr(shiftDays(7)), placeholder: '0.42' },
+    { kind: 'mtd', label: 'MTD', startDate: monthStartStr, placeholder: '1.2' },
     { kind: '1m', label: '1M', startDate: asDateStr(shiftMonths(1)), placeholder: '1.8' },
     { kind: '3m', label: '3M', startDate: asDateStr(shiftMonths(3)), placeholder: '4.5' },
     { kind: 'ytd', label: 'YTD', startDate: `${year}-01-01`, placeholder: '8.61' },
     { kind: '1y', label: '1Y', startDate: asDateStr(shiftMonths(12)), placeholder: '14.2' },
     { kind: 'all', label: t('Desde el inicio', 'Since inception'), startDate: null, placeholder: '87.24' },
-  ]
+    // On the 1st of the month the MTD window has zero length (its anchor date
+    // IS today): nothing to solve, hide the row for the day.
+  ].filter((p) => !(p.kind === 'mtd' && monthStartStr === todayStr))
   const KIND_LABEL = Object.fromEntries(PERIODS.map((p) => [p.kind, p.label]))
 
   // Accounts detected from the portfolio items, in first-seen order.
@@ -205,6 +215,11 @@ export default function CalibrateReturnModal({ onClose, netWorth, transactions, 
           _source: 'manual',
           _calibrated: true,
           _calibrationKind: s.kind,
+          // The exact moment the % was typed (FASE GI). The solve already used
+          // this instant as endTs, so the anchor is "true as of 9:00", and any
+          // movement measured after simply accumulates on top. Future
+          // consumers (flow inference, freshness display) read it from here.
+          _calibratedAt: new Date().toISOString(),
           ...(isGlobal ? {} : { _account: selKey, _accountName: selName }),
         })
       }

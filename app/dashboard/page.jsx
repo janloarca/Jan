@@ -1560,6 +1560,7 @@ export default function DashboardPage() {
       {modal === 'quarterly' && (
         <QuarterlyHistoryModal
           saveSnapshot={saveSnapshot}
+          saveSettings={saveSettings}
           convert={convert}
           baseCurrency={baseCurrency}
           snapshots={snapshots}

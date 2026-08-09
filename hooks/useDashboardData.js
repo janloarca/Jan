@@ -1161,7 +1161,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // applying them twice would count the correction twice. Anchors are only
   // added where no real observation exists: a real one always wins.
   const chartSnapshots = useMemo(() => {
-    const CHART_ONLY_KINDS = new Set(['1w', '1m', '3m', '1y'])
+    // 'day' and 'mtd' (FASE GI) ride the same rail as the other chart-only
+    // kinds: a solved yesterday-close / month-start value is a portfolio point
+    // like any other, added only where no real observation exists.
+    const CHART_ONLY_KINDS = new Set(['day', '1w', 'mtd', '1m', '3m', '1y'])
     const extra = []
     for (const cal of accountCalibrations) {
       if (!CHART_ONLY_KINDS.has(cal._calibrationKind)) continue

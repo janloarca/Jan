@@ -33,7 +33,7 @@ const EXAMPLE = [
 ]
 
 export default function QuarterlyHistoryModal({
-  onClose, onSaved, saveSnapshot, convert, baseCurrency = 'USD',
+  onClose, onSaved, saveSnapshot, saveSettings, convert, baseCurrency = 'USD',
   snapshots = [], lang = 'es',
 }) {
   const t = (es, en) => (lang === 'es' ? es : en)
@@ -59,9 +59,11 @@ export default function QuarterlyHistoryModal({
   // can trust a real read instead of guessing purely from the value jump.
   const [aiMarkers, setAiMarkers] = useState(() => new Map())
   // Cross-check panel from the screenshot's own summary table (Beginning/
-  // Ending/Change, Return Best/Worst/Period, Deposits & Withdrawals) — never
-  // saved anywhere itself, just shown so the user can compare it against what
-  // landed in the grid below.
+  // Ending/Change, Return Best/Worst/Period, Deposits & Withdrawals). Shown so
+  // the user can compare it against what landed in the grid below, and since
+  // FASE GI also persisted to settings.ibkrPaSummary when the transcription is
+  // saved: lifetime Net D&W + inception are the global constraints the
+  // pre-window flow inference reconciles against.
   const [aiSummary, setAiSummary] = useState(null)
   const fileInputRef = useRef(null)
 
@@ -210,6 +212,26 @@ export default function QuarterlyHistoryModal({
           _source: 'ibkr_quarterly',
           ...(j.marker ? { _flowMarker: j.marker } : {}),
         })
+      }
+      // FASE GI (Fase 2a del plan): the screenshot's own summary table is
+      // EVIDENCE, not just a cross-check to throw away. Beginning 0.00 dates
+      // the account's inception; lifetime Net Deposits & Withdrawals is the
+      // global constraint the pre-window flow inference (Fase 3) reconciles
+      // against: sum(inferred flows) must equal lifetime net minus the exact
+      // flows already on file from the Flex window. Stored on settings, never
+      // as a snapshot: it is account metadata, not a NAV point. Persisting is
+      // best-effort on purpose: the quarters above are already saved, and a
+      // summary write failure must not make the user believe they were not.
+      if (aiSummary && saveSettings) {
+        try {
+          await saveSettings({
+            ibkrPaSummary: {
+              ...aiSummary,
+              currency,
+              savedAt: new Date().toISOString(),
+            },
+          })
+        } catch { /* quarters saved; summary is supplementary evidence */ }
       }
       setDoneMsg(t(
         `Listo: ${jobs.length} ${jobs.length === 1 ? 'trimestre guardado' : 'trimestres guardados'}. Tu gráfica ya arranca desde ahí.`,
