@@ -11,7 +11,7 @@ import { indexBalanceEvents } from '@/lib/historicalValues'
 import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget } from '@/lib/autoDividends'
 import { unlinkedOpeningDeposits } from '@/lib/originDeposits'
 import { corruptSnapshotRunIds, feEraSuspectDailyIds } from '@/lib/corruptSnapshots'
-import { planEquitySnapshotWrites } from '@/lib/ibkrSnapshotPlan'
+import { planEquitySnapshotWrites, misplacedPlainNavMigrations } from '@/lib/ibkrSnapshotPlan'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
 import { staleBackfillDates } from '@/lib/snapshotBackfill'
 import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanDays, earliestNeededDays as computeEarliestNeededDays } from '@/lib/brokerCompletion'
@@ -206,13 +206,34 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // portfolio never opts in: its old 'daily' total cannot be recomputed
     // from a hold-flat guess without a real accuracy downgrade.
     const hasBrokerItem = enrichedItems.some((it) => it && it._source === 'ibkr')
-    const gaps = staleBackfillDates(snapshots, { treatDailyAsStale: !hasBrokerItem })
-    if (gaps.length === 0) { backfillRef.current = true; return }
+    // FASE GD: ventana de un año, no 30 días. Desde que un NAV de broker no
+    // cuenta como cobertura del día completo (staleBackfillDates), los meses
+    // que quedaron solo-broker (la regla de reemplazo que GD eliminó destruyó
+    // sus backfills) se regeneran completos con precios históricos reales.
+    // Cada día se llena UNA vez y queda cubierto: el costo grande es solo la
+    // primera pasada.
+    const gaps = staleBackfillDates(snapshots, { treatDailyAsStale: !hasBrokerItem, windowDays: 366 })
+    const navMigrations = misplacedPlainNavMigrations(snapshots)
+    if (gaps.length === 0 && navMigrations.length === 0) { backfillRef.current = true; return }
     backfillRef.current = true
 
     let cancelled = false
     async function doBackfill() {
       try {
+        if (cancelled) return
+        // FASE GD, ANTES de rellenar: mover los NAV de broker atrapados en el
+        // slot plano de la fecha a su doc paralelo. Si se rellenara primero,
+        // el saveSnapshot del gap escribiría ENCIMA del NAV y lo destruiría.
+        if (navMigrations.length > 0) {
+          try {
+            await bulkImport({ snapshots: navMigrations.map((m) => m.snap) })
+            for (const m of navMigrations) {
+              if (cancelled) return
+              await deleteSnapshot(m.plainId)
+            }
+            console.info(`[nav-migration] moved ${navMigrations.length} broker NAV doc(s) to parallel ids`)
+          } catch (e) { console.error('[nav-migration]', e?.message) }
+        }
         if (cancelled) return
         const allLots = (lots || []).filter(l => l.quantity > 0)
         // Only ASSETS go to portfolio-history (it has no isDebt notion, so a debt
@@ -243,7 +264,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
               symbol: l.symbol, quantity: l.quantity,
               acquisitionDate: l.acquisitionDate, closedDate: l.closedDate || null,
             })) : undefined,
-            period: '1M',
+            // FASE GD: con huecos más viejos que la ventana clásica de 30 días
+            // se pide el año completo (resolución diaria en la ruta); los gaps
+            // fuera del rango devuelto simplemente no matchean ningún punto.
+            period: gaps.some((d) => (Date.now() - new Date(`${d}T00:00:00Z`).getTime()) > 32 * 86400000) ? 'YTD' : '1M',
           }),
         })
         if (!res.ok) return
@@ -269,7 +293,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
     doBackfill()
     return () => { cancelled = true }
-  }, [user, dataLoading, pricesLoading, pricesFetching, ratesLoading, bulkWriting, ibkrAutoSyncing, enrichedItems, snapshots, lots, transactions, saveSnapshot, convert])
+  }, [user, dataLoading, pricesLoading, pricesFetching, ratesLoading, bulkWriting, ibkrAutoSyncing, enrichedItems, snapshots, lots, transactions, saveSnapshot, convert, bulkImport, deleteSnapshot])
 
   // Dividend processing
   const dividendsProcessedRef = useRef(null)
