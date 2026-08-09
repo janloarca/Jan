@@ -345,8 +345,20 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
             seen.add(it.id)
           }
         })
+        // FASE GN. Un cache entry sin dueño solo cuenta si es el bucket
+        // sintético de IBKR (FASE FH) Y el portafolio TODAVÍA tiene items de
+        // IBKR. Sin ese segundo requisito, borrar la cuenta desde Settings
+        // dejaba las entradas huérfanas (ids de items borrados + el bucket)
+        // sumando al TOTAL mientras las filas de categoría ya no las
+        // renderizaban: TOTAL de abril $22,072 sobre categorías que sumaban
+        // ~$12.4K, "el spreadsheet no funciona" (reporte real, dos veces).
+        // Borrar una cuenta = nunca aparece en el historial (FASE GL), y eso
+        // incluye esta suma.
+        const hasIbkrItems = items.some((it) => it && it._source === 'ibkr')
         Object.entries(hist).forEach(([id, v]) => {
-          if (!seen.has(id)) sum += v.value || 0
+          if (seen.has(id)) return
+          if (!id.startsWith(IBKR_UNKNOWN_KEY_PREFIX)) return
+          if (hasIbkrItems) sum += v.value || 0
         })
         result[mk] = sum
       } else if (snapByMonth[mk] != null) {
