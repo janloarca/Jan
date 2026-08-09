@@ -569,6 +569,16 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // IBKR auto-sync
   const { acquireLock, releaseLock } = useTabCoordination()
   const ibkrAutoSyncRef = useRef(false)
+  // FASE GC. Id de la corrida de sync más reciente. El finally del auto-sync
+  // apagaba el spinner solo `if (!cancelled)`, pero el efecto se re-ejecuta
+  // cuando `settings` cambia y el PROPIO sync escribe settings a mitad de
+  // corrida: el cleanup marcaba cancelled en la corrida en vuelo, su finally
+  // se saltaba el apagado y `ibkrAutoSyncing` quedaba pegada en true para
+  // siempre (pill girando sin fin; y desde FASE GB, además, los cuatro
+  // escritores y la limpieza quedaban bloqueados). Con el id, CUALQUIER
+  // corrida apaga el spinner al terminar salvo que una corrida más nueva ya
+  // lo haya vuelto a prender.
+  const ibkrSyncRunIdRef = useRef(0)
 
   const handleIBKRSync = useCallback(async (data, mode = 'merge', onProgress) => {
     const newItems = []
@@ -734,6 +744,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     let cancelled = false
     const doAutoSync = async () => {
       if (cancelled || !acquireLock('ibkr-sync')) return
+      const runId = ++ibkrSyncRunIdRef.current
       setIbkrAutoSyncing(true)
       try {
         const { syncIBKR } = await import('@/lib/ibkrSync')
@@ -786,7 +797,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           _ibkrLastAutoSyncAttempt: new Date().toISOString(),
         })
       } finally {
-        if (!cancelled) setIbkrAutoSyncing(false)
+        // SIEMPRE, aunque cancelled: la bandera es estado del hook (vive entre
+        // re-ejecuciones del efecto) y dejarla prendida congela el pipeline.
+        if (ibkrSyncRunIdRef.current === runId) setIbkrAutoSyncing(false)
         releaseLock('ibkr-sync')
       }
     }
@@ -805,6 +818,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       return { ok: false, error: 'NOT_CONNECTED' }
     }
     if (!acquireLock('ibkr-sync')) return { ok: false, error: 'BUSY' }
+    const runId = ++ibkrSyncRunIdRef.current
     setIbkrAutoSyncing(true)
     try {
       const { syncIBKR } = await import('@/lib/ibkrSync')
@@ -864,7 +878,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       })
       return { ok: false, error: err.message, errorCode: code }
     } finally {
-      setIbkrAutoSyncing(false)
+      if (ibkrSyncRunIdRef.current === runId) setIbkrAutoSyncing(false)
       releaseLock('ibkr-sync')
     }
   }, [settings, user, authFetch, saveSettings, handleIBKRSync, acquireLock, releaseLock])
