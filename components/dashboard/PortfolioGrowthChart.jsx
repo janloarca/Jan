@@ -157,10 +157,24 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     // 'CASH-USD' etc — a plain symbol match drops every flow in the scoped view. If
     // this scope holds a cash/bank position, include the bare-CASH flows too.
     const scopedHasCash = scopedItems.some((it) => /^CASH/i.test(it.symbol || ''))
+    // FASE GF: una fila del ledger de IBKR (depósito/retiro con símbolo 'CASH',
+    // sin _linkedItemId) pertenece al scope de IBKR por su FUENTE, no por que
+    // sobreviva un holding de efectivo. Un depósito gastado completo en
+    // acciones no deja ningún item CASH-* vivo, y exigirlo (la regla vieja de
+    // scopedHasCash como única puerta) filtraba TODOS los flujos de la vista
+    // escopada: cero flujos neteados, así que Valor, TWR y MWR imprimían el
+    // MISMO +84.25% (el cambio crudo de valor, depósitos leídos como
+    // ganancia) y ningún marcador de "Entró dinero" aparecía. El mismo test
+    // por fuente mantiene esas filas FUERA de cualquier scope sin IBKR, donde
+    // el heurístico /^CASH/ podía colarlas si una cuenta manual usara un
+    // símbolo que empiece con CASH. Un flujo inferido (FASE DQ) tiene la misma
+    // semántica de cuenta de broker y viaja por la misma puerta.
+    const scopedHasIbkr = scopedItems.some((it) => it._source === 'ibkr')
     return transactions.filter((tx) => {
       const sym = (tx.symbol || '').toUpperCase()
-      return (tx._linkedItemId && scopedIds.has(tx._linkedItemId)) ||
-        (tx.symbol && scopedSyms.has(sym)) ||
+      if (tx._linkedItemId && scopedIds.has(tx._linkedItemId)) return true
+      if ((tx._source === 'ibkr' || tx._source === 'inferred_flow') && sym.startsWith('CASH')) return scopedHasIbkr
+      return (tx.symbol && scopedSyms.has(sym)) ||
         (scopedHasCash && sym.startsWith('CASH'))
     })
   }, [transactions, scopedItems, selectedInst])
