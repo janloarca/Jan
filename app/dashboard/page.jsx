@@ -295,7 +295,7 @@ export default function DashboardPage() {
     returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated, ytdBreakdown,
     annualDividends, estimatedAnnualIncome,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
-    brokerCompletionState, ibkrDataComplete, inferredFlowCandidates, inferredFlowReconciliation, acceptInferredFlow, dismissInferredFlow,
+    brokerCompletionState, ibkrDataComplete, inferredFlowCandidates, inferredFlowReconciliation, ibkrReconciliation, acceptInferredFlow, dismissInferredFlow,
     benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName,
     handleIBKRSync, triggerIBKRSync,
     ibkrConnected, ibkrAutoSyncing,
@@ -1598,6 +1598,7 @@ export default function DashboardPage() {
           onCalibrate={() => setModal('calibrate')}
           inferredFlowCount={inferredFlowCandidates.length}
           onReviewInferredFlows={() => setModal('inferredFlows')}
+          reconciliation={ibkrReconciliation}
         />
       )}
 

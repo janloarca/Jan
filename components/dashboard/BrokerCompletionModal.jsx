@@ -12,10 +12,11 @@
 
 import { useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
-import { KeyRound, FileSpreadsheet, CalendarRange, Percent, Sparkles } from 'lucide-react'
+import { KeyRound, FileSpreadsheet, CalendarRange, Percent, Sparkles, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { getBrokerCompletionSteps } from '@/lib/brokerCompletion'
 import { getBrokerHowTo } from '@/lib/brokerHowTo'
 import StepJourney from '@/components/ui/StepJourney'
+import { formatCurrency, formatDate } from './utils'
 
 const KIND_ICON = { api: KeyRound, csv: FileSpreadsheet, quarterly: CalendarRange, calibrate: Percent }
 
@@ -30,6 +31,10 @@ export default function BrokerCompletionModal({
   completionState = {},
   onConnect, onImportHistory, onQuarterlyHistory, onCalibrate,
   inferredFlowCount = 0, onReviewInferredFlows,
+  // FASE GK: lib/ibkrReconciliation.js report (null until the PortfolioAnalyst
+  // summary has been transcribed). Rendered as the closing scoreboard: PA's
+  // lifetime primitives vs ours, delta visible per row.
+  reconciliation = null,
 }) {
   const t = (es, en) => (lang === 'es' ? es : en)
   const trapRef = useFocusTrap()
@@ -87,6 +92,47 @@ export default function BrokerCompletionModal({
 
         <div className="px-5 pb-5 overflow-y-auto">
           <StepJourney steps={journeySteps} lang={lang} accent="var(--accent-blue)" />
+
+          {/* FASE GK: the reconciliation scoreboard. PA's screenshot asserts
+              three lifetime primitives; our file asserts the same three. When
+              every row closes, the account is verifiably at 100%; when one
+              does not, its delta says exactly which primitive is missing. */}
+          {brokerId === 'ibkr' && reconciliation && (
+            <div className="mt-4 rounded-xl p-3.5" style={{ border: '1px solid var(--card-border)' }}>
+              <p className="text-xs font-medium mb-0.5" style={{ color: 'var(--text-primary)' }}>
+                {t('Conciliación con PortfolioAnalyst', 'Reconciliation with PortfolioAnalyst')}
+              </p>
+              <p className="text-[10px] mb-2.5" style={{ color: 'var(--text-muted)' }}>
+                {t(`A la fecha de tu captura (${formatDate(reconciliation.asOfDate)}).`, `As of your screenshot's date (${formatDate(reconciliation.asOfDate)}).`)}
+              </p>
+              {[
+                { key: 'nav', label: t('Valor de la cuenta (NAV)', 'Account value (NAV)'), row: reconciliation.nav },
+                { key: 'netFlows', label: t('Depósitos netos de por vida', 'Lifetime net deposits'), row: reconciliation.netFlows },
+                { key: 'pl', label: t('Ganancia de por vida', 'Lifetime gain'), row: reconciliation.pl },
+              ].map(({ key, label, row }) => (
+                <div key={key} className="flex items-center gap-2 py-1.5 text-xs" style={{ borderTop: '1px solid var(--card-border)' }}>
+                  {row.ok
+                    ? <CheckCircle2 size={13} className="shrink-0" style={{ color: 'var(--accent-green)' }} />
+                    : <AlertTriangle size={13} className="shrink-0" style={{ color: 'var(--alert-warn-icon)' }} />}
+                  <span className="flex-1 min-w-0" style={{ color: 'var(--text-secondary)' }}>{label}</span>
+                  <span className="font-mono text-right shrink-0" style={{ color: 'var(--text-primary)' }}>
+                    {row.oursUSD != null ? formatCurrency(row.oursUSD, 'USD') : t('sin dato', 'no data')}
+                  </span>
+                  <span className="font-mono text-[10px] text-right shrink-0 w-20" style={{ color: row.ok ? 'var(--text-muted)' : 'var(--alert-warn-icon)' }}>
+                    {row.deltaUSD != null && !row.ok
+                      ? `${row.deltaUSD >= 0 ? '+' : ''}${formatCurrency(row.deltaUSD, 'USD')}`
+                      : `PA ${formatCurrency(row.paUSD, 'USD')}`}
+                  </span>
+                </div>
+              ))}
+              {reconciliation.periodPct != null && (
+                <p className="text-[10px] mt-2" style={{ color: 'var(--text-muted)' }}>
+                  {t(`Referencia: PA reporta ${reconciliation.periodPct >= 0 ? '+' : ''}${reconciliation.periodPct.toFixed(2)}% desde el inicio (TWR del broker). Estas tres filas son la evidencia cruda de la que ese % se deriva: si cierran, la historia cierra.`,
+                     `Reference: PA reports ${reconciliation.periodPct >= 0 ? '+' : ''}${reconciliation.periodPct.toFixed(2)}% since inception (the broker's TWR). These three rows are the raw evidence that % derives from: if they close, the story closes.`)}
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Only ever reachable once every step above is done — an account

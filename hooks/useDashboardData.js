@@ -16,6 +16,7 @@ import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
 import { staleBackfillDates } from '@/lib/snapshotBackfill'
 import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanDays, earliestNeededDays as computeEarliestNeededDays } from '@/lib/brokerCompletion'
 import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds, applyLifetimeNetConstraint } from '@/lib/inferredFlows'
+import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
 
@@ -1599,6 +1600,19 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     return { inferredFlowCandidates: candidates, inferredFlowReconciliation: reconciliation }
   }, [ibkrDataComplete, ibkrRealCoverage, snapshots, ibkrVolatility, settings, transactions, convert])
 
+  // FASE GK (Fase 4 del plan): el tablero de conciliación contra la captura de
+  // PortfolioAnalyst. Null hasta que el resumen esté transcrito (FASE GI).
+  const ibkrReconciliation = useMemo(() => {
+    const pa = settings?.ibkrPaSummary
+    if (!pa) return null
+    return ibkrReconciliationReport({
+      paSummary: pa,
+      transactions,
+      snapshots,
+      toUSD: (v, cur) => (convert ? convert(Number(v) || 0, cur || 'USD', 'USD') : Number(v) || 0),
+    })
+  }, [settings, transactions, snapshots, convert])
+
   // Reconciliation: once real Flex Query coverage reaches a date that used to
   // be inference-only (a new sync extended the window, or a prior-year XML
   // landed), whatever was guessed there is stale — the real Cash Transactions
@@ -1896,7 +1910,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     ibkrReturnYTD: ibkrReturns.ytd, ibkrReturnMTD: ibkrReturns.mtd, ibkrDayChange: ibkrReturns.day,
     annualDividends, estimatedAnnualIncome,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
-    brokerCompletionState, ibkrDataComplete, inferredFlowCandidates, inferredFlowReconciliation, acceptInferredFlow, dismissInferredFlow,
+    brokerCompletionState, ibkrDataComplete, inferredFlowCandidates, inferredFlowReconciliation, ibkrReconciliation, acceptInferredFlow, dismissInferredFlow,
 
     // Benchmark
     benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName, benchmarkLoading,
