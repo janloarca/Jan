@@ -12,6 +12,7 @@ import MonthEndCheckin, { hasLiveSync } from '@/components/dashboard/MonthEndChe
 import DashboardLoading from './loading'
 import NetWorthCard from '@/components/dashboard/NetWorthCard'
 import CalibrateReturnModal from '@/components/dashboard/CalibrateReturnModal'
+import IBKRJourneyBar from '@/components/dashboard/IBKRJourneyBar'
 import ActionButtons from '@/components/dashboard/ActionButtons'
 import SectionCollapse from '@/components/dashboard/SectionCollapse'
 import MobileNav from '@/components/dashboard/MobileNav'
@@ -373,7 +374,49 @@ export default function DashboardPage() {
   const handleEnrichInstitution = useCallback((name) => { setReviewTarget({ itemId: null, guided: false, institution: name }); setShowReview(true) }, [])
   const handleOpenCmdPalette = useCallback(() => setCmdPaletteOpen(true), [])
   const handleCloseCmdPalette = useCallback(() => setCmdPaletteOpen(false), [])
-  const handleCloseModal = useCallback(() => { setModal(null); setImportBrokerHint(null) }, [])
+  // FASE GM. El viaje continuo de IBKR: un orquestador que SECUENCIA los
+  // modales existentes (conectar → archivo → foto → % → resumen) bajo una
+  // barra de progreso fija, para que cerrar un paso AVANCE al siguiente en
+  // vez de soltar al usuario en el dashboard sin saber si faltaban pasos
+  // (el bug reportado). Ningún paso es obligatorio: "Saltar" avanza sin
+  // hacerlo, "Salir" abandona el viaje. Reglas del usuario: secuencia
+  // seguida, cero pop-ups inesperados, nunca de vuelta a la pantalla
+  // principal a mitad del viaje.
+  const [ibkrJourney, setIbkrJourney] = useState(null) // null | 1..5
+  const ibkrJourneyRef = useRef(null)
+  useEffect(() => { ibkrJourneyRef.current = ibkrJourney }, [ibkrJourney])
+  const advanceIbkrJourney = useCallback(() => {
+    const cur = ibkrJourneyRef.current
+    if (cur == null) return
+    const next = cur + 1
+    if (next > 5) { setIbkrJourney(null); setBrokerCompletionId(null); return }
+    setIbkrJourney(next)
+    if (next !== 2) setImportBrokerHint(null)
+    if (next === 2) { setImportBrokerHint('ibkr'); setModal('import') }
+    else if (next === 3) setModal('quarterly')
+    else if (next === 4) setModal('calibrate')
+    else if (next === 5) { setModal(null); setTimeout(() => setBrokerCompletionId('ibkr'), 50) }
+  }, [])
+  const startIbkrJourney = useCallback(() => {
+    setBrokerCompletionId(null)
+    setImportBrokerHint(null)
+    setIbkrJourney(1)
+    setModal('ibkr')
+  }, [])
+  const exitIbkrJourney = useCallback(() => {
+    setIbkrJourney(null)
+    setModal(null)
+    setImportBrokerHint(null)
+    setBrokerCompletionId(null)
+  }, [])
+
+  // Con el viaje activo, cerrar el modal de un paso AVANZA al siguiente en
+  // vez de terminar: la única salida explícita es el botón "Salir" de la
+  // barra (exitIbkrJourney, que no pasa por aquí).
+  const handleCloseModal = useCallback(() => {
+    setModal(null); setImportBrokerHint(null)
+    if (ibkrJourneyRef.current != null) advanceIbkrJourney()
+  }, [advanceIbkrJourney])
   const handleCloseEdit = useCallback(() => setEditItem(null), [])
   const handleCloseSell = useCallback(() => setSellItem(null), [])
   const handleCloseDetail = useCallback(() => setDetailItem(null), [])
@@ -1277,6 +1320,28 @@ export default function DashboardPage() {
         />
       )}
 
+      {/* FASE GM: la barra fija del viaje continuo de IBKR, dibujada ENCIMA
+          del modal del paso activo. Lleva el hilo (Paso X de 5), permite
+          saltar el paso o salir del viaje, y garantiza que ningún cierre de
+          modal deje al usuario en el dashboard preguntándose si faltaban
+          pasos. */}
+      {ibkrJourney != null && (
+        <IBKRJourneyBar
+          step={ibkrJourney}
+          total={5}
+          title={[
+            lang === 'es' ? 'Conectar por API' : 'Connect via API',
+            lang === 'es' ? 'Subir tu Flex XML' : 'Upload your Flex XML',
+            lang === 'es' ? 'Transcribir tu foto de PortfolioAnalyst' : 'Transcribe your PortfolioAnalyst screenshot',
+            lang === 'es' ? 'Copiar tus retornos (%)' : 'Copy your returns (%)',
+            lang === 'es' ? 'Resumen y conciliación' : 'Summary and reconciliation',
+          ][ibkrJourney - 1]}
+          onSkip={advanceIbkrJourney}
+          onExit={exitIbkrJourney}
+          lang={lang}
+        />
+      )}
+
       {modal === 'ibkr' && (
         <IBKRSyncModal
           onClose={() => {
@@ -1284,7 +1349,9 @@ export default function DashboardPage() {
             handleCloseModal()
             // Greet a brand-new connection with the checklist, once — a routine
             // re-sync (already connected before opening) never triggers it.
-            if (justConnected) setTimeout(() => setBrokerCompletionId('ibkr'), 50)
+            // Inside the FASE GM journey the checklist IS the final step, so
+            // the auto-open would collide with the sequence: skip it there.
+            if (justConnected && ibkrJourneyRef.current == null) setTimeout(() => setBrokerCompletionId('ibkr'), 50)
           }}
           onSyncComplete={async (data, mode, onProgress) => {
             await handleIBKRSync(data, mode, onProgress)
@@ -1435,6 +1502,7 @@ export default function DashboardPage() {
           lastSyncTime={settings?._ibkrLastSync || settings?._ibkrLastAutoSync || null}
           portfolioItems={portfolioItems}
           onOpenIBKR={handleOpenIBKR}
+          onStartIbkrJourney={startIbkrJourney}
           onBackgroundSync={handleIBKRPillClick}
           onImport={handleOpenImport}
           onAddAccount={handleOpenAccount}
@@ -1590,7 +1658,7 @@ export default function DashboardPage() {
           brokerId={brokerCompletionId}
           brokerName={brokerCompletionId === 'ibkr' ? 'Interactive Brokers' : brokerCompletionId}
           lang={lang}
-          onClose={() => setBrokerCompletionId(null)}
+          onClose={() => { setBrokerCompletionId(null); setIbkrJourney(null) }}
           completionState={brokerCompletionState}
           onConnect={() => setModal('ibkr')}
           onImportHistory={() => handleOpenImport('ibkr')}

@@ -69,7 +69,11 @@ function parseNumber(val) {
   return parseAmount(val)
 }
 
-export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateItem, onDeleteItem, onBulkImport, existingItems, existingLots = [], existingFinanceTransactions = [], activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null }) {
+// onImportComplete (FASE GM): fired once when an import lands on its done
+// screen, with a summary of what was written. The IBKR journey orchestrator
+// listens to it to ADVANCE to the next step instead of dropping the user back
+// on the dashboard wondering whether more steps exist (the reported bug).
+export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateItem, onDeleteItem, onBulkImport, existingItems, existingLots = [], existingFinanceTransactions = [], activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null, onImportComplete = null }) {
   const trapRef = useFocusTrap()
   const [mode, setMode] = useState('file')
   const [step, setStep] = useState('upload')
@@ -569,7 +573,8 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     setResult({ success, failed, total: preview.length, snapCount, txCount, failReasons })
     setStep('done')
     setImporting(false)
-  }, [preview, onImportItems, onImportSnapshot, onImportTransaction, onAddLot, activePortfolio, extraSheets])
+    if (onImportComplete) onImportComplete({ kind: 'generic', summary: { success, failed } })
+  }, [preview, onImportItems, onImportSnapshot, onImportTransaction, onAddLot, activePortfolio, extraSheets, onImportComplete])
 
   const doBIImport = useCallback(async () => {
     if (!biData || !biMatch || !onAddFinanceTransaction) return
@@ -715,8 +720,9 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     } finally {
       setStep('done')
       setImporting(false)
+      if (onImportComplete) onImportComplete({ kind: 'ibkr', summary })
     }
-  }, [ibkrData, onBulkImport, existingItems, activePortfolio, activeEntity, ibkrImportMode])
+  }, [ibkrData, onBulkImport, existingItems, activePortfolio, activeEntity, ibkrImportMode, onImportComplete])
 
   // Dry run of the enrich match, so the preview can promise a concrete outcome
   // ("21 se enlazan, 0 se duplican") instead of making the user guess which mode

@@ -22,7 +22,7 @@ import BrokerConnectModal from '@/components/BrokerConnectModal'
 // render the Token/Query ID pair instead of a generic credentials form.
 const IBKR_PSEUDO_BROKER = { id: 'ibkr', name: 'Interactive Brokers', icon: '🏦', hasApi: true, authType: null, fields: [] }
 
-export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, onBackgroundSync, onImport, onAddAccount, onOpenBlockchain, onOpenLedger, onSaveCredentials, onCalibrate, onOpenBrokerChecklist, lang = 'es', lastSyncTime, portfolioItems = [] }) {
+export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, onStartIbkrJourney, onBackgroundSync, onImport, onAddAccount, onOpenBlockchain, onOpenLedger, onSaveCredentials, onCalibrate, onOpenBrokerChecklist, lang = 'es', lastSyncTime, portfolioItems = [] }) {
   const trapRef = useFocusTrap()
   const t = (es, en) => lang === 'es' ? es : en
 
@@ -389,7 +389,11 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                          Token/Query ID pair (IBKR's own credential shape, not
                          the generic fields form) lives inside the wizard's
                          API step now instead of this inline expansion. */
-                      <button onClick={() => setConnectBroker(IBKR_PSEUDO_BROKER)}
+                      /* FASE GM: con el orquestador disponible, "Empezar"
+                         arranca el viaje continuo de 5 pasos (conectar →
+                         archivo → foto → % → resumen) en vez del wizard
+                         suelto que soltaba al usuario tras cada paso. */
+                      <button onClick={() => { if (onStartIbkrJourney) onStartIbkrJourney(); else setConnectBroker(IBKR_PSEUDO_BROKER) }}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg hover:brightness-110 active:scale-[0.97] transition-all"
                         style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)', boxShadow: '0 1px 4px rgba(37,99,235,0.35)' }}>
                         <Rocket size={13} strokeWidth={2.25} />
