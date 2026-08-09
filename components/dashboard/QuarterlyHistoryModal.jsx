@@ -20,6 +20,7 @@ import { useState, useMemo, useRef } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { authFetch } from '@/lib/authFetch'
 import { quartersBetween, quarterSnapshotDate, formatCurrency } from './utils'
+import BrokerSteps from '@/components/ui/BrokerSteps'
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'MXN', 'GTQ', 'COP', 'BRL', 'CAD']
 
@@ -271,12 +272,17 @@ export default function QuarterlyHistoryModal({
     color: 'var(--text-primary, white)',
   }
 
+  // FASE GM parte 2: título = una línea de acción; el "por qué" vive en
+  // `detail`, detrás del botón "i" de StepJourney (mismo patrón que los
+  // pasos 1 y 2 del viaje de IBKR, vía el BrokerSteps compartido).
   const STEPS = [
-    { es: 'En IBKR entra a "Performance & Reports" → "Portfolio Analyst"', en: 'In IBKR go to "Performance & Reports" → "Portfolio Analyst"' },
-    { es: 'Abre el reporte "Holdings"', en: 'Open the "Holdings" report' },
-    { es: 'En el período pon "Since Inception" y la frecuencia en "Quarterly"', en: 'Set the period to "Since Inception" and the frequency to "Quarterly"' },
-    { es: 'Quita los benchmarks: solo debe quedar tu cuenta', en: 'Remove the benchmarks: only your account should remain' },
-    { es: 'Toma captura de la gráfica de Net Asset Value y transcribe abajo el valor de cada barra', en: 'Screenshot the Net Asset Value chart and transcribe each bar\'s value below' },
+    { es: 'Andá a "Performance & Reports" → "Portfolio Analyst"', en: 'Go to "Performance & Reports" → "Portfolio Analyst"' },
+    { es: 'Abrí el reporte "Holdings"', en: 'Open the "Holdings" report' },
+    { es: 'Poné el período en "Since Inception" y la frecuencia en "Quarterly"', en: 'Set the period to "Since Inception" and the frequency to "Quarterly"' },
+    { es: 'Quitá los benchmarks', en: 'Remove the benchmarks',
+      detail: { es: 'Solo debe quedar la línea de tu cuenta en la gráfica.', en: 'Only your account\'s line should remain in the chart.' } },
+    { es: 'Capturá la gráfica y transcribí cada barra abajo', en: 'Screenshot the chart and transcribe each bar below',
+      detail: { es: 'Es la gráfica de Net Asset Value. Podés pegar el valor a mano o subir la captura para que Chispu la lea con IA.', en: 'It is the Net Asset Value chart. You can type each value by hand or upload the screenshot for Chispu to read it with AI.' } },
   ]
 
   return (
@@ -300,25 +306,20 @@ export default function QuarterlyHistoryModal({
         </div>
 
         <div className="px-5 pb-5 overflow-y-auto space-y-4">
-          {/* Where the numbers come from */}
-          <div className="rounded-xl p-3" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+          {/* Where the numbers come from — BrokerSteps supplies its own card,
+              so this wrapper is just the collapse toggle, not a second box. */}
+          <div>
             <button type="button" onClick={() => setShowSteps((v) => !v)}
-              className="w-full flex items-center justify-between gap-2 text-left">
+              className="w-full flex items-center justify-between gap-2 text-left px-1 py-1">
               <span className="text-xs uppercase tracking-wider font-medium" style={{ color: 'var(--text-muted)' }}>
                 {t('De dónde salen estos números', 'Where these numbers come from')}
               </span>
               <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{showSteps ? '▴' : '▾'}</span>
             </button>
             {showSteps && (
-              <ol className="mt-2.5 space-y-1.5">
-                {STEPS.map((s, i) => (
-                  <li key={i} className="flex gap-2.5 text-body" style={{ color: 'var(--text-secondary)' }}>
-                    <span className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-mono"
-                      style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>{i + 1}</span>
-                    <span className="min-w-0">{lang === 'es' ? s.es : s.en}</span>
-                  </li>
-                ))}
-              </ol>
+              <div className="mt-2">
+                <BrokerSteps steps={STEPS} variant="api" lang={lang} title={false} />
+              </div>
             )}
           </div>
 

@@ -15,7 +15,7 @@
 // real completion state to track).
 
 import { useState } from 'react'
-import { CheckCircle2, ChevronDown, Circle } from 'lucide-react'
+import { CheckCircle2, Info, Circle } from 'lucide-react'
 
 function resolveText(v, lang) {
   if (v == null) return null
@@ -121,11 +121,18 @@ export default function StepJourney({ steps, note, variant = 'csv', lang = 'es',
                       </p>
                     )}
                   </div>
+                  {/* FASE GM parte 2: botón "i" explícito en vez de una flechita
+                      ambigua — el usuario pidió "botones de info con más
+                      especificaciones" para que quede claro que ahí vive el
+                      detalle, no una acción de expandir genérica. */}
                   {detail && (
                     <button type="button" onClick={() => setOpenStep(isOpen ? null : i)} aria-expanded={isOpen}
                       aria-label={t('Más detalle de este paso', 'More detail for this step')}
-                      className="shrink-0 mt-0.5 p-0.5 rounded transition-colors hover:bg-white/5" style={{ color: 'var(--text-muted)' }}>
-                      <ChevronDown size={13} style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} />
+                      className="shrink-0 mt-0.5 w-5 h-5 rounded-full flex items-center justify-center transition-colors"
+                      style={isOpen
+                        ? { backgroundColor: accent, color: 'var(--bg-card)' }
+                        : { backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>
+                      <Info size={12} />
                     </button>
                   )}
                 </div>

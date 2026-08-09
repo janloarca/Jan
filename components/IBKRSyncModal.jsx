@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
-import { CheckCircle, Lock, ChevronDown, ChevronUp, Upload, RefreshCw } from 'lucide-react'
+import { CheckCircle, Lock, ChevronDown, ChevronUp, Upload, RefreshCw, Info } from 'lucide-react'
 import { parseIBKRFile, formatIBKRFileResult, detectIBKRFileKind, pickSectionedCsvFromWorkbook } from '@/lib/parsers/ibkrFileParser'
 import { parseIBKRXmlFile } from '@/lib/parsers/ibkrXmlFileAdapter'
 import { authFetch } from '@/lib/authFetch'
+import { getBrokerHowTo } from '@/lib/brokerHowTo'
+import BrokerSteps from '@/components/ui/BrokerSteps'
 
 // Real-phase stepper: shows which of the 4 sync phases is running instead of a
 // time-based bar that fills at a fixed rate regardless of IBKR's actual state.
@@ -176,17 +178,20 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   // sync can run with '__stored__' without the client ever handling the token.
   const [hasVaultCreds, setHasVaultCreds] = useState(false)
   const [showConfig, setShowConfig] = useState(!isConnected)
-  // First-time explainer: BEFORE asking for any credentials, tell the user how
-  // the connection actually works (IBKR only shares what their Flex Query is
-  // configured to share, and its period rules everything). Seen once, then a
-  // "¿Cómo funciona?" link brings it back.
+  // First-time explainer: tells the user how the connection actually works
+  // (IBKR only shares what their Flex Query is configured to share, and its
+  // period rules everything). Open by default the FIRST time only (FASE GM2:
+  // lives inline in the same screen now, not a full-screen gate to dismiss);
+  // any manual toggle after that is remembered so it doesn't reopen uninvited.
   const [showExplainer, setShowExplainer] = useState(() => {
     if (isConnected) return false
     try { return !localStorage.getItem('chispudo-ibkr-explained') } catch { return true }
   })
-  const dismissExplainer = () => {
-    try { localStorage.setItem('chispudo-ibkr-explained', '1') } catch {}
-    setShowExplainer(false)
+  const toggleExplainer = () => {
+    setShowExplainer((v) => {
+      try { localStorage.setItem('chispudo-ibkr-explained', '1') } catch {}
+      return !v
+    })
   }
   const [showHistory, setShowHistory] = useState(false)
   const [syncStatus, setSyncStatus] = useState('')
@@ -774,51 +779,35 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
             </div>
           )}
 
-          {step === 'config' && showExplainer && !syncing && !decrypting && (
-            <div className="space-y-4">
-              <div className="text-center">
-                <div className="w-11 h-11 rounded-full flex items-center justify-center mx-auto mb-2" style={{ backgroundColor: 'rgba(37,99,235,0.12)' }}>
-                  <RefreshCw size={20} style={{ color: 'var(--accent-blue)' }} />
-                </div>
-                <p className="text-base font-semibold text-white">{t('Cómo funciona la conexión con IBKR', 'How the IBKR connection works')}</p>
-                <p className="text-xs text-slate-500 mt-1">{t('Antes de pegar tus datos, lo importante en 30 segundos.', 'Before you paste anything, the key points in 30 seconds.')}</p>
-              </div>
-              <div className="space-y-3 text-xs leading-relaxed text-slate-300">
-                <div className="flex gap-2.5">
-                  <span>🔒</span>
-                  <p>{t('Es SOLO LECTURA y cifrado. Usamos un "Flex Query" (un reporte de tu cuenta): nunca podemos operar ni mover tu dinero, solo leer lo que tú configures.',
-                        'It is READ-ONLY and encrypted. We use a "Flex Query" (a report of your account): we can never trade or move your money, only read what you configure.')}</p>
-                </div>
-                <div className="flex gap-2.5">
-                  <span>🧩</span>
-                  <div>
-                    <p>{t('Solo recibimos las secciones que actives en el Flex Query. Cada una desbloquea algo:', 'We only receive the sections you enable in the Flex Query. Each unlocks something:')}</p>
-                    <ul className="mt-1.5 space-y-1" style={{ color: 'var(--text-muted)' }}>
-                      <li>· <span className="text-white">Open Positions</span> + <span className="text-white">Cash Report</span>: {t('tus activos y efectivo de hoy', "today's assets and cash")}</li>
-                      <li>· <span className="text-white">Trades</span> + <span className="text-white">Cash Transactions</span>: {t('tus compras/ventas y depósitos (para el retorno real)', 'your buys/sells and deposits (for real return)')}</li>
-                      <li>· <span className="text-white">Net Asset Value (NAV) in Base</span>: {t('el valor diario de tu cuenta (la gráfica histórica)', "your account's daily value (the historical chart)")}</li>
-                    </ul>
+          {step === 'config' && (showConfig || (!syncing && !decrypting && !preview)) && (
+            <div className="space-y-6">
+              {/* FASE GM parte 2: el explicador ya no es una pantalla propia que
+                  hay que cerrar para llegar al formulario ("Entendido,
+                  continuar" era el pop-up inesperado que el usuario pidió
+                  eliminar) — vive DENTRO de esta misma pantalla, abierto por
+                  defecto la primera vez (mismo localStorage de antes) y
+                  colapsable el resto. Todo en un solo segmento. */}
+              <button type="button" onClick={toggleExplainer}
+                className="w-full flex items-center gap-2 text-left px-3 py-2 rounded-lg transition-colors"
+                style={{ backgroundColor: 'rgba(37,99,235,0.08)', color: 'var(--accent-blue)' }}>
+                <Info size={13} className="shrink-0" />
+                <span className="text-xs font-medium flex-1">{t('Cómo funciona la conexión con IBKR', 'How the IBKR connection works')}</span>
+                <ChevronDown size={13} style={{ transform: showExplainer ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} />
+              </button>
+              {showExplainer && (
+                <div className="space-y-2.5 text-xs leading-relaxed text-slate-300 px-3 -mt-2">
+                  <div className="flex gap-2.5">
+                    <span>🔒</span>
+                    <p>{t('Es SOLO LECTURA y cifrado. Usamos un "Flex Query" (un reporte de tu cuenta): nunca podemos operar ni mover tu dinero, solo leer lo que tú configures.',
+                          'It is READ-ONLY and encrypted. We use a "Flex Query" (a report of your account): we can never trade or move your money, only read what you configure.')}</p>
+                  </div>
+                  <div className="flex gap-2.5">
+                    <span>🧩</span>
+                    <p>{t('Solo recibimos las secciones que actives en el Flex Query: posiciones y efectivo de hoy, compras/ventas y depósitos (para el retorno real), y el valor diario de tu cuenta (la gráfica histórica).',
+                          'We only receive the sections you enable in the Flex Query: today\'s positions and cash, buys/sells and deposits (for real return), and your daily account value (the historical chart).')}</p>
                   </div>
                 </div>
-                <div className="flex gap-2.5">
-                  <span>📅</span>
-                  <p>{t('El PERÍODO del Flex Query manda: ponlo en "Year to Date" o "Last 365 Days". Con un período corto solo recibimos unos días y tu retorno no cuadra con IBKR.',
-                        'The Flex Query PERIOD rules everything: set it to "Year to Date" or "Last 365 Days". A short period sends only a few days and your return will not match IBKR.')}</p>
-                </div>
-              </div>
-              <button onClick={dismissExplainer}
-                className="w-full py-3 rounded-xl text-sm font-medium" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
-                {t('Entendido, continuar', 'Got it, continue')}
-              </button>
-            </div>
-          )}
-
-          {step === 'config' && !showExplainer && (showConfig || (!syncing && !decrypting && !preview)) && (
-            <div className="space-y-6">
-              <button onClick={() => setShowExplainer(true)}
-                className="text-xs underline underline-offset-2" style={{ color: 'var(--accent-blue)' }}>
-                {t('¿Cómo funciona?', 'How does it work?')}
-              </button>
+              )}
               {/* Mode tabs: API Sync vs File Import */}
               <div className="flex bg-theme-base rounded-lg border border-glass-border p-0.5">
                 <button onClick={() => { setImportMode('api'); setError(''); setErrorCode('') }}
@@ -847,71 +836,13 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 </p>
               </div>
 
-              <div className="space-y-5 pl-1">
-                <div className="flex gap-4">
-                  <span className="text-xs text-slate-500 font-mono pt-0.5 shrink-0">1.</span>
-                  <div>
-                    <p className="text-xs text-white font-medium">{t('Crear el Flex Query', 'Create the Flex Query')}</p>
-                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                      <span className="text-[var(--accent-blue)] font-mono">interactivebrokers.com</span> → Performance & Reports → Flex Queries → {t('crear Activity Flex Query con', 'create Activity Flex Query with')} <span className="text-white">Open Positions</span>, <span className="text-white">Trades</span>, <span className="text-white">Cash Transactions</span>, <span className="text-white">Cash Report</span> {t('y', 'and')} <span className="text-white">Net Asset Value (NAV) in Base</span>
-                    </p>
-                    {/* Cash Report → <CashReportCurrency> balance rows. Without it the
-                        account's idle cash never appears as a position. */}
-                    <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--accent-orange)' }}>
-                      {t('Incluye "Cash Report": es la sección que trae el efectivo de tu cuenta. Sin ella tu cash no aparece en el portafolio.',
-                         'Include "Cash Report": it is the section that carries your account cash. Without it your cash never shows in the portfolio.')}
-                    </p>
-                    {/* Equity Summary → <EquitySummaryByReportDateInBase> daily NAV rows.
-                        This is the ONLY source of real historical portfolio value; without
-                        it YTD/ALL and the value chart start from today (estimated, not real). */}
-                    <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--accent-orange)' }}>
-                      {t('Incluye "Net Asset Value (NAV) in Base" (el historial de valor) y pon el período del query en "Year to Date" o "Last 365 Days". El período manda: con "Last 30 Days" solo recibimos 30 días de historial, depósitos y trades, y tu retorno del año no puede cuadrar con IBKR.',
-                         'Include "Net Asset Value (NAV) in Base" (the value history) and set the query period to "Year to Date" or "Last 365 Days". The period rules everything: with "Last 30 Days" we only receive 30 days of history, deposits and trades, and your yearly return cannot match IBKR.')}
-                    </p>
-                    <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-                      {t('¿No encuentras la sección de NAV? Usa la pestaña "Importar archivo" y sube tu Activity Statement (XLS): trae el historial de valor completo.',
-                         'Can\'t find the NAV section? Use the "Import file" tab and upload your Activity Statement (XLS): it brings the full value history.')}
-                    </p>
-                    {/* Without Cash Transactions, deposits/withdrawals never import,
-                        so Modified-Dietz returns are distorted by unaccounted flows. */}
-                    <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--accent-orange)' }}>
-                      {t('Incluye "Cash Transactions" (Deposits/Withdrawals): sin ella tus depósitos no se importan y tus retornos pueden salir inflados.',
-                         'Include "Cash Transactions" (Deposits/Withdrawals): without it your deposits don\'t import and your returns may look inflated.')}
-                    </p>
-                    {/* Without the Asset Class column everything imports as Stock —
-                        bonds/cash then fetch quotes from unrelated real tickers. */}
-                    <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--accent-orange)' }}>
-                      {t('Importante: incluye la columna "Asset Class" en Open Positions: sin ella, los bonos y el cash se importan como acciones.',
-                         'Important: include the "Asset Class" column in Open Positions: without it, bonds and cash import as stocks.')}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex gap-4">
-                  <span className="text-xs text-slate-500 font-mono pt-0.5 shrink-0">2.</span>
-                  <div>
-                    <p className="text-xs text-white font-medium">{t('Generar el Token', 'Generate the Token')}</p>
-                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                      {t('En la MISMA página de Flex Queries, junto a ', 'On the SAME Flex Queries page, next to ')}
-                      <span className="text-white">Flex Web Service</span>
-                      {t(' toca el engranaje ⚙, actívalo y toca ', ' click the gear ⚙, enable it, then ')}
-                      <span className="text-white">Generate a New Token</span>.
-                      {t(' Cópialo de inmediato (no se vuelve a mostrar). El token NO está en Settings.', ' Copy it immediately (it will not show again). The token is NOT under Settings.')}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex gap-4">
-                  <span className="text-xs text-slate-500 font-mono pt-0.5 shrink-0">3.</span>
-                  <div>
-                    <p className="text-xs text-white font-medium">{t('Copia el Query ID y pega ambos abajo', 'Copy the Query ID and paste both below')}</p>
-                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                      {t('El Query ID es el número junto a tu query guardado en la lista de Flex Queries. El token y el Query ID son dos cosas distintas.',
-                         'The Query ID is the number next to your saved query in the Flex Queries list. The token and the Query ID are two different things.')}
-                    </p>
-                  </div>
-                </div>
-              </div>
+              {/* FASE GM parte 2: una sola fuente de verdad para "cómo conseguir
+                  esto" (lib/brokerHowTo.js), la MISMA que ya alimenta el paso
+                  de archivo y el wizard de BrokerConnectModal — antes esta
+                  pantalla tenía su PROPIA copia hardcodeada de 3 pasos con 4
+                  párrafos naranjas siempre expandidos debajo del paso 1, la
+                  pared de texto que el usuario señaló como agobiante. */}
+              <BrokerSteps steps={getBrokerHowTo('ibkr').api.steps} note={getBrokerHowTo('ibkr').api.note} variant="api" lang={lang} />
 
               <div className="border-t border-glass-border/40 pt-5 space-y-4">
                 <div>
