@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useDashboardData } from '@/hooks/useDashboardData'
 import { getItemValue, formatCurrency, getTypeCategory, businessDaysSince } from '@/components/dashboard/utils'
+import { computeLoadStages } from '@/lib/loadStages'
 import Header from '@/components/dashboard/Header'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
 import AdBanner from '@/components/AdBanner'
@@ -18,17 +19,24 @@ import SectionCollapse from '@/components/dashboard/SectionCollapse'
 import MobileNav from '@/components/dashboard/MobileNav'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import CardBoundary from '@/components/dashboard/CardBoundary'
-import { SkeletonCard, SkeletonChart } from '@/components/dashboard/Skeleton'
+import { SkeletonCard, SkeletonChart, Shimmer } from '@/components/dashboard/Skeleton'
 
+// The most-seen loading moment in the app in practice — the next/dynamic()
+// fallback for 17 different modals below, so it flashes for a beat every
+// time any of them opens. Used to be its own third hardcoded-hex placeholder
+// system (bg-slate-700/*), unrelated to both Skeleton.jsx's Shimmer and to
+// this same file's own DashboardLoading skeleton. Same Shimmer atom as both
+// of those now — this shape (title bar + rows) has no real layout to match,
+// unlike DashboardLoading, so there's no constraint against reusing it as-is.
 function ModalSkeleton() {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" role="status" aria-live="polite" aria-label="Loading">
       <div className="bg-theme-card border border-glass-border rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
-        <div className="h-5 w-32 bg-slate-700/50 rounded animate-pulse mb-4" />
+        <Shimmer className="h-5 w-32 mb-4" />
         <div className="space-y-3">
-          <div className="h-10 bg-slate-700/30 rounded animate-pulse" />
-          <div className="h-10 bg-slate-700/30 rounded animate-pulse" />
-          <div className="h-10 bg-slate-700/30 rounded animate-pulse w-2/3" />
+          <Shimmer className="h-10" />
+          <Shimmer className="h-10" />
+          <Shimmer className="h-10 w-2/3" />
         </div>
       </div>
     </div>
@@ -302,7 +310,7 @@ export default function DashboardPage() {
     annualDividends, estimatedAnnualIncome,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
     brokerCompletionState, ibkrDataComplete, inferredFlowCandidates, inferredFlowReconciliation, ibkrReconciliation, acceptInferredFlow, dismissInferredFlow,
-    benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName,
+    benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName, benchmarkLoading,
     handleIBKRSync, triggerIBKRSync,
     ibkrConnected, ibkrAutoSyncing,
     ibkrSyncStatus, ibkrSyncErrorCode, ibkrLastSync, ibkrSyncSummary,
@@ -940,6 +948,8 @@ export default function DashboardPage() {
 
   if (!user) return null
 
+  const loadStages = computeLoadStages({ dataLoading, ratesLoading, pricesLoading, benchmarkLoading })
+
   return (
     <div className="min-h-screen bg-theme-base">
       <a href="#main-content" className="skip-link">{lang === 'es' ? 'Ir al contenido' : 'Skip to content'}</a>
@@ -950,11 +960,18 @@ export default function DashboardPage() {
         onSettings={handleOpenSettings}
         onSignOut={handleSignOut}
         onRefresh={handleRefresh}
-        pricesLoading={pricesLoading || ratesLoading}
+        // Same flags computeLoadStages counts as real stages below, so the
+        // ring never sits at "idle" while one of them is still genuinely in
+        // flight (e.g. rates/prices already landed but the benchmark hasn't).
+        pricesLoading={pricesLoading || ratesLoading || benchmarkLoading}
         // Real stages, not a timer: your data, the exchange rates, the market
-        // prices. The ring fills as each one actually lands.
-        loadStagesDone={[!dataLoading, !ratesLoading, !pricesLoading].filter(Boolean).length}
-        loadStagesTotal={3}
+        // prices, the benchmark. The ring fills as each one actually lands.
+        // dataLoading only ever goes true→false once (the very first load —
+        // see lib/loadStages.js), so computeLoadStages stops counting it as a
+        // stage the moment it resolves instead of leaving every later
+        // refresh stuck with a permanent, meaningless floor.
+        loadStagesDone={loadStages.done}
+        loadStagesTotal={loadStages.total}
         // Reflects the SAME error signal the "prices" banner already uses
         // (see staleCode above) — the button's error state and the banner
         // can never disagree about whether the last refresh actually failed.

@@ -661,10 +661,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     return () => { cancelled = true }
   }, [user, dataLoading, pricesLoading, pricesFetching, ratesLoading, bulkWriting, ibkrAutoSyncing, enrichedItems, transactions, addTransaction, deleteTransaction, updateTransaction, updateItem, convert])
 
-  const handleRefresh = useCallback(() => {
-    refreshPrices()
-    refreshRates()
-  }, [refreshPrices, refreshRates])
+  // handleRefresh is declared further below, right after useBenchmark() — it
+  // needs refetchBenchmark in its dependency array, and that array is
+  // evaluated eagerly on every render, so referencing a `const` from before
+  // its own declaration here would throw (temporal dead zone), not just
+  // misbehave silently.
 
   // IBKR auto-sync
   const { acquireLock, releaseLock } = useTabCoordination()
@@ -1733,7 +1734,21 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   }, [portfolioItems, convert, baseCurrency])
 
   const benchmarkSymbol = settings?.benchmarkSymbol || '%5EGSPC'
-  const { benchmarkData, benchmarkReturn, benchmarkName, loading: benchmarkLoading, error: benchmarkError } = useBenchmark('YTD', benchmarkSymbol)
+  const { benchmarkData, benchmarkReturn, benchmarkName, loading: benchmarkLoading, error: benchmarkError, refetch: refetchBenchmark } = useBenchmark('YTD', benchmarkSymbol)
+
+  // Declared here (not up near refreshPrices/refreshRates) because it needs
+  // refetchBenchmark, which only exists after the useBenchmark() call above —
+  // see the comment left at the old call site. Not folding benchmarkError
+  // into refreshError: unlike prices/rates, useBenchmark has no retry/
+  // debounce and flips error after a single failed fetch, and that error is
+  // surfaced nowhere else in the app today — wiring a never-before-visible,
+  // single-failure signal into the header's most visible control would be a
+  // disproportionate reaction to a hiccup nobody currently sees.
+  const handleRefresh = useCallback(() => {
+    refreshPrices()
+    refreshRates()
+    refetchBenchmark()
+  }, [refreshPrices, refreshRates, refetchBenchmark])
 
   // Full summary (gross in / gross out / net) — the UI used to surface only the
   // net, leaving no way to see how much was actually deposited vs withdrawn.
