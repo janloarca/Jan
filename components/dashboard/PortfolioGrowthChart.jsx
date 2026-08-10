@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { formatCurrency, formatCompact, formatAxisTick, formatDate, getItemValue, buildIncomeEvents, isExcludedFromNetWorth, findYearStartAnchor, shouldHoldFlat, SNAPSHOT_SRC_PRIORITY, BROKER_NAV_SOURCES, computeWindowGrowth } from './utils'
+import { formatCurrency, formatCompact, formatAxisTick, formatDate, getItemValue, buildIncomeEvents, isExcludedFromNetWorth, findYearStartAnchor, shouldHoldFlat, SNAPSHOT_SRC_PRIORITY, BROKER_NAV_SOURCES, computeWindowGrowth, isMarketPriced, effectiveAcqTs } from './utils'
 import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { indexBalanceEvents } from '@/lib/historicalValues'
 import { isBankLikeItem } from '@/lib/contributions'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
+import { staticValueAt } from '@/lib/staticOverlay'
 import { computeTWRSeries, computeAnchoredReturnSeries, computeAnchoredMWRSeries, filterValueSpikes } from './analytics'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import ErrorState from '@/components/ui/ErrorState'
@@ -731,6 +732,18 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     setEstimateNoticeDismissed(true)
   }, [estimateNoticeKey])
 
+  // How far back the overlay is allowed to hold its earliest known value: the
+  // first acquisition among the very items that produce it (the API rebuilds
+  // exactly the non-market-priced ones). Before that date the assets did not
+  // exist, so zero is the answer rather than a gap.
+  const earliestStaticAcqTs = useMemo(() => {
+    const times = (scopedItems || [])
+      .filter((it) => it && !isMarketPriced(it))
+      .map((it) => effectiveAcqTs(it))
+      .filter((t) => t != null && isFinite(t))
+    return times.length > 0 ? Math.min(...times) : null
+  }, [scopedItems])
+
   const chartData = useMemo(() => {
     // IBKR-sourced snapshots are the broker's account NAV only — they predate any
     // manually-added assets (a bond, a cash fund), so on the "Todas" (all) view
@@ -740,12 +753,13 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     // broker-only), and daily snapshots taken before the manual assets were added.
     // Daily snapshots from after they were added already include them, so skip
     // those to avoid double-counting (which created a phantom mid-year crash).
-    const staticAt = (ts) => {
-      if (!staticPoints || staticPoints.length === 0) return 0
-      let v = 0
-      for (const sp of staticPoints) { if (sp.ts <= ts) v = sp.value; else break }
-      return v
-    }
+    // FASE GS: the lookup lives in lib/staticOverlay.js. Its left edge used to
+    // return 0 for any timestamp older than the reconstruction's first point,
+    // which drew a broker NAV from that era as though it were the whole
+    // portfolio (a $17K portfolio plotted at $4K, headlining "+475%" off it).
+    // It now holds the earliest known value backwards, bounded by when those
+    // assets were actually acquired.
+    const staticAt = (ts) => staticValueAt(ts, staticPoints, { earliestAcqTs: earliestStaticAcqTs })
     // The overlay only ever exists to patch a snapshot that is BROKER-ONLY. With
     // no synced broker position in the portfolio there is no such snapshot: every
     // row is a whole-portfolio figure that already contains these very assets, so
@@ -928,7 +942,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       if (real.length >= 2) return real
     }
     return pts
-  }, [dataPoints, snapshotData, currentTotal, period, staticPoints, selectedInst, manualAddedTs, snapshots, items, convert, baseCurrency, viewMode, isPerf, firstRealTs, apiTransactional, reconstructionIsExact])
+  }, [dataPoints, snapshotData, currentTotal, period, staticPoints, earliestStaticAcqTs, selectedInst, manualAddedTs, snapshots, items, convert, baseCurrency, viewMode, isPerf, firstRealTs, apiTransactional, reconstructionIsExact])
 
   // Whether the auto-imported IBKR cash flows (_source:'ibkr') enter the return math
   // depends on the SOURCE of the value series (lesson from the +1.98% vs IBKR's
