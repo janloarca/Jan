@@ -5,7 +5,7 @@ import { useExchangeRates } from './useExchangeRates'
 import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations } from '@/components/dashboard/utils'
+import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES } from '@/components/dashboard/utils'
 import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { indexBalanceEvents } from '@/lib/historicalValues'
 import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget } from '@/lib/autoDividends'
@@ -17,7 +17,7 @@ import { staleBackfillDates } from '@/lib/snapshotBackfill'
 import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanDays, earliestNeededDays as computeEarliestNeededDays } from '@/lib/brokerCompletion'
 import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds, applyLifetimeNetConstraint } from '@/lib/inferredFlows'
 import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
-import { breakdownReconciles } from '@/lib/ytdBreakdownGate'
+import { attributeYtd } from '@/lib/ytdAttribution'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
 
@@ -1200,7 +1200,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     return [...snapshots, ...extra].sort((a, b) => (a.date || '').localeCompare(b.date || ''))
   }, [accountCalibrations, snapshots, portfolioItems, convert])
 
-  const { returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated } = useMemo(() => {
+  const { returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated, ytdStartValue, ytdStartTs, ytdFlowsUsed } = useMemo(() => {
     const year = new Date().getUTCFullYear()
     const yearStartTs = Date.UTC(year, 0, 1)
     const todayStr = new Date().toISOString().split('T')[0]
@@ -1306,7 +1306,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
 
     const calibrated = ytdCalApplied || anchorCalibrated
-    if (startVal == null || startVal <= 0) return { returnYTD: null, ytdChange: null, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated }
+    if (startVal == null || startVal <= 0) return { returnYTD: null, ytdChange: null, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated, ytdStartValue: null, ytdStartTs: null, ytdFlowsUsed: null }
     let ytdFlows = flowAware ? transactions : dietzTransactions
     // Denominator override: stays null unless the anchor moved and the capital
     // that created it was larger than the value it bought (see below).
@@ -1355,127 +1355,129 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // InstitutionPerformance, which have always divided by all-in cost.
     const effPct = (ytdCostBase > 0 && startVal > 0) ? (abs / ytdCostBase) * 100 : pct
     const clampedPct = Math.max(-200, Math.min(200, effPct))
-    return { returnYTD: clampedPct, ytdChange: abs, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated }
+    // FASE GR, purely additive: the three terms this memo measured with, handed
+    // out unchanged so the "where your YTD comes from" panel can partition the
+    // SAME quantities instead of rebuilding its own version of them (which is
+    // how it ended up contradicting this very number). No value computed above
+    // is touched; nothing here alters the frozen YTD formula.
+    return { returnYTD: clampedPct, ytdChange: abs, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated, ytdStartValue: startVal, ytdStartTs: startTs, ytdFlowsUsed: ytdFlows }
   }, [jan1Value, jan1Ts, jan1Transactional, netWorth, transactions, dietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot, accountCalibrations, portfolioItems])
 
-  // "What is actually driving my YTD" — the number broken into the holdings and
-  // institutions behind it, so the headline stops being a figure you have to
-  // take on faith.
+  // "What is actually driving my YTD", rebuilt per ACCOUNT (FASE GR).
   //
-  // Per position: gain = (value today − value on Jan 1) − money you moved in or
-  // out of it this year. The endpoint values come from the same reconstruction
-  // that produced jan1Value, so the parts and the headline are the same engine.
-  // Netting the flows is the non-negotiable half: without it, funding an account
-  // in March reads as a March profit (the mistake this whole card kept making).
+  // The previous version decomposed the year position by position straight from
+  // the historical reconstruction, and on real data produced three separate
+  // species of wrong at once: broker deposits counted as profit, whole accounts
+  // silently absent, and per-account figures contradicting those accounts' own
+  // charts. Patching it further was the wrong move; the foundation was.
   //
-  // Income paid OUT as cash (a coupon routed to another account) shows up on the
-  // account that received it, not the asset that generated it. At institution
-  // level (the default view) both usually sit under the same roof, so it nets
-  // out; the InfoTip says so for the case where they don't.
+  // The engine (lib/ytdAttribution.js) partitions the exact three terms the
+  // headline measured with -- gain = end - start - flows -- so the parts add up
+  // to the headline BY CONSTRUCTION. This memo's whole job is to feed it an
+  // honest partition:
+  //
+  //   endVal  exact: the same per-item sum netWorth itself is built from,
+  //           including the debt sign, so the account totals rebuild netWorth.
+  //   flow    exact: attributed with the rule the calibration flow already
+  //           proved (a broker's own ledger by _source, manual money by the
+  //           item it is linked to). Anything unattributable is reported, never
+  //           swallowed -- the engine refuses rather than lose it.
+  //   start   the only estimate, and therefore the only place error can enter.
+  //           A broker's REAL year-start NAV is used where one exists and is
+  //           never adjusted; the rest carry the reconstruction's estimate and
+  //           get pinned to the portfolio anchor.
   const ytdBreakdown = useMemo(() => {
-    if (!ytdEndpoints) return null
-    const { start, end } = ytdEndpoints
-    const year = new Date().getFullYear()
-    const yearPrefix = `${year}-`
+    if (!ytdEndpoints || ytdStartValue == null || ytdChange == null) return null
+    const { start } = ytdEndpoints
 
-    // FASE GQ5: a broker's ACCOUNT-LEVEL flow (a deposit into IBKR) carries
-    // symbol 'CASH' and no _linkedItemId, so it matches no item key at all and
-    // used to be netted against nothing — every deposit then read as profit.
-    // That is how a $10K account reported +$13,207 of YTD "gain". Those flows
-    // land in the account's cash holding, so that is where they belong; only
-    // when exactly ONE cash holding of that broker exists, because splitting a
-    // deposit across several is a guess (and the reconciliation gate below
-    // catches whatever this cannot attribute).
-    const brokerCashItemId = (() => {
-      const cash = (portfolioItems || []).filter(
-        (it) => it && it._source === 'ibkr' && /^CASH/i.test(it.symbol || '')
-      )
-      return cash.length === 1 ? cash[0].id : null
-    })()
-    // Net external money per item this year, matched the same way everything
-    // else matches transactions to positions: link id first, symbol as fallback.
-    const flowByKey = {}
-    ;(transactions || []).forEach((tx) => {
+    // Which account each item belongs to, using the shared rule.
+    const accountOf = new Map()
+    const nameOf = new Map()
+    ;(portfolioItems || []).forEach((it) => {
+      const k = accountKeyOfItem(it)
+      if (!k) return
+      accountOf.set(it.id, k)
+      if (!nameOf.has(k)) {
+        nameOf.set(k, k === 'ibkr' ? 'Interactive Brokers' : (it.institution || '').trim() || k)
+      }
+    })
+    if (accountOf.size === 0) return null
+
+    // endVal: the identical loop netWorth is computed from, kept per account so
+    // the account totals reconstruct netWorth exactly rather than approximately.
+    const endByAccount = new Map()
+    ;(portfolioItems || []).forEach((it) => {
+      if (isExcludedFromNetWorth(it)) return
+      const k = accountOf.get(it.id)
+      if (!k) return
+      const val = getItemValue(it)
+      const signed = it.isDebt ? -Math.abs(val) : val
+      endByAccount.set(k, (endByAccount.get(k) || 0) + signed)
+    })
+
+    // flow: the SAME transaction list the headline netted, attributed by account.
+    // A broker's account-level movement carries no item link, which is precisely
+    // what broke the old panel; here it is matched by source instead.
+    const flowByAccount = new Map()
+    let unattributedFlow = 0
+    ;(ytdFlowsUsed || []).forEach((tx) => {
       const type = (tx.type || '').toUpperCase()
       if (type !== 'DEPOSIT' && type !== 'WITHDRAWAL') return
-      if (!tx.date || !String(tx.date).startsWith(yearPrefix)) return
-      const accountLevel = !tx._linkedItemId && (tx._source === 'ibkr' || tx._source === 'inferred_flow')
-      const key = (accountLevel && brokerCashItemId)
-        ? brokerCashItemId
-        : (tx._linkedItemId || (tx.symbol || '').toUpperCase())
-      if (!key) return
-      const amt = Math.abs(Number(tx.totalAmount ?? tx.amount ?? 0))
-      if (!isFinite(amt)) return
-      const inBase = convert ? convert(amt, tx.currency || 'USD', baseCurrency || 'USD') : amt
-      flowByKey[key] = (flowByKey[key] || 0) + (type === 'DEPOSIT' ? inBase : -inBase)
+      const txTs = tx.date ? new Date(tx.date).getTime() : NaN
+      if (!isFinite(txTs) || txTs < ytdStartTs || txTs > Date.now()) return
+      const raw = Math.abs(Number(tx.totalAmount ?? 0))
+      if (!isFinite(raw)) return
+      const amt = (convert ? convert(raw, tx.currency || 'USD', baseCurrency || 'USD') : raw)
+        * (type === 'DEPOSIT' ? 1 : -1)
+      const key = (tx._source === 'ibkr' || tx._source === 'inferred_flow')
+        ? 'ibkr'
+        : (tx._linkedItemId ? accountOf.get(tx._linkedItemId) : null)
+      if (!key) { unattributedFlow += amt; return }
+      flowByAccount.set(key, (flowByAccount.get(key) || 0) + amt)
     })
 
-    const keys = new Set([...Object.keys(start), ...Object.keys(end)])
-    const rows = []
-    keys.forEach((k) => {
-      const matched = (portfolioItems || []).filter(
-        (it) => it.id === k || (it.symbol || '').toUpperCase() === k
-      )
-      if (matched.length === 0) return
-      const startVal = start[k] || 0
-      const endVal = end[k] || 0
-      // A key can be an item id OR an aggregated symbol; collect the flows of
-      // every item folded into it, plus the flows filed under the symbol itself.
-      let flow = flowByKey[k] || 0
-      matched.forEach((it) => {
-        if (it.id !== k) flow += flowByKey[it.id] || 0
-      })
-      const label = matched[0].name || matched[0].symbol || k
-      rows.push({
-        // `key: k`, never the shorthand `key`: the loop variable here is `k`,
-        // so `{ key, ... }` referenced an UNDECLARED global and threw
-        // ReferenceError ("Can't find variable: key" in Safari) the moment this
-        // block ran. It never ran until FASE GQ implemented the server's byKey
-        // field, because ytdEndpoints stayed null forever and the memo returned
-        // at its first line — dead code hiding a hard crash on the dashboard.
-        key: k, label,
-        institution: matched[0].institution || null,
-        startVal, endVal, flow,
-        gain: endVal - startVal - flow,
-      })
+    // start: the reconstruction's per-item values folded up to account level.
+    const startByAccount = new Map()
+    Object.entries(start || {}).forEach(([k, v]) => {
+      const owner = accountOf.get(k)
+        || (portfolioItems || []).find((it) => (it.symbol || '').toUpperCase() === k)?.id
+      const acct = accountOf.get(k) || (owner ? accountOf.get(owner) : null)
+      if (!acct) return
+      startByAccount.set(acct, (startByAccount.get(acct) || 0) + (Number(v) || 0))
     })
-    if (rows.length === 0) return null
 
-    const totalGain = rows.reduce((s, r) => s + r.gain, 0)
-    // FASE GQ5, the hard gate: this panel exists for ONE reason, to explain the
-    // YTD figure above it, so it must never contradict it. `ytdChange` is the
-    // very same quantity (dollars of gain, net of external flows) computed by
-    // the headline's Modified Dietz; the rows here rebuild it per position from
-    // the reconstruction. When those two disagree beyond a small drift, the
-    // breakdown is not an explanation, it is a different (wrong) claim: the
-    // user saw a $10K broker account credited with +$13,207 of "gain" under a
-    // headline that said +$835 total. Showing nothing is strictly better than
-    // showing numbers that cannot be true, so the card falls back to the plain
-    // non-expandable figure. Tolerance is proportional (10%) with a floor, since
-    // both sides come from different reconstruction paths and never match to
-    // the cent.
-    if (!breakdownReconciles(totalGain, ytdChange)) return null
-    const byInstitution = {}
-    rows.forEach((r) => {
-      const key = r.institution || '__none__'
-      if (!byInstitution[key]) byInstitution[key] = { key, institution: r.institution, gain: 0, endVal: 0, holdings: [] }
-      byInstitution[key].gain += r.gain
-      byInstitution[key].endVal += r.endVal
-      byInstitution[key].holdings.push(r)
+    // A broker's own year-start NAV is an observation, not an estimate, so it is
+    // handed over as real and the engine leaves it untouched while pinning the
+    // rest. Anything else keeps the reconstruction's figure.
+    const brokerAnchor = findYearStartAnchor(
+      (augmentedSnapshots || []).filter((s) => s && BROKER_NAV_SOURCES.includes(s._source)),
+      new Date().getFullYear()
+    )
+    const brokerStartUSD = brokerAnchor
+      ? convertSnapshot(brokerAnchor.netWorthUSD ?? brokerAnchor.totalActivosUSD ?? 0)
+      : null
+
+    const accounts = [...endByAccount.keys()].map((k) => {
+      const realStart = (k === 'ibkr' && brokerStartUSD != null && brokerStartUSD > 0)
+        ? brokerStartUSD
+        : null
+      return {
+        key: k,
+        name: nameOf.get(k) || k,
+        endVal: endByAccount.get(k) || 0,
+        flow: flowByAccount.get(k) || 0,
+        start: realStart != null ? realStart : (startByAccount.get(k) || 0),
+        startIsReal: realStart != null,
+      }
     })
-    const groups = Object.values(byInstitution)
-      .map((g) => ({
-        ...g,
-        share: totalGain !== 0 ? (g.gain / totalGain) * 100 : null,
-        holdings: g.holdings
-          .filter((h) => Math.abs(h.gain) > 0.005)
-          .sort((a, b) => Math.abs(b.gain) - Math.abs(a.gain)),
-      }))
-      .filter((g) => Math.abs(g.gain) > 0.005)
-      .sort((a, b) => Math.abs(b.gain) - Math.abs(a.gain))
-    if (groups.length === 0) return null
-    return { groups, totalGain }
-  }, [ytdEndpoints, portfolioItems, transactions, convert, baseCurrency, ytdChange])
+
+    return attributeYtd({
+      accounts,
+      portfolioStart: ytdStartValue,
+      headlineGain: ytdChange,
+      unattributedFlow,
+    })
+  }, [ytdEndpoints, portfolioItems, convert, baseCurrency, ytdChange, ytdStartValue, ytdStartTs, ytdFlowsUsed, augmentedSnapshots, convertSnapshot])
 
   // Month-to-date return (Modified Dietz) — the "how are we doing THIS month"
   // number for the Friends monthly leaderboard. Same shape as YTD, anchored to

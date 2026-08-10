@@ -246,38 +246,34 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
               {lang === 'es' ? 'De dónde viene tu YTD' : 'Where your YTD comes from'}
             </span>
             <InfoTip text={lang === 'es'
-              ? 'Por cada posición: valor de hoy menos valor del 1 de enero, restando el dinero que metiste o sacaste este año. Un cupón o dividendo cobrado en efectivo cuenta en la cuenta que lo recibió, no en el activo que lo generó.'
-              : 'Per position: today\'s value minus its January 1st value, less any money you moved in or out this year. A coupon or dividend paid out in cash counts on the account that received it, not on the asset that generated it.'} />
+              ? 'Por cada cuenta: valor de hoy menos valor de arranque del año, restando el dinero que metiste o sacaste. Los depósitos nunca cuentan como ganancia. Las cuentas suman exactamente el YTD de arriba: si no cuadraran, este desglose no se muestra.'
+              : 'Per account: today\'s value minus its year-start value, less any money you moved in or out. Deposits never count as gains. The accounts add up to the YTD figure above exactly: if they did not, this breakdown would not be shown.'} />
           </div>
-          <div className="space-y-2.5">
+          {/* One row per ACCOUNT (FASE GR). Every account is listed, including
+              ones that contributed nothing: the previous version hid near-zero
+              rows and accounts simply looked missing. */}
+          <div className="space-y-2">
             {ytdBreakdown.groups.map((g) => (
-              <div key={g.key}>
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-sm truncate" style={{ color: 'var(--text-secondary)' }}>
-                    {g.institution || (lang === 'es' ? 'Sin institución' : 'No institution')}
-                  </span>
-                  <span className="text-sm font-mono tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>
-                    {g.share != null && (
-                      <span className="mr-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>{g.share.toFixed(0)}%</span>
-                    )}
-                    {g.gain >= 0 ? '+' : ''}{formatCurrency(cv(g.gain), displayCur)}
-                  </span>
-                </div>
-                {g.holdings.length > 1 && (
-                  <div className="mt-1 pl-3 space-y-0.5" style={{ borderLeft: '1px solid var(--glass-border)' }}>
-                    {g.holdings.map((h) => (
-                      <div key={h.key} className="flex items-baseline justify-between gap-2">
-                        <span className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{h.label}</span>
-                        <span className="text-xs font-mono tabular-nums shrink-0" style={{ color: 'var(--text-muted)' }}>
-                          {h.gain >= 0 ? '+' : ''}{formatCurrency(cv(h.gain), displayCur)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+              <div key={g.key} className="flex items-baseline justify-between gap-2">
+                <span className="text-sm truncate" style={{ color: 'var(--text-secondary)' }}>
+                  {g.name || (lang === 'es' ? 'Sin institución' : 'No institution')}
+                </span>
+                <span className="text-sm font-mono tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>
+                  {g.share != null && isFinite(g.share) && (
+                    <span className="mr-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>{g.share.toFixed(0)}%</span>
+                  )}
+                  {g.gain >= 0 ? '+' : ''}{formatCurrency(cv(g.gain), displayCur)}
+                </span>
               </div>
             ))}
           </div>
+          {ytdBreakdown.scaledEstimates && (
+            <p className="text-[10px] mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+              {lang === 'es'
+                ? 'El valor de arranque de las cuentas sin historial del broker es estimado, ajustado para cuadrar con el total.'
+                : 'The year-start value of accounts without broker history is estimated, adjusted to add up to the total.'}
+            </p>
+          )}
         </div>
       )}
 
