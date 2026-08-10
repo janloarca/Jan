@@ -141,19 +141,36 @@ function LoginForm() {
       setTimeout(() => { window.location.href = redirectTo }, 1500)
     } catch (err) {
       if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') return
-      if (err.code === 'auth/popup-blocked') {
+      // auth/internal-error joins popup-blocked as a reason to fall back to the
+      // redirect flow. The failing device reports it with NO embedded server
+      // payload (the message is the bare "Firebase: Error (auth/internal-error)"),
+      // and that distinction is the useful one: a request the server rejected
+      // comes back carrying its reason, so a bare one means the popup never got
+      // that far. What dies before then is the popup/iframe handshake the SDK
+      // needs to talk to the helper, which Safari restricts hardest. The
+      // redirect flow does not use that handshake at all: it navigates the top
+      // window and comes back through getRedirectResult (handled on mount).
+      // Only reached when the popup path has ALREADY failed, so at worst it
+      // replaces a dead end with an attempt.
+      if (err.code === 'auth/popup-blocked' || err.code === 'auth/internal-error') {
         try {
-          const { GoogleAuthProvider, signInWithRedirect } = await import('firebase/auth')
-          if (auth) await signInWithRedirect(auth, new GoogleAuthProvider())
-          return
-        } catch {}
+          const { GoogleAuthProvider, signInWithRedirect } = firebaseAuthRef.current || await import('firebase/auth')
+          if (auth) { await signInWithRedirect(auth, new GoogleAuthProvider()); return }
+        } catch (redirectErr) {
+          // Falls through to the banner below, which now describes the redirect
+          // failure rather than the popup one that is no longer the real story.
+          console.error('[google-signin] redirect fallback', redirectErr?.code, redirectErr?.message)
+        }
       }
       // El código del error viaja en el mensaje a propósito: "Error interno"
       // a secas hacía imposible diagnosticar a distancia qué falló de verdad
-      // (auth/internal-error, unauthorized-domain, etc.). Y auth/internal-error
-      // en particular suele traer EMBEBIDO el mensaje real del servidor en
-      // err.message (un JSON con la razón): se muestra recortado porque es el
-      // único canal de diagnóstico en un teléfono, donde no hay consola.
+      // (auth/internal-error, unauthorized-domain, etc.). auth/internal-error
+      // PUEDE traer embebido el mensaje real del servidor en err.message (un
+      // JSON con la razón); se muestra recortado porque es el único canal de
+      // diagnóstico en un teléfono. Cuando NO lo trae (el caso observado: el
+      // mensaje es el genérico a secas) eso mismo es el dato: el servidor
+      // nunca contestó, así que el fallo está antes, en el handshake del
+      // popup, y por eso arriba se reintenta por redirect.
       console.error('[google-signin]', err.code, err.message)
       let detail = ''
       if (err.code === 'auth/internal-error' && typeof err.message === 'string') {
