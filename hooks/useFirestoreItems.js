@@ -902,7 +902,11 @@ export function useFirestoreItems() {
   // dueño adentro (Caja & Bancos histórico inflado a ~$7-10K sobre cuentas de
   // ~$600, reporte real). El caché nunca se autocorrige por merge: recálculo
   // completo con el archivo ya limpio.
-  const SNAPSHOT_VERSION = 24
+  // 25 (FASE GU): indexBalanceEvents ahora mueve los DOS saldos de un TRANSFER
+  // entre cuentas del usuario. Todo mes ya cacheado se calculó sin esos eventos
+  // (la cuenta que recibe, plana hacia atrás en su saldo alto de hoy; la que
+  // envía, en su saldo bajo) y el caché nunca se autocorrige por merge.
+  const SNAPSHOT_VERSION = 25
 
   const saveItemSnapshots = useCallback(async (monthKey, itemsData, currency) => {
     if (!uid || !monthKey || !itemsData) return
