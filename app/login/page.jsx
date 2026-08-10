@@ -12,6 +12,19 @@ function setSessionCookie(token) {
   document.cookie = `__session=${token}; path=/; max-age=604800; SameSite=Lax${secure}`
 }
 
+// El mensaje crudo de Firebase, cuando dice algo más que el genérico. Es el
+// único canal de diagnóstico en un teléfono, donde no hay consola, y es la
+// misma extracción para el popup y para la vuelta del redirect: tenerla en dos
+// copias fue exactamente cómo la rama de vuelta se quedó sin ella.
+function googleErrorDetail(err) {
+  if (typeof err?.message !== 'string') return ''
+  const cleaned = err.message.replace(/^Firebase:\s*/i, '').replace(/\s+/g, ' ').trim()
+  if (!cleaned) return ''
+  const generic = /^an internal auth error has occurred\.?$/i.test(cleaned)
+    || /^error \(auth\/[a-z-]+\)\.?$/i.test(cleaned)
+  return generic ? '' : ` ${cleaned.slice(0, 200)}`
+}
+
 function isInAppBrowser() {
   const ua = navigator.userAgent || ''
   return /FBAN|FBAV|Instagram|Line\/|Twitter|Snapchat|WhatsApp|WebView|wv\)/i.test(ua)
@@ -61,8 +74,14 @@ function LoginForm() {
       // login otra vez, sin pista de qué pasó.
       getRedirectResult(auth).catch((err) => {
         if (!err || !err.code) return
-        setError(`Error al conectar con Google. Intenta de nuevo. (${err.code})`)
-        setGoogleFailed(`${err.code}${err.message ? ` ${String(err.message).slice(0, 160)}` : ''}`)
+        // El detalle embebido importa MÁS en esta rama que en el popup. Este es
+        // el tramo de VUELTA: Google ya autenticó y el helper está canjeando la
+        // credencial contra Identity Toolkit, así que un rechazo de aquí SÍ es
+        // una respuesta de servidor y suele traer su razón adentro. Antes solo
+        // se imprimía el código y esa razón se perdía justo donde era útil.
+        console.error('[google-redirect]', err.code, err.message)
+        setError(`Error al conectar con Google. Intenta de nuevo. (${err.code})${googleErrorDetail(err)}`)
+        setGoogleFailed(`${err.code}${googleErrorDetail(err)}`)
         setCheckingAuth(false)
       })
       unsub = onAuthStateChanged(auth, async (u) => {
@@ -172,13 +191,7 @@ function LoginForm() {
       // nunca contestó, así que el fallo está antes, en el handshake del
       // popup, y por eso arriba se reintenta por redirect.
       console.error('[google-signin]', err.code, err.message)
-      let detail = ''
-      if (err.code === 'auth/internal-error' && typeof err.message === 'string') {
-        const cleaned = err.message.replace(/^Firebase:\s*/i, '').replace(/\s+/g, ' ').trim()
-        if (cleaned && cleaned.toLowerCase() !== 'an internal auth error has occurred.') {
-          detail = ` ${cleaned.slice(0, 160)}`
-        }
-      }
+      const detail = googleErrorDetail(err)
       const msg = err.code === 'auth/network-request-failed' ? 'Error de red. Verifica tu conexión.'
         : `Error al conectar con Google. Intenta de nuevo.${err.code ? ` (${err.code})` : ''}${detail}`
       setError(msg)
