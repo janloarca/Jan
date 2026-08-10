@@ -24,6 +24,40 @@ function takeRedirectMark() {
   } catch { return false }
 }
 
+// MODO CLÁSICO. El experimento que decide entre las dos arquitecturas posibles,
+// porque llevamos varias rondas sin poder distinguirlas desde afuera.
+//
+// Hoy el sign-in usa el helper de OAuth servido desde NUESTRO dominio (FASE FV:
+// authDomain = chispu.xyz + proxy de /__/auth). Eso existe para esquivar el
+// bloqueo de storage cruzado de Safari, pero trajo su propia cadena de
+// problemas (el 404 de Hosting, el init.json que hay que sintetizar, la
+// redirect URI que hay que registrar aparte), y el fallo actual está justo en
+// el tramo donde ese proxy hace más trabajo: la vuelta.
+//
+// Nunca probamos la combinación ESTÁNDAR: authDomain de Firebase + flujo de
+// REDIRECT. La cadena original de fallos empezó con popup + firebaseapp.com, y
+// el redirect (que Firebase recomienda precisamente para Safari) llegó después,
+// cuando el proxy ya estaba puesto. Este botón prueba esa combinación en una
+// instancia SEPARADA de Firebase, sin tocar la principal.
+//
+// La credencial que devuelve Google es del PROYECTO, no del authDomain, así que
+// si funciona se puede firmar con ella en la instancia principal y la sesión
+// queda idéntica a un login normal. O sea: si el experimento sale bien, ES el
+// arreglo, no solo un diagnóstico.
+const CLASSIC_MARK = 'chispu-google-classic'
+const CLASSIC_APP = 'chispu-classic-auth'
+
+async function getClassicAuth() {
+  const upstream = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+  if (!app || !upstream) return null
+  const [{ initializeApp, getApps }, { getAuth }] = await Promise.all([
+    import('firebase/app'), import('firebase/auth'),
+  ])
+  const existing = getApps().find((a) => a.name === CLASSIC_APP)
+  const classicApp = existing || initializeApp({ ...app.options, authDomain: upstream }, CLASSIC_APP)
+  return getAuth(classicApp)
+}
+
 function setSessionCookie(token) {
   const secure = window.location.protocol === 'https:' ? '; Secure' : ''
   document.cookie = `__session=${token}; path=/; max-age=604800; SameSite=Lax${secure}`
@@ -89,6 +123,37 @@ function LoginForm() {
       // sin esto, un error del flujo de redirect (el fallback cuando el popup
       // se bloquea) moría en silencio y el usuario solo veía la pantalla de
       // login otra vez, sin pista de qué pasó.
+      // Una vuelta en modo clásico se completa contra SU instancia, y la
+      // credencial resultante se usa para firmar en la principal: el proyecto es
+      // el mismo, así que la sesión que queda es indistinguible de un login
+      // normal (mismo uid, mismo token, mismo cookie).
+      let classicPending = false
+      try { classicPending = !!sessionStorage.getItem(CLASSIC_MARK) } catch {}
+      if (classicPending) {
+        try { sessionStorage.removeItem(CLASSIC_MARK) } catch {}
+        getClassicAuth().then(async (classicAuth) => {
+          if (!classicAuth) return
+          try {
+            const res = await mod.getRedirectResult(classicAuth)
+            if (!res) {
+              setError('El modo clásico volvió sin credencial. Reportá esto.')
+              setGoogleFailed('[clasico] vuelta sin credencial')
+              setCheckingAuth(false)
+              return
+            }
+            const cred = mod.GoogleAuthProvider.credentialFromResult(res)
+            if (!cred) throw new Error('sin credencial en el resultado')
+            await mod.signInWithCredential(auth, cred)
+            // onAuthStateChanged de abajo se encarga de la cookie y el redirect.
+          } catch (err) {
+            console.error('[google-classic]', err?.code, err?.message)
+            setError(`El modo clásico también falló. (${err?.code || 'sin código'})${googleErrorDetail(err)}`)
+            setGoogleFailed(`[clasico] ${err?.code || 'sin código'}${googleErrorDetail(err)}`)
+            setCheckingAuth(false)
+          }
+        })
+      }
+
       const cameBackFromGoogle = takeRedirectMark()
       getRedirectResult(auth).then((res) => {
         // Volvimos de Google SIN credencial y SIN error. No es un rechazo: es
@@ -263,6 +328,25 @@ function LoginForm() {
     } catch { setDiagCopied(false) }
   }
 
+  // Solo se ofrece DESPUÉS de que el camino normal falle, y en su propia
+  // instancia: si esto tampoco funciona, el proxy same-origin queda descartado
+  // como causa; si funciona, es el arreglo.
+  const handleClassicGoogle = async () => {
+    setError('')
+    setGoogleLoading(true)
+    try {
+      const classicAuth = await getClassicAuth()
+      if (!classicAuth) throw new Error('sin authDomain de Firebase configurado')
+      const { GoogleAuthProvider, signInWithRedirect } = firebaseAuthRef.current || await import('firebase/auth')
+      try { sessionStorage.setItem(CLASSIC_MARK, String(Date.now())) } catch {}
+      await signInWithRedirect(classicAuth, new GoogleAuthProvider())
+    } catch (err) {
+      console.error('[google-classic-start]', err?.code, err?.message)
+      setError(`No se pudo abrir el modo clásico. (${err?.code || 'sin código'})`)
+      setGoogleLoading(false)
+    }
+  }
+
   const handleResetPassword = async () => {
     if (!email) { setError('Ingresa tu email primero'); return }
     setError('')
@@ -327,6 +411,15 @@ function LoginForm() {
                   className="block mt-2 text-xs underline underline-offset-2 disabled:opacity-50"
                   style={{ color: 'var(--text-secondary)' }}>
                   {diagRunning ? 'Revisando...' : 'Revisar qué falló'}
+                </button>
+              )}
+              {/* El experimento que decide entre las dos arquitecturas. Solo
+                  aparece tras un fallo, y solo si no venimos de probarlo. */}
+              {googleFailed && !googleFailed.startsWith('[clasico]') && (
+                <button type="button" onClick={handleClassicGoogle} disabled={googleLoading}
+                  className="block mt-2 text-xs underline underline-offset-2 disabled:opacity-50"
+                  style={{ color: 'var(--text-secondary)' }}>
+                  Probar el modo clásico
                 </button>
               )}
             </div>
