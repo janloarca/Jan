@@ -8,6 +8,7 @@ import { authFetch, safeJson } from '@/lib/authFetch'
 import { isNotificationSupported, getNotificationPermission, requestNotificationPermission } from '@/lib/notifications'
 import { BENCHMARKS } from '@/hooks/useBenchmark'
 import { disconnectAllSyncs, IBKR_DISCONNECTED_FIELDS } from '@/lib/brokerRegistry'
+import { useEdgeFade } from '@/hooks/useEdgeFade'
 
 const CURRENCIES = [
   { code: 'USD', name: 'US Dollar', symbol: '$' },
@@ -232,6 +233,9 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
     { key: 'share', label: t('Compartir', 'Share') },
     { key: 'data', label: t('Datos', 'Data') },
   ]
+  // FASE GP: fade the scroll edge only where the tab row actually hides
+  // content — this row has no scrollbar to hint it scrolls at all.
+  const tabsFade = useEdgeFade([tabs.length])
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="settings-modal-title"
@@ -240,7 +244,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
         <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
           <h2 id="settings-modal-title" className="text-lg font-bold text-white flex items-center gap-2">
             <Settings size={20} style={{ color: 'var(--text-secondary)' }} />
-            {t('Configuracion', 'Settings')}
+            {t('Configuración', 'Settings')}
           </h2>
           <button onClick={onClose} className="hover:text-white text-xl leading-none" style={{ color: 'var(--text-secondary)' }} aria-label="Close">&times;</button>
         </div>
@@ -251,7 +255,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
           </div>
         )}
 
-        <div className="flex border-b border-glass-border overflow-x-auto">
+        <div ref={tabsFade.ref} className="flex border-b border-glass-border overflow-x-auto" style={tabsFade.maskStyle}>
           {tabs.map((tb) => (
             <button key={tb.key} onClick={() => { setTab(tb.key); setConfirmDelete(null) }}
               className={`flex-1 px-3 py-3 text-sm font-medium transition-colors whitespace-nowrap ${

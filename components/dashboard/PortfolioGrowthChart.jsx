@@ -9,6 +9,7 @@ import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
 import { computeTWRSeries, computeAnchoredReturnSeries, computeAnchoredMWRSeries, filterValueSpikes } from './analytics'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import ErrorState from '@/components/ui/ErrorState'
+import { useEdgeFade } from '@/hooks/useEdgeFade'
 
 function polyline(pts) {
   return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
@@ -140,6 +141,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     return Object.values(map).sort((a, b) => b.value - a.value)
   }, [items, lang])
 
+  // FASE GP: fade the scroll edge only where the row actually hides content —
+  // scrollbarWidth:'none' hides the native bar on these rows, so without this
+  // the last pill just clips at the phone's edge with no sign there's more.
+  const periodFade = useEdgeFade([periods.length])
+  const instFade = useEdgeFade([institutions.length])
+
   const scopedItems = useMemo(() => {
     if (selectedInst === 'ALL') return items || []
     const inst = institutions.find((i) => i.key === selectedInst)
@@ -232,6 +239,38 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       .sort()
       .join('|'),
   [scopedItems])
+  // FASE GP: same price-free signature as itemsSig, but over ALL items, not
+  // just the currently-scoped ones. itemsSig is scoped to selectedInst ON
+  // PURPOSE (it has to differ per institution, since that IS the network
+  // request differentiator) — using it as the cache guard below would clear
+  // the whole history cache on every single institution switch, since a
+  // different scope always produces a different scoped signature even when
+  // nothing was actually edited. This one stays stable across institution
+  // switches and only changes on a real add/edit/delete anywhere.
+  const allItemsSig = useMemo(() =>
+    (items || [])
+      .map((i) => `${i.id}:${i.quantity}:${i.symbol || ''}:${i.acquisitionDate || ''}:${i.isDebt ? 1 : 0}`)
+      .sort()
+      .join('|'),
+  [items])
+
+  // FASE GP: cache the server response per (institución, apiPeriod) so
+  // switching back and forth between institutions/períodos the user already
+  // visited is instant instead of a fresh network round trip every time.
+  // Invalidated WHOLESALE, never partially, the instant anything that could
+  // change the request body changes — never a stale number surviving a real
+  // edit. `allItemsSig` is a price-free content signature (a price tick alone
+  // never invalidates it), scoped to ALL items so it doesn't churn on every
+  // institution switch the way `itemsSig` does (see comment above); `transactions`/
+  // `lots` are the RAW props (not the scoped/derived copies, which get a
+  // fresh identity every price tick because they derive from `items`) — a
+  // separate Firestore collection each, so their reference is stable except
+  // on a real write, exactly the signal this needs. DAY and CUSTOM are never
+  // cached: DAY is intraday (stale within minutes, and already has its own
+  // anti-staleness generation logic) and CUSTOM's range is too varied to be
+  // worth the bookkeeping.
+  const historyCacheRef = useRef(new Map())
+  const cacheGuardRef = useRef({ allItemsSig: null, transactions: null, lots: null })
 
   const fetchHistory = useCallback(async () => {
     // Shadow the reactive values with their refs: the body below reads the
@@ -245,8 +284,17 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       setFetchError(t('El rango está invertido: "desde" es posterior a "hasta".', 'Range is inverted: "from" is after "to".'))
       return
     }
+    const guard = cacheGuardRef.current
+    if (guard.allItemsSig !== allItemsSig || guard.transactions !== transactions || guard.lots !== lots) {
+      historyCacheRef.current.clear()
+      cacheGuardRef.current = { allItemsSig, transactions, lots }
+    }
+    const cacheable = period !== 'DAY' && period !== 'CUSTOM'
+    const cacheKey = `${selectedInst}|${period}`
+    const cachedData = cacheable ? historyCacheRef.current.get(cacheKey) : undefined
     const gen = ++fetchGenRef.current
-    setLoading(true)
+    // A cache hit skips the loading flash entirely — that IS the point.
+    if (!cachedData) setLoading(true)
     setFetchError(null)
     // A period switch TO DAY must not let the previous period's dataPoints (e.g.
     // months of YTD data) bleed into the DAY splice while this fetch is in
@@ -335,45 +383,53 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         const flows = balanceEventsById[it.id]
         if (flows && flows.length > 0) perItemCashFlows[it.id] = flows
       })
-      const res = await authFetch('/api/prices/portfolio-history', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          items: chartItems.map((it) => {
-            // The API sums values assuming USD — convert original-currency prices first
-            const cur = it._originalCurrency || it.currency || 'USD'
-            const toUSD = (p) => convert ? convert(p || 0, cur, 'USD') : (p || 0)
-            return {
-              id: it.id,
-              symbol: it.symbol, type: it.type, quantity: it.quantity,
-              currentPrice: toUSD(it._originalPrice ?? it.currentPrice),
-              purchasePrice: toUSD(it._originalPurchasePrice ?? it.purchasePrice),
-              currency: 'USD',
-              acquisitionDate: it.acquisitionDate,
-              _holdFlat: shouldHoldFlat(it, scopedTransactions, lots),
-              txEvents: txEventsBySym[(it.symbol || '').toUpperCase()] || undefined,
-              // _flowIsAccountLevel: only the broker's real reconciled cash line
-              // promotes the response to "transactional" server-side — see the
-              // comment next to usedTransactional in the API route.
-              ...(cashItem && it.id === cashItem.id ? { cashFlows: accountCashFlows, _flowIsAccountLevel: true } : {}),
-              // _flowClampZero: an opening deposit can exceed the asset it funded
-              // (it carries the entry fee), so rewinding past it lands on a negative
-              // that means "did not exist yet", not "was worth less than nothing".
-              ...(perItemCashFlows[it.id] ? { cashFlows: perItemCashFlows[it.id], _flowClampZero: true } : {}),
-            }
+      // FASE GP: a cache hit skips the network round trip entirely — see the
+      // block comment above fetchHistory for what makes this safe to reuse.
+      let data = cachedData
+      if (!data) {
+        const res = await authFetch('/api/prices/portfolio-history', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items: chartItems.map((it) => {
+              // The API sums values assuming USD — convert original-currency prices first
+              const cur = it._originalCurrency || it.currency || 'USD'
+              const toUSD = (p) => convert ? convert(p || 0, cur, 'USD') : (p || 0)
+              return {
+                id: it.id,
+                symbol: it.symbol, type: it.type, quantity: it.quantity,
+                currentPrice: toUSD(it._originalPrice ?? it.currentPrice),
+                purchasePrice: toUSD(it._originalPurchasePrice ?? it.purchasePrice),
+                currency: 'USD',
+                acquisitionDate: it.acquisitionDate,
+                _holdFlat: shouldHoldFlat(it, scopedTransactions, lots),
+                txEvents: txEventsBySym[(it.symbol || '').toUpperCase()] || undefined,
+                // _flowIsAccountLevel: only the broker's real reconciled cash line
+                // promotes the response to "transactional" server-side — see the
+                // comment next to usedTransactional in the API route.
+                ...(cashItem && it.id === cashItem.id ? { cashFlows: accountCashFlows, _flowIsAccountLevel: true } : {}),
+                // _flowClampZero: an opening deposit can exceed the asset it funded
+                // (it carries the entry fee), so rewinding past it lands on a negative
+                // that means "did not exist yet", not "was worth less than nothing".
+                ...(perItemCashFlows[it.id] ? { cashFlows: perItemCashFlows[it.id], _flowClampZero: true } : {}),
+              }
+            }),
+            lots: allLots.length > 0 ? allLots.map(l => ({
+              symbol: l.symbol, quantity: l.quantity,
+              acquisitionDate: l.acquisitionDate,
+              closedDate: l.closedDate || null,
+              costBasis: l.costBasis,
+            })) : undefined,
+            income: buildIncomeEvents(scopedTransactions, chartItems, convert, 'USD'),
+            period: apiPeriod,
           }),
-          lots: allLots.length > 0 ? allLots.map(l => ({
-            symbol: l.symbol, quantity: l.quantity,
-            acquisitionDate: l.acquisitionDate,
-            closedDate: l.closedDate || null,
-            costBasis: l.costBasis,
-          })) : undefined,
-          income: buildIncomeEvents(scopedTransactions, chartItems, convert, 'USD'),
-          period: apiPeriod,
-        }),
-      })
-      if (res.ok) {
-        const data = await safeJson(res)
+        })
+        if (res.ok) {
+          data = await safeJson(res)
+          if (cacheable) historyCacheRef.current.set(cacheKey, data)
+        }
+      }
+      if (data) {
         if (!mountedRef.current || gen !== fetchGenRef.current) return
         let pts = data.dataPoints || []
         // Net worth semantics: subtract held-flat debt (same as the backfill path)
@@ -1257,7 +1313,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const periodSelector = (
     // Single row with horizontal scroll on mobile (9 pills used to wrap to 2 rows
     // and fatten the card); desktop unaffected because everything fits.
-    <div className="flex flex-nowrap sm:flex-wrap overflow-x-auto max-w-full gap-0.5 bg-theme-base rounded-lg p-0.5 border border-glass-border/50" style={{ scrollbarWidth: 'none' }}>
+    <div ref={periodFade.ref} className="flex flex-nowrap sm:flex-wrap overflow-x-auto max-w-full gap-0.5 bg-theme-base rounded-lg p-0.5 border border-glass-border/50" style={{ scrollbarWidth: 'none', ...periodFade.maskStyle }}>
       {periods.map((p) => (
         <button key={p} onClick={() => {
           setPeriod(p)
@@ -1366,7 +1422,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       {/* Institution filter: selecting one sums its holdings (e.g. bond + the
           cash account it pays into) into a single combined line. */}
       {institutions.length > 1 && (
-        <div className="flex gap-1.5 overflow-x-auto pb-2 mb-3 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
+        <div ref={instFade.ref} className="flex gap-1.5 overflow-x-auto pb-2 mb-3 -mx-1 px-1" style={{ scrollbarWidth: 'none', ...instFade.maskStyle }}>
           <button onClick={() => { setSelectedInst('ALL'); setHoverIdx(null) }}
             className="shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all border"
             style={selectedInst === 'ALL'
