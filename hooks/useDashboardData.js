@@ -5,7 +5,7 @@ import { useExchangeRates } from './useExchangeRates'
 import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced } from '@/components/dashboard/utils'
+import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced, effectiveAcqTs } from '@/components/dashboard/utils'
 import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { indexBalanceEvents } from '@/lib/historicalValues'
 import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget } from '@/lib/autoDividends'
@@ -1529,6 +1529,20 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         if (accountOf.has(itemId) && isFinite(v)) startByItem.set(itemId, v)
       })
     }
+    // An asset bought AFTER the anchor was worth nothing at the anchor. That is
+    // not an estimate, it is a fact, and it outranks every reconstruction: OSMO
+    // was opened in February and the price-history engine still handed it a
+    // ~$400 January value, which turned a real -$27 into an impossible -$408 on
+    // an account holding $117. Skipped for holdings whose date is a broker sync
+    // stamp rather than a purchase (shouldHoldFlat marks exactly those), and for
+    // IBKR, which takes its real NAV anyway.
+    startByItem.forEach((_v, itemId) => {
+      const it = (portfolioItems || []).find((x) => x && x.id === itemId)
+      if (!it || it._source === 'ibkr') return
+      if (shouldHoldFlat(it, transactions, lots)) return
+      const acq = effectiveAcqTs(it)
+      if (acq != null && acq > ytdStartTs) startByItem.set(itemId, 0)
+    })
     const startByAccount = new Map()
     startByItem.forEach((v, itemId) => {
       const acct = accountOf.get(itemId)
@@ -1589,7 +1603,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // the same anchor the headline used.
     return attributeYtd({ accounts: build(true), ...args })
       || attributeYtd({ accounts: build(false), ...args })
-  }, [ytdEndpoints, portfolioItems, convert, baseCurrency, ytdChange, ytdStartValue, ytdStartTs, ytdFlowsUsed, snapshots, convertSnapshot, spreadsheetStart])
+  }, [ytdEndpoints, portfolioItems, convert, baseCurrency, ytdChange, ytdStartValue, ytdStartTs, ytdFlowsUsed, snapshots, convertSnapshot, spreadsheetStart, transactions, lots])
 
   // Month-to-date return (Modified Dietz) — the "how are we doing THIS month"
   // number for the Friends monthly leaderboard. Same shape as YTD, anchored to
