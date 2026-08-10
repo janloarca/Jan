@@ -5,7 +5,7 @@ import { useExchangeRates } from './useExchangeRates'
 import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD } from '@/components/dashboard/utils'
+import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced } from '@/components/dashboard/utils'
 import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { indexBalanceEvents } from '@/lib/historicalValues'
 import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget } from '@/lib/autoDividends'
@@ -1399,22 +1399,28 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         const monthItems = data[key]
         if (!monthItems || Object.keys(monthItems).length === 0) { setSpreadsheetStart(null); return }
         const savedCur = __currencies[key]
-        const byAccount = {}
+        const byItem = {}
         Object.entries(monthItems).forEach(([itemId, v]) => {
           const owner = portfolioItems.find((it) => it && it.id === itemId)
           // Synthetic buckets (the IBKR per-institution key) own no item, and
           // IBKR takes its real broker NAV anyway.
           if (!owner) return
-          const acct = accountKeyOfItem(owner)
-          if (!acct) return
+          // Taken ONLY where the Spreadsheet is the authority: an asset whose
+          // value moves by BALANCE EVENTS (a deposit, a reinvested coupon),
+          // which it rebuilds exactly. For a market-priced holding the right
+          // source is the historical PRICE series, not this: the Spreadsheet
+          // holds those flat when it has no price and flags the value
+          // `estimated`, and taking that flat figure as the year-start made
+          // LEGDER (crypto) read -$40 against its own chart's -$667.
+          if (isMarketPriced(owner) || v?.estimated) return
           const raw = Number(v?.value) || 0
           const val = (savedCur && savedCur !== baseCurrency && convert)
             ? convert(raw, savedCur, baseCurrency)
             : raw
           if (!isFinite(val)) return
-          byAccount[acct] = (byAccount[acct] || 0) + (owner.isDebt ? -Math.abs(val) : val)
+          byItem[itemId] = owner.isDebt ? -Math.abs(val) : val
         })
-        if (!cancelled) setSpreadsheetStart(Object.keys(byAccount).length > 0 ? byAccount : null)
+        if (!cancelled) setSpreadsheetStart(Object.keys(byItem).length > 0 ? byItem : null)
       } catch { if (!cancelled) setSpreadsheetStart(null) }
     })()
     return () => { cancelled = true }
@@ -1503,25 +1509,32 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       flowByAccount.set(key, (flowByAccount.get(key) || 0) + amt)
     })
 
-    // start: the reconstruction's per-item values folded up to account level.
-    const startByAccount = new Map()
+    // start, PER ITEM first so each holding can take its value from whichever
+    // engine is authoritative for it, then folded up to accounts.
+    const startByItem = new Map()
     Object.entries(start || {}).forEach(([k, v]) => {
-      const owner = accountOf.get(k)
-        || (portfolioItems || []).find((it) => (it.symbol || '').toUpperCase() === k)?.id
-      const acct = accountOf.get(k) || (owner ? accountOf.get(owner) : null)
-      if (!acct) return
-      startByAccount.set(acct, (startByAccount.get(acct) || 0) + (Number(v) || 0))
+      // A byKey entry is keyed by item id, or by symbol when the item had none.
+      const ownerId = accountOf.has(k)
+        ? k
+        : (portfolioItems || []).find((it) => (it.symbol || '').toUpperCase() === k)?.id
+      if (!ownerId) return
+      startByItem.set(ownerId, (startByItem.get(ownerId) || 0) + (Number(v) || 0))
     })
-    // The Spreadsheet's reconstruction wins over the chart's per-item one where
-    // it exists: it is the engine that rebuilds a manual account from its real
-    // balance events, and the one whose output the user has actually checked
-    // month by month. Only accounts it covers are overridden, so a portfolio it
-    // has never computed keeps the previous behaviour untouched.
+    // The Spreadsheet overrides only the holdings it can rebuild from real
+    // balance events (the loader already filtered to those). That is what took
+    // ClubCashIn from +$7.57 to +$71.33; crypto keeps the historical-price
+    // reconstruction, which is the engine that actually knows what it was worth.
     if (spreadsheetStart) {
-      Object.entries(spreadsheetStart).forEach(([acct, v]) => {
-        if (endByAccount.has(acct) && isFinite(v) && v > 0) startByAccount.set(acct, v)
+      Object.entries(spreadsheetStart).forEach(([itemId, v]) => {
+        if (accountOf.has(itemId) && isFinite(v)) startByItem.set(itemId, v)
       })
     }
+    const startByAccount = new Map()
+    startByItem.forEach((v, itemId) => {
+      const acct = accountOf.get(itemId)
+      if (!acct) return
+      startByAccount.set(acct, (startByAccount.get(acct) || 0) + v)
+    })
     // The per-item reconstruction is not always available (its endpoints only
     // publish when the series' first point IS the anchor the headline used), and
     // the panel should not vanish for that: these starts are estimates that get
