@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from 'react'
 import { formatCurrency, formatCompact, formatAxisTick, formatDate, getItemValue, buildIncomeEvents, isExcludedFromNetWorth, findYearStartAnchor, shouldHoldFlat, SNAPSHOT_SRC_PRIORITY, BROKER_NAV_SOURCES, computeWindowGrowth, isMarketPriced, effectiveAcqTs } from './utils'
 import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { indexBalanceEvents } from '@/lib/historicalValues'
@@ -99,11 +99,31 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   // FASE FP. Three tabs: 'value' (untouched), 'performance' (the frozen
   // anchored series, labeled TWR, the DEFAULT return view) and
   // 'performance-mwr' (money-weighted sibling). Everything that used to gate
-  // on viewMode === 'performance' and means "any return view" gates on
-  // isPerf instead; everything gating on viewMode === 'value' is untouched
+  // on shownMode === 'performance' and means "any return view" gates on
+  // isPerf instead; everything gating on shownMode === 'value' is untouched
   // by construction (a third mode can never equal 'value').
   const [viewMode, setViewMode] = useState('value')
-  const isPerf = viewMode === 'performance' || viewMode === 'performance-mwr'
+  // FASE HG. DOS estados para una sola elección, a propósito.
+  //
+  // `viewMode` es lo que el usuario acaba de tocar y manda SOLO en el resaltado
+  // de las pestañas: cambia en el mismo frame del toque, así que la respuesta
+  // se siente inmediata pase lo que pase después.
+  //
+  // `shownMode` es lo que la gráfica está mostrando de verdad, y va detrás. El
+  // cambio de pestaña dispara un recálculo pesado (una pasada Dietz completa
+  // sobre toda la serie) que antes corría de forma síncrona y congelaba la
+  // interfaz: la pestaña no se marcaba hasta que terminaba, y por eso se sentía
+  // trabada. useDeferredValue lo saca del camino crítico y deja que React
+  // pinte el resaltado primero.
+  //
+  // TODO lo que es CONTENIDO (encabezado, chip, caption, geometría, datos) lee
+  // shownMode, nunca viewMode. Si leyera viewMode se vería un instante el
+  // rótulo "MWR" sobre datos de TWR: un número equivocado bajo una etiqueta
+  // equivocada, que es peor que esperar. Así, lo que se ve siempre es
+  // coherente consigo mismo; solo llega un momento después.
+  const shownMode = useDeferredValue(viewMode)
+  const modeSwitching = shownMode !== viewMode
+  const isPerf = shownMode === 'performance' || shownMode === 'performance-mwr'
   // Opt-in, not opt-on: a second dashed line that diverges sharply from the
   // value line (money invested vs. what it's worth today) reads as a stray
   // rendering glitch to someone who hasn't been told what it means. Showing
@@ -119,6 +139,13 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const mountedRef = useRef(true)
   const [chartWidth, setChartWidth] = useState(650)
   const [selectedInst, setSelectedInst] = useState('ALL')
+  // Misma división que shownMode: la pastilla se marca en el frame del toque,
+  // y el contenido (que puede tener que pedir historial y recalcular la serie
+  // entera) llega detrás sin bloquear. Cambiar de cuenta era lo OTRO que el
+  // usuario reportó como trabado.
+  const shownInst = useDeferredValue(selectedInst)
+  const instSwitching = shownInst !== selectedInst
+  const switching = modeSwitching || instSwitching
 
   const periods = ['DAY', '1W', 'MTD', '1M', '3M', 'YTD', '1Y', 'ALL', 'CUSTOM']
   const t = (es, en) => lang === 'es' ? es : en
@@ -149,16 +176,16 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const instFade = useEdgeFade([institutions.length])
 
   const scopedItems = useMemo(() => {
-    if (selectedInst === 'ALL') return items || []
-    const inst = institutions.find((i) => i.key === selectedInst)
+    if (shownInst === 'ALL') return items || []
+    const inst = institutions.find((i) => i.key === shownInst)
     return inst ? inst.items : []
-  }, [selectedInst, items, institutions])
+  }, [shownInst, items, institutions])
 
   // Transactions belonging to the selected institution. TWR/MWR/markers must use
   // this scoped list: with the full list, a deposit into Interactive Brokers would
   // count as a cash flow against an IDC-only value series and distort its return.
   const scopedTransactions = useMemo(() => {
-    if (!transactions || selectedInst === 'ALL') return transactions
+    if (!transactions || shownInst === 'ALL') return transactions
     const scopedIds = new Set(scopedItems.map((it) => it.id).filter(Boolean))
     const scopedSyms = new Set(scopedItems.map((it) => (it.symbol || '').toUpperCase()).filter(Boolean))
     // IBKR deposit/withdrawal flows carry symbol 'CASH', but the cash HOLDING is
@@ -185,7 +212,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       return (tx.symbol && scopedSyms.has(sym)) ||
         (scopedHasCash && sym.startsWith('CASH'))
     })
-  }, [transactions, scopedItems, selectedInst])
+  }, [transactions, scopedItems, shownInst])
 
   // When the manually-added (non-IBKR) assets were first created. Daily snapshots
   // from before this date are broker-only and need the manual-asset overlay; later
@@ -241,7 +268,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       .join('|'),
   [scopedItems])
   // FASE GP: same price-free signature as itemsSig, but over ALL items, not
-  // just the currently-scoped ones. itemsSig is scoped to selectedInst ON
+  // just the currently-scoped ones. itemsSig is scoped to shownInst ON
   // PURPOSE (it has to differ per institution, since that IS the network
   // request differentiator) — using it as the cache guard below would clear
   // the whole history cache on every single institution switch, since a
@@ -291,7 +318,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       cacheGuardRef.current = { allItemsSig, transactions, lots }
     }
     const cacheable = period !== 'DAY' && period !== 'CUSTOM'
-    const cacheKey = `${selectedInst}|${period}`
+    const cacheKey = `${shownInst}|${period}`
     const cachedData = cacheable ? historyCacheRef.current.get(cacheKey) : undefined
     const gen = ++fetchGenRef.current
     // A cache hit skips the loading flash entirely — that IS the point.
@@ -327,7 +354,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         return s + Math.abs(convert ? convert(v, cur, 'USD') : v)
       }, 0)
       const scopedSymbols = new Set(chartItems.map(it => (it.symbol || '').toUpperCase()).filter(Boolean))
-      const instFilter = selectedInst === 'ALL' ? null : selectedInst
+      const instFilter = shownInst === 'ALL' ? null : shownInst
       const allLots = (lots || []).filter(l =>
         l.quantity > 0
         && scopedSymbols.has((l.symbol || '').toUpperCase())
@@ -476,7 +503,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     // writes) — price ticks no longer recreate this callback. convert is read
     // via ref; a rates refresh alone doesn't warrant re-downloading history
     // (the 5-min interval picks it up).
-  }, [itemsSig, transactions, lots, period, baseCurrency, customRange, selectedInst])
+  }, [itemsSig, transactions, lots, period, baseCurrency, customRange, shownInst])
 
   useEffect(() => {
     mountedRef.current = true
@@ -504,7 +531,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     // single manual (non-IBKR) institution they would draw the entire portfolio's
     // curve and then crash to the scoped value at the end — so fall back to the
     // (correctly scoped) API series. IBKR-backed views keep using snapshots.
-    if (selectedInst !== 'ALL' && scopedItems.length > 0 && scopedItems.every(it => it._source !== 'ibkr')) return []
+    if (shownInst !== 'ALL' && scopedItems.length > 0 && scopedItems.every(it => it._source !== 'ibkr')) return []
     // FASE FU. Con los docs paralelos de NAV (`fecha~nav~ibkr`) una fecha puede
     // traer la observación de portafolio COMPLETO y el NAV de UNA cuenta. La
     // vista "Todas" mide el portafolio entero: un día con ambos usa la
@@ -513,7 +540,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     // siempre. La vista escopada hace lo contrario más abajo (solo
     // BROKER_NAV_SOURCES), donde los docs paralelos son exactamente el NAV
     // real denso que antes se descartaba al importar.
-    const sourceSnaps = selectedInst === 'ALL' ? preferFullPortfolioPerDay(snapshots) : snapshots
+    const sourceSnaps = shownInst === 'ALL' ? preferFullPortfolioPerDay(snapshots) : snapshots
     const now = Date.now()
     const bc = baseCurrency || 'USD'
     const convertVal = (s) => {
@@ -525,7 +552,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       const threeDaysAgo = now - 3 * 86400000
       const recentSnaps = [...sourceSnaps]
         .filter(s => s.date && new Date(s.date).getTime() >= threeDaysAgo
-          && (selectedInst === 'ALL' ? !s._calibrated : BROKER_NAV_SOURCES.includes(s._source)))
+          && (shownInst === 'ALL' ? !s._calibrated : BROKER_NAV_SOURCES.includes(s._source)))
         .sort((a, b) => new Date(a.date) - new Date(b.date))
         .map(s => ({ ts: new Date(s.date).getTime(), date: new Date(s.date), value: convertVal(s), src: s._source || null, transactional: !!s._transactional }))
         .filter(p => p.value > 0)
@@ -575,7 +602,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         // one institution, only real per-broker NAV sources are trusted —
         // everything else falls back to the (correctly scoped) API series
         // below, same as any institution with no synced broker at all.
-        if (selectedInst !== 'ALL' && !BROKER_NAV_SOURCES.includes(s._source)) return false
+        if (shownInst !== 'ALL' && !BROKER_NAV_SOURCES.includes(s._source)) return false
         const ts = new Date(s.date).getTime()
         if (ts < cutoff) return false
         if (ceiling && ts > ceiling) return false
@@ -620,7 +647,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     if (period === 'MTD' && pts.length < 2) {
       const sorted = [...sourceSnaps]
         .filter(s => s.date && new Date(s.date).getTime() < cutoff
-          && (selectedInst === 'ALL' ? !s._calibrated : BROKER_NAV_SOURCES.includes(s._source)))
+          && (shownInst === 'ALL' ? !s._calibrated : BROKER_NAV_SOURCES.includes(s._source)))
         .sort((a, b) => new Date(b.date) - new Date(a.date))
       if (sorted.length > 0) {
         const prevSnap = sorted[0]
@@ -643,7 +670,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     pts = filterValueSpikes(pts)
 
     return pts
-  }, [snapshots, period, convert, baseCurrency, customRange, currentTotal, selectedInst, scopedItems])
+  }, [snapshots, period, convert, baseCurrency, customRange, currentTotal, shownInst, scopedItems])
 
   // "Estimado" is not the same question as "incierto" — the lesson FASE DS
   // already settled for the spreadsheet, now applied to the chart.
@@ -767,7 +794,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     // drew a flat $12,480 line and a -50% "drawdown" into its own real value
     // (FASE DY) — same shape as the orphaned-NAV bug, one layer up.
     const hasBrokerItems = (items || []).some((it) => it && it._source === 'ibkr')
-    const overlay = selectedInst === 'ALL' && staticPoints.length > 0 && hasBrokerItems
+    const overlay = shownInst === 'ALL' && staticPoints.length > 0 && hasBrokerItems
     // NOTE: 'backfill' snapshots are deliberately NOT overlaid — the backfill API
     // call already includes manual assets (gated by acquisitionDate, exactly like
     // staticAt), so adding staticAt again would double-count them.
@@ -903,7 +930,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         // FASE FU: mismo criterio que snapshotData. El ancla de la vista
         // "Todas" nunca debe caer en un doc paralelo de NAV (una sola cuenta
         // haciéndose pasar por el arranque del portafolio completo).
-        const anchorSource = selectedInst === 'ALL' ? preferFullPortfolioPerDay(snapshots) : (snapshots || []).filter(s => BROKER_NAV_SOURCES.includes(s._source))
+        const anchorSource = shownInst === 'ALL' ? preferFullPortfolioPerDay(snapshots) : (snapshots || []).filter(s => BROKER_NAV_SOURCES.includes(s._source))
         const anchorSnap = findYearStartAnchor(anchorSource, year)
         const anchorVal = anchorSnap
           ? (anchorSnap._source === 'manual' && anchorSnap._rawValue != null && anchorSnap._rawCurrency === bc
@@ -942,7 +969,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       if (real.length >= 2) return real
     }
     return pts
-  }, [dataPoints, snapshotData, currentTotal, period, staticPoints, earliestStaticAcqTs, selectedInst, manualAddedTs, snapshots, items, convert, baseCurrency, viewMode, isPerf, firstRealTs, apiTransactional, reconstructionIsExact])
+  }, [dataPoints, snapshotData, currentTotal, period, staticPoints, earliestStaticAcqTs, shownInst, manualAddedTs, snapshots, items, convert, baseCurrency, shownMode, isPerf, firstRealTs, apiTransactional, reconstructionIsExact])
 
   // Whether the auto-imported IBKR cash flows (_source:'ibkr') enter the return math
   // depends on the SOURCE of the value series (lesson from the +1.98% vs IBKR's
@@ -989,12 +1016,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   // computed while its tab is active — no reason to run a second Dietz pass
   // on every price tick for a series nobody is looking at.
   const returnDataMWR = useMemo(
-    () => viewMode === 'performance-mwr'
+    () => shownMode === 'performance-mwr'
       ? computeAnchoredMWRSeries(chartData, returnTransactions, convert, baseCurrency, { firstRealTs, apiTransactional })
       : [],
-    [viewMode, chartData, returnTransactions, convert, baseCurrency, firstRealTs, apiTransactional]
+    [shownMode, chartData, returnTransactions, convert, baseCurrency, firstRealTs, apiTransactional]
   )
-  const activeReturnData = viewMode === 'performance-mwr' ? returnDataMWR : returnData
+  const activeReturnData = shownMode === 'performance-mwr' ? returnDataMWR : returnData
 
   // Non-null when the performance view was rebased to the first real broker
   // datapoint (IBKR's "Jan 1 or account open, whichever is later" convention).
@@ -1007,7 +1034,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     ? firstRealTs : null
 
   const contributionLine = useMemo(() => {
-    if (viewMode !== 'value' || chartData.length < 2) return null
+    if (shownMode !== 'value' || chartData.length < 2) return null
     const flowTypes = { DEPOSIT: 1, WITHDRAWAL: -1 }
     // scopedTransactions already restricts to the selected institution, so a
     // deposit into another account never shows as invested capital here.
@@ -1082,7 +1109,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       }
       return cum
     })
-  }, [chartData, scopedTransactions, scopedItems, viewMode, convert, baseCurrency, lots])
+  }, [chartData, scopedTransactions, scopedItems, shownMode, convert, baseCurrency, lots])
 
   const drawdown = useMemo(() => {
     if (chartData.length < 3) return null
@@ -1178,18 +1205,18 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const growthValues = useMemo(() => chartData.map((d) => d.value), [chartData])
 
   const geo = useMemo(() => {
-    const vals = viewMode === 'value' ? growthValues : activeReturnData
+    const vals = shownMode === 'value' ? growthValues : activeReturnData
     if (vals.length < 2) return null
     // Extra series shares the axis: invested capital, in value mode only, when
     // the user opts into showing it. Including it here is what keeps both
     // lines on ONE scale.
-    const extra = viewMode === 'value' && showContributions ? contributionLine : null
+    const extra = shownMode === 'value' && showContributions ? contributionLine : null
     const timestamps = chartData.map((d) => d.ts)
-    return buildGeometry(vals, viewMode === 'value' ? 'value' : 'performance', chartHeight, width, pad, extra, timestamps)
-  }, [viewMode, growthValues, activeReturnData, contributionLine, showContributions, chartData, width])
+    return buildGeometry(vals, shownMode === 'value' ? 'value' : 'performance', chartHeight, width, pad, extra, timestamps)
+  }, [shownMode, growthValues, activeReturnData, contributionLine, showContributions, chartData, width])
 
   const contributionGeoPoints = useMemo(() => {
-    if (!geo || !contributionLine || viewMode !== 'value' || !showContributions) return null
+    if (!geo || !contributionLine || shownMode !== 'value' || !showContributions) return null
     // Derive from geo — same X (time-scaled) and same Y scale as the value line.
     // Recomputing a private range here drew the two lines on different axes.
     const ch = chartHeight - pad.top - pad.bottom
@@ -1198,7 +1225,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       y: pad.top + ch - ((v - geo.adjustedMin) / geo.range) * ch,
       v,
     }))
-  }, [geo, contributionLine, viewMode, showContributions, chartHeight, pad])
+  }, [geo, contributionLine, shownMode, showContributions, chartHeight, pad])
 
   const resolvedXLabels = useMemo(() => {
     if (!geo) return []
@@ -1422,7 +1449,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           {t('Rendimiento MWR', 'Performance MWR')}
         </button>
         <div className="ml-auto flex items-center gap-2">
-          {viewMode === 'value' && contributionLine && (
+          {shownMode === 'value' && contributionLine && (
             <button onClick={() => setShowContributions(!showContributions)}
               className="px-2 py-1 text-xs font-medium rounded-md transition-all"
               style={showContributions ? { backgroundColor: 'var(--accent-blue)', color: '#fff' } : { color: 'var(--text-muted)' }}
@@ -1458,7 +1485,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       )}
 
       {/* Header stats */}
-      {viewMode === 'value' ? (
+      {/* El encabezado se atenúa junto con la gráfica: dejar el número VIEJO
+          nítido al lado de una gráfica atenuada se lee como si ese número ya
+          fuera el nuevo. */}
+      <div className="transition-opacity duration-200"
+        style={switching ? { opacity: 0.45 } : undefined}>
+      {shownMode === 'value' ? (
         <div className="mb-3">
           <p className="text-3xl font-bold text-white font-mono tabular-nums">{formatCurrency(hd ? hd.value : currentTotal)}</p>
           <p className="text-sm mt-0.5" style={{ color: displayAbs >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
@@ -1491,10 +1523,10 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                 (chained sub-periods, IBKR's methodology) is TWR; the sibling
                 money-weighted tab is MWR. */}
             <span className="text-xs font-sans font-semibold px-1.5 py-0.5 rounded" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-tertiary)' }}
-              title={viewMode === 'performance-mwr'
+              title={shownMode === 'performance-mwr'
                 ? t('Retorno ponderado por dinero (Dietz modificado): el timing de tus aportes cuenta, igual que el MWR de tu broker', 'Money-weighted return (Modified Dietz): the timing of your contributions counts, same as your broker\'s MWR')
                 : t('Retorno ponderado por tiempo: cadena el retorno de cada sub-período, la misma metodología que usa tu broker', 'Time-weighted return: chains each sub-period\'s return, the same methodology your broker uses')}>
-              {viewMode === 'performance-mwr' ? 'MWR' : 'TWR'}
+              {shownMode === 'performance-mwr' ? 'MWR' : 'TWR'}
             </span>
             {annualizedReturn != null && hoverIdx == null && (
               <span className="text-xs font-sans font-normal text-slate-500 font-mono tabular-nums">
@@ -1509,17 +1541,18 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                 : period === 'YTD' ? t('Retorno total del año', 'Total return this year') : period === 'DAY' ? t('Retorno hoy', 'Return today') : `${t('Retorno', 'Return')} ${period}`}
             </span>
             <span className="text-xs text-slate-600">
-              {viewMode === 'performance-mwr'
+              {shownMode === 'performance-mwr'
                 ? t('Tu rendimiento real: el timing de tus aportes cuenta', 'Your actual return: the timing of your contributions counts')
                 : t('El rendimiento de la estrategia: ignora el timing de tus aportes', 'The strategy\'s return: ignores the timing of your contributions')}
             </span>
           </div>
         </div>
       )}
+      </div>
 
 
       {/* Drawdown indicator */}
-      {viewMode === 'value' && drawdown && (
+      {shownMode === 'value' && drawdown && (
         <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs mb-3"
           style={{ backgroundColor: 'var(--alert-error-bg)', border: '1px solid var(--alert-error-border)', color: 'var(--text-negative)' }}>
           <span>↓</span>
@@ -1617,9 +1650,15 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         </div>
       )}
 
-      {/* Chart */}
+      {/* Chart. Mientras el recálculo está en vuelo se atenúa en vez de
+          congelarse: la pestaña ya se marcó, así que esto dice "sí, va a
+          cambiar" sin mentir sobre qué se está viendo (lo dibujado sigue
+          siendo la vista anterior, completa y coherente, hasta que la nueva
+          esté lista). `pointer-events-none` evita que el hover lea la serie
+          vieja mientras tanto. */}
       {geo && (
-        <div className="relative">
+        <div className="relative transition-opacity duration-200"
+          style={switching ? { opacity: 0.45, pointerEvents: 'none' } : undefined}>
           <svg role="img" aria-label={t('Gráfico de crecimiento del portafolio', 'Portfolio growth chart')} viewBox={`0 0 ${width} ${chartHeight}`} className="w-full" preserveAspectRatio="xMidYMid meet"
             onMouseLeave={() => setHoverIdx(null)}
             onTouchEnd={() => setHoverIdx(null)}
@@ -1665,7 +1704,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
               )
             })}
 
-            {viewMode === 'value' ? (
+            {shownMode === 'value' ? (
               <>
                 <defs>
                   <linearGradient id="grad-value" x1="0" y1="0" x2="0" y2="1">
@@ -1807,7 +1846,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
               <g>
                 <line x1={hp.x} y1={pad.top} x2={hp.x} y2={chartHeight - pad.bottom} stroke="var(--text-muted)" strokeWidth="1" strokeDasharray="4 3" />
                 <circle cx={hp.x} cy={hp.y} r="4.5"
-                  fill={viewMode === 'value' ? 'var(--accent-blue)' : (hp.v >= 0 ? 'var(--accent-green)' : 'var(--text-negative)')}
+                  fill={shownMode === 'value' ? 'var(--accent-blue)' : (hp.v >= 0 ? 'var(--accent-green)' : 'var(--text-negative)')}
                   stroke="var(--bg-card)" strokeWidth="2" />
               </g>
             )}
@@ -1830,7 +1869,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                   : `${(hp.y / chartHeight) * 100 - 14}%`,
                 transform: hp.y < chartHeight / 3 ? 'translate(-50%, 0)' : 'translate(-50%, -100%)',
               }}>
-              {viewMode === 'value' ? (
+              {shownMode === 'value' ? (
                 <>
                   <div className="font-bold">{formatCurrency(hd.value)}</div>
                   <div className="text-slate-400">{formatTooltipDate(hd.date)}</div>
@@ -1869,7 +1908,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       )}
 
       {/* Legend + Period selector */}
-      {viewMode === 'value' && (
+      {shownMode === 'value' && (
         <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 mt-2 text-xs text-slate-500">
           <span className="flex items-center gap-1.5">
             <span className="w-3 h-0.5 rounded-full inline-block" style={{ backgroundColor: 'var(--accent-blue)' }} />
@@ -1902,7 +1941,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           <span className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: 'var(--accent-green)' }} />
             <span className="w-1.5 h-1.5 rounded-full inline-block -ml-1" style={{ backgroundColor: 'var(--text-negative)' }} />
-            {viewMode === 'performance-mwr'
+            {shownMode === 'performance-mwr'
               ? t('Tu portafolio (MWR): verde sobre 0%, rojo debajo', 'Your portfolio (MWR): green above 0%, red below')
               : t('Tu portafolio (TWR): verde sobre 0%, rojo debajo', 'Your portfolio (TWR): green above 0%, red below')}
           </span>
