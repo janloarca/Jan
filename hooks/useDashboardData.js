@@ -1481,13 +1481,24 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // flow: the SAME transaction list the headline netted, attributed by account.
     // A broker's account-level movement carries no item link, which is precisely
     // what broke the old panel; here it is matched by source instead.
+    const nowTs = Date.now()
+    const windowMs = Math.max(1, nowTs - ytdStartTs)
     const flowByAccount = new Map()
+    // The Dietz denominator, per account: each flow weighted by the share of the
+    // window it was actually invested for. Same weighting computeModifiedDietz
+    // applies to the portfolio, so a row's return is measured the way the
+    // headline above it is.
+    const flowBaseByAccount = new Map()
     let unattributedFlow = 0
+    const addFlow = (key, amt, ts) => {
+      flowByAccount.set(key, (flowByAccount.get(key) || 0) + amt)
+      flowBaseByAccount.set(key, (flowBaseByAccount.get(key) || 0) + amt * ((nowTs - ts) / windowMs))
+    }
     ;(ytdFlowsUsed || []).forEach((tx) => {
       const type = (tx.type || '').toUpperCase()
       if (type !== 'DEPOSIT' && type !== 'WITHDRAWAL') return
       const txTs = tx.date ? new Date(tx.date).getTime() : NaN
-      if (!isFinite(txTs) || txTs < ytdStartTs || txTs > Date.now()) return
+      if (!isFinite(txTs) || txTs < ytdStartTs || txTs > nowTs) return
       const raw = Math.abs(Number(tx.totalAmount ?? 0))
       if (!isFinite(raw)) return
       const amt = (convert ? convert(raw, tx.currency || 'USD', baseCurrency || 'USD') : raw)
@@ -1506,7 +1517,59 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         ? 'ibkr'
         : ((tx._linkedItemId && accountOf.get(tx._linkedItemId)) || bySymbol())
       if (!key) { unattributedFlow += amt; return }
-      flowByAccount.set(key, (flowByAccount.get(key) || 0) + amt)
+      addFlow(key, amt, txTs)
+    })
+
+    // Money moving BETWEEN two of the user's own accounts is not a return for
+    // either side: the account receiving it did not earn it, and the one sending
+    // it did not lose it. The portfolio-level Dietz never sees these movements
+    // (it nets DEPOSIT/WITHDRAWAL only), which is exactly right for the headline
+    // and exactly wrong for a per-account split, so they are netted here as an
+    // outflow on one side and an inflow on the other. Equal and opposite, they
+    // cancel across accounts, so the rows still add up to the headline.
+    //
+    // Two forms of it:
+    //   - an explicit TRANSFER between two accounts.
+    //   - a coupon or dividend an asset GENERATED but that was paid out in cash
+    //     to a different account (incomeDestination). Netting the arriving cash
+    //     out of the receiver and back into the generator is what reproduces the
+    //     convention the rest of the app already uses: the bond earned the
+    //     coupon, the cash account merely holds it. Without this the generating
+    //     account reads as flat for a year it did earn, and the cash account
+    //     reads as having produced a return out of nowhere.
+    //
+    // Only when BOTH ends resolve to an account: crediting one side alone would
+    // invent money at the portfolio level. A TransferModal row carries no item
+    // ids at all, so it is skipped rather than half-applied.
+    ;(transactions || []).forEach((tx) => {
+      const txTs = tx.date ? new Date(tx.date).getTime() : NaN
+      if (!isFinite(txTs) || txTs < ytdStartTs || txTs > nowTs) return
+      const type = (tx.type || '').toUpperCase()
+      let fromKey = null
+      let toKey = null
+      let cur = tx.currency || 'USD'
+      if (type === 'TRANSFER') {
+        fromKey = tx._originItemId ? accountOf.get(tx._originItemId) : null
+        toKey = tx._linkedItemId ? accountOf.get(tx._linkedItemId) : null
+      } else if (type === 'DIVIDEND') {
+        // The shared rule for "did this payment move another account's balance,
+        // and whose?" -- the same one the delete/edit reversal path uses, so the
+        // two can never disagree about which payments landed elsewhere. It
+        // already excludes reinvested payments (the money never left) and
+        // backfilled ones (`_destinationCredited:false`: no balance was moved).
+        const target = dividendCreditTarget(tx, portfolioItems)
+        if (!target) return
+        fromKey = tx._linkedItemId ? accountOf.get(tx._linkedItemId) : null
+        toKey = accountOf.get(target.dest.id)
+        cur = target.currency || cur
+      } else return
+      if (!fromKey || !toKey || fromKey === toKey) return
+      const raw = Math.abs(Number(tx.totalAmount ?? 0))
+      if (!isFinite(raw) || raw === 0) return
+      const amt = convert ? convert(raw, cur, baseCurrency || 'USD') : raw
+      if (!isFinite(amt)) return
+      addFlow(toKey, amt, txTs)
+      addFlow(fromKey, -amt, txTs)
     })
 
     // start, PER ITEM first so each holding can take its value from whichever
@@ -1588,6 +1651,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         name: nameOf.get(k) || k,
         endVal: endByAccount.get(k) || 0,
         flow: flowByAccount.get(k) || 0,
+        flowBase: flowBaseByAccount.get(k) || 0,
         start: realStart != null ? realStart : (startByAccount.get(k) || 0),
         startIsReal: realStart != null,
       }

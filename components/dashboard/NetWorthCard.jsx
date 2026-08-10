@@ -246,8 +246,8 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
               {lang === 'es' ? 'De dónde viene tu YTD' : 'Where your YTD comes from'}
             </span>
             <InfoTip text={lang === 'es'
-              ? 'Por cada cuenta: valor de hoy menos valor de arranque del año, restando el dinero que metiste o sacaste. Los depósitos nunca cuentan como ganancia. Las cuentas suman exactamente el YTD de arriba: si no cuadraran, este desglose no se muestra.'
-              : 'Per account: today\'s value minus its year-start value, less any money you moved in or out. Deposits never count as gains. The accounts add up to the YTD figure above exactly: if they did not, this breakdown would not be shown.'} />
+              ? 'Por cada cuenta: valor de hoy menos valor de arranque del año, restando el dinero que metiste o sacaste. Los depósitos nunca cuentan como ganancia, y el dinero que pasa de una cuenta tuya a otra tampoco. El % es el retorno de esa cuenta, el mismo que ves en su gráfica. Las cuentas suman exactamente el YTD de arriba: si no cuadraran, este desglose no se muestra.'
+              : 'Per account: today\'s value minus its year-start value, less any money you moved in or out. Deposits never count as gains, and neither does money moved between your own accounts. The % is that account\'s return, the same one its chart shows. The accounts add up to the YTD figure above exactly: if they did not, this breakdown would not be shown.'} />
           </div>
           {/* One row per ACCOUNT (FASE GR). Every account is listed, including
               ones that contributed nothing: the previous version hid near-zero
@@ -261,8 +261,14 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
                     : (g.name || (lang === 'es' ? 'Sin institución' : 'No institution'))}
                 </span>
                 <span className="text-sm font-mono tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>
-                  {g.share != null && isFinite(g.share) && (
-                    <span className="mr-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>{g.share.toFixed(0)}%</span>
+                  {/* The account's OWN return, not its share of the total gain.
+                      The share read as a return and was not one: a broker up
+                      7.40% on the year showed "75%" next to it, which only meant
+                      "most of this year's gain came from here". */}
+                  {g.ret != null && isFinite(g.ret) && (
+                    <span className="mr-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                      {g.ret >= 0 ? '+' : ''}{g.ret.toFixed(2)}%
+                    </span>
                   )}
                   {g.gain >= 0 ? '+' : ''}{formatCurrency(cv(g.gain), displayCur)}
                 </span>
