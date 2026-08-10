@@ -42,7 +42,14 @@ export async function GET(request, { params }) {
   }
 
   if (path === INIT_JSON_PATH) {
-    const init = buildFirebaseInitJson(process.env, { authDomain: request.nextUrl.host })
+    // The PUBLIC host, which behind a proxy is the forwarded one. This value
+    // becomes the helper's authDomain, and the helper builds its OAuth
+    // redirect_uri from it -- so an internal deployment host leaking in here
+    // would produce a redirect_uri nobody registered, which Google rejects as
+    // redirect_uri_mismatch. Exactly the error this flow just hit for a
+    // different reason, and not one worth risking twice.
+    const host = request.headers.get('x-forwarded-host') || request.nextUrl.host
+    const init = buildFirebaseInitJson(process.env, { authDomain: host })
     if (init) return NextResponse.json(init, { headers: { 'cache-control': 'no-store', 'x-helper-source': 'local' } })
   }
 
