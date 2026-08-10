@@ -265,6 +265,18 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   }, [savedToken, uid])
 
   // Auto-start sync when credentials already exist (only from config step, not connected)
+  //
+  // FASE GQ regression, found from a real report (user still saw the blocking
+  // "Requesting report from IBKR..." screen after this shipped): this effect
+  // re-runs on EVERY keystroke (token/queryId are both in its deps, bound
+  // directly to the two text inputs), and the form asks for Token first, then
+  // Query ID — so the instant the user types the FIRST digit of the Query ID
+  // with a Token already in the field, both conditions go true and this fires
+  // BEFORE the user ever reaches the "Conectar" button. It was still calling
+  // the old blocking handleSync(), so the button's own onClick swap to
+  // handleQuickConnect (above) never got a chance to matter: this effect won
+  // the race first, every time, for any first-time connect. Same non-blocking
+  // path here closes that gap for good.
   useEffect(() => {
     if (autoStartedRef.current) return
     // Gate on the LOCALLY-known queryId (prop OR the one loaded from the vault) so a
@@ -275,7 +287,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
     const haveQuery = !!(savedQueryId || queryId)
     if (haveCreds && haveQuery && !decrypting && step === 'config' && !isConnected) {
       autoStartedRef.current = true
-      handleSync()
+      handleQuickConnect()
     }
   }, [token, hasVaultCreds, savedQueryId, queryId, decrypting]) // eslint-disable-line react-hooks/exhaustive-deps
 
