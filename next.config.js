@@ -30,7 +30,13 @@ const nextConfig = {
     if (!helperHost) return []
     return [
       { source: '/__/auth/:path*', destination: `https://${helperHost}/__/auth/:path*` },
-      { source: '/__/firebase/:path*', destination: `https://${helperHost}/__/firebase/:path*` },
+      // FASE GX: /__/firebase goes through our own route instead of straight to
+      // Firebase. The helper reads its config from /__/firebase/init.json, which
+      // Hosting serves -- and a project whose Hosting site was never provisioned
+      // answers 404 for it while /__/auth keeps working, which is exactly what
+      // the in-app diagnostic reported. That route proxies upstream first and
+      // only synthesizes init.json when upstream has no answer.
+      { source: '/__/firebase/:path*', destination: '/api/firebase-helper/:path*' },
     ]
   },
   webpack: (config) => {

@@ -7,9 +7,39 @@ import { runAuthDiagnostics } from '@/lib/authDiagnostics'
 import Logo from '@/components/ui/Logo'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
 
+// Marca de que ESTA pestaña mandó al usuario a Google por redirect. Sin ella,
+// las dos piernas del flujo son indistinguibles cuando fallan: el popup y la
+// vuelta producen el mismo auth/internal-error genérico, y ni el código ni el
+// mensaje dicen cuál de las dos murió. Saber eso descarta la mitad de las
+// causas posibles de una sola vez.
+const REDIRECT_MARK = 'chispu-google-redirect'
+function markRedirectStarted() {
+  try { sessionStorage.setItem(REDIRECT_MARK, String(Date.now())) } catch {}
+}
+function takeRedirectMark() {
+  try {
+    const v = sessionStorage.getItem(REDIRECT_MARK)
+    if (v) sessionStorage.removeItem(REDIRECT_MARK)
+    return !!v
+  } catch { return false }
+}
+
 function setSessionCookie(token) {
   const secure = window.location.protocol === 'https:' ? '; Secure' : ''
   document.cookie = `__session=${token}; path=/; max-age=604800; SameSite=Lax${secure}`
+}
+
+// El mensaje crudo de Firebase, cuando dice algo más que el genérico. Es el
+// único canal de diagnóstico en un teléfono, donde no hay consola, y es la
+// misma extracción para el popup y para la vuelta del redirect: tenerla en dos
+// copias fue exactamente cómo la rama de vuelta se quedó sin ella.
+function googleErrorDetail(err) {
+  if (typeof err?.message !== 'string') return ''
+  const cleaned = err.message.replace(/^Firebase:\s*/i, '').replace(/\s+/g, ' ').trim()
+  if (!cleaned) return ''
+  const generic = /^an internal auth error has occurred\.?$/i.test(cleaned)
+    || /^error \(auth\/[a-z-]+\)\.?$/i.test(cleaned)
+  return generic ? '' : ` ${cleaned.slice(0, 200)}`
 }
 
 function isInAppBrowser() {
@@ -59,10 +89,26 @@ function LoginForm() {
       // sin esto, un error del flujo de redirect (el fallback cuando el popup
       // se bloquea) moría en silencio y el usuario solo veía la pantalla de
       // login otra vez, sin pista de qué pasó.
-      getRedirectResult(auth).catch((err) => {
+      const cameBackFromGoogle = takeRedirectMark()
+      getRedirectResult(auth).then((res) => {
+        // Volvimos de Google SIN credencial y SIN error. No es un rechazo: es
+        // que el resultado se perdió entre la ida y la vuelta, lo que apunta al
+        // estado del round-trip y no a un permiso mal puesto. Sin este caso, un
+        // viaje que no produce nada se ve idéntico a no haber intentado.
+        if (!res && cameBackFromGoogle) {
+          setError('Volviste de Google pero la sesión no llegó. Intenta de nuevo.')
+          setGoogleFailed('vuelta-sin-credencial (getRedirectResult devolvió null)')
+          setCheckingAuth(false)
+        }
+      }).catch((err) => {
         if (!err || !err.code) return
-        setError(`Error al conectar con Google. Intenta de nuevo. (${err.code})`)
-        setGoogleFailed(`${err.code}${err.message ? ` ${String(err.message).slice(0, 160)}` : ''}`)
+        // El detalle embebido importa MÁS en esta rama que en el popup. Este es
+        // el tramo de VUELTA: Google ya autenticó y el helper está canjeando la
+        // credencial contra Identity Toolkit, así que un rechazo de aquí SÍ es
+        // una respuesta de servidor y suele traer su razón adentro.
+        console.error('[google-redirect]', err.code, err.message)
+        setError(`Error al volver de Google. Intenta de nuevo. (${err.code})${googleErrorDetail(err)}`)
+        setGoogleFailed(`[vuelta] ${err.code}${googleErrorDetail(err)}`)
         setCheckingAuth(false)
       })
       unsub = onAuthStateChanged(auth, async (u) => {
@@ -131,6 +177,7 @@ function LoginForm() {
       if (!auth) throw new Error('Firebase not initialized')
       const provider = new GoogleAuthProvider()
       if (isInAppBrowser()) {
+        markRedirectStarted()
         await signInWithRedirect(auth, provider)
         return
       }
@@ -141,31 +188,44 @@ function LoginForm() {
       setTimeout(() => { window.location.href = redirectTo }, 1500)
     } catch (err) {
       if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') return
-      if (err.code === 'auth/popup-blocked') {
+      // auth/internal-error joins popup-blocked as a reason to fall back to the
+      // redirect flow. The failing device reports it with NO embedded server
+      // payload (the message is the bare "Firebase: Error (auth/internal-error)"),
+      // and that distinction is the useful one: a request the server rejected
+      // comes back carrying its reason, so a bare one means the popup never got
+      // that far. What dies before then is the popup/iframe handshake the SDK
+      // needs to talk to the helper, which Safari restricts hardest. The
+      // redirect flow does not use that handshake at all: it navigates the top
+      // window and comes back through getRedirectResult (handled on mount).
+      // Only reached when the popup path has ALREADY failed, so at worst it
+      // replaces a dead end with an attempt.
+      if (err.code === 'auth/popup-blocked' || err.code === 'auth/internal-error') {
         try {
-          const { GoogleAuthProvider, signInWithRedirect } = await import('firebase/auth')
-          if (auth) await signInWithRedirect(auth, new GoogleAuthProvider())
-          return
-        } catch {}
+          const { GoogleAuthProvider, signInWithRedirect } = firebaseAuthRef.current || await import('firebase/auth')
+          if (auth) { markRedirectStarted(); await signInWithRedirect(auth, new GoogleAuthProvider()); return }
+        } catch (redirectErr) {
+          // Falls through to the banner below, which now describes the redirect
+          // failure rather than the popup one that is no longer the real story.
+          console.error('[google-signin] redirect fallback', redirectErr?.code, redirectErr?.message)
+        }
       }
       // El código del error viaja en el mensaje a propósito: "Error interno"
       // a secas hacía imposible diagnosticar a distancia qué falló de verdad
-      // (auth/internal-error, unauthorized-domain, etc.). Y auth/internal-error
-      // en particular suele traer EMBEBIDO el mensaje real del servidor en
-      // err.message (un JSON con la razón): se muestra recortado porque es el
-      // único canal de diagnóstico en un teléfono, donde no hay consola.
+      // (auth/internal-error, unauthorized-domain, etc.). auth/internal-error
+      // PUEDE traer embebido el mensaje real del servidor en err.message (un
+      // JSON con la razón); se muestra recortado porque es el único canal de
+      // diagnóstico en un teléfono. Cuando NO lo trae (el caso observado: el
+      // mensaje es el genérico a secas) eso mismo es el dato: el servidor
+      // nunca contestó, así que el fallo está antes, en el handshake del
+      // popup, y por eso arriba se reintenta por redirect.
       console.error('[google-signin]', err.code, err.message)
-      let detail = ''
-      if (err.code === 'auth/internal-error' && typeof err.message === 'string') {
-        const cleaned = err.message.replace(/^Firebase:\s*/i, '').replace(/\s+/g, ' ').trim()
-        if (cleaned && cleaned.toLowerCase() !== 'an internal auth error has occurred.') {
-          detail = ` ${cleaned.slice(0, 160)}`
-        }
-      }
+      const detail = googleErrorDetail(err)
       const msg = err.code === 'auth/network-request-failed' ? 'Error de red. Verifica tu conexión.'
         : `Error al conectar con Google. Intenta de nuevo.${err.code ? ` (${err.code})` : ''}${detail}`
       setError(msg)
-      setGoogleFailed(`${err.code || 'sin código'}${detail}`)
+      // Etiquetada como IDA: si el fallback por redirect hubiera arrancado, esta
+      // pestaña ya se habría ido a Google y este banner no existiría.
+      setGoogleFailed(`[ida] ${err.code || 'sin código'}${detail}`)
     } finally {
       setGoogleLoading(false)
     }
@@ -183,6 +243,9 @@ function LoginForm() {
         origin: window.location.origin,
         authDomain: opts.authDomain,
         projectId: opts.projectId,
+        // Lets the diagnostic read Firebase's own authorized-domain list, which
+        // is what decides whether the RETURN leg of the sign-in is accepted.
+        apiKey: opts.apiKey,
         lastError: googleFailed,
       })
       setDiagnostics(res)
