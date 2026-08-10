@@ -255,8 +255,10 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
           <div className="space-y-2">
             {ytdBreakdown.groups.map((g) => (
               <div key={g.key} className="flex items-baseline justify-between gap-2">
-                <span className="text-sm truncate" style={{ color: 'var(--text-secondary)' }}>
-                  {g.name || (lang === 'es' ? 'Sin institución' : 'No institution')}
+                <span className="text-sm truncate" style={{ color: g.isUnexplained ? 'var(--text-muted)' : 'var(--text-secondary)' }}>
+                  {g.isUnexplained
+                    ? (lang === 'es' ? 'Sin atribuir' : 'Unattributed')
+                    : (g.name || (lang === 'es' ? 'Sin institución' : 'No institution'))}
                 </span>
                 <span className="text-sm font-mono tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>
                   {g.share != null && isFinite(g.share) && (
@@ -267,11 +269,11 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
               </div>
             ))}
           </div>
-          {ytdBreakdown.scaledEstimates && (
+          {ytdBreakdown.groups.some((g) => g.isUnexplained) && (
             <p className="text-[10px] mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
               {lang === 'es'
-                ? 'El valor de arranque de las cuentas sin historial del broker es estimado, ajustado para cuadrar con el total.'
-                : 'The year-start value of accounts without broker history is estimated, adjusted to add up to the total.'}
+                ? 'Cada cuenta muestra su propio número. Lo que no calza con el total va aparte, sin repartirlo entre las cuentas: viene del valor de arranque estimado de las cuentas sin historial del broker.'
+                : 'Each account shows its own figure. Whatever does not match the total is listed separately rather than spread across accounts: it comes from the estimated year-start of accounts without broker history.'}
             </p>
           )}
         </div>
