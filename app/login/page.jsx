@@ -213,6 +213,9 @@ function LoginForm() {
         origin: window.location.origin,
         authDomain: opts.authDomain,
         projectId: opts.projectId,
+        // Lets the diagnostic read Firebase's own authorized-domain list, which
+        // is what decides whether the RETURN leg of the sign-in is accepted.
+        apiKey: opts.apiKey,
         lastError: googleFailed,
       })
       setDiagnostics(res)
