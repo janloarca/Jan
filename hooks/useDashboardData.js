@@ -5,7 +5,7 @@ import { useExchangeRates } from './useExchangeRates'
 import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES } from '@/components/dashboard/utils'
+import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD } from '@/components/dashboard/utils'
 import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { indexBalanceEvents } from '@/lib/historicalValues'
 import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget } from '@/lib/autoDividends'
@@ -1387,8 +1387,8 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   //           never adjusted; the rest carry the reconstruction's estimate and
   //           get pinned to the portfolio anchor.
   const ytdBreakdown = useMemo(() => {
-    if (!ytdEndpoints || ytdStartValue == null || ytdChange == null) return null
-    const { start } = ytdEndpoints
+    if (ytdStartValue == null || ytdChange == null) return null
+    const start = ytdEndpoints?.start || {}
 
     // Which account each item belongs to, using the shared rule.
     const accountOf = new Map()
@@ -1429,9 +1429,19 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       if (!isFinite(raw)) return
       const amt = (convert ? convert(raw, tx.currency || 'USD', baseCurrency || 'USD') : raw)
         * (type === 'DEPOSIT' ? 1 : -1)
+      // Link id first, then symbol: a manual deposit typed without a link still
+      // names the asset it went into, and dropping it would count as money we
+      // could not place -- which makes the engine refuse the whole panel over a
+      // movement we can in fact locate.
+      const bySymbol = () => {
+        const sym = (tx.symbol || '').toUpperCase()
+        if (!sym) return null
+        const owner = (portfolioItems || []).find((it) => (it.symbol || '').toUpperCase() === sym)
+        return owner ? accountOf.get(owner.id) : null
+      }
       const key = (tx._source === 'ibkr' || tx._source === 'inferred_flow')
         ? 'ibkr'
-        : (tx._linkedItemId ? accountOf.get(tx._linkedItemId) : null)
+        : ((tx._linkedItemId && accountOf.get(tx._linkedItemId)) || bySymbol())
       if (!key) { unattributedFlow += amt; return }
       flowByAccount.set(key, (flowByAccount.get(key) || 0) + amt)
     })
@@ -1445,20 +1455,38 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       if (!acct) return
       startByAccount.set(acct, (startByAccount.get(acct) || 0) + (Number(v) || 0))
     })
+    // The per-item reconstruction is not always available (its endpoints only
+    // publish when the series' first point IS the anchor the headline used), and
+    // the panel should not vanish for that: these starts are estimates that get
+    // pinned to the anchor anyway, so the shape is all that is needed. Fall back
+    // to the same held-flat per-account estimate the calibration flow uses.
+    if (startByAccount.size === 0) {
+      ;[...endByAccount.keys()].forEach((k) => {
+        const est = heldFlatAccountValueUSD(portfolioItems, k, ytdStartTs, convert)
+        if (isFinite(est) && est > 0) startByAccount.set(k, convertSnapshot(est))
+      })
+    }
 
     // A broker's own year-start NAV is an observation, not an estimate, so it is
     // handed over as real and the engine leaves it untouched while pinning the
     // rest. Anything else keeps the reconstruction's figure.
+    // RAW snapshots, never augmentedSnapshots: augmentSnapshots deliberately
+    // adds the manual holdings ON TOP of a broker NAV so the chart series
+    // measures the whole portfolio. Read from there, "the broker's year-start
+    // NAV" is actually the whole portfolio's, which makes the broker's start
+    // swallow the entire anchor and leaves nothing for the other accounts --
+    // the panel then refuses every time and the YTD figure stops being
+    // tappable at all. The un-augmented doc is the broker's own balance.
     const brokerAnchor = findYearStartAnchor(
-      (augmentedSnapshots || []).filter((s) => s && BROKER_NAV_SOURCES.includes(s._source)),
+      (snapshots || []).filter((s) => s && BROKER_NAV_SOURCES.includes(s._source)),
       new Date().getFullYear()
     )
     const brokerStartUSD = brokerAnchor
       ? convertSnapshot(brokerAnchor.netWorthUSD ?? brokerAnchor.totalActivosUSD ?? 0)
       : null
 
-    const accounts = [...endByAccount.keys()].map((k) => {
-      const realStart = (k === 'ibkr' && brokerStartUSD != null && brokerStartUSD > 0)
+    const build = (useRealBrokerStart) => [...endByAccount.keys()].map((k) => {
+      const realStart = (useRealBrokerStart && k === 'ibkr' && brokerStartUSD != null && brokerStartUSD > 0)
         ? brokerStartUSD
         : null
       return {
@@ -1471,13 +1499,17 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       }
     })
 
-    return attributeYtd({
-      accounts,
-      portfolioStart: ytdStartValue,
-      headlineGain: ytdChange,
-      unattributedFlow,
-    })
-  }, [ytdEndpoints, portfolioItems, convert, baseCurrency, ytdChange, ytdStartValue, ytdStartTs, ytdFlowsUsed, augmentedSnapshots, convertSnapshot])
+    const args = { portfolioStart: ytdStartValue, headlineGain: ytdChange, unattributedFlow }
+    // The broker's real year-start NAV is the better input, so it is tried
+    // first. But treating it as fixed truth can itself make the split
+    // impossible (if that NAV and the portfolio anchor disagree, there is no
+    // way to tell which one is off), and refusing outright would leave the
+    // user with no breakdown at all over an improvement. So fall back to the
+    // all-estimated split, which is internally consistent and still pinned to
+    // the same anchor the headline used.
+    return attributeYtd({ accounts: build(true), ...args })
+      || attributeYtd({ accounts: build(false), ...args })
+  }, [ytdEndpoints, portfolioItems, convert, baseCurrency, ytdChange, ytdStartValue, ytdStartTs, ytdFlowsUsed, snapshots, convertSnapshot])
 
   // Month-to-date return (Modified Dietz) — the "how are we doing THIS month"
   // number for the Friends monthly leaderboard. Same shape as YTD, anchored to
