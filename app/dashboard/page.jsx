@@ -69,6 +69,11 @@ const RiskMetrics = dynamic(() => import('@/components/dashboard/RiskMetrics'), 
 const InstitutionPerformance = dynamic(() => import('@/components/dashboard/InstitutionPerformance'), { loading: () => <SkeletonCard /> })
 const RebalanceSuggestions = dynamic(() => import('@/components/dashboard/RebalanceSuggestions'), { loading: () => <SkeletonCard /> })
 
+// How long a finished IBKR-journey step stays on screen before it carries the
+// user to the next one (FASE GQ4). Long enough to read the one-line "Listo:
+// N trimestres guardados" confirmation, short enough to still feel automatic.
+const IBKR_AUTO_ADVANCE_MS = 1600
+
 import RecentTransactions from '@/components/dashboard/RecentTransactions'
 import DataQualityCard from '@/components/dashboard/DataQualityCard'
 import ChispuSuggestions from '@/components/dashboard/ChispuSuggestions'
@@ -385,9 +390,16 @@ export default function DashboardPage() {
   const [ibkrJourney, setIbkrJourney] = useState(null) // null | 1..5
   const ibkrJourneyRef = useRef(null)
   useEffect(() => { ibkrJourneyRef.current = ibkrJourney }, [ibkrJourney])
-  const advanceIbkrJourney = useCallback(() => {
+  const advanceIbkrJourney = useCallback((fromStep = null) => {
     const cur = ibkrJourneyRef.current
     if (cur == null) return
+    // FASE GQ4: a step that auto-advances on its own success passes the step it
+    // was scheduled FROM, so a late timer can never double-advance (skipping a
+    // step) if the user already moved on by hand, skipped, or exited — it just
+    // no-ops. Checked with typeof: this same function is wired straight to the
+    // journey bar's "Skip" button (onClick={onSkip}), which calls it with a
+    // MouseEvent, and a naive `!= null` test would swallow every skip click.
+    if (typeof fromStep === 'number' && cur !== fromStep) return
     const next = cur + 1
     if (next > 5) { setIbkrJourney(null); setBrokerCompletionId(null); return }
     setIbkrJourney(next)
@@ -397,6 +409,21 @@ export default function DashboardPage() {
     else if (next === 4) setModal('calibrate')
     else if (next === 5) { setModal(null); setTimeout(() => setBrokerCompletionId('ibkr'), 50) }
   }, [])
+  // FASE GQ4: finishing a step's actual work should carry the user forward on
+  // its own — that is the whole point of the journey (FASE GM), and without it
+  // a saved step just sits there with its primary button still reading "Save",
+  // which is exactly what the user hit at step 3 ("se queda ahí y no pasa
+  // automáticamente al siguiente paso"). The short pause is deliberate: it
+  // leaves the confirmation line ("Listo: 14 trimestres guardados...") on
+  // screen long enough to actually read before the next step replaces it.
+  // Only data-entry steps use this. The upload step is NOT auto-advanced on
+  // purpose: its done screen is a real report (how many positions, NAV days,
+  // and the amber "no deposits arrived" warning of FASE GG) that the user
+  // needs to read, and it fires its callback even on a failed import.
+  const autoAdvanceIbkrJourney = useCallback((fromStep) => {
+    if (ibkrJourneyRef.current !== fromStep) return
+    setTimeout(() => advanceIbkrJourney(fromStep), IBKR_AUTO_ADVANCE_MS)
+  }, [advanceIbkrJourney])
   const startIbkrJourney = useCallback(() => {
     setBrokerCompletionId(null)
     setImportBrokerHint(null)
@@ -1648,7 +1675,8 @@ export default function DashboardPage() {
           netWorth={netWorth} transactions={transactions} convert={convert} baseCurrency={baseCurrency}
           snapshots={snapshots} accountSnapshots={accountCalibrations} items={portfolioItems}
           saveSnapshot={saveSnapshot} deleteSnapshot={deleteSnapshot}
-          lang={lang} onClose={handleCloseModal} />
+          lang={lang} onClose={handleCloseModal}
+          onSaved={() => autoAdvanceIbkrJourney(4)} />
       )}
 
       {editItem && (
@@ -1718,7 +1746,10 @@ export default function DashboardPage() {
           snapshots={snapshots}
           lang={lang}
           onClose={handleCloseModal}
-          onSaved={(n) => showToast(lang === 'es' ? `${n} trimestres guardados` : `${n} quarters saved`, 'success')}
+          onSaved={(n) => {
+            showToast(lang === 'es' ? `${n} trimestres guardados` : `${n} quarters saved`, 'success')
+            autoAdvanceIbkrJourney(3)
+          }}
         />
       )}
 

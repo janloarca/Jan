@@ -19,7 +19,12 @@ import { solveDietzStartValue, accountKeyOfItem, heldFlatAccountValueUSD } from 
 // _calibrated:true marks it so the UI can badge it and "Quitar" can find it.
 // "Todo el portafolio" keeps the original global behavior for single-account
 // users and for calibrations saved before per-account existed.
-export default function CalibrateReturnModal({ onClose, netWorth, transactions, convert, baseCurrency = 'USD', snapshots = [], accountSnapshots = [], items = [], saveSnapshot, deleteSnapshot, lang = 'es' }) {
+// onSaved (FASE GQ4): fired once with how many periods were actually calibrated,
+// and ONLY on a successful save — never on removing a calibration, which undoes
+// work rather than completing it. The IBKR journey orchestrator listens so the
+// step carries the user forward on its own instead of sitting on its success
+// message with a primary button that still reads "Save".
+export default function CalibrateReturnModal({ onClose, onSaved, netWorth, transactions, convert, baseCurrency = 'USD', snapshots = [], accountSnapshots = [], items = [], saveSnapshot, deleteSnapshot, lang = 'es' }) {
   const trapRef = useFocusTrap()
   const t = (es, en) => lang === 'es' ? es : en
   const year = new Date().getUTCFullYear()
@@ -227,6 +232,7 @@ export default function CalibrateReturnModal({ onClose, netWorth, transactions, 
         `Listo: ${solved.length} ${solved.length === 1 ? 'período calibrado' : 'períodos calibrados'}. Tu rendimiento ahora cuadra con tu broker.${skipped.length ? ` (${skipped.join(', ')} ya tenía dato real.)` : ''} Si después importas el historial real, esos datos reemplazan la calibración automáticamente.`,
         `Done: ${solved.length} ${solved.length === 1 ? 'period calibrated' : 'periods calibrated'}. Your return now matches your broker.${skipped.length ? ` (${skipped.join(', ')} already had real data.)` : ''} If you later import the real history, that data automatically replaces the calibration.`
       ))
+      if (onSaved) onSaved(solved.length)
     } catch {
       setError(t('No se pudo guardar la calibración. Intenta de nuevo.', 'Could not save the calibration. Try again.'))
     } finally {
