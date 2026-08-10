@@ -143,7 +143,7 @@ export async function POST(request) {
   if (auth.error) return auth.error
 
   try {
-    const { items, lots, period, income } = await request.json()
+    const { items, lots, period, income, breakdown } = await request.json()
     if (!items || !Array.isArray(items) || items.length > 100) {
       return NextResponse.json({ error: 'Invalid request', errorCode: 'BAD_REQUEST' }, { status: 400 })
     }
@@ -361,9 +361,20 @@ export async function POST(request) {
       if (flows) staticCashFlows.set(si, flows)
     })
 
+    // FASE GQ: per-item value at each timestamp, keyed by item id (falling back to
+    // its uppercase symbol for market/crypto items, which are reconstructed per
+    // SYMBOL in allTimeSeries rather than per item). Feeds the dashboard's "what
+    // drove my YTD" breakdown (useDashboardData.ytdBreakdown) — that consumer
+    // already only trusts this when the breakdown's own first point IS the anchor
+    // the headline used, so a caller that doesn't ask for it (breakdown !== true)
+    // pays nothing extra: byKey stays undefined and every existing consumer that
+    // only reads `total` is untouched.
+    const wantBreakdown = breakdown === true
+
     const dataPoints = sortedTs.map((ts) => {
       let total = 0
       let staticSubtotal = 0
+      const byKey = wantBreakdown ? {} : null
 
       staticItems.forEach((it, si) => {
         const flows = staticCashFlows.get(si)
@@ -398,6 +409,7 @@ export async function POST(request) {
           })
           staticSubtotal += v
           total += v
+          if (byKey) { const k = itId || itSym; if (k) byKey[k] = (byKey[k] || 0) + v }
           return
         }
         const acqTs = it.acquisitionDate ? new Date(it.acquisitionDate).getTime() : 0
@@ -421,29 +433,31 @@ export async function POST(request) {
         })
         staticSubtotal += v
         total += v
+        if (byKey) { const k = itId || itSym; if (k) byKey[k] = (byKey[k] || 0) + v }
       })
       staticPoints.push({ ts, value: Math.round(staticSubtotal * 100) / 100 })
 
-      Object.entries(allTimeSeries).forEach(([, data]) => {
+      Object.entries(allTimeSeries).forEach(([sym, data]) => {
         let price = null
         for (let i = data.history.length - 1; i >= 0; i--) {
           if (data.history[i].ts <= ts) { price = data.history[i].close; break }
         }
         if (price == null && data.history.length > 0) price = data.history[0].close
 
+        let contribution = 0
         if (data.txEvents) {
           // TRUE reconstruction: rewind the current share count through the
           // imported BUY/SELL history. Beats hold-flat and lots because it knows
           // exactly when each share was bought or sold. (Only ledgers that fully
           // account for the current quantity reach here — see reconstructionFor.)
           usedTransactional = true
-          total += qtyAtTs(data.qty || 0, data.txEvents, ts) * (price || 0)
+          contribution = qtyAtTs(data.qty || 0, data.txEvents, ts) * (price || 0)
         } else if (data.holdFlat) {
           // IBKR import-date position: no reliable acquisition date and no genuine
           // trade history, so hold the current quantity flat back through the period
           // (Σ current qty × historical price) instead of zeroing it before the sync
           // stamp. Mirrors the dateUnreliable path in lib/historicalValues.js.
-          total += (data.qty || 0) * (price || 0)
+          contribution = (data.qty || 0) * (price || 0)
         } else if (data.lots) {
           // Lots reach here ONLY when the open lots reconcile with the current
           // quantity (reconstructionFor) — stale never-closed lots used to draw a
@@ -454,14 +468,25 @@ export async function POST(request) {
               qtyAtTime += lot.qty
             }
           }
-          total += qtyAtTime * (price || 0)
+          contribution = qtyAtTime * (price || 0)
         } else {
           if (ts < data.acquiredTs) return
-          total += (data.qty || 0) * (price || 0)
+          contribution = (data.qty || 0) * (price || 0)
         }
+        total += contribution
+        // Keyed by SYMBOL (allTimeSeries is reconstructed per symbol, not per
+        // item): the same key an item without its own id falls back to on the
+        // consumer side (ytdBreakdown matches `it.id === k || it.symbol === k`).
+        if (byKey) byKey[sym] = (byKey[sym] || 0) + contribution
       })
 
-      return { ts, total: Math.round(total * 100) / 100 }
+      const point = { ts, total: Math.round(total * 100) / 100 }
+      if (byKey) {
+        point.byKey = Object.fromEntries(
+          Object.entries(byKey).map(([k, v]) => [k, Math.round(v * 100) / 100])
+        )
+      }
+      return point
     })
 
     const staticTotal = staticItems.reduce((s, it) => {

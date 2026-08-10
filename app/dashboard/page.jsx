@@ -858,11 +858,23 @@ export default function DashboardPage() {
   //     dead" over what's usually IBKR's own rate limiting clearing itself
   //     within a day. Business days because the market is shut on weekends and
   //     a Friday sync has nothing to add on Sunday.
+  // FASE GQ: a FIRST connection that never once succeeded gets a SHORTER fuse
+  // (2 business days) than an established one that started failing (5, above).
+  // The user is actively mid-setup and staring at "IBKR ⚠" for the same reason
+  // an already-working sync would sit quiet for days is backwards — they need
+  // to know sooner if their Token/Query ID need a second look. `_ibkrConnectedAt`
+  // (stamped only by the non-blocking quick-connect in IBKRSyncModal, FASE GQ)
+  // is what tells the two cases apart; without it (every pre-existing connection)
+  // this branch never fires and the 5-day rule below is unchanged.
+  const everIbkrSynced = !!(settings?._ibkrLastSync || settings?._ibkrLastAutoSync)
   const ibkrNeedsAttention = useMemo(() => {
     if (!ibkrSyncErrorCode) return false
     if (['TOKEN_EXPIRED', 'INVALID_QUERY'].includes(ibkrSyncErrorCode)) return true
+    if (!everIbkrSynced && settings?._ibkrConnectedAt) {
+      return businessDaysSince(settings._ibkrConnectedAt) >= 2
+    }
     return businessDaysSince(settings?._ibkrLastSync || settings?._ibkrLastAutoSync) >= 5
-  }, [ibkrSyncErrorCode, settings?._ibkrLastSync, settings?._ibkrLastAutoSync])
+  }, [ibkrSyncErrorCode, everIbkrSynced, settings?._ibkrLastSync, settings?._ibkrLastAutoSync, settings?._ibkrConnectedAt])
 
   const topBanner = useMemo(() => {
     // Nothing to be stale ABOUT on an empty account: a brand-new user opening the app
@@ -872,6 +884,13 @@ export default function DashboardPage() {
     if (staleCode) return 'stale'
     if (ibkrSyncErrorCode === 'TOKEN_EXPIRED') return 'ibkr-expired'
     if (ibkrSyncErrorCode === 'INVALID_QUERY') return 'ibkr-query'
+    // FASE GQ: a first connection that crossed its 2-business-day grace period
+    // without ever landing a sync gets its OWN copy — "your credentials might
+    // be wrong" instead of "the last sync failed" (that phrasing assumes at
+    // least one sync happened). Checked before the general ibkrNeedsAttention
+    // branch below so it takes priority over the generic wording for exactly
+    // this case, never for an established connection that started failing.
+    if (ibkrNeedsAttention && !everIbkrSynced && settings?._ibkrConnectedAt) return 'ibkr-never-connected'
     // LOCKED (and everything else) self-heals; ibkrNeedsAttention holds the
     // shared 5-business-day staleness rule so this banner can never disagree
     // with the header pill. LOCKED still gets its own more useful copy
@@ -884,7 +903,7 @@ export default function DashboardPage() {
     // looking. It used to sit under the YTD figure, where it read as a
     // complaint about the number itself.
     return null
-  }, [staleCode, ibkrSyncErrorCode, ibkrNeedsAttention, pricesError, ratesError, portfolioItems.length])
+  }, [staleCode, ibkrSyncErrorCode, ibkrNeedsAttention, everIbkrSynced, settings?._ibkrConnectedAt, pricesError, ratesError, portfolioItems.length])
 
   // Loading state — show the structural skeleton (same layout as the loaded page)
   // instead of a lone spinner, so first paint already looks like the dashboard.
@@ -988,6 +1007,32 @@ export default function DashboardPage() {
                   className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
                   style={{ backgroundColor: '#d97706', color: '#fff' }}>
                   {lang === 'es' ? 'Configurar' : 'Configure'}
+                </button>
+              </div>
+            </div>
+          )}
+          {/* FASE GQ: a first connect never made it past 2 business days without a
+              single successful sync. "La última sincronización falló" (ibkr-failed
+              below) implies at least ONE sync happened; this case never did, so
+              the copy points straight at the credentials instead. */}
+          {topBanner === 'ibkr-never-connected' && (
+            <div className="px-4 py-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 shrink-0" style={{ color: '#f87171' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+                <p className="text-sm font-medium" style={{ color: '#fca5a5' }}>
+                  {lang === 'es' ? 'No pudimos conectar con IBKR en los últimos días: revisa tu Token y Query ID' : "We couldn't connect to IBKR in the last few days: check your Token and Query ID"}
+                </p>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <button onClick={handleIbkrDisconnect} className="text-xs transition-colors" style={{ color: '#fca5a5', opacity: 0.7 }}>
+                  {lang === 'es' ? 'Desconectar' : 'Disconnect'}
+                </button>
+                <button onClick={() => setModal('ibkr')}
+                  className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                  style={{ backgroundColor: '#dc2626', color: '#fff' }}>
+                  {lang === 'es' ? 'Revisar credenciales' : 'Check credentials'}
                 </button>
               </div>
             </div>
@@ -1390,6 +1435,15 @@ export default function DashboardPage() {
           savedToken={settings?.ibkrToken || ''} savedQueryId={settings?.ibkrQueryId || ''}
           vaultMigrated={!!settings?._ibkrVaultMigrated} syncSummary={ibkrSyncSummary}
           onSaveCredentials={(creds) => { saveSettings({ ...creds, _ibkrLastSync: new Date().toISOString(), _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
+          // FASE GQ: fired by the non-blocking first-connect (handleQuickConnect
+          // in IBKRSyncModal) BEFORE any sync has actually run — deliberately
+          // does NOT stamp _ibkrLastSync (that would lie about a sync that
+          // hasn't happened) and instead stamps _ibkrConnectedAt, the clock
+          // ibkrNeedsAttention's 2-business-day grace period reads above. Once
+          // saved, the existing auto-sync effect (useDashboardData) picks up
+          // the new credentials on its own next render — no separate trigger
+          // call needed here.
+          onSaveCredentialsPending={(creds) => { saveSettings({ ...creds, _ibkrConnectedAt: settings?._ibkrConnectedAt || new Date().toISOString(), _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
           onApiSyncSuccess={() => { saveSettings({ _ibkrLastSync: new Date().toISOString(), _ibkrAutoSyncStatus: 'ok', _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
           onDisconnect={handleIbkrDisconnect}
           uid={user?.uid} lang={lang}

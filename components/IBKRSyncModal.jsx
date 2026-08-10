@@ -157,7 +157,7 @@ function DoneStep({ result, onClose, onComplementFile, t }) {
   )
 }
 
-export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, savedQueryId, vaultMigrated = false, syncSummary = null, onSaveCredentials, onApiSyncSuccess, onDisconnect, lang = 'es', uid, lastSyncTime, existingItems = [], existingTransactions = [], existingSnapshots = [] }) {
+export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, savedQueryId, vaultMigrated = false, syncSummary = null, onSaveCredentials, onSaveCredentialsPending, onApiSyncSuccess, onDisconnect, lang = 'es', uid, lastSyncTime, existingItems = [], existingTransactions = [], existingSnapshots = [] }) {
   const trapRef = useFocusTrap()
   // Connected = a usable token (legacy client copy OR migrated to the server
   // vault) AND a query id. Mirrors ibkrConnected in useDashboardData: judging by
@@ -395,6 +395,50 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       abortRef.current = null
     }
   }, [token, hasVaultCreds, queryId, onSaveCredentials, onApiSyncSuccess, onSyncComplete, uid, syncMode, t, ibkrHistory.items.length, isConnected])
+
+  // FASE GQ: the FIRST-time connect used to block on the live Flex round trip
+  // (up to ~90s of polling, per SyncStepper above) before the user could do
+  // anything else — and outside market hours (nights, weekends) IBKR often
+  // does not answer at all, so that wait ended in TIMEOUT with nothing saved
+  // (handleSync only persists credentials AFTER syncIBKR resolves). Saving the
+  // credentials FIRST, then landing on a reassurance screen instead of waiting,
+  // means the connection is never lost to a bad-timing weekend attempt: the
+  // background auto-sync in useDashboardData picks up the newly-saved
+  // credentials on its own (same effect that already retries LOCKED/TIMEOUT on
+  // a cadence) the moment settings updates, with zero extra wiring here.
+  // `onSaveCredentialsPending` is a SEPARATE prop from `onSaveCredentials` on
+  // purpose: the caller stamps `_ibkrLastSync` on the latter (it currently only
+  // ever fires after a confirmed successful sync in handleSync) — reusing it
+  // here would falsely mark a sync that has not happened yet, and the 2-business-day
+  // grace period below (ibkrNeedsAttention in app/dashboard/page.jsx) needs
+  // `_ibkrConnectedAt` to be the ONLY thing that changes on this path.
+  const handleQuickConnect = useCallback(async () => {
+    const typed = token.trim()
+    const effToken = typed || (hasVaultCreds ? '__stored__' : '')
+    if (!effToken || !queryId.trim()) {
+      setError(t('Ingresa tu token y Query ID.', 'Enter your token and Query ID.'))
+      setShowConfig(true)
+      return
+    }
+    setSyncing(true)
+    setError('')
+    setErrorCode('')
+    try {
+      if (typed && uid) {
+        await authFetch('/api/brokers/ibkr', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'save-credentials', token: typed, queryId: queryId.trim() }),
+        })
+        setHasVaultCreds(true)
+      }
+      onSaveCredentialsPending?.({ ibkrToken: null, ibkrQueryId: queryId.trim(), _ibkrVaultMigrated: true })
+      setStep('journey-saved')
+    } catch (err) {
+      setError(err.message || t('No se pudieron guardar las credenciales. Intenta de nuevo.', 'Could not save credentials. Try again.'))
+    } finally {
+      setSyncing(false)
+    }
+  }, [token, hasVaultCreds, queryId, uid, onSaveCredentialsPending, t])
 
   const handleCancel = useCallback(() => {
     if (abortRef.current) {
@@ -934,14 +978,20 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 </div>
               )}
 
-              <button onClick={handleSync} disabled={syncing || !token || !queryId || decrypting}
+              {/* A first-time connect saves and moves on right away (FASE GQ,
+                  handleQuickConnect above) instead of blocking on the live Flex
+                  round trip. Re-entering this form to change ALREADY-working
+                  credentials keeps the old blocking handleSync: that case has a
+                  known-good connection to fall back on, so immediate feedback
+                  is worth the wait it no longer needs to survive a weekend. */}
+              <button onClick={isConnected ? handleSync : handleQuickConnect} disabled={syncing || !token || !queryId || decrypting}
                 className="w-full py-3 rounded-xl disabled:opacity-50 hover:opacity-90 transition-all text-sm font-medium flex items-center justify-center gap-2" style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
                 {syncing ? (
                   <>
                     <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    {t('Conectando con IBKR...', 'Connecting to IBKR...')}
+                    {isConnected ? t('Conectando con IBKR...', 'Connecting to IBKR...') : t('Guardando...', 'Saving...')}
                   </>
-                ) : t('Sincronizar', 'Sync')}
+                ) : (isConnected ? t('Sincronizar', 'Sync') : t('Conectar', 'Connect'))}
               </button>
 
               <p className="flex items-center justify-center gap-1.5 text-xs text-slate-600">
@@ -1278,6 +1328,34 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
             </div>
             )
           })()}
+
+          {/* FASE GQ: replaces the ~90s blocking wait for a first-time connect.
+              No "will retry automatically" claim without saying HOW LONG we'll
+              stay quiet about it — the 2-business-day figure here must match
+              the threshold ibkrNeedsAttention (app/dashboard/page.jsx) actually
+              uses, or the copy and the behavior would tell two different
+              stories. */}
+          {step === 'journey-saved' && (
+            <div className="text-center py-10">
+              <CheckCircle size={36} strokeWidth={1.5} className="text-[var(--accent-green)] mx-auto mb-5" />
+              <p className="text-white font-medium text-base mb-3">
+                {t('Credenciales guardadas', 'Credentials saved')}
+              </p>
+              <p className="text-sm leading-relaxed max-w-sm mx-auto" style={{ color: 'var(--text-secondary)' }}>
+                {t('Ya guardamos tu Token y Query ID. En cuanto IBKR responda, tus datos se actualizarán solos: no hace falta que esperes aquí.',
+                   'We saved your Token and Query ID. As soon as IBKR responds, your data will update on its own: no need to wait here.')}
+              </p>
+              <p className="text-xs mt-3 max-w-sm mx-auto leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                {t('IBKR suele no responder fuera de horario de mercado (fines de semana, noches). Si sigue sin conectar después de 2 días hábiles, te avisaremos para que revises o cambies tus credenciales.',
+                   'IBKR often does not respond outside market hours (weekends, nights). If it still has not connected after 2 business days, we will let you know so you can check or change your credentials.')}
+              </p>
+              <button onClick={onClose}
+                className="mt-8 px-10 py-3 rounded-xl hover:opacity-90 transition-all text-sm font-medium"
+                style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
+                {t('Continuar', 'Continue')}
+              </button>
+            </div>
+          )}
 
           {step === 'done' && result && (
             <DoneStep result={result} onClose={onClose} t={t}
