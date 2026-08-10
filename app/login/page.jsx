@@ -7,6 +7,23 @@ import { runAuthDiagnostics } from '@/lib/authDiagnostics'
 import Logo from '@/components/ui/Logo'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
 
+// Marca de que ESTA pestaña mandó al usuario a Google por redirect. Sin ella,
+// las dos piernas del flujo son indistinguibles cuando fallan: el popup y la
+// vuelta producen el mismo auth/internal-error genérico, y ni el código ni el
+// mensaje dicen cuál de las dos murió. Saber eso descarta la mitad de las
+// causas posibles de una sola vez.
+const REDIRECT_MARK = 'chispu-google-redirect'
+function markRedirectStarted() {
+  try { sessionStorage.setItem(REDIRECT_MARK, String(Date.now())) } catch {}
+}
+function takeRedirectMark() {
+  try {
+    const v = sessionStorage.getItem(REDIRECT_MARK)
+    if (v) sessionStorage.removeItem(REDIRECT_MARK)
+    return !!v
+  } catch { return false }
+}
+
 function setSessionCookie(token) {
   const secure = window.location.protocol === 'https:' ? '; Secure' : ''
   document.cookie = `__session=${token}; path=/; max-age=604800; SameSite=Lax${secure}`
@@ -72,16 +89,26 @@ function LoginForm() {
       // sin esto, un error del flujo de redirect (el fallback cuando el popup
       // se bloquea) moría en silencio y el usuario solo veía la pantalla de
       // login otra vez, sin pista de qué pasó.
-      getRedirectResult(auth).catch((err) => {
+      const cameBackFromGoogle = takeRedirectMark()
+      getRedirectResult(auth).then((res) => {
+        // Volvimos de Google SIN credencial y SIN error. No es un rechazo: es
+        // que el resultado se perdió entre la ida y la vuelta, lo que apunta al
+        // estado del round-trip y no a un permiso mal puesto. Sin este caso, un
+        // viaje que no produce nada se ve idéntico a no haber intentado.
+        if (!res && cameBackFromGoogle) {
+          setError('Volviste de Google pero la sesión no llegó. Intenta de nuevo.')
+          setGoogleFailed('vuelta-sin-credencial (getRedirectResult devolvió null)')
+          setCheckingAuth(false)
+        }
+      }).catch((err) => {
         if (!err || !err.code) return
         // El detalle embebido importa MÁS en esta rama que en el popup. Este es
         // el tramo de VUELTA: Google ya autenticó y el helper está canjeando la
         // credencial contra Identity Toolkit, así que un rechazo de aquí SÍ es
-        // una respuesta de servidor y suele traer su razón adentro. Antes solo
-        // se imprimía el código y esa razón se perdía justo donde era útil.
+        // una respuesta de servidor y suele traer su razón adentro.
         console.error('[google-redirect]', err.code, err.message)
-        setError(`Error al conectar con Google. Intenta de nuevo. (${err.code})${googleErrorDetail(err)}`)
-        setGoogleFailed(`${err.code}${googleErrorDetail(err)}`)
+        setError(`Error al volver de Google. Intenta de nuevo. (${err.code})${googleErrorDetail(err)}`)
+        setGoogleFailed(`[vuelta] ${err.code}${googleErrorDetail(err)}`)
         setCheckingAuth(false)
       })
       unsub = onAuthStateChanged(auth, async (u) => {
@@ -150,6 +177,7 @@ function LoginForm() {
       if (!auth) throw new Error('Firebase not initialized')
       const provider = new GoogleAuthProvider()
       if (isInAppBrowser()) {
+        markRedirectStarted()
         await signInWithRedirect(auth, provider)
         return
       }
@@ -174,7 +202,7 @@ function LoginForm() {
       if (err.code === 'auth/popup-blocked' || err.code === 'auth/internal-error') {
         try {
           const { GoogleAuthProvider, signInWithRedirect } = firebaseAuthRef.current || await import('firebase/auth')
-          if (auth) { await signInWithRedirect(auth, new GoogleAuthProvider()); return }
+          if (auth) { markRedirectStarted(); await signInWithRedirect(auth, new GoogleAuthProvider()); return }
         } catch (redirectErr) {
           // Falls through to the banner below, which now describes the redirect
           // failure rather than the popup one that is no longer the real story.
@@ -195,7 +223,9 @@ function LoginForm() {
       const msg = err.code === 'auth/network-request-failed' ? 'Error de red. Verifica tu conexión.'
         : `Error al conectar con Google. Intenta de nuevo.${err.code ? ` (${err.code})` : ''}${detail}`
       setError(msg)
-      setGoogleFailed(`${err.code || 'sin código'}${detail}`)
+      // Etiquetada como IDA: si el fallback por redirect hubiera arrancado, esta
+      // pestaña ya se habría ido a Google y este banner no existiría.
+      setGoogleFailed(`[ida] ${err.code || 'sin código'}${detail}`)
     } finally {
       setGoogleLoading(false)
     }
