@@ -24,7 +24,7 @@ import { solveDietzStartValue, accountKeyOfItem, heldFlatAccountValueUSD } from 
 // work rather than completing it. The IBKR journey orchestrator listens so the
 // step carries the user forward on its own instead of sitting on its success
 // message with a primary button that still reads "Save".
-export default function CalibrateReturnModal({ onClose, onSaved, netWorth, transactions, convert, baseCurrency = 'USD', snapshots = [], accountSnapshots = [], items = [], saveSnapshot, deleteSnapshot, lang = 'es' }) {
+export default function CalibrateReturnModal({ onClose, onSaved, preferredAccount = null, netWorth, transactions, convert, baseCurrency = 'USD', snapshots = [], accountSnapshots = [], items = [], saveSnapshot, deleteSnapshot, lang = 'es' }) {
   const trapRef = useFocusTrap()
   const t = (es, en) => lang === 'es' ? es : en
   const year = new Date().getUTCFullYear()
@@ -77,7 +77,15 @@ export default function CalibrateReturnModal({ onClose, onSaved, netWorth, trans
   })()
 
   const [selected, setSelected] = useState(null)
-  const selKey = selected || accounts[0]?.key || 'global'
+  // FASE GQ5: opened from the IBKR journey, the account to calibrate is IBKR,
+  // not whichever account happens to sort first (the user landed on step 4 of
+  // an IBKR walkthrough and found "IDC" preselected, one wrong tap away from
+  // filing broker percentages against the wrong account). Only honoured when
+  // that account actually exists in the portfolio; a manual pick always wins.
+  const preferredKey = preferredAccount && accounts.some((a) => a.key === preferredAccount)
+    ? preferredAccount
+    : null
+  const selKey = selected || preferredKey || accounts[0]?.key || 'global'
   const isGlobal = selKey === 'global'
 
   // Calibrations already on file: global ones live in `snapshots`, per-account

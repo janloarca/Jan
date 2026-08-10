@@ -1676,6 +1676,8 @@ export default function DashboardPage() {
           snapshots={snapshots} accountSnapshots={accountCalibrations} items={portfolioItems}
           saveSnapshot={saveSnapshot} deleteSnapshot={deleteSnapshot}
           lang={lang} onClose={handleCloseModal}
+          // Inside the IBKR walkthrough the account being onboarded IS IBKR.
+          preferredAccount={ibkrJourney != null ? 'ibkr' : null}
           onSaved={() => autoAdvanceIbkrJourney(4)} />
       )}
 

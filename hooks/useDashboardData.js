@@ -17,6 +17,7 @@ import { staleBackfillDates } from '@/lib/snapshotBackfill'
 import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanDays, earliestNeededDays as computeEarliestNeededDays } from '@/lib/brokerCompletion'
 import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds, applyLifetimeNetConstraint } from '@/lib/inferredFlows'
 import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
+import { breakdownReconciles } from '@/lib/ytdBreakdownGate'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
 
@@ -1377,6 +1378,20 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const year = new Date().getFullYear()
     const yearPrefix = `${year}-`
 
+    // FASE GQ5: a broker's ACCOUNT-LEVEL flow (a deposit into IBKR) carries
+    // symbol 'CASH' and no _linkedItemId, so it matches no item key at all and
+    // used to be netted against nothing — every deposit then read as profit.
+    // That is how a $10K account reported +$13,207 of YTD "gain". Those flows
+    // land in the account's cash holding, so that is where they belong; only
+    // when exactly ONE cash holding of that broker exists, because splitting a
+    // deposit across several is a guess (and the reconciliation gate below
+    // catches whatever this cannot attribute).
+    const brokerCashItemId = (() => {
+      const cash = (portfolioItems || []).filter(
+        (it) => it && it._source === 'ibkr' && /^CASH/i.test(it.symbol || '')
+      )
+      return cash.length === 1 ? cash[0].id : null
+    })()
     // Net external money per item this year, matched the same way everything
     // else matches transactions to positions: link id first, symbol as fallback.
     const flowByKey = {}
@@ -1384,7 +1399,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       const type = (tx.type || '').toUpperCase()
       if (type !== 'DEPOSIT' && type !== 'WITHDRAWAL') return
       if (!tx.date || !String(tx.date).startsWith(yearPrefix)) return
-      const key = tx._linkedItemId || (tx.symbol || '').toUpperCase()
+      const accountLevel = !tx._linkedItemId && (tx._source === 'ibkr' || tx._source === 'inferred_flow')
+      const key = (accountLevel && brokerCashItemId)
+        ? brokerCashItemId
+        : (tx._linkedItemId || (tx.symbol || '').toUpperCase())
       if (!key) return
       const amt = Math.abs(Number(tx.totalAmount ?? tx.amount ?? 0))
       if (!isFinite(amt)) return
@@ -1424,6 +1442,19 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     if (rows.length === 0) return null
 
     const totalGain = rows.reduce((s, r) => s + r.gain, 0)
+    // FASE GQ5, the hard gate: this panel exists for ONE reason, to explain the
+    // YTD figure above it, so it must never contradict it. `ytdChange` is the
+    // very same quantity (dollars of gain, net of external flows) computed by
+    // the headline's Modified Dietz; the rows here rebuild it per position from
+    // the reconstruction. When those two disagree beyond a small drift, the
+    // breakdown is not an explanation, it is a different (wrong) claim: the
+    // user saw a $10K broker account credited with +$13,207 of "gain" under a
+    // headline that said +$835 total. Showing nothing is strictly better than
+    // showing numbers that cannot be true, so the card falls back to the plain
+    // non-expandable figure. Tolerance is proportional (10%) with a floor, since
+    // both sides come from different reconstruction paths and never match to
+    // the cent.
+    if (!breakdownReconciles(totalGain, ytdChange)) return null
     const byInstitution = {}
     rows.forEach((r) => {
       const key = r.institution || '__none__'
@@ -1444,7 +1475,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       .sort((a, b) => Math.abs(b.gain) - Math.abs(a.gain))
     if (groups.length === 0) return null
     return { groups, totalGain }
-  }, [ytdEndpoints, portfolioItems, transactions, convert, baseCurrency])
+  }, [ytdEndpoints, portfolioItems, transactions, convert, baseCurrency, ytdChange])
 
   // Month-to-date return (Modified Dietz) — the "how are we doing THIS month"
   // number for the Friends monthly leaderboard. Same shape as YTD, anchored to
