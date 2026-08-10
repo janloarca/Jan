@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { auth } from '@/lib/firebase'
+import { auth, app } from '@/lib/firebase'
+import { runAuthDiagnostics } from '@/lib/authDiagnostics'
 import Logo from '@/components/ui/Logo'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
 
@@ -27,6 +28,12 @@ function LoginForm() {
   const [showReset, setShowReset] = useState(false)
   const [inAppBrowser, setInAppBrowser] = useState(false)
   const [checkingAuth, setCheckingAuth] = useState(true)
+  // Google sign-in diagnostics: only ever offered AFTER a Google failure, so
+  // the login screen stays clean for everyone it works for.
+  const [googleFailed, setGoogleFailed] = useState('')
+  const [diagnostics, setDiagnostics] = useState(null)
+  const [diagRunning, setDiagRunning] = useState(false)
+  const [diagCopied, setDiagCopied] = useState(false)
   const searchParams = useSearchParams()
   const router = useRouter()
   const firebaseAuthRef = useRef(null)
@@ -55,6 +62,7 @@ function LoginForm() {
       getRedirectResult(auth).catch((err) => {
         if (!err || !err.code) return
         setError(`Error al conectar con Google. Intenta de nuevo. (${err.code})`)
+        setGoogleFailed(`${err.code}${err.message ? ` ${String(err.message).slice(0, 160)}` : ''}`)
         setCheckingAuth(false)
       })
       unsub = onAuthStateChanged(auth, async (u) => {
@@ -157,9 +165,39 @@ function LoginForm() {
       const msg = err.code === 'auth/network-request-failed' ? 'Error de red. Verifica tu conexión.'
         : `Error al conectar con Google. Intenta de nuevo.${err.code ? ` (${err.code})` : ''}${detail}`
       setError(msg)
+      setGoogleFailed(`${err.code || 'sin código'}${detail}`)
     } finally {
       setGoogleLoading(false)
     }
+  }
+
+  // Runs on the device that is actually failing. Every previous round of this
+  // bug was diagnosed by guessing from a screenshot; this reads the traces
+  // directly and says which side is broken.
+  const runDiagnostics = async () => {
+    setDiagRunning(true)
+    setDiagCopied(false)
+    try {
+      const opts = app?.options || {}
+      const res = await runAuthDiagnostics({
+        origin: window.location.origin,
+        authDomain: opts.authDomain,
+        projectId: opts.projectId,
+        lastError: googleFailed,
+      })
+      setDiagnostics(res)
+    } catch (err) {
+      setDiagnostics({ checks: [], summary: `No se pudo correr el diagnóstico: ${err?.message || err}` })
+    }
+    setDiagRunning(false)
+  }
+
+  const copyDiagnostics = async () => {
+    if (!diagnostics) return
+    try {
+      await navigator.clipboard.writeText(diagnostics.summary)
+      setDiagCopied(true)
+    } catch { setDiagCopied(false) }
   }
 
   const handleResetPassword = async () => {
@@ -218,6 +256,38 @@ function LoginForm() {
           {error && (
             <div role="alert" aria-live="assertive" className="mb-4 p-3 rounded-lg text-sm" style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: 'var(--text-negative)' }}>
               {error}
+              {/* Only after Google itself failed: the banner alone never said
+                  which side was broken, so every round of this bug was
+                  diagnosed by guessing from a screenshot. */}
+              {googleFailed && !diagnostics && (
+                <button type="button" onClick={runDiagnostics} disabled={diagRunning}
+                  className="block mt-2 text-xs underline underline-offset-2 disabled:opacity-50"
+                  style={{ color: 'var(--text-secondary)' }}>
+                  {diagRunning ? 'Revisando...' : 'Revisar qué falló'}
+                </button>
+              )}
+            </div>
+          )}
+
+          {diagnostics && (
+            <div className="mb-4 p-3 rounded-lg text-xs" style={{ backgroundColor: 'var(--bg-tertiary)', border: 'var(--glass-border)' }}>
+              <p className="font-medium mb-2" style={{ color: 'var(--text-primary)' }}>Diagnóstico de Google</p>
+              <div className="space-y-1">
+                {diagnostics.checks.map((c) => (
+                  <div key={c.id} className="flex gap-2">
+                    <span style={{ color: c.status === 'ok' ? 'var(--accent-green)' : c.status === 'fail' ? 'var(--text-negative)' : 'var(--text-muted)' }}>
+                      {c.status === 'ok' ? '✔' : c.status === 'fail' ? '✖' : c.status === 'warn' ? '!' : '·'}
+                    </span>
+                    <span style={{ color: 'var(--text-secondary)' }}>
+                      <span style={{ color: 'var(--text-primary)' }}>{c.label}:</span> {c.detail}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <button type="button" onClick={copyDiagnostics}
+                className="mt-2 text-xs underline underline-offset-2" style={{ color: 'var(--text-secondary)' }}>
+                {diagCopied ? 'Copiado' : 'Copiar para reportar'}
+              </button>
             </div>
           )}
 

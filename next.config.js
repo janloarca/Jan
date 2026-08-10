@@ -16,11 +16,21 @@ const nextConfig = {
   // hacen proxy de /__/auth y /__/firebase hacia firebaseapp.com, así el
   // iframe/popup es same-origin y Safari no tiene nada que bloquear.
   async rewrites() {
+    // The helper host is whatever NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN names, which
+    // is the authoritative value; `<projectId>.firebaseapp.com` only happens to
+    // match it in the common case, and silently proxies to a host that does not
+    // exist when it does not. Only trusted when it still IS the Firebase helper
+    // domain: once authDomain is pointed at a custom domain, proxying to it
+    // would send these routes back to ourselves in a loop.
+    const authDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
     const project = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
-    if (!project) return []
+    const helperHost = (authDomain && /\.firebaseapp\.com$/i.test(authDomain))
+      ? authDomain
+      : (project ? `${project}.firebaseapp.com` : null)
+    if (!helperHost) return []
     return [
-      { source: '/__/auth/:path*', destination: `https://${project}.firebaseapp.com/__/auth/:path*` },
-      { source: '/__/firebase/:path*', destination: `https://${project}.firebaseapp.com/__/firebase/:path*` },
+      { source: '/__/auth/:path*', destination: `https://${helperHost}/__/auth/:path*` },
+      { source: '/__/firebase/:path*', destination: `https://${helperHost}/__/firebase/:path*` },
     ]
   },
   webpack: (config) => {
