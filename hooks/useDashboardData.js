@@ -1409,7 +1409,13 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       })
       const label = matched[0].name || matched[0].symbol || k
       rows.push({
-        key, label,
+        // `key: k`, never the shorthand `key`: the loop variable here is `k`,
+        // so `{ key, ... }` referenced an UNDECLARED global and threw
+        // ReferenceError ("Can't find variable: key" in Safari) the moment this
+        // block ran. It never ran until FASE GQ implemented the server's byKey
+        // field, because ytdEndpoints stayed null forever and the memo returned
+        // at its first line — dead code hiding a hard crash on the dashboard.
+        key: k, label,
         institution: matched[0].institution || null,
         startVal, endVal, flow,
         gain: endVal - startVal - flow,
