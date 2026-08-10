@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
+import { buildTransferTransaction } from '@/lib/transferTx'
 
 export default function TransferModal({ onClose, onTransfer, onAddTransaction, existingItems = [], lang = 'es' }) {
   const trapRef = useFocusTrap()
@@ -62,14 +63,13 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
       await onTransfer({
         fromId: fromItem.id, fromFields,
         toId: toItem.id, toFields,
-        transaction: {
-          type: 'TRANSFER',
-          symbol: fromItem.symbol,
-          description: `Transfer: ${fromItem.name} → ${toItem.name}`,
-          date,
-          totalAmount: amt,
-          currency: fromItem.currency,
-        },
+        // Shared builder (lib/transferTx.js): this screen used to assemble the
+        // record itself and left out the two account ids every consumer of a
+        // TRANSFER row keys on, so transfers made here were invisible in both
+        // accounts. See that file for the full list of what broke.
+        transaction: buildTransferTransaction({
+          fromItem, toItem, amount: amt, date, source: 'manual_transfer',
+        }),
       })
       onAddTransaction?.()
       onClose()

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { isOriginFullyRecorded } from '@/lib/originDeposits'
 import { buildContributionFields } from '@/lib/contributions'
+import { buildTransferTransaction } from '@/lib/transferTx'
 
 const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
 
@@ -116,17 +117,9 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
         await onTransfer({
           fromId: fromItem.id, fromFields,
           toId: toItem.id, toFields,
-          transaction: {
-            type: 'TRANSFER',
-            symbol: fromItem.symbol || 'TRANSFER',
-            description: description || `Transfer: ${fromItem.name} → ${toItem.name}`,
-            date,
-            totalAmount: num,
-            currency: fromItem.currency || currency,
-            _originItemId: fromItem.id,
-            _linkedItemId: toItem.id,
-            _source: 'manual_cashflow',
-          },
+          transaction: buildTransferTransaction({
+            fromItem, toItem, amount: num, date, description, currency, source: 'manual_cashflow',
+          }),
         })
       } else {
         // External deposit/withdrawal or yield — optionally linked to an account.
