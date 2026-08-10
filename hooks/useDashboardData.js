@@ -279,13 +279,26 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // portfolio never opts in: its old 'daily' total cannot be recomputed
     // from a hold-flat guess without a real accuracy downgrade.
     const hasBrokerItem = enrichedItems.some((it) => it && it._source === 'ibkr')
+    // FASE HG. La fecha del ítem de IBKR más antiguo: los 'daily' escritos
+    // ANTES de esa fecha se escribieron cuando el broker todavía no era parte
+    // del portafolio, así que su total (correcto para ESE día) hoy se ve
+    // "congelado" sin el broker mientras los días de al lado sí lo incluyen —
+    // el diente de sierra de la vista "Todas" con IBKR conectado. Mismo patrón
+    // que manualAddedTs en PortfolioGrowthChart.jsx, del lado del broker.
+    const brokerAddedTs = (() => {
+      const ts = enrichedItems
+        .filter((it) => it && it._source === 'ibkr' && it.createdAt)
+        .map((it) => new Date(it.createdAt).getTime())
+        .filter((t) => isFinite(t))
+      return ts.length > 0 ? Math.min(...ts) : null
+    })()
     // FASE GD: ventana de un año, no 30 días. Desde que un NAV de broker no
     // cuenta como cobertura del día completo (staleBackfillDates), los meses
     // que quedaron solo-broker (la regla de reemplazo que GD eliminó destruyó
     // sus backfills) se regeneran completos con precios históricos reales.
     // Cada día se llena UNA vez y queda cubierto: el costo grande es solo la
     // primera pasada.
-    const gaps = staleBackfillDates(snapshots, { treatDailyAsStale: !hasBrokerItem, windowDays: 366 })
+    const gaps = staleBackfillDates(snapshots, { treatDailyAsStale: !hasBrokerItem, windowDays: 366, brokerConnectedTs: brokerAddedTs })
     const navMigrations = misplacedPlainNavMigrations(snapshots)
     if (gaps.length === 0 && navMigrations.length === 0) { backfillRef.current = true; return }
     backfillRef.current = true
