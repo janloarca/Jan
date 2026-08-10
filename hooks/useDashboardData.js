@@ -1363,6 +1363,63 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     return { returnYTD: clampedPct, ytdChange: abs, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated, ytdStartValue: startVal, ytdStartTs: startTs, ytdFlowsUsed: ytdFlows }
   }, [jan1Value, jan1Ts, jan1Transactional, netWorth, transactions, dietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot, accountCalibrations, portfolioItems])
 
+  // FASE GR3: per-account year-start values from the SPREADSHEET's own monthly
+  // reconstruction -- the engine (lib/historicalValues.js) the user validated as
+  // correct end to end, and the only one that rebuilds a manual account from its
+  // real balance events (an opening deposit, a reinvested coupon) instead of
+  // holding it flat. December of the previous year is the right column: those
+  // snapshots are month-END values, so Dec 31 is one day off the Jan 1 anchor,
+  // while January's column would be a full month late.
+  //
+  // Purely an input upgrade: these are still ESTIMATES and are still pinned to
+  // the anchor the headline used, so a better shape here just means less
+  // stretching, never a number that escapes the reconciliation guarantee.
+  const [spreadsheetStart, setSpreadsheetStart] = useState(null)
+  // Read through a ref and key the effect on a CONTENT signature, never on the
+  // array identity: portfolioItems is rebuilt on every price tick, so depending
+  // on it would re-read Firestore every few seconds forever (the exact disease
+  // FASE DW/DY documents). Only which items exist and which account each one
+  // belongs to can change this result.
+  const portfolioItemsRef = useRef(portfolioItems)
+  portfolioItemsRef.current = portfolioItems
+  const accountMembershipSig = useMemo(
+    () => (portfolioItems || []).map((it) => `${it.id}:${accountKeyOfItem(it) || ''}:${it.isDebt ? 1 : 0}`).sort().join('|'),
+    [portfolioItems]
+  )
+  useEffect(() => {
+    const portfolioItems = portfolioItemsRef.current
+    if (!loadItemSnapshots || dataLoading || !portfolioItems || portfolioItems.length === 0) return
+    let cancelled = false
+    const key = `${new Date().getFullYear() - 1}-12`
+    ;(async () => {
+      try {
+        const data = await loadItemSnapshots([key])
+        if (cancelled || !data) return
+        const { __currencies = {} } = data
+        const monthItems = data[key]
+        if (!monthItems || Object.keys(monthItems).length === 0) { setSpreadsheetStart(null); return }
+        const savedCur = __currencies[key]
+        const byAccount = {}
+        Object.entries(monthItems).forEach(([itemId, v]) => {
+          const owner = portfolioItems.find((it) => it && it.id === itemId)
+          // Synthetic buckets (the IBKR per-institution key) own no item, and
+          // IBKR takes its real broker NAV anyway.
+          if (!owner) return
+          const acct = accountKeyOfItem(owner)
+          if (!acct) return
+          const raw = Number(v?.value) || 0
+          const val = (savedCur && savedCur !== baseCurrency && convert)
+            ? convert(raw, savedCur, baseCurrency)
+            : raw
+          if (!isFinite(val)) return
+          byAccount[acct] = (byAccount[acct] || 0) + (owner.isDebt ? -Math.abs(val) : val)
+        })
+        if (!cancelled) setSpreadsheetStart(Object.keys(byAccount).length > 0 ? byAccount : null)
+      } catch { if (!cancelled) setSpreadsheetStart(null) }
+    })()
+    return () => { cancelled = true }
+  }, [loadItemSnapshots, dataLoading, accountMembershipSig, baseCurrency, convert])
+
   // "What is actually driving my YTD", rebuilt per ACCOUNT (FASE GR).
   //
   // The previous version decomposed the year position by position straight from
@@ -1455,6 +1512,16 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       if (!acct) return
       startByAccount.set(acct, (startByAccount.get(acct) || 0) + (Number(v) || 0))
     })
+    // The Spreadsheet's reconstruction wins over the chart's per-item one where
+    // it exists: it is the engine that rebuilds a manual account from its real
+    // balance events, and the one whose output the user has actually checked
+    // month by month. Only accounts it covers are overridden, so a portfolio it
+    // has never computed keeps the previous behaviour untouched.
+    if (spreadsheetStart) {
+      Object.entries(spreadsheetStart).forEach(([acct, v]) => {
+        if (endByAccount.has(acct) && isFinite(v) && v > 0) startByAccount.set(acct, v)
+      })
+    }
     // The per-item reconstruction is not always available (its endpoints only
     // publish when the series' first point IS the anchor the headline used), and
     // the panel should not vanish for that: these starts are estimates that get
@@ -1509,7 +1576,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // the same anchor the headline used.
     return attributeYtd({ accounts: build(true), ...args })
       || attributeYtd({ accounts: build(false), ...args })
-  }, [ytdEndpoints, portfolioItems, convert, baseCurrency, ytdChange, ytdStartValue, ytdStartTs, ytdFlowsUsed, snapshots, convertSnapshot])
+  }, [ytdEndpoints, portfolioItems, convert, baseCurrency, ytdChange, ytdStartValue, ytdStartTs, ytdFlowsUsed, snapshots, convertSnapshot, spreadsheetStart])
 
   // Month-to-date return (Modified Dietz) — the "how are we doing THIS month"
   // number for the Friends monthly leaderboard. Same shape as YTD, anchored to
