@@ -13,7 +13,7 @@ import { unlinkedOpeningDeposits } from '@/lib/originDeposits'
 import { corruptSnapshotRunIds, feEraSuspectDailyIds } from '@/lib/corruptSnapshots'
 import { planEquitySnapshotWrites, misplacedPlainNavMigrations } from '@/lib/ibkrSnapshotPlan'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
-import { staleBackfillDates, resolveGapFills } from '@/lib/snapshotBackfill'
+import { staleBackfillDates, buildNavByDate, composeDailyTotals } from '@/lib/snapshotBackfill'
 import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanDays, earliestNeededDays as computeEarliestNeededDays } from '@/lib/brokerCompletion'
 import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds, applyLifetimeNetConstraint } from '@/lib/inferredFlows'
 import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
@@ -327,7 +327,18 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         const allLots = (lots || []).filter(l => l.quantity > 0)
         // Only ASSETS go to portfolio-history (it has no isDebt notion, so a debt
         // would be summed as a positive asset). Debt is held flat and subtracted below.
-        const assetItems = enrichedItems.filter(it => !it.isDebt && !isExcludedFromNetWorth(it))
+        const allAssetItems = enrichedItems.filter(it => !it.isDebt && !isExcludedFromNetWorth(it))
+        // FASE HN. Con un broker conectado, su mitad del portafolio NO se
+        // reconstruye: el Equity Summary del Flex ya dejó el NAV diario REAL en
+        // Firestore. Así que el API solo reconstruye lo MANUAL y las dos
+        // mitades se componen abajo. Antes se le pedía adivinar la cuenta del
+        // broker (hold-flat, o cero antes del sello de sync: FASE HL), que es
+        // de donde salían los niveles distintos día a día.
+        const navByDate = buildNavByDate(snapshots)
+        const composing = hasBrokerItem && navByDate.size > 0
+        const assetItems = composing
+          ? allAssetItems.filter((it) => it._source !== 'ibkr')
+          : allAssetItems
         const currentDebtUSD = enrichedItems.reduce((s, it) => {
           if (!it.isDebt) return s
           const cur = it._originalCurrency || it.currency || 'USD'
@@ -386,12 +397,14 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         // (nunca se omite): saveSnapshot fusiona con merge, y omitirlo dejaría
         // un flag viejo pegado si una corrida futura deja de ser transaccional.
         const isTransactional = !!data.transactional
-        // FASE HI: la resolución hueco→valor vive en resolveGapFills. Antes se
-        // matcheaba por fecha exacta contra los puntos del API, que solo trae
-        // días hábiles: un hueco en sábado/domingo/feriado no matcheaba nunca
-        // y quedaba sin rellenar (con el doc viejo congelado abajo, si lo
-        // había). Ahora esos días valen el último cierre de mercado.
-        const fills = resolveGapFills(gaps, pts)
+        // FASE HI: fin de semana y feriados valen el último cierre de mercado
+        // (la serie del API solo trae días hábiles). FASE HN: y con broker
+        // conectado, cada día se COMPONE con el NAV real del broker en vez de
+        // estimarlo, así que ningún día puede archivarse a un nivel que omita
+        // la cuenta. Un día sin NAV disponible se salta a propósito.
+        const fills = composeDailyTotals({
+          gaps, manualPoints: pts, navByDate, hasBrokerItems: composing,
+        })
         for (const f of fills) {
           await saveSnapshot({
             date: f.date,
@@ -399,8 +412,14 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             totalActivosUSD: f.total,
             totalDebtUSD: currentDebtUSD,
             _source: 'backfill',
-            _transactional: isTransactional,
+            // Un doc compuesto es tan flow-aware como un NAV real: su mitad de
+            // broker ES la medición del broker (que ya contiene el efecto de
+            // los depósitos) y la manual es reconstrucción transaccional.
+            _transactional: f.composed ? true : isTransactional,
           })
+        }
+        if (fills.length > 0) {
+          console.info(`[backfill] ${fills.length} día(s) escritos${composing ? ' componiendo NAV real del broker' : ''}`)
         }
       } catch (err) {
         console.error('[backfill] Failed:', err.message)
