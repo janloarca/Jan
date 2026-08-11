@@ -3,7 +3,7 @@ import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
 import { fetchWithRetry } from '@/lib/fetchWithRetry'
 import { isMarketPriced } from '@/components/dashboard/utils'
-import { qtyAtTs, staticItemValueAtTs, isTradeLedgerComplete, lotsReconcile } from '@/lib/portfolioRewind'
+import { qtyAtTs, staticItemValueAtTs, isTradeLedgerComplete, lotsReconcile, dedupeIncomeAgainstFlows } from '@/lib/portfolioRewind'
 import { CRYPTO_MAP } from '@/lib/cryptoMap'
 import { saveLastGood, getLastGood } from '@/lib/priceCache'
 import { kvBackend } from '@/lib/kvClient'
@@ -416,10 +416,20 @@ export async function POST(request) {
     // step the balance up, buys move cash into shares) instead of the flat value
     // plus income-reversal heuristic. Sanitized once, outside the per-ts loop.
     const staticCashFlows = new Map()
+    const flowsByItemId = new Map()
     staticItems.forEach((it, si) => {
       const flows = sanitizeEvents(it.cashFlows, 2000, 'amount')
-      if (flows) staticCashFlows.set(si, flows)
+      if (flows) {
+        staticCashFlows.set(si, flows)
+        if (it.id) flowsByItemId.set(it.id, flows)
+      }
     })
+    // FASE HU: un cupón en efectivo llega acá por DOS vías (movimiento de saldo
+    // del destino + evento de ingreso atribuido al destino). Reversar ambas
+    // resta el mismo cupón dos veces, y con clampZero la cuenta desaparece del
+    // pasado. Ver dedupeIncomeAgainstFlows para por qué no se puede resolver
+    // ignorando el stream de ingresos cuando hay flujos.
+    const dedupedIncome = dedupeIncomeAgainstFlows(incomeEvents, flowsByItemId)
 
     // FASE GQ: per-item value at each timestamp, keyed by item id (falling back to
     // its uppercase symbol for market/crypto items, which are reconstructed per
@@ -456,7 +466,7 @@ export async function POST(request) {
           // streams are disjoint per item so combining them can't double-count.
           const v = staticItemValueAtTs((it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0), ts, {
             flows,
-            incomeEvents,
+            incomeEvents: dedupedIncome,
             itemId: itId,
             itemSym: itSym,
             // A MANUAL account's opening deposit can be larger than the asset it
