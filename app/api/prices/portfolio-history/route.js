@@ -8,6 +8,12 @@ import { CRYPTO_MAP } from '@/lib/cryptoMap'
 import { saveLastGood, getLastGood } from '@/lib/priceCache'
 
 export const dynamic = 'force-dynamic'
+// FASE HJ. Sin esto, el default de Vercel (10s en Hobby) mataba la petición
+// de la vista "Todas" (~20 símbolos con reintentos) con un 504 que el cliente
+// se tragaba en silencio: la gráfica quedaba sin dataPoints NI staticPoints
+// (cola de NAV pelado, drawdown falso) y el backfill abortaba sin escribir,
+// dejando los docs viejos congelados para siempre.
+export const maxDuration = 60
 
 const VALID_PERIODS = ['DAY', '1W', 'MTD', '1M', '3M', '6M', 'YTD', '1Y', 'ALL']
 const SYMBOL_RE = /^[A-Z0-9._\-^=]{1,20}$/i
@@ -34,11 +40,18 @@ const RANGE_MAP = {
 // the static flat path — the chart then alternated between a real curve and a
 // fake flat line depending on whether CoinGecko happened to answer ("a veces
 // falla la gráfica").
+// FASE HJ. Presupuesto por símbolo acotado (timeout 6s, 1 reintento, backoff
+// 500ms): el peor caso de UN símbolo pasa de ~33s a ~13s, y el de la petición
+// completa (2 tandas de 10 + crypto) queda muy por debajo del maxDuration.
+// Antes, un solo símbolo lento agotaba el límite de la función entera.
+const FETCH_BUDGET = { retries: 1, backoff: 500 }
+const FETCH_TIMEOUT_MS = 6000
+
 async function fetchYahooHistory(symbol, range, interval) {
   const cacheKey = `ph:yahoo:${symbol}:${range}:${interval}`
   try {
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`
-    const res = await fetchWithRetry(url, { headers: { 'User-Agent': 'Mozilla/5.0' } })
+    const res = await fetchWithRetry(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }, FETCH_BUDGET)
     if (!res.ok) return (await getLastGood(cacheKey))?.data || []
     const data = await res.json()
     const result = data.chart?.result?.[0]
@@ -60,7 +73,7 @@ async function fetchCryptoHistory(id, days) {
   const cacheKey = `ph:crypto:${id}:${days}`
   try {
     const url = `https://api.coingecko.com/api/v3/coins/${id}/market_chart?vs_currency=usd&days=${days}`
-    const res = await fetchWithRetry(url)
+    const res = await fetchWithRetry(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }, FETCH_BUDGET)
     if (!res.ok) return (await getLastGood(cacheKey))?.data || []
     const data = await res.json()
     const series = (data.prices || []).map(([ts, price]) => ({ ts, close: price }))
@@ -251,21 +264,35 @@ export async function POST(request) {
       }
     }))
 
+    // FASE HJ. Un ítem de mercado cuyo fetch de historial FALLÓ cae al camino
+    // estático (plano al valor de hoy) igual que antes: para MOSTRAR una
+    // gráfica, algo es mejor que nada. Pero la respuesta ya no lo esconde:
+    // `degraded`/`failedSymbols` viajan al cliente, porque un consumidor que
+    // PERSISTE totales (el backfill de snapshots) no debe escribir un pasado
+    // reconstruido con símbolos planos: cada sesión fallaba un subconjunto
+    // distinto (rate limit de Yahoo con ~20 símbolos en ráfaga) y los docs
+    // 'backfill' quedaban a un nivel distinto por pasada, el churn exacto del
+    // diente de sierra de la vista "Todas". Un crypto sin id en CRYPTO_MAP no
+    // cuenta: ese es estático por diseño (determinista), no por fallo.
+    const failedSymbols = []
     marketItems.forEach((it) => {
       const sym = (it.symbol || '').toUpperCase()
       if (!allTimeSeries[sym]) {
+        failedSymbols.push(sym)
         staticItems.push(it)
       }
     })
     cryptoItems.forEach((it) => {
       const sym = (it.symbol || '').toUpperCase()
       if (!allTimeSeries[sym]) {
+        if (CRYPTO_MAP[sym]) failedSymbols.push(sym)
         staticItems.push(it)
       }
     })
+    const degraded = failedSymbols.length > 0
 
     if (Object.keys(allTimeSeries).length === 0 && staticItems.length === 0) {
-      return NextResponse.json({ dataPoints: [], staticTotal: 0, staticPoints: [] })
+      return NextResponse.json({ dataPoints: [], staticTotal: 0, staticPoints: [], degraded, failedSymbols })
     }
 
     const allTs = new Set()
@@ -493,7 +520,7 @@ export async function POST(request) {
       return s + (it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0)
     }, 0)
 
-    return NextResponse.json({ dataPoints, staticTotal, staticPoints, transactional: usedTransactional })
+    return NextResponse.json({ dataPoints, staticTotal, staticPoints, transactional: usedTransactional, degraded, failedSymbols })
   } catch (err) {
     console.error('portfolio-history error:', err)
     return NextResponse.json({ error: 'Internal server error', errorCode: 'INTERNAL', dataPoints: [] }, { status: 500 })

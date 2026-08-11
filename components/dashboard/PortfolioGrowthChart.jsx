@@ -455,6 +455,13 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         if (res.ok) {
           data = await safeJson(res)
           if (cacheable) historyCacheRef.current.set(cacheKey, data)
+        } else if (mountedRef.current && gen === fetchGenRef.current) {
+          // FASE HJ. Un error del server (500, o el 504 del límite de duración
+          // de Vercel con la petición pesada de "Todas") se tragaba en
+          // silencio: la gráfica seguía sin dataPoints NI staticPoints, con el
+          // overlay de activos manuales apagado y los NAV de broker dibujados
+          // pelados como si fueran el portafolio entero. Ahora se reporta.
+          setFetchError(t('Error cargando historial', 'Failed to load history'))
         }
       }
       if (data) {
@@ -795,6 +802,19 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     // (FASE DY) — same shape as the orphaned-NAV bug, one layer up.
     const hasBrokerItems = (items || []).some((it) => it && it._source === 'ibkr')
     const overlay = shownInst === 'ALL' && staticPoints.length > 0 && hasBrokerItems
+    // FASE HJ. Un NAV de broker mide UNA cuenta. En la vista "Todas" solo es
+    // dibujable una vez que el overlay le suma los activos que están FUERA del
+    // broker; si el overlay no está disponible (el API de historial falló: sin
+    // staticPoints) y el portafolio SÍ tiene activos manuales, dibujar el NAV
+    // pelado afirma que el portafolio entero vale lo que esa sola cuenta: la
+    // cola a ~$10K sobre un patrimonio de ~$23K y su "Max drawdown: -60.8%"
+    // falso. Esos puntos se excluyen y el día queda como hueco honesto. Un
+    // portafolio SOLO-broker conserva el comportamiento de siempre: ahí el NAV
+    // pelado ES la cifra completa (mismo criterio que lib/staticOverlay.js).
+    const hasManualItems = (items || []).some((it) => it && it._source !== 'ibkr' && !isExcludedFromNetWorth(it))
+    const drawableSnaps = (!overlay && shownInst === 'ALL' && hasBrokerItems && hasManualItems)
+      ? snapshotData.filter((p) => p.src !== 'ibkr')
+      : snapshotData
     // NOTE: 'backfill' snapshots are deliberately NOT overlaid — the backfill API
     // call already includes manual assets (gated by acquisitionDate, exactly like
     // staticAt), so adding staticAt again would double-count them.
@@ -807,8 +827,8 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     const needsOverlay = (p) => p.src === 'ibkr'
       || (manualAddedDay > 0 && Math.floor(p.ts / 86400000) < manualAddedDay)
     let snapSource = overlay
-      ? snapshotData.map((p) => needsOverlay(p) ? { ...p, value: p.value + staticAt(p.ts) } : p)
-      : snapshotData
+      ? drawableSnaps.map((p) => needsOverlay(p) ? { ...p, value: p.value + staticAt(p.ts) } : p)
+      : drawableSnaps
 
     // Short-run outlier guard, applied AFTER the overlay (mixed-source snapshot
     // docs + per-point overlay can alternate levels). Drops runs of 1-3
@@ -1550,6 +1570,19 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       )}
       </div>
 
+
+      {/* FASE HJ: el fetch de historial falló pero la gráfica igual se dibuja
+          desde snapshots. Antes esto era 100% silencioso (el EmptyState de
+          error solo aparece con la gráfica vacía) y el usuario no tenía forma
+          de saber que la serie estaba incompleta. */}
+      {fetchError && chartData.length >= 2 && (
+        <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs mb-3"
+          style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)', color: 'var(--alert-warn-icon)' }}>
+          <span>⚠</span>
+          <span>{t('Historial de mercado incompleto esta sesión: la línea puede tener huecos.', 'Market history incomplete this session: the line may have gaps.')}</span>
+          <button onClick={fetchHistory} className="underline" style={{ color: 'inherit' }}>{t('Reintentar', 'Retry')}</button>
+        </div>
+      )}
 
       {/* Drawdown indicator */}
       {shownMode === 'value' && drawdown && (
