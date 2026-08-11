@@ -86,7 +86,8 @@ Discriminador: abrir XOCHI y Credicorp en la app y ver si los pagos de feb/jun
    revisan después; primero se cierra esta lógica.
 2. Los cupones de XOCHI y Credicorp de 2025 **sí están registrados**.
 3. **FX: la app usa la tasa del día**; el 7.63 constante era solo ejemplo del
-   cálculo manual.
+   cálculo manual. **Decisión: la convención de la app se queda como está** (el
+   movimiento del quetzal es parte del retorno cuando la base es USD).
 
 La respuesta 1 cambia el estatus de todo el bloque de "nivel": el cálculo mide
 3 bonos y la app mide 5 posiciones, así que NO son el mismo conjunto y las
@@ -103,9 +104,10 @@ quetzal ES parte del retorno.
 | 3M | +3.61% | (falta) | +3.1669% | no: app +0.44 pp |
 | YTD | +5.28% | +4.31% | TWR +4.04% / MWR +3.10% | no: app +1.2 pp |
 | ALL | +11.53% | +12.47% | TWR +12.61% / MWR +12.12% | no |
-| DAY | (falta) | (falta) | 0.0000% | - |
+| DAY | (vacío) | (vacío) | 0.0000% | **no: bug, ver H5** |
 | 1M | (falta) | (falta) | 0.0000% | - |
-| 1Y | (falta) | (falta) | TWR +8.24% / MWR +6.24% | - |
+| 1Y | +11.53% | +8.74% | TWR +8.24% / MWR +6.24% | no: app +3.3 / +2.5 pp |
+| 3M (MWR) | - | +3.61% | +3.1669% | no: app +0.44 pp |
 
 Valor (IDC): $9,408.18 el 26 feb 2026; hoy ~$9.8K; "+$502.17 (+5.32%) este año".
 
@@ -138,9 +140,36 @@ distinguibles:
 Discriminador: mirar el Valor de IDC al 10 may y al 10 ago. Si la diferencia
 excede la suma de los dos cupones, sobra FX (o un ingreso no contemplado).
 
+### Hallazgo 5 (BUG, arreglado): DAY caía al estado vacío en un scope estático
+
+La vista DAY de IDC mostraba "Sin datos intradía: el mercado puede estar
+cerrado" en vez de 0.00%. No era el mercado: un bono no cotiza intradía. El
+API sintetiza dos puntos (ayer y ahora) para un scope sin activos de mercado, y
+el filtro de DAY (que recorta desde las 7:00 de hoy) dejaba UNO solo; con un
+punto no hay serie. Arreglado en FASE HT: con `reconstructionIsExact` (scope
+100% estático, la misma señal de FASE EB) DAY dibuja la línea plana en el valor
+de hoy, o sea 0.00%, que es la respuesta correcta y la que da el cálculo de
+referencia.
+
+### Hallazgo 6 (PENDIENTE): 1Y y ALL dan el MISMO TWR (+11.53%)
+
+ALL abarca jul 2024 - ago 2026 (2.07 años) y 1Y solo ago 2025 - ago 2026. Que
+den el mismo número significa que la serie de ALL no está aportando NADA antes
+de ~ago 2025, consistente con el Hallazgo 2 (curva plana en 0% hasta mediados
+de 2025).
+
+El usuario confirmó que los cupones de feb 2025 (+2.40%) y jun 2025 (+1.60%)
+SÍ están registrados. Entonces la reconstrucción de esa ventana no los está
+tomando, o el arranque de medición se mueve hacia adelante. Es el próximo hilo
+a investigar y NO depende de las 2 posiciones faltantes (esos dos cupones son
+de XOCHI y Credicorp, que sí están en el cálculo).
+
+Nota: MWR sí distingue (ALL +12.47% vs 1Y +8.74%), así que el corte afecta a la
+serie encadenada del TWR, no al motor de flujos.
+
 ### Falta capturar
 
-- DAY, 1M y 1Y (TWR y MWR), y el 3M en MWR.
+- 1M (TWR y MWR).
 - Las 2 posiciones de IDC no cubiertas por el cálculo: nombre, monto y si
   pagan cupón (y en qué fechas).
 

@@ -969,6 +969,28 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       pts.sort((a, b) => a.ts - b.ts)
     } else if (apiPts.length >= 2) {
       pts = apiPts
+    } else if (period === 'DAY' && reconstructionIsExact && currentTotal > 0) {
+      // FASE HT. Un scope 100% ESTÁTICO (bonos, saldos bancarios, alternativos)
+      // no tiene precio intradía por definición: no es que "el mercado esté
+      // cerrado", es que estos activos no cotizan. Y su valor de hoy es plano,
+      // porque solo se mueven por eventos que ya están en el archivo
+      // (reconstructionIsExact, la misma señal que FASE EB usa para no marcar
+      // esa reconstrucción como estimada).
+      //
+      // Sin esto, la vista DAY de una institución así caía al estado vacío: el
+      // API sintetiza dos puntos (ayer y ahora) y el filtro de DAY, que recorta
+      // desde las 7:00 de hoy, dejaba UNO solo. Con un punto no hay serie, y la
+      // pantalla culpaba al mercado por algo que no depende del mercado. La
+      // respuesta correcta es la que da el cálculo de referencia del usuario
+      // para todos los períodos sin eventos: 0.00%.
+      const now = Date.now()
+      const d = new Date(now)
+      let dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 7, 0, 0).getTime()
+      if (dayStart >= now) dayStart = now - 86400000
+      pts = [
+        { ts: dayStart, date: new Date(dayStart), value: currentTotal },
+        { ts: now, date: new Date(now), value: currentTotal },
+      ]
     } else {
       return []
     }
