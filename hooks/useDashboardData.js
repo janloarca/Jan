@@ -13,7 +13,7 @@ import { unlinkedOpeningDeposits } from '@/lib/originDeposits'
 import { corruptSnapshotRunIds, feEraSuspectDailyIds } from '@/lib/corruptSnapshots'
 import { planEquitySnapshotWrites, misplacedPlainNavMigrations } from '@/lib/ibkrSnapshotPlan'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
-import { staleBackfillDates, buildNavByDate, composeDailyTotals } from '@/lib/snapshotBackfill'
+import { staleBackfillDates, buildNavByDate, composeDailyTotals, windowDates, divergentDailyDates } from '@/lib/snapshotBackfill'
 import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanDays, earliestNeededDays as computeEarliestNeededDays } from '@/lib/brokerCompletion'
 import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds, applyLifetimeNetConstraint } from '@/lib/inferredFlows'
 import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
@@ -303,7 +303,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // primera pasada.
     const gaps = staleBackfillDates(snapshots, { treatDailyAsStale: !hasBrokerItem, windowDays: 366, brokerConnectedTs: brokerAddedTs })
     const navMigrations = misplacedPlainNavMigrations(snapshots)
-    if (gaps.length === 0 && navMigrations.length === 0) { backfillRef.current = true; return }
+    // FASE HO: con un broker conectado la corrida no se salta aunque no haya
+    // huecos: la composición (NAV real + manual) es la vara que detecta un doc
+    // 'daily' corrupto, y esos docs NO son huecos (están protegidos justo por
+    // ser observaciones). Es una sola llamada por sesión, y sin nada que
+    // corregir no escribe nada.
+    if (gaps.length === 0 && navMigrations.length === 0 && !hasBrokerItem) { backfillRef.current = true; return }
     backfillRef.current = true
 
     let cancelled = false
@@ -402,9 +407,19 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         // conectado, cada día se COMPONE con el NAV real del broker en vez de
         // estimarlo, así que ningún día puede archivarse a un nivel que omita
         // la cuenta. Un día sin NAV disponible se salta a propósito.
-        const fills = composeDailyTotals({
-          gaps, manualPoints: pts, navByDate, hasBrokerItems: composing,
+        //
+        // FASE HO: se compone TODA la ventana, no solo los huecos, porque la
+        // composición es ahora la vara con la que se detecta un doc 'daily'
+        // corrupto (los picos de fin de semana). Escribir se sigue limitando a
+        // lo necesario: un hueco, o un 'daily' que contradice la composición.
+        const composedAll = composeDailyTotals({
+          gaps: windowDates(366), manualPoints: pts, navByDate, hasBrokerItems: composing,
         })
+        const rewriteSet = new Set([
+          ...gaps,
+          ...divergentDailyDates(snapshots, composedAll),
+        ])
+        const fills = composedAll.filter((f) => rewriteSet.has(f.date))
         for (const f of fills) {
           await saveSnapshot({
             date: f.date,
