@@ -6,6 +6,7 @@ import { isMarketPriced } from '@/components/dashboard/utils'
 import { qtyAtTs, staticItemValueAtTs, isTradeLedgerComplete, lotsReconcile } from '@/lib/portfolioRewind'
 import { CRYPTO_MAP } from '@/lib/cryptoMap'
 import { saveLastGood, getLastGood } from '@/lib/priceCache'
+import { kvBackend } from '@/lib/kvClient'
 
 export const dynamic = 'force-dynamic'
 // FASE HJ. Sin esto, el default de Vercel (10s en Hobby) mataba la petición
@@ -552,7 +553,7 @@ export async function POST(request) {
       return s + (it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0)
     }, 0)
 
-    return NextResponse.json({ dataPoints, staticTotal, staticPoints, transactional: usedTransactional, degraded, failedSymbols })
+    return NextResponse.json({ dataPoints, staticTotal, staticPoints, transactional: usedTransactional, degraded, failedSymbols, cache: kvBackend() })
   } catch (err) {
     console.error('portfolio-history error:', err)
     return NextResponse.json({ error: 'Internal server error', errorCode: 'INTERNAL', dataPoints: [] }, { status: 500 })
