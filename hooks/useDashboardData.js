@@ -351,8 +351,29 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             period: gaps.some((d) => (Date.now() - new Date(`${d}T00:00:00Z`).getTime()) > 32 * 86400000) ? 'YTD' : '1M',
           }),
         })
-        if (!res.ok) return
+        if (!res.ok) {
+          console.warn('[backfill] portfolio-history respondió', res.status, ': no se escribe nada esta sesión')
+          return
+        }
         const data = await safeJson(res)
+        // FASE HJ. Una respuesta degradada (algún símbolo cayó al camino plano
+        // porque su fetch de historial falló) es aceptable para MOSTRAR, nunca
+        // para PERSISTIR: cada sesión puede fallar un subconjunto distinto de
+        // símbolos, así que escribir estos totales deja docs 'backfill' a un
+        // nivel distinto por pasada, el churn exacto del diente de sierra de
+        // la vista "Todas". Acotado por PESO, no absoluto: un símbolo muerto
+        // (deslistado, dust) que falla crónicamente no debe congelar el
+        // backfill para siempre; solo se rehúsa cuando lo caído es una
+        // fracción real del portafolio.
+        if (data.degraded) {
+          const failedSet = new Set((data.failedSymbols || []).map((s) => String(s).toUpperCase()))
+          const failedVal = assetItems.reduce((s, it) => failedSet.has((it.symbol || '').toUpperCase()) ? s + Math.abs(getItemValue(it)) : s, 0)
+          const totalVal = assetItems.reduce((s, it) => s + Math.abs(getItemValue(it)), 0)
+          if (totalVal > 0 && failedVal > totalVal * 0.02) {
+            console.warn('[backfill] historial degradado (', (data.failedSymbols || []).join(', '), '): no se escribe nada esta sesión')
+            return
+          }
+        }
         const pts = data.dataPoints || []
         if (pts.length === 0) return
         // FASE GE: serie rebobinada a través del ledger real de depósitos y
