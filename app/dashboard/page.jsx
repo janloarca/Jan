@@ -1162,7 +1162,7 @@ export default function DashboardPage() {
 
         {/* Time-sensitive alerts (maturities, dividends received) belong at the
             top — buried at page-bottom they were invisible on mobile. */}
-        <NotificationCenter items={portfolioItems} transactions={transactions} lang={lang} settings={settings} />
+        <NotificationCenter items={portfolioItems} transactions={transactions} lang={lang} settings={settings} convert={convert} baseCurrency={baseCurrency} />
         <div className="flex items-center gap-3 flex-wrap">
           {/* A refresh in flight gets its OWN small confirmation right next to
               the freshness text — the header button already shows full
