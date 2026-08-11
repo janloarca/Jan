@@ -235,10 +235,21 @@ export async function POST(request) {
 
     const allTimeSeries = {}
 
+    // FASE HK. Deadline GLOBAL de la fase de fetches: el cliente aborta a los
+    // 30s (authFetch, AbortSignal.timeout), asi que sobrevivir hasta el
+    // maxDuration de 60s no sirve de nada si la respuesta llega despues de
+    // que el cliente colgo. Pasado el deadline, los simbolos restantes se
+    // SALTAN (caen al camino degradado explicito de FASE HJ) y la respuesta
+    // sale a tiempo: una respuesta parcial y honesta que llega vale mas que
+    // una completa que nadie recibe.
+    const fetchDeadline = Date.now() + 20000
+
     const stockBatches = []
     for (let i = 0; i < marketItems.length; i += 10) stockBatches.push(marketItems.slice(i, i + 10))
     for (const batch of stockBatches) {
+      if (Date.now() > fetchDeadline) break
       await Promise.all(batch.map(async (it) => {
+        if (Date.now() > fetchDeadline) return
         const sym = it.symbol.toUpperCase()
         const history = await fetchYahooHistory(sym, range, interval)
         if (history.length > 0) {
@@ -251,6 +262,7 @@ export async function POST(request) {
     }
 
     await Promise.all(cryptoItems.map(async (it) => {
+      if (Date.now() > fetchDeadline) return
       const sym = it.symbol.toUpperCase()
       const id = CRYPTO_MAP[sym]
       if (!id) return
