@@ -138,13 +138,33 @@ const sanitizeEvents = (arr, maxLen, key) => {
 function reconstructionFor(it, sym, lotsForSymbol) {
   const qtyNow = it.quantity || 0
   const txEvents = sanitizeEvents(it.txEvents, 500, 'qtyDelta')
+  const usableTx = txEvents && isTradeLedgerComplete(txEvents, qtyNow) ? txEvents : null
+  // FASE HL. Cuando la fecha de adquisición es un SELLO DE SYNC
+  // (_dateUnreliable, ver hasUnreliableAcqDate en utils.js) no puede usarse
+  // como puerta de existencia, y los lots creados por ese mismo import
+  // heredan el sello. Sin esto, una posición de broker cuyo ledger de trades
+  // no alcanza a explicar la cantidad de hoy (lo normal: el Flex entrega
+  // ~365 días) caía a la rama de lots o al gate de acquisitionDate y
+  // contribuía CERO en todo el pasado anterior al sync: la reconstrucción
+  // entera omitía la cuenta del broker, dejando el histórico al nivel
+  // solo-manual mientras los días con doc 'daily' real (escrito con la app
+  // abierta) marcaban el total correcto. Esa alternancia es el diente de
+  // sierra de la vista "Todas".
+  //
+  // Mantener la cantidad de HOY plana hacia atrás es un ESTIMADO (asume
+  // cantidad constante) pero es la convención que este pipeline ya fijó para
+  // fechas no confiables (FASE AD), y es estrictamente mejor que cero, que
+  // afirma que la cuenta no existía. La reconstrucción REAL por trades
+  // (usableTx) sigue teniendo prioridad y no cambia.
+  const dateUnreliable = !!it._dateUnreliable
+  const usableLots = lotsForSymbol && lotsReconcile(lotsForSymbol, qtyNow) ? lotsForSymbol : null
   return {
     qty: qtyNow,
     acquiredTs: it.acquisitionDate ? new Date(it.acquisitionDate).getTime() : 0,
     costBasis: qtyNow * (it.purchasePrice || 0),
-    lots: lotsForSymbol && lotsReconcile(lotsForSymbol, qtyNow) ? lotsForSymbol : null,
-    holdFlat: !!it._holdFlat,
-    txEvents: txEvents && isTradeLedgerComplete(txEvents, qtyNow) ? txEvents : null,
+    lots: dateUnreliable && !usableTx ? null : usableLots,
+    holdFlat: !!it._holdFlat || (dateUnreliable && !usableTx),
+    txEvents: usableTx,
   }
 }
 
