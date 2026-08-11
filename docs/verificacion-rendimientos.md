@@ -198,3 +198,47 @@ escalones de feb y jun 2025.
 - [ ] Tanda 1 (IDC) — estructura validada (períodos sin eventos exactos, número
       y fecha de escalones correctos). Pendiente cerrar el NIVEL, que necesita
       el conjunto completo de 5 posiciones para ser comparable.
+
+### Verdad de referencia: el Spreadsheet de IDC (motor `lib/historicalValues.js`)
+
+Las 5 posiciones de IDC, confirmadas: **VITALI, XOCHI, CrediCorp** (Bonos
+Corporativos) + **FONDO LÍQUIDO Q, FONDO LÍQUIDO $** (Caja & Bancos).
+
+El Spreadsheet reconstruye TODO correctamente, incluidos los cupones de 2025:
+
+| Mes | XOCHI | CrediCorp | VITALI | F.LÍQUIDO Q | IDC total |
+|---|---|---|---|---|---|
+| Ago 24 | 1,966.26 | - | - | 13.11 | 1,979.37 |
+| Dic 24 | 1,966.26 | 1,310.84 | - | 65.54 | 3,342.64 |
+| Ene 25 | 1,966.26 | 1,310.84 | - | 65.54 | 3,342.64 |
+| **Feb 25** | 1,966.26 | 1,310.84 | - | **144.19** | 3,421.29 |
+| **Jun 25** | 1,966.26 | 1,310.84 | - | **196.63** | 3,473.73 |
+| **Ago 25** | 1,966.26 | 1,310.84 | - | **275.28** | 3,552.38 |
+| Dic 25 | 1,966.26 | 1,310.84 | - | 262.17 | 3,539.27 |
+
+Los saltos del Fondo Líquido son EXACTAMENTE los cupones: Feb 25 +78.65
+(=600 GTQ, XOCHI), Jun 25 +52.44 (=400 GTQ, CrediCorp), Ago 25 +78.65 (XOCHI).
+O sea el dato está completo y bien fechado; el motor del Spreadsheet lo lee
+perfecto. Queda descartado "faltan datos": es divergencia entre motores.
+
+### Descartado por lectura de código (Hallazgo 6)
+
+- `scopedTransactions` SÍ incluye la transacción del cupón en el scope de IDC
+  (matchea por `_linkedItemId`, línea 211).
+- `indexBalanceEvents` redirige el dividendo a la cuenta DESTINO, que también
+  está en IDC.
+- La rama de ítems estáticos del API (`route.js` 439-473) rebobina flujos e
+  ingresos con `staticItemValueAtTs`.
+
+Los tres se ven correctos, así que el siguiente paso es medir, no seguir
+deduciendo: hay que ver la SERIE DE VALOR que produce el API para IDC.
+
+### Discriminador pendiente
+
+Pestaña **Valor**, IDC, período **ALL**, con el valor de un par de puntos de
+2025 (feb y jun). Contra la tabla de arriba:
+
+- Si el valor de feb 25 ≈ 3,421 y el de jun 25 ≈ 3,474 (con sus escalones), la
+  serie de VALOR está bien y el bug vive en el cálculo del TWR.
+- Si el valor sale plano (o en cero) antes de jul 2025, el bug está en la
+  reconstrucción del API y el Spreadsheet es la referencia de cómo debería ser.
