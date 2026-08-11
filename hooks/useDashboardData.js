@@ -5,7 +5,7 @@ import { useExchangeRates } from './useExchangeRates'
 import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, hasUnreliableAcqDate, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced, effectiveAcqTs } from '@/components/dashboard/utils'
+import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, hasUnreliableAcqDate, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced, effectiveAcqTs, getEffectiveYield } from '@/components/dashboard/utils'
 import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { indexBalanceEvents } from '@/lib/historicalValues'
 import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget } from '@/lib/autoDividends'
@@ -17,6 +17,7 @@ import { staleBackfillDates, buildNavByDate, composeDailyTotals, windowDates, di
 import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanDays, earliestNeededDays as computeEarliestNeededDays } from '@/lib/brokerCompletion'
 import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds, applyLifetimeNetConstraint } from '@/lib/inferredFlows'
 import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
+import { knownContributions, computeLiquidYield, yieldSignature, supersededYieldTxIds } from '@/lib/liquidYield'
 import { attributeYtd } from '@/lib/ytdAttribution'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
@@ -599,6 +600,16 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             const payDay = it.incomePayDay || 1
             if (offset === 0 && todayDay < payDay) continue
             const dateStr = `${checkYear}-${String(checkMonth + 1).padStart(2, '0')}-${String(payDay).padStart(2, '0')}`
+            // FASE HV. Un ingreso que se REINVIERTE en la propia cuenta ya está
+            // adentro del saldo que el usuario tecleó: el saldo de hoy de una
+            // cuenta que compone contiene todo lo que compuso hasta hoy. Backfillear
+            // esos meses le suma cantidad ENCIMA del saldo real (la rama de reinvest
+            // hace updateItem con quantity + newShares), así que una cuenta creada
+            // hoy con calendario explícito se inflaba hasta 24 meses de interés
+            // sobre un número que ya lo incluía. Solo aplica a reinvest: un bono que
+            // paga a OTRA cuenta no crece por su cuenta, y su backfill de cupones
+            // (el que trajo los pagos de 2025 de XOCHI) tiene que seguir corriendo.
+            if (it.dividendAction === 'reinvest' && it.balanceAsOf && dateStr <= it.balanceAsOf) continue
             // offset > 0 = a month that already closed, so this is RECONSTRUCTED
             // history, not money arriving now. See the credit below.
             monthsToCheck.push({ dateStr, month: checkMonth, year: checkYear, backfill: offset > 0 })
@@ -663,6 +674,19 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           if (amount <= 0) continue
 
           const isReinvest = it.dividendAction === 'reinvest'
+          // FASE HV. ¿Este pago mueve el saldo de la cuenta destino, o esa
+          // cuenta ya lo contiene? Con `balanceAsOf` la pregunta se contesta
+          // exacto: el saldo que el usuario tecleó vale desde esa fecha, así que
+          // todo pago anterior o igual ya está adentro y todo posterior es
+          // dinero que llega después de la foto. Sin el campo (cuentas creadas
+          // antes de que existiera) se conserva la regla vieja, "solo el mes en
+          // curso acredita", tal cual estaba.
+          const destForCredit = !isReinvest && it.incomeDestination
+            ? enrichedItems.find((d) => (d.id || d.symbol) === it.incomeDestination)
+            : null
+          const credited = destForCredit?.balanceAsOf
+            ? dateStr > destForCredit.balanceAsOf
+            : !backfill
           await addTransaction({
             date: dateStr,
             type: 'DIVIDEND',
@@ -676,7 +700,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             // Whether this payment also moved the destination account's stored
             // balance. Backfilled history does not (see below), so a later
             // cleanup must not "reverse" a credit that never happened.
-            ...(!isReinvest && it.incomeDestination ? { _destinationCredited: !backfill } : {}),
+            ...(!isReinvest && it.incomeDestination ? { _destinationCredited: credited } : {}),
           })
 
           if (isReinvest) {
@@ -693,7 +717,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
                 institution: it.institution || '',
               })
             } catch (e) { console.error('[dividend-reinvest-lot]', e.message) }
-          } else if (it.incomeDestination && !backfill) {
+          } else if (it.incomeDestination && credited) {
             // Only money arriving NOW moves the destination's balance.
             //
             // A backfilled payment is reconstructed history: the balance the
@@ -704,9 +728,8 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             // a single transaction on file to explain it). The transaction is
             // still written above, because the history is real; only the
             // balance is left alone.
-            const dest = enrichedItems.find((d) => (d.id || d.symbol) === it.incomeDestination)
-            if (dest) {
-              await addToDestination(dest, amount, incomeCurrency)
+            if (destForCredit) {
+              await addToDestination(destForCredit, amount, incomeCurrency)
             }
           }
 
@@ -1942,6 +1965,43 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     })
   }, [settings, transactions, snapshots, convert])
 
+  // FASE HV. Cuentas líquidas cuyo saldo tecleado vale MÁS que todo lo que
+  // sabemos que entró: ese sobrante solo pudo generarlo la cuenta, así que es su
+  // rendimiento propio. Cada candidato es una PROPUESTA, nunca se escribe sola
+  // (mismo trato que los flujos inferidos de FASE DQ).
+  //
+  // Corre sobre `items` crudos y NO sobre `enrichedItems` a propósito: la
+  // identidad de los enriquecidos se rehace en cada tick de precio, y este memo
+  // recorre todas las transacciones por ítem. Para una cuenta que no cotiza,
+  // `purchasePrice`/`currentPrice` del ítem crudo YA están en su propia moneda,
+  // que es justo lo que el motor necesita.
+  const liquidYieldCandidates = useMemo(() => {
+    const out = []
+    for (const it of items || []) {
+      if (!it?.id || !it.balanceAsOf) continue
+      if (isMarketPriced(it) || it.type === 'Debt' || it.isReceivable) continue
+      const asOfTs = new Date(`${it.balanceAsOf}T00:00:00Z`).getTime()
+      if (!isFinite(asOfTs)) continue
+      const finalBalance = (Number(it.quantity) || 1) * (Number(it.currentPrice ?? it.purchasePrice) || 0)
+      if (!(finalBalance > 0)) continue
+      const contributions = knownContributions({ item: it, items, transactions, convert, asOfTs })
+      if (contributions.length === 0) continue
+      const res = computeLiquidYield({
+        contributions, finalBalance, asOfTs, declaredRatePct: getEffectiveYield(it) || 0,
+      })
+      if (!['ok', 'implausible-rate', 'negative-residual'].includes(res.status)) continue
+      // Ya contestada: mientras el saldo, su fecha y los aportes sean los
+      // mismos, la respuesta del usuario (aceptar o descartar) sigue valiendo.
+      const signature = yieldSignature({ asOfTs, finalBalance, contributions })
+      if (it._liquidYield?.signature === signature) continue
+      out.push({
+        ...res, id: it.id, itemId: it.id, name: it.name || it.symbol,
+        currency: it.currency || 'USD', asOf: it.balanceAsOf, asOfTs, signature,
+      })
+    }
+    return out
+  }, [items, transactions, convert])
+
   // Reconciliation: once real Flex Query coverage reaches a date that used to
   // be inference-only (a new sync extended the window, or a prior-year XML
   // landed), whatever was guessed there is stale — the real Cash Transactions
@@ -2105,6 +2165,66 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     await saveSnapshot({ date: candidate.toDate, _flowReviewed: true })
   }, [saveSnapshot])
 
+  // FASE HV. Aceptar el rendimiento deducido: escribe UN pago mensual
+  // reinvertido en la propia cuenta, que es exactamente la forma que los dos
+  // motores de reconstrucción ya saben rebobinar (ClubCashIn, FASE FD:
+  // `indexBalanceEvents` lo manda a `reinvestBySym` y nunca a
+  // `balanceEventsById`, así que no puede contarse dos veces). Ningún motor
+  // aprende nada nuevo.
+  //
+  // El SALDO no se toca, y es el punto entero: estos montos se dedujeron de ese
+  // saldo, así que sumárselos sería sumarle un número sacado de él mismo.
+  //
+  // Antes de escribir se borra todo el rendimiento que la app había booked para
+  // esta cuenta dentro de la ventana (una corrida previa de esta inferencia, o
+  // lo que el motor automático haya escrito ahí): hasta `balanceAsOf` la verdad
+  // es el saldo, así que cualquier rendimiento anterior es una afirmación vieja
+  // sobre el mismo dinero. Lo que el usuario escribió a mano nunca se toca.
+  const acceptLiquidYield = useCallback(async (candidate) => {
+    if (!candidate?.itemId || !addTransaction || !updateItem) return
+    const item = (items || []).find((it) => it.id === candidate.itemId)
+    if (!item) return
+    const stale = supersededYieldTxIds(transactions, candidate.itemId, candidate.asOfTs)
+    if (deleteTransaction) {
+      for (const id of stale) {
+        try { await deleteTransaction(id) } catch (e) { console.error('[liquid-yield-cleanup]', e.message) }
+      }
+    }
+    for (const m of candidate.months || []) {
+      await addTransaction({
+        date: m.date,
+        type: 'DIVIDEND',
+        symbol: item.symbol || item.name,
+        description: `Rendimiento de ${item.name || item.symbol}`,
+        totalAmount: m.amount,
+        currency: candidate.currency,
+        _source: 'inferred_yield',
+        _linkedItemId: item.id,
+        _reinvested: true,
+      })
+    }
+    await updateItem(item.id, {
+      _liquidYield: {
+        signature: candidate.signature,
+        asOf: candidate.asOf,
+        ratePct: candidate.ratePct,
+        interest: candidate.interest,
+        appliedAt: new Date().toISOString(),
+      },
+    })
+  }, [items, transactions, addTransaction, deleteTransaction, updateItem])
+
+  // Descartar: "ese sobrante no fue rendimiento". No escribe nada; solo deja
+  // constancia de que la pregunta ya se hizo con ESTOS datos, así que vuelve a
+  // aparecer si el saldo, su fecha o los aportes cambian (que es justo cuando
+  // vuelve a ser una pregunta distinta).
+  const dismissLiquidYield = useCallback(async (candidate) => {
+    if (!candidate?.itemId || !updateItem) return
+    await updateItem(candidate.itemId, {
+      _liquidYield: { signature: candidate.signature, asOf: candidate.asOf, dismissed: true },
+    })
+  }, [updateItem])
+
   const insights = useMemo(() => {
     const hhiResult = computeHHI(portfolioItems.map((it) => ({ value: getItemValue(it) })))
     // Yield over total assets, not net worth — dividing by (assets − debt) would
@@ -2240,6 +2360,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     annualDividends, estimatedAnnualIncome,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
     brokerCompletionState, ibkrDataComplete, inferredFlowCandidates, inferredFlowReconciliation, ibkrReconciliation, acceptInferredFlow, dismissInferredFlow,
+    liquidYieldCandidates, acceptLiquidYield, dismissLiquidYield,
 
     // Benchmark
     benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName, benchmarkLoading,

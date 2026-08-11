@@ -1,8 +1,19 @@
-# Rendimiento del fondo líquido: diseño (SIN implementar)
+# Rendimiento del fondo líquido: diseño
+
+> **Estado: IMPLEMENTADO (FASE HV).** La lógica quedó fijada como spec en
+> `lib/assetLogic/liquidFundYield.js`, el motor en `lib/liquidYield.js` y sus
+> tests en `lib/__tests__/liquidYield.test.js`. Este documento es el diseño
+> original más las tres correcciones que salieron al construirlo, anotadas
+> abajo en "Lo que cambió al implementarlo".
 
 Diseño previo a escribir código, pedido explícitamente por el usuario: *"aún no
 he puesto el rendimiento de mis fondos líquidos (4%-5% variable) porque quiero
 que la lógica esté primero"*.
+
+Decisiones que el usuario confirmó antes de implementar: al teclear el saldo se
+asume HOY (sin preguntarle la fecha), los dos fondos van por separado con
+rangos de tasa distintos, y se verifica primero contra IDC antes de tratarlo
+como genérico.
 
 Caso de referencia: IDC. Tres bonos (VITALI, XOCHI, CrediCorp) que pagan cupón
 EN EFECTIVO a dos cuentas líquidas (FONDO LÍQUIDO Q y FONDO LÍQUIDO $), y esas
@@ -77,8 +88,9 @@ para los tres requisitos: **¿desde cuándo es cierto el saldo guardado?**
 
 - **Requisito 2** se vuelve exacto: un cupón con fecha <= `balanceAsOf` YA está
   adentro (`_destinationCredited:false`, y la UI lo dice con todas las letras);
-  uno con fecha > `balanceAsOf` sí acredita, y al acreditar **avanza**
-  `balanceAsOf` a la fecha de ese cupón.
+  uno con fecha > `balanceAsOf` sí acredita. (El diseño original decía además
+  que acreditar AVANZA `balanceAsOf`; al implementarlo resultó equivocado, ver
+  la corrección 2 más abajo.)
 - **Requisito 1** se vuelve computable: todo lo conocido hasta `balanceAsOf` se
   suma, y lo que sobra del saldo es el interés.
 - **Requisito 3** tiene un punto de partida: hacia adelante se devenga desde
@@ -271,7 +283,37 @@ moverse ni un centavo.
 4. **Hacia adelante**: piso del backfill y la sugerencia de tasa.
 5. **Hallazgos** de Enrich Data para los casos que rehúsan.
 
-## Preguntas abiertas (para confirmar antes de la fase 1)
+## Lo que cambió al implementarlo
+
+Tres correcciones al diseño de arriba, todas encontradas construyéndolo:
+
+1. **La convención de año tiene que ser 365.25, no 365.** El reparto compone con
+   la tasa que devuelve `xirr`, y `xnpv` descuenta con 365.25. Con 365 en un
+   lado y 365.25 en el otro, componer hacia adelante aterriza a ~10 centavos del
+   saldo tecleado sobre dos años y la identidad deja de cerrar. Lo cazó el test
+   que reconstruye el saldo desde la tasa implícita, no la lectura del código.
+2. **`balanceAsOf` NO avanza al acreditar un cupón**, como decía el diseño: se
+   sella solo cuando el usuario guarda el saldo. Si avanzara con cada crédito,
+   la ventana de "esto ya está adentro" se comería el rendimiento devengado
+   entre la foto y ese cupón. Con la regla simple, el corte es limpio: hasta
+   `balanceAsOf` manda el saldo, después manda la tasa.
+3. **El piso del backfill aplica SOLO al ingreso reinvertido**, no a todo ítem
+   con `balanceAsOf`. Un bono que paga a otra cuenta no crece por su cuenta, y
+   su backfill de cupones (el que trajo los pagos de 2025 de XOCHI) tiene que
+   seguir corriendo. De paso, ese piso arregla un bug preexistente: una cuenta
+   que compone, creada hoy con calendario explícito, se inflaba hasta 24 meses
+   de interés encima de un saldo que ya lo incluía.
+
+Además, la entrada quedó en la lista de sugerencias de Chispu (es una pregunta
+sobre los datos, como las demás) en vez de una superficie propia, y el ejemplo
+trabajado se recalculó con la convención correcta: saldo 2,236.73, interés
+136.73, tasa implícita 4.50% exacta.
+
+Pendiente conocido que NO se tocó por caer en zona congelada, anotado en la
+spec: `getInvestedCapital` cuenta el rendimiento propio de una cuenta estática
+como capital puesto por el usuario, así que subestima el retorno del fondo.
+
+## Preguntas que quedaron contestadas
 
 1. **La fecha del saldo.** ¿Se asume siempre "hoy" al teclearlo, o se le
    pregunta al usuario (útil si copia el saldo de un estado de cuenta de fin de

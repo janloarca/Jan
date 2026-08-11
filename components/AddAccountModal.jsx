@@ -415,6 +415,16 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
       // Subtype
       if (subtype) item.subtype = subtype
 
+      // FASE HV. El valor guardado de un activo que no cotiza es una FOTO de un
+      // momento, y hasta ahora esa foto no llevaba fecha: la app aproximaba con
+      // "¿el pago es del mes en curso o de un mes ya cerrado?", que falla en los
+      // dos bordes (un cupón de hace tres días se acredita encima de un saldo
+      // que ya lo contenía; un saldo tecleado hace dos meses no recibe ninguno
+      // de los cupones posteriores). `balanceAsOf` responde la pregunta exacta:
+      // desde cuándo es cierto lo que está guardado. Se sella al teclearlo, o
+      // sea hoy, que es lo que el usuario pidió.
+      if (!isMarketAsset) item.balanceAsOf = new Date().toISOString().slice(0, 10)
+
       // Income config
       if (showIncome && !isMarketAsset && (form.incomeAmount || form.incomeRate || form.rateMin || form.rateType === 'continuous')) {
         item.incomeMode = form.incomeMode

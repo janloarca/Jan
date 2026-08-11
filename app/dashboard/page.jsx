@@ -60,6 +60,7 @@ const EnrichModal = dynamic(() => import('@/components/dashboard/EnrichModal'), 
 const QuarterlyHistoryModal = dynamic(() => import('@/components/dashboard/QuarterlyHistoryModal'), { loading: () => <ModalSkeleton /> })
 const BrokerCompletionModal = dynamic(() => import('@/components/dashboard/BrokerCompletionModal'), { loading: () => <ModalSkeleton /> })
 const InferredFlowsModal = dynamic(() => import('@/components/dashboard/InferredFlowsModal'), { loading: () => <ModalSkeleton /> })
+const LiquidYieldModal = dynamic(() => import('@/components/dashboard/LiquidYieldModal'), { loading: () => <ModalSkeleton /> })
 const CashFlowModal = dynamic(() => import('@/components/CashFlowModal'), { loading: () => <ModalSkeleton /> })
 const PrintSummary = dynamic(() => import('@/components/dashboard/PrintSummary'))
 const OnboardingTour = dynamic(() => import('@/components/dashboard/OnboardingTour'))
@@ -310,6 +311,7 @@ export default function DashboardPage() {
     annualDividends, estimatedAnnualIncome,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
     brokerCompletionState, ibkrDataComplete, inferredFlowCandidates, inferredFlowReconciliation, ibkrReconciliation, acceptInferredFlow, dismissInferredFlow,
+    liquidYieldCandidates, acceptLiquidYield, dismissLiquidYield,
     benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName, benchmarkLoading,
     handleIBKRSync, triggerIBKRSync,
     ibkrConnected, ibkrAutoSyncing,
@@ -662,6 +664,30 @@ export default function DashboardPage() {
     () => analyzeDataCompleteness({ items, transactions, lots, convert, baseCurrency, marketPrices }),
     [items, transactions, lots, convert, baseCurrency, marketPrices]
   )
+
+  // FASE HV. El rendimiento deducido de una cuenta líquida entra a la MISMA
+  // lista de sugerencias que todo lo demás, en vez de estrenar una superficie
+  // propia: es una pregunta sobre los datos, igual que las otras. Se arma acá y
+  // no en `lib/dataCompleteness.js` porque ese módulo no conoce el motor de
+  // rendimiento, y duplicarlo ahí sería tener dos respuestas distintas a la
+  // misma pregunta.
+  const suggestionFindings = useMemo(() => {
+    const extra = (liquidYieldCandidates || []).map((c) => ({
+      id: `liquid-yield:${c.itemId}`,
+      code: 'liquid-yield',
+      severity: c.status === 'negative-residual' ? 'medium' : 'low',
+      itemId: c.itemId,
+      textEs: c.status === 'negative-residual'
+        ? `${c.name}: entró más de lo que hay en la cuenta. Puede faltar un retiro.`
+        : `${c.name}: ${formatCurrency(c.interest, c.currency)} de tu saldo no vino de ningún movimiento. Parece rendimiento de la cuenta.`,
+      textEn: c.status === 'negative-residual'
+        ? `${c.name}: more went in than the account holds. A withdrawal may be missing.`
+        : `${c.name}: ${formatCurrency(c.interest, c.currency)} of your balance came from no movement. It looks like the account's own yield.`,
+      action: { kind: 'liquid-yield' },
+      suggestion: null,
+    }))
+    return extra.length > 0 ? [...extra, ...dataCompleteness.findings] : dataCompleteness.findings
+  }, [liquidYieldCandidates, dataCompleteness])
 
   // Export XLSX
   const handleExport = useCallback(async () => {
@@ -1277,13 +1303,14 @@ export default function DashboardPage() {
           const suggestionsCard = (
             <CardBoundary id="SUGG-01">
               <ChispuSuggestions
-                findings={dataCompleteness.findings}
+                findings={suggestionFindings}
                 globalScore={dataCompleteness.globalScore}
                 items={items}
                 lang={lang}
                 onEditItem={setEditItem}
                 onOpenCashflow={handleOpenCashflowPrefilled}
                 onOpenReview={handleOpenReview}
+                onOpenLiquidYield={() => setModal('liquidYield')}
                 onConfirmDistinct={(f) => {
                   (f.action?.itemIds || []).forEach((id) => updateItem(id, { _dupConfirmedDistinct: true }))
                 }}
@@ -1815,6 +1842,22 @@ export default function DashboardPage() {
             showToast(lang === 'es' ? 'Movimiento registrado' : 'Movement recorded', 'success')
           }}
           onDismiss={dismissInferredFlow}
+        />
+      )}
+
+      {modal === 'liquidYield' && (
+        <LiquidYieldModal
+          candidates={liquidYieldCandidates}
+          lang={lang}
+          // setModal(null) y no handleCloseModal a propósito: con un viaje de
+          // IBKR activo, cerrar por ahí AVANZA el paso (FASE GM), y este modal
+          // no es parte de ese viaje.
+          onClose={() => setModal(null)}
+          onAccept={async (c) => {
+            await acceptLiquidYield(c)
+            showToast(lang === 'es' ? 'Rendimiento registrado' : 'Yield recorded', 'success')
+          }}
+          onDismiss={dismissLiquidYield}
         />
       )}
 

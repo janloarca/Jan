@@ -439,6 +439,18 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
       if (form.currentPrice && !isMarket) updated.currentPrice = parseFloat(form.currentPrice) || 0
       if (isBank) updated.currentPrice = parseFloat(form.purchasePrice) || 0
 
+      // FASE HV. Desde cuándo es cierto el saldo guardado. Se sella en CADA
+      // guardado de un activo que no cotiza, no solo cuando el número cambia:
+      // el usuario está mirando el campo y apretando Guardar, y eso es
+      // justamente afirmar que ese número vale hoy. Ver AddAccountModal para
+      // qué resuelve el campo. La contra, asumida a propósito: editar solo el
+      // nombre de una cuenta cuyo saldo quedó viejo también lo declara actual.
+      // Es visible y corregible (el desglose de rendimiento que se deduce de
+      // ahí se propone, nunca se aplica solo), y la alternativa (sellar solo
+      // cuando el monto cambia) deja fuera el caso de teclear el mismo número
+      // a propósito para confirmarlo.
+      if (!isMarket) updated.balanceAsOf = new Date().toISOString().slice(0, 10)
+
       // Dividend settings (market assets)
       if (isMarket) {
         updated.dividendAction = form.dividendAction
