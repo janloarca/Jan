@@ -52,15 +52,28 @@ const nextConfig = {
           { key: 'Content-Type', value: 'application/javascript; charset=utf-8' },
         ],
       },
-      {
-        source: '/dashboard',
+      // FASE HM. El no-store existía SOLO para /dashboard, y por eso no servía:
+      // el usuario entra por la RAÍZ (chispu.xyz), que decide y redirige del
+      // lado del cliente, así que el documento que el navegador cachea es el de
+      // '/' (sin ninguna regla de caché) y ese HTML viejo referencia los chunks
+      // del build viejo. El documento de /dashboard nunca se llega a pedir, así
+      // que su header nunca aplica. Resultado real: un iPhone y un iPad
+      // quedaron un día entero en el build viejo, a través de CUATRO deploys,
+      // mostrando siempre la misma pantalla y haciendo parecer que ningún
+      // arreglo hacía nada. Ahora TODA página de la app se sirve sin caché.
+      //
+      // Los assets con hash de contenido (/_next/static/*) NO entran acá a
+      // propósito: sus nombres cambian en cada build, así que cachearlos para
+      // siempre es correcto y es lo que hace que la app cargue rápido.
+      ...['/', '/dashboard', '/finances', '/spreadsheet', '/friends', '/costs', '/login'].map((source) => ({
+        source,
         headers: [
           { key: 'Cache-Control', value: 'no-store, no-cache, must-revalidate, proxy-revalidate' },
           { key: 'Pragma', value: 'no-cache' },
           { key: 'Expires', value: '0' },
           { key: 'Surrogate-Control', value: 'no-store' },
         ],
-      },
+      })),
       // FASE FV: el helper de OAuth proxied (rewrites de abajo) corre DENTRO de
       // un iframe de nuestra propia página de login. El X-Frame-Options: DENY
       // global lo rompería; esta regla va ANTES del catch-all y Next aplica la
