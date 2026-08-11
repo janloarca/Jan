@@ -866,8 +866,20 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     // Y si NI ASÍ hay con qué completarlo (cero datos de la mitad manual),
     // el punto se descarta en vez de afirmar que el portafolio vale lo que
     // una sola cuenta: mismo criterio que el filtro de arriba.
+    //
+    // El NAV de HOY se descarta SIEMPRE (fuera de la vista DAY): el punto en
+    // vivo de más abajo usa `currentTotal`, que es el patrimonio completo de
+    // este instante, o sea la mejor medición que existe para hoy. Un NAV de
+    // broker de la misma fecha solo puede ser una fracción de eso, y compite
+    // con él dibujando una caída al valor de una sola cuenta (el "-57.9%"
+    // que quedaba). No es una carrera que valga la pena ganar por márgenes:
+    // para hoy, el valor en vivo manda.
     if (hasBrokerItems && hasManualItems) {
-      const filtered = snapSource.filter((p) => p.src !== 'ibkr' || overlayAddend(p.ts) > 0)
+      const todayStart = period !== 'DAY' && currentTotal > 0
+        ? Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate())
+        : Infinity
+      const filtered = snapSource.filter((p) => p.src !== 'ibkr'
+        || (overlayAddend(p.ts) > 0 && p.ts < todayStart))
       if (filtered.length >= 2) snapSource = filtered
     }
 
