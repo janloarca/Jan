@@ -1,5 +1,6 @@
 import './globals.css'
 import RootErrorBoundary from '@/components/RootErrorBoundary'
+import UpdateAvailablePill from '@/components/ui/UpdateAvailablePill'
 import { ADSENSE_CLIENT } from '@/lib/adsense'
 
 export const metadata = {
@@ -115,7 +116,12 @@ export default function RootLayout({ children }) {
           <script async src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`} crossOrigin="anonymous" />
         )}
       </head>
-      <body className="font-sans"><RootErrorBoundary>{children}</RootErrorBoundary></body>
+      <body className="font-sans">
+        <RootErrorBoundary>{children}</RootErrorBoundary>
+        {/* FASE HM: red de seguridad VISIBLE para cuando la recarga automática
+            de arriba no prospera (iOS Safari sirviendo el documento cacheado). */}
+        <UpdateAvailablePill buildId={buildId} />
+      </body>
     </html>
   )
 }
