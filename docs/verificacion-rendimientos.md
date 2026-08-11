@@ -80,19 +80,72 @@ Dos explicaciones posibles, y son distinguibles:
 Discriminador: abrir XOCHI y Credicorp en la app y ver si los pagos de feb/jun
 2025 aparecen en su lista de movimientos.
 
-### Preguntas abiertas (bloquean el cierre de esta tanda)
+### Respuestas del usuario (11 ago 2026)
 
-1. **IDC muestra "5 pos." pero el cálculo tiene 3 bonos.** ¿Cuáles son las
-   otras dos? (Sospecha: el Fondo Líquido que recibe los cupones de VITALI, y
-   quizá otro.) Si la cuenta que recibe los cupones vive DENTRO de IDC, el
-   dinero nunca sale del alcance medido, mientras que el cálculo del usuario
-   asume que sale: eso mueve el nivel, no la brecha.
-2. **FX.** El cálculo usa 7.63 constante; la app convierte con la tasa vigente
-   de cada momento. Con dos tercios del portafolio en GTQ, un movimiento del
-   1.5% del quetzal explica por sí solo un desvío de ~1 pp.
-3. **¿Los cupones de XOCHI y Credicorp están registrados en la app?** (ver
-   Hallazgo 2).
+1. El texto cubre **solo 3 de las 5 posiciones** de IDC. Las otras dos se
+   revisan después; primero se cierra esta lógica.
+2. Los cupones de XOCHI y Credicorp de 2025 **sí están registrados**.
+3. **FX: la app usa la tasa del día**; el 7.63 constante era solo ejemplo del
+   cálculo manual.
+
+La respuesta 1 cambia el estatus de todo el bloque de "nivel": el cálculo mide
+3 bonos y la app mide 5 posiciones, así que NO son el mismo conjunto y las
+diferencias de nivel no son comparables todavía. La respuesta 3 agrega un
+segundo término que el cálculo manual no tiene: en base USD, el movimiento del
+quetzal ES parte del retorno.
+
+### Lecturas capturadas de la app (IDC, 11 ago 2026 8:09)
+
+| Período | TWR app | MWR app | Usuario (acumulado) | ¿Coincide? |
+|---|---|---|---|---|
+| 1W | +0.00% | +0.00% | 0.0000% | **sí, exacto** |
+| MTD | +0.00% | +0.00% | 0.0000% | **sí, exacto** |
+| 3M | +3.61% | (falta) | +3.1669% | no: app +0.44 pp |
+| YTD | +5.28% | +4.31% | TWR +4.04% / MWR +3.10% | no: app +1.2 pp |
+| ALL | +11.53% | +12.47% | TWR +12.61% / MWR +12.12% | no |
+| DAY | (falta) | (falta) | 0.0000% | - |
+| 1M | (falta) | (falta) | 0.0000% | - |
+| 1Y | (falta) | (falta) | TWR +8.24% / MWR +6.24% | - |
+
+Valor (IDC): $9,408.18 el 26 feb 2026; hoy ~$9.8K; "+$502.17 (+5.32%) este año".
+
+### Hallazgo 3: los períodos SIN eventos coinciden exacto
+
+1W y MTD dan 0.00% en las dos metodologías y en las dos fuentes. Eso no es
+trivial: valida que la app no inventa retorno donde no pasó nada (ni por ruido
+de reconstrucción, ni por FX, ni por un flujo mal fechado). Toda la diferencia
+vive en los períodos CON eventos.
+
+### Hallazgo 4: el 3M descompuesto en sus dos escalones
+
+La ventana 10 may - 10 ago contiene exactamente dos cupones, y la curva de la
+app muestra exactamente dos escalones (fechas consistentes con 15 may y 15
+jun): la ESTRUCTURA es correcta. Lo que difiere es el tamaño del segundo.
+
+- Esperado por el usuario: 15 may = +2.5872%, 15 jun = +0.5651% -> +3.1669%
+- App: primer escalón ~+2.4/2.55%, segundo ~+1.0/1.18% -> +3.61%
+
+El primer escalón cuadra. El segundo es ~2x el esperado. Dos candidatos, y son
+distinguibles:
+
+- **(conjunto)** una de las 2 posiciones no cubiertas por el cálculo pagó algo
+  en junio. Sería un ingreso real que el cálculo manual no tiene.
+- **(FX)** el cálculo congela el quetzal en 7.63; la app mide en USD con la
+  tasa de cada día, así que un movimiento del ~0.4% del GTQ en la ventana
+  aparece como retorno real en la app y como cero en el cálculo. El factor
+  extra observado (1.0361 / 1.031669 = 1.0043) es exactamente de ese orden.
+
+Discriminador: mirar el Valor de IDC al 10 may y al 10 ago. Si la diferencia
+excede la suma de los dos cupones, sobra FX (o un ingreso no contemplado).
+
+### Falta capturar
+
+- DAY, 1M y 1Y (TWR y MWR), y el 3M en MWR.
+- Las 2 posiciones de IDC no cubiertas por el cálculo: nombre, monto y si
+  pagan cupón (y en qué fechas).
 
 ### Estado
 
-- [ ] Tanda 1 (IDC) — en verificación, esperando respuestas a las 3 preguntas.
+- [ ] Tanda 1 (IDC) — estructura validada (períodos sin eventos exactos, número
+      y fecha de escalones correctos). Pendiente cerrar el NIVEL, que necesita
+      el conjunto completo de 5 posiciones para ser comparable.
