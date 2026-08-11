@@ -115,3 +115,90 @@ describe('portfolio-history degradacion explicita (FASE HJ)', () => {
     expect(maxDuration).toBe(60)
   })
 })
+
+describe('fecha de adquisicion no confiable: la posicion de broker no se borra del pasado (FASE HL)', () => {
+  const { fetchWithRetry } = require('../../../../../lib/fetchWithRetry')
+  const YEAR = new Date().getUTCFullYear()
+  const day = (m, d) => Date.UTC(YEAR, m, d) / 1000
+  // Serie Yahoo sintetica: precio 100 constante desde enero.
+  const yahooOk = () => ({
+    ok: true,
+    json: async () => ({
+      chart: { result: [{
+        timestamp: [day(0, 5), day(2, 5), day(5, 5)],
+        indicators: { quote: [{ close: [100, 100, 100] }] },
+      }] },
+    }),
+  })
+
+  beforeEach(() => { fetchWithRetry.mockImplementation(async () => yahooOk()) })
+  afterEach(() => { fetchWithRetry.mockImplementation(async () => { throw new Error('network down') }) })
+
+  // El caso real: posicion de IBKR cuyo acquisitionDate es el SELLO DEL SYNC
+  // (hoy). Sin el flag, el gate `ts < acquiredTs` la pone en CERO todo el año
+  // y la reconstruccion entera omite la cuenta del broker.
+  const syncStamp = new Date().toISOString().split('T')[0]
+
+  test('sin el flag, el sello de sync borra la posicion del pasado (comportamiento viejo)', async () => {
+    const res = await POST(mockRequest({
+      items: [{ id: 'ib1', symbol: 'AAPL', type: 'Stock', quantity: 10, currentPrice: 100, purchasePrice: 90, acquisitionDate: syncStamp }],
+      period: 'YTD',
+    }))
+    const data = await res.json()
+    const early = data.dataPoints.filter((p) => p.ts < Date.UTC(YEAR, 5, 1))
+    expect(early.length).toBeGreaterThan(0)
+    for (const p of early) expect(p.total).toBe(0)
+  })
+
+  test('con _dateUnreliable, la posicion se mantiene plana hacia atras en vez de valer cero', async () => {
+    const res = await POST(mockRequest({
+      items: [{ id: 'ib1', symbol: 'AAPL', type: 'Stock', quantity: 10, currentPrice: 100, purchasePrice: 90, acquisitionDate: syncStamp, _dateUnreliable: true }],
+      period: 'YTD',
+    }))
+    const data = await res.json()
+    const early = data.dataPoints.filter((p) => p.ts < Date.UTC(YEAR, 5, 1))
+    expect(early.length).toBeGreaterThan(0)
+    for (const p of early) expect(p.total).toBeCloseTo(1000, 2) // 10 x 100
+  })
+
+  test('los lots del mismo import (sello de sync) tampoco pueden borrar el pasado', async () => {
+    const res = await POST(mockRequest({
+      items: [{ id: 'ib1', symbol: 'AAPL', type: 'Stock', quantity: 10, currentPrice: 100, purchasePrice: 90, acquisitionDate: syncStamp, _dateUnreliable: true }],
+      // Lots que RECONCILIAN con la cantidad de hoy pero llevan la misma fecha
+      // sellada: la rama de lots daria 0 en el pasado igual que el gate.
+      lots: [{ symbol: 'AAPL', quantity: 10, acquisitionDate: syncStamp, closedDate: null }],
+      period: 'YTD',
+    }))
+    const data = await res.json()
+    const early = data.dataPoints.filter((p) => p.ts < Date.UTC(YEAR, 5, 1))
+    for (const p of early) expect(p.total).toBeCloseTo(1000, 2)
+  })
+
+  test('un ledger de trades COMPLETO sigue mandando sobre el hold-flat', async () => {
+    // Compro 4 en marzo: antes de esa fecha la posicion real era 6, no 10.
+    const res = await POST(mockRequest({
+      items: [{
+        id: 'ib1', symbol: 'AAPL', type: 'Stock', quantity: 10, currentPrice: 100, purchasePrice: 90,
+        acquisitionDate: syncStamp, _dateUnreliable: true,
+        txEvents: [{ ts: Date.UTC(YEAR, 3, 1), qtyDelta: 4 }],
+      }],
+      period: 'YTD',
+    }))
+    const data = await res.json()
+    const early = data.dataPoints.filter((p) => p.ts < Date.UTC(YEAR, 3, 1))
+    expect(early.length).toBeGreaterThan(0)
+    for (const p of early) expect(p.total).toBeCloseTo(600, 2) // 6 x 100, no 1000
+    expect(data.transactional).toBe(true)
+  })
+
+  test('un item MANUAL con fecha real conserva el gate: nada existe antes de comprarlo', async () => {
+    const res = await POST(mockRequest({
+      items: [{ id: 'm1', symbol: 'AAPL', type: 'Stock', quantity: 10, currentPrice: 100, purchasePrice: 90, acquisitionDate: `${YEAR}-05-01` }],
+      period: 'YTD',
+    }))
+    const data = await res.json()
+    const early = data.dataPoints.filter((p) => p.ts < Date.UTC(YEAR, 3, 1))
+    expect(early.length).toBeGreaterThan(0)
+    for (const p of early) expect(p.total).toBe(0)
+  })
+})

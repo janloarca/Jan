@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from 'react'
-import { formatCurrency, formatCompact, formatAxisTick, formatDate, getItemValue, buildIncomeEvents, isExcludedFromNetWorth, findYearStartAnchor, shouldHoldFlat, SNAPSHOT_SRC_PRIORITY, BROKER_NAV_SOURCES, computeWindowGrowth, isMarketPriced, effectiveAcqTs } from './utils'
+import { formatCurrency, formatCompact, formatAxisTick, formatDate, getItemValue, buildIncomeEvents, isExcludedFromNetWorth, findYearStartAnchor, shouldHoldFlat, hasUnreliableAcqDate, SNAPSHOT_SRC_PRIORITY, BROKER_NAV_SOURCES, computeWindowGrowth, isMarketPriced, effectiveAcqTs } from './utils'
 import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { indexBalanceEvents } from '@/lib/historicalValues'
 import { isBankLikeItem } from '@/lib/contributions'
@@ -431,6 +431,9 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                 currency: 'USD',
                 acquisitionDate: it.acquisitionDate,
                 _holdFlat: shouldHoldFlat(it, scopedTransactions, lots),
+                // FASE HL: ver hasUnreliableAcqDate (utils.js). Sin esto, una
+                // posición de broker desaparecía del pasado reconstruido.
+                _dateUnreliable: hasUnreliableAcqDate(it),
                 txEvents: txEventsBySym[(it.symbol || '').toUpperCase()] || undefined,
                 // _flowIsAccountLevel: only the broker's real reconciled cash line
                 // promotes the response to "transactional" server-side — see the

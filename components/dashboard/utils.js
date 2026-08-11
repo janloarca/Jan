@@ -855,6 +855,19 @@ export function computeDayChange({ items, transactions, netWorth, convert, baseC
 
 // history). Mirrors the `dateUnreliable` logic in lib/historicalValues.js so the chart
 // API and the spreadsheet agree on which positions are date-unreliable.
+// FASE HL. ¿La fecha de adquisición de este ítem es un SELLO DE SYNC en vez de
+// una compra real? Para una posición importada de un broker siempre lo es (lo
+// que este archivo ya documenta como dateUnreliable), y por lo tanto NUNCA
+// puede usarse como puerta de existencia: gatear por ella borra la posición de
+// todo el pasado anterior al sync. shouldHoldFlat (abajo) resolvía esto solo
+// para el caso SIN historial de trades; esta pregunta es la más básica y vale
+// aunque haya trades, porque el ledger del Flex llega ~365 días y los lots que
+// crea heredan el mismo sello. Un solo lugar para los dos consumidores del API
+// de historial (useDashboardData y PortfolioGrowthChart), para que no deriven.
+export function hasUnreliableAcqDate(item) {
+  return !!item && item._source === 'ibkr'
+}
+
 export function shouldHoldFlat(item, transactions, lots) {
   if (!item || item._source !== 'ibkr') return false
   const sym = (item.symbol || '').toUpperCase()
