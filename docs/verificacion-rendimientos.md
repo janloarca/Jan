@@ -233,6 +233,33 @@ perfecto. Queda descartado "faltan datos": es divergencia entre motores.
 Los tres se ven correctos, así que el siguiente paso es medir, no seguir
 deduciendo: hay que ver la SERIE DE VALOR que produce el API para IDC.
 
+### Hallazgo 6, RESUELTO (FASE HU): el cupón se reversaba DOS veces
+
+Reproducido sin pedirle nada más al usuario: se armó el escenario exacto del
+Spreadsheet (5 posiciones, cupones con sus fechas) y se llamó a la ruta real.
+La serie que devolvía el API para IDC era **plana en el principal de los
+bonos** durante todo 2024-2025 (3,276.54 en feb, jun y dic de 2025), o sea el
+Fondo Líquido valía CERO: por eso el TWR salía 0% y 1Y == ALL.
+
+Causa: un cupón pagado EN EFECTIVO a otra cuenta llega al rebobinado por DOS
+vías. `indexBalanceEvents` lo registra como movimiento de saldo del destino
+(correcto), y `buildIncomeEvents` lo atribuye TAMBIÉN al destino, marcado como
+step-up para que el API lo conserve (`utils.js`, rama `dest`). El API reversaba
+las dos, restando el mismo cupón dos veces; con `clampZero` (el default de una
+cuenta manual) el saldo se iba a negativo y se cortaba en cero.
+
+El Spreadsheet no falla porque usa SOLO los movimientos de saldo.
+
+No se podía arreglar ignorando el stream de ingresos cuando hay flujos: el
+ingreso REINVERTIDO en el mismo ítem nunca entra a `balanceEventsById` (va a
+`reinvestBySym`), así que ese sí debe reversarse por esa vía, y suprimirlo
+rompería ClubCashIn (FASE FD). La regla correcta es más fina y es la que
+implementa `dedupeIncomeAgainstFlows`: se descarta el ingreso que YA está
+representado como movimiento de saldo del MISMO ítem, y solo ese.
+
+Tras el fix, la serie escalona en cada cupón (3,276.54 → 3,298.66 → 3,377.30 →
+3,429.72 en 2025) en vez de quedarse plana.
+
 ### Discriminador pendiente
 
 Pestaña **Valor**, IDC, período **ALL**, con el valor de un par de puntos de
