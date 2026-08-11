@@ -38,6 +38,8 @@ reescribe.
 
 - [ ] (usuario) Google sign-in: DESCARTADO todo lo de código. Probado el 10 ago en iPad Safari, iPhone Safari y **Mac con Chrome**: los tres fallan idéntico (`auth/internal-error`) en el mismo punto, el tramo de VUELTA (canje de la credencial), con el diagnóstico del login TODO en verde. Además FASE HD probó el modo CLÁSICO (authDomain de Firebase, sin nuestro proxy) y también falla, así que la arquitectura same-origin de FASE FV queda descartada como causa. Lo único común a los tres dispositivos, los dos navegadores y las dos arquitecturas es el proyecto de Google, y el punto exacto del fallo es donde entra el **client secret** que Firebase guarda. Acción pendiente, solo de consola: Firebase Console > Authentication > Sign-in method > Google > Web SDK configuration; comparar el Client ID con el del cliente OAuth vigente (`1034891402785-vl3d287d3n1j5ead8vpa8jb17ir18ge8`, que SÍ es el correcto: agregarle la redirect URI resolvió el `redirect_uri_mismatch`), y si coincide, el sospechoso es el secret: crear uno nuevo en Google Cloud Console > el cliente > "Add secret" y pegarlo en Firebase. Si eso no basta, desactivar y reactivar Google como proveedor para que Firebase re-provisione el vínculo. Google avisa aparte que ese cliente **se borrará por falta de uso** ("Last used: 3 nov 2025"), lo que refuerza que el problema está de ese lado.
 - [ ] (usuario) Sincronizar IBKR ENTRE SEMANA (el Flex no responde bien en fin de semana) para que entren los 7 depósitos/retiros + 65 dividendos + 102 impuestos que FASE GH destrabó; después verificar que YTD/TWR/MWR caen a lo real y que el panel del sync muestra "7 dep/ret".
+- [ ] (usuario) Configurar Upstash/Redis en Vercel (Storage > Redis, free tier alcanza): activa el respaldo last-good de `lib/priceCache.js`, que hoy es no-op sin `@vercel/kv` configurado. Con él, un rate limit o un hipo de Yahoo/CoinGecko deja de degradar la reconstrucción del historial (ver invariante 5 de "Serie histórica del patrimonio"). Sin esto el sistema es correcto igual (declara `degraded` y NO persiste), solo que esa sesión no puede reparar nada.
+- [ ] (usuario) "IBKR sync failed" visto el 10 ago de noche: el Flex responde mal fuera de horario de mercado (ya documentado arriba). Si vuelve a fallar ENTRE SEMANA y en horario, avisar: ahí sí sería un problema real de credenciales o de query, no de horario.
 - [ ] Plan IBKR interconectado, lo que queda: (usuario) probar si los Activity Statements ANUALES de IBKR (Statements > Annual) alcanzan 2023/2024, lo que daría datos EXACTOS pre-365d y encogería la inferencia. Fase 1 y 2a hechas en FASE GI; Fase 2b y 3 en FASE GJ; Fase 4 (tablero de conciliación) en FASE GK. Para activar inferencia + tablero el usuario debe completar los 3 pasos del checklist y RE-SUBIR la captura de PA (el resumen y los montos de barras se persisten con la lógica nueva al guardar la transcripción).
 - [ ] Plan dividendos/ganancias con doble fuente (pedido del usuario: "verificar en dos sitios para seguridad total"): cada dato que entra al archivo (monto/fecha de dividendo futuro, precio) se pide a DOS proveedores independientes; coinciden → se usa marcado verificado; difieren → hallazgo en Enrich Data para que el usuario decida; solo una fuente → se usa marcado sin verificar. Requiere elegir el segundo proveedor (el primario hoy es Yahoo; candidatos sin API key vs con key gratuita) y definir el calendario futuro de dividendos por posición (ex-date, pay date, monto declarado vs estimado). Sin implementar aún: plan aprobado en concepto, detalles por concretar con el usuario.
 - [ ] (usuario) Verificar en el dashboard de Vercel que los deploys corren bien — el límite de 100/día del free tier bloqueó PR #62 en junio 2026; si vuelve a pasar, considerar Pro o menos deploys.
@@ -149,7 +151,7 @@ reescribe.
 
 - [x] El overlay de activos manuales se aplicaba también a los docs 'backfill', que ya los contienen: la serie entera dibujada ~$12K arriba (FASE HQ). Con el botón de FASE HP el usuario por fin mandó el dato que faltaba: el reporte decía "NAV real del broker: 259 días · reconstrucción manual: 225 puntos · huecos: 360 · escrituras corruptas: 0 · Listo: 219 días reescritos", el diente de sierra DESAPARECIÓ (la línea quedó continua por primera vez) y el nivel quedó en ~$30-35K sobre un patrimonio real de ~$23,156. La diferencia (~$12,155) es exactamente el valor de las cuentas manuales, o sea se estaban contando dos veces, y el escalón de bajada caía justo en `manualAddedDay`. Causa: `needsOverlay` en `PortfolioGrowthChart.jsx` tenía dos cláusulas, y la segunda (`manualAddedDay`) NO llevaba condición de fuente. Esa regla existe para un doc `'daily'` escrito EN VIVO antes de que los activos manuales existieran en la app (ese total no los contiene y hay que sumárselos), pero aplicada a un `'backfill'` hace lo contrario: una reconstrucción YA los incluye, gateada por `acquisitionDate` igual que `staticAt`. El comentario inmediatamente anterior en el mismo archivo dice literalmente que un 'backfill' no debe llevar overlay; la condición no lo cumplía. Bug preexistente que los docs compuestos de FASE HN volvieron dominante: al pasar de "algunos días con doc reconstruido" a "todos los días", el doble conteo dejó de ser un pico ocasional y se volvió el nivel de la serie entera, con un "Max drawdown: -72.3%" que es solo el escalón al llegar a `manualAddedDay`. **Los 219 docs escritos por la reparación estaban BIEN**: el defecto era exclusivamente de dibujo. `npx jest` (1274/1274) y `npm run build`.
 
-- [x] El último punto de la serie: un NAV de broker dibujado pelado producía un "drawdown" de -57.9% (FASE HR). Tras HQ la gráfica quedó en su nivel real (~$11.5K en enero a ~$23.5K hoy, curva continua) y sobrevivía UN artefacto: el punto final caía a ~$9.4K, el valor de IBKR solo. Causa: `staticAt(ts)` resuelve la mitad manual POR FECHA y devuelve 0 cuando el ts cae fuera del rango que la reconstrucción alcanzó. El caso real es el punto de HOY en UTC: el sync de IBKR ya escribió el NAV de la fecha UTC en curso y todavía no existe ninguna observación de portafolio completo para ella, así que el overlay sumaba 0 y el NAV se dibujaba solo, leyéndose como una caída del portafolio entero. `overlayAddend` cae a `staticTotal` (el valor de HOY de esos mismos activos, que el componente ya recibe del API) cuando `staticAt` no alcanza, que es exactamente el addend correcto para un punto de hoy; y si NI ASÍ hay con qué completarlo, el punto se descarta en vez de afirmar que el portafolio vale lo que una sola cuenta (mismo criterio que el filtro de FASE HJ, ahora también por punto y no solo por ausencia global de overlay). Y el NAV de HOY se descarta SIEMPRE fuera de la vista DAY: el punto en vivo usa `currentTotal`, el patrimonio completo de este instante, o sea la mejor medición que existe para hoy; un NAV de broker de la misma fecha solo puede ser una fracción de eso y compite con él dibujando la caída al valor de una sola cuenta. `npx jest` (1274/1274) y `npm run build`.
+- [x] El último punto de la serie: un NAV de broker dibujado pelado producía un "drawdown" de -57.9% (FASE HR). Tras HQ la gráfica quedó en su nivel real (~$11.5K en enero a ~$23.5K hoy, curva continua) y sobrevivía UN artefacto: el punto final caía a ~$9.4K, el valor de IBKR solo. Causa: `staticAt(ts)` resuelve la mitad manual POR FECHA y devuelve 0 cuando el ts cae fuera del rango que la reconstrucción alcanzó. El caso real es el punto de HOY en UTC: el sync de IBKR ya escribió el NAV de la fecha UTC en curso y todavía no existe ninguna observación de portafolio completo para ella, así que el overlay sumaba 0 y el NAV se dibujaba solo, leyéndose como una caída del portafolio entero. `overlayAddend` cae a `staticTotal` (el valor de HOY de esos mismos activos, que el componente ya recibe del API) cuando `staticAt` no alcanza, que es exactamente el addend correcto para un punto de hoy; y si NI ASÍ hay con qué completarlo, el punto se descarta en vez de afirmar que el portafolio vale lo que una sola cuenta (mismo criterio que el filtro de FASE HJ, ahora también por punto y no solo por ausencia global de overlay). Y el NAV de HOY se descarta SIEMPRE fuera de la vista DAY: el punto en vivo usa `currentTotal`, el patrimonio completo de este instante, o sea la mejor medición que existe para hoy; un NAV de broker de la misma fecha solo puede ser una fracción de eso y compite con él dibujando la caída al valor de una sola cuenta. Y el NAV de HOY se descarta SIEMPRE fuera de la vista DAY: el punto en vivo usa `currentTotal`, el patrimonio completo de este instante, o sea la mejor medición que existe para hoy; un NAV de broker de la misma fecha solo puede ser una fracción de eso y compite con él dibujando la caída al valor de una sola cuenta. `npx jest` (1274/1274) y `npm run build`.
 
 ## Lecciones — Módulo Amigos / social (FASE X)
 
@@ -374,6 +376,109 @@ lo que sobre se agrupa en un "Otros" neutro.
 - **Un componente compartido (`components/ui/*`) no sirve si un archivo trae su propia copia.** `EditAccountModal.jsx` tenía su PROPIO `InfoTip` local con clases Tailwind fijas (`text-slate-300` sobre `bg-theme-base`) mientras `AddAccountModal.jsx` ya importaba el `InfoTip` correcto de `components/ui/Tooltip.jsx` (temas vía `var(--text-muted)` etc.). Resultado invisible hasta que alguien mira en modo claro: texto gris claro sobre fondo casi blanco, ilegible. Antes de escribir un componente "auxiliar" al final de un archivo, buscar si ya existe en `components/ui/` (FASE EQ2).
 - **Un color de acento tiene que venir de la variable, no de su hex de HOY.** `rgba(37,99,235,0.2)` es idéntico a `color-mix(in srgb, var(--accent-blue) 20%, transparent)` mientras `--accent-blue` siga siendo `#2563EB` — pero dos formas de escribir "lo mismo" en el mismo archivo (una fija, otra viva) es exactamente cómo un rediseño de paleta futuro deja la mitad de los botones con el color viejo. Mismo bug con `rgba(168,85,247,0.1)` junto a `color: var(--accent-purple)`: ni siquiera coincidía con NINGUNO de los dos temas (claro/oscuro) de esa variable — nunca fue el color correcto, en ningún tema.
 - **Dos estilos de `<label>` en el mismo formulario se notan aunque nadie pueda decir por qué.** La mitad de `EditAccountModal` usaba la constante `labelCls` (`var(--text-secondary)`) y la otra mitad un string literal con `var(--text-muted)` — dos grises distintos para el mismo rol (etiqueta de campo), sin ninguna razón funcional. "Se ve poco pulido" casi siempre es esto: no un solo error grande, sino la misma cosa hecha de dos formas a la vez.
+
+## ⛔ Serie histórica del patrimonio: invariantes (leer ANTES de tocar snapshots o la gráfica)
+
+Nueve defectos encadenados (FASES HG a HR2) produjeron un diente de sierra que
+sobrevivió a CUATRO limpiezas previas y a un día entero de deploys. Cada uno
+tapaba al siguiente, así que arreglar uno solo no cambiaba nada visible. Lo que
+sigue NO es la crónica (esa está en Pendientes): son las reglas que hacen que
+esa familia de bugs no pueda volver.
+
+### 1. Nunca estimar lo que ya está medido
+
+    total(día) = NAV REAL del broker + reconstrucción de lo manual
+
+El Equity Summary del Flex deja el NAV DIARIO real de IBKR en Firestore (~365
+días). Pedirle al API de historial que "reconstruya" esa cuenta como una
+posición más es adivinar un dato que ya se tiene, y es de donde salían los
+niveles distintos día a día. `composeDailyTotals` (`lib/snapshotBackfill.js`)
+arma cada día con la mejor fuente para cada mitad. Si aparece otro broker con
+NAV propio, va por el mismo camino.
+
+### 2. Jamás archivar un total que omite una cuenta conectada
+
+Con broker conectado, un día SIN NAV disponible (ni arrastrable dentro del
+tope) **no se escribe**. Archivarlo significa guardar un patrimonio al que le
+falta una cuenta entera, y mezclado con días completos ESO es el diente de
+sierra. Un hueco honesto siempre es preferible a un dato incompleto que parece
+real. Misma regla al dibujar: un NAV de broker mide UNA cuenta y no es
+dibujable en la vista "Todas" sin su otra mitad; si no se puede completar, el
+punto se descarta.
+
+### 3. Una fecha no confiable NUNCA es puerta de existencia
+
+`acquisitionDate` de una posición importada es el SELLO DEL SYNC, no la compra.
+Gatear con ella (`if (ts < acquiredTs) return`) borra la cuenta de todo el
+pasado anterior al último sync. Y los lots creados por ese import heredan el
+sello, así que la rama de lots tiene la misma falla. `hasUnreliableAcqDate`
+(`utils.js`) es la pregunta básica y vale AUNQUE haya trades: `shouldHoldFlat`
+no alcanza porque se apaga con un solo BUY/SELL, que es justo lo que el Flex
+importa. Prioridad correcta: ledger de trades COMPLETO > hold-flat > (solo con
+fecha REAL) gate por fecha.
+
+### 4. El overlay solo va donde falta la mitad manual
+
+`needsOverlay` debe exigir FUENTE, no solo fecha. Un `'backfill'` ya contiene
+los activos manuales (gateado por `acquisitionDate`), así que sumárselos otra
+vez cuenta doble: fue una serie entera dibujada ~$12K arriba con un "drawdown"
+de -72% que era solo el escalón donde la regla dejaba de aplicar. Regla: el
+overlay es para un doc que NO los contiene (NAV de broker, o un `'daily'`
+escrito antes de que existieran en la app). Nunca para una reconstrucción.
+
+### 5. Degradar en silencio es peor que fallar
+
+Un símbolo cuyo fetch falla caía al camino estático (plano al valor de HOY) sin
+marca alguna: cada sesión fallaba un subconjunto DISTINTO y el backfill
+persistía totales a un nivel distinto por pasada. Reglas: la respuesta declara
+`degraded`/`failedSymbols`; **un consumidor que PERSISTE nunca escribe desde
+una respuesta degradada**; y `!res.ok` se reporta, jamás se traga (`if (res.ok)`
+sin `else` fue el silencio que ocultó los 504). Toda ruta pesada exporta
+`maxDuration` Y respeta un deadline menor al timeout del cliente (`authFetch`
+aborta a los 30s): una respuesta parcial que LLEGA vale más que una completa
+que nadie recibe.
+
+### 6. Un doc 'daily' puede estar mal, pero solo la evidencia lo destrona
+
+`'daily'` se protege de reescritura por ser observación real, y eso es
+correcto: por eso los picos de fin de semana (escritos mientras el Flex
+respondía mal) sobrevivieron a FR, FW, FY y GA. Se destrona SOLO contra la
+composición autoritativa del punto 1 (`divergentDailyDates`), nunca con una
+banda estadística, y nunca contra otra estimación. `'manual'` no se toca jamás:
+es transcripción del usuario.
+
+### 7. El caché de páginas cubre TODAS las rutas, no solo /dashboard
+
+La app se abre por la RAÍZ y el ruteo es del lado del cliente, así que el único
+documento que el navegador pide y cachea es el de `/`. Un `no-store` puesto
+solo en `/dashboard` no aplica nunca: un iPhone y un iPad quedaron un día
+entero en el build viejo, a través de cuatro deploys, haciendo parecer que
+ningún arreglo funcionaba. Los assets con hash (`/_next/static/*`) quedan fuera
+a propósito.
+
+### 8. Método: instrumentar antes que deducir
+
+Las dos pistas que desbloquearon el caso fueron OBSERVACIONES del usuario, no
+hipótesis mías: "tenemos el dato diario, no hay que estimarlo" y "los picos son
+únicamente los fines de semana" (esta última descarta de un golpe todo lo que
+no sea un dato escrito en vivo, porque el backfill no puede escribir días sin
+mercado). De ahí:
+
+- **Si el arreglo corre en un efecto de fondo detrás de N gates, hacelo
+  disparable y visible ANTES de la tercera ronda.** El botón "Reparar ahora"
+  (con su reporte: días de NAV, puntos reconstruidos, huecos, corruptos,
+  escritos) debió existir seis rondas antes; un "Nada que corregir" cierra la
+  pregunta igual que un "219 días reescritos".
+- **Verificar la superficie REAL, no una versión hecha a mano.** El crash de
+  FASE GQ3 pasó por probar el componente con props construidos a mano,
+  salteando el hook donde vivía el bug.
+- **Si el usuario ve lo mismo tras un deploy, sospechar del build antes que de
+  la lógica.** Una captura sin el banner nuevo Y con el síntoma viejo es
+  imposible con el código nuevo: eso ES la prueba de que corre el bundle viejo.
+  El `UpdateAvailablePill` muestra los dos ids (`corriendo→servido`) justo para
+  no volver a deducir eso de los síntomas.
+- **Nunca mergear sin `npx jest` y `npm run build`.** FASE HR2 se mergeó sin
+  correrlos (se verificaron después, en verde, pero el orden estuvo mal).
 
 ## Lecciones Aprendidas — Integración IBKR (para futuras integraciones)
 
