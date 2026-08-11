@@ -845,9 +845,31 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     // solo de dibujo.
     const needsOverlay = (p) => p.src === 'ibkr'
       || (p.src !== 'backfill' && manualAddedDay > 0 && Math.floor(p.ts / 86400000) < manualAddedDay)
+    // FASE HR. Un NAV de broker mide UNA cuenta, así que en la vista "Todas"
+    // solo es dibujable con su otra mitad sumada. staticAt() la resuelve por
+    // fecha, pero devuelve 0 cuando el ts cae fuera del rango que la
+    // reconstrucción alcanzó: el caso real es el punto de HOY en UTC (el sync
+    // de IBKR ya escribió el NAV de mañana-en-UTC y todavía no existe ninguna
+    // observación de portafolio completo para esa fecha). Dibujado pelado,
+    // ese único punto se lee como una caída del portafolio entero a ~$9.4K y
+    // produce un "Max drawdown: -57.9%" que nunca pasó. `staticTotal` es el
+    // valor de HOY de esos mismos activos, que es exactamente el addend
+    // correcto para un punto de hoy.
+    const overlayAddend = (ts) => {
+      const v = staticAt(ts)
+      if (v > 0) return v
+      return staticTotal > 0 ? staticTotal : 0
+    }
     let snapSource = overlay
-      ? drawableSnaps.map((p) => needsOverlay(p) ? { ...p, value: p.value + staticAt(p.ts) } : p)
+      ? drawableSnaps.map((p) => needsOverlay(p) ? { ...p, value: p.value + overlayAddend(p.ts) } : p)
       : drawableSnaps
+    // Y si NI ASÍ hay con qué completarlo (cero datos de la mitad manual),
+    // el punto se descarta en vez de afirmar que el portafolio vale lo que
+    // una sola cuenta: mismo criterio que el filtro de arriba.
+    if (hasBrokerItems && hasManualItems) {
+      const filtered = snapSource.filter((p) => p.src !== 'ibkr' || overlayAddend(p.ts) > 0)
+      if (filtered.length >= 2) snapSource = filtered
+    }
 
     // Short-run outlier guard, applied AFTER the overlay (mixed-source snapshot
     // docs + per-point overlay can alternate levels). Drops runs of 1-3
