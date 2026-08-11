@@ -105,7 +105,7 @@ quetzal ES parte del retorno.
 | YTD | +5.28% | +4.31% | TWR +4.04% / MWR +3.10% | no: app +1.2 pp |
 | ALL | +11.53% | +12.47% | TWR +12.61% / MWR +12.12% | no |
 | DAY | (vacío) | (vacío) | 0.0000% | **no: bug, ver H5** |
-| 1M | (falta) | (falta) | 0.0000% | - |
+| 1M | +0.00% | +0.00% | 0.0000% | **sí, exacto** |
 | 1Y | +11.53% | +8.74% | TWR +8.24% / MWR +6.24% | no: app +3.3 / +2.5 pp |
 | 3M (MWR) | - | +3.61% | +3.1669% | no: app +0.44 pp |
 
@@ -167,9 +167,29 @@ de XOCHI y Credicorp, que sí están en el cálculo).
 Nota: MWR sí distingue (ALL +12.47% vs 1Y +8.74%), así que el corte afecta a la
 serie encadenada del TWR, no al motor de flujos.
 
+### Hipótesis principal para el Hallazgo 6
+
+La serie de VALOR de IDC vale 0 hasta ~jul 2025, y por eso el TWR arranca ahí
+(`computeAnchoredReturnSeries` empieza a medir en el primer punto con valor > 0
+y rellena el prefijo con 0%, FASE ED). El eje de ALL sí abarca desde jul 2024,
+o sea la VENTANA es correcta; lo que está en cero es el valor reconstruido.
+
+Por qué el valor daría 0: la reconstrucción de un activo estático rebobina por
+sus propios DEPOSIT/WITHDRAWAL con `_flowClampZero`, y ese camino tiene
+prioridad sobre `acquisitionDate`. Si el depósito de apertura de XOCHI y
+Credicorp está FECHADO más tarde que la compra real (típico cuando la historia
+se captura después), el rebobinado deja el activo en 0 antes de esa fecha,
+aunque su `acquisitionDate` diga 2024.
+
+Predicción concreta y verificable: en los movimientos de XOCHI y Credicorp, el
+depósito de apertura está fechado ~jul 2025, no jul 2024 / dic 2024.
+
+Si se confirma, es un problema de DATOS (la fecha del depósito), no un bug de
+fórmula: cambiando esa fecha, ALL debería separarse de 1Y y aparecer los
+escalones de feb y jun 2025.
+
 ### Falta capturar
 
-- 1M (TWR y MWR).
 - Las 2 posiciones de IDC no cubiertas por el cálculo: nombre, monto y si
   pagan cupón (y en qué fechas).
 
