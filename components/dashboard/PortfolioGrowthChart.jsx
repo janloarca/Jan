@@ -828,8 +828,23 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     // snapshot (written minutes AFTER the asset was added, and therefore already
     // holding it) still compared as "before" and got overlaid on top of itself.
     const manualAddedDay = manualAddedTs > 0 ? Math.floor(manualAddedTs / 86400000) : 0
+    // FASE HQ. La regla de manualAddedDay existe para un doc 'daily' escrito
+    // EN VIVO antes de que los activos manuales existieran en la app: ese
+    // total no los contiene y hay que sumárselos. Pero no llevaba ninguna
+    // condición de FUENTE, así que también se le aplicaba a un 'backfill', que
+    // es exactamente lo contrario: una reconstrucción que YA los incluye
+    // (gateada por acquisitionDate, igual que staticAt). El comentario de
+    // arriba dice literalmente que un 'backfill' no debe llevar overlay; la
+    // condición no lo cumplía.
+    //
+    // Con los docs compuestos de FASE HN (NAV real + manual, TODOS los días)
+    // el error pasó de invisible a dominante: la serie entera se dibujaba
+    // ~$12K arriba (el valor de las cuentas manuales, contado dos veces) y
+    // caía de golpe al llegar a manualAddedDay, con un "drawdown" de -72%
+    // que nunca ocurrió. Los datos guardados estaban BIEN: el defecto era
+    // solo de dibujo.
     const needsOverlay = (p) => p.src === 'ibkr'
-      || (manualAddedDay > 0 && Math.floor(p.ts / 86400000) < manualAddedDay)
+      || (p.src !== 'backfill' && manualAddedDay > 0 && Math.floor(p.ts / 86400000) < manualAddedDay)
     let snapSource = overlay
       ? drawableSnaps.map((p) => needsOverlay(p) ? { ...p, value: p.value + staticAt(p.ts) } : p)
       : drawableSnaps
