@@ -6,6 +6,7 @@ import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { indexBalanceEvents } from '@/lib/historicalValues'
 import { isBankLikeItem } from '@/lib/contributions'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
+import { buildNavByDate, composeDailyTotals, divergentDailyDates, staleBackfillDates, windowDates } from '@/lib/snapshotBackfill'
 import { staticValueAt } from '@/lib/staticOverlay'
 import { computeTWRSeries, computeAnchoredReturnSeries, computeAnchoredMWRSeries, filterValueSpikes } from './analytics'
 import { authFetch, safeJson } from '@/lib/authFetch'
@@ -1134,6 +1135,98 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     })
   }, [chartData, scopedTransactions, scopedItems, shownMode, convert, baseCurrency, lots])
 
+  // FASE HP. La MISMA reparación que corre sola en useDashboardData, pero
+  // disparada por el usuario y con reporte a la vista. Reusa los helpers puros
+  // (nada de una segunda implementación que pueda derivar) y escribe con el
+  // onSaveSnapshot que este componente ya recibe.
+  const [repairState, setRepairState] = useState(null)
+  const runHistoryRepair = useCallback(async () => {
+    const lines = []
+    const push = (s) => { lines.push(s); setRepairState({ running: true, lines: [...lines] }) }
+    setRepairState({ running: true, lines: [] })
+    try {
+      const all = (items || []).filter((it) => !isExcludedFromNetWorth(it))
+      const hasBroker = all.some((it) => it && it._source === 'ibkr')
+      const navByDate = buildNavByDate(snapshots)
+      const composing = hasBroker && navByDate.size > 0
+      push(`${t('NAV real del broker', 'Real broker NAV')}: ${navByDate.size} ${t('días', 'days')}`)
+      if (hasBroker && navByDate.size === 0) {
+        push(t('Sin NAV del broker: sincronizá IBKR primero.', 'No broker NAV: sync IBKR first.'))
+      }
+
+      const assets = all.filter((it) => !it.isDebt && (!composing || it._source !== 'ibkr'))
+      const debtUSD = all.reduce((s, it) => {
+        if (!it.isDebt) return s
+        const cur = it._originalCurrency || it.currency || 'USD'
+        const v = (it.quantity || 0) * (it._originalPrice ?? it.currentPrice ?? it.purchasePrice ?? 0)
+        return s + Math.abs(convert ? convert(v, cur, 'USD') : v)
+      }, 0)
+
+      const { balanceEventsById } = indexBalanceEvents(transactions, all, convert, 'USD')
+      const txBySym = buildTxEvents(transactions)
+      const res = await authFetch('/api/prices/portfolio-history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: assets.map((it) => {
+            const cur = it._originalCurrency || it.currency || 'USD'
+            const toUSD = (p) => convert ? convert(p || 0, cur, 'USD') : (p || 0)
+            return {
+              id: it.id, symbol: it.symbol, type: it.type, quantity: it.quantity,
+              currentPrice: toUSD(it._originalPrice ?? it.currentPrice),
+              purchasePrice: toUSD(it._originalPurchasePrice ?? it.purchasePrice),
+              currency: 'USD',
+              acquisitionDate: it.acquisitionDate,
+              _holdFlat: shouldHoldFlat(it, transactions, lots),
+              _dateUnreliable: hasUnreliableAcqDate(it),
+              txEvents: txBySym[(it.symbol || '').toUpperCase()] || undefined,
+              ...(balanceEventsById[it.id]?.length ? { cashFlows: balanceEventsById[it.id], _flowClampZero: true } : {}),
+            }
+          }),
+          period: 'YTD',
+        }),
+      })
+      if (!res.ok) { push(`${t('El servidor de historial falló', 'History server failed')} (${res.status}).`); setRepairState({ running: false, lines }); return }
+      const data = await safeJson(res)
+      if (data.degraded) push(`${t('Aviso: faltaron precios de', 'Note: missing prices for')} ${(data.failedSymbols || []).join(', ')}`)
+      const pts = data.dataPoints || []
+      push(`${t('Reconstrucción de cuentas manuales', 'Manual accounts rebuilt')}: ${pts.length} ${t('puntos', 'points')}`)
+
+      const composed = composeDailyTotals({
+        gaps: windowDates(366), manualPoints: pts, navByDate, hasBrokerItems: composing,
+      })
+      const gaps = staleBackfillDates(snapshots, { windowDays: 366, treatDailyAsStale: !hasBroker })
+      const divergent = divergentDailyDates(snapshots, composed)
+      const targets = new Set([...gaps, ...divergent])
+      const fills = composed.filter((f) => targets.has(f.date))
+      push(`${t('Huecos', 'Gaps')}: ${gaps.length} · ${t('escrituras corruptas', 'corrupt writes')}: ${divergent.length}`)
+
+      if (fills.length === 0) {
+        push(t('Nada que corregir: el historial ya está bien.', 'Nothing to fix: history is already correct.'))
+        setRepairState({ running: false, lines })
+        return
+      }
+      let written = 0
+      for (const f of fills) {
+        await onSaveSnapshot({
+          date: f.date,
+          netWorthUSD: f.total - debtUSD,
+          totalActivosUSD: f.total,
+          totalDebtUSD: debtUSD,
+          _source: 'backfill',
+          _transactional: !!f.composed,
+        })
+        written++
+        if (written % 25 === 0) push(`${t('Escribiendo', 'Writing')}... ${written}/${fills.length}`)
+      }
+      push(`${t('Listo', 'Done')}: ${written} ${t('días reescritos con datos reales', 'days rewritten from real data')}.`)
+      setRepairState({ running: false, lines })
+    } catch (err) {
+      lines.push(`Error: ${err?.message || err}`)
+      setRepairState({ running: false, lines })
+    }
+  }, [items, snapshots, transactions, lots, convert, onSaveSnapshot, t])
+
   const drawdown = useMemo(() => {
     if (chartData.length < 3) return null
     // A drawdown measured across the RECONSTRUCTED prefix is fiction: holding today's
@@ -2013,6 +2106,32 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
       {showSnapshotImport && (
         <div className="mt-2 p-3 bg-theme-base border border-glass-border rounded-lg">
+          {/* FASE HP: reparación VISIBLE. Hasta ahora esto corría solo, en
+              segundo plano y detrás de una docena de condiciones (sync en
+              curso, precios refrescando, una vez por sesión...), así que
+              cuando no pasaba nada era imposible saber si había corrido, si
+              había escrito, o qué lo bloqueó. Acá el usuario lo dispara y ve
+              el resultado. */}
+          <div className="mb-3 pb-3" style={{ borderBottom: '1px solid var(--glass-border)' }}>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                {t('Reconstruir el historial con datos reales', 'Rebuild history from real data')}
+              </span>
+              <button
+                onClick={runHistoryRepair}
+                disabled={!!repairState?.running}
+                className="px-2.5 py-1 rounded text-xs font-medium"
+                style={{ backgroundColor: 'var(--accent-blue)', color: '#fff', opacity: repairState?.running ? 0.6 : 1 }}
+              >
+                {repairState?.running ? t('Reparando...', 'Repairing...') : t('Reparar ahora', 'Repair now')}
+              </button>
+            </div>
+            {repairState?.lines?.length > 0 && (
+              <div className="mt-2 space-y-0.5 font-mono" style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                {repairState.lines.map((l, i) => <div key={i}>{l}</div>)}
+              </div>
+            )}
+          </div>
           <p className="text-xs text-slate-400 mb-2">
             {t('Agrega valores pasados de tu portafolio para completar la gráfica.',
                'Add past portfolio values to complete the chart.')}
