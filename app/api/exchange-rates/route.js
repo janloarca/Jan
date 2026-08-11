@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { rateLimit } from '@/lib/rateLimit'
 import { verifyAuth } from '@/lib/apiAuth'
 import { fetchWithRetry } from '@/lib/fetchWithRetry'
+import { kvConfigured, kvGetJSON, kvSetJSON } from '@/lib/kvClient'
 
 export const revalidate = 600
 
@@ -12,29 +13,18 @@ const CACHE_TTL = 10 * 60 * 1000
 // Last-known-good persisted in KV so a cold serverless instance can still serve
 // real (if stale) rates when both upstream providers are down. Best-effort: when
 // KV isn't configured we fall back to the in-memory cache alone.
-const kvConfigured = () => !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN)
+// FASE HS: ver lib/kvClient.js (dos juegos de nombres, sin SDK deprecado).
 const KV_KEY = 'fx:last-good'
 
 async function kvReadLastGood() {
   if (!kvConfigured()) return null
-  try {
-    const { kv } = await import('@vercel/kv')
-    return await kv.get(KV_KEY)
-  } catch (e) {
-    console.error('[api/exchange-rates] KV read failed:', e.message)
-    return null
-  }
+  return await kvGetJSON(KV_KEY)
 }
 
 async function kvWriteLastGood(rates) {
   if (!kvConfigured()) return
-  try {
-    const { kv } = await import('@vercel/kv')
-    // 7-day expiry: week-old FX beats a broken dashboard, older than that is noise.
-    await kv.set(KV_KEY, { rates, asOf: new Date().toISOString() }, { ex: 7 * 86400 })
-  } catch (e) {
-    console.error('[api/exchange-rates] KV write failed:', e.message)
-  }
+  // 7-day expiry: week-old FX beats a broken dashboard, older than that is noise.
+  await kvSetJSON(KV_KEY, { rates, asOf: new Date().toISOString() }, 7 * 86400)
 }
 
 async function fetchRates() {

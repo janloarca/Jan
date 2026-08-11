@@ -1238,6 +1238,14 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       if (!res.ok) { push(`${t('El servidor de historial falló', 'History server failed')} (${res.status}).`); setRepairState({ running: false, lines }); return }
       const data = await safeJson(res)
       if (data.degraded) push(`${t('Aviso: faltaron precios de', 'Note: missing prices for')} ${(data.failedSymbols || []).join(', ')}`)
+      // FASE HS: si el respaldo de precios (Upstash/KV) está activo, un hipo
+      // del proveedor deja de degradar la reconstrucción. Se muestra para que
+      // "¿está configurado?" se pueda VER en vez de deducirlo de los síntomas.
+      if (data.cache) {
+        push(data.cache === 'upstash'
+          ? t('Respaldo de precios: activo', 'Price fallback cache: active')
+          : t('Respaldo de precios: NO configurado (Vercel > Storage > Redis)', 'Price fallback cache: NOT configured (Vercel > Storage > Redis)'))
+      }
       const pts = data.dataPoints || []
       push(`${t('Reconstrucción de cuentas manuales', 'Manual accounts rebuilt')}: ${pts.length} ${t('puntos', 'points')}`)
 
