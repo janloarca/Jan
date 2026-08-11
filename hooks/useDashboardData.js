@@ -13,7 +13,7 @@ import { unlinkedOpeningDeposits } from '@/lib/originDeposits'
 import { corruptSnapshotRunIds, feEraSuspectDailyIds } from '@/lib/corruptSnapshots'
 import { planEquitySnapshotWrites, misplacedPlainNavMigrations } from '@/lib/ibkrSnapshotPlan'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
-import { staleBackfillDates } from '@/lib/snapshotBackfill'
+import { staleBackfillDates, resolveGapFills } from '@/lib/snapshotBackfill'
 import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanDays, earliestNeededDays as computeEarliestNeededDays } from '@/lib/brokerCompletion'
 import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds, applyLifetimeNetConstraint } from '@/lib/inferredFlows'
 import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
@@ -362,15 +362,17 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         // (nunca se omite): saveSnapshot fusiona con merge, y omitirlo dejaría
         // un flag viejo pegado si una corrida futura deja de ser transaccional.
         const isTransactional = !!data.transactional
-        const gapSet = new Set(gaps)
-        for (const pt of pts) {
-          const dateStr = new Date(pt.ts).toISOString().split('T')[0]
-          if (!gapSet.has(dateStr) || pt.total <= 0) continue
-          gapSet.delete(dateStr)
+        // FASE HI: la resolución hueco→valor vive en resolveGapFills. Antes se
+        // matcheaba por fecha exacta contra los puntos del API, que solo trae
+        // días hábiles: un hueco en sábado/domingo/feriado no matcheaba nunca
+        // y quedaba sin rellenar (con el doc viejo congelado abajo, si lo
+        // había). Ahora esos días valen el último cierre de mercado.
+        const fills = resolveGapFills(gaps, pts)
+        for (const f of fills) {
           await saveSnapshot({
-            date: dateStr,
-            netWorthUSD: pt.total - currentDebtUSD,
-            totalActivosUSD: pt.total,
+            date: f.date,
+            netWorthUSD: f.total - currentDebtUSD,
+            totalActivosUSD: f.total,
             totalDebtUSD: currentDebtUSD,
             _source: 'backfill',
             _transactional: isTransactional,
