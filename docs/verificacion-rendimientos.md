@@ -314,6 +314,21 @@ abarca dos años completos de movimiento del quetzal: el cálculo lo congela en
 ### Bugs encontrados y arreglados en esta tanda
 
 - **FASE HT**: DAY caía al estado vacío en un scope 100% estático.
+- **FASE HT**: DAY caía al estado vacío en un scope 100% estático.
 - **FASE HU**: un cupón pagado en efectivo a otra cuenta se reversaba DOS veces
   al rebobinar, hundiendo la cuenta destino a $0 en todo el pasado. Afectaba a
   CUALQUIER activo con `incomeDestination`, no solo a IDC.
+
+### Próximo paso de IDC: el rendimiento de los fondos líquidos
+
+Con la lógica de los 3 bonos validada, el siguiente escalón es que las 2
+posiciones restantes (FONDO LÍQUIDO Q y $) dejen de ser efectivo muerto y rindan
+lo suyo (4%-5% variable). El diseño está escrito y pendiente de aprobación en
+`docs/rendimiento-fondo-liquido.md`; no se escribió código todavía a pedido del
+usuario ("quiero que la lógica esté primero").
+
+Nota para cuando se implemente: ese lastre de efectivo es EXACTAMENTE lo que
+explica el desvío monótono de la tabla de arriba (−0.13 / −0.19 / −0.51 pp), así
+que al activar el rendimiento del fondo esos tres números deberían acercarse
+solos al cálculo del usuario. Es una predicción falsable y conviene medirla
+antes y después.
