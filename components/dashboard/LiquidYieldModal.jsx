@@ -58,7 +58,7 @@ function Movements({ list, cur, t, total }) {
 }
 
 export default function LiquidYieldModal({
-  candidates = [], onClose, onAccept, onDismiss, lang = 'es',
+  candidates = [], onClose, onAccept, onDismiss, onRegisterMissing, onOpenAccount, lang = 'es',
 }) {
   const t = (es, en) => (lang === 'es' ? es : en)
   const trapRef = useFocusTrap()
@@ -140,6 +140,29 @@ export default function LiquidYieldModal({
                          'That is not a negative yield: a movement is missing. Below is exactly what we counted, so you can see which one. Nothing is written until you check.')}
                     </p>
                     <Movements list={c.contributions} cur={cur} t={t} total={c.contributed} />
+                    {/* FASE HV6. El desglose deja de ser solo un informe. Mirando
+                        la lista solo hay dos desenlaces, y cada uno tiene su
+                        botón: falta una salida (se registra, con el monto ya
+                        calculado) o sobra una fila (se borra, en la pantalla de
+                        la cuenta, que es la única que sabe revertir el crédito
+                        que ese pago movió). */}
+                    <div className="flex gap-2 mb-3">
+                      {onRegisterMissing && (
+                        <button type="button" onClick={() => onRegisterMissing(c)}
+                          className="flex-1 py-1.5 text-xs font-medium rounded-lg text-white"
+                          style={{ backgroundColor: 'var(--accent-blue-strong, #2563eb)' }}>
+                          {t(`Registrar el retiro de ${formatCurrency(Math.abs(c.interest), cur)}`,
+                             `Record the ${formatCurrency(Math.abs(c.interest), cur)} withdrawal`)}
+                        </button>
+                      )}
+                      {onOpenAccount && (
+                        <button type="button" onClick={() => onOpenAccount(c)}
+                          className="flex-1 py-1.5 text-xs rounded-lg border"
+                          style={{ borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
+                          {t('Sobra una fila: corregirla', 'A row is wrong: fix it')}
+                        </button>
+                      )}
+                    </div>
                   </>
                 ) : nothingToRecord ? (
                   <>
