@@ -7,6 +7,25 @@ import { runAuthDiagnostics } from '@/lib/authDiagnostics'
 import Logo from '@/components/ui/Logo'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
 
+// FASE HW. El botón de Google queda OCULTO hasta que Firebase responda el
+// caso de soporte.
+//
+// Nada del código de sign-in se borra: se agotó todo lo que se puede hacer de
+// este lado (arquitectura, dominios, redirect URIs, secret, cliente OAuth
+// completo, persistencia, dispositivos) y el fallo siempre es el mismo en el
+// tramo de VUELTA, sin payload de servidor. Borrar el código significaría
+// reconstruirlo entero el día que soporte conteste; ocultarlo cuesta una línea
+// en cada dirección. Mientras tanto nadie se topa con una puerta que no abre:
+// correo y contraseña funciona en todos los dispositivos.
+//
+// PARA VOLVER A ENCENDERLO: poner esta constante en true.
+//
+// PARA PROBARLO SIN DESPLEGAR: /login?google=1 lo muestra igual. Eso importa
+// porque queda pendiente UNA prueba limpia post-FASE HM (varias rondas
+// intermedias de "sigue fallando" pudieron correr contra el build viejo), y
+// sin esta puerta habría que desplegar dos veces para hacerla.
+const GOOGLE_SIGNIN_ENABLED = false
+
 // Marca de que ESTA pestaña mandó al usuario a Google por redirect. Sin ella,
 // las dos piernas del flujo son indistinguibles cuando fallan: el popup y la
 // vuelta producen el mismo auth/internal-error genérico, y ni el código ni el
@@ -105,6 +124,11 @@ function LoginForm() {
   // Only allow same-origin internal paths to prevent open-redirect (e.g. ?redirect=//evil.com)
   const rawRedirect = searchParams.get('redirect') || '/dashboard'
   const redirectTo = rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') && !rawRedirect.includes('\\') ? rawRedirect : '/dashboard'
+
+  // Ver el comentario de GOOGLE_SIGNIN_ENABLED arriba. Se lee del mismo
+  // searchParams que ya usa `redirect`, así que no hay riesgo de desajuste
+  // entre lo que renderiza el servidor y lo que renderiza el navegador.
+  const showGoogle = GOOGLE_SIGNIN_ENABLED || searchParams.get('google') === '1'
 
   useEffect(() => {
     if (isInAppBrowser()) setInAppBrowser(true)
@@ -512,6 +536,7 @@ function LoginForm() {
             </div>
           )}
 
+          {showGoogle && (<>
           <div className="relative my-5">
             <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-glass-border" /></div>
             <div className="relative flex justify-center">
@@ -529,6 +554,7 @@ function LoginForm() {
             </svg>
             {googleLoading ? 'Conectando...' : 'Continuar con Google'}
           </button>
+          </>)}
 
           <p className="mt-5 text-center text-sm" style={{ color: 'var(--text-secondary)' }}>
             {isSignUp ? '¿Ya tienes cuenta?' : '¿No tienes cuenta?'}{' '}
