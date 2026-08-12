@@ -1526,7 +1526,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // Devuelve { breakdown, reason }: breakdown es lo de siempre (o null), y
   // reason nombra POR QUÉ el motor rehusó (FASE HT3), porque un rechazo mudo
   // dejaba al usuario tocando un YTD que no expande sin ninguna explicación.
-  const { breakdown: ytdBreakdown, reason: ytdBreakdownReason } = useMemo(() => {
+  const { breakdown: ytdBreakdown, reason: ytdBreakdownReason, detail: ytdBreakdownDetail } = useMemo(() => {
     if (ytdStartValue == null || ytdChange == null) return { breakdown: null, reason: 'no-anchor' }
     const start = ytdEndpoints?.start || {}
 
@@ -1750,7 +1750,15 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const diagEst = {}
     const breakdown = attributeYtd({ accounts: build(true), ...args }, diagReal)
       || attributeYtd({ accounts: build(false), ...args }, diagEst)
-    return { breakdown, reason: breakdown ? null : (diagEst.reason || diagReal.reason || 'unknown') }
+    // El detail viaja con la razón DEL MISMO intento (FASE HY): mezclar la
+    // razón del intento estimado con los números del intento real describiría
+    // un rechazo que no ocurrió.
+    const chosen = diagEst.reason ? diagEst : diagReal
+    return {
+      breakdown,
+      reason: breakdown ? null : (chosen.reason || 'unknown'),
+      detail: breakdown ? null : (chosen.detail || null),
+    }
   }, [ytdEndpoints, portfolioItems, convert, baseCurrency, ytdChange, ytdStartValue, ytdStartTs, ytdFlowsUsed, snapshots, convertSnapshot, spreadsheetStart, transactions, lots])
 
   // Month-to-date return (Modified Dietz) — the "how are we doing THIS month"
@@ -2252,7 +2260,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
     // Computed values
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
-    returnYTD, ytdChange, returnSinceStart, sinceStartDate, returnMTD, ytdCalibrated, ytdBreakdown, ytdBreakdownReason,
+    returnYTD, ytdChange, returnSinceStart, sinceStartDate, returnMTD, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail,
     ibkrReturnYTD: ibkrReturns.ytd, ibkrReturnMTD: ibkrReturns.mtd, ibkrDayChange: ibkrReturns.day,
     annualDividends, estimatedAnnualIncome,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
