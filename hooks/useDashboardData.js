@@ -20,7 +20,7 @@ import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
 import { knownContributions, computeLiquidYield, yieldSignature, supersededYieldTxIds } from '@/lib/liquidYield'
 import { clampPayDay, payDateFor, impossiblePayDateFixes } from '@/lib/incomeSchedule'
 import { attributeYtd } from '@/lib/ytdAttribution'
-import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes } from '@/components/dashboard/analytics'
+import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes, pairPortfolioWithBenchmark } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
 
 // What changed since the previous sync. Because a wide Flex Query (Year to Date)
@@ -1889,8 +1889,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       .filter((p) => !isNaN(p.ts) && p.value > 0)
       .sort((a, b) => a.ts - b.ts)
     const drawdown = computeMaxDrawdown(filterValueSpikes(valueSeries))
-    return { sharpe: sharpeResult.sharpe, volatility: vol, maxDrawdown: drawdown.maxDrawdownPct }
-  }, [augmentedSnapshots, transactions, convert, baseCurrency])
+    // Beta vs benchmark con el MISMO emparejado que usa la pestaña de Riesgo
+    // (pairPortfolioWithBenchmark, compartido): el reporte lo imprime.
+    const { beta } = pairPortfolioWithBenchmark(filterValueSpikes(valueSeries), benchmarkData)
+    return { sharpe: sharpeResult.sharpe, volatility: vol, maxDrawdown: drawdown.maxDrawdownPct, beta }
+  }, [augmentedSnapshots, transactions, convert, baseCurrency, benchmarkData])
 
   // ── Inferred deposits/withdrawals (FASE DQ) ──────────────────────────────
   // Fills the ONE gap real data can't reach: the quarterly-transcribed stretch

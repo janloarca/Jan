@@ -800,6 +800,7 @@ export default function DashboardPage() {
         returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdBreakdown, ytdBreakdownReason,
         annualDividends, estimatedAnnualIncome,
         benchmarkName, benchmarkReturn, volatilityPct: riskMetrics?.volatility,
+        sharpe: riskMetrics?.sharpe, beta: riskMetrics?.beta,
         profileName: profile?.name || user?.displayName || '',
         baseCurrency, convert, period: 'ytd',
       })
@@ -1720,6 +1721,7 @@ export default function DashboardPage() {
           estimatedAnnualIncome={estimatedAnnualIncome}
           benchmarkName={benchmarkName} benchmarkReturn={benchmarkReturn}
           volatilityPct={riskMetrics?.volatility}
+          sharpe={riskMetrics?.sharpe} beta={riskMetrics?.beta}
           baseCurrency={baseCurrency} convert={convert}
           profileName={profile?.name || user?.displayName || ''}
           lang={lang} onClose={handleCloseModal} />
