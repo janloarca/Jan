@@ -2,7 +2,17 @@
 
 import { useMemo, useState } from 'react'
 import { formatCurrency, categoryLabel } from './utils'
-import { buildReportData } from '@/lib/reportData'
+import { buildReportData, regionLabel } from '@/lib/reportData'
+
+// Este modal es SIEMPRE un documento blanco (un reporte impreso no tiene modo
+// oscuro), pero el CSS global del tema reinterpreta clases: en tema claro
+// `.text-white` se fuerza a texto OSCURO (globals.css), lo que dejó el chip
+// seleccionado y "Descargar PDF" como pastillas negras sin texto visible.
+// Por eso los controles usan estilos inline con hex (la regla de colores
+// dinámicos que CLAUDE.md ya documenta), inmunes a cualquier tema.
+const BTN_DARK = { backgroundColor: '#111827', color: '#ffffff', borderColor: '#111827' }
+const BTN_LIGHT = { backgroundColor: '#ffffff', color: '#4b5563', borderColor: '#d1d5db' }
+const BTN_BLUE = { backgroundColor: '#2563eb', color: '#ffffff' }
 
 // FASE HT. El hub único del reporte: vista previa en pantalla (estilo estado
 // de cuenta, FASE FK: tinta negra/gris, sin colores, negativos en paréntesis
@@ -113,9 +123,8 @@ export default function PrintSummary({
             <div className="flex gap-1">
               {periods.map((p) => (
                 <button key={p.key} onClick={() => setPeriod(p.key)}
-                  className={`px-2.5 py-1 text-xs rounded-lg border transition-colors ${period === p.key
-                    ? 'bg-gray-900 text-white border-gray-900'
-                    : 'bg-white text-gray-600 border-gray-300 hover:border-gray-500'}`}>
+                  className="px-2.5 py-1 text-xs rounded-lg border transition-colors"
+                  style={period === p.key ? BTN_DARK : BTN_LIGHT}>
                   {p.label}
                 </button>
               ))}
@@ -123,11 +132,11 @@ export default function PrintSummary({
           </div>
           <div className="flex gap-2 items-center">
             <button onClick={handleDownload} disabled={downloading}
-              className="px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-700 disabled:opacity-50">
+              className="px-4 py-2 text-sm rounded-lg disabled:opacity-50" style={BTN_DARK}>
               {downloading ? t('Generando...', 'Generating...') : t('Descargar PDF', 'Download PDF')}
             </button>
             <button onClick={handlePrint}
-              className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-500">
+              className="px-4 py-2 text-sm rounded-lg" style={BTN_BLUE}>
               🖨 {t('Imprimir', 'Print')}
             </button>
             <button onClick={onClose} className="text-gray-400 hover:text-black text-xl" aria-label="Close">&times;</button>
@@ -306,41 +315,51 @@ export default function PrintSummary({
             </table>
           </div>
 
-          {/* 5. Rendimiento por cuenta */}
-          {data.institutions.length > 0 && (
-            <div className="mb-6">
-              <h2 className={sectionCls}>{sec('Rendimiento por cuenta', 'Performance by Account')}</h2>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className={`${thCls} text-left`}>{t('Institución', 'Institution')}</th>
-                    <th className={`${thCls} text-right`}>{t('Valor', 'Value')}</th>
-                    <th className={`${thCls} text-right`}>{t('% Patrim.', '% NW')}</th>
-                    <th className={`${thCls} text-right`}>{t('Ganancia YTD', 'YTD Gain')} ³</th>
-                    <th className={`${thCls} text-right`}>{t('Retorno YTD', 'YTD Return')} ³</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.institutions.map((r) => (
-                    <tr key={r.key} className="border-b border-gray-100">
-                      <td className="py-1.5 font-medium">{r.name}</td>
-                      <td className="py-1.5 text-right">{fmtAcc(r.value)}</td>
-                      <td className="py-1.5 text-right text-gray-500">{r.weightPct.toFixed(1)}%</td>
-                      <td className="py-1.5 text-right">{r.ytdGain != null ? fmtAcc(r.ytdGain) : '-'}</td>
-                      <td className="py-1.5 text-right">{fmtPct(r.ytdRetPct)}</td>
+          {/* 5. Rendimiento por cuenta. Las columnas YTD solo existen cuando el
+              motor de atribución tiene datos: una pared de "-" no informa nada. */}
+          {data.institutions.length > 0 && (() => {
+            const hasAttribution = data.institutions.some((r) => r.ytdGain != null)
+            return (
+              <div className="mb-6">
+                <h2 className={sectionCls}>{sec('Rendimiento por cuenta', 'Performance by Account')}</h2>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className={`${thCls} text-left`}>{t('Institución', 'Institution')}</th>
+                      <th className={`${thCls} text-right`}>{t('Valor', 'Value')}</th>
+                      <th className={`${thCls} text-right`}>{t('% Patrim.', '% NW')}</th>
+                      {hasAttribution && <th className={`${thCls} text-right`}>{t('Ganancia YTD', 'YTD Gain')} ³</th>}
+                      {hasAttribution && <th className={`${thCls} text-right`}>{t('Retorno YTD', 'YTD Return')} ³</th>}
                     </tr>
-                  ))}
-                  {data.ytdUnexplained && (
-                    <tr>
-                      <td className="py-1.5 text-gray-400 text-xs" colSpan={3}>{t('Sin atribuir (residuo del reparto)', 'Unattributed (allocation residual)')}</td>
-                      <td className="py-1.5 text-right text-gray-400 text-xs">{fmtAcc(data.ytdUnexplained.gain)}</td>
-                      <td />
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  </thead>
+                  <tbody>
+                    {data.institutions.map((r) => (
+                      <tr key={r.key} className="border-b border-gray-100">
+                        <td className="py-1.5 font-medium">{r.name}</td>
+                        <td className="py-1.5 text-right">{fmtAcc(r.value)}</td>
+                        <td className="py-1.5 text-right text-gray-500">{r.weightPct.toFixed(1)}%</td>
+                        {hasAttribution && <td className="py-1.5 text-right">{r.ytdGain != null ? fmtAcc(r.ytdGain) : '-'}</td>}
+                        {hasAttribution && <td className="py-1.5 text-right">{fmtPct(r.ytdRetPct)}</td>}
+                      </tr>
+                    ))}
+                    {hasAttribution && data.ytdUnexplained && (
+                      <tr>
+                        <td className="py-1.5 text-gray-400 text-xs" colSpan={3}>{t('Sin atribuir (residuo del reparto)', 'Unattributed (allocation residual)')}</td>
+                        <td className="py-1.5 text-right text-gray-400 text-xs">{fmtAcc(data.ytdUnexplained.gain)}</td>
+                        <td />
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+                {!hasAttribution && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    {t('El desglose de ganancia por cuenta no está disponible en este momento (el motor de atribución no pudo repartir el YTD con confianza).',
+                      'The per-account gain breakdown is unavailable right now (the attribution engine could not split the YTD confidently).')}
+                  </p>
+                )}
+              </div>
+            )
+          })()}
 
           {/* 6. Ingresos */}
           <div className="mb-6">
@@ -368,8 +387,8 @@ export default function PrintSummary({
           {(data.currencies.length > 0 || data.geography.length > 0) && (
             <div className="mb-6">
               <h2 className={sectionCls}>{sec('Exposición por moneda y geografía', 'Currency & Geography Exposure')}</h2>
-              <div className="grid grid-cols-2 gap-6">
-                <table className="w-full text-sm">
+              <div className="grid grid-cols-2 gap-6 items-start">
+                <table className="w-full text-sm self-start">
                   <thead>
                     <tr className="border-b">
                       <th className={`${thCls} text-left`}>{t('Moneda', 'Currency')}</th>
@@ -387,7 +406,7 @@ export default function PrintSummary({
                     ))}
                   </tbody>
                 </table>
-                <table className="w-full text-sm">
+                <table className="w-full text-sm self-start">
                   <thead>
                     <tr className="border-b">
                       <th className={`${thCls} text-left`}>{t('Geografía', 'Geography')}</th>
@@ -398,7 +417,7 @@ export default function PrintSummary({
                   <tbody>
                     {data.geography.slice(0, 6).map((r) => (
                       <tr key={r.key} className="border-b border-gray-100">
-                        <td className="py-1.5 font-medium">{r.key === 'Unknown' || r.key === 'Other' ? t('Otros', 'Other') : r.key}</td>
+                        <td className="py-1.5 font-medium">{regionLabel(r.key, locale, t('Otros', 'Other'))}</td>
                         <td className="py-1.5 text-right">{fmtAcc(r.value)}</td>
                         <td className="py-1.5 text-right text-gray-500">{r.pct.toFixed(1)}%</td>
                       </tr>
