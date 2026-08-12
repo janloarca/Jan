@@ -1523,8 +1523,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   //           A broker's REAL year-start NAV is used where one exists and is
   //           never adjusted; the rest carry the reconstruction's estimate and
   //           get pinned to the portfolio anchor.
-  const ytdBreakdown = useMemo(() => {
-    if (ytdStartValue == null || ytdChange == null) return null
+  // Devuelve { breakdown, reason }: breakdown es lo de siempre (o null), y
+  // reason nombra POR QUÉ el motor rehusó (FASE HT3), porque un rechazo mudo
+  // dejaba al usuario tocando un YTD que no expande sin ninguna explicación.
+  const { breakdown: ytdBreakdown, reason: ytdBreakdownReason } = useMemo(() => {
+    if (ytdStartValue == null || ytdChange == null) return { breakdown: null, reason: 'no-anchor' }
     const start = ytdEndpoints?.start || {}
 
     // Which account each item belongs to, using the shared rule.
@@ -1538,7 +1541,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         nameOf.set(k, k === 'ibkr' ? 'Interactive Brokers' : (it.institution || '').trim() || k)
       }
     })
-    if (accountOf.size === 0) return null
+    if (accountOf.size === 0) return { breakdown: null, reason: 'no-accounts' }
 
     // endVal: the identical loop netWorth is computed from, kept per account so
     // the account totals reconstruct netWorth exactly rather than approximately.
@@ -1739,8 +1742,15 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // user with no breakdown at all over an improvement. So fall back to the
     // all-estimated split, which is internally consistent and still pinned to
     // the same anchor the headline used.
-    return attributeYtd({ accounts: build(true), ...args })
-      || attributeYtd({ accounts: build(false), ...args })
+    // Se reporta la razón del intento TODO-ESTIMADO (el de último recurso):
+    // que el intento con NAV real falle es esperado a veces y el fallback
+    // existe justo para eso; lo que explica la ausencia del panel es por qué
+    // falló también el último intento.
+    const diagReal = {}
+    const diagEst = {}
+    const breakdown = attributeYtd({ accounts: build(true), ...args }, diagReal)
+      || attributeYtd({ accounts: build(false), ...args }, diagEst)
+    return { breakdown, reason: breakdown ? null : (diagEst.reason || diagReal.reason || 'unknown') }
   }, [ytdEndpoints, portfolioItems, convert, baseCurrency, ytdChange, ytdStartValue, ytdStartTs, ytdFlowsUsed, snapshots, convertSnapshot, spreadsheetStart, transactions, lots])
 
   // Month-to-date return (Modified Dietz) — the "how are we doing THIS month"
@@ -2235,7 +2245,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
     // Computed values
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
-    returnYTD, ytdChange, returnSinceStart, sinceStartDate, returnMTD, ytdCalibrated, ytdBreakdown,
+    returnYTD, ytdChange, returnSinceStart, sinceStartDate, returnMTD, ytdCalibrated, ytdBreakdown, ytdBreakdownReason,
     ibkrReturnYTD: ibkrReturns.ytd, ibkrReturnMTD: ibkrReturns.mtd, ibkrDayChange: ibkrReturns.day,
     annualDividends, estimatedAnnualIncome,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { formatCurrency, getBaseCurrency, getTypeCategory, getItemValue, isExcludedFromNetWorth, TYPE_COLORS, CHART_PALETTE } from './utils'
 import { InfoTip } from '../ui/Tooltip'
+import { attributionRefusalText } from '@/lib/ytdAttribution'
 
 const QUICK_CURRENCIES = ['USD', 'EUR', 'GBP', 'MXN', 'GTQ', 'COP', 'BRL', 'CAD']
 
@@ -25,7 +26,7 @@ function getGreeting(lang) {
   return lang === 'es' ? 'Buenas noches' : 'Good evening'
 }
 
-export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, ytdCalibrated, ytdBreakdown }) {
+export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, ytdCalibrated, ytdBreakdown, ytdBreakdownReason }) {
   const hasYTD = returnYTD != null && isFinite(returnYTD)
   const displayReturn = hasYTD ? returnYTD : (returnSinceStart != null && isFinite(returnSinceStart) ? returnSinceStart : null)
   const hasReturn = displayReturn != null
@@ -129,7 +130,11 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
   // them which holdings, actually produced the number. Closed by default so the
   // card stays a headline; one tap turns it into an explanation.
   const [showYTDDetail, setShowYTDDetail] = useState(false)
-  const canExpandYTD = hasYTD && !!ytdBreakdown && ytdBreakdown.groups.length > 0
+  const hasBreakdown = !!ytdBreakdown && ytdBreakdown.groups.length > 0
+  // También se puede expandir cuando el motor REHUSÓ: antes el tap simplemente
+  // no hacía nada y el usuario no tenía forma de saber por qué (FASE HT3). El
+  // panel en ese caso explica la razón en vez de mostrar filas.
+  const canExpandYTD = hasYTD && (hasBreakdown || !!ytdBreakdownReason)
 
   const [moversTab, setMoversTab] = useState('gainers')
   // If the tab the user is on empties out (e.g. everything is up today) and
@@ -249,11 +254,21 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
               ? 'Por cada cuenta: valor de hoy menos valor de arranque del año, restando el dinero que metiste o sacaste. Los depósitos nunca cuentan como ganancia, y el dinero que pasa de una cuenta tuya a otra tampoco. El % es el retorno de esa cuenta, el mismo que ves en su gráfica. Las cuentas suman exactamente el YTD de arriba: si no cuadraran, este desglose no se muestra.'
               : 'Per account: today\'s value minus its year-start value, less any money you moved in or out. Deposits never count as gains, and neither does money moved between your own accounts. The % is that account\'s return, the same one its chart shows. The accounts add up to the YTD figure above exactly: if they did not, this breakdown would not be shown.'} />
           </div>
+          {/* Motor rehusó: en vez de un tap muerto, el panel dice POR QUÉ no
+              hay desglose (FASE HT3). El YTD de arriba sigue siendo correcto:
+              lo que falta es el reparto por cuenta, no el número. */}
+          {!hasBreakdown && (
+            <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+              {lang === 'es'
+                ? `El desglose por cuenta no está disponible ahora mismo: ${attributionRefusalText(ytdBreakdownReason, 'es')}. El YTD de arriba sigue siendo correcto; solo el reparto entre cuentas no pasó las validaciones.`
+                : `The per-account breakdown is unavailable right now: ${attributionRefusalText(ytdBreakdownReason, 'en')}. The YTD above is still correct; only the split across accounts did not pass validation.`}
+            </p>
+          )}
           {/* One row per ACCOUNT (FASE GR). Every account is listed, including
               ones that contributed nothing: the previous version hid near-zero
               rows and accounts simply looked missing. */}
           <div className="space-y-2">
-            {ytdBreakdown.groups.map((g) => (
+            {hasBreakdown && ytdBreakdown.groups.map((g) => (
               <div key={g.key} className="flex items-baseline justify-between gap-2">
                 <span className="text-sm truncate" style={{ color: g.isUnexplained ? 'var(--text-muted)' : 'var(--text-secondary)' }}>
                   {g.isUnexplained
@@ -275,7 +290,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
               </div>
             ))}
           </div>
-          {ytdBreakdown.groups.some((g) => g.isUnexplained) && (
+          {hasBreakdown && ytdBreakdown.groups.some((g) => g.isUnexplained) && (
             <p className="text-[10px] mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
               {lang === 'es'
                 ? 'Cada cuenta muestra su propio número. Lo que no calza con el total va aparte, sin repartirlo entre las cuentas: viene del valor de arranque estimado de las cuentas sin historial del broker.'
