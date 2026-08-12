@@ -173,6 +173,13 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
   // about them now instead of letting the automatic backfill guess silently
   // after save. Market assets have their own detected dividend schedule
   // (divInfo) and aren't covered here.
+  // Un 29, 30 o 31 no cabe en todos los meses. La app paga el último día real
+  // de cada mes (clampPayDay), y eso hay que DECIRLO: si no, un 31 se lee como
+  // una promesa que la app no puede cumplir en febrero.
+  const payDayHint = (parseInt(form.incomePayDay, 10) || 0) >= 29
+    ? t('En los meses más cortos se paga el último día.', 'In shorter months it pays on the last day.')
+    : null
+
   const payMonthsCount = form.incomeMonths.length > 0 ? form.incomeMonths.length : 12
   const pastDuePayDates = useMemo(() => {
     if (isMarketAsset || !showIncome || form.rateType === 'continuous') return []
@@ -439,7 +446,10 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
           item.incomeAmount = parseFloat(form.incomeAmount) || 0
         }
         if (form.rateType !== 'continuous') {
-          item.incomePayDay = parseInt(form.incomePayDay) || 1
+          // Acotado a 1..31: `min`/`max` de un input numérico no impiden TECLEAR
+          // un 45. Un 31 sí es válido y significa "el último día del mes":
+          // `clampPayDay` (lib/incomeSchedule.js) lo recorta mes a mes.
+          item.incomePayDay = Math.min(31, Math.max(1, parseInt(form.incomePayDay) || 1))
           // incomeMonthsExplicit drives backfill of past payments and exempts the
           // asset from the duplicate-cleanup that would otherwise delete legit
           // semi-annual payments. Without it, a bond paying May/Nov never gets its
@@ -1188,6 +1198,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                         <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Día de pago', 'Pay day')}</label>
                         <input value={form.incomePayDay} onChange={e => set('incomePayDay', e.target.value)}
                           placeholder="15" type="number" min="1" max="31" className={inputCls} />
+                      {payDayHint && <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{payDayHint}</p>}
                       </div>
                     </div>
                     <div>
@@ -1318,6 +1329,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                       <label htmlFor="add-varPayDay" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Día de pago', 'Pay day')}</label>
                       <input id="add-varPayDay" value={form.incomePayDay} onChange={e => set('incomePayDay', e.target.value)}
                         placeholder="10" type="number" min="1" max="31" className={inputCls} />
+                      {payDayHint && <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{payDayHint}</p>}
                     </div>
                   </div>
                   {form.rateMin && !form.rateMax && (
@@ -1341,6 +1353,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                       <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Día de pago', 'Pay day')}</label>
                       <input value={form.incomePayDay} onChange={e => set('incomePayDay', e.target.value)}
                         placeholder="10" type="number" min="1" max="31" className={inputCls} />
+                      {payDayHint && <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{payDayHint}</p>}
                     </div>
                   </div>
                 )}

@@ -18,6 +18,7 @@ import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanD
 import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds, applyLifetimeNetConstraint } from '@/lib/inferredFlows'
 import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
 import { knownContributions, computeLiquidYield, yieldSignature, supersededYieldTxIds } from '@/lib/liquidYield'
+import { clampPayDay, payDateFor, impossiblePayDateFixes } from '@/lib/incomeSchedule'
 import { attributeYtd } from '@/lib/ytdAttribution'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
@@ -598,8 +599,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             if (acqDate && checkDate < new Date(Date.UTC(acqDate.getFullYear(), acqDate.getMonth(), 1))) continue
             if (!payMonths.includes(checkMonth)) continue
             const payDay = it.incomePayDay || 1
-            if (offset === 0 && todayDay < payDay) continue
-            const dateStr = `${checkYear}-${String(checkMonth + 1).padStart(2, '0')}-${String(payDay).padStart(2, '0')}`
+            // Recortado al último día real del mes: ver clampPayDay
+            // (lib/incomeSchedule.js) y el "2026-02-31" que desbordaba a marzo.
+            if (offset === 0 && todayDay < clampPayDay(payDay, checkYear, checkMonth)) continue
+            const dateStr = payDateFor(checkYear, checkMonth, payDay)
             // FASE HV. Un ingreso que se REINVIERTE en la propia cuenta ya está
             // adentro del saldo que el usuario tecleó: el saldo de hoy de una
             // cuenta que compone contiene todo lo que compuso hasta hoy. Backfillear
@@ -618,8 +621,8 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           // Without explicit months, only process current month
           if (payMonths.includes(currentMonth)) {
             const payDay = it.incomePayDay || 1
-            if (todayDay >= payDay) {
-              const dateStr = `${now.getUTCFullYear()}-${String(currentMonth + 1).padStart(2, '0')}-${String(payDay).padStart(2, '0')}`
+            if (todayDay >= clampPayDay(payDay, now.getUTCFullYear(), currentMonth)) {
+              const dateStr = payDateFor(now.getUTCFullYear(), currentMonth, payDay)
               monthsToCheck.push({ dateStr, month: currentMonth, year: now.getUTCFullYear(), backfill: false })
             }
           }
@@ -2022,6 +2025,27 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     return () => { cancelled = true }
   }, [transactions, ibkrRealCoverage, deleteTransaction])
 
+  // FASE HV2 self-heal: pagos automáticos escritos con un día que no existe
+  // ("2026-02-31", reportado por el usuario con captura). El motor ya dejó de
+  // producirlos (clampPayDay), pero las filas viejas se quedan desbordando al
+  // mes siguiente para siempre si nadie las corrige: solo se les cambia la
+  // fecha al último día real de SU mes, sin tocar monto ni vínculos.
+  const payDateFixRef = useRef(false)
+  useEffect(() => {
+    if (payDateFixRef.current || dataLoading || !updateTransaction) return
+    const fixes = impossiblePayDateFixes(transactions)
+    if (fixes.length === 0) return
+    payDateFixRef.current = true
+    let cancelled = false
+    ;(async () => {
+      for (const f of fixes) {
+        if (cancelled) return
+        try { await updateTransaction(f.id, { date: f.date }) } catch (e) { console.error('[paydate-fix]', e.message) }
+      }
+    })()
+    return () => { cancelled = true }
+  }, [transactions, dataLoading, updateTransaction])
+
   // FASE FR self-heal: corrupt daily-snapshot runs. The pre-FASE-FE hole let a
   // price refresh in flight write an inflated net worth into the permanent
   // daily snapshot; with a broker connected those docs never self-correct
@@ -2184,7 +2208,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     if (!candidate?.itemId || !addTransaction || !updateItem) return
     const item = (items || []).find((it) => it.id === candidate.itemId)
     if (!item) return
-    const stale = supersededYieldTxIds(transactions, candidate.itemId, candidate.asOfTs)
+    const stale = supersededYieldTxIds(transactions, item, candidate.asOfTs)
     if (deleteTransaction) {
       for (const id of stale) {
         try { await deleteTransaction(id) } catch (e) { console.error('[liquid-yield-cleanup]', e.message) }

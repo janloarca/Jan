@@ -471,7 +471,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           updated.incomeAmount = parseFloat(form.incomeAmount) || 0
         }
         if (form.rateType !== 'continuous') {
-          updated.incomePayDay = parseInt(form.incomePayDay) || 1
+          // Ver AddAccountModal: 1..31, y 31 significa "último día del mes".
+          updated.incomePayDay = Math.min(31, Math.max(1, parseInt(form.incomePayDay) || 1))
           updated.incomeMonthsExplicit = form.incomeMonths.length > 0
           updated.incomeMonths = form.incomeMonths.length > 0 ? form.incomeMonths : [0,1,2,3,4,5,6,7,8,9,10,11]
           updated.businessDayRule = form.businessDayRule
@@ -480,7 +481,21 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           updated.incomeMonths = [0,1,2,3,4,5,6,7,8,9,10,11]
           updated.incomeMonthsExplicit = true
         }
-        if (form.incomeDestination) updated.incomeDestination = form.incomeDestination
+        // FASE HV2. `dividendAction` se guardaba SOLO en la rama de activos de
+        // mercado, así que el selector "¿Qué hacés con los pagos?" que este
+        // mismo formulario muestra para un bono, un banco o un alternativo era
+        // un control que no hacía nada: elegir "Se reinvierten" y guardar
+        // dejaba el ítem en 'cash' igual. Reportado por el usuario, que puso
+        // reinvertir en su fondo líquido y siguió viendo el aviso de "¿a qué
+        // cuenta llegan los pagos?" (ese hallazgo excluye a los que reinvierten,
+        // así que seguía saliendo justamente porque el cambio nunca se guardó).
+        // Solo se veía al EDITAR: al crear la cuenta sí se guardaba.
+        updated.dividendAction = form.dividendAction || 'cash'
+        // Reinvertir y tener destino son excluyentes: el dinero se queda o se
+        // va. Sin esto, un destino viejo sobrevive al cambio y los motores que
+        // miran `incomeDestination` siguen mandando el pago a otra cuenta.
+        if (updated.dividendAction === 'reinvest') updated.incomeDestination = ''
+        else if (form.incomeDestination) updated.incomeDestination = form.incomeDestination
         if (form.capitalReturn) {
           updated.capitalReturn = parseFloat(form.capitalReturn) || 0
           if (form.capitalDestination) updated.capitalDestination = form.capitalDestination
@@ -648,6 +663,11 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
   const inputCls = 'w-full px-3 py-2 bg-[var(--input-bg,#000000)] border border-[var(--card-border,#38383A)] rounded-lg text-sm text-[var(--text-primary,white)] focus:outline-none focus:border-blue-500/50'
   const labelCls = 'text-xs text-[var(--text-secondary,#94a3b8)] mb-1 block'
+  // Ver AddAccountModal: 29/30/31 no caben en todos los meses, y la app paga el
+  // último día real de cada uno.
+  const payDayHint = (parseInt(form.incomePayDay, 10) || 0) >= 29
+    ? t('En los meses más cortos se paga el último día.', 'In shorter months it pays on the last day.')
+    : null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="edit-acct-modal-title"
@@ -1573,6 +1593,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                     <label className={labelCls}>{t('Día pago', 'Pay day')}</label>
                     <input value={form.incomePayDay} onChange={e => set('incomePayDay', e.target.value)}
                       type="number" min="1" max="31" className={inputCls} />
+                      {payDayHint && <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{payDayHint}</p>}
                   </div>
                 </div>
               ) : (
@@ -1593,6 +1614,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                       <label className={labelCls}>{t('Día de pago', 'Pay day')}</label>
                       <input value={form.incomePayDay} onChange={e => set('incomePayDay', e.target.value)}
                         type="number" min="1" max="31" className={inputCls} />
+                      {payDayHint && <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{payDayHint}</p>}
                     </div>
                   )}
                 </div>
