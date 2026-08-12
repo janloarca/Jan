@@ -16,6 +16,47 @@ import { useState } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { formatCurrency, formatDate } from './utils'
 
+const KIND_LABEL = {
+  deposit: ['Depósito', 'Deposit'],
+  withdrawal: ['Retiro', 'Withdrawal'],
+  income: ['Pago recibido', 'Payment received'],
+  sale: ['Venta acreditada', 'Sale credited'],
+  'transfer-in': ['Transferencia entrante', 'Transfer in'],
+  'transfer-out': ['Transferencia saliente', 'Transfer out'],
+}
+
+// Lo que el motor contó, fila por fila. Existe para que un veredicto se pueda
+// CONTRASTAR contra el historial en pantalla en vez de tener que deducirlo de
+// dos totales: si un retiro que el usuario ve en su lista no aparece acá, ya
+// sabemos que el problema es cómo quedó archivado ese movimiento, y si aparece,
+// lo que falta es otro movimiento distinto.
+function Movements({ list, cur, t, total }) {
+  if (!list || list.length === 0) return null
+  return (
+    <div className="rounded-lg mb-3 max-h-48 overflow-y-auto text-xs"
+      style={{ border: '1px solid var(--card-border)' }}>
+      {list.map((m, i) => (
+        <div key={m.txId || i} className="flex items-center justify-between gap-2 px-3 py-1.5"
+          style={{ color: 'var(--text-secondary)' }}>
+          <span className="truncate">
+            {formatDate(new Date(m.ts).toISOString().slice(0, 10))}
+            {' · '}
+            {t(...(KIND_LABEL[m.kind] || [m.kind, m.kind]))}
+          </span>
+          <span className="font-mono shrink-0" style={{ color: m.amount < 0 ? 'var(--text-negative)' : 'var(--text-primary)' }}>
+            {m.amount < 0 ? '-' : '+'}{formatCurrency(Math.abs(m.amount), cur)}
+          </span>
+        </div>
+      ))}
+      <div className="flex items-center justify-between gap-2 px-3 py-1.5 font-medium"
+        style={{ color: 'var(--text-primary)', borderTop: '1px solid var(--card-border)' }}>
+        <span>{t('Total que contamos', 'Total we counted')}</span>
+        <span className="font-mono">{formatCurrency(total, cur)}</span>
+      </div>
+    </div>
+  )
+}
+
 export default function LiquidYieldModal({
   candidates = [], onClose, onAccept, onDismiss, lang = 'es',
 }) {
@@ -71,6 +112,12 @@ export default function LiquidYieldModal({
             const cur = c.currency
             const negative = c.status === 'negative-residual'
             const flagged = c.status === 'implausible-rate'
+            // Sin tasa resuelta no hay nada que registrar. Hoy el memo que
+            // arma los candidatos ya filtra esos casos, pero el modal no puede
+            // depender de eso: leer `.toFixed` de un null tumba la pantalla
+            // entera, y un candidato de más es un cambio de una línea en el
+            // caller. Se muestran igual los movimientos, que es lo útil.
+            const nothingToRecord = !negative && (c.ratePct == null || !c.months || c.months.length === 0)
             return (
               <div key={c.id} className="rounded-xl p-3.5" style={{ border: '1px solid var(--card-border)' }}>
                 <div className="flex items-center justify-between gap-2 mb-2">
@@ -89,9 +136,18 @@ export default function LiquidYieldModal({
                       <span className="font-mono">{formatCurrency(c.finalBalance, cur)}</span>.
                     </p>
                     <p className="text-[11px] mb-3" style={{ color: 'var(--text-muted)' }}>
-                      {t('Eso no es rendimiento negativo: lo más probable es que falte registrar un retiro. No se escribe nada hasta que lo revises.',
-                         'That is not a negative yield: most likely a withdrawal is missing. Nothing is written until you check.')}
+                      {t('Eso no es rendimiento negativo: falta un movimiento por registrar. Abajo está exactamente lo que contamos, para que veas cuál falta. No se escribe nada hasta que lo revises.',
+                         'That is not a negative yield: a movement is missing. Below is exactly what we counted, so you can see which one. Nothing is written until you check.')}
                     </p>
+                    <Movements list={c.contributions} cur={cur} t={t} total={c.contributed} />
+                  </>
+                ) : nothingToRecord ? (
+                  <>
+                    <p className="text-body mb-2" style={{ color: 'var(--text-primary)' }}>
+                      {t('Los movimientos explican tu saldo completo: no hay rendimiento que registrar.',
+                         'Your movements explain the whole balance: there is no yield to record.')}
+                    </p>
+                    <Movements list={c.contributions} cur={cur} t={t} total={c.contributed} />
                   </>
                 ) : (
                   <>
@@ -134,20 +190,29 @@ export default function LiquidYieldModal({
 
                     <button type="button" onClick={() => setOpenId(openId === c.id ? null : c.id)}
                       className="text-xs mb-2" style={{ color: 'var(--accent-blue)' }}>
-                      {openId === c.id ? t('Ocultar el detalle mes a mes', 'Hide the month by month') : t('Ver el detalle mes a mes', 'See the month by month')}
+                      {openId === c.id ? t('Ocultar el detalle', 'Hide the detail') : t('Ver el detalle', 'See the detail')}
                     </button>
 
                     {openId === c.id && (
-                      <div className="rounded-lg mb-2 max-h-40 overflow-y-auto text-xs"
-                        style={{ border: '1px solid var(--card-border)' }}>
-                        {c.months.map((m) => (
-                          <div key={m.month} className="flex items-center justify-between px-3 py-1"
-                            style={{ color: 'var(--text-secondary)' }}>
-                            <span>{m.month}</span>
-                            <span className="font-mono">{formatCurrency(m.amount, cur)}</span>
-                          </div>
-                        ))}
-                      </div>
+                      <>
+                        <p className="text-[11px] mb-1" style={{ color: 'var(--text-muted)' }}>
+                          {t('Lo que contamos como que entró:', 'What we counted as going in:')}
+                        </p>
+                        <Movements list={c.contributions} cur={cur} t={t} total={c.contributed} />
+                        <p className="text-[11px] mb-1" style={{ color: 'var(--text-muted)' }}>
+                          {t('Cómo se reparte el rendimiento:', 'How the yield is spread:')}
+                        </p>
+                        <div className="rounded-lg mb-2 max-h-40 overflow-y-auto text-xs"
+                          style={{ border: '1px solid var(--card-border)' }}>
+                          {c.months.map((m) => (
+                            <div key={m.month} className="flex items-center justify-between px-3 py-1"
+                              style={{ color: 'var(--text-secondary)' }}>
+                              <span>{m.month}</span>
+                              <span className="font-mono">{formatCurrency(m.amount, cur)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </>
                     )}
 
                     <p className="text-[11px] mb-3" style={{ color: 'var(--text-muted)' }}>
@@ -163,7 +228,7 @@ export default function LiquidYieldModal({
                     style={{ borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
                     {negative ? t('Lo reviso después', 'I will check later') : t('No fue rendimiento', 'It was not yield')}
                   </button>
-                  {!negative && (
+                  {!negative && !nothingToRecord && (
                     <button type="button" disabled={busy} onClick={() => run(c, onAccept)}
                       className="flex-1 py-1.5 text-xs font-medium rounded-lg text-white disabled:opacity-50"
                       style={{ backgroundColor: 'var(--accent-blue-strong, #2563eb)' }}>
