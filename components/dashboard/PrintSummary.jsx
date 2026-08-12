@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { formatCurrency, categoryLabel } from './utils'
 import { buildReportData, regionLabel } from '@/lib/reportData'
+import { attributionRefusalText } from '@/lib/ytdAttribution'
 
 // Este modal es SIEMPRE un documento blanco (un reporte impreso no tiene modo
 // oscuro), pero el CSS global del tema reinterpreta clases: en tema claro
@@ -26,7 +27,8 @@ export default function PrintSummary({
   items, transactions, snapshots,
   netWorth, totalAssets,
   returnYTD, ytdChange, returnSinceStart, sinceStartDate,
-  ytdBreakdown, annualDividends, estimatedAnnualIncome,
+  ytdBreakdown, ytdBreakdownReason, annualDividends, estimatedAnnualIncome,
+  benchmarkName, benchmarkReturn, volatilityPct,
   baseCurrency = 'USD', convert,
   profileName = '',
   lang, onClose,
@@ -40,11 +42,13 @@ export default function PrintSummary({
     items, transactions, snapshots,
     netWorth, totalAssets,
     returnYTD, ytdChange, returnSinceStart, sinceStartDate,
-    ytdBreakdown, annualDividends, estimatedAnnualIncome,
+    ytdBreakdown, ytdBreakdownReason, annualDividends, estimatedAnnualIncome,
+    benchmarkName, benchmarkYtdPct: benchmarkReturn, volatilityPct,
     baseCurrency, convert, profileName, period,
   }), [items, transactions, snapshots, netWorth, totalAssets, returnYTD, ytdChange,
-    returnSinceStart, sinceStartDate, ytdBreakdown, annualDividends,
-    estimatedAnnualIncome, baseCurrency, convert, profileName, period])
+    returnSinceStart, sinceStartDate, ytdBreakdown, ytdBreakdownReason, annualDividends,
+    estimatedAnnualIncome, benchmarkName, benchmarkReturn, volatilityPct,
+    baseCurrency, convert, profileName, period])
 
   const fmtRaw = (v) => formatCurrency(Math.abs(v || 0))
   const fmtAcc = (v) => (v < 0 ? `(${fmtRaw(v)})` : fmtRaw(v))
@@ -132,11 +136,11 @@ export default function PrintSummary({
           </div>
           <div className="flex gap-2 items-center">
             <button onClick={handleDownload} disabled={downloading}
-              className="px-4 py-2 text-sm rounded-lg disabled:opacity-50" style={BTN_DARK}>
-              {downloading ? t('Generando...', 'Generating...') : t('Descargar PDF', 'Download PDF')}
+              className="px-4 py-2 text-sm font-medium rounded-lg disabled:opacity-50" style={BTN_BLUE}>
+              {downloading ? t('Generando...', 'Generating...') : `⬇ ${t('Descargar PDF', 'Download PDF')}`}
             </button>
             <button onClick={handlePrint}
-              className="px-4 py-2 text-sm rounded-lg" style={BTN_BLUE}>
+              className="px-4 py-2 text-sm font-medium rounded-lg border" style={BTN_LIGHT}>
               🖨 {t('Imprimir', 'Print')}
             </button>
             <button onClick={onClose} className="text-gray-400 hover:text-black text-xl" aria-label="Close">&times;</button>
@@ -231,6 +235,56 @@ export default function PrintSummary({
                   `Return measured from ${fmtDate(per.fromTs)} (first available data point in the period).`)}
               </p>
             )}
+          </div>
+
+          {/* 2. Rendimiento por horizonte + referencia + riesgo + costos: la
+              tabla estándar de un reporte profesional (retornos rodantes lado
+              a lado), con "-" honesto donde no hay ancla. */}
+          <div className="mb-6">
+            <h2 className={sectionCls}>{sec('Rendimiento', 'Performance')}</h2>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className={`${thCls} text-left`}>{t('Período', 'Period')}</th>
+                  <th className={`${thCls} text-right`}>{t('Retorno', 'Return')} ¹</th>
+                  <th className={`${thCls} text-right`}>{t('Ganancia', 'Gain')}</th>
+                  <th className={`${thCls} text-right`}>{t('Medido desde', 'Measured from')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.performance.map((p) => {
+                  const labels = {
+                    '1m': t('1 mes', '1 month'), '3m': t('3 meses', '3 months'),
+                    ytd: t(`Año ${now.getFullYear()} (YTD)`, `Year ${now.getFullYear()} (YTD)`),
+                    '1y': t('12 meses', '12 months'), all: t('Desde el inicio', 'Since inception'),
+                  }
+                  return (
+                    <tr key={p.key} className="border-b border-gray-100">
+                      <td className="py-1.5 font-medium">{labels[p.key]}</td>
+                      <td className="py-1.5 text-right">{fmtPct(p.pct)}</td>
+                      <td className="py-1.5 text-right text-gray-600">{p.abs != null ? fmtAcc(p.abs) : '-'}</td>
+                      <td className="py-1.5 text-right text-gray-400 text-xs">{p.pct != null && p.fromTs ? fmtDate(p.fromTs) : '-'}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+            <div className="text-xs text-gray-500 mt-2 space-y-0.5">
+              {data.benchmark && (
+                <p>{t('Referencia', 'Benchmark')}: {data.benchmark.name} YTD {fmtPct(data.benchmark.ytdPct)}</p>
+              )}
+              {(data.risk.maxDrawdown || data.risk.volatilityPct != null) && (
+                <p>
+                  {t('Riesgo', 'Risk')}:{' '}
+                  {data.risk.volatilityPct != null && `${t('volatilidad anualizada', 'annualized volatility')} ${data.risk.volatilityPct.toFixed(1)}%`}
+                  {data.risk.volatilityPct != null && data.risk.maxDrawdown && ' · '}
+                  {data.risk.maxDrawdown && `${t('máxima caída del período', 'period max drawdown')} ${data.risk.maxDrawdown.pct.toFixed(1)}% (${fmtDate(data.risk.maxDrawdown.fromTs)} ${t('a', 'to')} ${fmtDate(data.risk.maxDrawdown.toTs)})`}
+                </p>
+              )}
+              {data.fees.totalEntryFees > 0 && (
+                <p>{t('Comisiones de entrada pagadas', 'Entry fees paid')}: {fmtAcc(data.fees.periodEntryFees)} {t('en el período', 'in period')} · {fmtAcc(data.fees.totalEntryFees)} {t('desde el inicio', 'since inception')}</p>
+              )}
+            </div>
           </div>
 
           {/* 2. Evolución */}
@@ -353,8 +407,11 @@ export default function PrintSummary({
                 </table>
                 {!hasAttribution && (
                   <p className="text-xs text-gray-400 mt-1">
-                    {t('El desglose de ganancia por cuenta no está disponible en este momento (el motor de atribución no pudo repartir el YTD con confianza).',
-                      'The per-account gain breakdown is unavailable right now (the attribution engine could not split the YTD confidently).')}
+                    {data.meta.breakdownReason
+                      ? t(`El desglose de ganancia por cuenta no está disponible: ${attributionRefusalText(data.meta.breakdownReason, 'es')}.`,
+                          `The per-account gain breakdown is unavailable: ${attributionRefusalText(data.meta.breakdownReason, 'en')}.`)
+                      : t('El desglose de ganancia por cuenta no está disponible en este momento (el motor de atribución no pudo repartir el YTD con confianza).',
+                          'The per-account gain breakdown is unavailable right now (the attribution engine could not split the YTD confidently).')}
                   </p>
                 )}
               </div>

@@ -306,7 +306,7 @@ export default function DashboardPage() {
     ratesLoading, ratesError,
     handleRefresh,
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
-    returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated, ytdBreakdown,
+    returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated, ytdBreakdown, ytdBreakdownReason,
     annualDividends, estimatedAnnualIncome,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
     brokerCompletionState, ibkrDataComplete, inferredFlowCandidates, inferredFlowReconciliation, ibkrReconciliation, acceptInferredFlow, dismissInferredFlow,
@@ -771,8 +771,9 @@ export default function DashboardPage() {
       await generateReport({
         items: enrichedItems, snapshots: augmentedSnapshots, transactions,
         netWorth, totalAssets, lang,
-        returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdBreakdown,
+        returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdBreakdown, ytdBreakdownReason,
         annualDividends, estimatedAnnualIncome,
+        benchmarkName, benchmarkReturn, volatilityPct: riskMetrics?.volatility,
         profileName: profile?.name || user?.displayName || '',
         baseCurrency, convert, period: 'ytd',
       })
@@ -781,7 +782,7 @@ export default function DashboardPage() {
       console.error('[report] generation failed:', err)
       showToast(lang === 'es' ? 'Error generando el PDF' : 'Error generating PDF')
     }
-  }, [enrichedItems, augmentedSnapshots, transactions, lang, netWorth, totalAssets, returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdBreakdown, annualDividends, estimatedAnnualIncome, profile, user, showToast, baseCurrency, convert])
+  }, [enrichedItems, augmentedSnapshots, transactions, lang, netWorth, totalAssets, returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdBreakdown, ytdBreakdownReason, annualDividends, estimatedAnnualIncome, benchmarkName, benchmarkReturn, riskMetrics, profile, user, showToast, baseCurrency, convert])
 
   const handleShare = useCallback(async () => {
     const t = (es, en) => lang === 'es' ? es : en
@@ -1243,7 +1244,7 @@ export default function DashboardPage() {
               returnSinceStart={returnSinceStart} sinceStartDate={sinceStartDate}
               dailyChange={dailyChange} convert={convert}
               lang={lang} netContributions={netContributions} cashTotal={cashTotal} snapshots={augmentedSnapshots} items={portfolioItems}
-              ytdCalibrated={ytdCalibrated} ytdBreakdown={ytdBreakdown}
+              ytdCalibrated={ytdCalibrated} ytdBreakdown={ytdBreakdown} ytdBreakdownReason={ytdBreakdownReason}
             />
             </CardBoundary>
           </div>
@@ -1687,8 +1688,11 @@ export default function DashboardPage() {
           snapshots={augmentedSnapshots} transactions={transactions}
           returnYTD={returnYTD} ytdChange={ytdChange}
           returnSinceStart={returnSinceStart} sinceStartDate={sinceStartDate}
-          ytdBreakdown={ytdBreakdown} annualDividends={annualDividends}
+          ytdBreakdown={ytdBreakdown} ytdBreakdownReason={ytdBreakdownReason}
+          annualDividends={annualDividends}
           estimatedAnnualIncome={estimatedAnnualIncome}
+          benchmarkName={benchmarkName} benchmarkReturn={benchmarkReturn}
+          volatilityPct={riskMetrics?.volatility}
           baseCurrency={baseCurrency} convert={convert}
           profileName={profile?.name || user?.displayName || ''}
           lang={lang} onClose={handleCloseModal} />
