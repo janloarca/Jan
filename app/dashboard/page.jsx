@@ -1884,6 +1884,32 @@ export default function DashboardPage() {
             const it = items.find((i) => i.id === c.itemId)
             if (it) setEditItem(it)
           }}
+          // "Esto no pasó": borrar una fila del desglose, sin cerrar la pantalla.
+          //
+          // Lo importante no es el borrado sino lo que va ANTES: un pago que
+          // escribió el motor automático se vuelve a escribir solo en la
+          // siguiente corrida, porque su calendario sigue diciendo que ese mes
+          // paga. Borrarlo a secas no sirve de nada: reaparece. Por eso la fecha
+          // se agrega primero a `excludedPayDates` del activo que lo produce,
+          // que es el mecanismo que ya existe para "esta fecha NO ocurrió"
+          // (hoy solo se podía marcar al crear la cuenta, nunca después).
+          //
+          // El borrado va por deleteTransactionWithReversal, la única vía que
+          // además revierte el crédito que ese pago pudo haber movido en la
+          // cuenta destino.
+          onDeleteMovement={async (m) => {
+            if (!m?.txId) return
+            if (m.source === 'auto' && m.date && m.sourceItemId) {
+              const src = items.find((i) => i.id === m.sourceItemId)
+              if (src) {
+                const prev = Array.isArray(src.excludedPayDates) ? src.excludedPayDates : []
+                if (!prev.includes(m.date)) {
+                  await updateItem(src.id, { excludedPayDates: [...prev, m.date] })
+                }
+              }
+            }
+            await deleteTransactionWithReversal(m.txId)
+          }}
         />
       )}
 
