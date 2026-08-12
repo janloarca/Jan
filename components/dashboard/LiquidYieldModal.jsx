@@ -30,7 +30,9 @@ const KIND_LABEL = {
 // dos totales: si un retiro que el usuario ve en su lista no aparece acá, ya
 // sabemos que el problema es cómo quedó archivado ese movimiento, y si aparece,
 // lo que falta es otro movimiento distinto.
-function Movements({ list, cur, t, total }) {
+function Movements({ list, cur, t, total, onDelete }) {
+  const [confirmId, setConfirmId] = useState(null)
+  const [busyId, setBusyId] = useState(null)
   if (!list || list.length === 0) return null
   return (
     <div className="rounded-lg mb-3 max-h-48 overflow-y-auto text-xs"
@@ -43,8 +45,24 @@ function Movements({ list, cur, t, total }) {
             {' · '}
             {t(...(KIND_LABEL[m.kind] || [m.kind, m.kind]))}
           </span>
-          <span className="font-mono shrink-0" style={{ color: m.amount < 0 ? 'var(--text-negative)' : 'var(--text-primary)' }}>
-            {m.amount < 0 ? '-' : '+'}{formatCurrency(Math.abs(m.amount), cur)}
+          <span className="flex items-center gap-2 shrink-0">
+            <span className="font-mono" style={{ color: m.amount < 0 ? 'var(--text-negative)' : 'var(--text-primary)' }}>
+              {m.amount < 0 ? '-' : '+'}{formatCurrency(Math.abs(m.amount), cur)}
+            </span>
+            {onDelete && m.txId && (
+              <button type="button" disabled={busyId === m.txId}
+                onClick={async () => {
+                  if (confirmId !== m.txId) { setConfirmId(m.txId); return }
+                  setBusyId(m.txId)
+                  try { await onDelete(m) } finally { setBusyId(null); setConfirmId(null) }
+                }}
+                className="text-[10px] px-1.5 py-0.5 rounded disabled:opacity-50"
+                style={confirmId === m.txId
+                  ? { color: 'var(--alert-error-icon)', backgroundColor: 'var(--alert-error-bg)', fontWeight: 600 }
+                  : { color: 'var(--text-muted)' }}>
+                {busyId === m.txId ? '...' : confirmId === m.txId ? t('¿Seguro?', 'Sure?') : t('No pasó', 'Did not happen')}
+              </button>
+            )}
           </span>
         </div>
       ))}
@@ -58,7 +76,7 @@ function Movements({ list, cur, t, total }) {
 }
 
 export default function LiquidYieldModal({
-  candidates = [], onClose, onAccept, onDismiss, onRegisterMissing, onOpenAccount, lang = 'es',
+  candidates = [], onClose, onAccept, onDismiss, onRegisterMissing, onOpenAccount, onDeleteMovement, lang = 'es',
 }) {
   const t = (es, en) => (lang === 'es' ? es : en)
   const trapRef = useFocusTrap()
@@ -139,7 +157,7 @@ export default function LiquidYieldModal({
                       {t('Eso no es rendimiento negativo: falta un movimiento por registrar. Abajo está exactamente lo que contamos, para que veas cuál falta. No se escribe nada hasta que lo revises.',
                          'That is not a negative yield: a movement is missing. Below is exactly what we counted, so you can see which one. Nothing is written until you check.')}
                     </p>
-                    <Movements list={c.contributions} cur={cur} t={t} total={c.contributed} />
+                    <Movements list={c.contributions} cur={cur} t={t} total={c.contributed} onDelete={onDeleteMovement} />
                     {/* FASE HV6. El desglose deja de ser solo un informe. Mirando
                         la lista solo hay dos desenlaces, y cada uno tiene su
                         botón: falta una salida (se registra, con el monto ya
@@ -170,7 +188,7 @@ export default function LiquidYieldModal({
                       {t('Los movimientos explican tu saldo completo: no hay rendimiento que registrar.',
                          'Your movements explain the whole balance: there is no yield to record.')}
                     </p>
-                    <Movements list={c.contributions} cur={cur} t={t} total={c.contributed} />
+                    <Movements list={c.contributions} cur={cur} t={t} total={c.contributed} onDelete={onDeleteMovement} />
                   </>
                 ) : (
                   <>
@@ -221,7 +239,7 @@ export default function LiquidYieldModal({
                         <p className="text-[11px] mb-1" style={{ color: 'var(--text-muted)' }}>
                           {t('Lo que contamos como que entró:', 'What we counted as going in:')}
                         </p>
-                        <Movements list={c.contributions} cur={cur} t={t} total={c.contributed} />
+                        <Movements list={c.contributions} cur={cur} t={t} total={c.contributed} onDelete={onDeleteMovement} />
                         <p className="text-[11px] mb-1" style={{ color: 'var(--text-muted)' }}>
                           {t('Cómo se reparte el rendimiento:', 'How the yield is spread:')}
                         </p>
