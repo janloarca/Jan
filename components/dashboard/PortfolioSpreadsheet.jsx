@@ -672,6 +672,24 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     return baseCurrency || 'USD'
   }, [showOriginal, baseCurrency])
 
+  // FASE HV5. El caché de meses históricos SIEMPRE guarda en moneda BASE (se
+  // convierte a base al cargarlo, ver `__currencies` arriba), pero la columna
+  // del mes actual en modo "Original" imprime la moneda propia del activo. Sin
+  // convertir de vuelta, la MISMA fila mezcla dos monedas sin avisar.
+  //
+  // El caso real: un fondo en quetzales imprimía "393.47" en julio (dólares) y
+  // "2,500.00" en agosto (quetzales), que se lee como un salto de 6x cuando en
+  // realidad el fondo BAJÓ de 393.47 a 327.89 dólares, exactamente los 500
+  // quetzales que se retiraron. Con las dos cifras en la misma moneda, la
+  // historia se lee sola.
+  const toDisplayCurrency = useCallback((v, cur) => {
+    if (v == null) return v
+    const base = baseCurrency || 'USD'
+    if (!showOriginal || !convert || !cur || cur === base) return v
+    const out = convert(v, base, cur)
+    return Number.isFinite(out) ? out : v
+  }, [showOriginal, convert, baseCurrency])
+
   const { categories, totalAssets, totalDebt, currencyBreakdown } = useMemo(() => {
     const catMap = {}
     let totalA = 0
@@ -1196,7 +1214,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                             }
                             return (
                               <td key={mk} className="text-right py-2 px-2 font-medium tabular-nums font-mono text-sm" style={{ color: 'var(--text-muted)' }}>
-                                {instHistTotal != null ? formatNum(instHistTotal) : ''}
+                                {instHistTotal != null ? formatNum(toDisplayCurrency(instHistTotal, instOrigTotal != null ? singleCurrency : null)) : ''}
                               </td>
                             )
                           })}
@@ -1266,7 +1284,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                                         {isEst && (
                                           <span title={t('Valor estimado: mantenido plano; sin precio histórico real', 'Estimated: held flat; no real historical price')} style={{ color: 'var(--text-muted)', marginRight: '1px' }}>~</span>
                                         )}
-                                        {formatNum(histVal)}
+                                        {formatNum(toDisplayCurrency(histVal, cur))}
                                       </>
                                     ) : '-'}
                                   </td>
