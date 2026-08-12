@@ -154,6 +154,29 @@ export function getTypeCategory(itemOrType) {
 
 export { CATEGORY as TYPE_COLORS, CHART_PALETTE } from '@/lib/colors'
 
+// Etiquetas visibles de las categorías de getTypeCategory. Ya existían CUATRO
+// copias locales de este mapa (NetWorthCard, AccountReviewModal,
+// PatrimonioSpreadsheet, PortfolioSpreadsheet); esta es la compartida para
+// consumidores nuevos (los reportes, FASE HT). Las copias viejas quedan donde
+// están a propósito (alguna diverge adrede, ej. "Bonos Corporativo" en el
+// Spreadsheet), pero nada nuevo debe crear una quinta.
+export const CATEGORY_LABELS = {
+  banks: { es: 'Caja & Bancos', en: 'Cash & Banks' },
+  funds: { es: 'Fondos', en: 'Funds' },
+  stocks: { es: 'Acciones', en: 'Stocks' },
+  crypto: { es: 'Cripto', en: 'Crypto' },
+  alternatives: { es: 'Alternativos', en: 'Alternatives' },
+  bonds: { es: 'Bonos', en: 'Bonds' },
+  realestate: { es: 'Bienes Raíces', en: 'Real Estate' },
+  receivables: { es: 'Por Cobrar', en: 'Receivables' },
+  debts: { es: 'Pasivos', en: 'Liabilities' },
+  other: { es: 'Otros', en: 'Other' },
+}
+
+export function categoryLabel(cat, lang) {
+  return CATEGORY_LABELS[cat]?.[lang === 'es' ? 'es' : 'en'] || cat
+}
+
 export function getItemPrice(item) {
   if (item.isIlliquid && item.lastManualValuation > 0) return item.lastManualValuation
   const candidates = [item.currentPrice, item.purchasePrice, item.price, item.cost, item.averagePrice]

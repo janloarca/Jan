@@ -769,17 +769,19 @@ export default function DashboardPage() {
     try {
       const { generateReport } = await import('@/lib/generateReport')
       await generateReport({
-        items: enrichedItems, snapshots, transactions,
-        netWorth, totalAssets, lang, returnYTD, annualDividends,
+        items: enrichedItems, snapshots: augmentedSnapshots, transactions,
+        netWorth, totalAssets, lang,
+        returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdBreakdown,
+        annualDividends, estimatedAnnualIncome,
         profileName: profile?.name || user?.displayName || '',
-        baseCurrency, convert,
+        baseCurrency, convert, period: 'ytd',
       })
       showToast(lang === 'es' ? 'PDF descargado' : 'PDF downloaded')
     } catch (err) {
       console.error('[report] generation failed:', err)
       showToast(lang === 'es' ? 'Error generando el PDF' : 'Error generating PDF')
     }
-  }, [enrichedItems, snapshots, transactions, lang, netWorth, totalAssets, returnYTD, annualDividends, profile, user, showToast, baseCurrency, convert])
+  }, [enrichedItems, augmentedSnapshots, transactions, lang, netWorth, totalAssets, returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdBreakdown, annualDividends, estimatedAnnualIncome, profile, user, showToast, baseCurrency, convert])
 
   const handleShare = useCallback(async () => {
     const t = (es, en) => lang === 'es' ? es : en
@@ -1371,13 +1373,11 @@ export default function DashboardPage() {
         <InstallPrompt lang={lang} />
 
         <div className="flex items-center justify-center gap-3 pt-4 pb-8">
-          <button onClick={handleReport}
-            className="px-5 py-2.5 text-sm font-medium text-slate-400 bg-theme-surface border border-glass-border/60 rounded-xl hover:bg-theme-elevated hover:text-white hover:border-[#475569] transition-all inline-flex items-center gap-2">
-            {lang === 'es' ? 'Descargar PDF' : 'Download PDF'}
-          </button>
+          {/* Una sola entrada (FASE HT): el modal trae período, vista previa,
+              Imprimir y Descargar PDF, todos sobre los mismos datos. */}
           <button onClick={handleOpenPrint}
             className="px-5 py-2.5 text-sm font-medium text-slate-400 bg-theme-surface border border-glass-border/60 rounded-xl hover:bg-theme-elevated hover:text-white hover:border-[#475569] transition-all inline-flex items-center gap-2">
-            {lang === 'es' ? 'Imprimir Resumen' : 'Print Summary'}
+            {lang === 'es' ? 'Generar reporte' : 'Generate report'}
           </button>
         </div>
 
@@ -1684,7 +1684,14 @@ export default function DashboardPage() {
 
       {modal === 'print' && (
         <PrintSummary items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets}
-          snapshots={augmentedSnapshots} transactions={transactions} lang={lang} onClose={handleCloseModal} />
+          snapshots={augmentedSnapshots} transactions={transactions}
+          returnYTD={returnYTD} ytdChange={ytdChange}
+          returnSinceStart={returnSinceStart} sinceStartDate={sinceStartDate}
+          ytdBreakdown={ytdBreakdown} annualDividends={annualDividends}
+          estimatedAnnualIncome={estimatedAnnualIncome}
+          baseCurrency={baseCurrency} convert={convert}
+          profileName={profile?.name || user?.displayName || ''}
+          lang={lang} onClose={handleCloseModal} />
       )}
 
       {modal === 'calibrate' && (
