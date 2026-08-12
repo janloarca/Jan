@@ -28,7 +28,7 @@ export default function PrintSummary({
   netWorth, totalAssets,
   returnYTD, ytdChange, returnSinceStart, sinceStartDate,
   ytdBreakdown, ytdBreakdownReason, annualDividends, estimatedAnnualIncome,
-  benchmarkName, benchmarkReturn, volatilityPct,
+  benchmarkName, benchmarkReturn, volatilityPct, sharpe, beta,
   baseCurrency = 'USD', convert,
   profileName = '',
   lang, onClose,
@@ -43,11 +43,11 @@ export default function PrintSummary({
     netWorth, totalAssets,
     returnYTD, ytdChange, returnSinceStart, sinceStartDate,
     ytdBreakdown, ytdBreakdownReason, annualDividends, estimatedAnnualIncome,
-    benchmarkName, benchmarkYtdPct: benchmarkReturn, volatilityPct,
+    benchmarkName, benchmarkYtdPct: benchmarkReturn, volatilityPct, sharpe, beta,
     baseCurrency, convert, profileName, period,
   }), [items, transactions, snapshots, netWorth, totalAssets, returnYTD, ytdChange,
     returnSinceStart, sinceStartDate, ytdBreakdown, ytdBreakdownReason, annualDividends,
-    estimatedAnnualIncome, benchmarkName, benchmarkReturn, volatilityPct,
+    estimatedAnnualIncome, benchmarkName, benchmarkReturn, volatilityPct, sharpe, beta,
     baseCurrency, convert, profileName, period])
 
   const fmtRaw = (v) => formatCurrency(Math.abs(v || 0))
@@ -257,6 +257,8 @@ export default function PrintSummary({
                     '1m': t('1 mes', '1 month'), '3m': t('3 meses', '3 months'),
                     ytd: t(`Año ${now.getFullYear()} (YTD)`, `Year ${now.getFullYear()} (YTD)`),
                     '1y': t('12 meses', '12 months'), all: t('Desde el inicio', 'Since inception'),
+                    '3y': t('3 años (anualizado)', '3 years (annualized)'),
+                    '5y': t('5 años (anualizado)', '5 years (annualized)'),
                   }
                   return (
                     <tr key={p.key} className="border-b border-gray-100">
@@ -269,16 +271,30 @@ export default function PrintSummary({
                 })}
               </tbody>
             </table>
+            {data.calendarYears.length > 0 && (
+              <p className="text-xs text-gray-600 mt-2">
+                {t('Años calendario', 'Calendar years')}:{' '}
+                {data.calendarYears.map((cy, i) => (
+                  <span key={cy.year}>
+                    {i > 0 && ' · '}
+                    {cy.year}{cy.partial ? ` (${t('parcial', 'partial')})` : ''} {fmtPct(cy.pct)}
+                  </span>
+                ))}
+              </p>
+            )}
             <div className="text-xs text-gray-500 mt-2 space-y-0.5">
               {data.benchmark && (
                 <p>{t('Referencia', 'Benchmark')}: {data.benchmark.name} YTD {fmtPct(data.benchmark.ytdPct)}</p>
               )}
-              {(data.risk.maxDrawdown || data.risk.volatilityPct != null) && (
+              {(data.risk.maxDrawdown || data.risk.volatilityPct != null || data.risk.sharpe != null || data.risk.beta != null) && (
                 <p>
                   {t('Riesgo', 'Risk')}:{' '}
-                  {data.risk.volatilityPct != null && `${t('volatilidad anualizada', 'annualized volatility')} ${data.risk.volatilityPct.toFixed(1)}%`}
-                  {data.risk.volatilityPct != null && data.risk.maxDrawdown && ' · '}
-                  {data.risk.maxDrawdown && `${t('máxima caída del período', 'period max drawdown')} ${data.risk.maxDrawdown.pct.toFixed(1)}% (${fmtDate(data.risk.maxDrawdown.fromTs)} ${t('a', 'to')} ${fmtDate(data.risk.maxDrawdown.toTs)})`}
+                  {[
+                    data.risk.volatilityPct != null ? `${t('volatilidad anualizada', 'annualized volatility')} ${data.risk.volatilityPct.toFixed(1)}%` : null,
+                    data.risk.sharpe != null ? `Sharpe ${data.risk.sharpe.toFixed(2)}` : null,
+                    data.risk.beta != null ? `${t('beta vs', 'beta vs')} ${data.benchmark?.name || 'benchmark'} ${data.risk.beta.toFixed(2)}` : null,
+                    data.risk.maxDrawdown ? `${t('máxima caída del período', 'period max drawdown')} ${data.risk.maxDrawdown.pct.toFixed(1)}% (${fmtDate(data.risk.maxDrawdown.fromTs)} ${t('a', 'to')} ${fmtDate(data.risk.maxDrawdown.toTs)})` : null,
+                  ].filter(Boolean).join(' · ')}
                 </p>
               )}
               {data.fees.totalEntryFees > 0 && (
@@ -441,9 +457,9 @@ export default function PrintSummary({
           </div>
 
           {/* 7. Exposición */}
-          {(data.currencies.length > 0 || data.geography.length > 0) && (
+          {(data.currencies.length > 0 || data.geography.length > 0 || data.sectors.length > 0) && (
             <div className="mb-6">
-              <h2 className={sectionCls}>{sec('Exposición por moneda y geografía', 'Currency & Geography Exposure')}</h2>
+              <h2 className={sectionCls}>{sec('Exposición por moneda, geografía y sector', 'Currency, Geography & Sector Exposure')}</h2>
               <div className="grid grid-cols-2 gap-6 items-start">
                 <table className="w-full text-sm self-start">
                   <thead>
@@ -482,6 +498,32 @@ export default function PrintSummary({
                   </tbody>
                 </table>
               </div>
+              {data.sectors.length > 0 && (
+                <table className="w-full text-sm mt-4">
+                  <thead>
+                    <tr className="border-b">
+                      <th className={`${thCls} text-left`}>{t('Sector', 'Sector')}</th>
+                      <th className={`${thCls} text-right`}>{t('Valor', 'Value')}</th>
+                      <th className={`${thCls} text-right`}>%</th>
+                      <th className="py-1.5 w-32" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.sectors.slice(0, 8).map((r) => (
+                      <tr key={r.key} className="border-b border-gray-100">
+                        <td className="py-1.5 font-medium">{r.key === 'Unknown' ? t('Otros', 'Other') : r.key}</td>
+                        <td className="py-1.5 text-right">{fmtAcc(r.value)}</td>
+                        <td className="py-1.5 text-right text-gray-500">{r.pct.toFixed(1)}%</td>
+                        <td className="py-1.5">
+                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full bg-gray-700" style={{ width: `${r.pct}%` }} />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           )}
 
@@ -551,6 +593,17 @@ export default function PrintSummary({
               '³ Per-account YTD gain and return: attribution engine on the same Dietz base as the dashboard headline.')}</p>
             <p>{t('Este reporte es informativo y no constituye asesoría de inversión.',
               'This report is informational and does not constitute investment advice.')}</p>
+            <p className="font-bold text-gray-500 pt-2">{t('Glosario', 'Glossary')}</p>
+            <p>{t('Retorno (Modified Dietz): la ganancia del período neta de depósitos y retiros, ponderando cada movimiento por el tiempo que estuvo invertido. Un depósito no es ganancia.',
+              'Return (Modified Dietz): the period gain net of deposits and withdrawals, weighting each movement by how long it was invested. A deposit is not gain.')}</p>
+            <p>{t('Volatilidad anualizada: qué tanto varían los retornos alrededor de su promedio, escalado a un año. Más alto significa una trayectoria más movida, no necesariamente peor.',
+              'Annualized volatility: how much returns vary around their average, scaled to one year. Higher means a bumpier ride, not necessarily a worse one.')}</p>
+            <p>{t('Máxima caída: la peor pérdida de pico a valle dentro del período.',
+              'Max drawdown: the worst peak-to-trough loss within the period.')}</p>
+            <p>{t('Sharpe: retorno por encima de la tasa libre de riesgo por cada unidad de volatilidad. Mayor a 1 se considera bueno.',
+              'Sharpe: return above the risk-free rate per unit of volatility. Above 1 is considered good.')}</p>
+            <p>{t('Beta: sensibilidad frente al benchmark. 1 significa que se mueve igual que el mercado; menos de 1, menos que el mercado.',
+              'Beta: sensitivity to the benchmark. 1 moves with the market; below 1, less than the market.')}</p>
             <p className="text-center pt-2">{t('Generado por', 'Generated by')} Chispudo · chispu.xyz · {dateStr}</p>
           </div>
         </div>

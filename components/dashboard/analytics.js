@@ -468,6 +468,45 @@ export function filterValueSpikes(series) {
   })
 }
 
+// FASE HT5. El emparejado portafolio↔benchmark que antes vivía inline en
+// RiskMetrics.jsx, extraído porque ahora lo necesita también el hook (el
+// reporte imprime beta): dos copias del mismo emparejado es exactamente cómo
+// una se queda atrás. Devuelve las DOS series alineadas par a par (misma
+// ventana, mismo guard de outliers en ambas) más el beta ya calculado.
+export function pairPortfolioWithBenchmark(valueSeries, benchmarkData) {
+  const pReturnsB = []
+  const bReturns = []
+  if (!benchmarkData?.dataPoints?.length || benchmarkData.dataPoints.length <= 2 || !valueSeries || valueSeries.length <= 2) {
+    return { pReturnsB, bReturns, beta: null }
+  }
+  const bPts = benchmarkData.dataPoints.slice().sort((a, b) => a.ts - b.ts)
+  const findClosest = (ts) => {
+    let lo = 0, hi = bPts.length - 1
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1
+      if (bPts[mid].ts < ts) lo = mid + 1
+      else hi = mid
+    }
+    if (lo === 0) return bPts[0]
+    const prev = bPts[lo - 1]
+    const curr = bPts[lo]
+    return Math.abs(prev.ts - ts) <= Math.abs(curr.ts - ts) ? prev : curr
+  }
+  for (let i = 1; i < valueSeries.length; i++) {
+    const closestCurr = findClosest(valueSeries[i].ts)
+    const closestPrev = findClosest(valueSeries[i - 1].ts)
+    const prevVal = valueSeries[i - 1].value
+    if (closestCurr && closestPrev && closestPrev.close > 0 && prevVal > 0) {
+      const pr = (valueSeries[i].value - prevVal) / prevVal
+      if (Math.abs(pr) < 1) {
+        pReturnsB.push(pr)
+        bReturns.push((closestCurr.close - closestPrev.close) / closestPrev.close)
+      }
+    }
+  }
+  return { pReturnsB, bReturns, beta: computeBeta(pReturnsB, bReturns) }
+}
+
 export function computeBeta(portfolioReturns, benchmarkReturns) {
   if (!portfolioReturns || !benchmarkReturns || portfolioReturns.length < 3 || benchmarkReturns.length < 3) {
     return null
