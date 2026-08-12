@@ -34,7 +34,6 @@ function lastDayOfMonth(d) {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate()
 }
 
-const MONTHS_ES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
 const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
 export async function GET(request) {
@@ -97,9 +96,12 @@ export async function GET(request) {
         .get()
       if (!txs.empty) { skipped++; continue }
 
-      const lang = prefs.financeReminderLang === 'en' ? 'en' : 'es'
-      const monthLabel = `${(lang === 'en' ? MONTHS_EN : MONTHS_ES)[now.getUTCMonth()]} ${now.getUTCFullYear()}`
-      const { subject, html, text } = buildFinanceReminderEmail(lang, monthLabel)
+      // Todo correo saliente va en INGLÉS (FASE HX2), sin importar el idioma
+      // con que el usuario use la app: es una decisión de producto, no un
+      // default técnico. `financeReminderLang` quedó sin lector por eso; el
+      // template sigue aceptando 'es' para el día que se quiera volver.
+      const monthLabel = `${MONTHS_EN[now.getUTCMonth()]} ${now.getUTCFullYear()}`
+      const { subject, html, text } = buildFinanceReminderEmail('en', monthLabel)
 
       // Cabeceras de correo AUTOMÁTICO (RFC 3834 + la variante de Outlook):
       // le dicen a los auto-respondedores ("estoy de vacaciones") que NO
