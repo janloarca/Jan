@@ -1748,15 +1748,23 @@ export default function DashboardPage() {
           allItems={portfolioItems}
           findings={dataCompleteness.findings}
           onOpenCashflow={handleOpenCashflowPrefilled}
-          onNavigate={showReview ? null : (dir) => {
-            if (dir === 'next') {
-              const sorted = [...portfolioItems].sort((a, b) => Math.abs(getItemValue(b)) - Math.abs(getItemValue(a)))
-              const currentId = editItem.id
-              const idx = sorted.findIndex(it => it.id === currentId)
-              if (idx >= 0 && idx < sorted.length - 1) setEditItem(sorted[idx + 1])
-              else setEditItem(null)
-            }
-          }} />
+          /* FASE HV3. Guardar cierra y devuelve al dashboard, punto.
+           *
+           * Antes, `onNavigate('next')` saltaba a la cuenta SIGUIENTE por
+           * tamaño apenas se guardaba. Reportado por el usuario: arregló su
+           * fondo líquido desde "Chispu te sugiere", guardó, y aterrizó
+           * editando su Bitcoin sin haberlo pedido ("me quedé confundido").
+           * No era aleatorio: el fondo vale $327.89 y Bitcoin $294.05, o sea
+           * era literalmente la siguiente cuenta hacia abajo.
+           *
+           * El encadenado tenía sentido como barrido de "revisá todas tus
+           * cuentas", pero ese barrido ya existe aparte y es AccountReviewModal,
+           * que hace su propio paso a paso y por eso ya desactivaba esto
+           * (`showReview ? null : ...`). O sea el encadenado solo llegaba a
+           * dispararse desde el único lugar donde está mal: una corrección
+           * puntual de UNA cuenta. Sin el prop, el botón además deja de decir
+           * "Guardar →" y dice "Guardar", que es lo que de verdad hace.
+           */ />
       )}
 
       {detailItem && (
