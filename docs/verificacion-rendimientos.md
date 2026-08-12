@@ -269,3 +269,66 @@ Pestaña **Valor**, IDC, período **ALL**, con el valor de un par de puntos de
   serie de VALOR está bien y el bug vive en el cálculo del TWR.
 - Si el valor sale plano (o en cero) antes de jul 2025, el bug está en la
   reconstrucción del API y el Spreadsheet es la referencia de cómo debería ser.
+
+---
+
+## Tanda 1: CERRADA (11 ago 2026, post-FASE HU)
+
+Lecturas finales de IDC contra el cálculo del usuario (todo acumulado):
+
+| Período | TWR app | MWR app | Usuario (TWR/MWR) | Δ TWR |
+|---|---|---|---|---|
+| DAY / 1W / MTD / 1M | +0.00% | +0.00% | 0.0000% | **exacto** |
+| 3M | +3.04% | +3.04% | +3.17% / +3.15% | −0.13 pp |
+| YTD | +3.85% | +2.87% | +4.04% / +3.10% | −0.19 pp |
+| 1Y | +7.73% | +5.72% | +8.24% / +6.24% | −0.51 pp |
+| ALL | +14.43% | +12.46% | +12.61% / +12.12% | +1.82 pp |
+
+### Veredicto
+
+**La lógica está validada.** Cinco pruebas independientes, ninguna forzada:
+
+1. Los cuatro períodos sin eventos dan 0.00% exacto en ambas metodologías.
+2. Con cero flujos externos en la ventana, TWR y MWR convergen al mismo número
+   (3M: ambos +3.04%), que es lo que la teoría exige.
+3. Los escalones caen en las fechas exactas de los cupones, y son tantos como
+   cupones hay en la ventana.
+4. TWR > MWR en todos los períodos largos, la dirección que predice el cálculo
+   del usuario (VITALI entró tarde, así que el timing castiga al MWR).
+5. La BRECHA TWR−MWR reproduce la del cálculo manual: 1Y 2.01 vs 2.00 pp,
+   YTD 0.98 vs 0.94 pp. Es la medida más difícil de acertar por casualidad.
+
+### Las diferencias residuales son de CONVENCIÓN, y su patrón lo confirma
+
+El desvío crece monótonamente con la longitud del período (−0.13 pp en 3M,
+−0.19 en YTD, −0.51 en 1Y) y siempre en la MISMA dirección. Eso es exactamente
+la firma de un lastre constante: las 2 posiciones que el cálculo no cubre
+(FONDO LÍQUIDO Q y $) son efectivo que no rinde, y sumarlo al denominador baja
+el retorno un poco más cuanto más largo el período. No es un error: es que la
+app mide 5 posiciones y el cálculo mide 3.
+
+ALL (+1.82 pp) es el único que va para el otro lado, y es el único período que
+abarca dos años completos de movimiento del quetzal: el cálculo lo congela en
+7.63 y la app mide en USD con la tasa de cada día. Convención ya decidida.
+
+### Bugs encontrados y arreglados en esta tanda
+
+- **FASE HT**: DAY caía al estado vacío en un scope 100% estático.
+- **FASE HT**: DAY caía al estado vacío en un scope 100% estático.
+- **FASE HU**: un cupón pagado en efectivo a otra cuenta se reversaba DOS veces
+  al rebobinar, hundiendo la cuenta destino a $0 en todo el pasado. Afectaba a
+  CUALQUIER activo con `incomeDestination`, no solo a IDC.
+
+### Próximo paso de IDC: el rendimiento de los fondos líquidos
+
+Con la lógica de los 3 bonos validada, el siguiente escalón es que las 2
+posiciones restantes (FONDO LÍQUIDO Q y $) dejen de ser efectivo muerto y rindan
+lo suyo (4%-5% variable). El diseño está escrito y pendiente de aprobación en
+`docs/rendimiento-fondo-liquido.md`; no se escribió código todavía a pedido del
+usuario ("quiero que la lógica esté primero").
+
+Nota para cuando se implemente: ese lastre de efectivo es EXACTAMENTE lo que
+explica el desvío monótono de la tabla de arriba (−0.13 / −0.19 / −0.51 pp), así
+que al activar el rendimiento del fondo esos tres números deberían acercarse
+solos al cálculo del usuario. Es una predicción falsable y conviene medirla
+antes y después.

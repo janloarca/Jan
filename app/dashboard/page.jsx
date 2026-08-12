@@ -60,6 +60,7 @@ const EnrichModal = dynamic(() => import('@/components/dashboard/EnrichModal'), 
 const QuarterlyHistoryModal = dynamic(() => import('@/components/dashboard/QuarterlyHistoryModal'), { loading: () => <ModalSkeleton /> })
 const BrokerCompletionModal = dynamic(() => import('@/components/dashboard/BrokerCompletionModal'), { loading: () => <ModalSkeleton /> })
 const InferredFlowsModal = dynamic(() => import('@/components/dashboard/InferredFlowsModal'), { loading: () => <ModalSkeleton /> })
+const LiquidYieldModal = dynamic(() => import('@/components/dashboard/LiquidYieldModal'), { loading: () => <ModalSkeleton /> })
 const CashFlowModal = dynamic(() => import('@/components/CashFlowModal'), { loading: () => <ModalSkeleton /> })
 const PrintSummary = dynamic(() => import('@/components/dashboard/PrintSummary'))
 const OnboardingTour = dynamic(() => import('@/components/dashboard/OnboardingTour'))
@@ -310,6 +311,7 @@ export default function DashboardPage() {
     annualDividends, estimatedAnnualIncome,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
     brokerCompletionState, ibkrDataComplete, inferredFlowCandidates, inferredFlowReconciliation, ibkrReconciliation, acceptInferredFlow, dismissInferredFlow,
+    liquidYieldCandidates, acceptLiquidYield, dismissLiquidYield,
     benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName, benchmarkLoading,
     handleIBKRSync, triggerIBKRSync,
     ibkrConnected, ibkrAutoSyncing,
@@ -662,6 +664,30 @@ export default function DashboardPage() {
     () => analyzeDataCompleteness({ items, transactions, lots, convert, baseCurrency, marketPrices }),
     [items, transactions, lots, convert, baseCurrency, marketPrices]
   )
+
+  // FASE HV. El rendimiento deducido de una cuenta líquida entra a la MISMA
+  // lista de sugerencias que todo lo demás, en vez de estrenar una superficie
+  // propia: es una pregunta sobre los datos, igual que las otras. Se arma acá y
+  // no en `lib/dataCompleteness.js` porque ese módulo no conoce el motor de
+  // rendimiento, y duplicarlo ahí sería tener dos respuestas distintas a la
+  // misma pregunta.
+  const suggestionFindings = useMemo(() => {
+    const extra = (liquidYieldCandidates || []).map((c) => ({
+      id: `liquid-yield:${c.itemId}`,
+      code: 'liquid-yield',
+      severity: c.status === 'negative-residual' ? 'medium' : 'low',
+      itemId: c.itemId,
+      textEs: c.status === 'negative-residual'
+        ? `${c.name}: entró más de lo que hay en la cuenta. Puede faltar un retiro.`
+        : `${c.name}: ${formatCurrency(c.interest, c.currency)} de tu saldo no vino de ningún movimiento. Parece rendimiento de la cuenta.`,
+      textEn: c.status === 'negative-residual'
+        ? `${c.name}: more went in than the account holds. A withdrawal may be missing.`
+        : `${c.name}: ${formatCurrency(c.interest, c.currency)} of your balance came from no movement. It looks like the account's own yield.`,
+      action: { kind: 'liquid-yield' },
+      suggestion: null,
+    }))
+    return extra.length > 0 ? [...extra, ...dataCompleteness.findings] : dataCompleteness.findings
+  }, [liquidYieldCandidates, dataCompleteness])
 
   // Export XLSX
   const handleExport = useCallback(async () => {
@@ -1280,13 +1306,14 @@ export default function DashboardPage() {
           const suggestionsCard = (
             <CardBoundary id="SUGG-01">
               <ChispuSuggestions
-                findings={dataCompleteness.findings}
+                findings={suggestionFindings}
                 globalScore={dataCompleteness.globalScore}
                 items={items}
                 lang={lang}
                 onEditItem={setEditItem}
                 onOpenCashflow={handleOpenCashflowPrefilled}
                 onOpenReview={handleOpenReview}
+                onOpenLiquidYield={() => setModal('liquidYield')}
                 onConfirmDistinct={(f) => {
                   (f.action?.itemIds || []).forEach((id) => updateItem(id, { _dupConfirmedDistinct: true }))
                 }}
@@ -1732,15 +1759,23 @@ export default function DashboardPage() {
           allItems={portfolioItems}
           findings={dataCompleteness.findings}
           onOpenCashflow={handleOpenCashflowPrefilled}
-          onNavigate={showReview ? null : (dir) => {
-            if (dir === 'next') {
-              const sorted = [...portfolioItems].sort((a, b) => Math.abs(getItemValue(b)) - Math.abs(getItemValue(a)))
-              const currentId = editItem.id
-              const idx = sorted.findIndex(it => it.id === currentId)
-              if (idx >= 0 && idx < sorted.length - 1) setEditItem(sorted[idx + 1])
-              else setEditItem(null)
-            }
-          }} />
+          /* FASE HV3. Guardar cierra y devuelve al dashboard, punto.
+           *
+           * Antes, `onNavigate('next')` saltaba a la cuenta SIGUIENTE por
+           * tamaño apenas se guardaba. Reportado por el usuario: arregló su
+           * fondo líquido desde "Chispu te sugiere", guardó, y aterrizó
+           * editando su Bitcoin sin haberlo pedido ("me quedé confundido").
+           * No era aleatorio: el fondo vale $327.89 y Bitcoin $294.05, o sea
+           * era literalmente la siguiente cuenta hacia abajo.
+           *
+           * El encadenado tenía sentido como barrido de "revisá todas tus
+           * cuentas", pero ese barrido ya existe aparte y es AccountReviewModal,
+           * que hace su propio paso a paso y por eso ya desactivaba esto
+           * (`showReview ? null : ...`). O sea el encadenado solo llegaba a
+           * dispararse desde el único lugar donde está mal: una corrección
+           * puntual de UNA cuenta. Sin el prop, el botón además deja de decir
+           * "Guardar →" y dice "Guardar", que es lo que de verdad hace.
+           */ />
       )}
 
       {detailItem && (
@@ -1826,6 +1861,22 @@ export default function DashboardPage() {
             showToast(lang === 'es' ? 'Movimiento registrado' : 'Movement recorded', 'success')
           }}
           onDismiss={dismissInferredFlow}
+        />
+      )}
+
+      {modal === 'liquidYield' && (
+        <LiquidYieldModal
+          candidates={liquidYieldCandidates}
+          lang={lang}
+          // setModal(null) y no handleCloseModal a propósito: con un viaje de
+          // IBKR activo, cerrar por ahí AVANZA el paso (FASE GM), y este modal
+          // no es parte de ese viaje.
+          onClose={() => setModal(null)}
+          onAccept={async (c) => {
+            await acceptLiquidYield(c)
+            showToast(lang === 'es' ? 'Rendimiento registrado' : 'Yield recorded', 'success')
+          }}
+          onDismiss={dismissLiquidYield}
         />
       )}
 

@@ -16,7 +16,7 @@ const SEV_STYLE = {
 }
 const SEV_ICON = { high: '⚠', medium: '●', low: 'ℹ' }
 
-export default function ChispuSuggestions({ findings = [], globalScore = 100, lang = 'es', onEditItem, onOpenCashflow, onOpenReview, onConfirmDistinct, onApplySuggestion, items = [] }) {
+export default function ChispuSuggestions({ findings = [], globalScore = 100, lang = 'es', onEditItem, onOpenCashflow, onOpenReview, onOpenLiquidYield, onConfirmDistinct, onApplySuggestion, items = [] }) {
   const t = (es, en) => lang === 'es' ? es : en
   const [dismissed, setDismissed] = useState(() => {
     if (typeof window === 'undefined') return new Set()
@@ -80,6 +80,7 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
   const actionLabel = (f) => {
     if (f.action?.kind === 'cashflow') return t('Capturar historia', 'Add history')
     if (f.action?.kind === 'review') return t('Revisar', 'Review')
+    if (f.action?.kind === 'liquid-yield') return t('Ver el desglose', 'See the breakdown')
     return t('Completar', 'Complete')
   }
 
@@ -89,6 +90,8 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
       onOpenCashflow(f.action.prefill || (f.itemId ? { flowType: 'DEPOSIT', origin: 'external', linkedId: f.itemId, alreadyReflected: true } : {}))
     } else if (f.action?.kind === 'review' && onOpenReview) {
       onOpenReview()
+    } else if (f.action?.kind === 'liquid-yield' && onOpenLiquidYield) {
+      onOpenLiquidYield()
     } else if (item && onEditItem) {
       onEditItem(item)
     }
