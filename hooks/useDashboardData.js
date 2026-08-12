@@ -2000,6 +2000,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       out.push({
         ...res, id: it.id, itemId: it.id, name: it.name || it.symbol,
         currency: it.currency || 'USD', asOf: it.balanceAsOf, asOfTs, signature,
+        // Los movimientos que el motor SÍ contó, para que el modal pueda
+        // mostrarlos uno por uno. Sin esto, un veredicto de "falta un retiro"
+        // es imposible de contrastar contra el propio historial del usuario:
+        // hay que deducir de dos números cuál de sus filas no entró.
+        contributions,
       })
     }
     return out
