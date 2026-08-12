@@ -1847,17 +1847,24 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   }, [portfolioItems])
 
   const riskMetrics = useMemo(() => {
-    const returns = computePeriodicReturns(snapshots, transactions, convert, baseCurrency)
-    const ppy = inferPeriodsPerYear(snapshots)
+    // Serie AUMENTADA, nunca los snapshots crudos (FASE HT4): un día cuyo
+    // único doc es NAV solo-broker mide UNA cuenta, y mezclado con días de
+    // portafolio completo fabrica retornos gigantes que no existieron. La
+    // volatilidad salía 116.4% anualizada sobre un portafolio con drawdown
+    // real de -5.6%. computePeriodicReturns además resuelve por día y excluye
+    // anclas de calibración por su cuenta (defensa para cualquier caller).
+    const returns = computePeriodicReturns(augmentedSnapshots, transactions, convert, baseCurrency)
+    const ppy = inferPeriodsPerYear(augmentedSnapshots)
     const sharpeResult = computeSharpeRatio({ returns, periodsPerYear: ppy })
     const vol = computeVolatility({ returns, periodsPerYear: ppy })
-    const valueSeries = (snapshots || [])
+    const valueSeries = (augmentedSnapshots || [])
+      .filter((s) => !s._calibrated && !s._account)
       .map((s) => ({ ts: new Date(s.date).getTime(), value: s.netWorthUSD ?? s.totalActivosUSD ?? 0 }))
       .filter((p) => !isNaN(p.ts) && p.value > 0)
       .sort((a, b) => a.ts - b.ts)
     const drawdown = computeMaxDrawdown(filterValueSpikes(valueSeries))
     return { sharpe: sharpeResult.sharpe, volatility: vol, maxDrawdown: drawdown.maxDrawdownPct }
-  }, [snapshots, transactions, convert, baseCurrency])
+  }, [augmentedSnapshots, transactions, convert, baseCurrency])
 
   // ── Inferred deposits/withdrawals (FASE DQ) ──────────────────────────────
   // Fills the ONE gap real data can't reach: the quarterly-transcribed stretch

@@ -1,4 +1,5 @@
 import { getTypeCategory, getItemValue, computeModifiedDietz, getInvestmentClass, INVESTMENT_CLASS_META } from './utils'
+import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
 
 function mean(arr) {
   if (arr.length === 0) return 0
@@ -393,7 +394,18 @@ export function computeCAGR(startValue, endValue, years) {
 
 export function computePeriodicReturns(snapshots, transactions, convert, baseCurrency) {
   if (!snapshots || snapshots.length < 2) return []
-  const sorted = [...snapshots].sort((a, b) => {
+  // FASE HT4. Una serie de retornos solo tiene sentido sobre observaciones del
+  // MISMO portafolio, una por día. Sin esto, los docs paralelos de NAV
+  // solo-broker (FASE FU: ~$10K conviviendo con la observación completa de
+  // ~$26K en la misma fecha) fabricaban "retornos" de ±60% día por medio y la
+  // volatilidad anualizada salía 116% en un portafolio cuya máxima caída real
+  // fue -5.6%: el diente de sierra, vivo dentro de las métricas de riesgo. Las
+  // anclas de calibración y los docs por-cuenta tampoco son observaciones del
+  // portafolio y quedan fuera. El filtro MAD de abajo no alcanza cuando la
+  // MITAD de la serie es basura: la mediana misma se contamina.
+  const usable = preferFullPortfolioPerDay(snapshots.filter((s) => s && !s._calibrated && !s._account))
+  if (usable.length < 2) return []
+  const sorted = [...usable].sort((a, b) => {
     const da = new Date(a.date).getTime()
     const db = new Date(b.date).getTime()
     return da - db
