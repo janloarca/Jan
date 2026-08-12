@@ -1,5 +1,6 @@
 import {
   businessDaysSince,
+  ibkrAttentionNeeded,
   computeModifiedDietz,
   getItemValue,
   getItemPrice,
@@ -705,6 +706,57 @@ describe('businessDaysSince', () => {
   it('never returns negative for a future date', () => {
     const future = new Date('2026-08-05T12:00:00Z').toISOString()
     expect(businessDaysSince(future, tue)).toBe(0)
+  })
+})
+
+// FASE HX: la regla del usuario, textual: "el periodo en que aparezca es si no
+// se conecta en 5 dias habiles ... Ayer se conecto entonces no paso ni un dia".
+describe('ibkrAttentionNeeded', () => {
+  // 2026-08-12 is a Wednesday (the day the user reported the bug).
+  const wed = new Date('2026-08-12T12:00:00Z').getTime()
+  const tueBefore = new Date('2026-08-11T12:00:00Z').toISOString()
+
+  it('is quiet with no error code, regardless of stamps', () => {
+    expect(ibkrAttentionNeeded({ errorCode: null }, wed)).toBe(false)
+    expect(ibkrAttentionNeeded({ errorCode: '' , connectedAt: tueBefore }, wed)).toBe(false)
+  })
+
+  it("the user's exact case: credentials saved YESTERDAY, sync failing today, never synced -> quiet", () => {
+    expect(ibkrAttentionNeeded({ errorCode: 'UNKNOWN', connectedAt: tueBefore }, wed)).toBe(false)
+  })
+
+  it('regression-negative: the old 2-business-day short fuse for never-synced connections is gone', () => {
+    // Connected Friday 2026-08-07, failing on Wednesday 2026-08-12 = 3 business
+    // days. The old rule (>= 2) alarmed here; the unified 5-day rule stays quiet.
+    const fri = new Date('2026-08-07T12:00:00Z').toISOString()
+    expect(ibkrAttentionNeeded({ errorCode: 'TIMEOUT', connectedAt: fri }, wed)).toBe(false)
+  })
+
+  it('fatal codes (TOKEN_EXPIRED / INVALID_QUERY) also wait the 5 business days', () => {
+    // Previously they alarmed from the very first failed attempt.
+    expect(ibkrAttentionNeeded({ errorCode: 'TOKEN_EXPIRED', lastAutoSync: tueBefore }, wed)).toBe(false)
+    expect(ibkrAttentionNeeded({ errorCode: 'INVALID_QUERY', lastSync: tueBefore }, wed)).toBe(false)
+  })
+
+  it('the clock is the MOST RECENT stamp, never a first-truthy || walk', () => {
+    // A months-old manual sync must not outrank yesterday's successful
+    // auto-sync (doAutoSync only stamps _ibkrLastAutoSync).
+    const monthsAgo = new Date('2026-05-04T12:00:00Z').toISOString()
+    expect(ibkrAttentionNeeded({ errorCode: 'LOCKED', lastSync: monthsAgo, lastAutoSync: tueBefore }, wed)).toBe(false)
+  })
+
+  it('alarms once 5 business days pass without any connection signal', () => {
+    // Friday 2026-07-24 -> Friday 2026-07-31 is exactly 5 business days
+    // (mirrors the businessDaysSince fixture above).
+    const fri = new Date('2026-07-24T12:00:00Z').toISOString()
+    const nextFri = new Date('2026-07-31T12:00:00Z').getTime()
+    expect(ibkrAttentionNeeded({ errorCode: 'UNKNOWN', connectedAt: fri }, nextFri)).toBe(true)
+    expect(ibkrAttentionNeeded({ errorCode: 'TOKEN_EXPIRED', lastSync: fri }, nextFri)).toBe(true)
+  })
+
+  it('alarms immediately when there is no stamp at all (no evidence it ever worked)', () => {
+    expect(ibkrAttentionNeeded({ errorCode: 'UNKNOWN' }, wed)).toBe(true)
+    expect(ibkrAttentionNeeded({ errorCode: 'UNKNOWN', connectedAt: 'not-a-date' }, wed)).toBe(true)
   })
 })
 

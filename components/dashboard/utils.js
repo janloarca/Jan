@@ -1059,6 +1059,28 @@ export function businessDaysSince(since, now = Date.now()) {
   return guard >= 400 ? Infinity : count
 }
 
+// FASE HX (regla explícita del usuario): NINGUNA falla de sync de IBKR alarma
+// antes de 5 días HÁBILES (lunes a viernes) sin señal de conexión. Aplica a
+// TODOS los códigos de error, incluidos los "fatales" (TOKEN_EXPIRED /
+// INVALID_QUERY, que antes alarmaban desde el primer intento fallido) y a la
+// conexión que nunca sincronizó (antes fusible corto de 2 días): la data tiene
+// a lo sumo unos días y el auto-sync sigue reintentando solo. El reloj es la
+// señal de salud MÁS RECIENTE de las tres marcas, no un `||` por orden:
+// doAutoSync solo estampa _ibkrLastAutoSync, así que un `||` que empiece por
+// _ibkrLastSync puede elegir un sync manual de hace meses por encima de un
+// auto-sync exitoso de AYER y alarmar igual. `connectedAt` cuenta también:
+// guardar credenciales es un intento fresco que reinicia el fusible. Sin
+// ninguna marca, businessDaysSince(null) = Infinity y alarma de inmediato
+// (conexión rota sin ninguna evidencia de haber funcionado jamás).
+export function ibkrAttentionNeeded({ errorCode, lastSync, lastAutoSync, connectedAt } = {}, now = Date.now()) {
+  if (!errorCode) return false
+  const stamps = [lastSync, lastAutoSync, connectedAt]
+    .map((s) => (s ? new Date(s).getTime() : NaN))
+    .filter((t) => isFinite(t))
+  const latest = stamps.length ? Math.max(...stamps) : null
+  return businessDaysSince(latest, now) >= 5
+}
+
 // ── Quarterly NAV history (IBKR Portfolio Analyst) ──────────────────────────
 // A Flex Query only reaches back 365 days, so anything older has to be read off
 // the broker's own chart and typed in. These helpers turn a "Qn YYYY" label
