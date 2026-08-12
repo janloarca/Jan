@@ -250,7 +250,27 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // that asset while fresher days include it, sawtoothing by its whole value
   // (FASE EG, see lib/snapshotBackfill.js for the full story and the test
   // that pins this down).
-  const backfillRef = useRef(false)
+  // FASE HZ (pedido del usuario: "que chispu apache repair now solo, todos los
+  // días, sin apachar botones de más"). El backfill era una-vez-por-SESIÓN
+  // (`backfillRef` booleano): si esa única corrida caía en un mal momento (una
+  // respuesta degradada de Yahoo, un 504, el sync de IBKR en vuelo), se rendía
+  // hasta la próxima recarga, y en una pestaña de iPad que queda abierta días
+  // esa recarga no llega nunca. Por eso el botón "Reparar ahora" (FASE HP)
+  // funcionaba y el camino automático no: eran el mismo cómputo con distinta
+  // persistencia. Ahora la unidad es el DÍA (UTC), con reintentos acotados:
+  //   - backfillDayRef: el día cuya pasada ya COMPLETÓ con éxito. Solo se
+  //     estampa al terminar bien (o cuando genuinamente no hay nada que
+  //     corregir); un fallo lo deja sin estampar para reintentar.
+  //   - backfillAttemptRef: backoff de 10 min entre intentos y techo de 4 por
+  //     día, para que una API caída no se martille (las deps del efecto se
+  //     re-evalúan con cada tick de precios, cada ~5 min).
+  //   - backfillRunningRef: nunca dos pasadas concurrentes (una pasada que
+  //     escribe cientos de docs puede tardar más que el backoff).
+  // Con la fecha como unidad, una pestaña que cruza medianoche se re-arma sola:
+  // la cadencia es exactamente la que el usuario pidió.
+  const backfillDayRef = useRef(null)
+  const backfillAttemptRef = useRef({ dayKey: null, ts: 0, tries: 0 })
+  const backfillRunningRef = useRef(false)
   // FASE GM2. Un borrado de cuentas a mitad de sesión re-arma el backfill: la
   // regeneración del historial de portafolio completo ya corrió al inicio de
   // la sesión, y sin este reset el auto-reparado post-borrado (re-derivar los
@@ -260,11 +280,16 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   useEffect(() => {
     if (deletionEpoch !== deletionEpochRef.current) {
       deletionEpochRef.current = deletionEpoch
-      backfillRef.current = false
+      backfillDayRef.current = null
+      backfillAttemptRef.current = { dayKey: null, ts: 0, tries: 0 }
     }
   }, [deletionEpoch])
   useEffect(() => {
-    if (backfillRef.current) return
+    const todayKey = new Date().toISOString().split('T')[0]
+    if (backfillDayRef.current === todayKey) return
+    if (backfillRunningRef.current) return
+    const att = backfillAttemptRef.current
+    if (att.dayKey === todayKey && (att.tries >= 4 || Date.now() - att.ts < 10 * 60 * 1000)) return
     // pricesFetching (not just pricesLoading) guards every write here: loading
     // only ever arms on the session's FIRST price fetch (see useMarketPrices),
     // so without pricesFetching a background poll returning a transiently bad
@@ -308,8 +333,15 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // 'daily' corrupto, y esos docs NO son huecos (están protegidos justo por
     // ser observaciones). Es una sola llamada por sesión, y sin nada que
     // corregir no escribe nada.
-    if (gaps.length === 0 && navMigrations.length === 0 && !hasBrokerItem) { backfillRef.current = true; return }
-    backfillRef.current = true
+    if (gaps.length === 0 && navMigrations.length === 0 && !hasBrokerItem) { backfillDayRef.current = todayKey; return }
+    // El intento se cuenta AQUÍ, después de los gates: una evaluación bloqueada
+    // por un sync en curso no consume reintentos, solo un fetch que sí arrancó.
+    backfillAttemptRef.current = {
+      dayKey: todayKey,
+      ts: Date.now(),
+      tries: (att.dayKey === todayKey ? att.tries : 0) + 1,
+    }
+    backfillRunningRef.current = true
 
     let cancelled = false
     async function doBackfill() {
@@ -436,8 +468,18 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         if (fills.length > 0) {
           console.info(`[backfill] ${fills.length} día(s) escritos${composing ? ' componiendo NAV real del broker' : ''}`)
         }
+        // Solo una pasada COMPLETA estampa el día (FASE HZ): un return temprano
+        // (respuesta degradada, !res.ok, sin puntos) deja el día sin estampar y
+        // el backoff reintenta más tarde, que es exactamente lo que la vieja
+        // bandera de sesión no hacía. Se estampa aunque `cancelled` haya
+        // cambiado a mitad: llegar a esta línea significa que TODAS las
+        // escrituras de arriba ya ocurrieron (el loop no chequea cancelación),
+        // y dejar el día sin estampar repetiría una pasada completa entera.
+        backfillDayRef.current = todayKey
       } catch (err) {
         console.error('[backfill] Failed:', err.message)
+      } finally {
+        backfillRunningRef.current = false
       }
     }
     doBackfill()
