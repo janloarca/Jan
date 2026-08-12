@@ -103,6 +103,36 @@ describe('sanity bounds — computePeriodicReturns', () => {
     const returns = computePeriodicReturns(snapshots)
     expect(returns).toHaveLength(3)
   })
+
+  // FASE HT4: el escenario exacto de la volatilidad de 116.4%. Los docs
+  // paralelos de NAV solo-broker (misma fecha que la observación completa)
+  // fabricaban un retorno de -62% y otro de +160% POR CADA día con ambos docs:
+  // como media serie era basura, la mediana del filtro MAD también, y el
+  // filtro dejaba pasar el desastre entero.
+  test('un doc de NAV solo-broker en la misma fecha no fabrica retornos', () => {
+    const snapshots = []
+    for (let d = 1; d <= 20; d++) {
+      const date = `2026-03-${String(d).padStart(2, '0')}`
+      snapshots.push({ date, netWorthUSD: 26000 + d * 10, _source: 'daily' })
+      snapshots.push({ date, netWorthUSD: 10000 + d * 5, _source: 'ibkr' })
+    }
+    const returns = computePeriodicReturns(snapshots)
+    expect(returns.length).toBeGreaterThan(0)
+    // Retornos diarios reales de ~0.04%: nada remotamente cercano a ±60%.
+    returns.forEach((r) => expect(Math.abs(r)).toBeLessThan(0.01))
+  })
+
+  test('las anclas de calibración y docs por-cuenta quedan fuera de la serie', () => {
+    const snapshots = [
+      { date: '2026-01-01', netWorthUSD: 10000, _source: 'daily' },
+      { date: '2026-01-02', netWorthUSD: 3000, _calibrated: true },
+      { date: '2026-01-03', netWorthUSD: 500, _account: 'idc' },
+      { date: '2026-01-04', netWorthUSD: 10100, _source: 'daily' },
+    ]
+    const returns = computePeriodicReturns(snapshots)
+    expect(returns).toHaveLength(1)
+    expect(returns[0]).toBeCloseTo(0.01, 3)
+  })
 })
 
 describe('sanity bounds — getEffectiveYield', () => {
