@@ -1866,6 +1866,24 @@ export default function DashboardPage() {
             showToast(lang === 'es' ? 'Rendimiento registrado' : 'Yield recorded', 'success')
           }}
           onDismiss={dismissLiquidYield}
+          // Los dos desenlaces posibles de mirar el desglose, cada uno a la
+          // pantalla que ya sabe hacer ese trabajo: falta una salida (Cash Flow,
+          // con el monto del descuadre ya puesto y la fecha a cargo del usuario,
+          // que es el único dato que la app no puede saber), o sobra una fila
+          // (el editor de la cuenta, la única superficie que revierte bien el
+          // crédito que ese pago movió, vía deleteTransactionWithReversal).
+          onRegisterMissing={(c) => {
+            setModal(null)
+            handleOpenCashflowPrefilled({
+              flowType: 'WITHDRAWAL', origin: 'external', linkedId: c.itemId,
+              amount: Math.abs(c.interest), currency: c.currency, date: '',
+            })
+          }}
+          onOpenAccount={(c) => {
+            setModal(null)
+            const it = items.find((i) => i.id === c.itemId)
+            if (it) setEditItem(it)
+          }}
         />
       )}
 

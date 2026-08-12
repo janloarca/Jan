@@ -40,12 +40,17 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
   // la cuenta"). Prefill it instead of making the user remember and retype it;
   // they can still edit it if the real historical figure was slightly different.
   const [amount, setAmount] = useState(() => {
+    // FASE HV6. Un monto explícito gana: quien abre esta pantalla desde el
+    // desglose del rendimiento ya SABE cuánto falta (es el descuadre exacto),
+    // así que hacerlo teclear de nuevo un número que la app acaba de calcular
+    // es puro trabajo manual con riesgo de typo.
+    if (prefill?.amount > 0) return String(Math.round(prefill.amount * 100) / 100)
     if (!prefill?.alreadyReflected || !prefill?.linkedId) return ''
     const item = existingItems.find((i) => i.id === prefill.linkedId)
     const val = item ? getValue(item) : 0
     return val > 0 ? String(Math.round(val * 100) / 100) : ''
   })
-  const [currency, setCurrency] = useState(baseCurrency)
+  const [currency, setCurrency] = useState(prefill?.currency || baseCurrency)
   // Backfill prefills ("Capturar historia") start with an EMPTY date: the whole
   // point is recording WHEN the money arrived — defaulting to today would stamp
   // past history with the wrong date.
