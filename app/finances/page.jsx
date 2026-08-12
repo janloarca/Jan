@@ -156,7 +156,10 @@ export default function FinancesPage() {
     // server-side without ever listing auth users.
     await saveSettings({
       financeReminder: next,
-      ...(next ? { financeReminderEmail: user?.email || '', financeReminderLang: lang } : {}),
+      // Sin `financeReminderLang`: todo correo saliente va en inglés (FASE
+      // HX2), así que guardar un idioma que nadie lee solo haría creer que la
+      // preferencia hace algo.
+      ...(next ? { financeReminderEmail: user?.email || '' } : {}),
     })
   }, [reminderEnabled, saveSettings, user, lang])
 
