@@ -103,7 +103,18 @@ const nextConfig = {
               "default-src 'self'",
               // Next.js + theme bootstrap script need inline; eval used by some Next chunks.
               // Google hosts: AdSense footer unit (components/AdFooter.jsx).
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net https://tpc.googlesyndication.com https://www.googletagservices.com https://adservice.google.com https://ep2.adtrafficquality.google",
+              //
+              // apis.google.com es OBLIGATORIO para Google sign-in y su ausencia
+              // fue la causa del auth/internal-error que costó semanas (FASE HY).
+              // El SDK de Firebase Auth carga https://apis.google.com/js/api.js
+              // metiendo un <script> en el <head> (verificable en el bundle
+              // servido); sin el host acá, el navegador lo BLOQUEA, el script
+              // dispara un Event de error, y Firebase lo envuelve como
+              // auth/internal-error sin más detalle. Por eso fallaba en todos los
+              // dispositivos, en las dos arquitecturas de sign-in, sin respuesta
+              // de servidor, y ningún ajuste de consola lo tocaba: la petición
+              // nunca salía del navegador. Hay un test que lo fija.
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://www.gstatic.com https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net https://tpc.googlesyndication.com https://www.googletagservices.com https://adservice.google.com https://ep2.adtrafficquality.google",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com data:",
               "img-src 'self' data: blob: https:",
