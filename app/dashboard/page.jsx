@@ -677,8 +677,14 @@ export default function DashboardPage() {
   }, [portfolioItems])
 
   const dataCompleteness = useMemo(
-    () => analyzeDataCompleteness({ items, transactions, lots, convert, baseCurrency, marketPrices, resolvedPrices }),
-    [items, transactions, lots, convert, baseCurrency, marketPrices, resolvedPrices]
+    () => analyzeDataCompleteness({
+      items, transactions, lots, convert, baseCurrency, marketPrices, resolvedPrices,
+      // Mientras la vuelta de precios está en curso o falló, "sin precio actual"
+      // describe a la app, no a los datos del usuario. Ver el comentario en
+      // lib/dataCompleteness.js.
+      pricesReady: !pricesLoading && !pricesError,
+    }),
+    [items, transactions, lots, convert, baseCurrency, marketPrices, resolvedPrices, pricesLoading, pricesError]
   )
 
   // FASE HV. El rendimiento deducido de una cuenta líquida entra a la MISMA
