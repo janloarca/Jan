@@ -87,6 +87,15 @@ const nextConfig = {
           { key: 'X-XSS-Protection', value: '1; mode=block' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+          // Recomendado por soporte de Firebase. No lo teníamos puesto en
+          // ningún lado (ni acá, ni en middleware, ni en vercel.json), así que
+          // hoy vale lo que decida la plataforma. "same-origin" a secas rompe
+          // la comunicación entre el popup de Google y la ventana que lo abrió;
+          // declararlo explícito saca la variable de la ecuación en vez de
+          // confiar en un default que no controlamos. "-allow-popups" es lo
+          // estrictamente necesario: aísla de openers cruzados, pero deja que
+          // los popups que ABRE esta página conserven su referencia.
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' },
           { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
           {
             key: 'Content-Security-Policy',
