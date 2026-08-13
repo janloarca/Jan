@@ -1,6 +1,6 @@
 import Logo from '@/components/ui/Logo'
 
-export const metadata = { title: 'Política de Privacidad · Chispudo' }
+export const metadata = { title: 'Privacy Policy · Chispudo' }
 
 function Section({ title, children }) {
   return (
@@ -19,99 +19,111 @@ export default function PrivacyPage() {
       <div className="max-w-2xl mx-auto">
         <div className="mb-10">
           <a href="/login" className="inline-flex items-center gap-2 mb-6 text-sm" style={{ color: 'var(--accent-blue)' }}>
-            ← Volver
+            ← Back
           </a>
           <div className="flex mb-2">
             <Logo size={22} />
           </div>
-          <h1 className="text-xl font-bold text-white">Política de Privacidad</h1>
+          <h1 className="text-xl font-bold text-white">Privacy Policy</h1>
           <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary, var(--text-secondary))' }}>
-            Última actualización: 7 de agosto de 2026
+            Last updated: August 13, 2026
           </p>
         </div>
 
-        <Section title="1. Qué datos recopilamos">
+        <Section title="1. What we collect">
           <ul className="list-disc pl-5 space-y-1.5">
-            <li>Datos de cuenta: email y contraseña (o tu cuenta de Google, si iniciás sesión así).</li>
-            <li>Datos financieros que ingresás o importás: activos, transacciones, valuaciones, metas.</li>
-            <li>Credenciales de broker, cifradas (AES-256-GCM), si conectás una integración por API.</li>
-            <li>Archivos que subís para importar (CSV, Excel, PDF de estados de cuenta).</li>
-            <li>Datos técnicos básicos (idioma, moneda base, zona horaria) para que la app funcione bien.</li>
+            <li>Account data: email and password (or your Google account, if you sign in that way).</li>
+            <li>Financial data you enter or import: assets, transactions, valuations, goals.</li>
+            <li>Broker credentials, encrypted (AES-256-GCM), if you connect an API integration.</li>
+            <li>Files you upload to import (CSV, Excel, PDF statements).</li>
+            <li>Basic technical data (language, base currency, time zone) so the app works correctly.</li>
           </ul>
-          <p>No pedimos ni almacenamos tu número de tarjeta ni credenciales bancarias de acceso directo.</p>
+          <p>We never ask for or store your card number or your direct banking login credentials.</p>
         </Section>
 
-        <Section title="2. Para qué los usamos">
+        <Section title="2. What we use it for">
           <p>
-            Para calcular y mostrarte el valor y rendimiento de tu portafolio, sincronizar con los brokers
-            que conectés, convertir estados de cuenta con IA cuando lo pedís, y enviarte notificaciones que
-            vos activás (vencimientos, dividendos, recordatorios). Nunca vendemos tus datos financieros.
+            To calculate and show you the value and performance of your portfolio, sync with the brokers
+            you connect, convert statements with AI when you ask us to, and send you the notifications
+            you turn on (maturities, dividends, reminders, periodic summaries). We never sell your
+            financial data.
           </p>
         </Section>
 
-        <Section title="3. Con quién los compartimos">
-          <p>Usamos los siguientes proveedores para operar la plataforma (subencargados de tratamiento):</p>
+        <Section title="3. Who we share it with">
+          <p>We use the following providers to operate the platform (data subprocessors):</p>
           <ul className="list-disc pl-5 space-y-1.5">
-            <li><span className="text-white">Firebase / Google Cloud</span>: autenticación y base de datos (Firestore).</li>
-            <li><span className="text-white">Anthropic (Claude)</span>: solo si subís un PDF para convertirlo — el archivo se envía a su API para extraer los datos, con tu confirmación antes de guardar cualquier cosa.</li>
-            <li><span className="text-white">Fuentes de datos públicas</span>: precios de mercado en tiempo real (acciones, cripto, tipos de cambio).</li>
-            <li><span className="text-white">Proveedores de tipo de cambio</span>: para convertir entre monedas.</li>
-            <li><span className="text-white">Vercel</span>: hosting de la aplicación.</li>
+            <li><span className="text-white">Firebase / Google Cloud</span>: authentication and database (Firestore).</li>
+            <li><span className="text-white">Anthropic (Claude)</span>: only if you upload a PDF to convert. The file is sent to their API to extract the data, with your confirmation before anything is saved.</li>
+            <li><span className="text-white">Public data sources</span>: real-time market prices (stocks, crypto, exchange rates).</li>
+            <li><span className="text-white">Exchange rate providers</span>: to convert between currencies.</li>
+            <li><span className="text-white">Vercel</span>: application hosting.</li>
+            <li><span className="text-white">Email provider</span>: to deliver the notification emails you turn on. Your address is used only to send them.</li>
           </ul>
           <p>
-            Con brokers (por ejemplo Interactive Brokers) solo hay conexión de LECTURA cuando vos das tu
-            token; nunca compartimos tus credenciales con nadie más.
+            With brokers (for example Interactive Brokers) there is only a READ connection, and only when
+            you provide your token. We never share your credentials with anyone else.
           </p>
           <p>
-            Si activás la función Amigos, se comparte con otros usuarios del grupo únicamente un
-            seudónimo, tu retorno en porcentaje y los símbolos de tus activos con más movimiento — nunca
-            montos en dinero ni el detalle de tu portafolio.
-          </p>
-        </Section>
-
-        <Section title="4. Seguridad">
-          <p>
-            Las credenciales de broker se cifran con AES-256-GCM antes de guardarse. El acceso a tus datos
-            en la base de datos está restringido por reglas que niegan todo por defecto salvo tu propia
-            cuenta; los datos entre usuarios (como Amigos) solo se leen a través de rutas del servidor con
-            verificación de identidad, nunca directo desde el navegador de otro usuario.
+            If you turn on the Friends feature, the only things shared with other members of your group
+            are a pseudonym, your return as a percentage, and the symbols of your most active assets.
+            Never money amounts, and never the detail of your portfolio.
           </p>
         </Section>
 
-        <Section title="5. Cuánto tiempo guardamos tus datos">
+        <Section title="4. Security">
           <p>
-            Mientras tu cuenta exista. Si borrás tu cuenta o usás "Borrar todo" en Configuración,
-            eliminamos tus activos, transacciones, historial, conexiones de broker y tu perfil de Amigos.
+            Broker credentials are encrypted with AES-256-GCM before being stored. Access to your data in
+            the database is restricted by rules that deny everything by default except your own account.
+            Cross-user data (such as Friends) is only read through server routes with identity
+            verification, never directly from another user&apos;s browser.
           </p>
         </Section>
 
-        <Section title="6. Tus derechos">
+        <Section title="5. Cookies and local storage">
           <p>
-            Podés acceder, corregir o eliminar tus datos vos mismo desde la app en cualquier momento (no
-            necesitás pedírnoslo). Si preferís que lo hagamos nosotros, o tenés cualquier duda sobre tus
-            datos, escribinos a <a href="mailto:janmarcof@gmail.com" style={{ color: 'var(--accent-blue)' }}>janmarcof@gmail.com</a>.
+            We do not use advertising or tracking cookies of our own. Chispudo stores data in your
+            browser (local storage and a session cookie) to keep you signed in and to remember your
+            preferences, such as theme, language and base currency. The AdSense unit in the footer is
+            served by Google and may set its own cookies, subject to Google&apos;s policies.
           </p>
         </Section>
 
-        <Section title="7. Menores de edad">
-          <p>Chispudo no está dirigido a menores de 18 años y no recopilamos a sabiendas sus datos.</p>
-        </Section>
-
-        <Section title="8. Cambios a esta política">
+        <Section title="6. How long we keep your data">
           <p>
-            Si hacemos cambios importantes te avisamos dentro de la app. La fecha de arriba indica la
-            última actualización.
+            For as long as your account exists. If you delete your account or use &quot;Delete
+            everything&quot; in Settings, we remove your assets, transactions, history, broker
+            connections and your Friends profile.
           </p>
         </Section>
 
-        <Section title="9. Contacto">
+        <Section title="7. Your rights">
           <p>
-            <a href="mailto:janmarcof@gmail.com" style={{ color: 'var(--accent-blue)' }}>janmarcof@gmail.com</a>
+            You can access, correct or delete your data yourself from inside the app at any time, without
+            asking us. If you would rather we do it, or you have any question about your data, write to
+            us at <a href="mailto:jan@chispu.xyz" style={{ color: 'var(--accent-blue)' }}>jan@chispu.xyz</a>.
+          </p>
+        </Section>
+
+        <Section title="8. Minors">
+          <p>Chispudo is not directed at people under 18 and we do not knowingly collect their data.</p>
+        </Section>
+
+        <Section title="9. Changes to this policy">
+          <p>
+            If we make significant changes we will let you know inside the app. The date at the top shows
+            the last update.
+          </p>
+        </Section>
+
+        <Section title="10. Contact">
+          <p>
+            <a href="mailto:jan@chispu.xyz" style={{ color: 'var(--accent-blue)' }}>jan@chispu.xyz</a>
           </p>
         </Section>
 
         <p className="text-xs pt-6 border-t border-glass-border" style={{ color: 'var(--text-tertiary, var(--text-secondary))' }}>
-          Ver también nuestros <a href="/terms" style={{ color: 'var(--accent-blue)' }}>Términos de Servicio</a>.
+          See also our <a href="/terms" style={{ color: 'var(--accent-blue)' }}>Terms of Service</a>.
         </p>
       </div>
     </div>

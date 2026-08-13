@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { computeSharpeRatio, computeVolatility, computeMaxDrawdown, computePeriodicReturns, computeBeta, computeSortino, computeTreynor, computeJensensAlpha, computeInformationRatio, inferPeriodsPerYear, filterValueSpikes } from './analytics'
+import { computeSharpeRatio, computeVolatility, computeMaxDrawdown, computePeriodicReturns, pairPortfolioWithBenchmark, computeSortino, computeTreynor, computeJensensAlpha, computeInformationRatio, inferPeriodsPerYear, filterValueSpikes } from './analytics'
 import { InfoTip } from '../ui/Tooltip'
 
 export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, transactions, convert, baseCurrency, benchmarkName }) {
@@ -21,39 +21,9 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
     // Benchmark-relative metrics need the portfolio and benchmark return series
     // sampled over the SAME pairs. `returns` (Modified Dietz over snapshots) is
     // filtered/derived differently than the per-valueSeries benchmark returns, so
-    // pairing them by slice(-len) would misalign. Build both here in one loop and
-    // push together, applying the same outlier guard to both.
-    let beta = null
-    let bReturns = []
-    let pReturnsB = []
-    if (benchmarkData?.dataPoints?.length > 2 && valueSeries.length > 2) {
-      const bPts = benchmarkData.dataPoints.slice().sort((a, b) => a.ts - b.ts)
-      const findClosest = (ts) => {
-        let lo = 0, hi = bPts.length - 1
-        while (lo < hi) {
-          const mid = (lo + hi) >> 1
-          if (bPts[mid].ts < ts) lo = mid + 1
-          else hi = mid
-        }
-        if (lo === 0) return bPts[0]
-        const prev = bPts[lo - 1]
-        const curr = bPts[lo]
-        return Math.abs(prev.ts - ts) <= Math.abs(curr.ts - ts) ? prev : curr
-      }
-      for (let i = 1; i < valueSeries.length; i++) {
-        const closestCurr = findClosest(valueSeries[i].ts)
-        const closestPrev = findClosest(valueSeries[i - 1].ts)
-        const prevVal = valueSeries[i - 1].value
-        if (closestCurr && closestPrev && closestPrev.close > 0 && prevVal > 0) {
-          const pr = (valueSeries[i].value - prevVal) / prevVal
-          if (Math.abs(pr) < 1) {
-            pReturnsB.push(pr)
-            bReturns.push((closestCurr.close - closestPrev.close) / closestPrev.close)
-          }
-        }
-      }
-      beta = computeBeta(pReturnsB, bReturns)
-    }
+    // pairing them by slice(-len) would misalign. Shared pairing (analytics.js,
+    // FASE HT5): the hook's riskMetrics uses the same one for the report's beta.
+    const { pReturnsB, bReturns, beta } = pairPortfolioWithBenchmark(valueSeries, benchmarkData)
 
     const sortino = computeSortino(returns)
     const treynor = computeTreynor(pReturnsB, bReturns)

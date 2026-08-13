@@ -7,6 +7,23 @@ import { runAuthDiagnostics } from '@/lib/authDiagnostics'
 import Logo from '@/components/ui/Logo'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
 
+// Google sign-in, ENCENDIDO otra vez (FASE HY2): funciona, verificado en
+// producción por el usuario.
+//
+// Estuvo oculto tras esta bandera (FASE HW) mientras se buscaba la causa del
+// auth/internal-error que lo mató durante semanas. La causa resultó ser
+// NUESTRA: `apis.google.com` faltaba en la `script-src` de la CSP
+// (next.config.js), así que el navegador bloqueaba el script que el SDK de
+// Firebase Auth necesita, y Firebase envolvía ese evento de error de carga
+// como un internal-error genérico. Ver FASE HY, y el guardián
+// `lib/__tests__/cspGoogleAuth.test.js` que impide que vuelva a pasar.
+//
+// La bandera se queda: si algún día hay que apagarlo de urgencia, es una línea
+// en vez de un revert. `/login?google=1` sigue funcionando y ahora es
+// redundante (el botón ya se muestra siempre), lo que es correcto: forzar algo
+// que ya está encendido no hace daño.
+const GOOGLE_SIGNIN_ENABLED = true
+
 // Marca de que ESTA pestaña mandó al usuario a Google por redirect. Sin ella,
 // las dos piernas del flujo son indistinguibles cuando fallan: el popup y la
 // vuelta producen el mismo auth/internal-error genérico, y ni el código ni el
@@ -68,12 +85,36 @@ function setSessionCookie(token) {
 // misma extracción para el popup y para la vuelta del redirect: tenerla en dos
 // copias fue exactamente cómo la rama de vuelta se quedó sin ella.
 function googleErrorDetail(err) {
-  if (typeof err?.message !== 'string') return ''
-  const cleaned = err.message.replace(/^Firebase:\s*/i, '').replace(/\s+/g, ' ').trim()
-  if (!cleaned) return ''
-  const generic = /^an internal auth error has occurred\.?$/i.test(cleaned)
-    || /^error \(auth\/[a-z-]+\)\.?$/i.test(cleaned)
-  return generic ? '' : ` ${cleaned.slice(0, 200)}`
+  const fromMessage = (() => {
+    if (typeof err?.message !== 'string') return ''
+    const cleaned = err.message.replace(/^Firebase:\s*/i, '').replace(/\s+/g, ' ').trim()
+    if (!cleaned) return ''
+    const generic = /^an internal auth error has occurred\.?$/i.test(cleaned)
+      || /^error \(auth\/[a-z-]+\)\.?$/i.test(cleaned)
+    return generic ? '' : cleaned
+  })()
+  if (fromMessage) return ` ${fromMessage.slice(0, 200)}`
+
+  // FASE HX2. Cerrado Hosting (FASE HX) el fallo sigue igual, y con TODOS los
+  // chequeos en verde lo único que queda por saber es si el servidor llegó a
+  // contestar algo. `message` no lo dice: cuando es genérico, es genérico.
+  //
+  // Firebase adjunta la respuesta cruda del servidor en customData cuando la
+  // hubo, y eso parte el problema en dos mitades que hoy se ven idénticas:
+  // con payload, Identity Toolkit RECHAZÓ el canje y su razón viene ahí (que
+  // es lo que soporte necesita); vacío, la página murió del lado del navegador
+  // sin llegar a preguntar. Esa distinción es la que llevamos rondas sin poder
+  // hacer, y en un teléfono no hay consola de donde sacarla.
+  const raw = err?.customData?.serverResponse ?? err?.customData ?? null
+  if (!raw) return ''
+  try {
+    const text = typeof raw === 'string' ? raw : JSON.stringify(raw)
+    const trimmed = text.replace(/\s+/g, ' ').trim()
+    // "{}" es la ausencia de payload, no un payload: imprimirlo sugeriría que
+    // el servidor contestó algo cuando no contestó nada.
+    if (!trimmed || trimmed === '{}' || trimmed === 'null') return ''
+    return ` [servidor] ${trimmed.slice(0, 300)}`
+  } catch { return '' }
 }
 
 function isInAppBrowser() {
@@ -105,6 +146,11 @@ function LoginForm() {
   // Only allow same-origin internal paths to prevent open-redirect (e.g. ?redirect=//evil.com)
   const rawRedirect = searchParams.get('redirect') || '/dashboard'
   const redirectTo = rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') && !rawRedirect.includes('\\') ? rawRedirect : '/dashboard'
+
+  // Ver el comentario de GOOGLE_SIGNIN_ENABLED arriba. Se lee del mismo
+  // searchParams que ya usa `redirect`, así que no hay riesgo de desajuste
+  // entre lo que renderiza el servidor y lo que renderiza el navegador.
+  const showGoogle = GOOGLE_SIGNIN_ENABLED || searchParams.get('google') === '1'
 
   useEffect(() => {
     if (isInAppBrowser()) setInAppBrowser(true)
@@ -512,6 +558,7 @@ function LoginForm() {
             </div>
           )}
 
+          {showGoogle && (<>
           <div className="relative my-5">
             <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-glass-border" /></div>
             <div className="relative flex justify-center">
@@ -529,6 +576,7 @@ function LoginForm() {
             </svg>
             {googleLoading ? 'Conectando...' : 'Continuar con Google'}
           </button>
+          </>)}
 
           <p className="mt-5 text-center text-sm" style={{ color: 'var(--text-secondary)' }}>
             {isSignUp ? '¿Ya tienes cuenta?' : '¿No tienes cuenta?'}{' '}
@@ -541,17 +589,13 @@ function LoginForm() {
           </p>
         </div>
 
-        {/* Mismo destino que el enlace de abajo (/terms), solo con el
-            tratamiento visual pedido: círculo "i" + label, igual al ícono
-            de InfoTip (components/ui/Tooltip.jsx) pero como link real en vez
-            de tooltip por hover, porque unos términos de servicio no caben
-            en un tooltip y hay que poder tocarlo en celular. Visible tanto
-            al crear cuenta como al iniciar sesión: es el mismo formulario. */}
-        <a href="/terms" className="mt-5 mx-auto flex items-center justify-center gap-1.5 text-xs w-fit transition-colors hover:opacity-80" style={{ color: 'var(--text-secondary)' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '14px', height: '14px', fontSize: '10px', lineHeight: 1, color: 'var(--text-muted)', borderRadius: '50%', border: '1px solid var(--border-primary)', flexShrink: 0 }}>i</span>
-          Terms of Service
-        </a>
-        <p className="text-center text-xs mt-3" style={{ color: 'var(--text-tertiary, var(--text-secondary))' }}>
+        {/* El enlace con círculo "i" que vivía acá (FASE FC) se quitó: apuntaba
+            a /terms, exactamente igual que la línea de abajo, así que eran dos
+            accesos al mismo documento a tres centímetros uno del otro. La línea
+            de abajo se queda porque además de enlazar dice para qué sirve
+            ("al continuar aceptas..."), que es lo que un aviso legal tiene que
+            hacer, y porque también cubre la Política de Privacidad. */}
+        <p className="text-center text-xs mt-5" style={{ color: 'var(--text-tertiary, var(--text-secondary))' }}>
           Al continuar aceptas los <a href="/terms" className="underline" style={{ color: 'var(--accent-blue)' }}>Términos</a> y la <a href="/privacy" className="underline" style={{ color: 'var(--accent-blue)' }}>Política de Privacidad</a>
         </p>
         <p className="text-center text-xs mt-2" style={{ color: 'var(--text-tertiary, var(--text-secondary))' }}>

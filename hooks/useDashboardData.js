@@ -5,7 +5,7 @@ import { useExchangeRates } from './useExchangeRates'
 import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, hasUnreliableAcqDate, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced, effectiveAcqTs, getEffectiveYield } from '@/components/dashboard/utils'
+import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, hasUnreliableAcqDate, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced, effectiveAcqTs, entryFeeAddbacks, getEffectiveYield } from '@/components/dashboard/utils'
 import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { indexBalanceEvents } from '@/lib/historicalValues'
 import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget } from '@/lib/autoDividends'
@@ -20,7 +20,7 @@ import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
 import { knownContributions, computeLiquidYield, yieldSignature, supersededYieldTxIds } from '@/lib/liquidYield'
 import { clampPayDay, payDateFor, impossiblePayDateFixes, isPayDateExcluded } from '@/lib/incomeSchedule'
 import { attributeYtd } from '@/lib/ytdAttribution'
-import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes } from '@/components/dashboard/analytics'
+import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes, pairPortfolioWithBenchmark } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
 
 // What changed since the previous sync. Because a wide Flex Query (Year to Date)
@@ -252,7 +252,27 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // that asset while fresher days include it, sawtoothing by its whole value
   // (FASE EG, see lib/snapshotBackfill.js for the full story and the test
   // that pins this down).
-  const backfillRef = useRef(false)
+  // FASE HZ (pedido del usuario: "que chispu apache repair now solo, todos los
+  // días, sin apachar botones de más"). El backfill era una-vez-por-SESIÓN
+  // (`backfillRef` booleano): si esa única corrida caía en un mal momento (una
+  // respuesta degradada de Yahoo, un 504, el sync de IBKR en vuelo), se rendía
+  // hasta la próxima recarga, y en una pestaña de iPad que queda abierta días
+  // esa recarga no llega nunca. Por eso el botón "Reparar ahora" (FASE HP)
+  // funcionaba y el camino automático no: eran el mismo cómputo con distinta
+  // persistencia. Ahora la unidad es el DÍA (UTC), con reintentos acotados:
+  //   - backfillDayRef: el día cuya pasada ya COMPLETÓ con éxito. Solo se
+  //     estampa al terminar bien (o cuando genuinamente no hay nada que
+  //     corregir); un fallo lo deja sin estampar para reintentar.
+  //   - backfillAttemptRef: backoff de 10 min entre intentos y techo de 4 por
+  //     día, para que una API caída no se martille (las deps del efecto se
+  //     re-evalúan con cada tick de precios, cada ~5 min).
+  //   - backfillRunningRef: nunca dos pasadas concurrentes (una pasada que
+  //     escribe cientos de docs puede tardar más que el backoff).
+  // Con la fecha como unidad, una pestaña que cruza medianoche se re-arma sola:
+  // la cadencia es exactamente la que el usuario pidió.
+  const backfillDayRef = useRef(null)
+  const backfillAttemptRef = useRef({ dayKey: null, ts: 0, tries: 0 })
+  const backfillRunningRef = useRef(false)
   // FASE GM2. Un borrado de cuentas a mitad de sesión re-arma el backfill: la
   // regeneración del historial de portafolio completo ya corrió al inicio de
   // la sesión, y sin este reset el auto-reparado post-borrado (re-derivar los
@@ -262,11 +282,16 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   useEffect(() => {
     if (deletionEpoch !== deletionEpochRef.current) {
       deletionEpochRef.current = deletionEpoch
-      backfillRef.current = false
+      backfillDayRef.current = null
+      backfillAttemptRef.current = { dayKey: null, ts: 0, tries: 0 }
     }
   }, [deletionEpoch])
   useEffect(() => {
-    if (backfillRef.current) return
+    const todayKey = new Date().toISOString().split('T')[0]
+    if (backfillDayRef.current === todayKey) return
+    if (backfillRunningRef.current) return
+    const att = backfillAttemptRef.current
+    if (att.dayKey === todayKey && (att.tries >= 4 || Date.now() - att.ts < 10 * 60 * 1000)) return
     // pricesFetching (not just pricesLoading) guards every write here: loading
     // only ever arms on the session's FIRST price fetch (see useMarketPrices),
     // so without pricesFetching a background poll returning a transiently bad
@@ -310,8 +335,15 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // 'daily' corrupto, y esos docs NO son huecos (están protegidos justo por
     // ser observaciones). Es una sola llamada por sesión, y sin nada que
     // corregir no escribe nada.
-    if (gaps.length === 0 && navMigrations.length === 0 && !hasBrokerItem) { backfillRef.current = true; return }
-    backfillRef.current = true
+    if (gaps.length === 0 && navMigrations.length === 0 && !hasBrokerItem) { backfillDayRef.current = todayKey; return }
+    // El intento se cuenta AQUÍ, después de los gates: una evaluación bloqueada
+    // por un sync en curso no consume reintentos, solo un fetch que sí arrancó.
+    backfillAttemptRef.current = {
+      dayKey: todayKey,
+      ts: Date.now(),
+      tries: (att.dayKey === todayKey ? att.tries : 0) + 1,
+    }
+    backfillRunningRef.current = true
 
     let cancelled = false
     async function doBackfill() {
@@ -438,8 +470,18 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         if (fills.length > 0) {
           console.info(`[backfill] ${fills.length} día(s) escritos${composing ? ' componiendo NAV real del broker' : ''}`)
         }
+        // Solo una pasada COMPLETA estampa el día (FASE HZ): un return temprano
+        // (respuesta degradada, !res.ok, sin puntos) deja el día sin estampar y
+        // el backoff reintenta más tarde, que es exactamente lo que la vieja
+        // bandera de sesión no hacía. Se estampa aunque `cancelled` haya
+        // cambiado a mitad: llegar a esta línea significa que TODAS las
+        // escrituras de arriba ya ocurrieron (el loop no chequea cancelación),
+        // y dejar el día sin estampar repetiría una pasada completa entera.
+        backfillDayRef.current = todayKey
       } catch (err) {
         console.error('[backfill] Failed:', err.message)
+      } finally {
+        backfillRunningRef.current = false
       }
     }
     doBackfill()
@@ -1446,23 +1488,50 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       // (240), and only the base it divides by becomes the all-in cost.
       if (droppedIn > startVal) ytdCostBase = droppedIn
     }
-    const { pct, abs } = computeModifiedDietz({
+    const endTsNow = Date.now()
+    const { pct, abs, weightedCapital } = computeModifiedDietz({
       startValue: startVal, endValue: netWorth,
-      startTs, endTs: Date.now(),
+      startTs, endTs: endTsNow,
       transactions: ytdFlows, convert, baseCurrency,
     })
+    // FASE IA (extensión de la superficie congelada C, confirmada explícitamente
+    // por el usuario; spec actualizada en el mismo commit). Una compra hecha
+    // DENTRO de la ventana entra al Dietz como su DEPOSIT completo, comisión
+    // adentro (6,098 = 6,000 + 98): restar ese flujo del valor final cobra la
+    // comisión como pérdida en el numerador, la violación exacta que la spec
+    // prohíbe ("la comisión va en el denominador y SOLO ahí"). La gráfica ya
+    // medía contra el principal (computeWindowGrowth resta el capital nuevo
+    // NETO de comisiones) y por eso encabezado y gráfica diferían $98.00
+    // exactos (la comisión de VITALI) en las capturas del usuario. El addback
+    // devuelve al numerador SOLO las comisiones cuyos depósitos este Dietz de
+    // verdad neteó (el guard de entryFeeAddbacks lee la MISMA lista filtrada):
+    // en el caso congelado del ancla movida los depósitos se descartaron, el
+    // addback es cero y la rama ytdCostBase queda byte-idéntica (3.94%).
+    // El denominador NO se toca: sigue siendo el capital all-in ponderado.
+    const feeAddback = [...entryFeeAddbacks(portfolioItems, ytdFlows, {
+      fromTs: startTs, toTs: endTsNow, convert, baseCurrency,
+    }).values()].reduce((s, v) => s + v, 0)
+    const adjAbs = abs + feeAddback
     // With every flow dropped, Dietz's weighted capital IS startVal, so swapping
     // the base is just re-dividing the same gain. This is the one place the
     // headline can be made to agree, to the decimal, with AssetAllocation and
     // InstitutionPerformance, which have always divided by all-in cost.
-    const effPct = (ytdCostBase > 0 && startVal > 0) ? (abs / ytdCostBase) * 100 : pct
+    let effPct
+    if (ytdCostBase > 0 && startVal > 0) {
+      effPct = (adjAbs / ytdCostBase) * 100
+    } else if (feeAddback > 0 && isFinite(weightedCapital) && Math.abs(weightedCapital) > 0.01) {
+      const p = (adjAbs / weightedCapital) * 100
+      effPct = isFinite(p) ? p : pct
+    } else {
+      effPct = pct
+    }
     const clampedPct = Math.max(-200, Math.min(200, effPct))
     // FASE GR, purely additive: the three terms this memo measured with, handed
     // out unchanged so the "where your YTD comes from" panel can partition the
     // SAME quantities instead of rebuilding its own version of them (which is
     // how it ended up contradicting this very number). No value computed above
     // is touched; nothing here alters the frozen YTD formula.
-    return { returnYTD: clampedPct, ytdChange: abs, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated, ytdStartValue: startVal, ytdStartTs: startTs, ytdFlowsUsed: ytdFlows }
+    return { returnYTD: clampedPct, ytdChange: adjAbs, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated, ytdStartValue: startVal, ytdStartTs: startTs, ytdFlowsUsed: ytdFlows }
   }, [jan1Value, jan1Ts, jan1Transactional, netWorth, transactions, dietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot, accountCalibrations, portfolioItems])
 
   // FASE GR3: per-account year-start values from the SPREADSHEET's own monthly
@@ -1551,8 +1620,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   //           A broker's REAL year-start NAV is used where one exists and is
   //           never adjusted; the rest carry the reconstruction's estimate and
   //           get pinned to the portfolio anchor.
-  const ytdBreakdown = useMemo(() => {
-    if (ytdStartValue == null || ytdChange == null) return null
+  // Devuelve { breakdown, reason }: breakdown es lo de siempre (o null), y
+  // reason nombra POR QUÉ el motor rehusó (FASE HT3), porque un rechazo mudo
+  // dejaba al usuario tocando un YTD que no expande sin ninguna explicación.
+  const { breakdown: ytdBreakdown, reason: ytdBreakdownReason, detail: ytdBreakdownDetail } = useMemo(() => {
+    if (ytdStartValue == null || ytdChange == null) return { breakdown: null, reason: 'no-anchor' }
     const start = ytdEndpoints?.start || {}
 
     // Which account each item belongs to, using the shared rule.
@@ -1566,7 +1638,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         nameOf.set(k, k === 'ibkr' ? 'Interactive Brokers' : (it.institution || '').trim() || k)
       }
     })
-    if (accountOf.size === 0) return null
+    if (accountOf.size === 0) return { breakdown: null, reason: 'no-accounts' }
 
     // endVal: the identical loop netWorth is computed from, kept per account so
     // the account totals reconstruct netWorth exactly rather than approximately.
@@ -1674,6 +1746,25 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       addFlow(fromKey, -amt, txTs)
     })
 
+    // FASE IA: el MISMO addback de comisiones de entrada que el encabezado (ver
+    // el memo YTD arriba y la spec congelada). El DEPOSIT de una compra hecha
+    // dentro de la ventana trae la comisión adentro; netearlo completo cobraba
+    // la comisión como pérdida de ESA cuenta, y la fila divergía de la gráfica
+    // escopada (IDC: fila +$207.57 contra gráfica +$379.74; la gráfica ya resta
+    // el capital nuevo neto de comisiones). Se resta del FLUJO (no se suma al
+    // gain) para que la identidad gain = end - start - flow siga siendo
+    // literal; flowBase (el denominador del retorno) NO se toca: el % sigue
+    // dividiendo entre el costo all-in, comisión incluida, igual que las
+    // tarjetas (3.94%, no 4.00%). Como el encabezado recibe el mismo addback,
+    // las filas siguen sumando el encabezado por construcción.
+    entryFeeAddbacks(portfolioItems, ytdFlowsUsed, {
+      fromTs: ytdStartTs, toTs: nowTs, convert, baseCurrency,
+    }).forEach((fee, itemId) => {
+      const k = accountOf.get(itemId)
+      if (!k) return
+      flowByAccount.set(k, (flowByAccount.get(k) || 0) - fee)
+    })
+
     // start, PER ITEM first so each holding can take its value from whichever
     // engine is authoritative for it, then folded up to accounts.
     const startByItem = new Map()
@@ -1719,12 +1810,22 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // the panel should not vanish for that: these starts are estimates that get
     // pinned to the anchor anyway, so the shape is all that is needed. Fall back
     // to the same held-flat per-account estimate the calibration flow uses.
-    if (startByAccount.size === 0) {
-      ;[...endByAccount.keys()].forEach((k) => {
-        const est = heldFlatAccountValueUSD(portfolioItems, k, ytdStartTs, convert)
-        if (isFinite(est) && est > 0) startByAccount.set(k, convertSnapshot(est))
-      })
-    }
+    // FASE IB: POR CUENTA, no solo cuando el mapa entero quedó vacío. En una
+    // sesión donde el fetch por ítem falla o llega degradado, startByItem queda
+    // con cobertura PARCIAL (el Spreadsheet solo reconstruye lo estático):
+    // IBKR y las cuentas de puro mercado quedaban con arranque $0 y sus saldos
+    // COMPLETOS se leían como ganancia. Esa es la anatomía exacta del residuo
+    // de $6,667.71 (la suma de los arranques faltantes) que hizo rehusar el
+    // panel entero el 13 ago. Una cuenta cuyo único dato es el 0 del zeroing
+    // de arriba (OSMO, abierta en febrero) SÍ tiene entrada y no cae aquí: ese
+    // 0 es un hecho, no cobertura faltante. Para IBKR el held-flat también da
+    // 0 (effectiveAcqTs es el sello del sync, posterior al ancla), pero su
+    // rescate real es el NAV del broker que build(true) ya usa.
+    ;[...endByAccount.keys()].forEach((k) => {
+      if (startByAccount.has(k)) return
+      const est = heldFlatAccountValueUSD(portfolioItems, k, ytdStartTs, convert)
+      if (isFinite(est) && est > 0) startByAccount.set(k, convertSnapshot(est))
+    })
 
     // A broker's own year-start NAV is an observation, not an estimate, so it is
     // handed over as real and the engine leaves it untouched while pinning the
@@ -1767,8 +1868,29 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // user with no breakdown at all over an improvement. So fall back to the
     // all-estimated split, which is internally consistent and still pinned to
     // the same anchor the headline used.
-    return attributeYtd({ accounts: build(true), ...args })
-      || attributeYtd({ accounts: build(false), ...args })
+    // Se reporta la razón del intento TODO-ESTIMADO (el de último recurso):
+    // que el intento con NAV real falle es esperado a veces y el fallback
+    // existe justo para eso; lo que explica la ausencia del panel es por qué
+    // falló también el último intento.
+    const diagReal = {}
+    const diagEst = {}
+    const breakdown = attributeYtd({ accounts: build(true), ...args }, diagReal)
+      || attributeYtd({ accounts: build(false), ...args }, diagEst)
+    // El detail viaja con la razón DEL MISMO intento (FASE HY): mezclar la
+    // razón del intento estimado con los números del intento real describiría
+    // un rechazo que no ocurrió.
+    const chosen = diagEst.reason ? diagEst : diagReal
+    // FASE IB: el detalle del rechazo lleva también los TÉRMINOS POR CUENTA del
+    // intento reportado (arranque/hoy/flujos) y el ancla. Con solo el residuo
+    // total ($6,667.71) supimos la escala pero no QUÉ cuenta faltaba: con esta
+    // lista, la próxima captura es el diagnóstico completo (lección FASE HP).
+    const debugAccounts = breakdown ? null : build(diagEst.reason ? false : true)
+      .map((a) => ({ name: a.name, start: a.start, end: a.endVal, flow: a.flow, real: !!a.startIsReal }))
+    return {
+      breakdown,
+      reason: breakdown ? null : (chosen.reason || 'unknown'),
+      detail: breakdown ? null : { ...(chosen.detail || {}), accounts: debugAccounts, anchor: ytdStartValue },
+    }
   }, [ytdEndpoints, portfolioItems, convert, baseCurrency, ytdChange, ytdStartValue, ytdStartTs, ytdFlowsUsed, snapshots, convertSnapshot, spreadsheetStart, transactions, lots])
 
   // Month-to-date return (Modified Dietz) — the "how are we doing THIS month"
@@ -1865,17 +1987,27 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   }, [portfolioItems])
 
   const riskMetrics = useMemo(() => {
-    const returns = computePeriodicReturns(snapshots, transactions, convert, baseCurrency)
-    const ppy = inferPeriodsPerYear(snapshots)
+    // Serie AUMENTADA, nunca los snapshots crudos (FASE HT4): un día cuyo
+    // único doc es NAV solo-broker mide UNA cuenta, y mezclado con días de
+    // portafolio completo fabrica retornos gigantes que no existieron. La
+    // volatilidad salía 116.4% anualizada sobre un portafolio con drawdown
+    // real de -5.6%. computePeriodicReturns además resuelve por día y excluye
+    // anclas de calibración por su cuenta (defensa para cualquier caller).
+    const returns = computePeriodicReturns(augmentedSnapshots, transactions, convert, baseCurrency)
+    const ppy = inferPeriodsPerYear(augmentedSnapshots)
     const sharpeResult = computeSharpeRatio({ returns, periodsPerYear: ppy })
     const vol = computeVolatility({ returns, periodsPerYear: ppy })
-    const valueSeries = (snapshots || [])
+    const valueSeries = (augmentedSnapshots || [])
+      .filter((s) => !s._calibrated && !s._account)
       .map((s) => ({ ts: new Date(s.date).getTime(), value: s.netWorthUSD ?? s.totalActivosUSD ?? 0 }))
       .filter((p) => !isNaN(p.ts) && p.value > 0)
       .sort((a, b) => a.ts - b.ts)
     const drawdown = computeMaxDrawdown(filterValueSpikes(valueSeries))
-    return { sharpe: sharpeResult.sharpe, volatility: vol, maxDrawdown: drawdown.maxDrawdownPct }
-  }, [snapshots, transactions, convert, baseCurrency])
+    // Beta vs benchmark con el MISMO emparejado que usa la pestaña de Riesgo
+    // (pairPortfolioWithBenchmark, compartido): el reporte lo imprime.
+    const { beta } = pairPortfolioWithBenchmark(filterValueSpikes(valueSeries), benchmarkData)
+    return { sharpe: sharpeResult.sharpe, volatility: vol, maxDrawdown: drawdown.maxDrawdownPct, beta }
+  }, [augmentedSnapshots, transactions, convert, baseCurrency, benchmarkData])
 
   // ── Inferred deposits/withdrawals (FASE DQ) ──────────────────────────────
   // Fills the ONE gap real data can't reach: the quarterly-transcribed stretch
@@ -2429,7 +2561,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
     // Computed values
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
-    returnYTD, ytdChange, returnSinceStart, sinceStartDate, returnMTD, ytdCalibrated, ytdBreakdown,
+    returnYTD, ytdChange, returnSinceStart, sinceStartDate, returnMTD, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail,
     ibkrReturnYTD: ibkrReturns.ytd, ibkrReturnMTD: ibkrReturns.mtd, ibkrDayChange: ibkrReturns.day,
     annualDividends, estimatedAnnualIncome,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,

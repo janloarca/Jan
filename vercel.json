@@ -1,7 +1,14 @@
 {
   "framework": "nextjs",
   "crons": [
-    { "path": "/api/cron/finance-reminder", "schedule": "0 15 25-31 * *" }
+    {
+      "path": "/api/cron/finance-reminder",
+      "schedule": "0 15 25-31 * *"
+    },
+    {
+      "path": "/api/cron/notifications",
+      "schedule": "0 22 * * *"
+    }
   ],
   "git": {
     "deploymentEnabled": {

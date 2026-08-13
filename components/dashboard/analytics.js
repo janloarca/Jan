@@ -1,4 +1,5 @@
 import { getTypeCategory, getItemValue, computeModifiedDietz, getInvestmentClass, INVESTMENT_CLASS_META } from './utils'
+import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
 
 function mean(arr) {
   if (arr.length === 0) return 0
@@ -393,7 +394,18 @@ export function computeCAGR(startValue, endValue, years) {
 
 export function computePeriodicReturns(snapshots, transactions, convert, baseCurrency) {
   if (!snapshots || snapshots.length < 2) return []
-  const sorted = [...snapshots].sort((a, b) => {
+  // FASE HT4. Una serie de retornos solo tiene sentido sobre observaciones del
+  // MISMO portafolio, una por día. Sin esto, los docs paralelos de NAV
+  // solo-broker (FASE FU: ~$10K conviviendo con la observación completa de
+  // ~$26K en la misma fecha) fabricaban "retornos" de ±60% día por medio y la
+  // volatilidad anualizada salía 116% en un portafolio cuya máxima caída real
+  // fue -5.6%: el diente de sierra, vivo dentro de las métricas de riesgo. Las
+  // anclas de calibración y los docs por-cuenta tampoco son observaciones del
+  // portafolio y quedan fuera. El filtro MAD de abajo no alcanza cuando la
+  // MITAD de la serie es basura: la mediana misma se contamina.
+  const usable = preferFullPortfolioPerDay(snapshots.filter((s) => s && !s._calibrated && !s._account))
+  if (usable.length < 2) return []
+  const sorted = [...usable].sort((a, b) => {
     const da = new Date(a.date).getTime()
     const db = new Date(b.date).getTime()
     return da - db
@@ -454,6 +466,45 @@ export function filterValueSpikes(series) {
     const downDip = p.value < prev * 0.55 && p.value < next * 0.55
     return !(upSpike || downDip)
   })
+}
+
+// FASE HT5. El emparejado portafolio↔benchmark que antes vivía inline en
+// RiskMetrics.jsx, extraído porque ahora lo necesita también el hook (el
+// reporte imprime beta): dos copias del mismo emparejado es exactamente cómo
+// una se queda atrás. Devuelve las DOS series alineadas par a par (misma
+// ventana, mismo guard de outliers en ambas) más el beta ya calculado.
+export function pairPortfolioWithBenchmark(valueSeries, benchmarkData) {
+  const pReturnsB = []
+  const bReturns = []
+  if (!benchmarkData?.dataPoints?.length || benchmarkData.dataPoints.length <= 2 || !valueSeries || valueSeries.length <= 2) {
+    return { pReturnsB, bReturns, beta: null }
+  }
+  const bPts = benchmarkData.dataPoints.slice().sort((a, b) => a.ts - b.ts)
+  const findClosest = (ts) => {
+    let lo = 0, hi = bPts.length - 1
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1
+      if (bPts[mid].ts < ts) lo = mid + 1
+      else hi = mid
+    }
+    if (lo === 0) return bPts[0]
+    const prev = bPts[lo - 1]
+    const curr = bPts[lo]
+    return Math.abs(prev.ts - ts) <= Math.abs(curr.ts - ts) ? prev : curr
+  }
+  for (let i = 1; i < valueSeries.length; i++) {
+    const closestCurr = findClosest(valueSeries[i].ts)
+    const closestPrev = findClosest(valueSeries[i - 1].ts)
+    const prevVal = valueSeries[i - 1].value
+    if (closestCurr && closestPrev && closestPrev.close > 0 && prevVal > 0) {
+      const pr = (valueSeries[i].value - prevVal) / prevVal
+      if (Math.abs(pr) < 1) {
+        pReturnsB.push(pr)
+        bReturns.push((closestCurr.close - closestPrev.close) / closestPrev.close)
+      }
+    }
+  }
+  return { pReturnsB, bReturns, beta: computeBeta(pReturnsB, bReturns) }
 }
 
 export function computeBeta(portfolioReturns, benchmarkReturns) {

@@ -1,6 +1,6 @@
 import Logo from '@/components/ui/Logo'
 
-export const metadata = { title: 'Términos de Servicio · Chispudo' }
+export const metadata = { title: 'Terms of Service · Chispudo' }
 
 function Section({ title, children }) {
   return (
@@ -19,121 +19,141 @@ export default function TermsPage() {
       <div className="max-w-2xl mx-auto">
         <div className="mb-10">
           <a href="/login" className="inline-flex items-center gap-2 mb-6 text-sm" style={{ color: 'var(--accent-blue)' }}>
-            ← Volver
+            ← Back
           </a>
           <div className="flex mb-2">
             <Logo size={22} />
           </div>
-          <h1 className="text-xl font-bold text-white">Términos de Servicio</h1>
+          <h1 className="text-xl font-bold text-white">Terms of Service</h1>
           <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary, var(--text-secondary))' }}>
-            Última actualización: 29 de julio de 2026
+            Last updated: August 13, 2026
           </p>
         </div>
 
-        <Section title="1. Qué es Chispudo">
+        <Section title="1. What Chispudo is">
           <p>
-            Chispudo es una herramienta de seguimiento de patrimonio e inversiones. Te deja registrar,
-            importar y visualizar la composición y el rendimiento de tus activos (cuentas de inversión,
-            cripto, bienes raíces, cuentas bancarias, deudas, etc.), incluyendo conexiones de solo lectura
-            con brokers y exchanges.
+            Chispudo is a net worth and investment tracking tool. It lets you record, import and
+            visualize the composition and performance of your assets (investment accounts, crypto, real
+            estate, bank accounts, debts, and so on), including read-only connections to brokers and
+            exchanges.
           </p>
           <p className="font-medium text-white">
-            Chispudo nunca ejecuta operaciones, mueve dinero ni tiene acceso de escritura a tus cuentas
-            de broker. Toda conexión con un tercero (API o archivo importado) es estrictamente de lectura.
+            Chispudo never places trades, never moves money, and never has write access to your broker
+            accounts. Every third-party connection (API or imported file) is strictly read-only.
           </p>
         </Section>
 
-        <Section title="2. No es asesoría financiera">
+        <Section title="2. Not financial advice">
           <p>
-            Chispudo muestra cálculos (retornos, proyecciones, comparaciones contra índices, sugerencias
-            de rebalanceo) construidos a partir de los datos que vos ingresás o importás. Estos cálculos
-            son herramientas informativas, no recomendaciones de inversión, no son asesoría financiera,
-            legal ni fiscal, y no sustituyen el consejo de un profesional. Las decisiones que tomés con
-            tu dinero son tu responsabilidad.
+            Chispudo shows calculations (returns, projections, benchmark comparisons, rebalancing
+            suggestions) built from the data you enter or import. These calculations are informational
+            tools. They are not investment recommendations, they are not financial, legal or tax advice,
+            and they do not replace a professional. Decisions you make with your money are your
+            responsibility.
           </p>
         </Section>
 
-        <Section title="3. Exactitud de los datos">
+        <Section title="3. Data accuracy">
           <p>
-            Cuando no hay historial real disponible (por ejemplo, un broker que solo entrega estados de
-            cuenta mensuales, o una posición recién importada sin fecha de compra), Chispudo reconstruye
-            o estima valores pasados y lo indica en la interfaz. Los precios de mercado provienen de
-            proveedores externos (Yahoo Finance, CoinGecko) y pueden tener demoras o interrupciones.
-            Verificá siempre las cifras importantes contra el estado de cuenta oficial de tu broker antes
-            de tomar una decisión basada en ellas.
+            When no real history is available (for example, a broker that only provides monthly
+            statements, or a position imported without a purchase date), Chispudo reconstructs or
+            estimates past values and marks them as such in the interface. Market prices come from
+            external data sources and may be delayed or interrupted. Always verify important figures
+            against your broker&apos;s official statement before making a decision based on them.
           </p>
         </Section>
 
-        <Section title="4. Tu cuenta">
+        <Section title="4. Your account">
           <p>
-            Sos responsable de mantener la confidencialidad de tu contraseña y de toda actividad que
-            ocurra en tu cuenta. Avisanos si sospechás un acceso no autorizado.
+            You are responsible for keeping your password confidential and for all activity that occurs
+            under your account. Let us know if you suspect unauthorized access.
           </p>
         </Section>
 
-        <Section title="5. Conexiones con brokers y credenciales">
+        <Section title="5. Broker connections and credentials">
           <p>
-            Si conectás un broker por API (por ejemplo, Interactive Brokers), el token/credencial se
-            guarda cifrado (AES-256-GCM) y solo se usa para consultar tus datos de solo lectura. Podés
-            desconectar cualquier integración en cualquier momento desde Configuración; al hacerlo se
-            borra la credencial guardada.
+            If you connect a broker over an API (for example, Interactive Brokers), the token or
+            credential is stored encrypted (AES-256-GCM) and is used only to read your data. You can
+            disconnect any integration at any time from Settings, which deletes the stored credential.
           </p>
         </Section>
 
-        <Section title="6. Importación asistida por IA">
+        <Section title="6. AI-assisted import">
           <p>
-            Si subís un estado de cuenta en PDF, Chispudo usa un modelo de IA (Claude, de Anthropic) para
-            convertirlo a un formato que la plataforma puede leer. Vos revisás y confirmás cada fila antes
-            de que se guarde nada: ningún dato extraído por la IA se importa automáticamente sin tu
-            confirmación.
+            If you upload a PDF statement, Chispudo uses an AI model (Claude, by Anthropic) to convert it
+            into a format the platform can read. You review and confirm every row before anything is
+            saved: no AI-extracted data is imported automatically without your confirmation.
           </p>
         </Section>
 
-        <Section title="7. La función Amigos">
+        <Section title="7. The Friends feature">
           <p>
-            Amigos es una función opcional de comparación social. Si la activás, se publica un perfil con
-            un seudónimo y únicamente porcentajes de retorno y símbolos de los activos que más te movieron
-            ese día — nunca montos en dinero. Podés desactivarla en cualquier momento desde Configuración;
-            al hacerlo se borra tu perfil público y salís de todos los grupos.
+            Friends is an optional social comparison feature. If you turn it on, a profile is published
+            with a pseudonym and only percentage returns and the symbols of the assets that moved you
+            most that day. Never money amounts. You can turn it off at any time from Settings, which
+            deletes your public profile and removes you from all groups.
           </p>
         </Section>
 
-        <Section title="8. Eliminar tu cuenta y tus datos">
+        <Section title="8. Deleting your account and your data">
           <p>
-            Desde Configuración → Datos podés borrar tu información (activos, historial, transacciones,
-            conexiones de broker y tu perfil de Amigos) en cualquier momento. Es una acción irreversible.
+            From Settings → Data you can delete your information (assets, history, transactions, broker
+            connections and your Friends profile) at any time. This action cannot be undone.
           </p>
         </Section>
 
-        <Section title="9. Propiedad">
+        <Section title="9. Ownership">
           <p>
-            Los datos financieros que ingresás o importás son tuyos. Chispudo es dueño del software, la
-            marca y el diseño de la plataforma.
+            The financial data you enter or import is yours. Chispudo owns the software, the brand and
+            the design of the platform.
           </p>
         </Section>
 
-        <Section title="10. Cambios a estos términos">
+        <Section title="10. Service provided as is">
           <p>
-            Podemos actualizar estos términos según evolucione el producto. Los cambios importantes se
-            avisarán dentro de la app. El uso continuado después de un cambio implica que lo aceptás.
+            Chispudo is provided as is, without warranties of any kind, express or implied. We do not
+            guarantee that the service will be uninterrupted, error-free, or that the figures it displays
+            are complete or accurate, particularly where they depend on external data sources or on
+            reconstructed history.
+          </p>
+          <p>
+            To the maximum extent permitted by law, Chispudo is not liable for investment losses, lost
+            profits, or any indirect or consequential damages arising from your use of the service or
+            from reliance on the figures it displays. This is why section 3 asks you to verify important
+            figures against your broker&apos;s official statement.
           </p>
         </Section>
 
-        <Section title="11. Ley aplicable">
+        <Section title="11. Suspension and termination">
           <p>
-            Estos términos se rigen por las leyes de Guatemala. Cualquier disputa se resolverá ante los
-            tribunales competentes de Guatemala, salvo que la ley aplicable disponga lo contrario.
+            You may stop using Chispudo and delete your account at any time. We may suspend or terminate
+            an account that abuses the service, attempts to access another user&apos;s data, or violates
+            these terms. Where possible we will give notice first so you can export your data.
           </p>
         </Section>
 
-        <Section title="12. Contacto">
+        <Section title="12. Changes to these terms">
           <p>
-            Preguntas sobre estos términos: <a href="mailto:janmarcof@gmail.com" style={{ color: 'var(--accent-blue)' }}>janmarcof@gmail.com</a>
+            We may update these terms as the product evolves. Significant changes will be announced
+            inside the app. Continued use after a change means you accept it.
+          </p>
+        </Section>
+
+        <Section title="13. Governing law">
+          <p>
+            These terms are governed by the laws of Guatemala. Any dispute will be resolved before the
+            competent courts of Guatemala, unless applicable law provides otherwise.
+          </p>
+        </Section>
+
+        <Section title="14. Contact">
+          <p>
+            Questions about these terms: <a href="mailto:jan@chispu.xyz" style={{ color: 'var(--accent-blue)' }}>jan@chispu.xyz</a>
           </p>
         </Section>
 
         <p className="text-xs pt-6 border-t border-glass-border" style={{ color: 'var(--text-tertiary, var(--text-secondary))' }}>
-          Ver también nuestra <a href="/privacy" style={{ color: 'var(--accent-blue)' }}>Política de Privacidad</a>.
+          See also our <a href="/privacy" style={{ color: 'var(--accent-blue)' }}>Privacy Policy</a>.
         </p>
       </div>
     </div>

@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useDashboardData } from '@/hooks/useDashboardData'
-import { getItemValue, formatCurrency, getTypeCategory, businessDaysSince } from '@/components/dashboard/utils'
+import { getItemValue, formatCurrency, getTypeCategory, ibkrAttentionNeeded } from '@/components/dashboard/utils'
 import { computeLoadStages } from '@/lib/loadStages'
 import Header from '@/components/dashboard/Header'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
@@ -76,6 +76,7 @@ const GainsReport = dynamic(() => import('@/components/dashboard/GainsReport'), 
 const PerformanceAttribution = dynamic(() => import('@/components/dashboard/PerformanceAttribution'), { loading: () => <SkeletonCard /> })
 const RiskMetrics = dynamic(() => import('@/components/dashboard/RiskMetrics'), { loading: () => <SkeletonCard /> })
 const InstitutionPerformance = dynamic(() => import('@/components/dashboard/InstitutionPerformance'), { loading: () => <SkeletonCard /> })
+const InvestedByYearCard = dynamic(() => import('@/components/dashboard/InvestedByYearCard'), { loading: () => <SkeletonCard /> })
 const RebalanceSuggestions = dynamic(() => import('@/components/dashboard/RebalanceSuggestions'), { loading: () => <SkeletonCard /> })
 
 // How long a finished IBKR-journey step stays on screen before it carries the
@@ -307,7 +308,7 @@ export default function DashboardPage() {
     ratesLoading, ratesError,
     handleRefresh,
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
-    returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated, ytdBreakdown,
+    returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail,
     annualDividends, estimatedAnnualIncome,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
     brokerCompletionState, ibkrDataComplete, inferredFlowCandidates, inferredFlowReconciliation, ibkrReconciliation, acceptInferredFlow, dismissInferredFlow,
@@ -810,17 +811,21 @@ export default function DashboardPage() {
     try {
       const { generateReport } = await import('@/lib/generateReport')
       await generateReport({
-        items: enrichedItems, snapshots, transactions,
-        netWorth, totalAssets, lang, returnYTD, annualDividends,
+        items: enrichedItems, snapshots: augmentedSnapshots, transactions,
+        netWorth, totalAssets, lang,
+        returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdBreakdown, ytdBreakdownReason,
+        annualDividends, estimatedAnnualIncome,
+        benchmarkName, benchmarkReturn, volatilityPct: riskMetrics?.volatility,
+        sharpe: riskMetrics?.sharpe, beta: riskMetrics?.beta,
         profileName: profile?.name || user?.displayName || '',
-        baseCurrency, convert,
+        baseCurrency, convert, period: 'ytd',
       })
       showToast(lang === 'es' ? 'PDF descargado' : 'PDF downloaded')
     } catch (err) {
       console.error('[report] generation failed:', err)
       showToast(lang === 'es' ? 'Error generando el PDF' : 'Error generating PDF')
     }
-  }, [enrichedItems, snapshots, transactions, lang, netWorth, totalAssets, returnYTD, annualDividends, profile, user, showToast, baseCurrency, convert])
+  }, [enrichedItems, augmentedSnapshots, transactions, lang, netWorth, totalAssets, returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdBreakdown, ytdBreakdownReason, annualDividends, estimatedAnnualIncome, benchmarkName, benchmarkReturn, riskMetrics, profile, user, showToast, baseCurrency, convert])
 
   const handleShare = useCallback(async () => {
     const t = (es, en) => lang === 'es' ? es : en
@@ -921,36 +926,18 @@ export default function DashboardPage() {
   // ONE rule for "is the IBKR connection actually in trouble?", shared by the top
   // banner, the header pill and the ActionButtons dot. They each used to decide on
   // their own (`ibkrSyncStatus === 'error'`), so a single transient failure lit up
-  // a warning triangle over data synced hours ago. Split by whether the failure
-  // can heal itself:
-  //   - TOKEN_EXPIRED / INVALID_QUERY need the USER to act, so they warn
-  //     immediately (auto-sync halts entirely for these).
-  //   - Everything else, INCLUDING LOCKED, retries on its own (LOCKED backs off
-  //     to a 12h cadence specifically so a fresh attempt doesn't refresh IBKR's
-  //     own temporary lock — see the FATAL_ERROR_CODES comment in
-  //     useDashboardData.js), so it only becomes news once the data is
-  //     genuinely stale: 5 BUSINESS days without a successful sync. LOCKED used
-  //     to warn on the very first failed attempt, which reads as "your token is
-  //     dead" over what's usually IBKR's own rate limiting clearing itself
-  //     within a day. Business days because the market is shut on weekends and
-  //     a Friday sync has nothing to add on Sunday.
-  // FASE GQ: a FIRST connection that never once succeeded gets a SHORTER fuse
-  // (2 business days) than an established one that started failing (5, above).
-  // The user is actively mid-setup and staring at "IBKR ⚠" for the same reason
-  // an already-working sync would sit quiet for days is backwards — they need
-  // to know sooner if their Token/Query ID need a second look. `_ibkrConnectedAt`
-  // (stamped only by the non-blocking quick-connect in IBKRSyncModal, FASE GQ)
-  // is what tells the two cases apart; without it (every pre-existing connection)
-  // this branch never fires and the 5-day rule below is unchanged.
+  // a warning triangle over data synced hours ago.
+  // FASE HX: la regla completa (5 días hábiles sin señal de conexión, para TODO
+  // código de error, midiendo desde la marca MÁS RECIENTE) vive en
+  // ibkrAttentionNeeded (components/dashboard/utils.js, puro y con tests), no
+  // aquí: este memo solo la cablea a settings.
   const everIbkrSynced = !!(settings?._ibkrLastSync || settings?._ibkrLastAutoSync)
-  const ibkrNeedsAttention = useMemo(() => {
-    if (!ibkrSyncErrorCode) return false
-    if (['TOKEN_EXPIRED', 'INVALID_QUERY'].includes(ibkrSyncErrorCode)) return true
-    if (!everIbkrSynced && settings?._ibkrConnectedAt) {
-      return businessDaysSince(settings._ibkrConnectedAt) >= 2
-    }
-    return businessDaysSince(settings?._ibkrLastSync || settings?._ibkrLastAutoSync) >= 5
-  }, [ibkrSyncErrorCode, everIbkrSynced, settings?._ibkrLastSync, settings?._ibkrLastAutoSync, settings?._ibkrConnectedAt])
+  const ibkrNeedsAttention = useMemo(() => ibkrAttentionNeeded({
+    errorCode: ibkrSyncErrorCode,
+    lastSync: settings?._ibkrLastSync,
+    lastAutoSync: settings?._ibkrLastAutoSync,
+    connectedAt: settings?._ibkrConnectedAt,
+  }), [ibkrSyncErrorCode, settings?._ibkrLastSync, settings?._ibkrLastAutoSync, settings?._ibkrConnectedAt])
 
   const topBanner = useMemo(() => {
     // Nothing to be stale ABOUT on an empty account: a brand-new user opening the app
@@ -958,14 +945,19 @@ export default function DashboardPage() {
     // screen, which reads as "this is broken" before they've added anything.
     if (portfolioItems.length === 0) return null
     if (staleCode) return 'stale'
-    if (ibkrSyncErrorCode === 'TOKEN_EXPIRED') return 'ibkr-expired'
-    if (ibkrSyncErrorCode === 'INVALID_QUERY') return 'ibkr-query'
-    // FASE GQ: a first connection that crossed its 2-business-day grace period
-    // without ever landing a sync gets its OWN copy — "your credentials might
-    // be wrong" instead of "the last sync failed" (that phrasing assumes at
-    // least one sync happened). Checked before the general ibkrNeedsAttention
-    // branch below so it takes priority over the generic wording for exactly
-    // this case, never for an established connection that started failing.
+    // FASE HX: TODA rama de IBKR pasa por ibkrNeedsAttention (la regla de los
+    // 5 días hábiles). TOKEN_EXPIRED/INVALID_QUERY salían aquí SIN esa
+    // compuerta, así que un solo intento fallido con esos códigos encendía el
+    // banner aunque la conexión hubiera funcionado ayer; ahora solo deciden el
+    // COPY una vez que la barra se cruzó, no el momento en que aparece.
+    if (ibkrNeedsAttention && ibkrSyncErrorCode === 'TOKEN_EXPIRED') return 'ibkr-expired'
+    if (ibkrNeedsAttention && ibkrSyncErrorCode === 'INVALID_QUERY') return 'ibkr-query'
+    // FASE GQ: a first connection that crossed the grace period without ever
+    // landing a sync gets its OWN copy — "your credentials might be wrong"
+    // instead of "the last sync failed" (that phrasing assumes at least one
+    // sync happened). Checked before the general ibkrNeedsAttention branch
+    // below so it takes priority over the generic wording for exactly this
+    // case, never for an established connection that started failing.
     if (ibkrNeedsAttention && !everIbkrSynced && settings?._ibkrConnectedAt) return 'ibkr-never-connected'
     // LOCKED (and everything else) self-heals; ibkrNeedsAttention holds the
     // shared 5-business-day staleness rule so this banner can never disagree
@@ -1036,7 +1028,7 @@ export default function DashboardPage() {
       {topBanner && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3">
           {topBanner === 'stale' && (
-            <div className="px-4 py-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(37,99,235,0.1)', border: '1px solid rgba(37,99,235,0.2)' }}>
+            <div className="px-4 py-3 rounded-xl flex flex-wrap items-center justify-between gap-y-2" style={{ backgroundColor: 'rgba(37,99,235,0.1)', border: '1px solid rgba(37,99,235,0.2)' }}>
               <div className="flex items-center gap-2">
                 <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--accent-blue)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -1053,17 +1045,17 @@ export default function DashboardPage() {
             </div>
           )}
           {topBanner === 'ibkr-expired' && (
-            <div className="px-4 py-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}>
+            <div className="px-4 py-3 rounded-xl flex flex-wrap items-center justify-between gap-y-2" style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)' }}>
               <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" style={{ color: '#fbbf24' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--alert-warn-icon)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
-                <p className="text-sm font-medium" style={{ color: '#fcd34d' }}>
+                <p className="text-sm font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
                   {lang === 'es' ? 'Tu token de IBKR expiró: genera uno nuevo para mantener tu portafolio actualizado' : 'Your IBKR token has expired: generate a new one to keep your portfolio updated'}
                 </p>
               </div>
               <div className="flex items-center gap-3 shrink-0">
-                <button onClick={handleIbkrDisconnect} className="text-xs transition-colors" style={{ color: '#fcd34d', opacity: 0.7 }}>
+                <button onClick={handleIbkrDisconnect} className="text-xs transition-colors" style={{ color: 'var(--alert-warn-icon)', opacity: 0.7 }}>
                   {lang === 'es' ? 'Desconectar' : 'Disconnect'}
                 </button>
                 <button onClick={() => setModal('ibkr')}
@@ -1075,17 +1067,17 @@ export default function DashboardPage() {
             </div>
           )}
           {topBanner === 'ibkr-query' && (
-            <div className="px-4 py-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}>
+            <div className="px-4 py-3 rounded-xl flex flex-wrap items-center justify-between gap-y-2" style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)' }}>
               <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" style={{ color: '#fbbf24' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--alert-warn-icon)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
-                <p className="text-sm font-medium" style={{ color: '#fcd34d' }}>
+                <p className="text-sm font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
                   {lang === 'es' ? 'Query ID de IBKR inválido: verifica tu Flex Query en IBKR' : 'Invalid IBKR Query ID: verify your Flex Query in IBKR'}
                 </p>
               </div>
               <div className="flex items-center gap-3 shrink-0">
-                <button onClick={handleIbkrDisconnect} className="text-xs transition-colors" style={{ color: '#fcd34d', opacity: 0.7 }}>
+                <button onClick={handleIbkrDisconnect} className="text-xs transition-colors" style={{ color: 'var(--alert-warn-icon)', opacity: 0.7 }}>
                   {lang === 'es' ? 'Desconectar' : 'Disconnect'}
                 </button>
                 <button onClick={() => setModal('ibkr')}
@@ -1096,61 +1088,70 @@ export default function DashboardPage() {
               </div>
             </div>
           )}
-          {/* FASE GQ: a first connect never made it past 2 business days without a
-              single successful sync. "La última sincronización falló" (ibkr-failed
-              below) implies at least ONE sync happened; this case never did, so
-              the copy points straight at the credentials instead. */}
+          {/* FASE GQ: a first connect never made it past 5 business days (FASE HX)
+              without a single successful sync. "La última sincronización falló"
+              (ibkr-failed below) implies at least ONE sync happened; this case
+              never did, so the copy points straight at the credentials instead. */}
+          {/* FASE HX: era rojo (rgba(239,68,68)) con botón rojo sólido, o sea el
+              tratamiento de una falla mortal, para lo que es un aviso de datos
+              posiblemente desactualizados que el auto-sync sigue reintentando
+              solo. Ahora usa los tokens --alert-warn-* (mismos que el resto de
+              avisos no fatales, y con variante clara/oscura de verdad: los hex
+              fijos #fca5a5 eran ilegibles en tema claro). */}
           {topBanner === 'ibkr-never-connected' && (
-            <div className="px-4 py-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>
+            <div className="px-4 py-3 rounded-xl flex flex-wrap items-center justify-between gap-y-2" style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)' }}>
               <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" style={{ color: '#f87171' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--alert-warn-icon)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
-                <p className="text-sm font-medium" style={{ color: '#fca5a5' }}>
+                <p className="text-sm font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
                   {lang === 'es' ? 'No pudimos conectar con IBKR en los últimos días: revisa tu Token y Query ID' : "We couldn't connect to IBKR in the last few days: check your Token and Query ID"}
                 </p>
               </div>
               <div className="flex items-center gap-3 shrink-0">
-                <button onClick={handleIbkrDisconnect} className="text-xs transition-colors" style={{ color: '#fca5a5', opacity: 0.7 }}>
+                <button onClick={handleIbkrDisconnect} className="text-xs transition-colors" style={{ color: 'var(--alert-warn-icon)', opacity: 0.7 }}>
                   {lang === 'es' ? 'Desconectar' : 'Disconnect'}
                 </button>
                 <button onClick={() => setModal('ibkr')}
                   className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-                  style={{ backgroundColor: '#dc2626', color: '#fff' }}>
+                  style={{ backgroundColor: '#d97706', color: '#fff' }}>
                   {lang === 'es' ? 'Revisar credenciales' : 'Check credentials'}
                 </button>
               </div>
             </div>
           )}
+          {/* FASE HX: mismo suavizado que ibkr-never-connected. LOCKED se
+              levanta solo (EZ3: reintento cada 12h), así que rojo-mortal era
+              el tono equivocado incluso cruzada la barra de 5 días. */}
           {topBanner === 'ibkr-locked' && (
-            <div className="px-4 py-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>
+            <div className="px-4 py-3 rounded-xl flex flex-wrap items-center justify-between gap-y-2" style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)' }}>
               <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" style={{ color: '#f87171' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--alert-warn-icon)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
-                <p className="text-sm font-medium" style={{ color: '#fca5a5' }}>
+                <p className="text-sm font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
                   {lang === 'es' ? 'IBKR bloqueó tu token: genera uno NUEVO en IBKR o importa un CSV mientras tanto' : 'IBKR locked your token: generate a NEW one in IBKR or import a CSV in the meantime'}
                 </p>
               </div>
               <div className="flex items-center gap-3 shrink-0">
-                <button onClick={handleIbkrDisconnect} className="text-xs transition-colors" style={{ color: '#fca5a5', opacity: 0.7 }}>
+                <button onClick={handleIbkrDisconnect} className="text-xs transition-colors" style={{ color: 'var(--alert-warn-icon)', opacity: 0.7 }}>
                   {lang === 'es' ? 'Desconectar' : 'Disconnect'}
                 </button>
                 <button onClick={() => setModal('ibkr')}
                   className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-                  style={{ backgroundColor: '#dc2626', color: '#fff' }}>
+                  style={{ backgroundColor: '#d97706', color: '#fff' }}>
                   {lang === 'es' ? 'Resolver' : 'Resolve'}
                 </button>
               </div>
             </div>
           )}
           {topBanner === 'ibkr-failed' && (
-            <div className="px-4 py-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}>
+            <div className="px-4 py-3 rounded-xl flex flex-wrap items-center justify-between gap-y-2" style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)' }}>
               <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" style={{ color: '#fbbf24' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--alert-warn-icon)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
-                <p className="text-sm font-medium" style={{ color: '#fcd34d' }}>
+                <p className="text-sm font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
                   {lang === 'es' ? 'La última sincronización con IBKR falló: tus datos pueden estar desactualizados' : 'The last IBKR sync failed: your data may be outdated'}
                 </p>
               </div>
@@ -1162,12 +1163,12 @@ export default function DashboardPage() {
             </div>
           )}
           {topBanner === 'prices' && (
-            <div className="px-4 py-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}>
+            <div className="px-4 py-3 rounded-xl flex flex-wrap items-center justify-between gap-y-2" style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)' }}>
               <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" style={{ color: '#fbbf24' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--alert-warn-icon)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
-                <p className="text-sm font-medium" style={{ color: '#fcd34d' }}>
+                <p className="text-sm font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
                   {pricesError && ratesError
                     ? (lang === 'es' ? 'Precios y tasas desactualizados: error de conexión' : 'Prices and rates outdated: connection error')
                     : pricesError
@@ -1203,7 +1204,7 @@ export default function DashboardPage() {
 
         {/* Time-sensitive alerts (maturities, dividends received) belong at the
             top — buried at page-bottom they were invisible on mobile. */}
-        <NotificationCenter items={portfolioItems} transactions={transactions} lang={lang} settings={settings} />
+        <NotificationCenter items={portfolioItems} transactions={transactions} lang={lang} settings={settings} convert={convert} baseCurrency={baseCurrency} />
         <div className="flex items-center gap-3 flex-wrap">
           {/* A refresh in flight gets its OWN small confirmation right next to
               the freshness text — the header button already shows full
@@ -1282,7 +1283,7 @@ export default function DashboardPage() {
               returnSinceStart={returnSinceStart} sinceStartDate={sinceStartDate}
               dailyChange={dailyChange} convert={convert}
               lang={lang} netContributions={netContributions} cashTotal={cashTotal} snapshots={augmentedSnapshots} items={portfolioItems}
-              ytdCalibrated={ytdCalibrated} ytdBreakdown={ytdBreakdown}
+              ytdCalibrated={ytdCalibrated} ytdBreakdown={ytdBreakdown} ytdBreakdownReason={ytdBreakdownReason} ytdBreakdownDetail={ytdBreakdownDetail}
             />
             </CardBoundary>
           </div>
@@ -1341,6 +1342,7 @@ export default function DashboardPage() {
               <div className="stagger-3 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 items-start">
                 <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
                 <CardBoundary id="INST-01"><InstitutionPerformance items={portfolioItems} lang={lang} baseCurrency={baseCurrency} transactions={transactions} convert={convert} ibkrDataComplete={ibkrDataComplete} /></CardBoundary>
+                <CardBoundary id="INV-01"><InvestedByYearCard transactions={transactions} items={items} snapshots={augmentedSnapshots} netWorth={netWorth} returnYTD={returnYTD} ytdChange={ytdChange} convert={convert} baseCurrency={baseCurrency} lang={lang} /></CardBoundary>
                 <CardBoundary id="OL-03"><PriceAlerts items={portfolioItems} alerts={alerts} marketPrices={marketPrices} addAlert={addAlert} deleteAlert={deleteAlert} lang={lang} /></CardBoundary>
               </div>
 
@@ -1413,13 +1415,11 @@ export default function DashboardPage() {
         <InstallPrompt lang={lang} />
 
         <div className="flex items-center justify-center gap-3 pt-4 pb-8">
-          <button onClick={handleReport}
-            className="px-5 py-2.5 text-sm font-medium text-slate-400 bg-theme-surface border border-glass-border/60 rounded-xl hover:bg-theme-elevated hover:text-white hover:border-[#475569] transition-all inline-flex items-center gap-2">
-            {lang === 'es' ? 'Descargar PDF' : 'Download PDF'}
-          </button>
+          {/* Una sola entrada (FASE HT): el modal trae período, vista previa,
+              Imprimir y Descargar PDF, todos sobre los mismos datos. */}
           <button onClick={handleOpenPrint}
             className="px-5 py-2.5 text-sm font-medium text-slate-400 bg-theme-surface border border-glass-border/60 rounded-xl hover:bg-theme-elevated hover:text-white hover:border-[#475569] transition-all inline-flex items-center gap-2">
-            {lang === 'es' ? 'Imprimir Resumen' : 'Print Summary'}
+            {lang === 'es' ? 'Generar reporte' : 'Generate report'}
           </button>
         </div>
 
@@ -1524,12 +1524,19 @@ export default function DashboardPage() {
           // FASE GQ: fired by the non-blocking first-connect (handleQuickConnect
           // in IBKRSyncModal) BEFORE any sync has actually run — deliberately
           // does NOT stamp _ibkrLastSync (that would lie about a sync that
-          // hasn't happened) and instead stamps _ibkrConnectedAt, the clock
-          // ibkrNeedsAttention's 2-business-day grace period reads above. Once
+          // hasn't happened) and instead stamps _ibkrConnectedAt, one of the
+          // clocks ibkrNeedsAttention's 5-business-day rule reads above. Once
           // saved, the existing auto-sync effect (useDashboardData) picks up
           // the new credentials on its own next render — no separate trigger
           // call needed here.
-          onSaveCredentialsPending={(creds) => { saveSettings({ ...creds, _ibkrConnectedAt: settings?._ibkrConnectedAt || new Date().toISOString(), _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
+          // FASE HX: SIEMPRE se estampa la hora actual (antes preservaba la
+          // marca vieja con `settings?._ibkrConnectedAt ||`): re-guardar
+          // credenciales es un intento de conexión fresco y reinicia el
+          // fusible de 5 días; con la preservación, "me reconecté ayer" no
+          // apagaba una alarma cuyo reloj seguía corriendo desde el primer
+          // intento. No puede spamear escrituras: handleQuickConnect corre a
+          // lo sumo una vez por apertura del modal (autoStartedRef).
+          onSaveCredentialsPending={(creds) => { saveSettings({ ...creds, _ibkrConnectedAt: new Date().toISOString(), _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
           onApiSyncSuccess={() => { saveSettings({ _ibkrLastSync: new Date().toISOString(), _ibkrAutoSyncStatus: 'ok', _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
           onDisconnect={handleIbkrDisconnect}
           uid={user?.uid} lang={lang}
@@ -1635,6 +1642,7 @@ export default function DashboardPage() {
       {modal === 'settings' && (
         <SettingsModal
           onClose={handleCloseModal} settings={settings}
+          userEmail={user?.email || ''}
           onSaveSettings={saveSettings}
           onDeleteAllItems={handleDeleteAllItems} onDeleteAllSnapshots={deleteAllSnapshots}
           onDeleteAllTransactions={deleteAllTransactions}
@@ -1726,7 +1734,18 @@ export default function DashboardPage() {
 
       {modal === 'print' && (
         <PrintSummary items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets}
-          snapshots={augmentedSnapshots} transactions={transactions} lang={lang} onClose={handleCloseModal} />
+          snapshots={augmentedSnapshots} transactions={transactions}
+          returnYTD={returnYTD} ytdChange={ytdChange}
+          returnSinceStart={returnSinceStart} sinceStartDate={sinceStartDate}
+          ytdBreakdown={ytdBreakdown} ytdBreakdownReason={ytdBreakdownReason}
+          annualDividends={annualDividends}
+          estimatedAnnualIncome={estimatedAnnualIncome}
+          benchmarkName={benchmarkName} benchmarkReturn={benchmarkReturn}
+          volatilityPct={riskMetrics?.volatility}
+          sharpe={riskMetrics?.sharpe} beta={riskMetrics?.beta}
+          baseCurrency={baseCurrency} convert={convert}
+          profileName={profile?.name || user?.displayName || ''}
+          lang={lang} onClose={handleCloseModal} />
       )}
 
       {modal === 'calibrate' && (

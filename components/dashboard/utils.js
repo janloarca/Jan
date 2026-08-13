@@ -154,6 +154,29 @@ export function getTypeCategory(itemOrType) {
 
 export { CATEGORY as TYPE_COLORS, CHART_PALETTE } from '@/lib/colors'
 
+// Etiquetas visibles de las categorías de getTypeCategory. Ya existían CUATRO
+// copias locales de este mapa (NetWorthCard, AccountReviewModal,
+// PatrimonioSpreadsheet, PortfolioSpreadsheet); esta es la compartida para
+// consumidores nuevos (los reportes, FASE HT). Las copias viejas quedan donde
+// están a propósito (alguna diverge adrede, ej. "Bonos Corporativo" en el
+// Spreadsheet), pero nada nuevo debe crear una quinta.
+export const CATEGORY_LABELS = {
+  banks: { es: 'Caja & Bancos', en: 'Cash & Banks' },
+  funds: { es: 'Fondos', en: 'Funds' },
+  stocks: { es: 'Acciones', en: 'Stocks' },
+  crypto: { es: 'Cripto', en: 'Crypto' },
+  alternatives: { es: 'Alternativos', en: 'Alternatives' },
+  bonds: { es: 'Bonos', en: 'Bonds' },
+  realestate: { es: 'Bienes Raíces', en: 'Real Estate' },
+  receivables: { es: 'Por Cobrar', en: 'Receivables' },
+  debts: { es: 'Pasivos', en: 'Liabilities' },
+  other: { es: 'Otros', en: 'Other' },
+}
+
+export function categoryLabel(cat, lang) {
+  return CATEGORY_LABELS[cat]?.[lang === 'es' ? 'es' : 'en'] || cat
+}
+
 export function getItemPrice(item) {
   if (item.isIlliquid && item.lastManualValuation > 0) return item.lastManualValuation
   const candidates = [item.currentPrice, item.purchasePrice, item.price, item.cost, item.averagePrice]
@@ -914,8 +937,63 @@ export function computeModifiedDietz({ startValue, endValue, startTs, endTs, tra
   const weightedCapital = startValue + weightedFlows
   const gain = endValue - startValue - sumFlows
   const pct = Math.abs(weightedCapital) > 0.01 ? (gain / weightedCapital) * 100 : 0
-  if (!isFinite(pct)) return { pct: 0, abs: gain }
-  return { pct, abs: gain }
+  // FASE IA: weightedCapital se expone (campo ADITIVO, la fórmula queda
+  // byte-idéntica) para que el caller pueda ajustar el numerador (comisiones
+  // de entrada de compras dentro de la ventana, ver entryFeeAddbacks) sin
+  // re-derivar el denominador de Dietz por su cuenta.
+  if (!isFinite(pct)) return { pct: 0, abs: gain, weightedCapital }
+  return { pct, abs: gain, weightedCapital }
+}
+
+// FASE IA. Comisiones de entrada pagadas por compras hechas DENTRO de una
+// ventana de medición, por ítem. Existen porque el DEPOSIT de apertura que
+// AddAccountModal archiva lleva la comisión ADENTRO (6,098 = 6,000 de bono +
+// 98 de corretaje, modo 'separate'), así que cualquier medidor que netea ese
+// flujo completo está restando la comisión del numerador: la comisión se lee
+// como pérdida. La convención congelada (lib/assetLogic/corporateBondWithEntryFee.js)
+// es la contraria: la ganancia se mide contra el PRINCIPAL y la comisión vive
+// SOLO en el denominador. La gráfica ya lo hace (computeWindowGrowth resta el
+// capital nuevo NETO de comisiones); este helper le da el mismo ajuste al YTD
+// del encabezado y al desglose por cuenta, que son los que divergían de ella
+// por exactamente $98 (la comisión de VITALI) en las capturas del usuario.
+//
+// El guard de `flows`: la comisión solo se devuelve si el DEPOSIT vinculado a
+// ese ítem está EN LA LISTA de flujos que el caller de verdad neteó (la lista
+// ya viene filtrada: en el caso congelado del ancla movida, los depósitos
+// descartados no están y la comisión queda en cero aquí, porque ese camino ya
+// la maneja ytdCostBase). Sumar una comisión cuyo depósito no se restó la
+// contaría al revés.
+export function entryFeeAddbacks(items, flows, { fromTs = null, toTs = null, convert = null, baseCurrency = 'USD' } = {}) {
+  const out = new Map()
+  if (!Array.isArray(items)) return out
+  const linkedDeposit = new Set()
+  ;(flows || []).forEach((tx) => {
+    if ((tx?.type || '').toUpperCase() !== 'DEPOSIT' || !tx._linkedItemId) return
+    const ts = tx.date ? new Date(tx.date).getTime() : NaN
+    if (!isFinite(ts)) return
+    if (fromTs != null && ts < fromTs) return
+    if (toTs != null && ts > toTs) return
+    linkedDeposit.add(tx._linkedItemId)
+  })
+  items.forEach((it) => {
+    const fee = Number(it?.entryFee) || 0
+    // 'deducted' salió del monto enviado: el depósito archivado es solo el
+    // principal y no hay nada que devolver (mismo criterio que la gráfica).
+    if (!(fee > 0) || it.entryFeeMode === 'deducted') return
+    if (!it.acquisitionDate) return
+    const acqTs = new Date(`${it.acquisitionDate}T00:00:00`).getTime()
+    if (!isFinite(acqTs)) return
+    // Estrictamente DESPUÉS del arranque: una compra anterior o exacta al
+    // ancla ya vive dentro del valor de arranque (o del ytdCostBase), no del
+    // capital nuevo de la ventana. Igual que entryFeesInScope en la gráfica.
+    if (fromTs != null && acqTs <= fromTs) return
+    if (toTs != null && acqTs > toTs) return
+    if (!linkedDeposit.has(it.id)) return
+    const cur = it._originalCurrency || it.currency || 'USD'
+    const amt = convert ? convert(fee, cur, baseCurrency || 'USD') : fee
+    if (isFinite(amt) && amt > 0) out.set(it.id, amt)
+  })
+  return out
 }
 
 // Inverse of computeModifiedDietz for the return-calibration flow: the user
@@ -1034,6 +1112,28 @@ export function businessDaysSince(since, now = Date.now()) {
     guard++
   }
   return guard >= 400 ? Infinity : count
+}
+
+// FASE HX (regla explícita del usuario): NINGUNA falla de sync de IBKR alarma
+// antes de 5 días HÁBILES (lunes a viernes) sin señal de conexión. Aplica a
+// TODOS los códigos de error, incluidos los "fatales" (TOKEN_EXPIRED /
+// INVALID_QUERY, que antes alarmaban desde el primer intento fallido) y a la
+// conexión que nunca sincronizó (antes fusible corto de 2 días): la data tiene
+// a lo sumo unos días y el auto-sync sigue reintentando solo. El reloj es la
+// señal de salud MÁS RECIENTE de las tres marcas, no un `||` por orden:
+// doAutoSync solo estampa _ibkrLastAutoSync, así que un `||` que empiece por
+// _ibkrLastSync puede elegir un sync manual de hace meses por encima de un
+// auto-sync exitoso de AYER y alarmar igual. `connectedAt` cuenta también:
+// guardar credenciales es un intento fresco que reinicia el fusible. Sin
+// ninguna marca, businessDaysSince(null) = Infinity y alarma de inmediato
+// (conexión rota sin ninguna evidencia de haber funcionado jamás).
+export function ibkrAttentionNeeded({ errorCode, lastSync, lastAutoSync, connectedAt } = {}, now = Date.now()) {
+  if (!errorCode) return false
+  const stamps = [lastSync, lastAutoSync, connectedAt]
+    .map((s) => (s ? new Date(s).getTime() : NaN))
+    .filter((t) => isFinite(t))
+  const latest = stamps.length ? Math.max(...stamps) : null
+  return businessDaysSince(latest, now) >= 5
 }
 
 // ── Quarterly NAV history (IBKR Portfolio Analyst) ──────────────────────────
