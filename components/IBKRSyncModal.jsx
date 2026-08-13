@@ -421,9 +421,10 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   // `onSaveCredentialsPending` is a SEPARATE prop from `onSaveCredentials` on
   // purpose: the caller stamps `_ibkrLastSync` on the latter (it currently only
   // ever fires after a confirmed successful sync in handleSync) — reusing it
-  // here would falsely mark a sync that has not happened yet, and the 2-business-day
-  // grace period below (ibkrNeedsAttention in app/dashboard/page.jsx) needs
-  // `_ibkrConnectedAt` to be the ONLY thing that changes on this path.
+  // here would falsely mark a sync that has not happened yet, and the
+  // 5-business-day grace period (ibkrNeedsAttention in app/dashboard/page.jsx,
+  // FASE HX) needs `_ibkrConnectedAt` to be the ONLY thing that changes on
+  // this path.
   const handleQuickConnect = useCallback(async () => {
     const typed = token.trim()
     const effToken = typed || (hasVaultCreds ? '__stored__' : '')
@@ -1343,10 +1344,10 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
 
           {/* FASE GQ: replaces the ~90s blocking wait for a first-time connect.
               No "will retry automatically" claim without saying HOW LONG we'll
-              stay quiet about it — the 2-business-day figure here must match
-              the threshold ibkrNeedsAttention (app/dashboard/page.jsx) actually
-              uses, or the copy and the behavior would tell two different
-              stories. */}
+              stay quiet about it — the 5-business-day figure here (FASE HX)
+              must match the threshold ibkrNeedsAttention
+              (app/dashboard/page.jsx) actually uses, or the copy and the
+              behavior would tell two different stories. */}
           {step === 'journey-saved' && (
             <div className="text-center py-10">
               <CheckCircle size={36} strokeWidth={1.5} className="text-[var(--accent-green)] mx-auto mb-5" />
@@ -1358,8 +1359,8 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                    'We saved your Token and Query ID. As soon as IBKR responds, your data will update on its own: no need to wait here.')}
               </p>
               <p className="text-xs mt-3 max-w-sm mx-auto leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-                {t('IBKR suele no responder fuera de horario de mercado (fines de semana, noches). Si sigue sin conectar después de 2 días hábiles, te avisaremos para que revises o cambies tus credenciales.',
-                   'IBKR often does not respond outside market hours (weekends, nights). If it still has not connected after 2 business days, we will let you know so you can check or change your credentials.')}
+                {t('IBKR suele no responder fuera de horario de mercado (fines de semana, noches). Si sigue sin conectar después de 5 días hábiles, te avisaremos para que revises o cambies tus credenciales.',
+                   'IBKR often does not respond outside market hours (weekends, nights). If it still has not connected after 5 business days, we will let you know so you can check or change your credentials.')}
               </p>
               <button onClick={onClose}
                 className="mt-8 px-10 py-3 rounded-xl hover:opacity-90 transition-all text-sm font-medium"

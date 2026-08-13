@@ -26,7 +26,7 @@ function getGreeting(lang) {
   return lang === 'es' ? 'Buenas noches' : 'Good evening'
 }
 
-export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, ytdCalibrated, ytdBreakdown, ytdBreakdownReason }) {
+export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail }) {
   const hasYTD = returnYTD != null && isFinite(returnYTD)
   const displayReturn = hasYTD ? returnYTD : (returnSinceStart != null && isFinite(returnSinceStart) ? returnSinceStart : null)
   const hasReturn = displayReturn != null
@@ -260,8 +260,16 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
           {!hasBreakdown && (
             <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
               {lang === 'es'
-                ? `El desglose por cuenta no está disponible ahora mismo: ${attributionRefusalText(ytdBreakdownReason, 'es')}. El YTD de arriba sigue siendo correcto; solo el reparto entre cuentas no pasó las validaciones.`
-                : `The per-account breakdown is unavailable right now: ${attributionRefusalText(ytdBreakdownReason, 'en')}. The YTD above is still correct; only the split across accounts did not pass validation.`}
+                ? `El desglose por cuenta no está disponible ahora mismo: ${attributionRefusalText(ytdBreakdownReason, 'es', ytdBreakdownDetail)}. El YTD de arriba sigue siendo correcto; solo el reparto entre cuentas no pasó las validaciones.`
+                : `The per-account breakdown is unavailable right now: ${attributionRefusalText(ytdBreakdownReason, 'en', ytdBreakdownDetail)}. The YTD above is still correct; only the split across accounts did not pass validation.`}
+              {/* FASE HY: la regeneración pasiva depende de una docena de gates
+                  (la lección de FASE HP), así que el rechazo por ancla vieja
+                  nombra la acción que la fuerza en vez de solo pedir paciencia. */}
+              {ytdBreakdownReason === 'unexplained-too-large' && (
+                lang === 'es'
+                  ? ' Podés forzar la regeneración desde "Agregar datos históricos" con el botón "Reparar ahora".'
+                  : ' You can force the regeneration from "Add historical data" with the "Repair now" button.'
+              )}
             </p>
           )}
           {/* One row per ACCOUNT (FASE GR). Every account is listed, including
