@@ -937,8 +937,63 @@ export function computeModifiedDietz({ startValue, endValue, startTs, endTs, tra
   const weightedCapital = startValue + weightedFlows
   const gain = endValue - startValue - sumFlows
   const pct = Math.abs(weightedCapital) > 0.01 ? (gain / weightedCapital) * 100 : 0
-  if (!isFinite(pct)) return { pct: 0, abs: gain }
-  return { pct, abs: gain }
+  // FASE IA: weightedCapital se expone (campo ADITIVO, la fórmula queda
+  // byte-idéntica) para que el caller pueda ajustar el numerador (comisiones
+  // de entrada de compras dentro de la ventana, ver entryFeeAddbacks) sin
+  // re-derivar el denominador de Dietz por su cuenta.
+  if (!isFinite(pct)) return { pct: 0, abs: gain, weightedCapital }
+  return { pct, abs: gain, weightedCapital }
+}
+
+// FASE IA. Comisiones de entrada pagadas por compras hechas DENTRO de una
+// ventana de medición, por ítem. Existen porque el DEPOSIT de apertura que
+// AddAccountModal archiva lleva la comisión ADENTRO (6,098 = 6,000 de bono +
+// 98 de corretaje, modo 'separate'), así que cualquier medidor que netea ese
+// flujo completo está restando la comisión del numerador: la comisión se lee
+// como pérdida. La convención congelada (lib/assetLogic/corporateBondWithEntryFee.js)
+// es la contraria: la ganancia se mide contra el PRINCIPAL y la comisión vive
+// SOLO en el denominador. La gráfica ya lo hace (computeWindowGrowth resta el
+// capital nuevo NETO de comisiones); este helper le da el mismo ajuste al YTD
+// del encabezado y al desglose por cuenta, que son los que divergían de ella
+// por exactamente $98 (la comisión de VITALI) en las capturas del usuario.
+//
+// El guard de `flows`: la comisión solo se devuelve si el DEPOSIT vinculado a
+// ese ítem está EN LA LISTA de flujos que el caller de verdad neteó (la lista
+// ya viene filtrada: en el caso congelado del ancla movida, los depósitos
+// descartados no están y la comisión queda en cero aquí, porque ese camino ya
+// la maneja ytdCostBase). Sumar una comisión cuyo depósito no se restó la
+// contaría al revés.
+export function entryFeeAddbacks(items, flows, { fromTs = null, toTs = null, convert = null, baseCurrency = 'USD' } = {}) {
+  const out = new Map()
+  if (!Array.isArray(items)) return out
+  const linkedDeposit = new Set()
+  ;(flows || []).forEach((tx) => {
+    if ((tx?.type || '').toUpperCase() !== 'DEPOSIT' || !tx._linkedItemId) return
+    const ts = tx.date ? new Date(tx.date).getTime() : NaN
+    if (!isFinite(ts)) return
+    if (fromTs != null && ts < fromTs) return
+    if (toTs != null && ts > toTs) return
+    linkedDeposit.add(tx._linkedItemId)
+  })
+  items.forEach((it) => {
+    const fee = Number(it?.entryFee) || 0
+    // 'deducted' salió del monto enviado: el depósito archivado es solo el
+    // principal y no hay nada que devolver (mismo criterio que la gráfica).
+    if (!(fee > 0) || it.entryFeeMode === 'deducted') return
+    if (!it.acquisitionDate) return
+    const acqTs = new Date(`${it.acquisitionDate}T00:00:00`).getTime()
+    if (!isFinite(acqTs)) return
+    // Estrictamente DESPUÉS del arranque: una compra anterior o exacta al
+    // ancla ya vive dentro del valor de arranque (o del ytdCostBase), no del
+    // capital nuevo de la ventana. Igual que entryFeesInScope en la gráfica.
+    if (fromTs != null && acqTs <= fromTs) return
+    if (toTs != null && acqTs > toTs) return
+    if (!linkedDeposit.has(it.id)) return
+    const cur = it._originalCurrency || it.currency || 'USD'
+    const amt = convert ? convert(fee, cur, baseCurrency || 'USD') : fee
+    if (isFinite(amt) && amt > 0) out.set(it.id, amt)
+  })
+  return out
 }
 
 // Inverse of computeModifiedDietz for the return-calibration flow: the user

@@ -1,6 +1,7 @@
 import {
   businessDaysSince,
   ibkrAttentionNeeded,
+  entryFeeAddbacks,
   computeModifiedDietz,
   getItemValue,
   getItemPrice,
@@ -706,6 +707,39 @@ describe('businessDaysSince', () => {
   it('never returns negative for a future date', () => {
     const future = new Date('2026-08-05T12:00:00Z').toISOString()
     expect(businessDaysSince(future, tue)).toBe(0)
+  })
+})
+
+// FASE IA: bordes del helper de addback de comisiones (el caso central, con el
+// caso VITALI completo, vive en lib/__tests__/corporateBondWithEntryFee.test.js).
+describe('entryFeeAddbacks', () => {
+  const jan1 = new Date('2026-01-01T00:00:00Z').getTime()
+  const aug = new Date('2026-08-06T00:00:00Z').getTime()
+  const bond = { id: 'b1', entryFee: 98, entryFeeMode: 'separate', acquisitionDate: '2026-01-06', currency: 'USD' }
+  const dep = { type: 'DEPOSIT', date: '2026-01-06', _linkedItemId: 'b1', totalAmount: 6098 }
+
+  it('modo deducted no devuelve nada: el depósito archivado ya era solo el principal', () => {
+    const m = entryFeeAddbacks([{ ...bond, entryFeeMode: 'deducted' }], [dep], { fromTs: jan1, toTs: aug })
+    expect(m.size).toBe(0)
+  })
+
+  it('una compra ANTERIOR a la ventana no devuelve nada: su comisión ya vive en el arranque', () => {
+    const old = { ...bond, acquisitionDate: '2025-06-01' }
+    const oldDep = { ...dep, date: '2025-06-01' }
+    expect(entryFeeAddbacks([old], [oldDep], { fromTs: jan1, toTs: aug }).size).toBe(0)
+  })
+
+  it('sin el depósito vinculado en la lista neteada, no hay nada que devolver', () => {
+    expect(entryFeeAddbacks([bond], [], { fromTs: jan1, toTs: aug }).size).toBe(0)
+    const unlinked = { ...dep, _linkedItemId: null }
+    expect(entryFeeAddbacks([bond], [unlinked], { fromTs: jan1, toTs: aug }).size).toBe(0)
+  })
+
+  it('convierte la comisión a la moneda base con el mismo convert del caller', () => {
+    const q = { ...bond, currency: 'GTQ' }
+    const conv = (v, from, to) => (from === 'GTQ' && to === 'USD' ? v / 7.7 : v)
+    const m = entryFeeAddbacks([q], [dep], { fromTs: jan1, toTs: aug, convert: conv, baseCurrency: 'USD' })
+    expect(m.get('b1')).toBeCloseTo(98 / 7.7, 9)
   })
 })
 
