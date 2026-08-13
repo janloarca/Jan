@@ -9,6 +9,8 @@ export const CARD_REGISTRY = {
   'OL-08': { component: 'Watchlist', section: 'overview-left', label: 'Watchlist' },
   'OL-09': { component: 'TopMovers', section: 'overview-left', label: 'Top Movers' },
 
+  'INV-01': { component: 'InvestedByYearCard', section: 'overview-right', label: 'Invested by Year' },
+
   'OR-01': { component: 'PortfolioGrowthChart', section: 'overview-right', label: 'Growth Chart' },
   'OR-02': { component: 'AssetAllocation', section: 'overview-right', label: 'Asset Allocation' },
   'OR-03': { component: 'InvestmentClassBreakdown', section: 'overview-right', label: 'Investment Classes' },

@@ -20,7 +20,6 @@ import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
 import { knownContributions, computeLiquidYield, yieldSignature, supersededYieldTxIds } from '@/lib/liquidYield'
 import { clampPayDay, payDateFor, impossiblePayDateFixes } from '@/lib/incomeSchedule'
 import { attributeYtd } from '@/lib/ytdAttribution'
-import { computeYtdInvested } from '@/lib/ytdInvested'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes, pairPortfolioWithBenchmark } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
 
@@ -1963,22 +1962,6 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   }, [transactions, convert, baseCurrency])
   const netContributions = contributionsSummary.netContributions
 
-  // Invertido en el año: aportes externos netos del año calendario (depósitos
-  // menos retiros, comisiones de entrada descontadas), sin ganancias ni
-  // intereses. Lee los items CRUDOS (traen entryFee en su moneda original) y
-  // la lista completa de transacciones: los flujos de IBKR son aportes reales
-  // aquí (la exclusión de dietzTransactions es un asunto de MEDIR retorno
-  // contra un baseline, no de si el dinero entró). Lógica en lib/ytdInvested.js.
-  const ytdInvested = useMemo(() => {
-    return computeYtdInvested({
-      transactions,
-      items,
-      year: new Date().getFullYear(),
-      convert,
-      baseCurrency,
-    })
-  }, [transactions, items, convert, baseCurrency])
-
   const cashTotal = useMemo(() => {
     return portfolioItems
       .filter((it) => /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i.test(it.type || ''))
@@ -2520,7 +2503,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     returnYTD, ytdChange, returnSinceStart, sinceStartDate, returnMTD, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail,
     ibkrReturnYTD: ibkrReturns.ytd, ibkrReturnMTD: ibkrReturns.mtd, ibkrDayChange: ibkrReturns.day,
     annualDividends, estimatedAnnualIncome,
-    netContributions, contributionsSummary, ytdInvested, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
+    netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
     brokerCompletionState, ibkrDataComplete, inferredFlowCandidates, inferredFlowReconciliation, ibkrReconciliation, acceptInferredFlow, dismissInferredFlow,
     liquidYieldCandidates, acceptLiquidYield, dismissLiquidYield,
 

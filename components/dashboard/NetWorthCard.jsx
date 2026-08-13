@@ -26,7 +26,7 @@ function getGreeting(lang) {
   return lang === 'es' ? 'Buenas noches' : 'Good evening'
 }
 
-export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdInvested }) {
+export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail }) {
   const hasYTD = returnYTD != null && isFinite(returnYTD)
   const displayReturn = hasYTD ? returnYTD : (returnSinceStart != null && isFinite(returnSinceStart) ? returnSinceStart : null)
   const hasReturn = displayReturn != null
@@ -136,14 +136,6 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
   // panel en ese caso explica la razón en vez de mostrar filas.
   const canExpandYTD = hasYTD && (hasBreakdown || !!ytdBreakdownReason)
 
-  // Invertido en el año: aportes externos netos, sin ganancias ni intereses y
-  // descontando comisiones de entrada (lib/ytdInvested.js). Se muestra solo si
-  // hubo movimientos en el año: un $0.00 sobre un año sin actividad sería un
-  // dato inventado. Expandible al desglose (depósitos / retiros / comisiones)
-  // más el ejercicio patrimonio-contra-invertido.
-  const [showInvestedDetail, setShowInvestedDetail] = useState(false)
-  const hasInvested = !!ytdInvested && ytdInvested.hasActivity && isFinite(ytdInvested.invested)
-
   const [moversTab, setMoversTab] = useState('gainers')
   // If the tab the user is on empties out (e.g. everything is up today) and
   // the other one has content, land on the one with something to show.
@@ -246,28 +238,6 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
             )}
           </span>
         )}
-        {(dailyChange || hasReturn) && hasInvested && <span aria-hidden="true" style={{ color: 'var(--glass-border)' }}>│</span>}
-        {/* Invertido en el año: cuánto dinero EXTERNO entró neto este año a
-            todas las cuentas. Es la pareja del YTD: el YTD dice qué ganaron
-            tus inversiones, esta cifra dice cuánto capital metiste. */}
-        {hasInvested && (
-          <span className="whitespace-nowrap">
-            <span className="text-[11px] font-semibold tracking-wide mr-1" style={{ color: 'var(--text-muted)' }}>
-              {lang === 'es' ? 'INVERTIDO' : 'INVESTED'}
-            </span>
-            <button type="button" onClick={() => setShowInvestedDetail((v) => !v)}
-              aria-expanded={showInvestedDetail}
-              className="font-mono tabular-nums underline decoration-dotted underline-offset-4 cursor-pointer"
-              style={{ color: 'var(--text-primary)', textDecorationColor: 'var(--text-muted)' }}
-              title={lang === 'es' ? 'Ver el detalle de lo invertido este año' : 'See the detail of what you invested this year'}>
-              {ytdInvested.invested >= 0 ? '+' : ''}{formatCurrency(cv(ytdInvested.invested), displayCur)}
-              <span className="ml-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>{showInvestedDetail ? '▴' : '▾'}</span>
-            </button>
-            <InfoTip text={lang === 'es'
-              ? 'Aportes netos del año: depósitos menos retiros de todas tus cuentas, descontando comisiones de entrada. Sin ganancias ni intereses, y el dinero movido entre tus propias cuentas no cuenta.'
-              : 'Net contributions this year: deposits minus withdrawals across all your accounts, entry fees discounted. No gains or interest, and money moved between your own accounts does not count.'} />
-          </span>
-        )}
       </div>
 
       {/* What is behind the YTD number, by institution and then by holding.
@@ -335,62 +305,6 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
                 : 'Each account shows its own figure. Whatever does not match the total is listed separately rather than spread across accounts: it comes from the estimated year-start of accounts without broker history.'}
             </p>
           )}
-        </div>
-      )}
-
-      {/* Detalle de lo invertido en el año: las piezas (depósitos, retiros,
-          comisiones de entrada), el neto, y el ejercicio contra el patrimonio
-          total. Todo sale de las transacciones reales de TODAS las cuentas
-          (manuales, IBKR y flujos inferidos aceptados); ver lib/ytdInvested.js. */}
-      {hasInvested && showInvestedDetail && (
-        <div className="mt-3 rounded-xl p-3" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs uppercase tracking-wider font-medium" style={{ color: 'var(--text-muted)' }}>
-              {lang === 'es' ? `Invertido en ${ytdInvested.year}` : `Invested in ${ytdInvested.year}`}
-            </span>
-            <InfoTip text={lang === 'es'
-              ? 'Depósitos menos retiros del año en todas tus cuentas, descontando comisiones de entrada. No incluye ganancias, dividendos ni intereses, y las transferencias entre tus propias cuentas no cuentan como inversión nueva.'
-              : 'This year\'s deposits minus withdrawals across all your accounts, entry fees discounted. Gains, dividends and interest are not included, and transfers between your own accounts do not count as new investment.'} />
-          </div>
-          <div className="space-y-1.5">
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{lang === 'es' ? 'Depósitos' : 'Deposits'}</span>
-              <span className="text-sm font-mono tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>+{formatCurrency(cv(ytdInvested.deposits), displayCur)}</span>
-            </div>
-            {ytdInvested.withdrawals > 0 && (
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{lang === 'es' ? 'Retiros' : 'Withdrawals'}</span>
-                <span className="text-sm font-mono tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>-{formatCurrency(cv(ytdInvested.withdrawals), displayCur)}</span>
-              </div>
-            )}
-            {ytdInvested.fees > 0 && (
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{lang === 'es' ? 'Comisiones de entrada' : 'Entry fees'}</span>
-                <span className="text-sm font-mono tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>-{formatCurrency(cv(ytdInvested.fees), displayCur)}</span>
-              </div>
-            )}
-            <div className="flex items-baseline justify-between gap-2 pt-1.5" style={{ borderTop: '1px solid var(--glass-border)' }}>
-              <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{lang === 'es' ? 'Invertido neto' : 'Net invested'}</span>
-              <span className="text-sm font-mono tabular-nums font-semibold shrink-0" style={{ color: 'var(--text-primary)' }}>
-                {ytdInvested.invested >= 0 ? '+' : ''}{formatCurrency(cv(ytdInvested.invested), displayCur)}
-              </span>
-            </div>
-            <div className="flex items-baseline justify-between gap-2 pt-1.5" style={{ borderTop: '1px solid var(--glass-border)' }}>
-              <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{lang === 'es' ? 'Patrimonio total' : 'Total net worth'}</span>
-              <span className="text-sm font-mono tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>{formatCurrency(cv(netWorth), displayCur)}</span>
-            </div>
-            {ytdInvested.invested > 0 && netWorth > 0 && (
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{lang === 'es' ? `Patrimonio / invertido ${ytdInvested.year}` : `Net worth / invested ${ytdInvested.year}`}</span>
-                <span className="text-sm font-mono tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>{(netWorth / ytdInvested.invested).toFixed(2)}x</span>
-              </div>
-            )}
-          </div>
-          <p className="text-[10px] mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-            {lang === 'es'
-              ? 'Solo dinero que entró o salió de verdad este año. Las ganancias viven en el YTD de al lado, no aquí.'
-              : 'Only money that actually came in or left this year. Gains live in the YTD next to it, not here.'}
-          </p>
         </div>
       )}
 
