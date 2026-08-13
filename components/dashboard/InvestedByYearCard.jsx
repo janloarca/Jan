@@ -46,20 +46,23 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
         )} />
       </div>
 
-      {/* Encabezado de columnas */}
-      <div className="grid grid-cols-[1fr_1.2fr_1.4fr] gap-2 pb-1.5 mb-1" style={{ borderBottom: '1px solid var(--glass-border)' }}>
+      {/* Encabezado de columnas. El % de Ganado vive en una sub-columna de
+          ancho FIJO (pctCol): sin ella, el paréntesis de cada fila termina a
+          una distancia distinta según el ancho del monto y la columna se lee
+          desordenada aunque esté alineada a la derecha. */}
+      <div className="grid grid-cols-[5rem_1fr_1fr] gap-2 pb-1.5" style={{ borderBottom: '1px solid var(--glass-border)' }}>
         <span className="text-[10px] uppercase tracking-wider font-medium" style={{ color: 'var(--text-muted)' }}>{t('Año', 'Year')}</span>
         <span className="text-[10px] uppercase tracking-wider font-medium text-right" style={{ color: 'var(--text-muted)' }}>{t('Invertido', 'Invested')}</span>
         <span className="text-[10px] uppercase tracking-wider font-medium text-right" style={{ color: 'var(--text-muted)' }}>{t('Ganado', 'Earned')}</span>
       </div>
 
-      <div>
+      <div className="divide-y divide-glass-border/50">
         {data.rows.map((r) => (
           <div key={r.year}>
             <button type="button" onClick={() => setOpenYear(openYear === r.year ? null : r.year)}
               aria-expanded={openYear === r.year}
-              className="w-full grid grid-cols-[1fr_1.2fr_1.4fr] gap-2 items-baseline py-1.5 cursor-pointer text-left rounded-md px-1 -mx-1 transition-colors hover:bg-theme-tertiary/50">
-              <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+              className="w-full grid grid-cols-[5rem_1fr_1fr] gap-2 items-baseline py-2 cursor-pointer text-left transition-colors hover:bg-theme-tertiary/50">
+              <span className="text-sm font-medium whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>
                 {r.year}
                 {r.partial && (
                   <span className="ml-1.5 text-[9px] font-semibold px-1 py-0.5 rounded align-middle"
@@ -71,19 +74,15 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
               <span className="text-sm font-mono tabular-nums text-right" style={{ color: 'var(--text-primary)' }}>
                 {fmt(r.invested)}
               </span>
-              <span className="text-sm font-mono tabular-nums text-right">
+              <span className="text-sm font-mono tabular-nums text-right whitespace-nowrap">
                 {r.gainAbs != null ? (
-                  <span style={{ color: gainColor(r.gainAbs) }}>
-                    {signFmt(r.gainAbs)}
-                    {r.gainPct != null && (
-                      <span className="ml-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                        ({r.gainPct >= 0 ? '+' : ''}{r.gainPct.toFixed(2)}%)
-                      </span>
-                    )}
-                  </span>
+                  <span style={{ color: gainColor(r.gainAbs) }}>{signFmt(r.gainAbs)}</span>
                 ) : (
                   <span style={{ color: 'var(--text-muted)' }}>-</span>
                 )}
+                <span className="inline-block w-[4.4rem] text-right text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                  {r.gainPct != null ? `(${r.gainPct >= 0 ? '+' : ''}${r.gainPct.toFixed(2)}%)` : ''}
+                </span>
               </span>
             </button>
             {openYear === r.year && (
@@ -114,14 +113,17 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
         ))}
       </div>
 
-      {/* Totales */}
-      <div className="grid grid-cols-[1fr_1.2fr_1.4fr] gap-2 items-baseline pt-2 mt-1" style={{ borderTop: '1px solid var(--glass-border)' }}>
+      {/* Totales: misma plantilla de columnas que las filas, incluida la
+          sub-columna fija del %, para que el monto total alinee exacto con
+          los montos de arriba. */}
+      <div className="grid grid-cols-[5rem_1fr_1fr] gap-2 items-baseline pt-2" style={{ borderTop: '1px solid var(--glass-border)' }}>
         <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Total</span>
         <span className="text-sm font-mono tabular-nums font-semibold text-right" style={{ color: 'var(--text-primary)' }}>{fmt(data.totalInvested)}</span>
-        <span className="text-sm font-mono tabular-nums font-semibold text-right">
+        <span className="text-sm font-mono tabular-nums font-semibold text-right whitespace-nowrap">
           {data.totalGain != null
             ? <span style={{ color: gainColor(data.totalGain) }}>{signFmt(data.totalGain)}</span>
             : <span style={{ color: 'var(--text-muted)' }}>-</span>}
+          <span className="inline-block w-[4.4rem]" aria-hidden="true" />
         </span>
       </div>
 

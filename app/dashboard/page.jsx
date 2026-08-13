@@ -1344,12 +1344,22 @@ export default function DashboardPage() {
             <>
               {hasHigh && suggestionsCard}
 
-              {/* ═══ COMPOSICIÓN: Allocation + Rendimiento por institución ═══ */}
+              {/* ═══ COMPOSICIÓN: Allocation + Rendimiento por institución ═══
+                  Dos COLUMNAS independientes, no una grilla por filas: en una
+                  grilla, la fila 2 arranca donde termina la card más alta de la
+                  fila 1, y una card corta (Price Alerts vacía) quedaba flotando
+                  con un hueco blanco enorme debajo. Cada columna empaqueta sus
+                  cards una tras otra, sin huecos; en móvil colapsa a una sola
+                  columna en el orden natural de lectura. */}
               <div className="stagger-3 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 items-start">
-                <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
-                <CardBoundary id="INST-01"><InstitutionPerformance items={portfolioItems} lang={lang} baseCurrency={baseCurrency} transactions={transactions} convert={convert} ibkrDataComplete={ibkrDataComplete} /></CardBoundary>
-                <CardBoundary id="INV-01"><InvestedByYearCard transactions={transactions} items={items} snapshots={augmentedSnapshots} netWorth={netWorth} returnYTD={returnYTD} ytdChange={ytdChange} convert={convert} baseCurrency={baseCurrency} lang={lang} /></CardBoundary>
-                <CardBoundary id="OL-03"><PriceAlerts items={portfolioItems} alerts={alerts} marketPrices={marketPrices} addAlert={addAlert} deleteAlert={deleteAlert} lang={lang} /></CardBoundary>
+                <div className="flex flex-col gap-3 sm:gap-4 min-w-0">
+                  <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
+                  <CardBoundary id="INV-01"><InvestedByYearCard transactions={transactions} items={items} snapshots={augmentedSnapshots} netWorth={netWorth} returnYTD={returnYTD} ytdChange={ytdChange} convert={convert} baseCurrency={baseCurrency} lang={lang} /></CardBoundary>
+                </div>
+                <div className="flex flex-col gap-3 sm:gap-4 min-w-0">
+                  <CardBoundary id="INST-01"><InstitutionPerformance items={portfolioItems} lang={lang} baseCurrency={baseCurrency} transactions={transactions} convert={convert} ibkrDataComplete={ibkrDataComplete} /></CardBoundary>
+                  <CardBoundary id="OL-03"><PriceAlerts items={portfolioItems} alerts={alerts} marketPrices={marketPrices} addAlert={addAlert} deleteAlert={deleteAlert} lang={lang} /></CardBoundary>
+                </div>
               </div>
 
               <ActionButtons
