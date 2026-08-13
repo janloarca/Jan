@@ -30,7 +30,7 @@ const KIND_LABEL = {
 // dos totales: si un retiro que el usuario ve en su lista no aparece acá, ya
 // sabemos que el problema es cómo quedó archivado ese movimiento, y si aparece,
 // lo que falta es otro movimiento distinto.
-function Movements({ list, cur, t, total, onDelete }) {
+function Movements({ list, cur, t, total, onDelete, candidate }) {
   const [confirmId, setConfirmId] = useState(null)
   const [busyId, setBusyId] = useState(null)
   if (!list || list.length === 0) return null
@@ -54,7 +54,7 @@ function Movements({ list, cur, t, total, onDelete }) {
                 onClick={async () => {
                   if (confirmId !== m.txId) { setConfirmId(m.txId); return }
                   setBusyId(m.txId)
-                  try { await onDelete(m) } finally { setBusyId(null); setConfirmId(null) }
+                  try { await onDelete(m, candidate) } finally { setBusyId(null); setConfirmId(null) }
                 }}
                 className="text-[10px] px-1.5 py-0.5 rounded disabled:opacity-50"
                 style={confirmId === m.txId
@@ -157,7 +157,7 @@ export default function LiquidYieldModal({
                       {t('Eso no es rendimiento negativo: falta un movimiento por registrar. Abajo está exactamente lo que contamos, para que veas cuál falta. No se escribe nada hasta que lo revises.',
                          'That is not a negative yield: a movement is missing. Below is exactly what we counted, so you can see which one. Nothing is written until you check.')}
                     </p>
-                    <Movements list={c.contributions} cur={cur} t={t} total={c.contributed} onDelete={onDeleteMovement} />
+                    <Movements list={c.contributions} cur={cur} t={t} total={c.contributed} onDelete={onDeleteMovement} candidate={c} />
                     {/* FASE HV6. El desglose deja de ser solo un informe. Mirando
                         la lista solo hay dos desenlaces, y cada uno tiene su
                         botón: falta una salida (se registra, con el monto ya
@@ -188,7 +188,7 @@ export default function LiquidYieldModal({
                       {t('Los movimientos explican tu saldo completo: no hay rendimiento que registrar.',
                          'Your movements explain the whole balance: there is no yield to record.')}
                     </p>
-                    <Movements list={c.contributions} cur={cur} t={t} total={c.contributed} onDelete={onDeleteMovement} />
+                    <Movements list={c.contributions} cur={cur} t={t} total={c.contributed} onDelete={onDeleteMovement} candidate={c} />
                   </>
                 ) : (
                   <>
@@ -239,7 +239,7 @@ export default function LiquidYieldModal({
                         <p className="text-[11px] mb-1" style={{ color: 'var(--text-muted)' }}>
                           {t('Lo que contamos como que entró:', 'What we counted as going in:')}
                         </p>
-                        <Movements list={c.contributions} cur={cur} t={t} total={c.contributed} onDelete={onDeleteMovement} />
+                        <Movements list={c.contributions} cur={cur} t={t} total={c.contributed} onDelete={onDeleteMovement} candidate={c} />
                         <p className="text-[11px] mb-1" style={{ color: 'var(--text-muted)' }}>
                           {t('Cómo se reparte el rendimiento:', 'How the yield is spread:')}
                         </p>
