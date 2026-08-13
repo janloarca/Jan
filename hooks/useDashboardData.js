@@ -1776,13 +1776,28 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       if (!ownerId) return
       startByItem.set(ownerId, (startByItem.get(ownerId) || 0) + (Number(v) || 0))
     })
-    // The Spreadsheet overrides only the holdings it can rebuild from real
-    // balance events (the loader already filtered to those). That is what took
-    // ClubCashIn from +$7.57 to +$71.33; crypto keeps the historical-price
-    // reconstruction, which is the engine that actually knows what it was worth.
+    // FASE IC (regla del usuario: "la gráfica es el valor real"): la
+    // reconstrucción por ítem del API (byKey) es EL MISMO MOTOR que dibuja la
+    // gráfica escopada de cada cuenta (misma ruta, mismo payload, misma
+    // convención de FX a tasa actual), así que tomarla PRIMERO hace que el
+    // arranque de cada fila sea el de su gráfica POR CONSTRUCCIÓN. La columna
+    // de diciembre del Spreadsheet baja de override a RESPALDO: solo cubre los
+    // ítems que byKey no trajo (la sesión con el fetch caído, FASE IB). Por
+    // qué ya no puede ser el override: su valor viene horneado en moneda base
+    // con el FX de la época en que se calculó (el doc no guarda el monto en
+    // moneda original, verificado), y esa diferencia de convención contra la
+    // gráfica era exactamente el mismatch residual de IDC (fila $372.45 vs
+    // gráfica $379.74: el Fondo Líquido en quetzales valuado con dos tasas
+    // distintas). La razón de GR3 para preferir el Spreadsheet (byKey daba a
+    // ClubCashIn un arranque que producía +$7.57) quedó obsoleta con FASE HV:
+    // el rendimiento deducido del fondo ahora vive como transacciones REALES
+    // (_source:'inferred_yield') que el rewind del API sí ve; y si el motor
+    // compartido tuviera un defecto residual, la fila aterrizaría en el MISMO
+    // número que la gráfica de esa cuenta, que es el estándar que el usuario
+    // fijó.
     if (spreadsheetStart) {
       Object.entries(spreadsheetStart).forEach(([itemId, v]) => {
-        if (accountOf.has(itemId) && isFinite(v)) startByItem.set(itemId, v)
+        if (!startByItem.has(itemId) && accountOf.has(itemId) && isFinite(v)) startByItem.set(itemId, v)
       })
     }
     // An asset bought AFTER the anchor was worth nothing at the anchor. That is
