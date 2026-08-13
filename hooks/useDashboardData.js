@@ -2274,15 +2274,58 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     await updateItem(dest.id, isBankDest ? { currentPrice: newPrice, purchasePrice: newPrice } : { currentPrice: newPrice })
   }, [updateItem, convert])
 
-  const deleteTransactionWithReversal = useCallback(async (txId) => {
+  // Fechas ya marcadas como "ese mes no pagó" durante esta sesión, por activo.
+  const excludedPayRef = useRef(new Map())
+  // `opts.skipBalanceReversal`: borrar un movimiento ANTERIOR a la fecha del
+  // saldo tecleado no puede mover ese saldo, porque el saldo ya refleja lo que
+  // de verdad pasó (invariante 1 de lib/assetLogic/liquidFundYield.js). Lo pasa
+  // el desglose del rendimiento; el resto de las pantallas no lo usa y conserva
+  // la reversión de siempre. Se lee defensivo porque esta función viaja como
+  // prop `onDeleteTransaction` y algún caller podría pasar un segundo argumento
+  // que no sea un objeto de opciones.
+  const deleteTransactionWithReversal = useCallback(async (txId, opts) => {
+    const skipBalanceReversal = !!(opts && typeof opts === 'object' && opts.skipBalanceReversal)
     const tx = transactions.find((t) => t.id === txId)
-    const credit = tx && dividendCreditTarget(tx, enrichedItems)
+    const credit = tx && !skipBalanceReversal && dividendCreditTarget(tx, enrichedItems)
     if (credit) {
       const amt = Number(tx.totalAmount ?? tx.amount ?? 0)
       await applyDestinationDelta(credit.dest, -amt, credit.currency)
     }
+    // FASE HV10. Borrar un pago que el motor automático puede volver a escribir
+    // no basta: lo reescribe en la siguiente carga, y como el id del documento
+    // se calcula de fecha+símbolo+tipo+monto, vuelve IDÉNTICO. Desde afuera se
+    // ve como un borrado que no se guardó, que es literalmente cómo lo reportó
+    // el usuario tres veces seguidas.
+    //
+    // Va acá, en la función COMPARTIDA, y no en la pantalla que la llama: las
+    // tres superficies que borran movimientos (el historial de la cuenta, la
+    // tarjeta de movimientos recientes y el Spreadsheet) pasan por esta misma
+    // función, y arreglarlo en una sola dejaría a las otras dos con el bug.
+    // La versión anterior solo cubría el desglose del rendimiento, que resultó
+    // ser justamente la pantalla que el usuario NO estaba usando.
+    if (tx && (tx.type || '').toUpperCase() === 'DIVIDEND' && tx.date && tx._linkedItemId && updateItem) {
+      const src = enrichedItems.find((it) => it.id === tx._linkedItemId)
+      // Solo si ese activo tiene calendario: es la misma condición con la que
+      // processDividends decide a quién le genera pagos.
+      const canRegenerate = src && (src.incomeAmount > 0 || src.incomeRate > 0
+        || (src.rateType === 'variable' && src.rateMin > 0) || src.rateType === 'continuous')
+      if (canRegenerate) {
+        // El acumulador evita que dos borrados seguidos del MISMO activo se
+        // pisen: `enrichedItems` viaja capturado en este callback, así que el
+        // segundo podría escribir su fecha sobre una lista que todavía no trae
+        // la primera y perderla (la forma del bug de FASE EL).
+        const already = excludedPayRef.current.get(src.id) || []
+        const prevList = [...new Set([...(Array.isArray(src.excludedPayDates) ? src.excludedPayDates : []), ...already])]
+        if (!isPayDateExcluded(prevList, tx.date)) {
+          const next = [...prevList, tx.date]
+          excludedPayRef.current.set(src.id, next)
+          try { await updateItem(src.id, { excludedPayDates: next }) }
+          catch (e) { console.error('[delete-tx-exclude]', e.message) }
+        }
+      }
+    }
     await deleteTransaction(txId)
-  }, [transactions, enrichedItems, applyDestinationDelta, deleteTransaction])
+  }, [transactions, enrichedItems, applyDestinationDelta, deleteTransaction, updateItem])
 
   const updateTransactionWithReversal = useCallback(async (txId, fields) => {
     const tx = transactions.find((t) => t.id === txId)
