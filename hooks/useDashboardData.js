@@ -1811,12 +1811,22 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // the panel should not vanish for that: these starts are estimates that get
     // pinned to the anchor anyway, so the shape is all that is needed. Fall back
     // to the same held-flat per-account estimate the calibration flow uses.
-    if (startByAccount.size === 0) {
-      ;[...endByAccount.keys()].forEach((k) => {
-        const est = heldFlatAccountValueUSD(portfolioItems, k, ytdStartTs, convert)
-        if (isFinite(est) && est > 0) startByAccount.set(k, convertSnapshot(est))
-      })
-    }
+    // FASE IB: POR CUENTA, no solo cuando el mapa entero quedó vacío. En una
+    // sesión donde el fetch por ítem falla o llega degradado, startByItem queda
+    // con cobertura PARCIAL (el Spreadsheet solo reconstruye lo estático):
+    // IBKR y las cuentas de puro mercado quedaban con arranque $0 y sus saldos
+    // COMPLETOS se leían como ganancia. Esa es la anatomía exacta del residuo
+    // de $6,667.71 (la suma de los arranques faltantes) que hizo rehusar el
+    // panel entero el 13 ago. Una cuenta cuyo único dato es el 0 del zeroing
+    // de arriba (OSMO, abierta en febrero) SÍ tiene entrada y no cae aquí: ese
+    // 0 es un hecho, no cobertura faltante. Para IBKR el held-flat también da
+    // 0 (effectiveAcqTs es el sello del sync, posterior al ancla), pero su
+    // rescate real es el NAV del broker que build(true) ya usa.
+    ;[...endByAccount.keys()].forEach((k) => {
+      if (startByAccount.has(k)) return
+      const est = heldFlatAccountValueUSD(portfolioItems, k, ytdStartTs, convert)
+      if (isFinite(est) && est > 0) startByAccount.set(k, convertSnapshot(est))
+    })
 
     // A broker's own year-start NAV is an observation, not an estimate, so it is
     // handed over as real and the engine leaves it untouched while pinning the
@@ -1871,10 +1881,16 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // razón del intento estimado con los números del intento real describiría
     // un rechazo que no ocurrió.
     const chosen = diagEst.reason ? diagEst : diagReal
+    // FASE IB: el detalle del rechazo lleva también los TÉRMINOS POR CUENTA del
+    // intento reportado (arranque/hoy/flujos) y el ancla. Con solo el residuo
+    // total ($6,667.71) supimos la escala pero no QUÉ cuenta faltaba: con esta
+    // lista, la próxima captura es el diagnóstico completo (lección FASE HP).
+    const debugAccounts = breakdown ? null : build(diagEst.reason ? false : true)
+      .map((a) => ({ name: a.name, start: a.start, end: a.endVal, flow: a.flow, real: !!a.startIsReal }))
     return {
       breakdown,
       reason: breakdown ? null : (chosen.reason || 'unknown'),
-      detail: breakdown ? null : (chosen.detail || null),
+      detail: breakdown ? null : { ...(chosen.detail || {}), accounts: debugAccounts, anchor: ytdStartValue },
     }
   }, [ytdEndpoints, portfolioItems, convert, baseCurrency, ytdChange, ytdStartValue, ytdStartTs, ytdFlowsUsed, snapshots, convertSnapshot, spreadsheetStart, transactions, lots])
 
