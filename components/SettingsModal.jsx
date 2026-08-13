@@ -74,7 +74,7 @@ function ToggleCard({ active, onClick, icon: Icon, title, description }) {
   )
 }
 
-export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onDeleteItemGroup, onExportBackup, onOpenConnections, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, beginnerMode = false, onToggleBeginner, lang = 'es', onSetLang, portfolioItems = [] }) {
+export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onDeleteItemGroup, onExportBackup, onOpenConnections, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, beginnerMode = false, onToggleBeginner, lang = 'es', onSetLang, portfolioItems = [], userEmail = '' }) {
   const trapRef = useFocusTrap()
   const [baseCurrency, setBaseCurrency] = useState(settings?.baseCurrency || 'USD')
   const [benchmarkSymbol, setBenchmarkSymbol] = useState(settings?.benchmarkSymbol || '%5EGSPC')
@@ -106,6 +106,43 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
       await onSaveSettings({ [key]: next[key] })
     } catch (e) {
       setNotifPrefs(notifPrefs) // revert on failure
+      flash('err', e.message || t('Error al guardar', 'Error saving'))
+    }
+  }
+
+  // FASE HZ. Correos periódicos. Las tres cadencias son INDEPENDIENTES: cada
+  // una lleva contenido distinto, así que activar una no condiciona a las
+  // otras. Mensual y anual se muestran deshabilitadas hasta que existan: un
+  // interruptor que se puede encender y no hace nada es peor que uno ausente.
+  const EMAIL_CADENCES = [
+    { key: 'notifyWeekly', es: 'Resumen semanal', en: 'Weekly brief',
+      descEs: 'Tu semana y el año, más el estado del mercado. Domingos.',
+      descEn: 'Your week and your year, plus market levels. Sundays.',
+      ready: true },
+    { key: 'notifyMonthly', es: 'Resumen mensual', en: 'Monthly brief',
+      descEs: 'Tu mes y el año, con el spreadsheet de enero al mes en curso.',
+      descEn: 'Your month and your year, with the spreadsheet from January to date.',
+      ready: false },
+    { key: 'notifyAnnual', es: 'Resumen anual', en: 'Annual brief',
+      descEs: 'El cierre del año completo con su reporte.',
+      descEn: 'The full year close with its report.',
+      ready: false },
+  ]
+  const [emailPrefs, setEmailPrefs] = useState(() =>
+    Object.fromEntries(EMAIL_CADENCES.map((c) => [c.key, settings?.[c.key] === true]))
+  )
+  const toggleEmailCadence = async (key) => {
+    const next = { ...emailPrefs, [key]: !emailPrefs[key] }
+    setEmailPrefs(next)
+    try {
+      // El correo se captura al suscribirse (igual que el recordatorio de fin
+      // de mes): el cron lo lee del lado del servidor sin listar usuarios de Auth.
+      await onSaveSettings({
+        [key]: next[key],
+        ...(next[key] && userEmail ? { notifyEmail: userEmail } : {}),
+      })
+    } catch (e) {
+      setEmailPrefs(emailPrefs)
       flash('err', e.message || t('Error al guardar', 'Error saving'))
     }
   }
@@ -481,6 +518,41 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                         </button>
                       </label>
                     ))}
+                  </div>
+                </div>
+
+                {/* Correos periódicos: tres cadencias independientes. */}
+                <div>
+                  <label className="text-xs mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>{t('Resúmenes por correo', 'Email briefs')}</label>
+                  <div className="p-3 bg-theme-card border border-glass-border rounded-lg space-y-3">
+                    {EMAIL_CADENCES.map((c) => (
+                      <div key={c.key} className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm" style={{ color: c.ready ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                            {t(c.es, c.en)}
+                            {!c.ready && (
+                              <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>
+                                {t('Pronto', 'Soon')}
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{t(c.descEs, c.descEn)}</p>
+                        </div>
+                        <button type="button" role="switch" aria-checked={!!emailPrefs[c.key]} disabled={!c.ready}
+                          aria-label={t(c.es, c.en)}
+                          onClick={() => c.ready && toggleEmailCadence(c.key)}
+                          className="shrink-0 w-9 h-5 rounded-full flex items-center transition-all px-0.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                          style={{ backgroundColor: emailPrefs[c.key] && c.ready ? 'var(--accent-blue)' : 'var(--bg-tertiary)' }}>
+                          <span className="w-4 h-4 rounded-full bg-white transition-transform"
+                            style={{ transform: emailPrefs[c.key] && c.ready ? 'translateX(16px)' : 'translateX(0)' }} />
+                        </button>
+                      </div>
+                    ))}
+                    <p className="text-[11px] pt-1" style={{ color: 'var(--text-muted)' }}>
+                      {userEmail
+                        ? t(`Se envían a ${userEmail}. Todos los correos van en inglés.`, `Sent to ${userEmail}. All emails are in English.`)
+                        : t('Todos los correos van en inglés.', 'All emails are in English.')}
+                    </p>
                   </div>
                 </div>
               </SectionCard>

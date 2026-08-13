@@ -1629,6 +1629,7 @@ export default function DashboardPage() {
       {modal === 'settings' && (
         <SettingsModal
           onClose={handleCloseModal} settings={settings}
+          userEmail={user?.email || ''}
           onSaveSettings={saveSettings}
           onDeleteAllItems={handleDeleteAllItems} onDeleteAllSnapshots={deleteAllSnapshots}
           onDeleteAllTransactions={deleteAllTransactions}

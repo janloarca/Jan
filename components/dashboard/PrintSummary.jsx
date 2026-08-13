@@ -58,6 +58,10 @@ export default function PrintSummary({
   const now = new Date(data.meta.generatedTs)
   const dateStr = now.toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' })
   const periodLabel = useMemo(() => {
+    if (period === 'week') {
+      const from = new Date(now.getTime() - 7 * 86400000)
+      return `${from.toLocaleDateString(locale, { month: 'short', day: 'numeric' })} - ${now.toLocaleDateString(locale, { month: 'short', day: 'numeric', year: 'numeric' })}`
+    }
     if (period === 'month') return now.toLocaleDateString(locale, { month: 'long', year: 'numeric' })
     if (period === 'quarter') return `${t('Trimestre', 'Quarter')} ${Math.floor(now.getMonth() / 3) + 1}, ${now.getFullYear()}`
     if (period === 'ytd') return t(`Año ${now.getFullYear()} al ${dateStr}`, `Year ${now.getFullYear()} through ${dateStr}`)
@@ -66,6 +70,7 @@ export default function PrintSummary({
   }, [period, lang, data.meta.generatedTs])
 
   const periods = [
+    { key: 'week', label: t('Semana', 'Week') },
     { key: 'month', label: t('Este mes', 'This month') },
     { key: 'quarter', label: t('Trimestre', 'Quarter') },
     { key: 'ytd', label: t('Año (YTD)', 'Year (YTD)') },
