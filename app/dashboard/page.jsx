@@ -1922,7 +1922,12 @@ export default function DashboardPage() {
           onDeleteMovement={async (m, c) => {
             if (!m?.txId) return
             try {
-              if (m.source === 'auto' && m.date && m.sourceItemId) {
+              // Cualquier PAGO que venga de un activo con calendario, no solo
+              // los marcados `_source:'auto'`: una fila vieja puede no traer esa
+              // marca y el motor la regeneraría igual. Decir "no pasó" sobre un
+              // pago es afirmar que ESE MES no pagó, así que la exclusión
+              // corresponde en los dos casos.
+              if (m.kind === 'income' && m.date && m.sourceItemId) {
                 // Acumulador de sesión: `items` queda capturado en el closure de
                 // este render, así que borrar DOS pagos seguidos del mismo
                 // activo hacía que el segundo escribiera su fecha sobre una

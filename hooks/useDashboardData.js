@@ -18,7 +18,7 @@ import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanD
 import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds, applyLifetimeNetConstraint } from '@/lib/inferredFlows'
 import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
 import { knownContributions, computeLiquidYield, yieldSignature, supersededYieldTxIds } from '@/lib/liquidYield'
-import { clampPayDay, payDateFor, impossiblePayDateFixes } from '@/lib/incomeSchedule'
+import { clampPayDay, payDateFor, impossiblePayDateFixes, isPayDateExcluded } from '@/lib/incomeSchedule'
 import { attributeYtd } from '@/lib/ytdAttribution'
 import { computeYtdInvested } from '@/lib/ytdInvested'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes, pairPortfolioWithBenchmark } from '@/components/dashboard/analytics'
@@ -676,7 +676,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           // Dates the user explicitly said did NOT happen (asked at account
           // creation, when the schedule implied a payment already due) —
           // never fabricate history for those, however the schedule reads.
-          if (Array.isArray(it.excludedPayDates) && it.excludedPayDates.includes(dateStr)) continue
+          // Por MES, no por fecha exacta: ver isPayDateExcluded
+          // (lib/incomeSchedule.js) y el "borro el pago y vuelve" que arregla.
+          if (isPayDateExcluded(it.excludedPayDates, dateStr)) continue
           // Matched by MONTH, not by exact date. The schedule pays on
           // `incomePayDay` while a coupon recorded by hand carries the day it
           // really landed, so an exact-date check saw no payment and wrote a
