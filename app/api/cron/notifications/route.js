@@ -1,34 +1,65 @@
 import { NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { getAdminDb } from '@/lib/firebase-admin'
-import { buildMarketBrief } from '@/lib/marketBrief'
+import { buildMarketBrief, MARKET_WINDOWS } from '@/lib/marketBrief'
 import { buildWeeklyBriefForUser, makeMailer, AUTO_HEADERS } from '@/lib/weeklyBriefBuilder'
+import { buildMonthlyBriefForUser, monthRefFor } from '@/lib/monthlyBriefBuilder'
 import { makeBriefFetcher } from '@/lib/briefFetcher'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
 // FASE HZ. UN despachador diario para TODAS las notificaciones periódicas
-// (semanal hoy; mensual y anual entran aquí sin infraestructura nueva).
+// (semanal y, desde FASE IE, mensual; anual entra aquí sin infraestructura
+// nueva).
 //
 // Por qué un despachador y no un cron por cadencia: el plan Hobby de Vercel
 // permite 2 cron jobs y los dispara una vez al día. Con el recordatorio de
 // fin de mes ya ocupando uno, tres crons más simplemente no caben. Así que
-// esta ruta corre todos los días y decide adentro qué toca: domingo = semanal.
-// Y la decisión vive en código testeable en vez de en una expresión cron.
+// esta ruta corre todos los días y decide adentro qué toca: domingo = semanal,
+// día 1 = mensual. Y la decisión vive en código testeable en vez de en una
+// expresión cron.
 //
 // Gating (convención del repo: no-op silencioso sin configurar):
 //   CRON_SECRET, SMTP_HOST / SMTP_USER / SMTP_PASS
 //
-// Suscripciones: users/{uid}/settings/preferences con notifyWeekly = true.
-// Cada cadencia es independiente: elegir una no condiciona a las otras.
+// Suscripciones: users/{uid}/settings/preferences con notifyWeekly /
+// notifyMonthly = true. Cada cadencia es independiente: elegir una no
+// condiciona a las otras, y un domingo que cae en día 1 manda AMBOS correos
+// (contenidos distintos, decisión del usuario).
 
 // Qué cadencias corresponden a una fecha dada. Exportada y pura para poder
 // probarla: es la única lógica del cron que decide si alguien recibe correo.
 export function dueCadences(date) {
   const out = []
   if (date.getUTCDay() === 0) out.push('weekly')
+  if (date.getUTCDate() === 1) out.push('monthly')
   return out
+}
+
+// Todo lo que difiere entre cadencias, en UN solo lugar: la bandera de
+// suscripción, el campo de dedup y su clave, la ventana del brief de mercado
+// y el builder. Agregar la anual es agregar una entrada aquí.
+const CADENCES = {
+  weekly: {
+    flag: 'notifyWeekly',
+    dedupField: '_lastWeeklyBrief',
+    dedupKey: (now) => now.toISOString().slice(0, 10),
+    marketOpts: MARKET_WINDOWS.weekly,
+    build: buildWeeklyBriefForUser,
+  },
+  monthly: {
+    flag: 'notifyMonthly',
+    // La clave es el MES CUBIERTO (el de ayer), no la fecha del envío: un
+    // reintento del cron el mismo día 1 no puede mandar el mes dos veces.
+    dedupField: '_lastMonthlyBrief',
+    dedupKey: (now) => {
+      const ref = monthRefFor(now)
+      return `${ref.getUTCFullYear()}-${String(ref.getUTCMonth() + 1).padStart(2, '0')}`
+    },
+    marketOpts: MARKET_WINDOWS.monthly,
+    build: buildMonthlyBriefForUser,
+  },
 }
 
 export async function GET(request) {
@@ -49,49 +80,58 @@ export async function GET(request) {
     return NextResponse.json({ ok: true, skipped: `nothing due on ${now.toISOString().slice(0, 10)}` })
   }
 
-  const snap = await db.collectionGroup('settings').where('notifyWeekly', '==', true).get()
-  if (snap.empty) return NextResponse.json({ ok: true, cadences, optedIn: 0, sent: 0 })
-
-  // El brief de mercado es el MISMO para todos: se arma una sola vez por
-  // corrida en vez de una por usuario (mismos datos, N veces el costo).
-  let market = null
-  try {
-    market = await buildMarketBrief({ fetchSeries: makeBriefFetcher() })
-  } catch (e) {
-    console.error('[cron/notifications] market brief failed:', e.message)
-  }
-
-  const weekKey = now.toISOString().slice(0, 10)
-  let sent = 0, skipped = 0, failed = 0
-
-  for (const doc of snap.docs) {
+  const report = {}
+  for (const cadence of cadences) {
+    const cfg = CADENCES[cadence]
+    if (!cfg) continue
+    let sent = 0, skipped = 0, failed = 0, optedIn = 0
     try {
-      if (doc.id !== 'preferences') { skipped++; continue }
-      const prefs = doc.data()
-      const uid = doc.ref.parent.parent?.id
-      const email = (prefs.notifyEmail || prefs.financeReminderEmail || '').trim()
-      if (!uid || !email.includes('@')) { skipped++; continue }
-      // Un solo correo por semana aunque el cron corra dos veces.
-      if (prefs._lastWeeklyBrief === weekKey) { skipped++; continue }
+      const snap = await db.collectionGroup('settings').where(cfg.flag, '==', true).get()
+      optedIn = snap.size
+      if (!snap.empty) {
+        // El brief de mercado es el MISMO para todos los usuarios de la
+        // cadencia: se arma una sola vez por corrida, con SU ventana.
+        let market = null
+        try {
+          market = await buildMarketBrief({ fetchSeries: makeBriefFetcher(cfg.marketOpts.fetcher), ...cfg.marketOpts.brief })
+        } catch (e) {
+          console.error(`[cron/notifications] ${cadence} market brief failed:`, e.message)
+        }
 
-      const mail = await buildWeeklyBriefForUser({ db, uid, prefs, market, now })
-      if (!mail) { skipped++; continue }
+        const dedupKey = cfg.dedupKey(now)
+        for (const doc of snap.docs) {
+          try {
+            if (doc.id !== 'preferences') { skipped++; continue }
+            const prefs = doc.data()
+            const uid = doc.ref.parent.parent?.id
+            const email = (prefs.notifyEmail || prefs.financeReminderEmail || '').trim()
+            if (!uid || !email.includes('@')) { skipped++; continue }
+            if (prefs[cfg.dedupField] === dedupKey) { skipped++; continue }
 
-      await mailer.transport.sendMail({
-        from: mailer.from, to: email,
-        subject: mail.subject, html: mail.html, text: mail.text,
-        attachments: mail.attachments,
-        ...(mailer.replyTo ? { replyTo: mailer.replyTo } : {}),
-        headers: AUTO_HEADERS,
-      })
-      await doc.ref.set({ _lastWeeklyBrief: weekKey }, { merge: true })
-      sent++
+            const mail = await cfg.build({ db, uid, prefs, market, now })
+            if (!mail) { skipped++; continue }
+
+            await mailer.transport.sendMail({
+              from: mailer.from, to: email,
+              subject: mail.subject, html: mail.html, text: mail.text,
+              attachments: mail.attachments,
+              ...(mailer.replyTo ? { replyTo: mailer.replyTo } : {}),
+              headers: AUTO_HEADERS,
+            })
+            await doc.ref.set({ [cfg.dedupField]: dedupKey }, { merge: true })
+            sent++
+          } catch (e) {
+            console.error(`[cron/notifications] ${cadence} user failed:`, e.message)
+            failed++
+          }
+        }
+      }
     } catch (e) {
-      console.error('[cron/notifications] user failed:', e.message)
-      failed++
+      console.error(`[cron/notifications] ${cadence} cadence failed:`, e.message)
     }
+    report[cadence] = { optedIn, sent, skipped, failed }
   }
 
   mailer.transport.close()
-  return NextResponse.json({ ok: true, cadences, optedIn: snap.size, sent, skipped, failed, marketComplete: !!market?.complete })
+  return NextResponse.json({ ok: true, cadences, report })
 }

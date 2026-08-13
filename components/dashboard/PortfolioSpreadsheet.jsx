@@ -3,7 +3,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback, Fragment, memo } from 'react'
 import { ZoomIn, ZoomOut, FileText, FileSpreadsheet } from 'lucide-react'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
-import { formatCurrency, getItemValue, getTypeCategory, isExcludedFromNetWorth, TYPE_COLORS, BROKER_NAV_SOURCES, DEBT_CLARIFICATION } from './utils'
+import { formatCurrency, getItemValue, getTypeCategory, isExcludedFromNetWorth, TYPE_COLORS, BROKER_NAV_SOURCES, DEBT_CLARIFICATION, CATEGORY_ORDER } from './utils'
 import { InfoTip } from '../ui/Tooltip'
 import { yearEndMonthKeys } from '@/lib/yearOverYear'
 import { stripStaleIbkrEntries } from '@/lib/spreadsheetSanitize'
@@ -15,7 +15,9 @@ import { stripStaleIbkrEntries } from '@/lib/spreadsheetSanitize'
 // below, so this file never actually needs the live binding, just the string.
 const IBKR_UNKNOWN_KEY_PREFIX = '__ibkr_unknown__'
 
-const CATEGORY_ORDER = ['banks', 'funds', 'stocks', 'crypto', 'alternatives', 'bonds', 'realestate', 'other', 'receivables', 'debts']
+// CATEGORY_ORDER ahora viene de utils (compartido con el spreadsheet adjunto
+// del correo mensual). CATEGORY_LABELS se queda local A PROPÓSITO: diverge del
+// mapa compartido adrede ("Bonos Corporativo", "Bolsa de Valores").
 const CATEGORY_LABELS = {
   banks: { es: 'Caja & Bancos', en: 'Cash & Banks' },
   funds: { es: 'Fondos Liquidos', en: 'Liquid Funds' },
