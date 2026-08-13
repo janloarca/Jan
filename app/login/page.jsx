@@ -87,12 +87,36 @@ function setSessionCookie(token) {
 // misma extracción para el popup y para la vuelta del redirect: tenerla en dos
 // copias fue exactamente cómo la rama de vuelta se quedó sin ella.
 function googleErrorDetail(err) {
-  if (typeof err?.message !== 'string') return ''
-  const cleaned = err.message.replace(/^Firebase:\s*/i, '').replace(/\s+/g, ' ').trim()
-  if (!cleaned) return ''
-  const generic = /^an internal auth error has occurred\.?$/i.test(cleaned)
-    || /^error \(auth\/[a-z-]+\)\.?$/i.test(cleaned)
-  return generic ? '' : ` ${cleaned.slice(0, 200)}`
+  const fromMessage = (() => {
+    if (typeof err?.message !== 'string') return ''
+    const cleaned = err.message.replace(/^Firebase:\s*/i, '').replace(/\s+/g, ' ').trim()
+    if (!cleaned) return ''
+    const generic = /^an internal auth error has occurred\.?$/i.test(cleaned)
+      || /^error \(auth\/[a-z-]+\)\.?$/i.test(cleaned)
+    return generic ? '' : cleaned
+  })()
+  if (fromMessage) return ` ${fromMessage.slice(0, 200)}`
+
+  // FASE HX2. Cerrado Hosting (FASE HX) el fallo sigue igual, y con TODOS los
+  // chequeos en verde lo único que queda por saber es si el servidor llegó a
+  // contestar algo. `message` no lo dice: cuando es genérico, es genérico.
+  //
+  // Firebase adjunta la respuesta cruda del servidor en customData cuando la
+  // hubo, y eso parte el problema en dos mitades que hoy se ven idénticas:
+  // con payload, Identity Toolkit RECHAZÓ el canje y su razón viene ahí (que
+  // es lo que soporte necesita); vacío, la página murió del lado del navegador
+  // sin llegar a preguntar. Esa distinción es la que llevamos rondas sin poder
+  // hacer, y en un teléfono no hay consola de donde sacarla.
+  const raw = err?.customData?.serverResponse ?? err?.customData ?? null
+  if (!raw) return ''
+  try {
+    const text = typeof raw === 'string' ? raw : JSON.stringify(raw)
+    const trimmed = text.replace(/\s+/g, ' ').trim()
+    // "{}" es la ausencia de payload, no un payload: imprimirlo sugeriría que
+    // el servidor contestó algo cuando no contestó nada.
+    if (!trimmed || trimmed === '{}' || trimmed === 'null') return ''
+    return ` [servidor] ${trimmed.slice(0, 300)}`
+  } catch { return '' }
 }
 
 function isInAppBrowser() {
