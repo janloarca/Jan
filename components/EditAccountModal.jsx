@@ -39,6 +39,14 @@ function roundDisplay(v, maxDecimals = 6) {
   return parseFloat(n.toFixed(maxDecimals)).toString()
 }
 
+// Transaction history dates render as DD/MM/YYYY (user request). Pure string
+// reshuffle of the stored 'YYYY-MM-DD' — never new Date('YYYY-MM-DD'), which
+// shifts the day in UTC-6. Anything not in that shape passes through as-is.
+function formatTxDate(date) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(date || ''))
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : date
+}
+
 // FASE EK. "Existe valor actual y valor de compra y son los valores en
 // equivalente en dólares lo que lo hace confuso" — a bare number with no
 // currency in sight reads as baseCurrency by default, especially once it's a
@@ -989,7 +997,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                       }
                       return (
                         <div key={tx.id} className="flex items-center justify-between gap-2 text-xs py-1 border-b border-[var(--card-border,#38383A)]/30 last:border-0">
-                          <span style={{ color: 'var(--text-muted)' }}>{tx.date}</span>
+                          <span style={{ color: 'var(--text-muted)' }}>{formatTxDate(tx.date)}</span>
                           <div className="text-right min-w-0">
                             <span style={{ color: isPositive ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                               {isPositive ? '+' : '-'}{tx.currency || form.currency} {(tx.totalAmount || 0).toLocaleString()}
