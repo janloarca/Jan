@@ -34,6 +34,17 @@ automáticamente. No es limitante: si aparece otro activo con costo de entrada
 que no se vale es CAMBIARLA para acomodar al activo nuevo: se extiende, no se
 reescribe.
 
+## Flujo de PRs: mergear al terminar, sin preguntar
+
+Instrucción permanente del usuario (12 ago 2026, literal: "Siempre mergear al
+hacer algo"): al terminar un cambio, abrir el PR Y MERGEARLO de inmediato, sin
+pedir confirmación. El deploy de producción sale de master vía Vercel, así que
+un PR sin mergear = trabajo invisible para el usuario (pasó dos veces el mismo
+día: el usuario reportó "algo no está bien" dos rondas seguidas y en ambas la
+causa era el build viejo porque el PR seguía abierto). La verificación previa
+(`npx jest` + `npm run build` en verde) sigue siendo obligatoria ANTES del
+merge, igual que siempre.
+
 ## Pendientes
 
 - [ ] (usuario) Google sign-in: AGOTADO todo lo que se puede hacer sin soporte de Google. Falla siempre en el tramo de VUELTA (`[vuelta] auth/internal-error`, sin payload de servidor). Descartado con evidencia: **dispositivos/navegadores** (iPad Safari, iPhone Safari, Mac Chrome fallan idéntico), **arquitectura** (FASE HD probó el modo clásico, authDomain de Firebase sin nuestro proxy: falla igual, así que la arquitectura same-origin de FASE FV nunca fue la causa), **dominios autorizados** (chispu.xyz y www en minúsculas, verificado leyendo la lista real de Firebase desde el navegador), **redirect URIs y JS origins** (el `redirect_uri_mismatch` previo se resolvió y no volvió), **client secret** (rotado, sin efecto), **cliente OAuth completo** (borrado y re-creado por Firebase al re-agregar el proveedor: `...sjv6haufm08t721kmca7cgci9laoghfa`, sin efecto ni tras 12 h), **blocking functions** (no disponibles en plan Spark), **Hosting** (sitio aprovisionado, sin efecto). Dos correcciones sobre lecturas mías: (1) el 404 de `/__/firebase/init.json` que motivó FASE GX es casi seguro el comportamiento NORMAL de un proyecto de Hosting sin primera publicación, no un síntoma; el respaldo construido es inocuo pero probablemente resolvía algo que no estaba roto. (2) FASE HM (caché del documento raíz) significa que varias rondas intermedias de "sigue fallando" en iOS pudieron haber corrido contra el BUILD VIEJO; la conclusión final igual se sostiene porque la última prueba muestra el panel de diagnóstico con el texto nuevo (build actual) y porque la prueba de Mac Chrome fue en un navegador limpio, pero conviene rehacer UNA prueba limpia post-HM antes de escalar. Siguiente paso real: **abrir caso con soporte de Firebase** con el resumen de descartes (en el historial de la sesión del 10-11 ago). Mientras tanto correo y contraseña funciona en todos los dispositivos. **Estado (FASE HW): el botón está OCULTO en producción** (`GOOGLE_SIGNIN_ENABLED = false` en `app/login/page.jsx`), no borrado: todo el código de sign-in, el fallback a redirect, el modo clásico y el panel de diagnóstico siguen ahí, así que volver a encenderlo es cambiar esa constante a `true`. `/login?google=1` lo muestra igual sin desplegar, que es como se hace la prueba limpia post-HM que sigue pendiente. El riesgo de dejar sin entrada a una cuenta creada CON Google quedó DESCARTADO: el usuario confirmó que ninguna cuenta se creó por ese camino, así que ocultar el botón no puede dejar a nadie afuera.
