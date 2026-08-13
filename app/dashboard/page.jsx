@@ -661,9 +661,24 @@ export default function DashboardPage() {
   // market item's real price is resolved live and was never the right field to
   // read on the raw item" — without it, every working stock/crypto position
   // flagged as if its price were missing (it never IS the raw item's own field).
+  // FASE HV11. El precio que la app YA muestra para cada ítem, por id. Es lo
+  // que alimenta la gráfica y el Spreadsheet, así que preguntarle a ESTE mapa
+  // "¿este activo tiene precio?" no puede contradecir lo que el usuario ve.
+  // Antes solo se pasaba el mapa de precios por SÍMBOLO, y dos posiciones del
+  // mismo activo con símbolos distintos daban respuestas distintas.
+  const resolvedPrices = useMemo(() => {
+    const out = {}
+    for (const it of portfolioItems || []) {
+      if (!it?.id) continue
+      const p = Number(it._originalPrice ?? it.currentPrice) || 0
+      if (p > 0) out[it.id] = p
+    }
+    return out
+  }, [portfolioItems])
+
   const dataCompleteness = useMemo(
-    () => analyzeDataCompleteness({ items, transactions, lots, convert, baseCurrency, marketPrices }),
-    [items, transactions, lots, convert, baseCurrency, marketPrices]
+    () => analyzeDataCompleteness({ items, transactions, lots, convert, baseCurrency, marketPrices, resolvedPrices }),
+    [items, transactions, lots, convert, baseCurrency, marketPrices, resolvedPrices]
   )
 
   // FASE HV. El rendimiento deducido de una cuenta líquida entra a la MISMA
