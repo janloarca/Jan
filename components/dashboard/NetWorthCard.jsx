@@ -302,6 +302,26 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
               )}
             </p>
           )}
+          {/* FASE IB: los términos por cuenta del intento que rehusó. Con solo
+              el residuo total supimos la ESCALA del problema pero no qué cuenta
+              lo causaba; esta lista convierte una captura del teléfono en el
+              diagnóstico completo (misma lección que el reporte de "Reparar
+              ahora", FASE HP). El asterisco marca un arranque REAL (NAV del
+              broker), que el motor nunca ajusta. */}
+          {!hasBreakdown && Array.isArray(ytdBreakdownDetail?.accounts) && ytdBreakdownDetail.accounts.length > 0 && (
+            <div className="mt-2 space-y-0.5 font-mono" style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+              <div>
+                {lang === 'es' ? 'Ancla del año' : 'Year anchor'}: {formatCurrency(ytdBreakdownDetail.anchor ?? 0)}
+              </div>
+              {ytdBreakdownDetail.accounts.map((a) => (
+                <div key={a.name}>
+                  {a.name}: {lang === 'es' ? 'arranque' : 'start'} {formatCurrency(a.start ?? 0)}{a.real ? '*' : ''}
+                  {' · '}{lang === 'es' ? 'hoy' : 'now'} {formatCurrency(a.end ?? 0)}
+                  {' · '}{lang === 'es' ? 'flujos' : 'flows'} {formatCurrency(a.flow ?? 0)}
+                </div>
+              ))}
+            </div>
+          )}
           {/* One row per ACCOUNT (FASE GR). Every account is listed, including
               ones that contributed nothing: the previous version hid near-zero
               rows and accounts simply looked missing. */}
