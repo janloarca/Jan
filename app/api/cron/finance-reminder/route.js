@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { getAdminDb } from '@/lib/firebase-admin'
+import { buildFinanceReminderEmail } from '@/lib/financeReminderEmail'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,32 +22,18 @@ export const dynamic = 'force-dynamic'
 //   CRON_SECRET — Vercel Cron sends `Authorization: Bearer ${CRON_SECRET}`
 //   SMTP_HOST / SMTP_USER / SMTP_PASS — mailbox credentials (app password)
 //   SMTP_PORT — optional, defaults to 465 (implicit TLS)
-//   SMTP_FROM — optional, defaults to 'Chispudo <SMTP_USER>'
+//   SMTP_FROM — optional, defaults to 'Chispudo <SMTP_USER>'. Para mandar
+//     desde un no-reply, apuntarla a una dirección que EXISTA en el buzón
+//     (alias del mismo usuario): casi todo host SMTP rechaza o reescribe un
+//     From que la cuenta autenticada no posee.
+//   SMTP_REPLY_TO — optional. Sin ella no se manda cabecera Reply-To, que es
+//     justo lo correcto para un correo automático: el cliente responde al
+//     From, que ya es el no-reply y lo dice en el cuerpo.
 
 function lastDayOfMonth(d) {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate()
 }
 
-function buildEmail(lang, monthLabel) {
-  const es = lang !== 'en'
-  const subject = es
-    ? `Chispudo: te falta llenar ${monthLabel} 📊`
-    : `Chispudo: ${monthLabel} is still empty 📊`
-  const body = es
-    ? `<p>Hola 👋</p>
-<p>El mes está por cerrar y todavía no registraste tus ingresos y gastos de <strong>${monthLabel}</strong> en Chispudo.</p>
-<p>Toma 2 minutos: agrega tus movimientos o sube tu estado de cuenta y deja que Chispu haga el resto.</p>
-<p><a href="https://chispu.xyz/finances" style="display:inline-block;padding:10px 18px;background:#4F46E5;color:#ffffff;border-radius:8px;text-decoration:none">Llenar mis finanzas</a></p>
-<p style="color:#64748b;font-size:12px">Recibes este correo porque activaste el recordatorio de fin de mes en Chispudo. Puedes apagarlo desde la pestaña de Finanzas.</p>`
-    : `<p>Hi 👋</p>
-<p>The month is about to close and your income &amp; expenses for <strong>${monthLabel}</strong> are still empty in Chispudo.</p>
-<p>It takes 2 minutes: add your movements or upload a statement and let Chispu do the rest.</p>
-<p><a href="https://chispu.xyz/finances" style="display:inline-block;padding:10px 18px;background:#4F46E5;color:#ffffff;border-radius:8px;text-decoration:none">Fill my finances</a></p>
-<p style="color:#64748b;font-size:12px">You get this email because you enabled the month-end reminder in Chispudo. You can turn it off from the Finances tab.</p>`
-  return { subject, html: body }
-}
-
-const MONTHS_ES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
 const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
 export async function GET(request) {
@@ -75,6 +62,7 @@ export async function GET(request) {
 
   const monthKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`
   const from = process.env.SMTP_FROM || `Chispudo <${SMTP_USER}>`
+  const replyTo = process.env.SMTP_REPLY_TO || null
   const port = Number(process.env.SMTP_PORT) || 465
   const transport = nodemailer.createTransport({
     host: SMTP_HOST,
@@ -108,11 +96,30 @@ export async function GET(request) {
         .get()
       if (!txs.empty) { skipped++; continue }
 
-      const lang = prefs.financeReminderLang === 'en' ? 'en' : 'es'
-      const monthLabel = `${(lang === 'en' ? MONTHS_EN : MONTHS_ES)[now.getUTCMonth()]} ${now.getUTCFullYear()}`
-      const { subject, html } = buildEmail(lang, monthLabel)
+      // Todo correo saliente va en INGLÉS (FASE HX2), sin importar el idioma
+      // con que el usuario use la app: es una decisión de producto, no un
+      // default técnico. `financeReminderLang` quedó sin lector por eso; el
+      // template sigue aceptando 'es' para el día que se quiera volver.
+      const monthLabel = `${MONTHS_EN[now.getUTCMonth()]} ${now.getUTCFullYear()}`
+      const { subject, html, text } = buildFinanceReminderEmail('en', monthLabel)
 
-      await transport.sendMail({ from, to: email, subject, html })
+      // Cabeceras de correo AUTOMÁTICO (RFC 3834 + la variante de Outlook):
+      // le dicen a los auto-respondedores ("estoy de vacaciones") que NO
+      // contesten. Sin esto, cada respuesta automática rebota contra un buzón
+      // que nadie lee. Es la mitad de protocolo de un no-reply; la otra mitad
+      // es que el cuerpo lo diga, y eso vive en el template.
+      await transport.sendMail({
+        from,
+        to: email,
+        subject,
+        html,
+        text,
+        ...(replyTo ? { replyTo } : {}),
+        headers: {
+          'Auto-Submitted': 'auto-generated',
+          'X-Auto-Response-Suppress': 'All',
+        },
+      })
       await doc.ref.set({ _lastFinanceReminder: monthKey }, { merge: true })
       sent++
     } catch (e) {

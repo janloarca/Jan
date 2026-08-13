@@ -60,6 +60,7 @@ const EnrichModal = dynamic(() => import('@/components/dashboard/EnrichModal'), 
 const QuarterlyHistoryModal = dynamic(() => import('@/components/dashboard/QuarterlyHistoryModal'), { loading: () => <ModalSkeleton /> })
 const BrokerCompletionModal = dynamic(() => import('@/components/dashboard/BrokerCompletionModal'), { loading: () => <ModalSkeleton /> })
 const InferredFlowsModal = dynamic(() => import('@/components/dashboard/InferredFlowsModal'), { loading: () => <ModalSkeleton /> })
+const LiquidYieldModal = dynamic(() => import('@/components/dashboard/LiquidYieldModal'), { loading: () => <ModalSkeleton /> })
 const CashFlowModal = dynamic(() => import('@/components/CashFlowModal'), { loading: () => <ModalSkeleton /> })
 const PrintSummary = dynamic(() => import('@/components/dashboard/PrintSummary'))
 const OnboardingTour = dynamic(() => import('@/components/dashboard/OnboardingTour'))
@@ -156,6 +157,10 @@ export default function DashboardPage() {
   const [cashflowPrefill, setCashflowPrefill] = useState(null)
   const [importBrokerHint, setImportBrokerHint] = useState(null)
   const [editItem, setEditItem] = useState(null)
+  // Fechas ya marcadas como "no ocurrió" en esta sesión, por activo. Ver
+  // onDeleteMovement: `items` viaja capturado en el closure del render, así que
+  // dos borrados seguidos del mismo activo se pisaban entre sí.
+  const excludedDatesRef = useRef(new Map())
   const [sellItem, setSellItem] = useState(null)
   const [detailItem, setDetailItem] = useState(null)
   const [theme, setTheme] = useState('dark')
@@ -310,6 +315,7 @@ export default function DashboardPage() {
     annualDividends, estimatedAnnualIncome,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
     brokerCompletionState, ibkrDataComplete, inferredFlowCandidates, inferredFlowReconciliation, ibkrReconciliation, acceptInferredFlow, dismissInferredFlow,
+    liquidYieldCandidates, acceptLiquidYield, dismissLiquidYield,
     benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName, benchmarkLoading,
     handleIBKRSync, triggerIBKRSync,
     ibkrConnected, ibkrAutoSyncing,
@@ -663,6 +669,30 @@ export default function DashboardPage() {
     [items, transactions, lots, convert, baseCurrency, marketPrices]
   )
 
+  // FASE HV. El rendimiento deducido de una cuenta líquida entra a la MISMA
+  // lista de sugerencias que todo lo demás, en vez de estrenar una superficie
+  // propia: es una pregunta sobre los datos, igual que las otras. Se arma acá y
+  // no en `lib/dataCompleteness.js` porque ese módulo no conoce el motor de
+  // rendimiento, y duplicarlo ahí sería tener dos respuestas distintas a la
+  // misma pregunta.
+  const suggestionFindings = useMemo(() => {
+    const extra = (liquidYieldCandidates || []).map((c) => ({
+      id: `liquid-yield:${c.itemId}`,
+      code: 'liquid-yield',
+      severity: c.status === 'negative-residual' ? 'medium' : 'low',
+      itemId: c.itemId,
+      textEs: c.status === 'negative-residual'
+        ? `${c.name}: entró más de lo que hay en la cuenta. Puede faltar un retiro.`
+        : `${c.name}: ${formatCurrency(c.interest, c.currency)} de tu saldo no vino de ningún movimiento. Parece rendimiento de la cuenta.`,
+      textEn: c.status === 'negative-residual'
+        ? `${c.name}: more went in than the account holds. A withdrawal may be missing.`
+        : `${c.name}: ${formatCurrency(c.interest, c.currency)} of your balance came from no movement. It looks like the account's own yield.`,
+      action: { kind: 'liquid-yield' },
+      suggestion: null,
+    }))
+    return extra.length > 0 ? [...extra, ...dataCompleteness.findings] : dataCompleteness.findings
+  }, [liquidYieldCandidates, dataCompleteness])
+
   // Export XLSX
   const handleExport = useCallback(async () => {
     if (items.length === 0) return
@@ -774,6 +804,7 @@ export default function DashboardPage() {
         returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdBreakdown, ytdBreakdownReason,
         annualDividends, estimatedAnnualIncome,
         benchmarkName, benchmarkReturn, volatilityPct: riskMetrics?.volatility,
+        sharpe: riskMetrics?.sharpe, beta: riskMetrics?.beta,
         profileName: profile?.name || user?.displayName || '',
         baseCurrency, convert, period: 'ytd',
       })
@@ -1276,13 +1307,14 @@ export default function DashboardPage() {
           const suggestionsCard = (
             <CardBoundary id="SUGG-01">
               <ChispuSuggestions
-                findings={dataCompleteness.findings}
+                findings={suggestionFindings}
                 globalScore={dataCompleteness.globalScore}
                 items={items}
                 lang={lang}
                 onEditItem={setEditItem}
                 onOpenCashflow={handleOpenCashflowPrefilled}
                 onOpenReview={handleOpenReview}
+                onOpenLiquidYield={() => setModal('liquidYield')}
                 onConfirmDistinct={(f) => {
                   (f.action?.itemIds || []).forEach((id) => updateItem(id, { _dupConfirmedDistinct: true }))
                 }}
@@ -1597,6 +1629,7 @@ export default function DashboardPage() {
       {modal === 'settings' && (
         <SettingsModal
           onClose={handleCloseModal} settings={settings}
+          userEmail={user?.email || ''}
           onSaveSettings={saveSettings}
           onDeleteAllItems={handleDeleteAllItems} onDeleteAllSnapshots={deleteAllSnapshots}
           onDeleteAllTransactions={deleteAllTransactions}
@@ -1696,6 +1729,7 @@ export default function DashboardPage() {
           estimatedAnnualIncome={estimatedAnnualIncome}
           benchmarkName={benchmarkName} benchmarkReturn={benchmarkReturn}
           volatilityPct={riskMetrics?.volatility}
+          sharpe={riskMetrics?.sharpe} beta={riskMetrics?.beta}
           baseCurrency={baseCurrency} convert={convert}
           profileName={profile?.name || user?.displayName || ''}
           lang={lang} onClose={handleCloseModal} />
@@ -1735,15 +1769,23 @@ export default function DashboardPage() {
           allItems={portfolioItems}
           findings={dataCompleteness.findings}
           onOpenCashflow={handleOpenCashflowPrefilled}
-          onNavigate={showReview ? null : (dir) => {
-            if (dir === 'next') {
-              const sorted = [...portfolioItems].sort((a, b) => Math.abs(getItemValue(b)) - Math.abs(getItemValue(a)))
-              const currentId = editItem.id
-              const idx = sorted.findIndex(it => it.id === currentId)
-              if (idx >= 0 && idx < sorted.length - 1) setEditItem(sorted[idx + 1])
-              else setEditItem(null)
-            }
-          }} />
+          /* FASE HV3. Guardar cierra y devuelve al dashboard, punto.
+           *
+           * Antes, `onNavigate('next')` saltaba a la cuenta SIGUIENTE por
+           * tamaño apenas se guardaba. Reportado por el usuario: arregló su
+           * fondo líquido desde "Chispu te sugiere", guardó, y aterrizó
+           * editando su Bitcoin sin haberlo pedido ("me quedé confundido").
+           * No era aleatorio: el fondo vale $327.89 y Bitcoin $294.05, o sea
+           * era literalmente la siguiente cuenta hacia abajo.
+           *
+           * El encadenado tenía sentido como barrido de "revisá todas tus
+           * cuentas", pero ese barrido ya existe aparte y es AccountReviewModal,
+           * que hace su propio paso a paso y por eso ya desactivaba esto
+           * (`showReview ? null : ...`). O sea el encadenado solo llegaba a
+           * dispararse desde el único lugar donde está mal: una corrección
+           * puntual de UNA cuenta. Sin el prop, el botón además deja de decir
+           * "Guardar →" y dice "Guardar", que es lo que de verdad hace.
+           */ />
       )}
 
       {detailItem && (
@@ -1829,6 +1871,99 @@ export default function DashboardPage() {
             showToast(lang === 'es' ? 'Movimiento registrado' : 'Movement recorded', 'success')
           }}
           onDismiss={dismissInferredFlow}
+        />
+      )}
+
+      {modal === 'liquidYield' && (
+        <LiquidYieldModal
+          candidates={liquidYieldCandidates}
+          lang={lang}
+          // setModal(null) y no handleCloseModal a propósito: con un viaje de
+          // IBKR activo, cerrar por ahí AVANZA el paso (FASE GM), y este modal
+          // no es parte de ese viaje.
+          onClose={() => setModal(null)}
+          onAccept={async (c) => {
+            await acceptLiquidYield(c)
+            showToast(lang === 'es' ? 'Rendimiento registrado' : 'Yield recorded', 'success')
+          }}
+          onDismiss={dismissLiquidYield}
+          // Los dos desenlaces posibles de mirar el desglose, cada uno a la
+          // pantalla que ya sabe hacer ese trabajo: falta una salida (Cash Flow,
+          // con el monto del descuadre ya puesto y la fecha a cargo del usuario,
+          // que es el único dato que la app no puede saber), o sobra una fila
+          // (el editor de la cuenta, la única superficie que revierte bien el
+          // crédito que ese pago movió, vía deleteTransactionWithReversal).
+          onRegisterMissing={(c) => {
+            setModal(null)
+            handleOpenCashflowPrefilled({
+              flowType: 'WITHDRAWAL', origin: 'external', linkedId: c.itemId,
+              amount: Math.abs(c.interest), currency: c.currency, date: '',
+            })
+          }}
+          onOpenAccount={(c) => {
+            setModal(null)
+            const it = items.find((i) => i.id === c.itemId)
+            if (it) setEditItem(it)
+          }}
+          // "Esto no pasó": borrar una fila del desglose, sin cerrar la pantalla.
+          //
+          // Lo importante no es el borrado sino lo que va ANTES: un pago que
+          // escribió el motor automático se vuelve a escribir solo en la
+          // siguiente corrida, porque su calendario sigue diciendo que ese mes
+          // paga. Borrarlo a secas no sirve de nada: reaparece. Por eso la fecha
+          // se agrega primero a `excludedPayDates` del activo que lo produce,
+          // que es el mecanismo que ya existe para "esta fecha NO ocurrió"
+          // (hoy solo se podía marcar al crear la cuenta, nunca después).
+          //
+          // El borrado va por deleteTransactionWithReversal, la única vía que
+          // además revierte el crédito que ese pago pudo haber movido en la
+          // cuenta destino.
+          onDeleteMovement={async (m, c) => {
+            if (!m?.txId) return
+            try {
+              if (m.source === 'auto' && m.date && m.sourceItemId) {
+                // Acumulador de sesión: `items` queda capturado en el closure de
+                // este render, así que borrar DOS pagos seguidos del mismo
+                // activo hacía que el segundo escribiera su fecha sobre una
+                // lista que todavía no traía la primera, perdiéndola. Es la
+                // misma forma del bug de FASE EL (dos llamadas leyendo el mismo
+                // snapshot viejo y ganando la última).
+                const already = excludedDatesRef.current.get(m.sourceItemId) || []
+                const src = items.find((i) => i.id === m.sourceItemId)
+                const prev = [...new Set([...(Array.isArray(src?.excludedPayDates) ? src.excludedPayDates : []), ...already])]
+                if (!prev.includes(m.date)) {
+                  const next = [...prev, m.date]
+                  excludedDatesRef.current.set(m.sourceItemId, next)
+                  await updateItem(m.sourceItemId, { excludedPayDates: next })
+                }
+              }
+              // Borrar un movimiento ANTERIOR a la fecha del saldo NO puede
+              // mover el saldo, y esa es la regla que faltaba.
+              //
+              // El saldo lo tecleó el usuario leyendo su estado de cuenta el 12
+              // de agosto: ya refleja lo que de verdad pasó, haya o no haya
+              // acreditado la app cada cupón por su cuenta. Con la reversión
+              // genérica, borrar un cupón de 2024 que en su momento SÍ movió el
+              // saldo se lo bajaba 600 quetzales, y entonces el descuadre volvía
+              // por otro lado: el usuario limpiaba sus datos y la app le
+              // cambiaba el saldo por debajo, que se lee como "no guardó".
+              //
+              // Es el invariante 1 de lib/assetLogic/liquidFundYield.js: el
+              // saldo tecleado es la verdad de hoy y nada lo empuja. Un
+              // movimiento POSTERIOR a la foto sí se revierte, porque ese sí
+              // llegó después y el saldo no lo contiene.
+              const afterPhoto = c?.asOfTs != null && Number.isFinite(m.ts) && m.ts > c.asOfTs
+              if (afterPhoto) await deleteTransactionWithReversal(m.txId)
+              else await deleteTransaction(m.txId)
+            } catch (err) {
+              // Un borrado que falla NO puede quedarse mudo: la fila desaparece
+              // de la lista igual (se recalcula sola) y el usuario cree que
+              // guardó, hasta que recarga y todo volvió.
+              showToast(lang === 'es'
+                ? `No se pudo borrar el movimiento: ${err.message}`
+                : `Could not delete the movement: ${err.message}`, 'error')
+            }
+          }}
         />
       )}
 
