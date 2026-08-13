@@ -5,7 +5,7 @@ import { useExchangeRates } from './useExchangeRates'
 import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, hasUnreliableAcqDate, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced, effectiveAcqTs, getEffectiveYield } from '@/components/dashboard/utils'
+import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, hasUnreliableAcqDate, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced, effectiveAcqTs, entryFeeAddbacks, getEffectiveYield } from '@/components/dashboard/utils'
 import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { indexBalanceEvents } from '@/lib/historicalValues'
 import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget } from '@/lib/autoDividends'
@@ -1486,23 +1486,50 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       // (240), and only the base it divides by becomes the all-in cost.
       if (droppedIn > startVal) ytdCostBase = droppedIn
     }
-    const { pct, abs } = computeModifiedDietz({
+    const endTsNow = Date.now()
+    const { pct, abs, weightedCapital } = computeModifiedDietz({
       startValue: startVal, endValue: netWorth,
-      startTs, endTs: Date.now(),
+      startTs, endTs: endTsNow,
       transactions: ytdFlows, convert, baseCurrency,
     })
+    // FASE IA (extensión de la superficie congelada C, confirmada explícitamente
+    // por el usuario; spec actualizada en el mismo commit). Una compra hecha
+    // DENTRO de la ventana entra al Dietz como su DEPOSIT completo, comisión
+    // adentro (6,098 = 6,000 + 98): restar ese flujo del valor final cobra la
+    // comisión como pérdida en el numerador, la violación exacta que la spec
+    // prohíbe ("la comisión va en el denominador y SOLO ahí"). La gráfica ya
+    // medía contra el principal (computeWindowGrowth resta el capital nuevo
+    // NETO de comisiones) y por eso encabezado y gráfica diferían $98.00
+    // exactos (la comisión de VITALI) en las capturas del usuario. El addback
+    // devuelve al numerador SOLO las comisiones cuyos depósitos este Dietz de
+    // verdad neteó (el guard de entryFeeAddbacks lee la MISMA lista filtrada):
+    // en el caso congelado del ancla movida los depósitos se descartaron, el
+    // addback es cero y la rama ytdCostBase queda byte-idéntica (3.94%).
+    // El denominador NO se toca: sigue siendo el capital all-in ponderado.
+    const feeAddback = [...entryFeeAddbacks(portfolioItems, ytdFlows, {
+      fromTs: startTs, toTs: endTsNow, convert, baseCurrency,
+    }).values()].reduce((s, v) => s + v, 0)
+    const adjAbs = abs + feeAddback
     // With every flow dropped, Dietz's weighted capital IS startVal, so swapping
     // the base is just re-dividing the same gain. This is the one place the
     // headline can be made to agree, to the decimal, with AssetAllocation and
     // InstitutionPerformance, which have always divided by all-in cost.
-    const effPct = (ytdCostBase > 0 && startVal > 0) ? (abs / ytdCostBase) * 100 : pct
+    let effPct
+    if (ytdCostBase > 0 && startVal > 0) {
+      effPct = (adjAbs / ytdCostBase) * 100
+    } else if (feeAddback > 0 && isFinite(weightedCapital) && Math.abs(weightedCapital) > 0.01) {
+      const p = (adjAbs / weightedCapital) * 100
+      effPct = isFinite(p) ? p : pct
+    } else {
+      effPct = pct
+    }
     const clampedPct = Math.max(-200, Math.min(200, effPct))
     // FASE GR, purely additive: the three terms this memo measured with, handed
     // out unchanged so the "where your YTD comes from" panel can partition the
     // SAME quantities instead of rebuilding its own version of them (which is
     // how it ended up contradicting this very number). No value computed above
     // is touched; nothing here alters the frozen YTD formula.
-    return { returnYTD: clampedPct, ytdChange: abs, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated, ytdStartValue: startVal, ytdStartTs: startTs, ytdFlowsUsed: ytdFlows }
+    return { returnYTD: clampedPct, ytdChange: adjAbs, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated, ytdStartValue: startVal, ytdStartTs: startTs, ytdFlowsUsed: ytdFlows }
   }, [jan1Value, jan1Ts, jan1Transactional, netWorth, transactions, dietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot, accountCalibrations, portfolioItems])
 
   // FASE GR3: per-account year-start values from the SPREADSHEET's own monthly
@@ -1715,6 +1742,25 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       if (!isFinite(amt)) return
       addFlow(toKey, amt, txTs)
       addFlow(fromKey, -amt, txTs)
+    })
+
+    // FASE IA: el MISMO addback de comisiones de entrada que el encabezado (ver
+    // el memo YTD arriba y la spec congelada). El DEPOSIT de una compra hecha
+    // dentro de la ventana trae la comisión adentro; netearlo completo cobraba
+    // la comisión como pérdida de ESA cuenta, y la fila divergía de la gráfica
+    // escopada (IDC: fila +$207.57 contra gráfica +$379.74; la gráfica ya resta
+    // el capital nuevo neto de comisiones). Se resta del FLUJO (no se suma al
+    // gain) para que la identidad gain = end - start - flow siga siendo
+    // literal; flowBase (el denominador del retorno) NO se toca: el % sigue
+    // dividiendo entre el costo all-in, comisión incluida, igual que las
+    // tarjetas (3.94%, no 4.00%). Como el encabezado recibe el mismo addback,
+    // las filas siguen sumando el encabezado por construcción.
+    entryFeeAddbacks(portfolioItems, ytdFlowsUsed, {
+      fromTs: ytdStartTs, toTs: nowTs, convert, baseCurrency,
+    }).forEach((fee, itemId) => {
+      const k = accountOf.get(itemId)
+      if (!k) return
+      flowByAccount.set(k, (flowByAccount.get(k) || 0) - fee)
     })
 
     // start, PER ITEM first so each holding can take its value from whichever
