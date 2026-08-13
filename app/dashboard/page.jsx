@@ -157,6 +157,10 @@ export default function DashboardPage() {
   const [cashflowPrefill, setCashflowPrefill] = useState(null)
   const [importBrokerHint, setImportBrokerHint] = useState(null)
   const [editItem, setEditItem] = useState(null)
+  // Fechas ya marcadas como "no ocurrió" en esta sesión, por activo. Ver
+  // onDeleteMovement: `items` viaja capturado en el closure del render, así que
+  // dos borrados seguidos del mismo activo se pisaban entre sí.
+  const excludedDatesRef = useRef(new Map())
   const [sellItem, setSellItem] = useState(null)
   const [detailItem, setDetailItem] = useState(null)
   const [theme, setTheme] = useState('dark')
@@ -1913,18 +1917,51 @@ export default function DashboardPage() {
           // El borrado va por deleteTransactionWithReversal, la única vía que
           // además revierte el crédito que ese pago pudo haber movido en la
           // cuenta destino.
-          onDeleteMovement={async (m) => {
+          onDeleteMovement={async (m, c) => {
             if (!m?.txId) return
-            if (m.source === 'auto' && m.date && m.sourceItemId) {
-              const src = items.find((i) => i.id === m.sourceItemId)
-              if (src) {
-                const prev = Array.isArray(src.excludedPayDates) ? src.excludedPayDates : []
+            try {
+              if (m.source === 'auto' && m.date && m.sourceItemId) {
+                // Acumulador de sesión: `items` queda capturado en el closure de
+                // este render, así que borrar DOS pagos seguidos del mismo
+                // activo hacía que el segundo escribiera su fecha sobre una
+                // lista que todavía no traía la primera, perdiéndola. Es la
+                // misma forma del bug de FASE EL (dos llamadas leyendo el mismo
+                // snapshot viejo y ganando la última).
+                const already = excludedDatesRef.current.get(m.sourceItemId) || []
+                const src = items.find((i) => i.id === m.sourceItemId)
+                const prev = [...new Set([...(Array.isArray(src?.excludedPayDates) ? src.excludedPayDates : []), ...already])]
                 if (!prev.includes(m.date)) {
-                  await updateItem(src.id, { excludedPayDates: [...prev, m.date] })
+                  const next = [...prev, m.date]
+                  excludedDatesRef.current.set(m.sourceItemId, next)
+                  await updateItem(m.sourceItemId, { excludedPayDates: next })
                 }
               }
+              // Borrar un movimiento ANTERIOR a la fecha del saldo NO puede
+              // mover el saldo, y esa es la regla que faltaba.
+              //
+              // El saldo lo tecleó el usuario leyendo su estado de cuenta el 12
+              // de agosto: ya refleja lo que de verdad pasó, haya o no haya
+              // acreditado la app cada cupón por su cuenta. Con la reversión
+              // genérica, borrar un cupón de 2024 que en su momento SÍ movió el
+              // saldo se lo bajaba 600 quetzales, y entonces el descuadre volvía
+              // por otro lado: el usuario limpiaba sus datos y la app le
+              // cambiaba el saldo por debajo, que se lee como "no guardó".
+              //
+              // Es el invariante 1 de lib/assetLogic/liquidFundYield.js: el
+              // saldo tecleado es la verdad de hoy y nada lo empuja. Un
+              // movimiento POSTERIOR a la foto sí se revierte, porque ese sí
+              // llegó después y el saldo no lo contiene.
+              const afterPhoto = c?.asOfTs != null && Number.isFinite(m.ts) && m.ts > c.asOfTs
+              if (afterPhoto) await deleteTransactionWithReversal(m.txId)
+              else await deleteTransaction(m.txId)
+            } catch (err) {
+              // Un borrado que falla NO puede quedarse mudo: la fila desaparece
+              // de la lista igual (se recalcula sola) y el usuario cree que
+              // guardó, hasta que recarga y todo volvió.
+              showToast(lang === 'es'
+                ? `No se pudo borrar el movimiento: ${err.message}`
+                : `Could not delete the movement: ${err.message}`, 'error')
             }
-            await deleteTransactionWithReversal(m.txId)
           }}
         />
       )}
