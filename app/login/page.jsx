@@ -7,24 +7,22 @@ import { runAuthDiagnostics } from '@/lib/authDiagnostics'
 import Logo from '@/components/ui/Logo'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
 
-// FASE HW. El botón de Google queda OCULTO hasta que Firebase responda el
-// caso de soporte.
+// Google sign-in, ENCENDIDO otra vez (FASE HY2): funciona, verificado en
+// producción por el usuario.
 //
-// Nada del código de sign-in se borra: se agotó todo lo que se puede hacer de
-// este lado (arquitectura, dominios, redirect URIs, secret, cliente OAuth
-// completo, persistencia, dispositivos) y el fallo siempre es el mismo en el
-// tramo de VUELTA, sin payload de servidor. Borrar el código significaría
-// reconstruirlo entero el día que soporte conteste; ocultarlo cuesta una línea
-// en cada dirección. Mientras tanto nadie se topa con una puerta que no abre:
-// correo y contraseña funciona en todos los dispositivos.
+// Estuvo oculto tras esta bandera (FASE HW) mientras se buscaba la causa del
+// auth/internal-error que lo mató durante semanas. La causa resultó ser
+// NUESTRA: `apis.google.com` faltaba en la `script-src` de la CSP
+// (next.config.js), así que el navegador bloqueaba el script que el SDK de
+// Firebase Auth necesita, y Firebase envolvía ese evento de error de carga
+// como un internal-error genérico. Ver FASE HY, y el guardián
+// `lib/__tests__/cspGoogleAuth.test.js` que impide que vuelva a pasar.
 //
-// PARA VOLVER A ENCENDERLO: poner esta constante en true.
-//
-// PARA PROBARLO SIN DESPLEGAR: /login?google=1 lo muestra igual. Eso importa
-// porque queda pendiente UNA prueba limpia post-FASE HM (varias rondas
-// intermedias de "sigue fallando" pudieron correr contra el build viejo), y
-// sin esta puerta habría que desplegar dos veces para hacerla.
-const GOOGLE_SIGNIN_ENABLED = false
+// La bandera se queda: si algún día hay que apagarlo de urgencia, es una línea
+// en vez de un revert. `/login?google=1` sigue funcionando y ahora es
+// redundante (el botón ya se muestra siempre), lo que es correcto: forzar algo
+// que ya está encendido no hace daño.
+const GOOGLE_SIGNIN_ENABLED = true
 
 // Marca de que ESTA pestaña mandó al usuario a Google por redirect. Sin ella,
 // las dos piernas del flujo son indistinguibles cuando fallan: el popup y la
