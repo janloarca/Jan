@@ -763,8 +763,13 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
             </div>
             <div>
               <label htmlFor="edit-currency" className={labelCls}>{t('Moneda', 'Currency')}</label>
+              {/* FASE ID: misma regla que AddAccountModal: si el item guarda una
+                  moneda fuera de la lista fija (ej. 'GBp', peniques de Londres),
+                  se agrega como opción para que el select nunca muestre una
+                  moneda distinta de la guardada (un value sin opción renderiza
+                  la primera, USD, y se lee como dato corrupto). */}
               <select id="edit-currency" value={form.currency} onChange={e => requestCurrencyChange(e.target.value)} className={inputCls}>
-                {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                {(CURRENCIES.includes(form.currency) || !form.currency ? CURRENCIES : [form.currency, ...CURRENCIES]).map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div>
