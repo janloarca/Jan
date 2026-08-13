@@ -131,6 +131,28 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   const [emailPrefs, setEmailPrefs] = useState(() =>
     Object.fromEntries(EMAIL_CADENCES.map((c) => [c.key, settings?.[c.key] === true]))
   )
+  const [testingEmail, setTestingEmail] = useState(false)
+  const [testResult, setTestResult] = useState(null)
+  const handleTestEmail = async () => {
+    setTestingEmail(true)
+    setTestResult(null)
+    try {
+      const res = await authFetch('/api/notifications/test', { method: 'POST' })
+      const data = await safeJson(res)
+      if (res.ok) {
+        setTestResult({ ok: true, msg: t(`Enviado a ${data?.sentTo || userEmail}. Revisa tu bandeja (y spam).`, `Sent to ${data?.sentTo || userEmail}. Check your inbox (and spam).`) })
+      } else {
+        // El mensaje del servidor SMTP se muestra tal cual: si Zoho rechaza la
+        // autenticación, verlo aquí ahorra una ronda de logs.
+        setTestResult({ ok: false, msg: data?.error || t('No se pudo enviar', 'Could not send') })
+      }
+    } catch (e) {
+      setTestResult({ ok: false, msg: e.message || t('No se pudo enviar', 'Could not send') })
+    } finally {
+      setTestingEmail(false)
+    }
+  }
+
   const toggleEmailCadence = async (key) => {
     const next = { ...emailPrefs, [key]: !emailPrefs[key] }
     setEmailPrefs(next)
@@ -553,6 +575,23 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                         ? t(`Se envían a ${userEmail}. Todos los correos van en inglés.`, `Sent to ${userEmail}. All emails are in English.`)
                         : t('Todos los correos van en inglés.', 'All emails are in English.')}
                     </p>
+                    {/* Enviar una prueba ahora: el semanal solo sale los
+                        domingos, y esperar días para descubrir que el correo no
+                        sale es el ciclo lento que este repo ya pagó caro. Arma
+                        el MISMO correo de la corrida real. */}
+                    <div className="pt-1">
+                      <button type="button" onClick={handleTestEmail} disabled={testingEmail}
+                        className="px-3 py-1.5 text-xs rounded-lg border transition-colors disabled:opacity-50"
+                        style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-input)' }}>
+                        {testingEmail ? t('Enviando...', 'Sending...') : t('Enviarme una prueba', 'Send me a test')}
+                      </button>
+                      {testResult && (
+                        <p className="text-[11px] mt-1.5 leading-relaxed"
+                          style={{ color: testResult.ok ? 'var(--accent-green)' : 'var(--text-negative)' }}>
+                          {testResult.msg}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
               </SectionCard>
