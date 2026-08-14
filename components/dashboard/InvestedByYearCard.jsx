@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { PiggyBank } from 'lucide-react'
 import { formatCurrency } from './utils'
 import { InfoTip } from '../ui/Tooltip'
 import { buildReportSeries } from '@/lib/reportData'
@@ -31,15 +30,20 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
   const gainColor = (n) => (n >= 0 ? 'var(--accent-green)' : 'var(--text-negative)')
   const ratio = data.totalInvested > 0 && netWorth > 0 ? netWorth / data.totalInvested : null
 
+  // Mismo marco y mismo encabezado que AssetAllocation / InstitutionPerformance
+  // (p-4, punto + título en mayúsculas + InfoTip): las cuatro cards de esta
+  // zona comparten inset y tipografía, así que sus contenidos alinean sobre el
+  // mismo borde izquierdo en vez de tres estilos distintos en un mismo bloque.
+  // h-full + mt-auto en el bloque de cierre: la card estira hasta el alto de la
+  // columna vecina y el bloque de patrimonio queda pegado abajo, de modo que
+  // las dos columnas terminan en la misma línea.
   return (
-    <div data-card-id="INV-01" className="card-glass rounded-2xl p-5">
+    <div data-card-id="INV-01" className="card-glass rounded-2xl p-4 h-full flex flex-col">
       <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <PiggyBank className="w-4 h-4" style={{ color: 'var(--accent-blue)' }} />
-          <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-            {t('Invertido por año', 'Invested by year')}
-          </h3>
-        </div>
+        <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
+          {t('INVERTIDO POR AÑO', 'INVESTED BY YEAR')}
+        </h3>
         <InfoTip text={t(
           'Invertido = depósitos menos retiros de ese año en todas tus cuentas, descontando comisiones de entrada. Sin ganancias ni intereses, y el dinero movido entre tus propias cuentas no cuenta. Ganado = lo que rindieron las inversiones ese año, neto de tus aportes (método Dietz, el mismo del YTD). Toca un año para ver su detalle.',
           'Invested = that year\'s deposits minus withdrawals across all your accounts, entry fees discounted. No gains or interest, and money moved between your own accounts does not count. Earned = what your investments returned that year, net of your contributions (Dietz method, same as the YTD). Tap a year for its detail.'
@@ -127,9 +131,10 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
         </span>
       </div>
 
-      {/* El ejercicio patrimonio contra invertido */}
+      {/* El ejercicio patrimonio contra invertido. mt-auto lo ancla al fondo
+          cuando la card estira para igualar el alto de la columna vecina. */}
       {netWorth > 0 && (
-        <div className="flex items-baseline justify-between gap-2 mt-2 pt-2" style={{ borderTop: '1px solid var(--glass-border)' }}>
+        <div className="flex items-baseline justify-between gap-2 mt-auto pt-3" style={{ borderTop: '1px solid var(--glass-border)' }}>
           <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
             {t('Patrimonio hoy', 'Net worth today')}
             {ratio != null && (
