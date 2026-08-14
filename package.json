@@ -10,7 +10,6 @@
     "test": "jest"
   },
   "dependencies": {
-    "@sentry/nextjs": "^10.70.0",
     "@vercel/kv": "^3.0.0",
     "firebase": "^10.7.1",
     "firebase-admin": "^13.8.0",
