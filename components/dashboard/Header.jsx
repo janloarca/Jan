@@ -10,7 +10,7 @@ import { Search, Settings, LogOut, Plus, Upload, ChevronDown, Link2, Sparkles } 
 // ibkrNeedsAttention (not a raw `ibkrSyncStatus === 'error'`) drives the warning
 // triangle: a single transient sync failure is not news while auto-sync is still
 // retrying every 30min. The dashboard owns that rule so the pill, the top banner
-// and the ActionButtons dot always agree. See app/dashboard/page.jsx.
+// and the actions card dot always agree. See app/dashboard/page.jsx.
 
 // Same ring geometry as ChispudoRefreshButton's own indeterminate sweep
 // (viewBox 0 0 32 32, r=13.5) — reused here at pill scale so the IBKR pill's

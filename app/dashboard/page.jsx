@@ -14,7 +14,7 @@ import DashboardLoading from './loading'
 import NetWorthCard from '@/components/dashboard/NetWorthCard'
 import CalibrateReturnModal from '@/components/dashboard/CalibrateReturnModal'
 import IBKRJourneyBar from '@/components/dashboard/IBKRJourneyBar'
-import ActionButtons from '@/components/dashboard/ActionButtons'
+import QuickActionsCard from '@/components/dashboard/QuickActionsCard'
 import SectionCollapse from '@/components/dashboard/SectionCollapse'
 import MobileNav from '@/components/dashboard/MobileNav'
 import ErrorBoundary from '@/components/ErrorBoundary'
@@ -46,6 +46,8 @@ function ModalSkeleton() {
 const FileImportModal = dynamic(() => import('@/components/FileImportModal'), { loading: () => <ModalSkeleton /> })
 const AddAccountModal = dynamic(() => import('@/components/AddAccountModal'), { loading: () => <ModalSkeleton /> })
 const SellModal = dynamic(() => import('@/components/SellModal'), { loading: () => <ModalSkeleton /> })
+const SellPickerModal = dynamic(() => import('@/components/dashboard/SellPickerModal'), { loading: () => <ModalSkeleton /> })
+const PriceAlertsModal = dynamic(() => import('@/components/dashboard/PriceAlertsModal'), { loading: () => <ModalSkeleton /> })
 const TransferModal = dynamic(() => import('@/components/TransferModal'), { loading: () => <ModalSkeleton /> })
 const IBKRSyncModal = dynamic(() => import('@/components/IBKRSyncModal'), { loading: () => <ModalSkeleton /> })
 const BlockchainSyncModal = dynamic(() => import('@/components/BlockchainSyncModal'), { loading: () => <ModalSkeleton /> })
@@ -95,7 +97,6 @@ import { detectFakeAggregateTrades, detectImportStampedAcquisitions, detectFakeC
 import { IBKR_DISCONNECTED_FIELDS } from '@/lib/brokerRegistry'
 import { DEMO_ITEMS, DEMO_LOTS, DEMO_TRANSACTIONS, isDemoItem } from '@/lib/demoData'
 import AssetAllocation from '@/components/dashboard/AssetAllocation'
-import PriceAlerts from '@/components/dashboard/PriceAlerts'
 import NotificationCenter from '@/components/dashboard/NotificationCenter'
 import InstallPrompt from '@/components/dashboard/InstallPrompt'
 import EmptyState from '@/components/dashboard/EmptyState'
@@ -457,6 +458,14 @@ export default function DashboardPage() {
   }, [advanceIbkrJourney])
   const handleCloseEdit = useCallback(() => setEditItem(null), [])
   const handleCloseSell = useCallback(() => setSellItem(null), [])
+  // Vender era INALCANZABLE: SellModal solo se monta con un sellItem, y nada
+  // en la app llamaba a setSellItem (el único caller previsto era el botón por
+  // fila de AccountsTable, un componente que hoy no se renderiza en ningún
+  // lado). Por eso "no sabía dónde registrar una venta" no era un problema de
+  // descubrimiento sino de que el camino no existía. El picker elige la
+  // posición y recién ahí abre el SellModal de siempre, sin tocar su lógica.
+  const handleOpenSellPicker = useCallback(() => setModal('sellPicker'), [])
+  const handlePickSellItem = useCallback((it) => { setModal(null); setSellItem(it) }, [])
   const handleCloseDetail = useCallback(() => setDetailItem(null), [])
   const handleCloseReview = useCallback(() => setShowReview(false), [])
   const handleDismissToast = useCallback(() => setToast(null), [])
@@ -930,7 +939,7 @@ export default function DashboardPage() {
   }, [])
 
   // ONE rule for "is the IBKR connection actually in trouble?", shared by the top
-  // banner, the header pill and the ActionButtons dot. They each used to decide on
+  // banner, the header pill and the actions card dot. They each used to decide on
   // their own (`ibkrSyncStatus === 'error'`), so a single transient failure lit up
   // a warning triangle over data synced hours ago.
   // FASE HX: la regla completa (5 días hábiles sin señal de conexión, para TODO
@@ -1358,17 +1367,24 @@ export default function DashboardPage() {
                 </div>
                 <div className="flex flex-col gap-3 sm:gap-4 min-w-0">
                   <CardBoundary id="INST-01"><InstitutionPerformance items={portfolioItems} lang={lang} baseCurrency={baseCurrency} transactions={transactions} convert={convert} ibkrDataComplete={ibkrDataComplete} /></CardBoundary>
-                  <CardBoundary id="OL-03"><PriceAlerts items={portfolioItems} alerts={alerts} marketPrices={marketPrices} addAlert={addAlert} deleteAlert={deleteAlert} lang={lang} /></CardBoundary>
+                  {/* Las acciones viven DENTRO del marco, a la altura de
+                      "Invertido por año", en vez de una barra de botones
+                      sueltos debajo de las tarjetas. Las alertas de precio
+                      son una acción más (abren su modal) en vez de una card
+                      casi siempre vacía ocupando media columna. */}
+                  <CardBoundary id="ACT-01">
+                    <QuickActionsCard
+                      onImport={handleOpenImport} onAddAccount={handleOpenAccount}
+                      onTransfer={handleOpenTransfer} onCashFlow={handleOpenCashflow}
+                      onSell={handleOpenSellPicker} onPriceAlerts={() => setModal('priceAlerts')}
+                      onExport={handleExport} onShare={handleShare}
+                      onIntegrations={handleOpenConnections} onReview={handleOpenReview}
+                      itemCount={enrichedItems.length} alertCount={(alerts || []).length} lang={lang}
+                      ibkrSyncStatus={ibkrSyncStatus} ibkrLastSync={ibkrLastSync} ibkrNeedsAttention={ibkrNeedsAttention}
+                    />
+                  </CardBoundary>
                 </div>
               </div>
-
-              <ActionButtons
-                onImport={handleOpenImport} onAddAccount={handleOpenAccount}
-                onTransfer={handleOpenTransfer} onCashFlow={handleOpenCashflow} onExport={handleExport}
-                onShare={handleShare} onIntegrations={handleOpenConnections}
-                onReview={handleOpenReview} itemCount={enrichedItems.length} lang={lang}
-                ibkrSyncStatus={ibkrSyncStatus} ibkrLastSync={ibkrLastSync} ibkrNeedsAttention={ibkrNeedsAttention}
-              />
 
               {!hasHigh && suggestionsCard}
             </>
@@ -1485,6 +1501,20 @@ export default function DashboardPage() {
           onTransfer={transferFunds}
           onAddTransaction={() => showToast(lang === 'es' ? 'Transferencia registrada' : 'Transfer recorded')}
           existingItems={items} lang={lang}
+        />
+      )}
+
+      {modal === 'sellPicker' && (
+        <SellPickerModal
+          items={portfolioItems} onPick={handlePickSellItem} onClose={handleCloseModal}
+          lang={lang} baseCurrency={baseCurrency}
+        />
+      )}
+
+      {modal === 'priceAlerts' && (
+        <PriceAlertsModal
+          items={portfolioItems} alerts={alerts} marketPrices={marketPrices}
+          addAlert={addAlert} deleteAlert={deleteAlert} lang={lang} onClose={handleCloseModal}
         />
       )}
 
