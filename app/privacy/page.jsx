@@ -26,7 +26,7 @@ export default function PrivacyPage() {
           </div>
           <h1 className="text-xl font-bold text-white">Privacy Policy</h1>
           <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary, var(--text-secondary))' }}>
-            Last updated: August 13, 2026
+            Last updated: August 14, 2026
           </p>
         </div>
 
@@ -59,6 +59,7 @@ export default function PrivacyPage() {
             <li><span className="text-white">Exchange rate providers</span>: to convert between currencies.</li>
             <li><span className="text-white">Vercel</span>: application hosting.</li>
             <li><span className="text-white">Email provider</span>: to deliver the notification emails you turn on. Your address is used only to send them.</li>
+            <li><span className="text-white">Sentry</span>: error reporting. When something breaks in the app, a technical report is sent so we can fix it: the error, the file and line, the app version, and your account identifier. It never includes your email, your balances, your positions or your broker credentials.</li>
           </ul>
           <p>
             With brokers (for example Interactive Brokers) there is only a READ connection, and only when

@@ -7,6 +7,9 @@ const nextConfig = {
     NEXT_BUILD_ID: `b${Date.now().toString(36)}`,
   },
   transpilePackages: ['undici'],
+  // Next 14 todavía necesita el flag para cargar instrumentation.js, que es
+  // donde arranca Sentry del lado del servidor y del edge.
+  experimental: { instrumentationHook: true },
   // FASE FV. El helper de OAuth de Firebase (signInWithPopup/Redirect) vive en
   // <proyecto>.firebaseapp.com: un dominio CRUZADO cuyo storage Safari bloquea
   // (Intelligent Tracking Prevention), y el sign-in con Google muere en
@@ -39,8 +42,19 @@ const nextConfig = {
       { source: '/__/firebase/:path*', destination: '/api/firebase-helper/:path*' },
     ]
   },
-  webpack: (config) => {
+  webpack: (config, { webpack }) => {
     config.externals = [...(config.externals || []), { 'undici': 'commonjs undici' }]
+    // Sentry envía TODO su código de trazas y de depuración aunque estén
+    // apagados por configuración: apagarlos en runtime no los saca del bundle.
+    // Estas banderas sí, y esta app se abre en teléfonos, así que cada kilobyte
+    // del arranque cuenta. Medido: sin esto el bundle compartido sube ~71 kB.
+    config.plugins.push(new webpack.DefinePlugin({
+      __SENTRY_DEBUG__: false,
+      __SENTRY_TRACING__: false,
+      __RRWEB_EXCLUDE_IFRAME__: true,
+      __RRWEB_EXCLUDE_SHADOW_DOM__: true,
+      __SENTRY_EXCLUDE_REPLAY_WORKER__: true,
+    }))
     return config
   },
   async headers() {
@@ -146,4 +160,34 @@ const nextConfig = {
   },
 }
 
-module.exports = nextConfig
+// Sentry envuelve la config para (a) inyectar su cliente en el bundle y (b)
+// SUBIR LOS SOURCE MAPS al construir, que es lo que convierte un
+// "Cannot access 'nL'" en "showToast, page.jsx:416".
+//
+// Todo esto es opcional por diseño: sin SENTRY_AUTH_TOKEN no se suben mapas y
+// sin DSN el cliente ni se inicializa, así que un build sin configurar (o el de
+// alguien que clone el repo) se comporta exactamente como antes.
+//
+// `widenClientFileUpload` incluye los chunks compartidos, que es justo donde
+// vivía el error de esta mañana. `hideSourceMaps` evita que los mapas queden
+// servidos públicamente: se suben a Sentry y no se exponen en el sitio, así que
+// ganamos nombres legibles sin publicar el código fuente.
+const { withSentryConfig } = require('@sentry/nextjs')
+
+module.exports = withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: !process.env.CI,
+  widenClientFileUpload: true,
+  hideSourceMaps: true,
+  disableLogger: true,
+  sourcemaps: {
+    // Sin token no hay a dónde subirlos: generarlos igual solo alargaría el
+    // build y dejaría archivos .map sin destino.
+    disable: !process.env.SENTRY_AUTH_TOKEN,
+  },
+  // El túnel evita que los bloqueadores de anuncios se coman los reportes, que
+  // es un porcentaje real de usuarios en móvil.
+  tunnelRoute: '/monitoring',
+})
