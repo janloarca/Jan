@@ -10,6 +10,7 @@ import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { indexBalanceEvents } from '@/lib/historicalValues'
 import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget } from '@/lib/autoDividends'
 import { unlinkedOpeningDeposits } from '@/lib/originDeposits'
+import { resolvePriceCurrency } from '@/lib/penceCurrency'
 import { corruptSnapshotRunIds, feEraSuspectDailyIds } from '@/lib/corruptSnapshots'
 import { planEquitySnapshotWrites, misplacedPlainNavMigrations } from '@/lib/ibkrSnapshotPlan'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
@@ -159,7 +160,14 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       const itemCurrency = it.marketCurrency || it.currency || 'USD'
       const price = it.currentPrice || it.purchasePrice || it.price || it.cost || 0
       const convertedPrice = convert(price, itemCurrency, baseCurrency)
-      const purchaseConverted = it.purchasePrice ? convert(it.purchasePrice, it.currency || 'USD', baseCurrency) : 0
+      // FASE IE: la unidad del precio de compra la decide resolvePriceCurrency
+      // (lib/penceCurrency.js): con la misma divisa pero distinta unidad
+      // (guardado 'GBP' libras, cotizado 'GBp' peniques) manda la del quote,
+      // porque el precio de entrada se teclea desde esa misma pantalla. Sin
+      // esto, valor y costo del MISMO activo quedaban separados por 100x y una
+      // acción quieta reportaba "-99.00%".
+      const purchaseCurrency = resolvePriceCurrency(it.currency || 'USD', it.marketCurrency)
+      const purchaseConverted = it.purchasePrice ? convert(it.purchasePrice, purchaseCurrency, baseCurrency) : 0
       return {
         ...it,
         currentPrice: convertedPrice,
