@@ -405,7 +405,15 @@ export default function DashboardPage() {
       showToast(fb.message, fb.tone, 6000)
       if (fb.action === 'open-connection') setModal('ibkr')
     }
-  }, [ibkrConnected, ibkrAutoSyncing, triggerIBKRSync, lang, ibkrCooldownUntil, showToast])
+    // ⚠ showToast NO va en estas dependencias: está declarado con `const` MÁS
+    // ABAJO en este mismo componente (línea ~505), y una deps array se evalúa
+    // en CADA render, así que referenciarlo desde aquí arriba lanza un
+    // ReferenceError de temporal dead zone ("Cannot access 'X' before
+    // initialization") que tumba el dashboard entero antes de pintar nada.
+    // Ya pasó en FASE HC con refetchBenchmark; esta es la segunda vez.
+    // Omitirlo es seguro y es lo que este archivo hacía antes: showToast es un
+    // useCallback con deps [], o sea su identidad nunca cambia.
+  }, [ibkrConnected, ibkrAutoSyncing, triggerIBKRSync, lang, ibkrCooldownUntil])
   const handleOpenBlockchain = useCallback(() => setModal('blockchain'), [])
   const handleOpenPrint = useCallback(() => setModal('print'), [])
   const handleOpenReview = useCallback(() => { setReviewTarget({ itemId: null, guided: false, institution: null }); setShowReview(true) }, [])
