@@ -157,7 +157,7 @@ function DoneStep({ result, onClose, onComplementFile, t }) {
   )
 }
 
-export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, savedQueryId, vaultMigrated = false, syncSummary = null, onSaveCredentials, onSaveCredentialsPending, onApiSyncSuccess, onDisconnect, lang = 'es', uid, lastSyncTime, existingItems = [], existingTransactions = [], existingSnapshots = [] }) {
+export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, savedQueryId, vaultMigrated = false, syncSummary = null, onSaveCredentials, onSaveCredentialsPending, onApiSyncSuccess, onDisconnect, lang = 'es', uid, lastSyncTime, existingItems = [], existingTransactions = [], existingSnapshots = [], journeyActive = false }) {
   const trapRef = useFocusTrap()
   // Connected = a usable token (legacy client copy OR migrated to the server
   // vault) AND a query id. Mirrors ibkrConnected in useDashboardData: judging by
@@ -877,8 +877,14 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   </div>
                 )}
               </div>
-              {/* Mode tabs: API Sync vs File Import */}
-              <div className="flex bg-theme-base rounded-lg border border-glass-border p-0.5">
+              {/* Mode tabs: API Sync vs File Import.
+                  FASE IH2: dentro del viaje no se muestran. Subir el archivo
+                  es el PASO 2, con su propia pantalla: ofrecerlo también como
+                  pestaña acá pone al usuario a elegir entre "este paso" y "el
+                  siguiente", que es justo la bifurcación que el viaje existe
+                  para quitar. Fuera del viaje (abrir IBKR desde conexiones)
+                  las dos pestañas siguen siendo la única puerta al archivo. */}
+              <div className={`flex bg-theme-base rounded-lg border border-glass-border p-0.5 ${journeyActive ? 'hidden' : ''}`}>
                 <button onClick={() => { setImportMode('api'); setError(''); setErrorCode('') }}
                   className={`flex-1 py-2 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-1.5 ${
                     importMode === 'api' ? 'bg-theme-card text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'
@@ -911,7 +917,13 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   pantalla tenía su PROPIA copia hardcodeada de 3 pasos con 4
                   párrafos naranjas siempre expandidos debajo del paso 1, la
                   pared de texto que el usuario señaló como agobiante. */}
-              <BrokerSteps steps={getBrokerHowTo('ibkr').api.steps} note={getBrokerHowTo('ibkr').api.note} variant="api" lang={lang} />
+              {/* FASE IH2: plegado por defecto. Con los 6 pasos abiertos, los
+                  campos de Token y Query ID (lo único que esta pantalla pide)
+                  quedaban por debajo del borde inferior: había que hacer
+                  scroll a través de toda la instrucción para llegar a la
+                  acción. Quien ya sabe conseguir su token no lee nada; quien
+                  no, lo abre de un toque. */}
+              <BrokerSteps steps={getBrokerHowTo('ibkr').api.steps} note={getBrokerHowTo('ibkr').api.note} variant="api" lang={lang} collapsible />
 
               <div className="border-t border-glass-border/40 pt-5 space-y-4">
                 <div>
