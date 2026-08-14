@@ -1,7 +1,9 @@
 export const CARD_REGISTRY = {
   'OL-01': { component: 'NetWorthCard', section: 'overview-left', label: 'Net Worth' },
   'OL-02': { component: 'BenchmarkComparison', section: 'overview-left', label: 'Benchmark' },
-  'OL-03': { component: 'PriceAlerts', section: 'overview-left', label: 'Price Alerts' },
+  // PriceAlerts dejó de ser card del overview (FASE IC): vive en su modal,
+  // abierto desde QuickActionsCard.
+  'ACT-01': { component: 'QuickActionsCard', section: 'overview-right', label: 'Actions' },
   'OL-04': { component: 'UpcomingDividends', section: 'overview-left', label: 'Upcoming Dividends' },
   'OL-05': { component: 'ContinuousYieldDisplay', section: 'overview-left', label: 'Continuous Yield' },
   'OL-06': { component: 'VariableRateDashboard', section: 'overview-left', label: 'Variable Rate' },

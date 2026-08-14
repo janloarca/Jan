@@ -114,8 +114,8 @@ const DEMO_STEPS = (t) => [
   {
     anchor: '[data-tour="actions"]',
     title: t('Todo se hace desde aquí', 'Everything happens here'),
-    body: t('Agregar activos, importar de tu broker, registrar depósitos y retiros, exportar y compartir.',
-            'Add assets, import from your broker, log deposits and withdrawals, export and share.'),
+    body: t('Registrar un depósito, un retiro o una venta, agregar activos, importar de tu broker y revisar lo que falte. Cada botón dice para qué sirve.',
+            'Record a deposit, a withdrawal or a sale, add assets, import from your broker and review what is missing. Each button says what it is for.'),
   },
   {
     anchor: '[data-card-id="SUGG-01"]',
