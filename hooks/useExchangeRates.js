@@ -1,6 +1,5 @@
 import { authFetch } from '@/lib/authFetch'
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { convertWithRates, normalizeCurrency } from '@/lib/penceCurrency'
 
 // Caché en memoria a nivel de módulo: al volver a una sección el hook arranca
 // con las últimas tasas conocidas y revalida en background con la misma
@@ -107,29 +106,33 @@ export function useExchangeRates(baseCurrency) {
     return () => { mountedRef.current = false; clearInterval(interval) }
   }, [baseCurrency])
 
-  // FASE ID: la aritmética (incluida la normalización de peniques GBp/GBX, el
-  // bug del 100x de las acciones de Londres) vive en lib/penceCurrency.js,
-  // compartida con el convert del servidor para que no puedan divergir.
   const convert = useCallback((amount, fromCurrency, toCurrency) => {
     if (!amount || !ratesRef.current) return amount || 0
-    return convertWithRates(amount, fromCurrency || 'USD', toCurrency || baseRef.current || 'USD', ratesRef.current, {
-      warn: (code) => console.warn(`[exchange] Missing rate for ${code}`),
-    })
+    const from = (fromCurrency || 'USD').toUpperCase()
+    const to = (toCurrency || baseRef.current || 'USD').toUpperCase()
+    if (from === to) return amount
+    const fromRate = ratesRef.current[from]
+    const toRate = ratesRef.current[to]
+    if (!fromRate || !toRate) {
+      console.warn(`[exchange] Missing rate for ${!fromRate ? from : to}`)
+      return amount
+    }
+    const result = (amount / fromRate) * toRate
+    return isFinite(result) ? result : amount
   }, [])
 
   const getRate = useCallback((fromCurrency, toCurrency) => {
     if (!ratesRef.current) return 1
-    const f = normalizeCurrency(fromCurrency || 'USD')
-    const t = normalizeCurrency(toCurrency || baseRef.current || 'USD')
-    if (f.code === t.code && f.factor === t.factor) return 1
-    if (f.code === t.code) return f.factor / t.factor
-    const fromRate = ratesRef.current[f.code]
-    const toRate = ratesRef.current[t.code]
+    const from = (fromCurrency || 'USD').toUpperCase()
+    const to = (toCurrency || baseRef.current || 'USD').toUpperCase()
+    if (from === to) return 1
+    const fromRate = ratesRef.current[from]
+    const toRate = ratesRef.current[to]
     if (!fromRate || !toRate) {
-      console.warn(`[exchange] Missing rate for ${!fromRate ? f.code : t.code}`)
+      console.warn(`[exchange] Missing rate for ${!fromRate ? from : to}`)
       return 1
     }
-    return (toRate / fromRate) * (f.factor / t.factor)
+    return toRate / fromRate
   }, [])
 
   const convertItemValue = useCallback((item) => {

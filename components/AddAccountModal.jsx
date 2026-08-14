@@ -7,7 +7,6 @@ import { validateItem } from '@/lib/validation'
 import InlineCreateAccount from './InlineCreateAccount'
 import TimelineEditor, { validateTimelineRows } from './TimelineEditor'
 import { detectCurrency } from '@/lib/institutionCurrency'
-import { normalizeCurrency } from '@/lib/penceCurrency'
 import { getScheduledPayDates, estimateIncomeAmount } from '@/lib/incomeSchedule'
 import { InfoTip } from './ui/Tooltip'
 import { DEBT_CLARIFICATION } from './dashboard/utils'
@@ -1112,25 +1111,21 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               <label htmlFor="add-currency" className={labelCls}>
                 {t('Moneda', 'Currency')} <span style={{ color: 'var(--text-negative)' }}>*</span>
               </label>
-              {/* FASE ID: la moneda detectada del quote (ej. 'GBp', peniques de
-                  la Bolsa de Londres) puede no estar en la lista fija. Antes el
-                  <select> con un value fuera de sus opciones RENDERIZABA la
-                  primera (USD) mientras el valor real del form era GBp: el
-                  usuario veía "USD · Auto-detected" sobre un precio en
-                  peniques y concluía, con razón, que la plataforma leía mal la
-                  moneda. La opción detectada se agrega al frente para que lo
-                  que se ve sea siempre lo que se guarda. */}
+              {/* FASE IF (lo ÚNICO que el usuario pidió aquí): al registrar a
+                  mano una acción de otro país, el campo tiene que mostrar la
+                  moneda de ESE país. La moneda detectada del quote (ej. 'GBp'
+                  de la Bolsa de Londres) puede no estar en la lista fija, y un
+                  <select> con un value fuera de sus opciones RENDERIZA la
+                  primera (USD): se leía "USD · Auto-detected" sobre un precio
+                  de Londres, y cualquiera concluye que la plataforma está
+                  leyendo mal la moneda. La opción detectada se agrega al frente
+                  para que lo que se ve sea siempre lo que se guarda. Cambio de
+                  DISPLAY: no toca ninguna conversión. */}
               <select id="add-currency" value={form.currency} onChange={e => set('currency', e.target.value)} className={inputCls}>
                 {(CURRENCIES.includes(form.currency) || !form.currency ? CURRENCIES : [form.currency, ...CURRENCIES]).map(c => <option key={c} value={c}>{c}</option>)}
               </select>
               {detectedCurrency && form.currency === detectedCurrency && (
                 <p className="text-xs mt-1" style={{ color: 'var(--accent-green)' }}>✓ {t('Detectada automáticamente', 'Auto-detected')}</p>
-              )}
-              {normalizeCurrency(form.currency).factor === 0.01 && (
-                <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-                  {t('GBp son peniques británicos (centésimas de libra): así cotiza la Bolsa de Londres. La conversión usa la tasa correcta del penique.',
-                     'GBp is British pence (hundredths of a pound): that is how the London Stock Exchange quotes. Conversion uses the correct penny rate.')}
-                </p>
               )}
             </div>
 
