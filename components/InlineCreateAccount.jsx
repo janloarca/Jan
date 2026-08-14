@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { detectCurrency } from '@/lib/institutionCurrency'
+import { currencyOptions } from '@/lib/currencies'
 
-const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
 
 const SUBTYPES = [
   { key: 'checking', es: 'Corriente', en: 'Checking' },
@@ -101,7 +101,7 @@ export default function InlineCreateAccount({ onCreate, onCancel, onCreated, lan
           placeholder={t('Saldo de hoy (opcional)', 'Balance today (optional)')}
           type="number" step="any" className={inputCls} />
         <select value={currency} onChange={e => { setCurrency(e.target.value); setCurrencyTouched(true) }} className={inputCls}>
-          {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+          {currencyOptions(currency).map(c => <option key={c} value={c}>{c}</option>)}
         </select>
       </div>
       {/* It said "saldo inicial", which invites a 0 or an opening figure. The
