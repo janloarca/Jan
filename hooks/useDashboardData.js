@@ -19,7 +19,7 @@ import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds, applyLi
 import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
 import { knownContributions, computeLiquidYield, yieldSignature, supersededYieldTxIds } from '@/lib/liquidYield'
 import { clampPayDay, payDateFor, impossiblePayDateFixes, isPayDateExcluded } from '@/lib/incomeSchedule'
-import { attributeYtd } from '@/lib/ytdAttribution'
+import { attributeYtd, deriveBrokerStart } from '@/lib/ytdAttribution'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes, pairPortfolioWithBenchmark } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
 
@@ -1860,9 +1860,22 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       ? convertSnapshot(brokerAnchor.netWorthUSD ?? brokerAnchor.totalActivosUSD ?? 0)
       : null
 
-    const build = (useRealBrokerStart) => [...endByAccount.keys()].map((k) => {
-      const realStart = (useRealBrokerStart && k === 'ibkr' && brokerStartUSD != null && brokerStartUSD > 0)
-        ? brokerStartUSD
+    // El arranque del broker despejado del ancla (lib/ytdAttribution.js): con
+    // broker conectado el ancla es un doc compuesto (NAV real + reconstrucción
+    // de lo manual), así que restarle los arranques manuales devuelve el NAV
+    // real de esa fecha. Es la diferencia que hacía rehusar el panel cuando el
+    // ancla del broker no se encuentra por fecha: los arranques usaban la
+    // estimación por precios del broker y el ancla su NAV real.
+    const derivedBrokerStart = endByAccount.has('ibkr')
+      ? deriveBrokerStart({
+        anchor: ytdStartValue,
+        manualStarts: [...endByAccount.keys()].filter((k) => k !== 'ibkr').map((k) => startByAccount.get(k) || 0),
+      })
+      : null
+
+    const build = (brokerStartOverride) => [...endByAccount.keys()].map((k) => {
+      const realStart = (k === 'ibkr' && brokerStartOverride != null && brokerStartOverride > 0)
+        ? brokerStartOverride
         : null
       return {
         key: k,
@@ -1887,10 +1900,15 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // que el intento con NAV real falle es esperado a veces y el fallback
     // existe justo para eso; lo que explica la ausencia del panel es por qué
     // falló también el último intento.
+    // Tres intentos, del mejor dato al último recurso: NAV real del broker por
+    // fecha; el mismo NAV despejado del ancla (exacto por construcción cuando
+    // el ancla es un doc compuesto); y todo estimado por precios.
     const diagReal = {}
+    const diagDerived = {}
     const diagEst = {}
-    const breakdown = attributeYtd({ accounts: build(true), ...args }, diagReal)
-      || attributeYtd({ accounts: build(false), ...args }, diagEst)
+    const breakdown = attributeYtd({ accounts: build(brokerStartUSD), ...args }, diagReal)
+      || (derivedBrokerStart != null ? attributeYtd({ accounts: build(derivedBrokerStart), ...args }, diagDerived) : null)
+      || attributeYtd({ accounts: build(null), ...args }, diagEst)
     // El detail viaja con la razón DEL MISMO intento (FASE HY): mezclar la
     // razón del intento estimado con los números del intento real describiría
     // un rechazo que no ocurrió.
@@ -1899,12 +1917,20 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // intento reportado (arranque/hoy/flujos) y el ancla. Con solo el residuo
     // total ($6,667.71) supimos la escala pero no QUÉ cuenta faltaba: con esta
     // lista, la próxima captura es el diagnóstico completo (lección FASE HP).
-    const debugAccounts = breakdown ? null : build(diagEst.reason ? false : true)
+    const debugAccounts = breakdown ? null : build(null)
       .map((a) => ({ name: a.name, start: a.start, end: a.endVal, flow: a.flow, real: !!a.startIsReal }))
     return {
       breakdown,
       reason: breakdown ? null : (chosen.reason || 'unknown'),
-      detail: breakdown ? null : { ...(chosen.detail || {}), accounts: debugAccounts, anchor: ytdStartValue },
+      detail: breakdown ? null : {
+        ...(chosen.detail || {}),
+        accounts: debugAccounts,
+        anchor: ytdStartValue,
+        // Un solo bit que separa "el NAV del broker no se encontró por fecha"
+        // de "se encontró y contradice al ancla": sin él, cada ronda de
+        // diagnóstico se va en deducirlo de los síntomas (lección FASE HP).
+        brokerAnchorFound: brokerStartUSD != null,
+      },
     }
   }, [ytdEndpoints, portfolioItems, convert, baseCurrency, ytdChange, ytdStartValue, ytdStartTs, ytdFlowsUsed, snapshots, convertSnapshot, spreadsheetStart, transactions, lots])
 

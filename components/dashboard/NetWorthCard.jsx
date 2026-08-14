@@ -307,14 +307,18 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
                 </div>
               )}
 
-              {/* FASE HY: la regeneración pasiva depende de una docena de gates
-                  (la lección de FASE HP), así que el rechazo por ancla vieja
-                  nombra la acción que la fuerza en vez de solo pedir paciencia. */}
+              {/* Sin pedirle al usuario que apriete nada: Chispu regenera el
+                  historial solo, una vez por día. La versión anterior mandaba a
+                  "Agregar datos históricos" → "Reparar ahora"; el usuario lo
+                  hizo, se reescribieron 219 días y el descuadre se movió $40,
+                  o sea el consejo era trabajo manual que además no resolvía
+                  nada. Un mensaje que manda a apretar un botón que la app ya
+                  aprieta sola es peor que no decir nada. */}
               {ytdBreakdownReason === 'unexplained-too-large' && (
                 <p className="text-[11px] mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
                   {lang === 'es'
-                    ? 'Se corrige solo cuando el historial termina de regenerarse. Para forzarlo: "Agregar datos históricos" → "Reparar ahora".'
-                    : 'It self-corrects once history finishes regenerating. To force it: "Add historical data" → "Repair now".'}
+                    ? 'Chispu regenera el historial solo, sin que tengas que hacer nada. Si el desglose sigue sin aparecer, el detalle de abajo dice qué cuenta no cuadra.'
+                    : 'Chispu regenerates history on its own, with nothing for you to do. If the breakdown still does not appear, the detail below says which account does not add up.'}
                 </p>
               )}
 
