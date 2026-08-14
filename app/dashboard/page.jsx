@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useDashboardData } from '@/hooks/useDashboardData'
 import { getItemValue, formatCurrency, getTypeCategory, ibkrAttentionNeeded } from '@/components/dashboard/utils'
 import { computeLoadStages } from '@/lib/loadStages'
+import { ibkrJourneyProgress } from '@/lib/ibkrJourney'
 import Header from '@/components/dashboard/Header'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
 import AdBanner from '@/components/AdBanner'
@@ -436,6 +437,27 @@ export default function DashboardPage() {
   const [ibkrJourney, setIbkrJourney] = useState(null) // null | 1..5
   const ibkrJourneyRef = useRef(null)
   useEffect(() => { ibkrJourneyRef.current = ibkrJourney }, [ibkrJourney])
+  // El avance real de IBKR (cuántos de los 4 requisitos están cumplidos y
+  // cuál sigue), derivado del MISMO brokerCompletionState que alimenta al
+  // checklist. Lo consumen la barra del viaje (checks en los círculos), el
+  // panel de ConnectionsModal y el resumen final.
+  const ibkrProgress = useMemo(() => ibkrJourneyProgress(brokerCompletionState), [brokerCompletionState])
+  // Abrir un paso concreto del viaje, sin pasar por la secuencia. Es lo que
+  // alimenta los círculos tocables de la barra y las filas del panel de
+  // avance: el viaje es una secuencia SUGERIDA, y el usuario pidió poder
+  // "tocar el que quiere editar". Una sola definición de qué modal abre cada
+  // paso, para que saltar y avanzar no puedan discrepar.
+  const openIbkrJourneyStep = useCallback((n) => {
+    const step = Math.max(1, Math.min(5, Number(n) || 1))
+    setIbkrJourney(step)
+    setBrokerCompletionId(null)
+    if (step !== 2) setImportBrokerHint(null)
+    if (step === 1) setModal('ibkr')
+    else if (step === 2) { setImportBrokerHint('ibkr'); setModal('import') }
+    else if (step === 3) setModal('quarterly')
+    else if (step === 4) setModal('calibrate')
+    else { setModal(null); setTimeout(() => setBrokerCompletionId('ibkr'), 50) }
+  }, [])
   const advanceIbkrJourney = useCallback((fromStep = null) => {
     const cur = ibkrJourneyRef.current
     if (cur == null) return
@@ -470,12 +492,13 @@ export default function DashboardPage() {
     if (ibkrJourneyRef.current !== fromStep) return
     setTimeout(() => advanceIbkrJourney(fromStep), IBKR_AUTO_ADVANCE_MS)
   }, [advanceIbkrJourney])
-  const startIbkrJourney = useCallback(() => {
-    setBrokerCompletionId(null)
-    setImportBrokerHint(null)
-    setIbkrJourney(1)
-    setModal('ibkr')
-  }, [])
+  // El argumento es opcional y se valida con typeof: este callback está
+  // cableado directo a onClick en ConnectionsModal, así que recibe un
+  // MouseEvent cuando nadie le pasa un paso (misma trampa que documenta
+  // FASE GQ4 para advanceIbkrJourney).
+  const startIbkrJourney = useCallback((n) => {
+    openIbkrJourneyStep(typeof n === 'number' ? n : 1)
+  }, [openIbkrJourneyStep])
   const exitIbkrJourney = useCallback(() => {
     setIbkrJourney(null)
     setModal(null)
@@ -1583,6 +1606,8 @@ export default function DashboardPage() {
           ][ibkrJourney - 1]}
           onSkip={advanceIbkrJourney}
           onExit={exitIbkrJourney}
+          onJump={openIbkrJourneyStep}
+          doneSteps={ibkrProgress.steps.filter((s) => s.done).map((s) => s.step)}
           lang={lang}
         />
       )}
@@ -1765,6 +1790,8 @@ export default function DashboardPage() {
           portfolioItems={portfolioItems}
           onOpenIBKR={handleOpenIBKR}
           onStartIbkrJourney={startIbkrJourney}
+          ibkrProgress={ibkrProgress}
+          onOpenIbkrStep={openIbkrJourneyStep}
           onBackgroundSync={handleIBKRPillClick}
           onImport={handleOpenImport}
           onAddAccount={handleOpenAccount}
@@ -1947,6 +1974,8 @@ export default function DashboardPage() {
           lang={lang}
           onClose={() => { setBrokerCompletionId(null); setIbkrJourney(null) }}
           completionState={brokerCompletionState}
+          progress={brokerCompletionId === 'ibkr' ? ibkrProgress : null}
+          onOpenStep={openIbkrJourneyStep}
           onConnect={() => setModal('ibkr')}
           onImportHistory={() => handleOpenImport('ibkr')}
           onQuarterlyHistory={handleOpenQuarterly}

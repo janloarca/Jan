@@ -12,6 +12,7 @@ import { authFetch, safeJson } from '@/lib/authFetch'
 import { getBrokerRegistry, IBKR_DISCONNECTED_FIELDS } from '@/lib/brokerRegistry'
 import { getBrokerHowTo } from '@/lib/brokerHowTo'
 import BrokerConnectModal from '@/components/BrokerConnectModal'
+import BrokerProgressPanel from '@/components/dashboard/BrokerProgressPanel'
 
 // Not a lib/brokerRegistry.js entry: IBKR's /api/brokers/ibkr endpoint takes
 // {token, queryId}, not the generic {fields: [...]} shape every registry
@@ -22,7 +23,15 @@ import BrokerConnectModal from '@/components/BrokerConnectModal'
 // render the Token/Query ID pair instead of a generic credentials form.
 const IBKR_PSEUDO_BROKER = { id: 'ibkr', name: 'Interactive Brokers', icon: '🏦', hasApi: true, authType: null, fields: [] }
 
-export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, onStartIbkrJourney, onBackgroundSync, onImport, onAddAccount, onOpenBlockchain, onOpenLedger, onSaveCredentials, onCalibrate, onOpenBrokerChecklist, lang = 'es', lastSyncTime, portfolioItems = [] }) {
+export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, onStartIbkrJourney, onBackgroundSync, onImport, onAddAccount, onOpenBlockchain, onOpenLedger, onSaveCredentials, onCalibrate, onOpenBrokerChecklist, lang = 'es', lastSyncTime, portfolioItems = [],
+  // FASE IH: el avance real de IBKR (lib/ibkrJourney.js). Mientras nada esté
+  // cumplido, la tarjeta se queda con "Empezar" (no hay progreso que mostrar
+  // y ese es el botón correcto). En cuanto el usuario cumple el primer
+  // requisito aparece el panel con el % y los requisitos tocables, que es lo
+  // que pidió: "un panel con los requisitos y un % del 1 al cien y que toque
+  // el que quiere editar".
+  ibkrProgress = null, onOpenIbkrStep = null,
+}) {
   const trapRef = useFocusTrap()
   const t = (es, en) => lang === 'es' ? es : en
 
@@ -40,6 +49,11 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
   const [brokerError, setBrokerError] = useState(null)
 
   const flash = (type, msg) => { setSaveStatus({ type, msg }); setTimeout(() => setSaveStatus(null), 3000) }
+
+  // "Arrancado" = al menos un requisito cumplido. Con cero, la tarjeta se
+  // queda como estaba (un botón "Empezar" y nada más): un panel de 0% sobre
+  // cuatro filas vacías no informa nada que el botón no diga mejor.
+  const ibkrStarted = !!(ibkrProgress && ibkrProgress.started && ibkrProgress.steps?.length)
 
   const BROKER_REGISTRY = getBrokerRegistry(t)
 
@@ -393,11 +407,11 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                          arranca el viaje continuo de 5 pasos (conectar →
                          archivo → foto → % → resumen) en vez del wizard
                          suelto que soltaba al usuario tras cada paso. */
-                      <button onClick={() => { if (onStartIbkrJourney) onStartIbkrJourney(); else setConnectBroker(IBKR_PSEUDO_BROKER) }}
+                      <button onClick={() => { if (onStartIbkrJourney) onStartIbkrJourney(ibkrStarted ? (ibkrProgress.nextStep || 1) : 1); else setConnectBroker(IBKR_PSEUDO_BROKER) }}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg hover:brightness-110 active:scale-[0.97] transition-all"
                         style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)', boxShadow: '0 1px 4px rgba(37,99,235,0.35)' }}>
                         <Rocket size={13} strokeWidth={2.25} />
-                        {t('Empezar', 'Get started')}
+                        {ibkrStarted ? t('Continuar', 'Continue') : t('Empezar', 'Get started')}
                       </button>
                     )}
                   </div>
@@ -407,13 +421,35 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                     {t('Tus datos podrían estar desactualizados', 'Your data may be outdated')}
                   </p>
                 )}
-                {/* The 365-day Flex cap means "connected" is rarely "complete" —
-                    this is the door back into that checklist for anyone who
-                    skipped it the first time (or connected before it existed). */}
-                {ibkrConfigured && onOpenBrokerChecklist && (
+                {/* El 365-day Flex cap hace que "conectado" casi nunca sea
+                    "completo". Antes eso era un link de texto ("Completar
+                    historial (3 pasos)") que había que saber que existía;
+                    ahora es el panel con el % y los requisitos, cada uno
+                    tocable para ir a editarlo directo. */}
+                {ibkrStarted && (
+                  <div className="mt-3">
+                    <BrokerProgressPanel
+                      progress={ibkrProgress}
+                      lang={lang}
+                      compact
+                      // Sin conectar, la fila de arriba ya trae "Continuar" y
+                      // arranca en el mismo paso; conectado dice "Sincronizar"
+                      // y entonces el panel es el único camino a lo que falta.
+                      showCta={ibkrConfigured}
+                      onOpenStep={(n) => {
+                        if (onOpenIbkrStep) { onClose(); setTimeout(() => onOpenIbkrStep(n), 50) }
+                        else if (onOpenBrokerChecklist) { onClose(); setTimeout(() => onOpenBrokerChecklist('ibkr'), 50) }
+                      }}
+                    />
+                  </div>
+                )}
+                {/* Fallback para cuando el avance no llegó como prop (ningún
+                    caller lo omite hoy, pero la puerta al checklist no puede
+                    depender de eso). */}
+                {ibkrConfigured && !ibkrStarted && onOpenBrokerChecklist && (
                   <button onClick={() => { onClose(); setTimeout(() => onOpenBrokerChecklist('ibkr'), 50) }}
                     className="text-xs mt-2 pl-9 hover:underline transition-colors" style={{ color: 'var(--accent-blue)' }}>
-                    {t('Completar historial (3 pasos)', 'Complete history (3 steps)')}
+                    {t('Completar historial', 'Complete history')}
                   </button>
                 )}
               </div>

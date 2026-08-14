@@ -17,6 +17,7 @@
 // date, so the curve is portfolio-wide and not just the broker's slice.
 
 import { useState, useMemo, useRef } from 'react'
+import { Info } from 'lucide-react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { authFetch } from '@/lib/authFetch'
 import { quartersBetween, quarterSnapshotDate, formatCurrency } from './utils'
@@ -48,7 +49,11 @@ export default function QuarterlyHistoryModal({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [doneMsg, setDoneMsg] = useState('')
-  const [showSteps, setShowSteps] = useState(true)
+  // FASE IH: arranca CERRADO. Con la lista abierta por defecto, lo primero
+  // que veía el usuario al llegar a este paso eran cinco instrucciones y dos
+  // cajas punteadas antes del primer campo (su captura). El ejemplo de abajo
+  // ya explica qué es una fila; el "de dónde salen" queda a un toque.
+  const [showSteps, setShowSteps] = useState(false)
   // Labels whose value came from the screenshot read, not typed by hand — a
   // quick visual "double-check this one" cue. Clears the moment the user
   // touches that field, since an edited value is no longer the AI's claim.
@@ -308,16 +313,22 @@ export default function QuarterlyHistoryModal({
         <div className="px-5 pb-5 overflow-y-auto space-y-4">
           {/* Where the numbers come from — BrokerSteps supplies its own card,
               so this wrapper is just the collapse toggle, not a second box. */}
-          <div>
-            <button type="button" onClick={() => setShowSteps((v) => !v)}
-              className="w-full flex items-center justify-between gap-2 text-left px-1 py-1">
-              <span className="text-xs uppercase tracking-wider font-medium" style={{ color: 'var(--text-muted)' }}>
+          <div className="rounded-lg overflow-hidden" style={{ border: '1px solid var(--card-border)' }}>
+            <button type="button" onClick={() => setShowSteps((v) => !v)} aria-expanded={showSteps}
+              className="w-full flex items-center gap-2 text-left px-3 py-2.5 transition-colors hover:bg-theme-elevated">
+              <span className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center"
+                style={showSteps
+                  ? { backgroundColor: 'var(--accent-blue)', color: '#ffffff' }
+                  : { backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>
+                <Info size={12} />
+              </span>
+              <span className="text-xs flex-1 min-w-0" style={{ color: 'var(--text-secondary)' }}>
                 {t('De dónde salen estos números', 'Where these numbers come from')}
               </span>
-              <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{showSteps ? '▴' : '▾'}</span>
+              <span className="text-[10px] shrink-0" style={{ color: 'var(--text-muted)' }}>{showSteps ? '▴' : '▾'}</span>
             </button>
             {showSteps && (
-              <div className="mt-2">
+              <div className="px-3 pb-3 pt-2.5" style={{ borderTop: '1px solid var(--card-border)' }}>
                 <BrokerSteps steps={STEPS} variant="api" lang={lang} title={false} />
               </div>
             )}
