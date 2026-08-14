@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, Fragment } from 'react'
 import { formatCurrency, getBaseCurrency, getTypeCategory, getItemValue, isExcludedFromNetWorth, TYPE_COLORS, CHART_PALETTE } from './utils'
 import { InfoTip } from '../ui/Tooltip'
 import { attributionRefusalText } from '@/lib/ytdAttribution'
@@ -135,6 +135,21 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
   // no hacía nada y el usuario no tenía forma de saber por qué (FASE HT3). El
   // panel en ese caso explica la razón en vez de mostrar filas.
   const canExpandYTD = hasYTD && (hasBreakdown || !!ytdBreakdownReason)
+  // El detalle por cuenta del rechazo es diagnóstico: vale tenerlo (una captura
+  // del teléfono se vuelve el diagnóstico completo) pero no es lo que el
+  // usuario viene a leer, así que arranca colapsado.
+  const [showRefusalDetail, setShowRefusalDetail] = useState(false)
+  // El texto de la librería viene en minúscula (está escrito para ir después de
+  // dos puntos) y con un paréntesis explicativo al final. Aquí encabeza el
+  // panel, así que se capitaliza; y el paréntesis se quita porque esa misma
+  // explicación se renderiza abajo como su propia línea. La librería no se
+  // toca: los reportes la siguen usando tal cual.
+  const refusalHeadline = (() => {
+    if (!ytdBreakdownReason) return ''
+    const raw = attributionRefusalText(ytdBreakdownReason, lang === 'es' ? 'es' : 'en')
+    const short = raw.replace(/\s*\([^)]*\)\s*$/, '')
+    return short.charAt(0).toUpperCase() + short.slice(1)
+  })()
 
   const [moversTab, setMoversTab] = useState('gainers')
   // If the tab the user is on empties out (e.g. everything is up today) and
@@ -256,40 +271,103 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
           </div>
           {/* Motor rehusó: en vez de un tap muerto, el panel dice POR QUÉ no
               hay desglose (FASE HT3). El YTD de arriba sigue siendo correcto:
-              lo que falta es el reparto por cuenta, no el número. */}
+              lo que falta es el reparto por cuenta, no el número.
+              FASE IC3: esto se veía como salida de consola en medio del
+              dashboard (un párrafo largo con paréntesis técnicos + un volcado
+              monoespaciado de los términos por cuenta). Ahora es una frase
+              corta, las cifras del descuadre como dato con su etiqueta, y el
+              detalle por cuenta detrás de un toggle y como TABLA alineada: la
+              misma información, sin que parezca un log. */}
           {!hasBreakdown && (
-            <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-              {lang === 'es'
-                ? `El desglose por cuenta no está disponible ahora mismo: ${attributionRefusalText(ytdBreakdownReason, 'es', ytdBreakdownDetail)}. El YTD de arriba sigue siendo correcto; solo el reparto entre cuentas no pasó las validaciones.`
-                : `The per-account breakdown is unavailable right now: ${attributionRefusalText(ytdBreakdownReason, 'en', ytdBreakdownDetail)}. The YTD above is still correct; only the split across accounts did not pass validation.`}
+            <div>
+              <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                {/* Sin el detalle numérico adentro: los números viven abajo, con
+                    su etiqueta, en vez de entre paréntesis a mitad de frase. */}
+                {refusalHeadline}
+                {'. '}
+                <span style={{ color: 'var(--text-muted)' }}>
+                  {lang === 'es'
+                    ? 'Tu YTD de arriba sigue siendo correcto: lo que falta es el reparto entre cuentas.'
+                    : 'Your YTD above is still correct: what is missing is the split across accounts.'}
+                </span>
+              </p>
+
+              {ytdBreakdownReason === 'unexplained-too-large' && ytdBreakdownDetail
+                && isFinite(ytdBreakdownDetail.unexplained) && isFinite(ytdBreakdownDetail.cap) && (
+                <div className="flex flex-wrap gap-x-5 gap-y-1 mt-2">
+                  {[
+                    { k: 'diff', label: lang === 'es' ? 'Diferencia' : 'Off by', value: Math.abs(ytdBreakdownDetail.unexplained) },
+                    { k: 'cap', label: lang === 'es' ? 'Tolerancia' : 'Tolerance', value: Math.abs(ytdBreakdownDetail.cap) },
+                  ].map((s) => (
+                    <span key={s.k} className="flex items-baseline gap-1.5">
+                      <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{s.label}</span>
+                      <span className="text-xs font-mono tabular-nums" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(s.value), displayCur)}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+
               {/* FASE HY: la regeneración pasiva depende de una docena de gates
                   (la lección de FASE HP), así que el rechazo por ancla vieja
                   nombra la acción que la fuerza en vez de solo pedir paciencia. */}
               {ytdBreakdownReason === 'unexplained-too-large' && (
-                lang === 'es'
-                  ? ' Podés forzar la regeneración desde "Agregar datos históricos" con el botón "Reparar ahora".'
-                  : ' You can force the regeneration from "Add historical data" with the "Repair now" button.'
+                <p className="text-[11px] mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                  {lang === 'es'
+                    ? 'Se corrige solo cuando el historial termina de regenerarse. Para forzarlo: "Agregar datos históricos" → "Reparar ahora".'
+                    : 'It self-corrects once history finishes regenerating. To force it: "Add historical data" → "Repair now".'}
+                </p>
               )}
-            </p>
-          )}
-          {/* FASE IB: los términos por cuenta del intento que rehusó. Con solo
-              el residuo total supimos la ESCALA del problema pero no qué cuenta
-              lo causaba; esta lista convierte una captura del teléfono en el
-              diagnóstico completo (misma lección que el reporte de "Reparar
-              ahora", FASE HP). El asterisco marca un arranque REAL (NAV del
-              broker), que el motor nunca ajusta. */}
-          {!hasBreakdown && Array.isArray(ytdBreakdownDetail?.accounts) && ytdBreakdownDetail.accounts.length > 0 && (
-            <div className="mt-2 space-y-0.5 font-mono" style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-              <div>
-                {lang === 'es' ? 'Ancla del año' : 'Year anchor'}: {formatCurrency(ytdBreakdownDetail.anchor ?? 0)}
-              </div>
-              {ytdBreakdownDetail.accounts.map((a) => (
-                <div key={a.name}>
-                  {a.name}: {lang === 'es' ? 'arranque' : 'start'} {formatCurrency(a.start ?? 0)}{a.real ? '*' : ''}
-                  {' · '}{lang === 'es' ? 'hoy' : 'now'} {formatCurrency(a.end ?? 0)}
-                  {' · '}{lang === 'es' ? 'flujos' : 'flows'} {formatCurrency(a.flow ?? 0)}
+
+              {/* FASE IB: los términos por cuenta del intento que rehusó. Con
+                  solo el residuo total supimos la ESCALA del problema pero no
+                  qué cuenta lo causaba; esta tabla convierte una captura del
+                  teléfono en el diagnóstico completo (misma lección que el
+                  reporte de "Reparar ahora", FASE HP). Colapsada por default:
+                  es diagnóstico, no algo que el usuario venga a leer. */}
+              {Array.isArray(ytdBreakdownDetail?.accounts) && ytdBreakdownDetail.accounts.length > 0 && (
+                <div className="mt-2">
+                  <button type="button" onClick={() => setShowRefusalDetail((v) => !v)}
+                    aria-expanded={showRefusalDetail}
+                    className="text-[11px] underline decoration-dotted underline-offset-2 cursor-pointer"
+                    style={{ color: 'var(--text-muted)' }}>
+                    {showRefusalDetail
+                      ? (lang === 'es' ? 'Ocultar detalle por cuenta' : 'Hide per-account detail')
+                      : (lang === 'es' ? 'Ver detalle por cuenta' : 'See per-account detail')}
+                  </button>
+                  {showRefusalDetail && (
+                    <div className="mt-2">
+                      <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 gap-y-1 items-baseline">
+                        <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Cuenta' : 'Account'}</span>
+                        <span className="text-[10px] uppercase tracking-wider text-right" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Arranque' : 'Start'}</span>
+                        <span className="text-[10px] uppercase tracking-wider text-right" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Hoy' : 'Now'}</span>
+                        <span className="text-[10px] uppercase tracking-wider text-right" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Movimientos' : 'Flows'}</span>
+                        {ytdBreakdownDetail.accounts.map((a) => (
+                          <Fragment key={a.name}>
+                            <span className="text-[11px] truncate" style={{ color: 'var(--text-secondary)' }}>
+                              {a.name}{a.real ? <span style={{ color: 'var(--accent-blue)' }}>*</span> : ''}
+                            </span>
+                            <span className="text-[11px] font-mono tabular-nums text-right" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(a.start ?? 0), displayCur)}</span>
+                            <span className="text-[11px] font-mono tabular-nums text-right" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(a.end ?? 0), displayCur)}</span>
+                            <span className="text-[11px] font-mono tabular-nums text-right" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(a.flow ?? 0), displayCur)}</span>
+                          </Fragment>
+                        ))}
+                      </div>
+                      <div className="flex items-baseline justify-between gap-2 mt-2 pt-2" style={{ borderTop: '1px solid var(--glass-border)' }}>
+                        <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Arranque del portafolio' : 'Portfolio year-start'}</span>
+                        <span className="text-[11px] font-mono tabular-nums" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(ytdBreakdownDetail.anchor ?? 0), displayCur)}</span>
+                      </div>
+                      {ytdBreakdownDetail.accounts.some((a) => a.real) && (
+                        <p className="text-[10px] mt-1.5" style={{ color: 'var(--text-muted)' }}>
+                          <span style={{ color: 'var(--accent-blue)' }}>*</span>{' '}
+                          {lang === 'es'
+                            ? 'arranque real del broker: nunca se ajusta.'
+                            : 'real broker year-start: never adjusted.'}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
-              ))}
+              )}
             </div>
           )}
           {/* One row per ACCOUNT (FASE GR). Every account is listed, including
