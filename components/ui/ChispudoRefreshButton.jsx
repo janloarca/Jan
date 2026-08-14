@@ -39,6 +39,9 @@ import { RefreshCw, Zap, Check, CircleAlert } from 'lucide-react'
 
 const R = 13.5
 const C = 2 * Math.PI * R
+// Mínimo táctil de iOS. El control puede verse más chico (en el header mide 36
+// para compartir la banda con el resto de la fila) sin bajar de esto al tocar.
+const TOUCH_TARGET = 44
 // Spark burst directions (degrees) and stagger — six chispas, not symmetric
 // enough to read as a mechanical pattern.
 const SPARKS = [
@@ -146,7 +149,15 @@ export default function ChispudoRefreshButton({
       title={label}
       className={`chispu-refresh-btn relative shrink-0 rounded-full border flex items-center justify-center transition-colors disabled:cursor-default hover:bg-theme-elevated overflow-visible ${className}`}
       style={{
-        width: size, height: size, minWidth: 44, minHeight: 44,
+        // La caja mide EXACTAMENTE `size`. Antes tenía un piso fijo de 44px
+        // por área táctil, lo que rompía dos cosas a la vez: con un size menor
+        // la caja seguía en 44 y no compartía la altura de los controles
+        // vecinos (todos h-9 = 36px en el header, así que el anillo sobresalía
+        // arriba y abajo de la fila), y el SVG, dibujado a `size` y anclado con
+        // inset-0, quedaba pegado arriba-izquierda dentro de esa caja de 44:
+        // el anillo descentrado. El área táctil de 44px se conserva abajo, con
+        // un span invisible que se extiende fuera de la caja sin ocupar layout.
+        width: size, height: size, minWidth: size, minHeight: size,
         color: 'var(--accent-blue)',
         borderColor: uiState === 'error' ? 'var(--text-negative)' : uiState === 'success' ? 'var(--accent-green)' : 'var(--card-border)',
         transition: 'border-color 250ms ease-out',
@@ -156,6 +167,16 @@ export default function ChispudoRefreshButton({
           reliably announced on a control the user isn't actively focused on
           (e.g. it finishes after they've tabbed away), aria-live is. */}
       <span aria-live="polite" className="sr-only">{label}</span>
+
+      {/* Área táctil de 44px (mínimo de iOS) sin agrandar la caja visible: un
+          hijo del propio botón, así que un toque en él dispara el botón igual.
+          Se dimensiona en 44 exactos y se centra, en vez de expandirse con
+          `inset`: los offsets de un absoluto se miden contra la caja de PADDING
+          (sin el borde de 1px), así que un inset de -4 daba 42, no 44. */}
+      {size < TOUCH_TARGET && (
+        <span aria-hidden="true" className="absolute left-1/2 top-1/2"
+          style={{ width: TOUCH_TARGET, height: TOUCH_TARGET, transform: 'translate(-50%, -50%)' }} />
+      )}
 
       {ignite && (
         <span aria-hidden="true" className="absolute inset-0 rounded-full chispu-anim"
@@ -177,8 +198,12 @@ export default function ChispudoRefreshButton({
         </>
       )}
 
+      {/* w-full/h-full en vez de width={size}: con inset-0 y un width fijo, el
+          navegador ignora el offset derecho y el SVG queda anclado a la
+          izquierda si la caja llega a medir distinto de `size`. Estirándolo a
+          la caja, el anillo queda centrado pase lo que pase. */}
       {(loading || uiState === 'success') && (
-        <svg width={size} height={size} viewBox="0 0 32 32" className="absolute inset-0" aria-hidden="true">
+        <svg viewBox="0 0 32 32" className="absolute inset-0 w-full h-full" aria-hidden="true">
           <circle cx="16" cy="16" r={R} fill="none" strokeWidth="2"
             style={{ stroke: 'var(--card-border)', opacity: 0.7 }} />
           {isIndeterminate ? (
@@ -209,7 +234,7 @@ export default function ChispudoRefreshButton({
         </svg>
       )}
 
-      <span className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+      <span className="relative flex items-center justify-center w-full h-full">
         {uiState === 'error' ? (
           <CircleAlert size={16} style={{ color: 'var(--text-negative)' }} />
         ) : uiState === 'success' ? (

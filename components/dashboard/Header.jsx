@@ -113,7 +113,11 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
               progress={loadStagesTotal > 0 ? Math.round((loadStagesDone / loadStagesTotal) * 100) : null}
               error={refreshError}
               lang={lang}
-              size={44}
+              // 36px = h-9, la MISMA altura que el resto de la fila (buscar,
+              // el pill de IBKR, ajustes, salir). A 44 sobresalía arriba y
+              // abajo y rompía la banda que forman los demás controles. El
+              // área táctil de 44 la conserva el propio botón por dentro.
+              size={36}
             />
 
             {ibkrConnected && (
