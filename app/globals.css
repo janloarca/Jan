@@ -784,3 +784,21 @@ button[aria-label="Close"] {
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
 }
+
+/* Barra del viaje de IBKR (components/dashboard/IBKRJourneyBar.jsx). El strip
+   es `fixed`, así que no empuja el contenido: sin esto quedaba ENCIMA de la
+   cabecera del modal del paso activo (en las capturas del usuario el título
+   "Calibrar rendimiento" aparecía medio tapado y la esquina superior del
+   modal cortada). El atributo solo existe mientras el viaje está activo, así
+   que ningún otro modal de la app cambia de posición. La regla gana sobre el
+   `p-4` de Tailwind por especificidad, no por !important. */
+html[data-journey="1"] .fixed.inset-0.z-50 {
+  padding-top: calc(var(--journey-bar-h, 46px) + 0.75rem);
+}
+/* Y el alto disponible baja lo mismo, o un modal de 90vh centrado dentro de la
+   caja ya empujada se saldría por abajo. Todos los modales del viaje scrollean
+   por dentro (overflow-hidden + flex-col, u overflow-y-auto), así que recortar
+   el alto exterior nunca corta contenido. */
+html[data-journey="1"] .fixed.inset-0.z-50 > * {
+  max-height: calc(100dvh - var(--journey-bar-h, 46px) - 1.75rem);
+}

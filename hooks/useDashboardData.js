@@ -2041,6 +2041,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   const brokerCompletionState = useMemo(() => ({
     ibkrConnected: !!((settings?.ibkrToken || settings?._ibkrVaultMigrated) && settings?.ibkrQueryId),
     ibkrSnapshotSpanDays: computeIbkrSnapshotSpanDays(snapshots),
+    // Cuántos días de NAV real llegaron (no cuánto abarcan): un sync de HOY
+    // tiene span 0 y sin embargo sí trajo el reporte. Lo consume el paso
+    // "traer tus últimos ~365 días" de lib/ibkrJourney.js; nada más lee este
+    // campo, así que agregarlo no mueve el gate de hasCompleteBrokerData.
+    ibkrNavDays: (snapshots || []).filter((s) => s && s._source === 'ibkr').length,
     hasQuarterlyHistory: (snapshots || []).some((s) => s && s._source === 'ibkr_quarterly'),
     hasIbkrCalibration: accountCalibrations.some((c) => c && c._account === 'ibkr'),
     earliestNeededDays: computeEarliestNeededDays(portfolioItems),

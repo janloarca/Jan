@@ -16,6 +16,7 @@ import { KeyRound, FileSpreadsheet, CalendarRange, Percent, Sparkles, CheckCircl
 import { getBrokerCompletionSteps } from '@/lib/brokerCompletion'
 import { getBrokerHowTo } from '@/lib/brokerHowTo'
 import StepJourney from '@/components/ui/StepJourney'
+import BrokerProgressPanel from './BrokerProgressPanel'
 import { formatCurrency, formatDate } from './utils'
 
 const KIND_ICON = { api: KeyRound, csv: FileSpreadsheet, quarterly: CalendarRange, calibrate: Percent }
@@ -29,6 +30,11 @@ export default function BrokerCompletionModal({
   brokerId = 'ibkr', brokerName = 'Interactive Brokers',
   onClose, lang = 'es',
   completionState = {},
+  // FASE IH: el avance de lib/ibkrJourney.js (solo IBKR). Cuando llega, esta
+  // pantalla dibuja el MISMO panel de % y requisitos tocables que la lista de
+  // conexiones, en vez de una segunda forma de contar lo mismo. Sin él (todo
+  // broker que no sea IBKR) se queda con el StepJourney de siempre.
+  progress = null, onOpenStep = null,
   onConnect, onImportHistory, onQuarterlyHistory, onCalibrate,
   inferredFlowCount = 0, onReviewInferredFlows,
   // FASE GK: lib/ibkrReconciliation.js report (null until the PortfolioAnalyst
@@ -47,7 +53,12 @@ export default function BrokerCompletionModal({
   // broker's single csv door, unrelated to that removed step.
   const ACTIONS = { connect: onConnect, quarterly: onQuarterlyHistory, returns: onCalibrate, import: onImportHistory }
 
+  const usePanel = !!(progress && progress.steps?.length && onOpenStep)
   const doneCount = steps.filter((s) => s.done(completionState)).length
+  // OJO: `allDone` es el checklist de lib/brokerCompletion.js, el MISMO que
+  // hasCompleteBrokerData usa para gatear la inferencia de flujos. No se
+  // reemplaza por el % del panel (que cuenta un requisito más): el botón de
+  // abajo tiene que aparecer exactamente cuando los candidatos existen.
   const allDone = steps.length > 0 && doneCount === steps.length
 
   // "active" (the journey's "you are here" highlight) is the FIRST step that's
@@ -80,18 +91,23 @@ export default function BrokerCompletionModal({
             <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
               {t(`Llevar ${brokerName} al 100%`, `Get ${brokerName} to 100%`)}
             </h2>
-            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-              {allDone
-                ? t('Completo. Tu historial y tus retornos son lo más reales que se puede.', 'Complete. Your history and returns are as real as it gets.')
-                : t(`${doneCount}/${steps.length} listos. Ninguno es obligatorio, pero cada uno reduce huecos.`, `${doneCount}/${steps.length} done. None are required, but each one closes gaps.`)}
-            </p>
+            {!usePanel && (
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                {allDone
+                  ? t('Completo. Tu historial y tus retornos son lo más reales que se puede.', 'Complete. Your history and returns are as real as it gets.')
+                  : t(`${doneCount}/${steps.length} listos. Ninguno es obligatorio, pero cada uno reduce huecos.`, `${doneCount}/${steps.length} done. None are required, but each one closes gaps.`)}
+              </p>
+            )}
           </div>
           <button onClick={onClose} aria-label={t('Cerrar', 'Close')}
             className="text-xl leading-none shrink-0" style={{ color: 'var(--text-muted)' }}>&times;</button>
         </div>
 
         <div className="px-5 pb-5 overflow-y-auto">
-          <StepJourney steps={journeySteps} lang={lang} accent="var(--accent-blue)" />
+          {usePanel
+            ? <BrokerProgressPanel progress={progress} brokerName={brokerName} lang={lang} compact
+                onOpenStep={(n) => { onClose(); setTimeout(() => onOpenStep(n), 50) }} />
+            : <StepJourney steps={journeySteps} lang={lang} accent="var(--accent-blue)" />}
 
           {/* FASE GK: the reconciliation scoreboard. PA's screenshot asserts
               three lifetime primitives; our file asserts the same three. When
