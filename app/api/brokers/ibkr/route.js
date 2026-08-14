@@ -20,6 +20,13 @@ const REQUEST_DELAYS = [0, 5000, 15000, 25000, 40000]
 const FETCH_TIMEOUT_MS = 15000
 const POLL_TIMEOUT_MS = 10000
 
+// Techo total de la fase de generación, DEBAJO del presupuesto del cliente
+// (REQUEST_TIMEOUT_MS en lib/ibkrSync.js). Sin esto, las esperas de arriba suman
+// 85s solo de pausas más hasta 15s por intento: el peor caso pasa de dos
+// minutos y medio y el cliente ya colgó hace rato. Una respuesta honesta que
+// LLEGA vale más que una completa que nadie recibe (lección de FASE HK).
+const REQUEST_BUDGET_MS = 85000
+
 // Legacy sync constants (kept for backward compat)
 const LEGACY_POLL_ATTEMPTS = 8
 const LEGACY_POLL_DELAY_MS = 3000
@@ -27,8 +34,16 @@ const LEGACY_POLL_DELAY_MS = 3000
 async function requestFlexReference(token, queryId) {
   const requestUrl = `${FLEX_REQUEST_URL}?t=${encodeURIComponent(token)}&q=${encodeURIComponent(queryId)}&v=3`
 
+  const deadline = Date.now() + REQUEST_BUDGET_MS
   for (let attempt = 0; attempt < REQUEST_ATTEMPTS; attempt++) {
-    if (REQUEST_DELAYS[attempt]) await new Promise((r) => setTimeout(r, REQUEST_DELAYS[attempt]))
+    const wait = REQUEST_DELAYS[attempt] || 0
+    // No empezar un intento que no cabe: su espera más su propio timeout
+    // terminarían pasado el deadline, o sea contestaríamos cuando ya nadie
+    // escucha. Mejor rendirse ahora y decirlo.
+    if (Date.now() + wait + FETCH_TIMEOUT_MS > deadline) {
+      return { error: classifyError('could not be generated') }
+    }
+    if (wait) await new Promise((r) => setTimeout(r, wait))
 
     let requestXml
     try {

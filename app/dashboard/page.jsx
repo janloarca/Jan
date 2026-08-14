@@ -96,6 +96,9 @@ import { analyzeDataCompleteness } from '@/lib/dataCompleteness'
 import { detectPhantomFlows } from '@/lib/phantomFlows'
 import { detectFakeAggregateTrades, detectImportStampedAcquisitions, detectFakeCashReportItems, detectDuplicateCashDividends, detectCrossSourceDuplicateFlows } from '@/lib/badDataCleanup'
 import { IBKR_DISCONNECTED_FIELDS } from '@/lib/brokerRegistry'
+import { ibkrFailureFeedback, ibkrCooldownRemainingMs, formatCooldown } from '@/lib/ibkrSyncFeedback'
+import { toastStyleFor, toastIconFor } from '@/lib/toastStyle'
+
 import { DEMO_ITEMS, DEMO_LOTS, DEMO_TRANSACTIONS, isDemoItem } from '@/lib/demoData'
 import AssetAllocation from '@/components/dashboard/AssetAllocation'
 import NotificationCenter from '@/components/dashboard/NotificationCenter'
@@ -181,6 +184,11 @@ export default function DashboardPage() {
   // the checklist should greet a NEW connection, not interrupt a routine sync.
   const ibkrWasConnectedRef = useRef(false)
   const [toast, setToast] = useState(null)
+  // Hasta cuándo el pill de IBKR no debe mandar otra petición. Vive en el
+  // componente y no en settings a propósito: es una pausa de esta sesión para
+  // no alimentar el bloqueo de IBKR a toques, no un estado que valga la pena
+  // persistir (recargar la página ya pasa por la cadencia del auto-sync).
+  const [ibkrCooldownUntil, setIbkrCooldownUntil] = useState(0)
   const toastTimer = useRef(null)
   const [staleCode, setStaleCode] = useState(false)
 
@@ -347,6 +355,16 @@ export default function DashboardPage() {
   const handleIBKRPillClick = useCallback(async () => {
     if (!ibkrConnected) { setModal('ibkr'); return }
     if (ibkrAutoSyncing) return
+    // Dentro del enfriamiento no se manda NADA: repetir el intento es lo que
+    // alimenta el bloqueo de IBKR. Pero tampoco puede parecer que el botón está
+    // muerto, así que se repite la explicación con cuánto falta.
+    const remaining = ibkrCooldownRemainingMs(ibkrCooldownUntil)
+    if (remaining > 0) {
+      showToast(lang === 'es'
+        ? `IBKR nos pidió esperar. Lo reintentamos ${formatCooldown(remaining, lang)}.`
+        : `IBKR asked us to wait. We will retry ${formatCooldown(remaining, lang)}.`, 'warn', 4000)
+      return
+    }
     showToast(lang === 'es' ? 'Sincronizando IBKR… puedes seguir usando la app' : 'Syncing IBKR… you can keep using the app', 'info', 2500)
     const res = await triggerIBKRSync()
     if (res?.ok) {
@@ -358,18 +376,18 @@ export default function DashboardPage() {
       if (res.equityDays <= 1) {
         showToast(lang === 'es'
           ? `IBKR: ${res.count} posiciones, pero SIN historial de valor. Agrega "Equity Summary" a tu Flex Query.`
-          : `IBKR: ${res.count} positions but NO value history. Add "Equity Summary" to your Flex Query.`, 'error', 6000)
+          : `IBKR: ${res.count} positions but NO value history. Add "Equity Summary" to your Flex Query.`, 'warn', 6000)
       } else if (shortHistory) {
         showToast(lang === 'es'
           ? `IBKR: ${res.count} posiciones · solo ${res.equityDays} días de historial (desde ${res.equityOldest}). El período del Flex Query sigue corto: ponlo en "Year to Date".`
-          : `IBKR: ${res.count} positions · only ${res.equityDays} days of history (since ${res.equityOldest}). Your Flex Query period is still short: set it to "Year to Date".`, 'error', 8000)
+          : `IBKR: ${res.count} positions · only ${res.equityDays} days of history (since ${res.equityOldest}). Your Flex Query period is still short: set it to "Year to Date".`, 'warn', 8000)
       } else if ((res.trades || 0) + (res.flows || 0) === 0) {
         // History arrived but zero trades/deposits: the query is missing the
         // Trades / Cash Transactions sections, so the rewound value curve and
         // deposit-aware returns cannot be built.
         showToast(lang === 'es'
           ? `IBKR: ${res.count} posiciones · ${res.equityDays} días de historial, pero 0 trades y 0 depósitos. Agrega "Trades" y "Cash Transactions" a tu Flex Query.`
-          : `IBKR: ${res.count} positions · ${res.equityDays} days of history but 0 trades and 0 deposits. Add "Trades" and "Cash Transactions" to your Flex Query.`, 'error', 8000)
+          : `IBKR: ${res.count} positions · ${res.equityDays} days of history but 0 trades and 0 deposits. Add "Trades" and "Cash Transactions" to your Flex Query.`, 'warn', 8000)
       } else {
         showToast(lang === 'es'
           ? `IBKR: ${res.count} posiciones · ${res.equityDays} días de historial · ${res.trades || 0} trades · ${res.flows || 0} depósitos/retiros · ${res.dividends || 0} dividendos`
@@ -378,9 +396,25 @@ export default function DashboardPage() {
     } else if (res?.error === 'BUSY') {
       // a sync is already running; the spinning pill already communicates this
     } else if (res?.error !== 'NOT_CONNECTED') {
-      showToast(lang === 'es' ? 'IBKR no se pudo actualizar. Revisa la conexión en Ajustes.' : 'IBKR sync failed. Check the connection in Settings.', 'error', 4000)
+      // IBKR bloquea por intentos FALLIDOS, no por volumen, y este botón es el
+      // único camino que se salta toda espera. Un token vencido produce el lazo
+      // exacto que provoca el bloqueo: error, toque, error, toque. Así que un
+      // fallo arma un enfriamiento, y si es algo que el usuario puede arreglar,
+      // le abrimos la pantalla donde se arregla en vez de gastar otro intento.
+      const fb = ibkrFailureFeedback(res?.errorCode, lang)
+      setIbkrCooldownUntil(fb.cooldownMs > 0 ? Date.now() + fb.cooldownMs : 0)
+      showToast(fb.message, fb.tone, 6000)
+      if (fb.action === 'open-connection') setModal('ibkr')
     }
-  }, [ibkrConnected, ibkrAutoSyncing, triggerIBKRSync, lang])
+    // ⚠ showToast NO va en estas dependencias: está declarado con `const` MÁS
+    // ABAJO en este mismo componente (línea ~505), y una deps array se evalúa
+    // en CADA render, así que referenciarlo desde aquí arriba lanza un
+    // ReferenceError de temporal dead zone ("Cannot access 'X' before
+    // initialization") que tumba el dashboard entero antes de pintar nada.
+    // Ya pasó en FASE HC con refetchBenchmark; esta es la segunda vez.
+    // Omitirlo es seguro y es lo que este archivo hacía antes: showToast es un
+    // useCallback con deps [], o sea su identidad nunca cambia.
+  }, [ibkrConnected, ibkrAutoSyncing, triggerIBKRSync, lang, ibkrCooldownUntil])
   const handleOpenBlockchain = useCallback(() => setModal('blockchain'), [])
   const handleOpenPrint = useCallback(() => setModal('print'), [])
   const handleOpenReview = useCallback(() => { setReviewTarget({ itemId: null, guided: false, institution: null }); setShowReview(true) }, [])
@@ -629,7 +663,7 @@ export default function DashboardPage() {
     const oauthBroker = hashParams.get('oauth_broker') || params.get('oauth_broker')
     const oauthError = params.get('oauth_error')
     if (oauthError) {
-      showToast(`OAuth error: ${oauthError}`, 'error', 5000)
+      showToast(`OAuth error: ${oauthError}`, 'warn', 5000)
       window.history.replaceState({}, '', '/dashboard')
       return
     }
@@ -641,7 +675,7 @@ export default function DashboardPage() {
         body: JSON.stringify({ action: 'exchange-code', code: oauthCode }),
       }).then(r => r.ok ? safeJson(r) : r.json().catch(() => ({})).then(d => { throw new Error(d.error || 'OAuth failed') }))
         .then(() => showToast(lang === 'es' ? 'Broker vinculado via OAuth' : 'Broker linked via OAuth'))
-        .catch(e => showToast(e.message, 'error', 5000))
+        .catch(e => showToast(e.message, 'warn', 5000))
     }
   }, [])
 
@@ -2067,13 +2101,8 @@ export default function DashboardPage() {
         <div className="fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 px-4 py-2.5 rounded-lg shadow-xl text-sm font-medium animate-fade-in border"
           role="status"
           aria-live="polite"
-          style={toast.type === 'error'
-            ? { backgroundColor: 'rgba(127,29,29,0.95)', borderColor: 'rgba(185,28,28,0.5)', color: '#fecaca' }
-            : toast.type === 'info'
-            ? { backgroundColor: 'rgba(30,58,138,0.95)', borderColor: 'rgba(29,78,216,0.5)', color: '#dbeafe' }
-            : { backgroundColor: 'rgba(6,78,59,0.95)', borderColor: 'rgba(5,150,105,0.5)', color: '#d1fae5' }
-          }>
-          <span>{toast.type === 'error' ? '✕' : toast.type === 'info' ? 'ℹ' : '✓'}</span>
+          style={toastStyleFor(toast.type)}>
+          <span>{toastIconFor(toast.type)}</span>
           {toast.msg}
           <button onClick={handleDismissToast} className="ml-1 opacity-60 hover:opacity-100 transition-opacity text-xs" aria-label="Dismiss">✕</button>
         </div>
