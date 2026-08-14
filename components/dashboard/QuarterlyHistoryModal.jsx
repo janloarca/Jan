@@ -21,8 +21,8 @@ import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { authFetch } from '@/lib/authFetch'
 import { quartersBetween, quarterSnapshotDate, formatCurrency } from './utils'
 import BrokerSteps from '@/components/ui/BrokerSteps'
+import { CURRENCIES, currencyOptions } from '@/lib/currencies'
 
-const CURRENCIES = ['USD', 'EUR', 'GBP', 'MXN', 'GTQ', 'COP', 'BRL', 'CAD']
 
 // Made-up figures. The point is the SHAPE of what to read off the chart, not a
 // number anyone should copy.
@@ -429,7 +429,7 @@ export default function QuarterlyHistoryModal({
             <div>
               <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>{t('Moneda', 'Currency')}</label>
               <select value={currency} onChange={(e) => setCurrency(e.target.value)} className={inputCls} style={inputStyle}>
-                {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                {currencyOptions(currency).map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
           </div>

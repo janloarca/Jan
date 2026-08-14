@@ -5,8 +5,8 @@ import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { isOriginFullyRecorded } from '@/lib/originDeposits'
 import { buildContributionFields } from '@/lib/contributions'
 import { buildTransferTransaction } from '@/lib/transferTx'
+import { currencyOptions } from '@/lib/currencies'
 
-const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
 
 export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, onExecuteContribution, onConfirmNewMoney, existingItems = [], transactions = [], lang = 'es', baseCurrency = 'USD', prefill = null }) {
   const trapRef = useFocusTrap()
@@ -425,7 +425,7 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
               ) : (
                 <select value={currency} onChange={e => setCurrency(e.target.value)}
                   className="px-3 py-2.5 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50 w-20">
-                  {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  {currencyOptions(currency).map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               ))}
             </div>

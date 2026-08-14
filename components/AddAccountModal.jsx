@@ -10,8 +10,8 @@ import { detectCurrency } from '@/lib/institutionCurrency'
 import { getScheduledPayDates, estimateIncomeAmount } from '@/lib/incomeSchedule'
 import { InfoTip } from './ui/Tooltip'
 import { DEBT_CLARIFICATION } from './dashboard/utils'
+import { currencyOptions } from '@/lib/currencies'
 
-const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
 
 const TYPES = [
   { key: 'Stock', icon: '📈', es: 'Acción', en: 'Stock', subtypes: [
@@ -1122,7 +1122,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   para que lo que se ve sea siempre lo que se guarda. Cambio de
                   DISPLAY: no toca ninguna conversión. */}
               <select id="add-currency" value={form.currency} onChange={e => set('currency', e.target.value)} className={inputCls}>
-                {(CURRENCIES.includes(form.currency) || !form.currency ? CURRENCIES : [form.currency, ...CURRENCIES]).map(c => <option key={c} value={c}>{c}</option>)}
+                {currencyOptions(form.currency).map(c => <option key={c} value={c}>{c}</option>)}
               </select>
               {detectedCurrency && form.currency === detectedCurrency && (
                 <p className="text-xs mt-1" style={{ color: 'var(--accent-green)' }}>✓ {t('Detectada automáticamente', 'Auto-detected')}</p>
