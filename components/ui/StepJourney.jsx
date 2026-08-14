@@ -35,9 +35,18 @@ function resolveTitle(step, lang) {
   return null
 }
 
-export default function StepJourney({ steps, note, variant = 'csv', lang = 'es', title = null, accent: accentProp = null, headerIcon: HeaderIcon = null }) {
+export default function StepJourney({
+  steps, note, variant = 'csv', lang = 'es', title = null, accent: accentProp = null, headerIcon: HeaderIcon = null,
+  // FASE IH2: la lista entera se puede plegar detrás de su propio encabezado.
+  // Existe porque en los pasos del viaje de IBKR las instrucciones empujaban
+  // el campo que hay que llenar fuera de la pantalla: lo primero que se ve
+  // tiene que ser lo que hay que HACER, con el "cómo consigo esto" a un toque.
+  // Sin `collapsible` el comportamiento es idéntico al de siempre.
+  collapsible = false, defaultOpen = false,
+}) {
   const t = (es, en) => (lang === 'es' ? es : en)
   const [openStep, setOpenStep] = useState(null)
+  const [listOpen, setListOpen] = useState(defaultOpen)
   if (!steps || steps.length === 0) return null
 
   const accent = accentProp || (variant === 'api' ? 'var(--accent-blue)' : 'var(--accent-green)')
@@ -54,9 +63,22 @@ export default function StepJourney({ steps, note, variant = 'csv', lang = 'es',
   const firstActiveIdx = resolved.findIndex((s) => s.status === 'active')
   const doneCount = resolved.filter((s) => s.status === 'done').length
 
+  const collapsed = collapsible && !listOpen
+
   return (
-    <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${accent}33`, backgroundColor: `${accent}0a` }}>
-      {title && (
+    <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${accent}33`, backgroundColor: collapsed ? 'transparent' : `${accent}0a` }}>
+      {title && collapsible && (
+        <button type="button" onClick={() => setListOpen((v) => !v)} aria-expanded={listOpen}
+          className="w-full flex items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-theme-elevated">
+          {HeaderIcon && <HeaderIcon size={14} className="shrink-0" style={{ color: accent }} />}
+          <span className="text-xs font-semibold flex-1 min-w-0" style={{ color: accent }}>{title}</span>
+          <span className="text-[10px] font-medium shrink-0" style={{ color: 'var(--text-muted)' }}>
+            {hasRealStatus ? `${doneCount}/${resolved.length}` : t(`${resolved.length} pasos`, `${resolved.length} steps`)}
+          </span>
+          <span className="text-[10px] shrink-0" style={{ color: 'var(--text-muted)' }}>{listOpen ? '▴' : '▾'}</span>
+        </button>
+      )}
+      {title && !collapsible && (
         <div className="flex items-center gap-2 px-4 pt-4 pb-1">
           {HeaderIcon && <HeaderIcon size={14} style={{ color: accent }} />}
           <span className="text-xs font-semibold" style={{ color: accent }}>{title}</span>
@@ -67,6 +89,8 @@ export default function StepJourney({ steps, note, variant = 'csv', lang = 'es',
           )}
         </div>
       )}
+      {collapsed ? null : (
+      <>
       <ol className="px-4 py-4">
         {resolved.map((step, i) => {
           const isLast = i === resolved.length - 1
@@ -159,6 +183,8 @@ export default function StepJourney({ steps, note, variant = 'csv', lang = 'es',
           <Circle size={10} className="shrink-0 mt-0.5" fill="currentColor" style={{ color: 'var(--alert-info-icon)' }} />
           <span>{resolveText(note, lang)}</span>
         </div>
+      )}
+      </>
       )}
     </div>
   )

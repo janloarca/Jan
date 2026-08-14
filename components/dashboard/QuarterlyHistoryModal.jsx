@@ -328,39 +328,41 @@ export default function QuarterlyHistoryModal({
               <span className="text-[10px] shrink-0" style={{ color: 'var(--text-muted)' }}>{showSteps ? '▴' : '▾'}</span>
             </button>
             {showSteps && (
-              <div className="px-3 pb-3 pt-2.5" style={{ borderTop: '1px solid var(--card-border)' }}>
+              <div className="px-3 pb-3 pt-2.5 space-y-3" style={{ borderTop: '1px solid var(--card-border)' }}>
                 <BrokerSteps steps={STEPS} variant="api" lang={lang} title={false} />
+                {/* FASE IH2: el ejemplo vive DENTRO de la explicación. Es
+                    material didáctico, igual que los pasos, y suelto ocupaba
+                    media pantalla entre la cabecera y los campos que hay que
+                    llenar. Quien ya sabe qué transcribir no lo necesita. */}
+                <div className="rounded-xl p-3" style={{ border: '1px dashed var(--card-border)' }}>
+                <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
+                  {t('Ejemplo (números inventados): cada barra de la gráfica es una fila.',
+                     'Example (made-up numbers): each bar of the chart is one row.')}
+                </p>
+                <div className="flex items-end gap-1.5 h-16 mb-2">
+                  {EXAMPLE.map((e, i) => (
+                    <div key={e.label} className="flex-1 flex flex-col items-center gap-1">
+                      <div className="w-full rounded-t"
+                        style={{ height: `${28 + i * 16}%`, minHeight: 8, backgroundColor: 'var(--accent-blue)', opacity: 0.55 }} />
+                      <span className="text-[9px] whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{e.label}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                  {EXAMPLE.map((e) => (
+                    <div key={e.label} className="flex justify-between text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                      <span>{e.label}</span>
+                      <span className="font-mono">{e.value}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[11px] mt-2" style={{ color: 'var(--text-muted)' }}>
+                  {t('Solo el valor total de la cuenta. No hace falta desglosar por acción.',
+                     'Just the account total. No need to break it down by position.')}
+                </p>
+                </div>
               </div>
             )}
-          </div>
-
-          {/* Generic example, so it is obvious what a row means */}
-          <div className="rounded-xl p-3" style={{ border: '1px dashed var(--card-border)' }}>
-            <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
-              {t('Ejemplo (números inventados): cada barra de la gráfica es una fila.',
-                 'Example (made-up numbers): each bar of the chart is one row.')}
-            </p>
-            <div className="flex items-end gap-1.5 h-16 mb-2">
-              {EXAMPLE.map((e, i) => (
-                <div key={e.label} className="flex-1 flex flex-col items-center gap-1">
-                  <div className="w-full rounded-t"
-                    style={{ height: `${28 + i * 16}%`, minHeight: 8, backgroundColor: 'var(--accent-blue)', opacity: 0.55 }} />
-                  <span className="text-[9px] whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{e.label}</span>
-                </div>
-              ))}
-            </div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
-              {EXAMPLE.map((e) => (
-                <div key={e.label} className="flex justify-between text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                  <span>{e.label}</span>
-                  <span className="font-mono">{e.value}</span>
-                </div>
-              ))}
-            </div>
-            <p className="text-[11px] mt-2" style={{ color: 'var(--text-muted)' }}>
-              {t('Solo el valor total de la cuenta. No hace falta desglosar por acción.',
-                 'Just the account total. No need to break it down by position.')}
-            </p>
           </div>
 
           {/* Screenshot reader: an accelerator, never a requirement. Every value

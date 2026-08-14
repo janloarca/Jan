@@ -10,7 +10,7 @@
 import { FileSpreadsheet, KeyRound } from 'lucide-react'
 import StepJourney from './StepJourney'
 
-export default function BrokerSteps({ steps, note, variant = 'csv', lang = 'es', title = null }) {
+export default function BrokerSteps({ steps, note, variant = 'csv', lang = 'es', title = null, collapsible = false, defaultOpen = false }) {
   const t = (es, en) => (lang === 'es' ? es : en)
   const accent = variant === 'api' ? 'var(--accent-blue)' : 'var(--accent-green)'
   const Icon = variant === 'api' ? KeyRound : FileSpreadsheet
@@ -22,6 +22,7 @@ export default function BrokerSteps({ steps, note, variant = 'csv', lang = 'es',
     : t('Cómo obtener el archivo', 'How to get the file')))
 
   return (
-    <StepJourney steps={steps} note={note} variant={variant} lang={lang} title={heading} accent={accent} headerIcon={Icon} />
+    <StepJourney steps={steps} note={note} variant={variant} lang={lang} title={heading} accent={accent} headerIcon={Icon}
+      collapsible={collapsible} defaultOpen={defaultOpen} />
   )
 }

@@ -1494,7 +1494,7 @@ export default function DashboardPage() {
           onUpdateItem={updateItem} onDeleteItem={deleteItem} onBulkImport={bulkImport}
           existingItems={items} existingLots={lots}
           activePortfolio={activePortfolio} activeEntity={activeEntity !== '__all__' ? activeEntity : 'default'}
-          lang={lang} brokerHint={importBrokerHint}
+          lang={lang} brokerHint={importBrokerHint} journeyActive={ibkrJourney != null}
         />
       )}
 
@@ -1615,6 +1615,7 @@ export default function DashboardPage() {
           onApiSyncSuccess={() => { saveSettings({ _ibkrLastSync: new Date().toISOString(), _ibkrAutoSyncStatus: 'ok', _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
           onDisconnect={handleIbkrDisconnect}
           uid={user?.uid} lang={lang}
+          journeyActive={ibkrJourney != null}
           lastSyncTime={ibkrLastSync}
           existingItems={enrichedItems} existingTransactions={transactions} existingSnapshots={snapshots}
         />
