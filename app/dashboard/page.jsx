@@ -1360,10 +1360,14 @@ export default function DashboardPage() {
                   con un hueco blanco enorme debajo. Cada columna empaqueta sus
                   cards una tras otra, sin huecos; en móvil colapsa a una sola
                   columna en el orden natural de lectura. */}
-              <div className="stagger-3 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 items-start">
+              {/* Sin items-start: las dos columnas estiran al mismo alto y la
+                  última card de cada una toma el sobrante (flex-1 + h-full
+                  adentro), así el bloque cierra en una línea pareja en vez de
+                  un borde inferior disparejo. */}
+              <div className="stagger-3 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
                 <div className="flex flex-col gap-3 sm:gap-4 min-w-0">
                   <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
-                  <CardBoundary id="INV-01"><InvestedByYearCard transactions={transactions} items={items} snapshots={augmentedSnapshots} netWorth={netWorth} returnYTD={returnYTD} ytdChange={ytdChange} convert={convert} baseCurrency={baseCurrency} lang={lang} /></CardBoundary>
+                  <CardBoundary id="INV-01" className="flex-1"><InvestedByYearCard transactions={transactions} items={items} snapshots={augmentedSnapshots} netWorth={netWorth} returnYTD={returnYTD} ytdChange={ytdChange} convert={convert} baseCurrency={baseCurrency} lang={lang} /></CardBoundary>
                 </div>
                 <div className="flex flex-col gap-3 sm:gap-4 min-w-0">
                   <CardBoundary id="INST-01"><InstitutionPerformance items={portfolioItems} lang={lang} baseCurrency={baseCurrency} transactions={transactions} convert={convert} ibkrDataComplete={ibkrDataComplete} /></CardBoundary>
@@ -1372,7 +1376,7 @@ export default function DashboardPage() {
                       sueltos debajo de las tarjetas. Las alertas de precio
                       son una acción más (abren su modal) en vez de una card
                       casi siempre vacía ocupando media columna. */}
-                  <CardBoundary id="ACT-01">
+                  <CardBoundary id="ACT-01" className="flex-1">
                     <QuickActionsCard
                       onImport={handleOpenImport} onAddAccount={handleOpenAccount}
                       onTransfer={handleOpenTransfer} onCashFlow={handleOpenCashflow}

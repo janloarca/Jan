@@ -1,6 +1,7 @@
 'use client'
 
 import { Upload, Plus, ArrowLeftRight, Share2, Download, RefreshCw, ClipboardCheck, DollarSign, TrendingDown, Bell } from 'lucide-react'
+import { InfoTip } from '../ui/Tooltip'
 
 // Todas las acciones del dashboard en UN marco, cada una con una línea que
 // dice PARA QUÉ sirve. Antes eran una barra de botones sueltos con etiquetas
@@ -110,11 +111,23 @@ export default function QuickActionsCard({
     </span>
   )
 
+  // Mismo marco (p-4) y mismo encabezado (punto + título en mayúsculas +
+  // InfoTip) que AssetAllocation / InstitutionPerformance: las cuatro cards de
+  // esta zona comparten inset y tipografía, así que sus contenidos alinean
+  // sobre el mismo borde izquierdo. h-full + mt-auto en el pie para que las
+  // dos columnas terminen en la misma línea.
   return (
-    <div data-card-id="ACT-01" data-tour="actions" className="card-glass rounded-2xl p-5">
-      <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>
-        {t('Acciones', 'Actions')}
-      </h3>
+    <div data-card-id="ACT-01" data-tour="actions" className="card-glass rounded-2xl p-4 h-full flex flex-col">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
+          {t('ACCIONES', 'ACTIONS')}
+        </h3>
+        <InfoTip text={t(
+          'Todo lo que podés hacer con tu portafolio. Arriba lo que ya pasó y querés dejar registrado (un depósito, una compra, una venta, dinero movido entre tus cuentas); abajo, traer datos de tu broker o revisar lo que falte.',
+          'Everything you can do with your portfolio. Above, what already happened and you want on record (a deposit, a purchase, a sale, money moved between your accounts); below, bringing in broker data or reviewing what is missing.'
+        )} />
+      </div>
 
       {record.length > 0 && (
         <div className="mb-4">
@@ -135,7 +148,7 @@ export default function QuickActionsCard({
       )}
 
       {/* Salidas: no son registros, así que no compiten con los de arriba. */}
-      <div className="flex items-center gap-3 flex-wrap mt-4 pt-3" style={{ borderTop: '1px solid var(--glass-border)' }}>
+      <div className="flex items-center gap-3 flex-wrap mt-auto pt-3" style={{ borderTop: '1px solid var(--glass-border)' }}>
         {onShare && (
           <button type="button" onClick={onShare} className="flex items-center gap-1.5 text-caption transition-colors hover:opacity-80" style={{ color: 'var(--text-secondary)' }}>
             <Share2 size={13} /> {t('Compartir', 'Share')}
