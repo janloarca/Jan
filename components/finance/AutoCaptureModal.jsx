@@ -41,7 +41,10 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
       body: JSON.stringify(payload),
     })
     const data = await safeJson(res)
-    if (!res.ok) throw new Error(data?.error || 'Error')
+    // `detail` (Firestore code + message, from a genuine server error) rides
+    // alongside `error` when present — surfacing it here is what turns a
+    // screenshot of this modal into a real diagnosis instead of another guess.
+    if (!res.ok) throw new Error(data?.detail ? `${data.error} (${data.detail})` : (data?.error || 'Error'))
     return data
   }, [])
 

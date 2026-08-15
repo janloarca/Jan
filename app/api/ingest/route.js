@@ -113,6 +113,12 @@ export async function POST(request) {
     // without the code a Firestore permission/path failure is indistinguishable
     // from anything else in the Vercel function logs.
     console.error('[api/ingest] POST error:', action, err.code || '', err.message, err.stack)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    // `detail` is deliberately sent to the client, not just logged: this route
+    // is authenticated (verifyAuth already ran), the caller is the account
+    // owner acting on their own request, and neither of us can otherwise see
+    // Vercel's function logs from here. A code+message on screen turns the
+    // next screenshot into a real diagnosis instead of another guess.
+    const detail = [err.code, err.message].filter((v) => v !== undefined && v !== null && v !== '').join(': ')
+    return NextResponse.json({ error: 'Internal server error', detail: detail || undefined }, { status: 500 })
   }
 }
