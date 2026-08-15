@@ -124,9 +124,9 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
       descEn: 'Your month and your year, with the YTD report and the January-to-date spreadsheet. On the 1st.',
       ready: true },
     { key: 'notifyAnnual', es: 'Resumen anual', en: 'Annual brief',
-      descEs: 'El cierre del año completo con su reporte.',
-      descEn: 'The full year close with its report.',
-      ready: false },
+      descEs: 'El cierre del año, con su reporte y el spreadsheet completo. 1 de enero.',
+      descEn: 'The year close, with its report and the full-year spreadsheet. January 1st.',
+      ready: true },
   ]
   const [emailPrefs, setEmailPrefs] = useState(() =>
     Object.fromEntries(EMAIL_CADENCES.map((c) => [c.key, settings?.[c.key] === true]))
@@ -593,6 +593,11 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                         className="px-3 py-1.5 text-xs rounded-lg border transition-colors disabled:opacity-50"
                         style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-input)' }}>
                         {testingEmail === 'monthly' ? t('Enviando...', 'Sending...') : t('Probar mensual', 'Test monthly')}
+                      </button>
+                      <button type="button" onClick={() => handleTestEmail('annual')} disabled={!!testingEmail}
+                        className="px-3 py-1.5 text-xs rounded-lg border transition-colors disabled:opacity-50"
+                        style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-input)' }}>
+                        {testingEmail === 'annual' ? t('Enviando...', 'Sending...') : t('Probar anual', 'Test annual')}
                       </button>
                     </div>
                     <div>

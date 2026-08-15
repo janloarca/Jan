@@ -3,7 +3,7 @@ import nodemailer from 'nodemailer'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { buildMarketBrief, MARKET_WINDOWS } from '@/lib/marketBrief'
 import { buildWeeklyBriefForUser, makeMailer, AUTO_HEADERS } from '@/lib/weeklyBriefBuilder'
-import { buildMonthlyBriefForUser, monthRefFor } from '@/lib/monthlyBriefBuilder'
+import { buildMonthlyBriefForUser, buildAnnualBriefForUser, monthRefFor } from '@/lib/periodBriefBuilder'
 import { makeBriefFetcher } from '@/lib/briefFetcher'
 
 export const dynamic = 'force-dynamic'
@@ -34,6 +34,10 @@ export function dueCadences(date) {
   const out = []
   if (date.getUTCDay() === 0) out.push('weekly')
   if (date.getUTCDate() === 1) out.push('monthly')
+  // El 1 de enero salen AMBOS: el mensual cubre diciembre y el anual el año
+  // entero. Son contenidos distintos, y las cadencias son independientes por
+  // decisión del usuario (elegir una no condiciona a las otras).
+  if (date.getUTCDate() === 1 && date.getUTCMonth() === 0) out.push('annual')
   return out
 }
 
@@ -59,6 +63,15 @@ const CADENCES = {
     },
     marketOpts: MARKET_WINDOWS.monthly,
     build: buildMonthlyBriefForUser,
+  },
+  annual: {
+    flag: 'notifyAnnual',
+    // La clave es el AÑO CUBIERTO (el de ayer), por la misma razón que el
+    // mensual usa el mes: un reintento del cron no repite el año.
+    dedupField: '_lastAnnualBrief',
+    dedupKey: (now) => String(monthRefFor(now).getUTCFullYear()),
+    marketOpts: MARKET_WINDOWS.annual,
+    build: buildAnnualBriefForUser,
   },
 }
 
