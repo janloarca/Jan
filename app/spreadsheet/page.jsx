@@ -71,7 +71,9 @@ export default function SpreadsheetPage() {
     items, enrichedItems, netWorth, transactions, financeTransactions, returnYTD,
     snapshots, addItem, updateItem, deleteItem, portfolioItems, convert, rates,
     baseCurrency, saveItemSnapshots, loadItemSnapshots, lots,
-    addTransaction, addLot, closeLotsFIFO, executeContribution, dataLoading, settings,
+    addTransaction, updateTransaction, deleteTransaction, deleteTransactionWithReversal, updateTransactionWithReversal,
+    addLot, closeLotsFIFO, executeContribution, dataLoading, settings,
+    handleRefresh, pricesLoading, ratesLoading,
   } = useDashboardData({ user, lang, activePortfolio: '__all__' })
 
   const [editItem, setEditItem] = useState(null)
@@ -175,10 +177,18 @@ export default function SpreadsheetPage() {
   return (
     <div className="min-h-screen flex flex-col bg-theme-base">
       <a href="#main-content" className="skip-link">{t('Ir al contenido', 'Skip to content')}</a>
+      {/* FASE EM. onRefresh was a no-op and loadStagesDone/Total weren't passed
+          at all, so the refresh button on this page never did anything AND
+          its ring could never show real progress — it looked broken because
+          it was. Same handleRefresh + 3-stage signal app/dashboard/page.jsx
+          already uses, so the ring here means the same thing it does there. */}
       <Header user={user} lang={lang} setLang={handleSetLang}
         friendsEnabled={settings?.friendsEnabled !== false}
         onImport={() => router.push('/dashboard')} onSettings={() => router.push('/dashboard')}
-        onSignOut={handleSignOut} onRefresh={() => {}} pricesLoading={false} />
+        onSignOut={handleSignOut} onRefresh={handleRefresh}
+        pricesLoading={pricesLoading || ratesLoading}
+        loadStagesDone={[!dataLoading, !ratesLoading, !pricesLoading].filter(Boolean).length}
+        loadStagesTotal={3} />
       <PageTour pageKey="spreadsheet" nextRoute="/friends" nextFlag="friends" lang={lang} steps={[
         {
           tab: t('Hoja de Cálculo', 'Spreadsheet'),
@@ -333,18 +343,28 @@ export default function SpreadsheetPage() {
       )}
 
       {editItem && (
-        <EditAccountModal key={editItem.id} item={(() => {
-            const { _originalPrice, _originalPurchasePrice, _originalCurrency, _displayCurrency, totalValue, percentOfPortfolio, change1d, change7d, change30d, pnlPercent, ...rawItem } = editItem
-            return rawItem
-          })()} onClose={() => setEditItem(null)}
+        // Pass editItem AS-IS — no local stripping. editItem comes from the
+        // enriched array (portfolioItems/enrichedItems), whose currentPrice/
+        // purchasePrice are already converted to baseCurrency; the ONLY way
+        // back to the item's own currency is _originalPrice/
+        // _originalPurchasePrice/_originalCurrency. EditAccountModal already
+        // prefers those fields itself (its own stripEnriched, plus the form's
+        // initial state) — dropping them here before the modal ever saw them
+        // defeated that fallback, so a GTQ item's form showed its USD-
+        // converted number as if it were GTQ, and saving without changing it
+        // wrote that wrong number back as the item's real GTQ price (XOCHI,
+        // FASE EK). app/dashboard/page.jsx never had this bug: it always
+        // passed editItem straight through.
+        <EditAccountModal key={editItem.id} item={editItem} onClose={() => setEditItem(null)}
           onSave={async (updated) => {
             const { id, ...fields } = updated
             await updateItem(editItem.id, fields)
           }}
           onDelete={deleteItem} existingItems={items} lang={lang}
           onAddTransaction={addTransaction} onExecuteContribution={executeContribution}
+          onDeleteTransaction={deleteTransactionWithReversal} onUpdateTransaction={updateTransactionWithReversal}
           onCreateDestination={addItem}
-          transactions={transactions} baseCurrency={baseCurrency} />
+          transactions={transactions} baseCurrency={baseCurrency} convert={convert} />
       )}
 
       {showAddModal && (

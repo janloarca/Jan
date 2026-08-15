@@ -3,13 +3,22 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect, useRef } from 'react'
-import { Search, RefreshCw, Settings, LogOut, Plus, Upload, Zap, ChevronDown, Link2 } from 'lucide-react'
+import ChispudoRefreshButton from '@/components/ui/ChispudoRefreshButton'
+import Logo from '@/components/ui/Logo'
+import { Search, Settings, LogOut, Plus, Upload, ChevronDown, Link2, Sparkles } from 'lucide-react'
 
 // ibkrNeedsAttention (not a raw `ibkrSyncStatus === 'error'`) drives the warning
 // triangle: a single transient sync failure is not news while auto-sync is still
 // retrying every 30min. The dashboard owns that rule so the pill, the top banner
-// and the ActionButtons dot always agree. See app/dashboard/page.jsx.
-export default function Header({ user, lang, setLang, onImport, onSignOut, onRefresh, onSettings, pricesLoading, onAddAccount, onCommandPalette, onOpenConnections, ibkrConnected, ibkrAutoSyncing, ibkrSyncStatus, ibkrNeedsAttention = false, ibkrSyncSummary, onIBKR, friendsEnabled = true }) {
+// and the actions card dot always agree. See app/dashboard/page.jsx.
+
+// Same ring geometry as ChispudoRefreshButton's own indeterminate sweep
+// (viewBox 0 0 32 32, r=13.5) — reused here at pill scale so the IBKR pill's
+// spinner speaks the same visual language as the header's refresh ring right
+// next to it, instead of a generic browser-style spin with no relation to it.
+const PILL_RING_R = 13.5
+const PILL_RING_C = 2 * Math.PI * PILL_RING_R
+export default function Header({ user, lang, setLang, onImport, onSignOut, onRefresh, onSettings, pricesLoading, loadStagesDone = 0, loadStagesTotal = 0, refreshError = false, onAddAccount, onCommandPalette, onOpenConnections, ibkrConnected, ibkrAutoSyncing, ibkrSyncStatus, ibkrNeedsAttention = false, ibkrSyncSummary, onIBKR, friendsEnabled = true, onEnrich, enrichGapCount = 0 }) {
   const [newMenuOpen, setNewMenuOpen] = useState(false)
   const newMenuRef = useRef(null)
 
@@ -19,6 +28,25 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [newMenuOpen])
+
+  // IBKR pill success flash — mirrors ChispudoRefreshButton's own success-hold
+  // effect (same shape: a `wasX` ref that only updates on the non-triggering
+  // branch, so it inherits the same correctness across repeated cycles) so a
+  // sync finishing cleanly is announced here too, not just a silent snap back
+  // to the green dot. Short flash, not the full ring's spark burst — this is
+  // a small pill, not the primary control.
+  const [ibkrJustSynced, setIbkrJustSynced] = useState(false)
+  const wasIbkrSyncing = useRef(false)
+  useEffect(() => {
+    if (wasIbkrSyncing.current && !ibkrAutoSyncing && !ibkrNeedsAttention) {
+      setIbkrJustSynced(true)
+      const id = setTimeout(() => setIbkrJustSynced(false), 700)
+      return () => clearTimeout(id)
+    }
+    wasIbkrSyncing.current = ibkrAutoSyncing
+  }, [ibkrAutoSyncing, ibkrNeedsAttention])
+  // An attention flag arriving mid-flash (rare) cancels it rather than fighting it.
+  useEffect(() => { if (ibkrNeedsAttention) setIbkrJustSynced(false) }, [ibkrNeedsAttention])
 
   // Short, human date: "21 jun 2026" / "Jun 21, 2026"
   const today = new Date().toLocaleDateString(lang === 'es' ? 'es-ES' : 'en-US', {
@@ -45,11 +73,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14">
           <div className="flex items-center gap-4">
-            {/* Logo — lightning integrated with the wordmark */}
-            <div className="flex items-center gap-1.5" title={lang === 'es' ? 'Tu dinero, tu control' : 'Your money, your control'}>
-              <Zap size={18} style={{ color: 'var(--accent-blue)' }} fill="var(--accent-blue)" />
-              <h1 className="text-base font-bold leading-none tracking-tight" style={{ color: 'var(--text-primary)' }}>Chispudo</h1>
-            </div>
+            <Logo size={19} as="h1" title={lang === 'es' ? 'Tu dinero, tu control' : 'Your money, your control'} />
 
             {/* Navigation — segmented control */}
             <nav className="hidden sm:flex items-center gap-0.5 p-1 rounded-[10px]"
@@ -83,11 +107,18 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
               </button>
             )}
 
-            <button onClick={onRefresh} disabled={pricesLoading} aria-label={lang === 'es' ? 'Actualizar precios' : 'Refresh prices'}
-              className={`${iconBtn} disabled:opacity-50 hover:bg-theme-elevated`}
-              style={{ color: 'var(--accent-blue)', borderColor: 'var(--card-border)' }}>
-              <RefreshCw size={14} className={pricesLoading ? 'animate-spin' : ''} />
-            </button>
+            <ChispudoRefreshButton
+              onClick={onRefresh}
+              loading={pricesLoading}
+              progress={loadStagesTotal > 0 ? Math.round((loadStagesDone / loadStagesTotal) * 100) : null}
+              error={refreshError}
+              lang={lang}
+              // 36px = h-9, la MISMA altura que el resto de la fila (buscar,
+              // el pill de IBKR, ajustes, salir). A 44 sobresalía arriba y
+              // abajo y rompía la banda que forman los demás controles. El
+              // área táctil de 44 la conserva el propio botón por dentro.
+              size={36}
+            />
 
             {ibkrConnected && (
               <button onClick={onIBKR} disabled={ibkrAutoSyncing}
@@ -101,20 +132,40 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
                         ? `IBKR conectado · ${ibkrSyncSummary.items ?? 0} posiciones · toca para sincronizar`
                         : `IBKR connected · ${ibkrSyncSummary.items ?? 0} positions · tap to sync`)
                     : (lang === 'es' ? 'Sincronizar IBKR ahora' : 'Sync IBKR now')}
-                className="px-2.5 h-9 text-xs font-medium rounded-full border transition-colors flex items-center gap-1.5 disabled:cursor-default"
+                className="relative overflow-hidden px-2.5 h-9 text-xs font-medium rounded-full border transition-colors flex items-center gap-1.5 disabled:cursor-default"
                 style={ibkrAutoSyncing
                   ? { color: 'var(--accent-blue)', borderColor: 'rgba(79,70,229,0.3)', backgroundColor: 'rgba(79,70,229,0.08)' }
                   : ibkrNeedsAttention
-                    ? { color: '#D97706', borderColor: '#FDE68A', backgroundColor: '#FFFBEB' }
+                    // Was a hardcoded light-theme hex triplet with no dark-mode
+                    // counterpart — the "needs attention" pill rendered light-theme
+                    // cream/amber even in dark mode. These three vars match those
+                    // exact hex values in light theme and pick up the real dark
+                    // variant automatically (globals.css --alert-warn-*).
+                    ? { color: 'var(--alert-warn-icon)', borderColor: 'var(--alert-warn-border)', backgroundColor: 'var(--alert-warn-bg)' }
                     : { color: 'var(--text-secondary)', borderColor: 'var(--card-border)' }
                 }>
-                <span className="font-mono">IBKR</span>
-                {ibkrAutoSyncing
-                  ? <RefreshCw size={10} className="animate-spin" />
-                  : ibkrNeedsAttention
-                    ? <span>⚠</span>
-                    : <span style={{ color: 'var(--accent-green)' }}>●</span>
-                }
+                {ibkrJustSynced && (
+                  <span aria-hidden="true" className="absolute inset-0 rounded-full chispu-pill-anim"
+                    style={{ backgroundColor: 'var(--accent-green)', animation: 'chispuPillFlash 700ms ease-out forwards' }} />
+                )}
+                <span className="font-mono relative">IBKR</span>
+                {ibkrAutoSyncing ? (
+                  // Same sweep language as the header refresh ring's own
+                  // indeterminate state, at pill scale — not a bare browser spin.
+                  <svg width="12" height="12" viewBox="0 0 32 32" aria-hidden="true" className="relative chispu-pill-anim">
+                    <circle cx="16" cy="16" r={PILL_RING_R} fill="none" strokeWidth="4" strokeLinecap="round"
+                      style={{
+                        stroke: 'currentColor',
+                        strokeDasharray: `${PILL_RING_C * 0.22} ${PILL_RING_C * 0.78}`,
+                        transformOrigin: '16px 16px',
+                        animation: 'chispuPillSweep 1.1s linear infinite',
+                      }} />
+                  </svg>
+                ) : ibkrNeedsAttention ? (
+                  <span className="relative">⚠</span>
+                ) : (
+                  <span className="relative" style={{ color: 'var(--accent-green)' }}>●</span>
+                )}
               </button>
             )}
 
@@ -147,15 +198,30 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
                         onImport && { icon: Upload, label: lang === 'es' ? 'Importar archivo' : 'Import file',
                           desc: lang === 'es' ? 'Excel o CSV' : 'Excel or CSV',
                           onClick: onImport, tour: 'header-import' },
+                        // Enriching what is already here belongs next to the ways
+                        // of adding something new: both answer "my data is not
+                        // complete". It used to be a line of small print under the
+                        // YTD number, where it read as a complaint about the figure.
+                        onEnrich && { icon: Sparkles, label: lang === 'es' ? 'Completar información' : 'Complete your data',
+                          desc: enrichGapCount > 0
+                            ? (lang === 'es' ? `${enrichGapCount} ${enrichGapCount === 1 ? 'hueco' : 'huecos'} por llenar` : `${enrichGapCount} ${enrichGapCount === 1 ? 'gap' : 'gaps'} to fill`)
+                            : (lang === 'es' ? 'Fechas, costos y movimientos' : 'Dates, costs and movements'),
+                          onClick: onEnrich, badge: enrichGapCount > 0 ? enrichGapCount : null },
                       ].filter(Boolean).map((it) => (
                         <button key={it.label} role="menuitem" data-tour={it.tour}
                           onClick={() => { setNewMenuOpen(false); it.onClick() }}
                           className="w-full flex items-start gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors hover:bg-theme-elevated">
                           <it.icon size={15} className="mt-0.5 shrink-0" style={{ color: 'var(--accent-blue)' }} />
-                          <span className="min-w-0">
+                          <span className="min-w-0 flex-1">
                             <span className="block text-body font-medium" style={{ color: 'var(--text-primary)' }}>{it.label}</span>
                             <span className="block text-micro" style={{ color: 'var(--text-muted)' }}>{it.desc}</span>
                           </span>
+                          {it.badge && (
+                            <span className="shrink-0 mt-0.5 text-[11px] font-mono px-1.5 py-0.5 rounded-full"
+                              style={{ backgroundColor: 'var(--alert-warn-bg)', color: 'var(--alert-warn-icon)' }}>
+                              {it.badge}
+                            </span>
+                          )}
                         </button>
                       ))}
                     </div>
@@ -180,6 +246,23 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
           </div>
         </div>
       </div>
+
+      <style jsx>{`
+        @keyframes chispuPillSweep {
+          0%   { transform: rotate(-90deg); }
+          100% { transform: rotate(270deg); }
+        }
+        @keyframes chispuPillFlash {
+          0%   { opacity: 0.55; transform: scale(0.4); }
+          60%  { opacity: 0.22; transform: scale(1); }
+          100% { opacity: 0;    transform: scale(1); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .chispu-pill-anim {
+            animation: none !important;
+          }
+        }
+      `}</style>
     </header>
   )
 }

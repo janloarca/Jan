@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
-import { CheckCircle, Lock, ChevronDown, ChevronUp, Upload, RefreshCw } from 'lucide-react'
+import { CheckCircle, Lock, ChevronDown, ChevronUp, Upload, RefreshCw, Info } from 'lucide-react'
 import { parseIBKRFile, formatIBKRFileResult, detectIBKRFileKind, pickSectionedCsvFromWorkbook } from '@/lib/parsers/ibkrFileParser'
 import { parseIBKRXmlFile } from '@/lib/parsers/ibkrXmlFileAdapter'
 import { authFetch } from '@/lib/authFetch'
+import { getBrokerHowTo } from '@/lib/brokerHowTo'
+import BrokerSteps from '@/components/ui/BrokerSteps'
 
 // Real-phase stepper: shows which of the 4 sync phases is running instead of a
 // time-based bar that fills at a fixed rate regardless of IBKR's actual state.
@@ -103,6 +105,25 @@ function DoneStep({ result, onClose, onComplementFile, t }) {
              `Your value history starts on ${result.equityOldest}. For your yearly return to match IBKR, set your Flex Query period to "Year to Date" (or "Last 365 Days") and sync again.`)}
         </p>
       )}
+      {/* Positions arrived but ZERO deposits/withdrawals did. This failure is
+          otherwise SILENT (the sync "succeeds") and its symptom shows up far
+          away: with no flows on file, every deposit reads as market gain in
+          YTD/TWR/MWR. Two shapes, one message: the Cash Transactions section
+          missing entirely from the XML, or present but with the
+          "Deposits & Withdrawals" TYPE unticked inside it (adding the section
+          alone does not include that type). Softly worded on purpose: an
+          account with genuinely no external flows in the window is legitimate
+          and rare, not wrong. Gated on result.sections so an older result
+          shape without the forensic counts can never false-alarm. */}
+      {result.items > 0 && result.sections && (result.impFlows ?? 0) === 0 && (
+        <p className="text-xs mt-3 mx-auto max-w-xs leading-relaxed" style={{ color: 'var(--alert-warn-icon)' }}>
+          {(result.sections.cashTransactions ?? 0) === 0
+            ? t('No llegó ningún depósito ni retiro (la sección "Cash Transactions" no vino en el archivo). Si depositaste o retiraste dinero en el período, edita tu Flex Query, agrega "Cash Transactions" con el tipo "Deposits & Withdrawals" marcado, y sincroniza de nuevo: sin esos movimientos, tus depósitos se cuentan como ganancia en los retornos.',
+                'No deposit or withdrawal arrived (the "Cash Transactions" section was not in the file). If you deposited or withdrew money in the period, edit your Flex Query, add "Cash Transactions" with the "Deposits & Withdrawals" type ticked, and sync again: without those movements, your deposits count as gains in your returns.')
+            : t('Llegó la sección "Cash Transactions" pero sin ningún depósito ni retiro. Si depositaste o retiraste dinero en el período, edita tu Flex Query y, dentro de "Cash Transactions", marca el tipo "Deposits & Withdrawals": sin esos movimientos, tus depósitos se cuentan como ganancia en los retornos.',
+                'The "Cash Transactions" section arrived but with no deposit or withdrawal in it. If you deposited or withdrew money in the period, edit your Flex Query and, inside "Cash Transactions", tick the "Deposits & Withdrawals" type: without those movements, your deposits count as gains in your returns.')}
+        </p>
+      )}
       {/* Forensic breakdown: what the Flex XML actually delivered per section vs
           what we imported. One screenshot of this pins the failure: low XML counts
           = the query period is short (fix in IBKR); high XML but low imported = our
@@ -136,7 +157,7 @@ function DoneStep({ result, onClose, onComplementFile, t }) {
   )
 }
 
-export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, savedQueryId, vaultMigrated = false, syncSummary = null, onSaveCredentials, onApiSyncSuccess, onDisconnect, lang = 'es', uid, lastSyncTime, existingItems = [], existingTransactions = [], existingSnapshots = [] }) {
+export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, savedQueryId, vaultMigrated = false, syncSummary = null, onSaveCredentials, onSaveCredentialsPending, onApiSyncSuccess, onDisconnect, lang = 'es', uid, lastSyncTime, existingItems = [], existingTransactions = [], existingSnapshots = [], journeyActive = false }) {
   const trapRef = useFocusTrap()
   // Connected = a usable token (legacy client copy OR migrated to the server
   // vault) AND a query id. Mirrors ibkrConnected in useDashboardData: judging by
@@ -157,17 +178,20 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   // sync can run with '__stored__' without the client ever handling the token.
   const [hasVaultCreds, setHasVaultCreds] = useState(false)
   const [showConfig, setShowConfig] = useState(!isConnected)
-  // First-time explainer: BEFORE asking for any credentials, tell the user how
-  // the connection actually works (IBKR only shares what their Flex Query is
-  // configured to share, and its period rules everything). Seen once, then a
-  // "¿Cómo funciona?" link brings it back.
+  // First-time explainer: tells the user how the connection actually works
+  // (IBKR only shares what their Flex Query is configured to share, and its
+  // period rules everything). Open by default the FIRST time only (FASE GM2:
+  // lives inline in the same screen now, not a full-screen gate to dismiss);
+  // any manual toggle after that is remembered so it doesn't reopen uninvited.
   const [showExplainer, setShowExplainer] = useState(() => {
     if (isConnected) return false
     try { return !localStorage.getItem('chispudo-ibkr-explained') } catch { return true }
   })
-  const dismissExplainer = () => {
-    try { localStorage.setItem('chispudo-ibkr-explained', '1') } catch {}
-    setShowExplainer(false)
+  const toggleExplainer = () => {
+    setShowExplainer((v) => {
+      try { localStorage.setItem('chispudo-ibkr-explained', '1') } catch {}
+      return !v
+    })
   }
   const [showHistory, setShowHistory] = useState(false)
   const [syncStatus, setSyncStatus] = useState('')
@@ -241,6 +265,18 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   }, [savedToken, uid])
 
   // Auto-start sync when credentials already exist (only from config step, not connected)
+  //
+  // FASE GQ regression, found from a real report (user still saw the blocking
+  // "Requesting report from IBKR..." screen after this shipped): this effect
+  // re-runs on EVERY keystroke (token/queryId are both in its deps, bound
+  // directly to the two text inputs), and the form asks for Token first, then
+  // Query ID — so the instant the user types the FIRST digit of the Query ID
+  // with a Token already in the field, both conditions go true and this fires
+  // BEFORE the user ever reaches the "Conectar" button. It was still calling
+  // the old blocking handleSync(), so the button's own onClick swap to
+  // handleQuickConnect (above) never got a chance to matter: this effect won
+  // the race first, every time, for any first-time connect. Same non-blocking
+  // path here closes that gap for good.
   useEffect(() => {
     if (autoStartedRef.current) return
     // Gate on the LOCALLY-known queryId (prop OR the one loaded from the vault) so a
@@ -251,7 +287,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
     const haveQuery = !!(savedQueryId || queryId)
     if (haveCreds && haveQuery && !decrypting && step === 'config' && !isConnected) {
       autoStartedRef.current = true
-      handleSync()
+      handleQuickConnect()
     }
   }, [token, hasVaultCreds, savedQueryId, queryId, decrypting]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -371,6 +407,51 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       abortRef.current = null
     }
   }, [token, hasVaultCreds, queryId, onSaveCredentials, onApiSyncSuccess, onSyncComplete, uid, syncMode, t, ibkrHistory.items.length, isConnected])
+
+  // FASE GQ: the FIRST-time connect used to block on the live Flex round trip
+  // (up to ~90s of polling, per SyncStepper above) before the user could do
+  // anything else — and outside market hours (nights, weekends) IBKR often
+  // does not answer at all, so that wait ended in TIMEOUT with nothing saved
+  // (handleSync only persists credentials AFTER syncIBKR resolves). Saving the
+  // credentials FIRST, then landing on a reassurance screen instead of waiting,
+  // means the connection is never lost to a bad-timing weekend attempt: the
+  // background auto-sync in useDashboardData picks up the newly-saved
+  // credentials on its own (same effect that already retries LOCKED/TIMEOUT on
+  // a cadence) the moment settings updates, with zero extra wiring here.
+  // `onSaveCredentialsPending` is a SEPARATE prop from `onSaveCredentials` on
+  // purpose: the caller stamps `_ibkrLastSync` on the latter (it currently only
+  // ever fires after a confirmed successful sync in handleSync) — reusing it
+  // here would falsely mark a sync that has not happened yet, and the
+  // 5-business-day grace period (ibkrNeedsAttention in app/dashboard/page.jsx,
+  // FASE HX) needs `_ibkrConnectedAt` to be the ONLY thing that changes on
+  // this path.
+  const handleQuickConnect = useCallback(async () => {
+    const typed = token.trim()
+    const effToken = typed || (hasVaultCreds ? '__stored__' : '')
+    if (!effToken || !queryId.trim()) {
+      setError(t('Ingresa tu token y Query ID.', 'Enter your token and Query ID.'))
+      setShowConfig(true)
+      return
+    }
+    setSyncing(true)
+    setError('')
+    setErrorCode('')
+    try {
+      if (typed && uid) {
+        await authFetch('/api/brokers/ibkr', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'save-credentials', token: typed, queryId: queryId.trim() }),
+        })
+        setHasVaultCreds(true)
+      }
+      onSaveCredentialsPending?.({ ibkrToken: null, ibkrQueryId: queryId.trim(), _ibkrVaultMigrated: true })
+      setStep('journey-saved')
+    } catch (err) {
+      setError(err.message || t('No se pudieron guardar las credenciales. Intenta de nuevo.', 'Could not save credentials. Try again.'))
+    } finally {
+      setSyncing(false)
+    }
+  }, [token, hasVaultCreds, queryId, uid, onSaveCredentialsPending, t])
 
   const handleCancel = useCallback(() => {
     if (abortRef.current) {
@@ -755,53 +836,55 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
             </div>
           )}
 
-          {step === 'config' && showExplainer && !syncing && !decrypting && (
-            <div className="space-y-4">
-              <div className="text-center">
-                <div className="w-11 h-11 rounded-full flex items-center justify-center mx-auto mb-2" style={{ backgroundColor: 'rgba(37,99,235,0.12)' }}>
-                  <RefreshCw size={20} style={{ color: 'var(--accent-blue)' }} />
-                </div>
-                <p className="text-base font-semibold text-white">{t('Cómo funciona la conexión con IBKR', 'How the IBKR connection works')}</p>
-                <p className="text-xs text-slate-500 mt-1">{t('Antes de pegar tus datos, lo importante en 30 segundos.', 'Before you paste anything, the key points in 30 seconds.')}</p>
-              </div>
-              <div className="space-y-3 text-xs leading-relaxed text-slate-300">
-                <div className="flex gap-2.5">
-                  <span>🔒</span>
-                  <p>{t('Es SOLO LECTURA y cifrado. Usamos un "Flex Query" (un reporte de tu cuenta): nunca podemos operar ni mover tu dinero, solo leer lo que tú configures.',
-                        'It is READ-ONLY and encrypted. We use a "Flex Query" (a report of your account): we can never trade or move your money, only read what you configure.')}</p>
-                </div>
-                <div className="flex gap-2.5">
-                  <span>🧩</span>
-                  <div>
-                    <p>{t('Solo recibimos las secciones que actives en el Flex Query. Cada una desbloquea algo:', 'We only receive the sections you enable in the Flex Query. Each unlocks something:')}</p>
-                    <ul className="mt-1.5 space-y-1" style={{ color: 'var(--text-muted)' }}>
-                      <li>· <span className="text-white">Open Positions</span> + <span className="text-white">Cash Report</span>: {t('tus activos y efectivo de hoy', "today's assets and cash")}</li>
-                      <li>· <span className="text-white">Trades</span> + <span className="text-white">Cash Transactions</span>: {t('tus compras/ventas y depósitos (para el retorno real)', 'your buys/sells and deposits (for real return)')}</li>
-                      <li>· <span className="text-white">Net Asset Value (NAV) in Base</span>: {t('el valor diario de tu cuenta (la gráfica histórica)', "your account's daily value (the historical chart)")}</li>
-                    </ul>
-                  </div>
-                </div>
-                <div className="flex gap-2.5">
-                  <span>📅</span>
-                  <p>{t('El PERÍODO del Flex Query manda: ponlo en "Year to Date" o "Last 365 Days". Con un período corto solo recibimos unos días y tu retorno no cuadra con IBKR.',
-                        'The Flex Query PERIOD rules everything: set it to "Year to Date" or "Last 365 Days". A short period sends only a few days and your return will not match IBKR.')}</p>
-                </div>
-              </div>
-              <button onClick={dismissExplainer}
-                className="w-full py-3 rounded-xl text-sm font-medium" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
-                {t('Entendido, continuar', 'Got it, continue')}
-              </button>
-            </div>
-          )}
-
-          {step === 'config' && !showExplainer && (showConfig || (!syncing && !decrypting && !preview)) && (
+          {step === 'config' && (showConfig || (!syncing && !decrypting && !preview)) && (
             <div className="space-y-6">
-              <button onClick={() => setShowExplainer(true)}
-                className="text-xs underline underline-offset-2" style={{ color: 'var(--accent-blue)' }}>
-                {t('¿Cómo funciona?', 'How does it work?')}
-              </button>
-              {/* Mode tabs: API Sync vs File Import */}
-              <div className="flex bg-theme-base rounded-lg border border-glass-border p-0.5">
+              {/* FASE GM parte 2: el explicador ya no es una pantalla propia que
+                  hay que cerrar para llegar al formulario ("Entendido,
+                  continuar" era el pop-up inesperado que el usuario pidió
+                  eliminar) — vive DENTRO de esta misma pantalla, abierto por
+                  defecto la primera vez (mismo localStorage de antes) y
+                  colapsable el resto. Todo en un solo segmento. */}
+              {/* FASE IH: el explicador y su contenido comparten una sola caja
+                  (antes el panel abierto flotaba suelto debajo del botón, con
+                  `-mt-2` para pegarlo a mano) y sus colores salen de las
+                  variables de tema, no de un rgba fijo del azul de hoy. */}
+              <div className="rounded-lg overflow-hidden" style={{ border: '1px solid var(--card-border)' }}>
+                <button type="button" onClick={toggleExplainer} aria-expanded={showExplainer}
+                  className="w-full flex items-center gap-2 text-left px-3 py-2.5 transition-colors hover:bg-theme-elevated">
+                  <span className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center"
+                    style={showExplainer
+                      ? { backgroundColor: 'var(--accent-blue)', color: '#ffffff' }
+                      : { backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>
+                    <Info size={12} />
+                  </span>
+                  <span className="text-xs font-medium flex-1 min-w-0" style={{ color: 'var(--text-secondary)' }}>
+                    {t('Cómo funciona la conexión con IBKR', 'How the IBKR connection works')}
+                  </span>
+                  <ChevronDown size={13} style={{ color: 'var(--text-muted)', transform: showExplainer ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} />
+                </button>
+                {showExplainer && (
+                  <div className="space-y-2.5 text-xs leading-relaxed px-3 py-2.5" style={{ color: 'var(--text-muted)', borderTop: '1px solid var(--card-border)' }}>
+                    <div className="flex gap-2.5">
+                      <span>🔒</span>
+                      <p>{t('Es SOLO LECTURA y cifrado. Usamos un "Flex Query" (un reporte de tu cuenta): nunca podemos operar ni mover tu dinero, solo leer lo que tú configures.',
+                            'It is READ-ONLY and encrypted. We use a "Flex Query" (a report of your account): we can never trade or move your money, only read what you configure.')}</p>
+                    </div>
+                    <div className="flex gap-2.5">
+                      <span>🧩</span>
+                      <p>{t('Solo recibimos las secciones que actives en el Flex Query: posiciones y efectivo de hoy, compras/ventas y depósitos (para el retorno real), y el valor diario de tu cuenta (la gráfica histórica).',
+                            'We only receive the sections you enable in the Flex Query: today\'s positions and cash, buys/sells and deposits (for real return), and your daily account value (the historical chart).')}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {/* Mode tabs: API Sync vs File Import.
+                  FASE IH2: dentro del viaje no se muestran. Subir el archivo
+                  es el PASO 2, con su propia pantalla: ofrecerlo también como
+                  pestaña acá pone al usuario a elegir entre "este paso" y "el
+                  siguiente", que es justo la bifurcación que el viaje existe
+                  para quitar. Fuera del viaje (abrir IBKR desde conexiones)
+                  las dos pestañas siguen siendo la única puerta al archivo. */}
+              <div className={`flex bg-theme-base rounded-lg border border-glass-border p-0.5 ${journeyActive ? 'hidden' : ''}`}>
                 <button onClick={() => { setImportMode('api'); setError(''); setErrorCode('') }}
                   className={`flex-1 py-2 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-1.5 ${
                     importMode === 'api' ? 'bg-theme-card text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'
@@ -821,98 +904,46 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
               {importMode === 'api' && (
                 <>
               <div>
-                <p className="text-sm text-white font-medium mb-1">{t('Configuración inicial', 'Initial setup')}</p>
-                <p className="text-xs text-slate-500">
+                <p className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>{t('Configuración inicial', 'Initial setup')}</p>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                   {t('Necesitas un Token y un Query ID de tu cuenta IBKR.',
                      'You need a Token and a Query ID from your IBKR account.')}
                 </p>
               </div>
 
-              <div className="space-y-5 pl-1">
-                <div className="flex gap-4">
-                  <span className="text-xs text-slate-500 font-mono pt-0.5 shrink-0">1.</span>
-                  <div>
-                    <p className="text-xs text-white font-medium">{t('Crear el Flex Query', 'Create the Flex Query')}</p>
-                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                      <span className="text-[var(--accent-blue)] font-mono">interactivebrokers.com</span> → Performance & Reports → Flex Queries → {t('crear Activity Flex Query con', 'create Activity Flex Query with')} <span className="text-white">Open Positions</span>, <span className="text-white">Trades</span>, <span className="text-white">Cash Transactions</span>, <span className="text-white">Cash Report</span> {t('y', 'and')} <span className="text-white">Net Asset Value (NAV) in Base</span>
-                    </p>
-                    {/* Cash Report → <CashReportCurrency> balance rows. Without it the
-                        account's idle cash never appears as a position. */}
-                    <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--accent-orange)' }}>
-                      {t('Incluye "Cash Report": es la sección que trae el efectivo de tu cuenta. Sin ella tu cash no aparece en el portafolio.',
-                         'Include "Cash Report": it is the section that carries your account cash. Without it your cash never shows in the portfolio.')}
-                    </p>
-                    {/* Equity Summary → <EquitySummaryByReportDateInBase> daily NAV rows.
-                        This is the ONLY source of real historical portfolio value; without
-                        it YTD/ALL and the value chart start from today (estimated, not real). */}
-                    <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--accent-orange)' }}>
-                      {t('Incluye "Net Asset Value (NAV) in Base" (el historial de valor) y pon el período del query en "Year to Date" o "Last 365 Days". El período manda: con "Last 30 Days" solo recibimos 30 días de historial, depósitos y trades, y tu retorno del año no puede cuadrar con IBKR.',
-                         'Include "Net Asset Value (NAV) in Base" (the value history) and set the query period to "Year to Date" or "Last 365 Days". The period rules everything: with "Last 30 Days" we only receive 30 days of history, deposits and trades, and your yearly return cannot match IBKR.')}
-                    </p>
-                    <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-                      {t('¿No encuentras la sección de NAV? Usa la pestaña "Importar archivo" y sube tu Activity Statement (XLS): trae el historial de valor completo.',
-                         'Can\'t find the NAV section? Use the "Import file" tab and upload your Activity Statement (XLS): it brings the full value history.')}
-                    </p>
-                    {/* Without Cash Transactions, deposits/withdrawals never import,
-                        so Modified-Dietz returns are distorted by unaccounted flows. */}
-                    <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--accent-orange)' }}>
-                      {t('Incluye "Cash Transactions" (Deposits/Withdrawals): sin ella tus depósitos no se importan y tus retornos pueden salir inflados.',
-                         'Include "Cash Transactions" (Deposits/Withdrawals): without it your deposits don\'t import and your returns may look inflated.')}
-                    </p>
-                    {/* Without the Asset Class column everything imports as Stock —
-                        bonds/cash then fetch quotes from unrelated real tickers. */}
-                    <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--accent-orange)' }}>
-                      {t('Importante: incluye la columna "Asset Class" en Open Positions: sin ella, los bonos y el cash se importan como acciones.',
-                         'Important: include the "Asset Class" column in Open Positions: without it, bonds and cash import as stocks.')}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex gap-4">
-                  <span className="text-xs text-slate-500 font-mono pt-0.5 shrink-0">2.</span>
-                  <div>
-                    <p className="text-xs text-white font-medium">{t('Generar el Token', 'Generate the Token')}</p>
-                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                      {t('En la MISMA página de Flex Queries, junto a ', 'On the SAME Flex Queries page, next to ')}
-                      <span className="text-white">Flex Web Service</span>
-                      {t(' toca el engranaje ⚙, actívalo y toca ', ' click the gear ⚙, enable it, then ')}
-                      <span className="text-white">Generate a New Token</span>.
-                      {t(' Cópialo de inmediato (no se vuelve a mostrar). El token NO está en Settings.', ' Copy it immediately (it will not show again). The token is NOT under Settings.')}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex gap-4">
-                  <span className="text-xs text-slate-500 font-mono pt-0.5 shrink-0">3.</span>
-                  <div>
-                    <p className="text-xs text-white font-medium">{t('Copia el Query ID y pega ambos abajo', 'Copy the Query ID and paste both below')}</p>
-                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                      {t('El Query ID es el número junto a tu query guardado en la lista de Flex Queries. El token y el Query ID son dos cosas distintas.',
-                         'The Query ID is the number next to your saved query in the Flex Queries list. The token and the Query ID are two different things.')}
-                    </p>
-                  </div>
-                </div>
-              </div>
+              {/* FASE GM parte 2: una sola fuente de verdad para "cómo conseguir
+                  esto" (lib/brokerHowTo.js), la MISMA que ya alimenta el paso
+                  de archivo y el wizard de BrokerConnectModal — antes esta
+                  pantalla tenía su PROPIA copia hardcodeada de 3 pasos con 4
+                  párrafos naranjas siempre expandidos debajo del paso 1, la
+                  pared de texto que el usuario señaló como agobiante. */}
+              {/* FASE IH2: plegado por defecto. Con los 6 pasos abiertos, los
+                  campos de Token y Query ID (lo único que esta pantalla pide)
+                  quedaban por debajo del borde inferior: había que hacer
+                  scroll a través de toda la instrucción para llegar a la
+                  acción. Quien ya sabe conseguir su token no lee nada; quien
+                  no, lo abre de un toque. */}
+              <BrokerSteps steps={getBrokerHowTo('ibkr').api.steps} note={getBrokerHowTo('ibkr').api.note} variant="api" lang={lang} collapsible />
 
               <div className="border-t border-glass-border/40 pt-5 space-y-4">
                 <div>
-                  <label className="text-xs text-slate-500 uppercase tracking-wider mb-1.5 block">Token</label>
+                  <label className="text-xs uppercase tracking-wider mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Token</label>
                   <input type="password" value={token} onChange={e => setToken(e.target.value)}
                     placeholder={decrypting ? t('Desencriptando...', 'Decrypting...') : t('Flex Web Service Token', 'Flex Web Service Token')}
                     disabled={decrypting}
-                    className="w-full px-4 py-2.5 bg-theme-base border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[var(--accent-blue)] font-mono"
-                    style={{ borderColor: errorCode === 'TOKEN_EXPIRED' ? 'rgba(239,68,68,0.6)' : 'var(--card-border)' }} />
+                    className="w-full px-4 py-2.5 bg-theme-base border rounded-lg text-sm placeholder-slate-600 focus:outline-none focus:border-[var(--accent-blue)] font-mono"
+                    style={{ color: 'var(--text-primary)', borderColor: errorCode === 'TOKEN_EXPIRED' ? 'rgba(239,68,68,0.6)' : 'var(--card-border)' }} />
                   {errorCode === 'TOKEN_EXPIRED' && (
                     <p className="text-xs text-[var(--alert-error-icon)] mt-1">{t('Este token expiró o es inválido.', 'This token has expired or is invalid.')}</p>
                   )}
                 </div>
 
                 <div>
-                  <label className="text-xs text-slate-500 uppercase tracking-wider mb-1.5 block">Query ID</label>
+                  <label className="text-xs uppercase tracking-wider mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Query ID</label>
                   <input type="text" value={queryId} onChange={e => setQueryId(e.target.value)}
                     placeholder={t('Ej: 123456', 'E.g.: 123456')}
-                    className="w-full px-4 py-2.5 bg-theme-base border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[var(--accent-blue)] font-mono"
-                    style={{ borderColor: errorCode === 'INVALID_QUERY' ? 'rgba(239,68,68,0.6)' : 'var(--card-border)' }} />
+                    className="w-full px-4 py-2.5 bg-theme-base border rounded-lg text-sm placeholder-slate-600 focus:outline-none focus:border-[var(--accent-blue)] font-mono"
+                    style={{ color: 'var(--text-primary)', borderColor: errorCode === 'INVALID_QUERY' ? 'rgba(239,68,68,0.6)' : 'var(--card-border)' }} />
                   {errorCode === 'INVALID_QUERY' && (
                     <p className="text-xs text-[var(--alert-error-icon)] mt-1">{t('Este Query ID no existe o no está activo.', 'This Query ID does not exist or is not active.')}</p>
                   )}
@@ -984,14 +1015,20 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 </div>
               )}
 
-              <button onClick={handleSync} disabled={syncing || !token || !queryId || decrypting}
+              {/* A first-time connect saves and moves on right away (FASE GQ,
+                  handleQuickConnect above) instead of blocking on the live Flex
+                  round trip. Re-entering this form to change ALREADY-working
+                  credentials keeps the old blocking handleSync: that case has a
+                  known-good connection to fall back on, so immediate feedback
+                  is worth the wait it no longer needs to survive a weekend. */}
+              <button onClick={isConnected ? handleSync : handleQuickConnect} disabled={syncing || !token || !queryId || decrypting}
                 className="w-full py-3 rounded-xl disabled:opacity-50 hover:opacity-90 transition-all text-sm font-medium flex items-center justify-center gap-2" style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
                 {syncing ? (
                   <>
                     <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    {t('Conectando con IBKR...', 'Connecting to IBKR...')}
+                    {isConnected ? t('Conectando con IBKR...', 'Connecting to IBKR...') : t('Guardando...', 'Saving...')}
                   </>
-                ) : t('Sincronizar', 'Sync')}
+                ) : (isConnected ? t('Sincronizar', 'Sync') : t('Conectar', 'Connect'))}
               </button>
 
               <p className="flex items-center justify-center gap-1.5 text-xs text-slate-600">
@@ -1328,6 +1365,34 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
             </div>
             )
           })()}
+
+          {/* FASE GQ: replaces the ~90s blocking wait for a first-time connect.
+              No "will retry automatically" claim without saying HOW LONG we'll
+              stay quiet about it — the 5-business-day figure here (FASE HX)
+              must match the threshold ibkrNeedsAttention
+              (app/dashboard/page.jsx) actually uses, or the copy and the
+              behavior would tell two different stories. */}
+          {step === 'journey-saved' && (
+            <div className="text-center py-10">
+              <CheckCircle size={36} strokeWidth={1.5} className="text-[var(--accent-green)] mx-auto mb-5" />
+              <p className="text-white font-medium text-base mb-3">
+                {t('Credenciales guardadas', 'Credentials saved')}
+              </p>
+              <p className="text-sm leading-relaxed max-w-sm mx-auto" style={{ color: 'var(--text-secondary)' }}>
+                {t('Ya guardamos tu Token y Query ID. En cuanto IBKR responda, tus datos se actualizarán solos: no hace falta que esperes aquí.',
+                   'We saved your Token and Query ID. As soon as IBKR responds, your data will update on its own: no need to wait here.')}
+              </p>
+              <p className="text-xs mt-3 max-w-sm mx-auto leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                {t('IBKR suele no responder fuera de horario de mercado (fines de semana, noches). Si sigue sin conectar después de 5 días hábiles, te avisaremos para que revises o cambies tus credenciales.',
+                   'IBKR often does not respond outside market hours (weekends, nights). If it still has not connected after 5 business days, we will let you know so you can check or change your credentials.')}
+              </p>
+              <button onClick={onClose}
+                className="mt-8 px-10 py-3 rounded-xl hover:opacity-90 transition-all text-sm font-medium"
+                style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
+                {t('Continuar', 'Continue')}
+              </button>
+            </div>
+          )}
 
           {step === 'done' && result && (
             <DoneStep result={result} onClose={onClose} t={t}

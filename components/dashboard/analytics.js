@@ -1,4 +1,5 @@
 import { getTypeCategory, getItemValue, computeModifiedDietz, getInvestmentClass, INVESTMENT_CLASS_META } from './utils'
+import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
 
 function mean(arr) {
   if (arr.length === 0) return 0
@@ -393,7 +394,18 @@ export function computeCAGR(startValue, endValue, years) {
 
 export function computePeriodicReturns(snapshots, transactions, convert, baseCurrency) {
   if (!snapshots || snapshots.length < 2) return []
-  const sorted = [...snapshots].sort((a, b) => {
+  // FASE HT4. Una serie de retornos solo tiene sentido sobre observaciones del
+  // MISMO portafolio, una por día. Sin esto, los docs paralelos de NAV
+  // solo-broker (FASE FU: ~$10K conviviendo con la observación completa de
+  // ~$26K en la misma fecha) fabricaban "retornos" de ±60% día por medio y la
+  // volatilidad anualizada salía 116% en un portafolio cuya máxima caída real
+  // fue -5.6%: el diente de sierra, vivo dentro de las métricas de riesgo. Las
+  // anclas de calibración y los docs por-cuenta tampoco son observaciones del
+  // portafolio y quedan fuera. El filtro MAD de abajo no alcanza cuando la
+  // MITAD de la serie es basura: la mediana misma se contamina.
+  const usable = preferFullPortfolioPerDay(snapshots.filter((s) => s && !s._calibrated && !s._account))
+  if (usable.length < 2) return []
+  const sorted = [...usable].sort((a, b) => {
     const da = new Date(a.date).getTime()
     const db = new Date(b.date).getTime()
     return da - db
@@ -454,6 +466,45 @@ export function filterValueSpikes(series) {
     const downDip = p.value < prev * 0.55 && p.value < next * 0.55
     return !(upSpike || downDip)
   })
+}
+
+// FASE HT5. El emparejado portafolio↔benchmark que antes vivía inline en
+// RiskMetrics.jsx, extraído porque ahora lo necesita también el hook (el
+// reporte imprime beta): dos copias del mismo emparejado es exactamente cómo
+// una se queda atrás. Devuelve las DOS series alineadas par a par (misma
+// ventana, mismo guard de outliers en ambas) más el beta ya calculado.
+export function pairPortfolioWithBenchmark(valueSeries, benchmarkData) {
+  const pReturnsB = []
+  const bReturns = []
+  if (!benchmarkData?.dataPoints?.length || benchmarkData.dataPoints.length <= 2 || !valueSeries || valueSeries.length <= 2) {
+    return { pReturnsB, bReturns, beta: null }
+  }
+  const bPts = benchmarkData.dataPoints.slice().sort((a, b) => a.ts - b.ts)
+  const findClosest = (ts) => {
+    let lo = 0, hi = bPts.length - 1
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1
+      if (bPts[mid].ts < ts) lo = mid + 1
+      else hi = mid
+    }
+    if (lo === 0) return bPts[0]
+    const prev = bPts[lo - 1]
+    const curr = bPts[lo]
+    return Math.abs(prev.ts - ts) <= Math.abs(curr.ts - ts) ? prev : curr
+  }
+  for (let i = 1; i < valueSeries.length; i++) {
+    const closestCurr = findClosest(valueSeries[i].ts)
+    const closestPrev = findClosest(valueSeries[i - 1].ts)
+    const prevVal = valueSeries[i - 1].value
+    if (closestCurr && closestPrev && closestPrev.close > 0 && prevVal > 0) {
+      const pr = (valueSeries[i].value - prevVal) / prevVal
+      if (Math.abs(pr) < 1) {
+        pReturnsB.push(pr)
+        bReturns.push((closestCurr.close - closestPrev.close) / closestPrev.close)
+      }
+    }
+  }
+  return { pReturnsB, bReturns, beta: computeBeta(pReturnsB, bReturns) }
 }
 
 export function computeBeta(portfolioReturns, benchmarkReturns) {
@@ -628,11 +679,18 @@ export function computeMWRSeries(chartData, transactions, convert, baseCurrency,
   // it had no such parameter, and JavaScript never complains about an extra
   // argument. See the FASE AD/AI note in CLAUDE.md.
   const flowFromTs = opts.flowFromTs ?? null
+  // FASE EO. The chained-segment caller (computeAnchoredReturnSeries) needs an
+  // upper bound too: a flow landing exactly at a segment's END timestamp is the
+  // flow that opens the NEXT segment, not a mid-segment event of this one. Without
+  // this, that flow's fee reads as an instant loss in the segment it's about to
+  // leave (same fee-in-the-numerator shape the frozen VITALI case documents).
+  const flowBeforeTs = opts.flowBeforeTs ?? null
 
   const flowTypes = { DEPOSIT: 1, WITHDRAWAL: -1 }
   const flows = (transactions || [])
     .filter((tx) => tx.date && flowTypes[(tx.type || '').toUpperCase()] != null)
     .filter((tx) => flowFromTs == null || new Date(tx.date).getTime() >= flowFromTs)
+    .filter((tx) => flowBeforeTs == null || new Date(tx.date).getTime() < flowBeforeTs)
     .map((tx) => {
       const sign = flowTypes[(tx.type || '').toUpperCase()]
       const raw = (tx.totalAmount ?? 0) * sign
@@ -670,4 +728,264 @@ export function computeMWRSeries(chartData, transactions, convert, baseCurrency,
   }
 
   return series
+}
+
+// ⛔ LÓGICA CONGELADA (D). Antes de tocar el ancla o el re-base de esta serie,
+// leer lib/assetLogic/corporateBondWithEntryFee.js y seguir el protocolo de
+// su cabecera: hay que PREGUNTAR antes de cambiarla.
+//
+// FASE EJ/EO. The %-per-point twin of computeWindowGrowth (dashboard/utils.js):
+// new capital that arrives mid-window is never counted as return, whether the
+// window opens at $0 (a brand-new account) or already holding value (XOCHI,
+// bought years earlier, giving the window a nonzero start before VITALI's own
+// deposit lands on top of it). The old code (FASE EJ) only excluded the FIRST
+// such funding event: with a THIRD bond (CrediCorp) funded at yet another
+// date, its own entry fee showed up as an instant loss right when IT landed,
+// healing only as Dietz's own time-weighting caught up — the same
+// fee-in-the-numerator error CLAUDE.md's VITALI case documents, now repeating
+// once per funding event instead of just the first (FASE EO).
+//
+// The general fix chains N segments, not just two: every point where new
+// capital lands — the window's own start-of-value point (zeroIdx > 0) plus
+// every later DEPOSIT/WITHDRAWAL landing strictly inside the window — opens a
+// FRESH segment that excludes its own funding flow (so that segment's fee
+// never reads as a loss), measured with computeMWRSeries exactly like the
+// single-anchor case always was. Segments chain multiplicatively
+// ((1+r1)*(1+r2)*... - 1), which is what makes new capital arriving later
+// contribute NOTHING until it itself earns something — it can never dilute
+// what was already earned, the one property an anchor-per-event fix has to
+// preserve for three bonds that it already had for two.
+//
+// The final rescale is unchanged in spirit from FASE EE/EJ: Dietz is linear
+// in the base once no flows are left inside a (sub-)window, so the fee is
+// still applied as ONE scale of the whole chained shape at the very end
+// (principal deployed / cost basis deployed, using the REAL value jump at
+// each boundary as the fee-free "principal" side — no need to know any
+// item's entryFee directly, the chart's own reconstructed value already
+// nets it out). A uniform scale never introduces a NEW dip: it stretches or
+// shrinks the whole chained curve, it does not reshape it.
+export function computeAnchoredReturnSeries(chartData, transactions, convert, baseCurrency, opts = {}) {
+  if (!chartData || chartData.length < 2) return []
+  const windowStartTs = chartData[0].ts
+
+  // Hold-flat prefixes pre-date flows implicitly, so flows inside them are
+  // ignored (flowFromTs). A TRANSACTIONAL prefix contains real flow effects,
+  // so every flow nets, exactly like a broker's full-year TWR. Unrelated to
+  // the manual-deposit chaining below — a broker-synced position doesn't
+  // carry the kind of per-item entry fee this chains for — so it keeps its
+  // own single-anchor path exactly as before.
+  const hasHoldFlatPrefix = !opts.apiTransactional && opts.firstRealTs != null
+    && chartData[0].ts < opts.firstRealTs - 3600000
+  if (hasHoldFlatPrefix) {
+    const idx = chartData.findIndex((p) => p.ts >= opts.firstRealTs - 3600000)
+    const anchorIdx = idx > 0 ? idx : -1
+    const measured = anchorIdx > 0 ? chartData.slice(anchorIdx) : chartData
+    if (measured.length < 2) return []
+    const series = computeMWRSeries(measured, transactions, convert, baseCurrency, { flowFromTs: opts.firstRealTs })
+    return anchorIdx > 0 ? [...Array(anchorIdx).fill(0), ...series] : series
+  }
+
+  const zeroIdx = chartData.findIndex((p) => (p.value ?? p.total ?? 0) > 0)
+  if (zeroIdx === -1) return chartData.map(() => 0)
+
+  // Every later funding boundary, in order, deduped to one per chart point
+  // (two deposits landing on the same reconstructed point only need one
+  // fresh segment) and never at/before the window's own start (that money is
+  // already folded into chartData[0], not new).
+  const laterBoundaries = []
+  {
+    const seen = new Set()
+    const flowTs = (transactions || [])
+      .filter((tx) => { const ty = (tx.type || '').toUpperCase(); return ty === 'DEPOSIT' || ty === 'WITHDRAWAL' })
+      .map((tx) => (tx.date ? new Date(tx.date).getTime() : NaN))
+      .filter((ts) => Number.isFinite(ts) && ts > windowStartTs)
+      .sort((a, b) => a - b)
+    for (const ts of flowTs) {
+      const idx = chartData.findIndex((p) => p.ts >= ts)
+      if (idx <= 0 || idx <= zeroIdx || seen.has(idx)) continue
+      laterBoundaries.push(idx)
+      seen.add(idx)
+    }
+  }
+
+  // segmentStarts[0] is where Dietz measurement actually begins; everything
+  // before it is genuinely 0 — there is no capital yet to measure a return
+  // against (FASE ED).
+  const firstAnchor = zeroIdx > 0 ? zeroIdx : 0
+  const segmentStarts = zeroIdx > 0 ? [zeroIdx, ...laterBoundaries] : [0, ...laterBoundaries]
+
+  const out = new Array(chartData.length).fill(0)
+  let carry = 1
+  for (let s = 0; s < segmentStarts.length; s++) {
+    const start = segmentStarts[s]
+    const isLastSegment = s === segmentStarts.length - 1
+    const end = isLastSegment ? chartData.length - 1 : segmentStarts[s + 1]
+    if (end <= start) continue
+    let segmentData = chartData.slice(start, end + 1)
+    if (segmentData.length < 2) continue
+
+    // Every segment excludes its OWN opening flow (flowFromTs: the deposit
+    // that created this segment's start is already folded into
+    // segmentData[0].value, netting it again would double-count). Segment 0
+    // with organic value (zeroIdx === 0) has no flow at its own start, so
+    // flowFromTs there is a no-op — safe to apply uniformly.
+    //
+    // A segment that CLOSES on a boundary (not the last segment) needs more
+    // than that: its final point IS the instant the next flow lands, so
+    // endValue already contains the newly injected value. Subtracting just
+    // the flow's CASH amount (sumFlows) is what the single-anchor code did
+    // and it is wrong here, for the same reason the frozen VITALI spec
+    // exists: cash in (with its fee) never equals value added. A $6,098
+    // deposit that buys $6,000 of bond reads as an instant $98 loss for the
+    // capital that was already there. The fix is to exclude the injected
+    // VALUE itself (the real jump the chart already reconstructed, fee and
+    // all) from this closing segment's own Dietz calc — that capital is not
+    // this segment's business, it becomes the next segment's base instead
+    // (which starts from the true post-flow value, untouched).
+    if (!isLastSegment) {
+      const jump = (chartData[end].value ?? chartData[end].total ?? 0)
+        - (chartData[end - 1].value ?? chartData[end - 1].total ?? 0)
+      const last = segmentData[segmentData.length - 1]
+      segmentData = [...segmentData.slice(0, -1), { ts: last.ts, value: (last.value ?? last.total ?? 0) - jump }]
+    }
+    // FASE FZ. El límite superior de flujos de un segmento que CIERRA en una
+    // frontera tiene que cubrir el ÚLTIMO intervalo entre puntos completo, no
+    // solo el timestamp exacto de la frontera. El salto que se excluye arriba
+    // es el delta entre los DOS últimos puntos, así que los flujos fechados
+    // dentro de ese mismo intervalo (un depósito del 1 jun cuando el punto
+    // más cercano de la serie es el 2 jun) son exactamente el dinero que ese
+    // salto representa: dejarlos adentro los resta DOS veces (como flujo y
+    // como salto), que es como ClubCashIn marcó -125.74% sobre una cuenta
+    // que ganaba (+5.38% en la pestaña MWR, que no segmenta y no lo sufre).
+    // Con el flujo fechado EXACTO en la frontera (VITALI, todos los casos del
+    // candado) ambos límites excluyen lo mismo: byte-idéntico.
+    const mwrOpts = {
+      flowFromTs: segmentData[0].ts + 1,
+      flowBeforeTs: isLastSegment ? chartData[end].ts : chartData[end - 1].ts + 1,
+    }
+    const local = computeMWRSeries(segmentData, transactions, convert, baseCurrency, mwrOpts)
+    for (let j = 0; j < segmentData.length; j++) {
+      out[start + j] = (carry * (1 + (local[j] || 0) / 100) - 1) * 100
+    }
+    carry *= (1 + (local[local.length - 1] || 0) / 100)
+  }
+
+  // Rescale the whole chained shape once, principal → cost basis, exactly
+  // like the single-anchor case. "Principal deployed" per boundary is the
+  // REAL value jump the chart already reconstructed (fee-free, since the
+  // asset's true value never included the fee); "cost basis deployed" is the
+  // full cash that left the pocket (every DEPOSIT/WITHDRAWAL inside the
+  // window). Neither needs any item's entryFee directly.
+  let principalDeployed = chartData[0].value ?? chartData[0].total ?? 0
+  if (zeroIdx > 0) {
+    principalDeployed += (chartData[zeroIdx].value ?? chartData[zeroIdx].total ?? 0)
+      - (chartData[zeroIdx - 1].value ?? chartData[zeroIdx - 1].total ?? 0)
+  }
+  for (const idx of laterBoundaries) {
+    principalDeployed += (chartData[idx].value ?? chartData[idx].total ?? 0)
+      - (chartData[idx - 1].value ?? chartData[idx - 1].total ?? 0)
+  }
+  let costBasisDeployed = chartData[0].value ?? chartData[0].total ?? 0
+  for (const tx of transactions || []) {
+    const ty = (tx.type || '').toUpperCase()
+    if (ty !== 'DEPOSIT' && ty !== 'WITHDRAWAL') continue
+    const ts = tx.date ? new Date(tx.date).getTime() : NaN
+    if (!Number.isFinite(ts) || ts <= windowStartTs) continue
+    const raw = Number(tx.totalAmount ?? 0)
+    const amt = convert ? convert(raw, tx.currency || 'USD', baseCurrency || 'USD') : raw
+    if (Number.isFinite(amt)) costBasisDeployed += ty === 'DEPOSIT' ? amt : -amt
+  }
+  if (costBasisDeployed > 0 && principalDeployed > 0 && (zeroIdx > 0 || laterBoundaries.length > 0)) {
+    const scale = principalDeployed / costBasisDeployed
+    for (let i = firstAnchor; i < out.length; i++) out[i] *= scale
+  }
+
+  return out
+}
+
+// FASE FP. The money-weighted SIBLING of computeAnchoredReturnSeries — an
+// EXTENSION of the frozen logic, never a change to it (the protocol in
+// lib/assetLogic/corporateBondWithEntryFee.js permits extending, forbids
+// rewriting; the frozen function above stays byte-identical and remains the
+// chart's default "Rendimiento TWR" tab).
+//
+// Same anchor, same window, one difference: NO chained segments. The frozen
+// series opens a fresh segment at every funding boundary, which is exactly
+// what strips out the timing of the user's own deposits — capital arriving
+// late "contributes nothing until it itself earns something". That is the
+// time-weighted (strategy) reading. This function instead runs ONE Modified
+// Dietz window from the anchor to the end, with every later
+// DEPOSIT/WITHDRAWAL netting INSIDE the window at its time weight: capital
+// arriving right before a rally helps the number, capital sitting idle drags
+// it — the money-weighted ("how did MY money actually do", IBKR's MWR)
+// reading. With no flows inside the window the two coincide exactly, which
+// is the property that keeps VITALI at 3.94% on BOTH tabs.
+//
+// Fee convention, per event, still respects the frozen invariant
+// (costBasis - principal === fee, fee never charged twice):
+//  - The ANCHOR's own funding is folded into the anchor value (excluded as a
+//    flow), so its fee re-enters through an anchor-only rescale:
+//    principal-at-anchor / cash-that-funded-it — the exact rescale shape the
+//    frozen function uses, restricted to the anchor. VITALI-only: 4.00% raw
+//    × (6000/6098) = 3.94%, same as the TWR tab.
+//  - Every LATER funding nets as CASH (fee included) with its Dietz time
+//    weight — that is how IBKR's own MWR treats a purchase + commission
+//    (money out of pocket that bought less value than it cost), and it is
+//    charged exactly once: later boundaries are deliberately NOT part of the
+//    rescale, or their fee would count in both numerator and denominator
+//    (the documented 2.33% double-charge shape).
+export function computeAnchoredMWRSeries(chartData, transactions, convert, baseCurrency, opts = {}) {
+  if (!chartData || chartData.length < 2) return []
+  const windowStartTs = chartData[0].ts
+
+  // Hold-flat prefix branch: byte-for-byte the frozen function's own branch.
+  // It is already a single Dietz window there, so TWR and MWR coincide — a
+  // broker-synced prefix carries no per-item entry fee to differ over.
+  const hasHoldFlatPrefix = !opts.apiTransactional && opts.firstRealTs != null
+    && chartData[0].ts < opts.firstRealTs - 3600000
+  if (hasHoldFlatPrefix) {
+    const idx = chartData.findIndex((p) => p.ts >= opts.firstRealTs - 3600000)
+    const anchorIdx = idx > 0 ? idx : -1
+    const measured = anchorIdx > 0 ? chartData.slice(anchorIdx) : chartData
+    if (measured.length < 2) return []
+    const series = computeMWRSeries(measured, transactions, convert, baseCurrency, { flowFromTs: opts.firstRealTs })
+    return anchorIdx > 0 ? [...Array(anchorIdx).fill(0), ...series] : series
+  }
+
+  const zeroIdx = chartData.findIndex((p) => (p.value ?? p.total ?? 0) > 0)
+  if (zeroIdx === -1) return chartData.map(() => 0)
+
+  const measured = zeroIdx > 0 ? chartData.slice(zeroIdx) : chartData
+  if (measured.length < 2) return chartData.map(() => 0)
+  // flowFromTs excludes the anchor's own funding (already folded into
+  // measured[0].value — netting it again would double-count, same reasoning
+  // as every segment start in the frozen function). Later flows all net.
+  const local = computeMWRSeries(measured, transactions, convert, baseCurrency,
+    { flowFromTs: measured[0].ts + 1 })
+  const out = new Array(chartData.length).fill(0)
+  for (let j = 0; j < measured.length; j++) out[zeroIdx + j] = local[j] || 0
+
+  // Anchor-only fee rescale (see header comment): the cash that created the
+  // anchor value vs the value it actually bought.
+  if (zeroIdx > 0) {
+    const anchorTs = chartData[zeroIdx].ts
+    const prevVal = chartData[zeroIdx - 1].value ?? chartData[zeroIdx - 1].total ?? 0
+    const anchorPrincipal = (chartData[zeroIdx].value ?? chartData[zeroIdx].total ?? 0) - prevVal
+    let anchorCost = 0
+    for (const tx of transactions || []) {
+      const ty = (tx.type || '').toUpperCase()
+      if (ty !== 'DEPOSIT' && ty !== 'WITHDRAWAL') continue
+      const ts = tx.date ? new Date(tx.date).getTime() : NaN
+      if (!Number.isFinite(ts) || ts <= windowStartTs || ts > anchorTs) continue
+      const raw = Number(tx.totalAmount ?? 0)
+      const amt = convert ? convert(raw, tx.currency || 'USD', baseCurrency || 'USD') : raw
+      if (Number.isFinite(amt)) anchorCost += ty === 'DEPOSIT' ? amt : -amt
+    }
+    if (anchorCost > 0 && anchorPrincipal > 0) {
+      const scale = anchorPrincipal / anchorCost
+      for (let i = zeroIdx; i < out.length; i++) out[i] *= scale
+    }
+  }
+
+  return out
 }

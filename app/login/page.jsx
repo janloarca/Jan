@@ -2,11 +2,119 @@
 
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { auth } from '@/lib/firebase'
+import { auth, app } from '@/lib/firebase'
+import { runAuthDiagnostics } from '@/lib/authDiagnostics'
+import Logo from '@/components/ui/Logo'
+import ChispudoLoader from '@/components/ui/ChispudoLoader'
+
+// Google sign-in, ENCENDIDO otra vez (FASE HY2): funciona, verificado en
+// producción por el usuario.
+//
+// Estuvo oculto tras esta bandera (FASE HW) mientras se buscaba la causa del
+// auth/internal-error que lo mató durante semanas. La causa resultó ser
+// NUESTRA: `apis.google.com` faltaba en la `script-src` de la CSP
+// (next.config.js), así que el navegador bloqueaba el script que el SDK de
+// Firebase Auth necesita, y Firebase envolvía ese evento de error de carga
+// como un internal-error genérico. Ver FASE HY, y el guardián
+// `lib/__tests__/cspGoogleAuth.test.js` que impide que vuelva a pasar.
+//
+// La bandera se queda: si algún día hay que apagarlo de urgencia, es una línea
+// en vez de un revert. `/login?google=1` sigue funcionando y ahora es
+// redundante (el botón ya se muestra siempre), lo que es correcto: forzar algo
+// que ya está encendido no hace daño.
+const GOOGLE_SIGNIN_ENABLED = true
+
+// Marca de que ESTA pestaña mandó al usuario a Google por redirect. Sin ella,
+// las dos piernas del flujo son indistinguibles cuando fallan: el popup y la
+// vuelta producen el mismo auth/internal-error genérico, y ni el código ni el
+// mensaje dicen cuál de las dos murió. Saber eso descarta la mitad de las
+// causas posibles de una sola vez.
+const REDIRECT_MARK = 'chispu-google-redirect'
+function markRedirectStarted() {
+  try { sessionStorage.setItem(REDIRECT_MARK, String(Date.now())) } catch {}
+}
+function takeRedirectMark() {
+  try {
+    const v = sessionStorage.getItem(REDIRECT_MARK)
+    if (v) sessionStorage.removeItem(REDIRECT_MARK)
+    return !!v
+  } catch { return false }
+}
+
+// MODO CLÁSICO. El experimento que decide entre las dos arquitecturas posibles,
+// porque llevamos varias rondas sin poder distinguirlas desde afuera.
+//
+// Hoy el sign-in usa el helper de OAuth servido desde NUESTRO dominio (FASE FV:
+// authDomain = chispu.xyz + proxy de /__/auth). Eso existe para esquivar el
+// bloqueo de storage cruzado de Safari, pero trajo su propia cadena de
+// problemas (el 404 de Hosting, el init.json que hay que sintetizar, la
+// redirect URI que hay que registrar aparte), y el fallo actual está justo en
+// el tramo donde ese proxy hace más trabajo: la vuelta.
+//
+// Nunca probamos la combinación ESTÁNDAR: authDomain de Firebase + flujo de
+// REDIRECT. La cadena original de fallos empezó con popup + firebaseapp.com, y
+// el redirect (que Firebase recomienda precisamente para Safari) llegó después,
+// cuando el proxy ya estaba puesto. Este botón prueba esa combinación en una
+// instancia SEPARADA de Firebase, sin tocar la principal.
+//
+// La credencial que devuelve Google es del PROYECTO, no del authDomain, así que
+// si funciona se puede firmar con ella en la instancia principal y la sesión
+// queda idéntica a un login normal. O sea: si el experimento sale bien, ES el
+// arreglo, no solo un diagnóstico.
+const CLASSIC_MARK = 'chispu-google-classic'
+const CLASSIC_APP = 'chispu-classic-auth'
+
+async function getClassicAuth() {
+  const upstream = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+  if (!app || !upstream) return null
+  const [{ initializeApp, getApps }, { getAuth }] = await Promise.all([
+    import('firebase/app'), import('firebase/auth'),
+  ])
+  const existing = getApps().find((a) => a.name === CLASSIC_APP)
+  const classicApp = existing || initializeApp({ ...app.options, authDomain: upstream }, CLASSIC_APP)
+  return getAuth(classicApp)
+}
 
 function setSessionCookie(token) {
   const secure = window.location.protocol === 'https:' ? '; Secure' : ''
   document.cookie = `__session=${token}; path=/; max-age=604800; SameSite=Lax${secure}`
+}
+
+// El mensaje crudo de Firebase, cuando dice algo más que el genérico. Es el
+// único canal de diagnóstico en un teléfono, donde no hay consola, y es la
+// misma extracción para el popup y para la vuelta del redirect: tenerla en dos
+// copias fue exactamente cómo la rama de vuelta se quedó sin ella.
+function googleErrorDetail(err) {
+  const fromMessage = (() => {
+    if (typeof err?.message !== 'string') return ''
+    const cleaned = err.message.replace(/^Firebase:\s*/i, '').replace(/\s+/g, ' ').trim()
+    if (!cleaned) return ''
+    const generic = /^an internal auth error has occurred\.?$/i.test(cleaned)
+      || /^error \(auth\/[a-z-]+\)\.?$/i.test(cleaned)
+    return generic ? '' : cleaned
+  })()
+  if (fromMessage) return ` ${fromMessage.slice(0, 200)}`
+
+  // FASE HX2. Cerrado Hosting (FASE HX) el fallo sigue igual, y con TODOS los
+  // chequeos en verde lo único que queda por saber es si el servidor llegó a
+  // contestar algo. `message` no lo dice: cuando es genérico, es genérico.
+  //
+  // Firebase adjunta la respuesta cruda del servidor en customData cuando la
+  // hubo, y eso parte el problema en dos mitades que hoy se ven idénticas:
+  // con payload, Identity Toolkit RECHAZÓ el canje y su razón viene ahí (que
+  // es lo que soporte necesita); vacío, la página murió del lado del navegador
+  // sin llegar a preguntar. Esa distinción es la que llevamos rondas sin poder
+  // hacer, y en un teléfono no hay consola de donde sacarla.
+  const raw = err?.customData?.serverResponse ?? err?.customData ?? null
+  if (!raw) return ''
+  try {
+    const text = typeof raw === 'string' ? raw : JSON.stringify(raw)
+    const trimmed = text.replace(/\s+/g, ' ').trim()
+    // "{}" es la ausencia de payload, no un payload: imprimirlo sugeriría que
+    // el servidor contestó algo cuando no contestó nada.
+    if (!trimmed || trimmed === '{}' || trimmed === 'null') return ''
+    return ` [servidor] ${trimmed.slice(0, 300)}`
+  } catch { return '' }
 }
 
 function isInAppBrowser() {
@@ -25,6 +133,12 @@ function LoginForm() {
   const [showReset, setShowReset] = useState(false)
   const [inAppBrowser, setInAppBrowser] = useState(false)
   const [checkingAuth, setCheckingAuth] = useState(true)
+  // Google sign-in diagnostics: only ever offered AFTER a Google failure, so
+  // the login screen stays clean for everyone it works for.
+  const [googleFailed, setGoogleFailed] = useState('')
+  const [diagnostics, setDiagnostics] = useState(null)
+  const [diagRunning, setDiagRunning] = useState(false)
+  const [diagCopied, setDiagCopied] = useState(false)
   const searchParams = useSearchParams()
   const router = useRouter()
   const firebaseAuthRef = useRef(null)
@@ -33,14 +147,81 @@ function LoginForm() {
   const rawRedirect = searchParams.get('redirect') || '/dashboard'
   const redirectTo = rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') && !rawRedirect.includes('\\') ? rawRedirect : '/dashboard'
 
+  // Ver el comentario de GOOGLE_SIGNIN_ENABLED arriba. Se lee del mismo
+  // searchParams que ya usa `redirect`, así que no hay riesgo de desajuste
+  // entre lo que renderiza el servidor y lo que renderiza el navegador.
+  const showGoogle = GOOGLE_SIGNIN_ENABLED || searchParams.get('google') === '1'
+
   useEffect(() => {
     if (isInAppBrowser()) setInAppBrowser(true)
 
     if (!auth) { setCheckingAuth(false); return }
 
     let unsub
-    import('firebase/auth').then(({ onAuthStateChanged }) => {
-      firebaseAuthRef.current = true
+    import('firebase/auth').then((mod) => {
+      // Guardar el MÓDULO, no un booleano: handleGoogle lo necesita ya cargado
+      // para llamar signInWithPopup sin un `await import(...)` de por medio.
+      // Safari (sobre todo iOS) invalida el gesto del usuario si hay una espera
+      // de red entre el tap y window.open, y bloquea el popup.
+      firebaseAuthRef.current = mod
+      const { onAuthStateChanged, getRedirectResult } = mod
+      // Completar (o reportar) un sign-in por redirect que vuelve de Google:
+      // sin esto, un error del flujo de redirect (el fallback cuando el popup
+      // se bloquea) moría en silencio y el usuario solo veía la pantalla de
+      // login otra vez, sin pista de qué pasó.
+      // Una vuelta en modo clásico se completa contra SU instancia, y la
+      // credencial resultante se usa para firmar en la principal: el proyecto es
+      // el mismo, así que la sesión que queda es indistinguible de un login
+      // normal (mismo uid, mismo token, mismo cookie).
+      let classicPending = false
+      try { classicPending = !!sessionStorage.getItem(CLASSIC_MARK) } catch {}
+      if (classicPending) {
+        try { sessionStorage.removeItem(CLASSIC_MARK) } catch {}
+        getClassicAuth().then(async (classicAuth) => {
+          if (!classicAuth) return
+          try {
+            const res = await mod.getRedirectResult(classicAuth)
+            if (!res) {
+              setError('El modo clásico volvió sin credencial. Reportá esto.')
+              setGoogleFailed('[clasico] vuelta sin credencial')
+              setCheckingAuth(false)
+              return
+            }
+            const cred = mod.GoogleAuthProvider.credentialFromResult(res)
+            if (!cred) throw new Error('sin credencial en el resultado')
+            await mod.signInWithCredential(auth, cred)
+            // onAuthStateChanged de abajo se encarga de la cookie y el redirect.
+          } catch (err) {
+            console.error('[google-classic]', err?.code, err?.message)
+            setError(`El modo clásico también falló. (${err?.code || 'sin código'})${googleErrorDetail(err)}`)
+            setGoogleFailed(`[clasico] ${err?.code || 'sin código'}${googleErrorDetail(err)}`)
+            setCheckingAuth(false)
+          }
+        })
+      }
+
+      const cameBackFromGoogle = takeRedirectMark()
+      getRedirectResult(auth).then((res) => {
+        // Volvimos de Google SIN credencial y SIN error. No es un rechazo: es
+        // que el resultado se perdió entre la ida y la vuelta, lo que apunta al
+        // estado del round-trip y no a un permiso mal puesto. Sin este caso, un
+        // viaje que no produce nada se ve idéntico a no haber intentado.
+        if (!res && cameBackFromGoogle) {
+          setError('Volviste de Google pero la sesión no llegó. Intenta de nuevo.')
+          setGoogleFailed('vuelta-sin-credencial (getRedirectResult devolvió null)')
+          setCheckingAuth(false)
+        }
+      }).catch((err) => {
+        if (!err || !err.code) return
+        // El detalle embebido importa MÁS en esta rama que en el popup. Este es
+        // el tramo de VUELTA: Google ya autenticó y el helper está canjeando la
+        // credencial contra Identity Toolkit, así que un rechazo de aquí SÍ es
+        // una respuesta de servidor y suele traer su razón adentro.
+        console.error('[google-redirect]', err.code, err.message)
+        setError(`Error al volver de Google. Intenta de nuevo. (${err.code})${googleErrorDetail(err)}`)
+        setGoogleFailed(`[vuelta] ${err.code}${googleErrorDetail(err)}`)
+        setCheckingAuth(false)
+      })
       unsub = onAuthStateChanged(auth, async (u) => {
         if (u) {
           try {
@@ -99,10 +280,15 @@ function LoginForm() {
     setError('')
     setGoogleLoading(true)
     try {
-      const { GoogleAuthProvider, signInWithPopup, signInWithRedirect } = await import('firebase/auth')
+      // El módulo ya viene precargado desde el mount: usarlo directo mantiene
+      // el gesto del usuario intacto entre el tap y window.open (Safari
+      // bloquea el popup si hay una importación de red en medio). El await
+      // dinámico queda solo como fallback si el mount aún no terminó.
+      const { GoogleAuthProvider, signInWithPopup, signInWithRedirect } = firebaseAuthRef.current || await import('firebase/auth')
       if (!auth) throw new Error('Firebase not initialized')
       const provider = new GoogleAuthProvider()
       if (isInAppBrowser()) {
+        markRedirectStarted()
         await signInWithRedirect(auth, provider)
         return
       }
@@ -113,18 +299,96 @@ function LoginForm() {
       setTimeout(() => { window.location.href = redirectTo }, 1500)
     } catch (err) {
       if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') return
-      if (err.code === 'auth/popup-blocked') {
+      // auth/internal-error joins popup-blocked as a reason to fall back to the
+      // redirect flow. The failing device reports it with NO embedded server
+      // payload (the message is the bare "Firebase: Error (auth/internal-error)"),
+      // and that distinction is the useful one: a request the server rejected
+      // comes back carrying its reason, so a bare one means the popup never got
+      // that far. What dies before then is the popup/iframe handshake the SDK
+      // needs to talk to the helper, which Safari restricts hardest. The
+      // redirect flow does not use that handshake at all: it navigates the top
+      // window and comes back through getRedirectResult (handled on mount).
+      // Only reached when the popup path has ALREADY failed, so at worst it
+      // replaces a dead end with an attempt.
+      if (err.code === 'auth/popup-blocked' || err.code === 'auth/internal-error') {
         try {
-          const { GoogleAuthProvider, signInWithRedirect } = await import('firebase/auth')
-          if (auth) await signInWithRedirect(auth, new GoogleAuthProvider())
-          return
-        } catch {}
+          const { GoogleAuthProvider, signInWithRedirect } = firebaseAuthRef.current || await import('firebase/auth')
+          if (auth) { markRedirectStarted(); await signInWithRedirect(auth, new GoogleAuthProvider()); return }
+        } catch (redirectErr) {
+          // Falls through to the banner below, which now describes the redirect
+          // failure rather than the popup one that is no longer the real story.
+          console.error('[google-signin] redirect fallback', redirectErr?.code, redirectErr?.message)
+        }
       }
+      // El código del error viaja en el mensaje a propósito: "Error interno"
+      // a secas hacía imposible diagnosticar a distancia qué falló de verdad
+      // (auth/internal-error, unauthorized-domain, etc.). auth/internal-error
+      // PUEDE traer embebido el mensaje real del servidor en err.message (un
+      // JSON con la razón); se muestra recortado porque es el único canal de
+      // diagnóstico en un teléfono. Cuando NO lo trae (el caso observado: el
+      // mensaje es el genérico a secas) eso mismo es el dato: el servidor
+      // nunca contestó, así que el fallo está antes, en el handshake del
+      // popup, y por eso arriba se reintenta por redirect.
+      console.error('[google-signin]', err.code, err.message)
+      const detail = googleErrorDetail(err)
       const msg = err.code === 'auth/network-request-failed' ? 'Error de red. Verifica tu conexión.'
-        : err.code === 'auth/internal-error' ? 'Error interno. Intenta de nuevo.'
-        : 'Error al conectar con Google. Intenta de nuevo.'
+        : `Error al conectar con Google. Intenta de nuevo.${err.code ? ` (${err.code})` : ''}${detail}`
       setError(msg)
+      // Etiquetada como IDA: si el fallback por redirect hubiera arrancado, esta
+      // pestaña ya se habría ido a Google y este banner no existiría.
+      setGoogleFailed(`[ida] ${err.code || 'sin código'}${detail}`)
     } finally {
+      setGoogleLoading(false)
+    }
+  }
+
+  // Runs on the device that is actually failing. Every previous round of this
+  // bug was diagnosed by guessing from a screenshot; this reads the traces
+  // directly and says which side is broken.
+  const runDiagnostics = async () => {
+    setDiagRunning(true)
+    setDiagCopied(false)
+    try {
+      const opts = app?.options || {}
+      const res = await runAuthDiagnostics({
+        origin: window.location.origin,
+        authDomain: opts.authDomain,
+        projectId: opts.projectId,
+        // Lets the diagnostic read Firebase's own authorized-domain list, which
+        // is what decides whether the RETURN leg of the sign-in is accepted.
+        apiKey: opts.apiKey,
+        lastError: googleFailed,
+      })
+      setDiagnostics(res)
+    } catch (err) {
+      setDiagnostics({ checks: [], summary: `No se pudo correr el diagnóstico: ${err?.message || err}` })
+    }
+    setDiagRunning(false)
+  }
+
+  const copyDiagnostics = async () => {
+    if (!diagnostics) return
+    try {
+      await navigator.clipboard.writeText(diagnostics.summary)
+      setDiagCopied(true)
+    } catch { setDiagCopied(false) }
+  }
+
+  // Solo se ofrece DESPUÉS de que el camino normal falle, y en su propia
+  // instancia: si esto tampoco funciona, el proxy same-origin queda descartado
+  // como causa; si funciona, es el arreglo.
+  const handleClassicGoogle = async () => {
+    setError('')
+    setGoogleLoading(true)
+    try {
+      const classicAuth = await getClassicAuth()
+      if (!classicAuth) throw new Error('sin authDomain de Firebase configurado')
+      const { GoogleAuthProvider, signInWithRedirect } = firebaseAuthRef.current || await import('firebase/auth')
+      try { sessionStorage.setItem(CLASSIC_MARK, String(Date.now())) } catch {}
+      await signInWithRedirect(classicAuth, new GoogleAuthProvider())
+    } catch (err) {
+      console.error('[google-classic-start]', err?.code, err?.message)
+      setError(`No se pudo abrir el modo clásico. (${err?.code || 'sin código'})`)
       setGoogleLoading(false)
     }
   }
@@ -151,10 +415,7 @@ function LoginForm() {
   if (checkingAuth) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-theme-base" style={{ background: 'radial-gradient(ellipse at 20% 50%, rgba(37,99,235,0.08) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(37,99,235,0.06) 0%, transparent 50%), var(--bg-primary)' }}>
-        <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-          <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--text-secondary)', borderTopColor: 'transparent' }} />
-          Verificando sesión...
-        </div>
+        <ChispudoLoader mode="inline" size="medium" state="initial-loading" message="Verificando sesión..." showLabel />
       </div>
     )
   }
@@ -163,9 +424,8 @@ function LoginForm() {
     <div className="flex items-center justify-center min-h-screen bg-theme-base" style={{ background: 'radial-gradient(ellipse at 20% 50%, rgba(37,99,235,0.08) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(37,99,235,0.06) 0%, transparent 50%), var(--bg-primary)' }}>
       <div className="w-full max-w-md px-6">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 mb-2">
-            <span className="text-3xl" style={{ color: 'var(--accent-blue)' }}>⚡</span>
-            <h1 className="text-3xl font-bold" style={{ color: 'var(--accent-blue)' }}>Chispudo</h1>
+          <div className="inline-flex mb-2">
+            <Logo size={32} as="h1" />
           </div>
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Tu control financiero personal</p>
         </div>
@@ -189,6 +449,47 @@ function LoginForm() {
           {error && (
             <div role="alert" aria-live="assertive" className="mb-4 p-3 rounded-lg text-sm" style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: 'var(--text-negative)' }}>
               {error}
+              {/* Only after Google itself failed: the banner alone never said
+                  which side was broken, so every round of this bug was
+                  diagnosed by guessing from a screenshot. */}
+              {googleFailed && !diagnostics && (
+                <button type="button" onClick={runDiagnostics} disabled={diagRunning}
+                  className="block mt-2 text-xs underline underline-offset-2 disabled:opacity-50"
+                  style={{ color: 'var(--text-secondary)' }}>
+                  {diagRunning ? 'Revisando...' : 'Revisar qué falló'}
+                </button>
+              )}
+              {/* El experimento que decide entre las dos arquitecturas. Solo
+                  aparece tras un fallo, y solo si no venimos de probarlo. */}
+              {googleFailed && !googleFailed.startsWith('[clasico]') && (
+                <button type="button" onClick={handleClassicGoogle} disabled={googleLoading}
+                  className="block mt-2 text-xs underline underline-offset-2 disabled:opacity-50"
+                  style={{ color: 'var(--text-secondary)' }}>
+                  Probar el modo clásico
+                </button>
+              )}
+            </div>
+          )}
+
+          {diagnostics && (
+            <div className="mb-4 p-3 rounded-lg text-xs" style={{ backgroundColor: 'var(--bg-tertiary)', border: 'var(--glass-border)' }}>
+              <p className="font-medium mb-2" style={{ color: 'var(--text-primary)' }}>Diagnóstico de Google</p>
+              <div className="space-y-1">
+                {diagnostics.checks.map((c) => (
+                  <div key={c.id} className="flex gap-2">
+                    <span style={{ color: c.status === 'ok' ? 'var(--accent-green)' : c.status === 'fail' ? 'var(--text-negative)' : 'var(--text-muted)' }}>
+                      {c.status === 'ok' ? '✔' : c.status === 'fail' ? '✖' : c.status === 'warn' ? '!' : '·'}
+                    </span>
+                    <span style={{ color: 'var(--text-secondary)' }}>
+                      <span style={{ color: 'var(--text-primary)' }}>{c.label}:</span> {c.detail}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <button type="button" onClick={copyDiagnostics}
+                className="mt-2 text-xs underline underline-offset-2" style={{ color: 'var(--text-secondary)' }}>
+                {diagCopied ? 'Copiado' : 'Copiar para reportar'}
+              </button>
             </div>
           )}
 
@@ -257,6 +558,7 @@ function LoginForm() {
             </div>
           )}
 
+          {showGoogle && (<>
           <div className="relative my-5">
             <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-glass-border" /></div>
             <div className="relative flex justify-center">
@@ -274,6 +576,7 @@ function LoginForm() {
             </svg>
             {googleLoading ? 'Conectando...' : 'Continuar con Google'}
           </button>
+          </>)}
 
           <p className="mt-5 text-center text-sm" style={{ color: 'var(--text-secondary)' }}>
             {isSignUp ? '¿Ya tienes cuenta?' : '¿No tienes cuenta?'}{' '}
@@ -286,7 +589,16 @@ function LoginForm() {
           </p>
         </div>
 
-        <p className="text-center text-xs mt-6" style={{ color: 'var(--text-tertiary, var(--text-secondary))' }}>
+        {/* El enlace con círculo "i" que vivía acá (FASE FC) se quitó: apuntaba
+            a /terms, exactamente igual que la línea de abajo, así que eran dos
+            accesos al mismo documento a tres centímetros uno del otro. La línea
+            de abajo se queda porque además de enlazar dice para qué sirve
+            ("al continuar aceptas..."), que es lo que un aviso legal tiene que
+            hacer, y porque también cubre la Política de Privacidad. */}
+        <p className="text-center text-xs mt-5" style={{ color: 'var(--text-tertiary, var(--text-secondary))' }}>
+          Al continuar aceptas los <a href="/terms" className="underline" style={{ color: 'var(--accent-blue)' }}>Términos</a> y la <a href="/privacy" className="underline" style={{ color: 'var(--accent-blue)' }}>Política de Privacidad</a>
+        </p>
+        <p className="text-center text-xs mt-2" style={{ color: 'var(--text-tertiary, var(--text-secondary))' }}>
           Powered by Chispudo
         </p>
       </div>

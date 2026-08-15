@@ -35,8 +35,6 @@ export default function ConcentrationRisk({ items, lang }) {
     return computeHHI(positions)
   }, [items])
 
-  if (items.length === 0) return null
-
   const t = (es, en) => lang === 'es' ? es : en
 
   const displayHHI = dimension === 'asset' ? individualHHI : data
@@ -65,6 +63,11 @@ export default function ConcentrationRisk({ items, lang }) {
     }
     return null
   }, [displayHHI, topPosition, lang])
+
+  // After the LAST hook: this gate used to sit above the insight useMemo, so
+  // deleting your final position while this card was mounted crashed it with
+  // "Rendered fewer hooks than expected".
+  if (items.length === 0) return null
 
   const dims = [
     { key: 'asset', label: t('Activo', 'Asset') },

@@ -6,9 +6,13 @@ import { formatCurrency } from './utils'
 // Backend already existed end-to-end (Firestore alerts + checkPriceAlerts firing
 // browser notifications in useDashboardData) but there was no UI to create one —
 // per-symbol price alerts were invisible even though the plumbing worked.
-export default function PriceAlerts({ items, alerts, marketPrices, addAlert, deleteAlert, lang }) {
+// onClose: presente solo cuando esto vive DENTRO del modal de alertas (dejó de
+// ser una card del overview, FASE IC). Con él aparece la × del encabezado y,
+// si todavía no hay ninguna alerta, se abre directo en el formulario: quien
+// entró por el botón "Alertas de precio" ya dijo a qué venía.
+export default function PriceAlerts({ items, alerts, marketPrices, addAlert, deleteAlert, lang, onClose = null }) {
   const t = (es, en) => lang === 'es' ? es : en
-  const [adding, setAdding] = useState(false)
+  const [adding, setAdding] = useState(!!onClose && (alerts || []).length === 0)
   const [symbol, setSymbol] = useState('')
   const [direction, setDirection] = useState('above')
   const [targetPrice, setTargetPrice] = useState('')
@@ -38,16 +42,21 @@ export default function PriceAlerts({ items, alerts, marketPrices, addAlert, del
 
   if (list.length === 0 && !adding) {
     return (
-      <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-4">
+      <div className="bg-theme-card/80 rounded-2xl border border-glass-border/50 p-4">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-slate-500" />
             {t('ALERTAS DE PRECIO', 'PRICE ALERTS')}
           </h3>
-          <button onClick={() => setAdding(true)}
-            className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
-            + {t('Agregar', 'Add')}
-          </button>
+          <span className="flex items-center gap-3">
+            <button onClick={() => setAdding(true)}
+              className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
+              + {t('Agregar', 'Add')}
+            </button>
+            {onClose && (
+              <button onClick={onClose} className="text-xl leading-none" style={{ color: 'var(--text-muted)' }} aria-label={t('Cerrar', 'Close')}>×</button>
+            )}
+          </span>
         </div>
         <p className="text-xs text-slate-600 mt-2">
           {t('Te avisamos cuando un activo cruce el precio que elijas', "We'll notify you when an asset crosses a price you choose")}
@@ -57,16 +66,21 @@ export default function PriceAlerts({ items, alerts, marketPrices, addAlert, del
   }
 
   return (
-    <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-4">
+    <div className="bg-theme-card/80 rounded-2xl border border-glass-border/50 p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-slate-500" />
           {t('ALERTAS DE PRECIO', 'PRICE ALERTS')}
         </h3>
-        <button onClick={() => setAdding(!adding)}
-          className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
-          {adding ? t('Cancelar', 'Cancel') : `+ ${t('Agregar', 'Add')}`}
-        </button>
+        <span className="flex items-center gap-3">
+          <button onClick={() => setAdding(!adding)}
+            className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
+            {adding ? t('Cancelar', 'Cancel') : `+ ${t('Agregar', 'Add')}`}
+          </button>
+          {onClose && (
+            <button onClick={onClose} className="text-xl leading-none" style={{ color: 'var(--text-muted)' }} aria-label={t('Cerrar', 'Close')}>×</button>
+          )}
+        </span>
       </div>
 
       {adding && (

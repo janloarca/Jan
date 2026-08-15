@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { formatCurrency, getTypeCategory, TYPE_COLORS, CHART_PALETTE, getItemValue, getSectorFromItem, getGeographyFromItem, getInvestmentClass, INVESTMENT_CLASS_META, isExcludedFromNetWorth } from './utils'
+import { formatCurrency, getTypeCategory, TYPE_COLORS, CHART_PALETTE, getItemValue, getSectorFromItem, getGeographyFromItem, getInvestmentClass, INVESTMENT_CLASS_META, isExcludedFromNetWorth, getDividendIncomeByItem, getIncomeReceivedByItem, getInvestedCapital, getItemPrincipalCost } from './utils'
+import { InfoTip } from '../ui/Tooltip'
 
-export default function AssetAllocation({ items, lang }) {
+export default function AssetAllocation({ items, lang, transactions, convert, baseCurrency }) {
   const [view, setView] = useState('type')
 
   const allocation = useMemo(() => {
@@ -17,18 +18,42 @@ export default function AssetAllocation({ items, lang }) {
     }
 
     const fn = groupFns[view] || groupFns.type
+    // A bond/bank account that pays cash to a different account (rather than
+    // reinvesting) never moves its own currentPrice — without this, it always
+    // shows 0% here no matter how much it actually paid out.
+    // ⛔ LÓGICA CONGELADA (A). Antes de tocar la fórmula de retorno de este
+    // archivo, leer lib/assetLogic/corporateBondWithEntryFee.js
+    // y seguir el protocolo de su cabecera: hay que PREGUNTAR antes de cambiarla.
+    // gain contra principalCost, % contra getInvestedCapital. 3.94%, 2 decimales.
+    const dividendIncome = getDividendIncomeByItem(transactions, items, convert, baseCurrency)
+    // Income that LANDED in an account is not capital the user invested, so it
+    // never belongs in the denominator (see getIncomeReceivedByItem). Same
+    // adjustment InstitutionPerformance makes, so grouping by type and grouping
+    // by institution can never drift apart on the same holdings.
+    const incomeReceived = getIncomeReceivedByItem(transactions, items, convert, baseCurrency)
     const byGroup = {}
     const gainByGroup = {}
+    // costByGroup, NOT total portfolio value, is the % denominator — same
+    // gain÷cost formula "Rendimiento por Institución" uses. The two used to
+    // answer different questions (this one was "% of the WHOLE portfolio's
+    // gain"), which meant the same asset showed two different, unrelated
+    // numbers depending which card you looked at. One return definition,
+    // used everywhere.
+    const costByGroup = {}
     let total = 0
     items.forEach((it) => {
       if (it.isDebt || isExcludedFromNetWorth(it)) return
       const val = getItemValue(it)
       if (val <= 0) return
       const key = fn(it)
-      const qty = it.quantity || 0
-      const cost = qty * (it.purchasePrice || 0)
+      // Gain measures against principal; the % divides by all-in cost (with
+      // fees) — see getItemPrincipalCost for why the two differ.
+      const principal = getItemPrincipalCost(it)
+      const invested = getInvestedCapital(it, incomeReceived.get(it.id))
+      const income = dividendIncome.get(it.id) || 0
       byGroup[key] = (byGroup[key] || 0) + val
-      gainByGroup[key] = (gainByGroup[key] || 0) + (val - cost)
+      gainByGroup[key] = (gainByGroup[key] || 0) + (val - principal) + income
+      costByGroup[key] = (costByGroup[key] || 0) + invested
       total += val
     })
     return Object.entries(byGroup)
@@ -37,13 +62,13 @@ export default function AssetAllocation({ items, lang }) {
         name,
         value,
         pct: total > 0 ? (value / total) * 100 : 0,
-        contribution: total > 0 ? ((gainByGroup[name] || 0) / total) * 100 : 0,
+        returnPct: costByGroup[name] > 0 ? ((gainByGroup[name] || 0) / costByGroup[name]) * 100 : null,
         color: view === 'type' ? (TYPE_COLORS[name]?.bg || CHART_PALETTE[i % CHART_PALETTE.length])
              : view === 'returnType' ? (INVESTMENT_CLASS_META[name]?.color || CHART_PALETTE[i % CHART_PALETTE.length])
              : CHART_PALETTE[i % CHART_PALETTE.length],
       }))
       .sort((a, b) => b.value - a.value)
-  }, [items, view, lang])
+  }, [items, view, lang, transactions, convert, baseCurrency])
 
   const totalValue = useMemo(() => items.reduce((s, it) => {
     if (it.isDebt || isExcludedFromNetWorth(it)) return s
@@ -71,6 +96,10 @@ export default function AssetAllocation({ items, lang }) {
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
           {t('ASIGNACIÓN DE ACTIVOS', 'ASSET ALLOCATION')}
+          <InfoTip text={t(
+            'El % junto al monto es el retorno propio de ese grupo: ganancia ÷ lo que invertiste en él (incluye costos de entrada, excluye el capital nuevo). Misma fórmula que usa "Rendimiento por Institución": deberían coincidir para el mismo activo.',
+            'The % next to the amount is that group\'s own return: gain ÷ what you invested in it (includes entry costs, excludes new capital). Same formula "Institution Performance" uses: they should match for the same asset.'
+          )} />
         </h3>
         <span className="text-sm font-bold text-white font-mono tabular-nums">
           {formatCurrency(totalValue)}
@@ -126,9 +155,11 @@ export default function AssetAllocation({ items, lang }) {
                 <div className="flex items-center gap-3 shrink-0">
                   <span
                     className="text-xs w-14 text-right"
-                    style={{ color: seg.contribution >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}
+                    style={seg.returnPct == null ? { color: 'var(--text-muted)' } : { color: seg.returnPct >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}
                   >
-                    {seg.contribution >= 0 ? '+' : ''}{seg.contribution.toFixed(1)}%
+                    {/* 2 decimals, same as InstitutionPerformance and the YTD headline: the
+                        same return shown three ways must not read as three numbers. */}
+                    {seg.returnPct == null ? '-' : `${seg.returnPct >= 0 ? '+' : ''}${seg.returnPct.toFixed(2)}%`}
                   </span>
                   <span className="text-sm text-white font-mono tabular-nums text-right min-w-[80px]">
                     {formatCurrency(seg.value)}

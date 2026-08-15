@@ -109,10 +109,29 @@ export function isMarketPriced(item) {
   if (!item || !item.symbol) return false
   if (item.isIlliquid || item.isDebt || item.isReceivable) return false
   const t = item.type || ''
+  // Acción común/preferente de empresa PRIVADA: item.type sigue siendo
+  // 'Stock' (matchea MARKET_TYPE_RE), pero subtype la distingue de una acción
+  // de mercado real. Sin esto, el symbol sintético que AddAccountModal arma
+  // del nombre (ej. "ACME-INC") dispararía un fetch a Yahoo Finance que
+  // puede COINCIDIR con un ticker real no relacionado — el mismo riesgo por
+  // el que este archivo ya es default-deny (ver comentario de arriba).
+  if (t === 'Stock' && (item.subtype === 'private_common' || item.subtype === 'private_preferred' || item.subtype === 'private')) return false
   if (NON_MARKET_TYPE_RE.test(t)) return false
   if (MARKET_TYPE_RE.test(t)) return true
   const cat = getTypeCategory(item)
   return cat === 'stocks' || cat === 'crypto' || cat === 'funds'
+}
+
+// Un pasivo (isDebt) es una obligación propia o de una empresa, no un
+// instrumento de inversión: no tiene retorno propio que medir (por eso todo
+// cálculo de ganancia/rendimiento de esta app lo excluye desde el filtro más
+// externo — AssetAllocation, InstitutionPerformance, NetWorthCard), solo resta
+// del patrimonio. Copy compartido para que cualquier superficie que lo
+// muestre junto a categorías de inversión (la fila "Pasivos" del Spreadsheet,
+// el selector de tipo de AddAccountModal) lo aclare con el MISMO texto.
+export const DEBT_CLARIFICATION = {
+  es: 'Pasivo propio o de empresa: no es un instrumento de inversión, no genera retorno, solo resta del patrimonio.',
+  en: 'A personal or company liability: not an investment instrument, it earns no return, it only subtracts from net worth.',
 }
 
 export function getTypeCategory(itemOrType) {
@@ -135,6 +154,35 @@ export function getTypeCategory(itemOrType) {
 
 export { CATEGORY as TYPE_COLORS, CHART_PALETTE } from '@/lib/colors'
 
+// Etiquetas visibles de las categorías de getTypeCategory. Ya existían CUATRO
+// copias locales de este mapa (NetWorthCard, AccountReviewModal,
+// PatrimonioSpreadsheet, PortfolioSpreadsheet); esta es la compartida para
+// consumidores nuevos (los reportes, FASE HT). Las copias viejas quedan donde
+// están a propósito (alguna diverge adrede, ej. "Bonos Corporativo" en el
+// Spreadsheet), pero nada nuevo debe crear una quinta.
+export const CATEGORY_LABELS = {
+  banks: { es: 'Caja & Bancos', en: 'Cash & Banks' },
+  funds: { es: 'Fondos', en: 'Funds' },
+  stocks: { es: 'Acciones', en: 'Stocks' },
+  crypto: { es: 'Cripto', en: 'Crypto' },
+  alternatives: { es: 'Alternativos', en: 'Alternatives' },
+  bonds: { es: 'Bonos', en: 'Bonds' },
+  realestate: { es: 'Bienes Raíces', en: 'Real Estate' },
+  receivables: { es: 'Por Cobrar', en: 'Receivables' },
+  debts: { es: 'Pasivos', en: 'Liabilities' },
+  other: { es: 'Otros', en: 'Other' },
+}
+
+export function categoryLabel(cat, lang) {
+  return CATEGORY_LABELS[cat]?.[lang === 'es' ? 'es' : 'en'] || cat
+}
+
+// Orden de presentación de esas categorías (el del Spreadsheet). Compartido
+// entre PortfolioSpreadsheet y el spreadsheet adjunto del correo mensual
+// (lib/monthlySpreadsheet.js): dos órdenes distintos harían que "el mismo
+// archivo" no se lea igual en pantalla que en el correo.
+export const CATEGORY_ORDER = ['banks', 'funds', 'stocks', 'crypto', 'alternatives', 'bonds', 'realestate', 'other', 'receivables', 'debts']
+
 export function getItemPrice(item) {
   if (item.isIlliquid && item.lastManualValuation > 0) return item.lastManualValuation
   const candidates = [item.currentPrice, item.purchasePrice, item.price, item.cost, item.averagePrice]
@@ -154,6 +202,50 @@ export function getItemValue(item) {
 
 export function isExcludedFromNetWorth(item) {
   return !!(item.isReceivable && !item.countInNetWorth)
+}
+
+// ⛔ LÓGICA CONGELADA. Estas dos funciones (getItemCostBasis y
+// getItemPrincipalCost) son las dos de las tres cantidades sobre las que se
+// apoya TODA la fórmula de retorno de un activo con costo de entrada. Antes de
+// tocarlas, leer lib/assetLogic/corporateBondWithEntryFee.js y seguir el
+// protocolo de su cabecera: hay que PREGUNTAR antes de cambiarlas.
+// El invariante que no se puede romper: costBasis - principalCost === entryFee.
+//
+// What you actually put in: purchase cost PLUS the one-time entry/brokerage
+// fee (Costos y comisiones). A fee is real money that left your pocket, so
+// leaving it out of "cost" overstates return the same way ignoring the fee
+// entirely does — every return-% calc that compares gain against cost must
+// use THIS, not qty*purchasePrice alone, or the same $ of fee shows up in
+// some numbers and not others.
+// Total cash that left your pocket to own this. Which side of the entry fee
+// the typed "Valor compra" sits on is the user's call (entryFeeMode):
+//  - 'separate' (default, and how brokerage usually works): the fee was
+//    charged ON TOP, so you sent purchase value + fee.
+//  - 'deducted': the fee came OUT of the amount you sent, so the value you
+//    typed already contains it and nothing is added on top.
+// Either way costBasis - principalCost === the fee, which is what makes the
+// gain formula in the cards work identically for both modes.
+export function getItemCostBasis(item) {
+  const principal = (Number(item.quantity) || 0) * (Number(item.purchasePrice) || 0)
+  if (item.entryFeeMode === 'deducted') return principal
+  return principal + (Number(item.entryFee) || 0)
+}
+
+// Just the principal: what the asset itself cost, with no fees. The gain
+// numerator measures against THIS ("what did the asset do"), while the
+// percentage divides by getItemCostBasis ("what I had to put in, all-in").
+// Keeping them separate is what makes the entry fee behave like a real
+// investor expects on an income asset: a $6,000 bond bought for $6,095.78
+// that paid $240 yields 240/6095.78 = 3.94% — the fee drags the yield down
+// (vs 4.00% with no fee) without also being double-charged as a capital loss
+// against a single period. Over the whole hold the fee is still fully felt,
+// because it stays in the denominator forever.
+export function getItemPrincipalCost(item) {
+  const principal = (Number(item.quantity) || 0) * (Number(item.purchasePrice) || 0)
+  // 'deducted': of everything you sent, only (total - fee) actually bought the
+  // asset, so THAT is what the gain gets measured against.
+  if (item.entryFeeMode === 'deducted') return principal - (Number(item.entryFee) || 0)
+  return principal
 }
 
 // Effective acquisition timestamp for an item: the real acquisitionDate, else the
@@ -190,28 +282,55 @@ function itemValueUSD(it, convert) {
 // between the chart's same-day dedup and bulkImport's write-time precedence
 // check — a divergence between the two IS the bug (one used to rank backfill
 // above manual/daily).
-export const SNAPSHOT_SRC_PRIORITY = { ibkr: 4, manual: 3, daily: 2, backfill: 1 }
+// 'ibkr_quarterly' = a quarter-end NAV the user transcribed from IBKR's own
+// Portfolio Analyst chart. It is a real broker observation, so it outranks our
+// reconstructions, but a day-level NAV straight from a Flex Query is finer, so
+// it stays below 'ibkr'.
+export const SNAPSHOT_SRC_PRIORITY = { ibkr: 5, manual: 4, ibkr_quarterly: 3, daily: 2, backfill: 1 }
 
-// IBKR equityHistory snapshots (_source:'ibkr') store only the broker NAV and omit
-// manually-added assets (bonds, crypto, cash). For consumers that want the FULL
-// portfolio NAV (returns, drawdown, sparkline…), augment ONLY those entries with the
+// Sources that hold the BROKER's NAV alone, with none of the manually-added
+// assets in it. Those are the ones augmentSnapshots has to top up.
+export const BROKER_NAV_SOURCES = ['ibkr', 'ibkr_quarterly']
+
+// Broker-NAV snapshots store only what the broker holds and omit manually-added
+// assets (bonds, crypto, cash). For consumers that want the FULL portfolio NAV
+// (returns, drawdown, sparkline…), augment ONLY those entries with the
 // held-flat USD value of non-IBKR items that already existed at the snapshot date.
 // Daily/backfill snapshots already include everything, so they are left untouched
 // (no double-counting). Returns a new array; the originals are never mutated.
 export function augmentSnapshots(snapshots, items, convert) {
   if (!Array.isArray(snapshots) || snapshots.length === 0) return snapshots
-  const nonIbkr = (items || [])
+  const list = items || []
+  // A SYNCED broker NAV is one account's balance. Once the portfolio holds no
+  // position from that broker at all, that snapshot measures money netWorth does
+  // not count, and topping it up with the manual assets invents a total that
+  // never existed: a leftover IBKR NAV of 5,760 plus a manually typed 6,240 bond
+  // produced a flat 12,000 line across the whole year, a fake -48% "drawdown"
+  // into today's real value, and a chart contradicting the headline by 2x
+  // (FASE DW). The series has to measure the SAME portfolio netWorth does.
+  //
+  // Scoped to `_source:'ibkr'` on purpose. A transcribed quarter
+  // ('ibkr_quarterly') is history the user typed by hand and routinely lands
+  // BEFORE any position is imported (that is the whole point of the Portfolio
+  // Analyst flow, FASE DL) — dropping it would delete work they just did.
+  // `list.length > 0` so a render before the items load never drops history.
+  const orphanBrokerNav = list.length > 0 && !list.some(it => it && it._source === 'ibkr')
+  const kept = orphanBrokerNav
+    ? snapshots.filter(s => !(s && s._source === 'ibkr'))
+    : snapshots
+  if (kept.length === 0) return kept
+  const nonIbkr = list
     .filter(it => it._source !== 'ibkr' && !isExcludedFromNetWorth(it))
     .map(it => ({ usd: itemValueUSD(it, convert), acqTs: effectiveAcqTs(it) }))
     .filter(x => x.usd)
-  if (nonIbkr.length === 0) return snapshots
+  if (nonIbkr.length === 0) return kept
   const manualAt = (ts) => {
     let sum = 0
     for (const x of nonIbkr) if (x.acqTs == null || x.acqTs <= ts) sum += x.usd
     return sum
   }
-  return snapshots.map(s => {
-    if (!s || s._source !== 'ibkr' || !s.date) return s
+  return kept.map(s => {
+    if (!s || !BROKER_NAV_SOURCES.includes(s._source) || !s.date) return s
     const ts = new Date(s.date).getTime()
     if (isNaN(ts)) return s
     const add = manualAt(ts)
@@ -219,6 +338,87 @@ export function augmentSnapshots(snapshots, items, convert) {
     const nav = s.netWorthUSD ?? s.totalActivosUSD ?? 0
     return { ...s, netWorthUSD: nav + add, totalActivosUSD: (s.totalActivosUSD ?? nav) + add }
   })
+}
+
+// Per-account calibration: every broker app shows ITS OWN return, so "Calibrar"
+// must anchor each account separately. Account keys: 'ibkr' for Interactive
+// Brokers (imported positions carry institution variants, so match loosely),
+// else the normalized institution name (same normalization as
+// InstitutionPerformance). Items with no institution return null.
+export function accountKeyOfItem(it) {
+  if (!it) return null
+  if (it._source === 'ibkr' || (it.institution || '').toLowerCase().includes('interactive brokers')) return 'ibkr'
+  const name = (it.institution || '').trim().replace(/\s+/g, ' ').toLowerCase()
+  return name || null
+}
+
+// Estimated USD share of ONE account at a past anchor date: the account's items
+// at CURRENT prices, included only if they already existed then
+// (effectiveAcqTs <= anchorTs). This is exactly the held-flat formula
+// augmentSnapshots uses, so a calibrated start replaces the account's own
+// estimate 1:1 instead of double-counting it.
+export function heldFlatAccountValueUSD(items, accountKey, anchorTs, convert) {
+  let sum = 0
+  for (const it of items || []) {
+    if (!it || isExcludedFromNetWorth(it)) continue
+    if (accountKeyOfItem(it) !== accountKey) continue
+    const acq = effectiveAcqTs(it)
+    if (acq != null && anchorTs != null && acq > anchorTs) continue
+    sum += itemValueUSD(it, convert)
+  }
+  return sum
+}
+
+// Combine per-account calibrated starts with the portfolio-level anchor:
+//   start = base − Σ(estimated share of each calibrated account) + Σ(calibrated starts)
+// One global % cannot represent accounts with different returns (mixing them is
+// what clamped the badge at ±200%); this swaps each calibrated account's share
+// for the value solved from the % THAT broker shows.
+// For the IBKR account inside a FULL-portfolio anchor, the estimated share is
+// base − heldFlat(everything non-IBKR): the exact inverse of augmentSnapshots.
+// baseValueUSD may be null/<=0 (no portfolio anchor at all): the base is then
+// rebuilt as the held-flat value of all UNCALIBRATED items at anchorTs.
+// Returns { startValueUSD, applied } or null when there is nothing to apply.
+export function combineAccountCalibrations({ baseValueUSD, anchorTs, calibrations, items, convert }) {
+  const cals = (calibrations || []).filter(c => c && c._account && isFinite(c.netWorthUSD) && c.netWorthUSD > 0)
+  if (cals.length === 0) return null
+  const hasRealBase = baseValueUSD != null && isFinite(baseValueUSD) && baseValueUSD > 0
+  const calKeys = new Set(cals.map(c => c._account))
+  let start = hasRealBase ? baseValueUSD : 0
+  if (!hasRealBase) {
+    for (const it of items || []) {
+      if (!it || isExcludedFromNetWorth(it)) continue
+      const key = accountKeyOfItem(it)
+      if (key && calKeys.has(key)) continue
+      const acq = effectiveAcqTs(it)
+      if (acq != null && anchorTs != null && acq > anchorTs) continue
+      start += itemValueUSD(it, convert)
+    }
+  }
+  const applied = []
+  for (const cal of cals) {
+    // With a rebuilt base the calibrated accounts were already left out of it,
+    // so there is no estimated share to subtract; only a real portfolio anchor
+    // contains one.
+    let est = 0
+    if (!hasRealBase) {
+      // est stays 0
+    } else if (cal._account === 'ibkr') {
+      let nonIbkr = 0
+      for (const it of items || []) {
+        if (!it || isExcludedFromNetWorth(it) || accountKeyOfItem(it) === 'ibkr') continue
+        const acq = effectiveAcqTs(it)
+        if (acq != null && anchorTs != null && acq > anchorTs) continue
+        nonIbkr += itemValueUSD(it, convert)
+      }
+      est = Math.max(0, baseValueUSD - nonIbkr)
+    } else {
+      est = heldFlatAccountValueUSD(items, cal._account, anchorTs, convert)
+    }
+    start = start - est + cal.netWorthUSD
+    applied.push(cal._account)
+  }
+  return { startValueUSD: start, applied }
 }
 
 // The single source of truth for "what was the portfolio worth at year start":
@@ -301,29 +501,18 @@ export function computeScopedReturns({ snapshots, items, transactions, source, c
   const ytd = at(findYearStartAnchor(snaps, year), Date.UTC(year, 0, 1))
   const mtd = at(findMonthStartAnchor(snaps, year, month), Date.UTC(year, month, 1))
 
-  // Daily change: value now vs the last snapshot strictly before today. Net out
-  // deposits/withdrawals since baseline (same bug as an un-netted dailyChange:
-  // a same-day import reads as market gain otherwise) — mirrors the Dietz
-  // treatment ytd/mtd already get above.
-  const todayStr = now.toISOString().slice(0, 10)
-  const prior = snaps.filter((s) => s.date < todayStr).sort((a, b) => new Date(a.date) - new Date(b.date))
-  let day = null
-  const baseline = prior[prior.length - 1]
-  if (baseline) {
-    const prevVal = cv(baseline.netWorthUSD ?? baseline.totalActivosUSD ?? 0)
-    if (prevVal > 0) {
-      let netFlow = 0
-      flows.forEach((tx) => {
-        if (!tx.date || tx.date <= baseline.date) return
-        const type = (tx.type || '').toUpperCase()
-        if (type !== 'DEPOSIT' && type !== 'WITHDRAWAL') return
-        const amt = Number(tx.totalAmount ?? tx.amount ?? 0)
-        const converted = convert ? convert(amt, tx.currency || 'USD', baseCurrency || 'USD') : amt
-        netFlow += type === 'DEPOSIT' ? converted : -converted
-      })
-      day = Math.max(-200, Math.min(200, ((endValue - prevVal - netFlow) / prevVal) * 100))
-    }
-  }
+  // Daily change from today's OWN events, same rule as the headline "HOY"
+  // (computeDayChange). It used to be a diff against the last snapshot before
+  // today, which cannot tell a market move apart from a position that was only
+  // entered today, and netting deposits by date does not save it when the
+  // purchase is backfilled to an earlier date. This number is published to
+  // friends, so it has to be the same number the card shows.
+  const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const scopedDay = computeDayChange({
+    items: scopedItems, transactions: flows, netWorth: endValue,
+    convert, baseCurrency, today: todayKey,
+  })
+  const day = scopedDay ? Math.max(-200, Math.min(200, scopedDay.pct)) : null
   return { ytd, mtd, day }
 }
 
@@ -368,6 +557,125 @@ export function buildIncomeEvents(transactions, items, convert, baseTo = 'USD') 
     })
   }
   return out
+}
+
+// Sum of DIVIDEND income each item GENERATED (source perspective), converted to
+// baseTo. Reinvested dividends are excluded — that gain already shows up as a
+// higher quantity/value on the item itself, so counting it again here would
+// double it. A bond/bank account that pays cash to a different destination
+// otherwise looks like it earned nothing (its own currentPrice never moves) in
+// any widget that computes gain as just currentPrice - purchasePrice — this is
+// the piece those widgets (Asset Allocation's Retorno view, Institution
+// Performance) are missing. Mirrors buildIncomeEvents' reinvest detection, but
+// attributes to the SOURCE instead of redirecting to the destination — here we
+// want "how much did this asset earn", not "where does the value now live".
+export function getDividendIncomeByItem(transactions, items, convert, baseTo = 'USD') {
+  const out = new Map()
+  if (!transactions || transactions.length === 0) return out
+  const byId = new Map((items || []).map((it) => [it.id, it]))
+  for (const tx of transactions) {
+    if ((tx.type || '').toUpperCase() !== 'DIVIDEND') continue
+    const amtRaw = Number(tx.totalAmount ?? tx.amount ?? 0)
+    if (!(amtRaw > 0) || !tx._linkedItemId) continue
+    const linked = byId.get(tx._linkedItemId)
+    const reinvested = tx._reinvested === true || (linked && linked.dividendAction === 'reinvest')
+    if (reinvested) continue
+    const cur = tx.currency || 'USD'
+    const amount = convert ? convert(amtRaw, cur, baseTo) : amtRaw
+    out.set(tx._linkedItemId, (out.get(tx._linkedItemId) || 0) + amount)
+  }
+  return out
+}
+
+// The mirror image of getDividendIncomeByItem: income keyed by the account that
+// RECEIVED it, not the asset that produced it.
+//
+// It exists because that money is not invested capital. A cash account funded by
+// a bond's coupon holds a balance the user never put in, yet a bank-like item
+// stores its balance in purchasePrice (that IS its cost, by design), so the group
+// return divided by a denominator that had grown with every payment. The same 240
+// was then counted twice — once as income in the numerator, once as capital in
+// the denominator — and the institution card drifted from the asset-class card
+// that only ever saw the bond: 240/6,338 = 3.79% against 240/6,098 = 3.94%
+// (FASE DY). Subtracting this from the cost basis makes the two agree by
+// construction.
+//
+// Same resolution order the reconstruction engines use: an explicit
+// _destinationItemId first, else the source's incomeDestination (by id, symbol or
+// name). Reinvested income never lands here — it stays inside its own asset.
+// ⛔ LÓGICA CONGELADA (E). Antes de tocar la fórmula de retorno de este
+// archivo, leer lib/assetLogic/corporateBondWithEntryFee.js
+// y seguir el protocolo de su cabecera: hay que PREGUNTAR antes de cambiarla.
+// El ingreso recibido sale del capital invertido, nunca del numerador.
+export function getIncomeReceivedByItem(transactions, items, convert, baseTo = 'USD') {
+  const out = new Map()
+  if (!transactions || transactions.length === 0) return out
+  const list = items || []
+  const byId = new Map(list.map((it) => [it.id, it]))
+  const bySym = new Map(list.filter((it) => it.symbol).map((it) => [String(it.symbol).toUpperCase(), it]))
+  const byName = new Map(list.filter((it) => it.name).map((it) => [String(it.name).toUpperCase(), it]))
+  const resolve = (ref) => (ref
+    ? (byId.get(ref) || bySym.get(String(ref).toUpperCase()) || byName.get(String(ref).toUpperCase()))
+    : null)
+  for (const tx of transactions) {
+    const ty = (tx.type || '').toUpperCase()
+    if (ty !== 'DIVIDEND' && ty !== 'INTEREST') continue
+    const amtRaw = Number(tx.totalAmount ?? tx.amount ?? 0)
+    if (!(amtRaw > 0)) continue
+    const linked = tx._linkedItemId ? byId.get(tx._linkedItemId) : null
+    if (tx._reinvested === true || (linked && linked.dividendAction === 'reinvest')) continue
+    const dest = tx._destinationItemId ? byId.get(tx._destinationItemId) : resolve(linked?.incomeDestination)
+    if (!dest || !dest.id) continue
+    const amount = convert ? convert(amtRaw, tx.currency || 'USD', baseTo) : amtRaw
+    out.set(dest.id, (out.get(dest.id) || 0) + amount)
+  }
+  return out
+}
+
+// What the user actually PUT IN for this item: its cost basis minus whatever
+// arrived as income from elsewhere in the portfolio. Never negative — a balance
+// smaller than the income it received (money was spent) still means zero capital
+// invested, not negative capital.
+export function getInvestedCapital(item, incomeReceived) {
+  const base = getItemCostBasis(item)
+  const received = Number(incomeReceived) || 0
+  if (!(received > 0)) return base
+  return Math.max(0, base - received)
+}
+
+// FASE EH. The value-chart headline's gain/%: how much of a window's raw
+// value change is real gain vs. new capital that arrived DURING the window.
+//
+// Real bug: XOCHI (a bond bought 2024) already gave the YTD window a nonzero
+// starting value ($2,203.54). VITALI (bought that January) then deposited
+// $6,098 into the SAME scope. The chart's old logic branched on "did the
+// window start at zero" and, since it didn't, took the raw value diff as pure
+// gain: "+$6,318.70 (+286.75%) este año" on a portfolio that actually made
+// $318.70. `investedBase - firstVal` is the fix's whole idea: contributionLine
+// (the caller) seeds AT the window's own starting value when something
+// predates it, so that subtraction is exactly the NEW capital, cleanly,
+// whether firstVal is zero (a brand-new account funding its very first
+// position) or not (an existing position that then received more). One
+// formula, no branch — see the corporate-bond gain-vs-cost convention this
+// mirrors in lib/assetLogic/corporateBondWithEntryFee.js.
+//
+// @param firstVal           value at the window's start
+// @param lastVal            value at the window's end (today)
+// @param investedBase       cumulative contributions line's last value, or
+//                            null when there is no contribution history at all
+// @param entryFeesInScope   entry fees paid for positions acquired DURING the
+//                            window (never one that predates it — that fee is
+//                            already inside firstVal, not newCapital)
+export function computeWindowGrowth({ firstVal, lastVal, investedBase, entryFeesInScope = 0 }) {
+  const start = Number(firstVal) || 0
+  const end = Number(lastVal) || 0
+  const growthAbs = end - start
+  const newCapital = investedBase != null ? Math.max(0, investedBase - start) : 0
+  const newCapitalPrincipal = Math.max(0, newCapital - (Number(entryFeesInScope) || 0))
+  const growthDenom = start + newCapital
+  const growthPct = growthDenom > 0 ? ((growthAbs - newCapitalPrincipal) / growthDenom) * 100 : null
+  const displayAbs = growthAbs - newCapitalPrincipal
+  return { growthAbs, newCapital, newCapitalPrincipal, growthDenom, growthPct, displayAbs }
 }
 
 export const TYPE_ICONS = {
@@ -515,8 +823,80 @@ export function getSectorFromItem(item) {
 // before that stamp — hold the current quantity flat back through the period instead.
 // Returns true only for IBKR items with NO genuine trade/lot history to reconstruct
 // from (a real recent buy would leave an in-window BUY trade or a multi-lot/closed
+// "How much did TODAY move?" built from today's own events, never from a
+// snapshot-to-snapshot difference.
+//
+// A diff against yesterday's snapshot cannot tell a market move apart from a
+// position you simply typed in this afternoon: entering a bond you have held
+// since January makes today's net worth jump by its whole balance while
+// yesterday's snapshot knows nothing about it. Netting deposits by date does
+// not save it either, because a backfilled purchase is DATED in January. That
+// is how the card came to claim "+$6,119.62 today (+60.94%)" on a day the
+// market had moved about $58.
+//
+// So today's change is only ever the two things that actually happened today:
+//   1. price moves:  Σ value × change1d
+//   2. income that LANDED today: a coupon or dividend credited today is a real
+//      gain on its payment date and on no other day. A semiannual coupon
+//      belongs to the two days it pays, not to the day it gets recorded.
+// New capital appears in neither, so funding an account can never read as gain.
+//
+// Returns null when there is nothing to measure (no priced holding, no income):
+// a confident "+0.00%" would be a claim the data does not support.
+// ⛔ LÓGICA CONGELADA (H). El cupón de un activo con costo de entrada aparece
+// aquí el día que PAGA, y la comisión ya se pagó al comprar: no vuelve a restar.
+// Ver lib/assetLogic/corporateBondWithEntryFee.js: PREGUNTAR antes de cambiar.
+export function computeDayChange({ items, transactions, netWorth, convert, baseCurrency = 'USD', today }) {
+  if (!(netWorth > 0)) return null
+  const todayKey = today || (() => {
+    const d = new Date()
+    const p = (n) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+  })()
+
+  let marketMove = 0
+  let priced = 0
+  ;(items || []).forEach((it) => {
+    if (it.isDebt || isExcludedFromNetWorth(it)) return
+    if (it.change1d == null || !isFinite(it.change1d)) return
+    priced += 1
+    marketMove += getItemValue(it) * (it.change1d / 100)
+  })
+
+  // String-prefix date compare per house rule: new Date('YYYY-MM-DD') runs the
+  // day backwards in UTC-6.
+  let incomeToday = 0
+  ;(transactions || []).forEach((tx) => {
+    const type = (tx.type || '').toUpperCase()
+    if (type !== 'DIVIDEND' && type !== 'INTEREST') return
+    if (!tx.date || String(tx.date).slice(0, 10) !== todayKey) return
+    const amt = Math.abs(Number(tx.totalAmount ?? tx.amount ?? 0))
+    if (!isFinite(amt) || amt === 0) return
+    incomeToday += convert ? convert(amt, tx.currency || 'USD', baseCurrency || 'USD') : amt
+  })
+
+  if (priced === 0 && incomeToday === 0) return null
+
+  const abs = marketMove + incomeToday
+  const startOfDay = netWorth - abs
+  return { abs, pct: startOfDay > 0 ? (abs / startOfDay) * 100 : 0 }
+}
+
 // history). Mirrors the `dateUnreliable` logic in lib/historicalValues.js so the chart
 // API and the spreadsheet agree on which positions are date-unreliable.
+// FASE HL. ¿La fecha de adquisición de este ítem es un SELLO DE SYNC en vez de
+// una compra real? Para una posición importada de un broker siempre lo es (lo
+// que este archivo ya documenta como dateUnreliable), y por lo tanto NUNCA
+// puede usarse como puerta de existencia: gatear por ella borra la posición de
+// todo el pasado anterior al sync. shouldHoldFlat (abajo) resolvía esto solo
+// para el caso SIN historial de trades; esta pregunta es la más básica y vale
+// aunque haya trades, porque el ledger del Flex llega ~365 días y los lots que
+// crea heredan el mismo sello. Un solo lugar para los dos consumidores del API
+// de historial (useDashboardData y PortfolioGrowthChart), para que no deriven.
+export function hasUnreliableAcqDate(item) {
+  return !!item && item._source === 'ibkr'
+}
+
 export function shouldHoldFlat(item, transactions, lots) {
   if (!item || item._source !== 'ibkr') return false
   const sym = (item.symbol || '').toUpperCase()
@@ -563,8 +943,97 @@ export function computeModifiedDietz({ startValue, endValue, startTs, endTs, tra
   const weightedCapital = startValue + weightedFlows
   const gain = endValue - startValue - sumFlows
   const pct = Math.abs(weightedCapital) > 0.01 ? (gain / weightedCapital) * 100 : 0
-  if (!isFinite(pct)) return { pct: 0, abs: gain }
-  return { pct, abs: gain }
+  // FASE IA: weightedCapital se expone (campo ADITIVO, la fórmula queda
+  // byte-idéntica) para que el caller pueda ajustar el numerador (comisiones
+  // de entrada de compras dentro de la ventana, ver entryFeeAddbacks) sin
+  // re-derivar el denominador de Dietz por su cuenta.
+  if (!isFinite(pct)) return { pct: 0, abs: gain, weightedCapital }
+  return { pct, abs: gain, weightedCapital }
+}
+
+// FASE IA. Comisiones de entrada pagadas por compras hechas DENTRO de una
+// ventana de medición, por ítem. Existen porque el DEPOSIT de apertura que
+// AddAccountModal archiva lleva la comisión ADENTRO (6,098 = 6,000 de bono +
+// 98 de corretaje, modo 'separate'), así que cualquier medidor que netea ese
+// flujo completo está restando la comisión del numerador: la comisión se lee
+// como pérdida. La convención congelada (lib/assetLogic/corporateBondWithEntryFee.js)
+// es la contraria: la ganancia se mide contra el PRINCIPAL y la comisión vive
+// SOLO en el denominador. La gráfica ya lo hace (computeWindowGrowth resta el
+// capital nuevo NETO de comisiones); este helper le da el mismo ajuste al YTD
+// del encabezado y al desglose por cuenta, que son los que divergían de ella
+// por exactamente $98 (la comisión de VITALI) en las capturas del usuario.
+//
+// El guard de `flows`: la comisión solo se devuelve si el DEPOSIT vinculado a
+// ese ítem está EN LA LISTA de flujos que el caller de verdad neteó (la lista
+// ya viene filtrada: en el caso congelado del ancla movida, los depósitos
+// descartados no están y la comisión queda en cero aquí, porque ese camino ya
+// la maneja ytdCostBase). Sumar una comisión cuyo depósito no se restó la
+// contaría al revés.
+export function entryFeeAddbacks(items, flows, { fromTs = null, toTs = null, convert = null, baseCurrency = 'USD' } = {}) {
+  const out = new Map()
+  if (!Array.isArray(items)) return out
+  const linkedDeposit = new Set()
+  ;(flows || []).forEach((tx) => {
+    if ((tx?.type || '').toUpperCase() !== 'DEPOSIT' || !tx._linkedItemId) return
+    const ts = tx.date ? new Date(tx.date).getTime() : NaN
+    if (!isFinite(ts)) return
+    if (fromTs != null && ts < fromTs) return
+    if (toTs != null && ts > toTs) return
+    linkedDeposit.add(tx._linkedItemId)
+  })
+  items.forEach((it) => {
+    const fee = Number(it?.entryFee) || 0
+    // 'deducted' salió del monto enviado: el depósito archivado es solo el
+    // principal y no hay nada que devolver (mismo criterio que la gráfica).
+    if (!(fee > 0) || it.entryFeeMode === 'deducted') return
+    if (!it.acquisitionDate) return
+    const acqTs = new Date(`${it.acquisitionDate}T00:00:00`).getTime()
+    if (!isFinite(acqTs)) return
+    // Estrictamente DESPUÉS del arranque: una compra anterior o exacta al
+    // ancla ya vive dentro del valor de arranque (o del ytdCostBase), no del
+    // capital nuevo de la ventana. Igual que entryFeesInScope en la gráfica.
+    if (fromTs != null && acqTs <= fromTs) return
+    if (toTs != null && acqTs > toTs) return
+    if (!linkedDeposit.has(it.id)) return
+    const cur = it._originalCurrency || it.currency || 'USD'
+    const amt = convert ? convert(fee, cur, baseCurrency || 'USD') : fee
+    if (isFinite(amt) && amt > 0) out.set(it.id, amt)
+  })
+  return out
+}
+
+// Inverse of computeModifiedDietz for the return-calibration flow: the user
+// types the return their broker shows (e.g. IBKR PortfolioAnalyst YTD or since
+// inception) and we solve for the start value that makes OUR Dietz reproduce
+// that percentage exactly, given the same end value, window and flows. Dietz
+// is linear-fractional in startValue: pct(V) = (A - V) / (V + W) with
+// A = endValue - sumFlows and W = time-weighted flows, so two sample points
+// pin down A and W without duplicating the flow math (which then can never
+// drift from computeModifiedDietz, convert and baseCurrency included).
+// Returns { startValue } or { error: 'endValue' | 'targetPct' | 'window' | 'unsolvable' }.
+export function solveDietzStartValue({ endValue, startTs, endTs, transactions, convert, baseCurrency, targetPct }) {
+  if (!isFinite(endValue) || endValue <= 0) return { error: 'endValue' }
+  // Same display clamp as the YTD badge: outside (-100, 200] the card would
+  // show a different number than the user typed, so refuse early.
+  if (!isFinite(targetPct) || targetPct <= -100 || targetPct > 200) return { error: 'targetPct' }
+  if (!(endTs > startTs)) return { error: 'window' }
+  const evalAt = (V) => computeModifiedDietz({ startValue: V, endValue, startTs, endTs, transactions, convert, baseCurrency }).pct / 100
+  const V1 = endValue * 0.5
+  const V2 = endValue * 1.5
+  const p1 = evalAt(V1)
+  const p2 = evalAt(V2)
+  // p1 == p2 only when A + W = 0, the degenerate case where every start value
+  // yields the same constant return: no target-specific solution exists.
+  if (!isFinite(p1) || !isFinite(p2) || Math.abs(p1 - p2) < 1e-12) return { error: 'unsolvable' }
+  const W = (V2 - V1 - p1 * V1 + p2 * V2) / (p1 - p2)
+  const A = p1 * (V1 + W) + V1
+  const r = targetPct / 100
+  const startValue = (A - r * W) / (1 + r)
+  if (!isFinite(startValue) || startValue <= 0) return { error: 'unsolvable' }
+  // Verify against the real implementation before trusting the anchor.
+  const check = evalAt(startValue) * 100
+  if (!isFinite(check) || Math.abs(check - targetPct) > 1e-6) return { error: 'unsolvable' }
+  return { startValue }
 }
 
 // Single source of truth for an item's projected annual income, in the item's own
@@ -581,7 +1050,7 @@ export function projectItemAnnualIncome(item, balance) {
   }
   if (item.incomeAmount > 0 && item.incomeMonths) {
     const payCount = Array.isArray(item.incomeMonths) ? item.incomeMonths.length : 12
-    return item.incomeAmount * payCount
+    return (item.incomeAmount * payCount)
   }
   if (item.incomeMode === 'percent' && item.incomeRate > 0) {
     return balance * (item.incomeRate / 100)
@@ -649,4 +1118,74 @@ export function businessDaysSince(since, now = Date.now()) {
     guard++
   }
   return guard >= 400 ? Infinity : count
+}
+
+// FASE HX (regla explícita del usuario): NINGUNA falla de sync de IBKR alarma
+// antes de 5 días HÁBILES (lunes a viernes) sin señal de conexión. Aplica a
+// TODOS los códigos de error, incluidos los "fatales" (TOKEN_EXPIRED /
+// INVALID_QUERY, que antes alarmaban desde el primer intento fallido) y a la
+// conexión que nunca sincronizó (antes fusible corto de 2 días): la data tiene
+// a lo sumo unos días y el auto-sync sigue reintentando solo. El reloj es la
+// señal de salud MÁS RECIENTE de las tres marcas, no un `||` por orden:
+// doAutoSync solo estampa _ibkrLastAutoSync, así que un `||` que empiece por
+// _ibkrLastSync puede elegir un sync manual de hace meses por encima de un
+// auto-sync exitoso de AYER y alarmar igual. `connectedAt` cuenta también:
+// guardar credenciales es un intento fresco que reinicia el fusible. Sin
+// ninguna marca, businessDaysSince(null) = Infinity y alarma de inmediato
+// (conexión rota sin ninguna evidencia de haber funcionado jamás).
+export function ibkrAttentionNeeded({ errorCode, lastSync, lastAutoSync, connectedAt } = {}, now = Date.now()) {
+  if (!errorCode) return false
+  const stamps = [lastSync, lastAutoSync, connectedAt]
+    .map((s) => (s ? new Date(s).getTime() : NaN))
+    .filter((t) => isFinite(t))
+  const latest = stamps.length ? Math.max(...stamps) : null
+  return businessDaysSince(latest, now) >= 5
+}
+
+// ── Quarterly NAV history (IBKR Portfolio Analyst) ──────────────────────────
+// A Flex Query only reaches back 365 days, so anything older has to be read off
+// the broker's own chart and typed in. These helpers turn a "Qn YYYY" label
+// into the snapshot date it belongs to and back, so the entry grid and the
+// chart agree on where each figure sits.
+
+// Last calendar day of a quarter (1-4), as 'YYYY-MM-DD'. Never a Date object:
+// new Date('YYYY-MM-DD') runs the day backwards in UTC-6 (house rule).
+export function quarterEndDate(year, quarter) {
+  const ends = { 1: '03-31', 2: '06-30', 3: '09-30', 4: '12-31' }
+  const end = ends[quarter]
+  if (!end || !year) return null
+  return `${year}-${end}`
+}
+
+export function quarterLabel(year, quarter) {
+  return `Q${quarter} ${year}`
+}
+
+// Every quarter from `from` (inclusive) to the quarter containing `to`,
+// oldest first. Bounded so a mistyped year cannot generate thousands of rows.
+export function quartersBetween(fromYear, fromQuarter, toDate = new Date(), maxRows = 80) {
+  const out = []
+  const toYear = toDate.getFullYear()
+  const toQuarter = Math.floor(toDate.getMonth() / 3) + 1
+  let y = Number(fromYear)
+  let q = Number(fromQuarter)
+  if (!isFinite(y) || !isFinite(q) || q < 1 || q > 4) return out
+  while ((y < toYear || (y === toYear && q <= toQuarter)) && out.length < maxRows) {
+    out.push({ year: y, quarter: q, label: quarterLabel(y, q), endDate: quarterEndDate(y, q) })
+    q += 1
+    if (q > 4) { q = 1; y += 1 }
+  }
+  return out
+}
+
+// The date a quarter's figure should be stamped with. A quarter that has not
+// closed yet gets TODAY: the number the broker shows for it is the value right
+// now, and dating it at the future quarter end would put the portfolio's
+// current value in the future.
+export function quarterSnapshotDate(year, quarter, today = new Date()) {
+  const end = quarterEndDate(year, quarter)
+  if (!end) return null
+  const p = (n) => String(n).padStart(2, '0')
+  const todayStr = `${today.getFullYear()}-${p(today.getMonth() + 1)}-${p(today.getDate())}`
+  return end > todayStr ? todayStr : end
 }

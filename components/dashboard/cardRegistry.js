@@ -1,13 +1,17 @@
 export const CARD_REGISTRY = {
   'OL-01': { component: 'NetWorthCard', section: 'overview-left', label: 'Net Worth' },
   'OL-02': { component: 'BenchmarkComparison', section: 'overview-left', label: 'Benchmark' },
-  'OL-03': { component: 'PriceAlerts', section: 'overview-left', label: 'Price Alerts' },
+  // PriceAlerts dejó de ser card del overview (FASE IC): vive en su modal,
+  // abierto desde QuickActionsCard.
+  'ACT-01': { component: 'QuickActionsCard', section: 'overview-right', label: 'Actions' },
   'OL-04': { component: 'UpcomingDividends', section: 'overview-left', label: 'Upcoming Dividends' },
   'OL-05': { component: 'ContinuousYieldDisplay', section: 'overview-left', label: 'Continuous Yield' },
   'OL-06': { component: 'VariableRateDashboard', section: 'overview-left', label: 'Variable Rate' },
   'OL-07': { component: 'MaturityCalendar', section: 'overview-left', label: 'Maturity Calendar' },
   'OL-08': { component: 'Watchlist', section: 'overview-left', label: 'Watchlist' },
   'OL-09': { component: 'TopMovers', section: 'overview-left', label: 'Top Movers' },
+
+  'INV-01': { component: 'InvestedByYearCard', section: 'overview-right', label: 'Invested by Year' },
 
   'OR-01': { component: 'PortfolioGrowthChart', section: 'overview-right', label: 'Growth Chart' },
   'OR-02': { component: 'AssetAllocation', section: 'overview-right', label: 'Asset Allocation' },

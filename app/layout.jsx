@@ -1,5 +1,6 @@
 import './globals.css'
 import RootErrorBoundary from '@/components/RootErrorBoundary'
+import UpdateAvailablePill from '@/components/ui/UpdateAvailablePill'
 import { ADSENSE_CLIENT } from '@/lib/adsense'
 
 export const metadata = {
@@ -72,8 +73,29 @@ export default function RootLayout({ children }) {
             var key = 'chispudo-reloaded-' + d.buildId;
             if (!sessionStorage.getItem(key)) {
               sessionStorage.setItem(key, '1');
-              location.reload();
+              // FASE HK. location.reload() a secas puede servir el MISMO HTML
+              // cacheado en iOS Safari: la pagina "recargada" sigue siendo el
+              // build viejo, el guard de sessionStorage (anti-loop, correcto)
+              // impide reintentar, y la pestana queda pegada al bundle viejo
+              // por dias, a traves de multiples deploys. Navegar con un query
+              // param nuevo cambia la clave de cache del HTML y fuerza al
+              // navegador a pedir el documento fresco de verdad.
+              try {
+                var u = new URL(location.href);
+                u.searchParams.set('_cb', d.buildId.slice(0, 12));
+                location.replace(u.toString());
+              } catch (e) { location.reload(); }
             }
+          } else if (d.buildId && d.buildId === PAGE_BUILD) {
+            // Build al dia: limpiar el param de cache-bust si quedo en la URL,
+            // para que no se comparta ni se guarde en marcadores.
+            try {
+              if (location.search.indexOf('_cb=') !== -1) {
+                var clean = new URL(location.href);
+                clean.searchParams.delete('_cb');
+                history.replaceState(null, '', clean.toString());
+              }
+            } catch (e) {}
           }
         }).catch(function() {});
       }, 3000);
@@ -94,7 +116,12 @@ export default function RootLayout({ children }) {
           <script async src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`} crossOrigin="anonymous" />
         )}
       </head>
-      <body className="font-sans"><RootErrorBoundary>{children}</RootErrorBoundary></body>
+      <body className="font-sans">
+        <RootErrorBoundary>{children}</RootErrorBoundary>
+        {/* FASE HM: red de seguridad VISIBLE para cuando la recarga automática
+            de arriba no prospera (iOS Safari sirviendo el documento cacheado). */}
+        <UpdateAvailablePill buildId={buildId} />
+      </body>
     </html>
   )
 }

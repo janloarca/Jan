@@ -9,8 +9,35 @@ let _cachedRates = null
 let _cachedLastUpdate = null
 let _cachedStale = false
 
+// FASE FS. Persistencia entre sesiones: sin tasas, convert() devuelve el monto
+// 1:1 (no hay número correcto que inventar), así que durante la carga fría un
+// portafolio con cuentas en GTQ mostraba los quetzales COMO dólares: el
+// patrimonio destellaba en ~$60K/$52K hasta que el fetch de tasas aterrizaba
+// en el total real. Una tasa de ayer guardada en localStorage es muchísimo
+// mejor que 1:1 (el FX se mueve lento), y el fetch de siempre la revalida en
+// segundos. Solo elimina el destello de la carga fría: la PRIMera visita de
+// la vida (sin nada guardado) sigue igual que antes.
+const FX_STORAGE_KEY = 'chispudo-fx-rates-v1'
+
+function seedFromStorage() {
+  if (_cachedRates || typeof window === 'undefined') return
+  try {
+    const raw = localStorage.getItem(FX_STORAGE_KEY)
+    if (!raw) return
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed.rates !== 'object') return
+    const valid = Object.fromEntries(
+      Object.entries(parsed.rates).filter(([, v]) => typeof v === 'number' && v > 0 && isFinite(v))
+    )
+    if (Object.keys(valid).length === 0) return
+    _cachedRates = valid
+    _cachedLastUpdate = parsed.timestamp || null
+    _cachedStale = true // hasta que el fetch de este mount la refresque
+  } catch { /* localStorage bloqueado o corrupto: mismo comportamiento de antes */ }
+}
+
 export function useExchangeRates(baseCurrency) {
-  const [rates, setRates] = useState(_cachedRates)
+  const [rates, setRates] = useState(() => { seedFromStorage(); return _cachedRates })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [stale, setStale] = useState(_cachedStale)
@@ -45,6 +72,7 @@ export function useExchangeRates(baseCurrency) {
           setRates(valid)
           setLastUpdate(data.timestamp)
           setStale(!!data.stale)
+          try { localStorage.setItem(FX_STORAGE_KEY, JSON.stringify({ rates: valid, timestamp: data.timestamp })) } catch { /* sin persistencia, sin drama */ }
           // A stale rate is still a SUCCESSFUL response (the API degraded to its
           // own cache on purpose) — it must not feed `error`, which drives the
           // "no se pudo conectar" banner. That banner is for when we have

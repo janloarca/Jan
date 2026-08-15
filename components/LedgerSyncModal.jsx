@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
-import { safeJson } from '@/lib/authFetch'
+import { authFetch, safeJson } from '@/lib/authFetch'
+import { normalizeWalletName, buildWalletOptions, addSavedWallet } from '@/lib/customWallets'
 
 const CHAINS = [
   { key: 'BTC', label: 'Bitcoin', placeholder: 'bc1q... or 1... or 3...' },
@@ -15,15 +16,53 @@ const CHAINS = [
   { key: 'OP', label: 'Optimism', placeholder: '0x...' },
 ]
 
+// Where the coins are kept: becomes the item's institution so the portfolio
+// can group by custody. Watch-only either way, the device is never touched.
+// OTHER_WALLET reveals a free-text input ("which wallet?") whose value is used
+// as the institution and kept as its own option next time (saved on the user's
+// preferences doc, loaded below when the modal opens).
+const BASE_CUSTODIES = ['Ledger', 'Trezor', 'Coldcard', 'Exchange']
+const OTHER_WALLET = 'Otra wallet'
+
+// The asset the BALANCE is denominated in, per chain. L2s settle in ETH: a
+// balance read from Arbitrum/Base/Optimism is ETH, not the ARB/OP token, so
+// pricing it by chain key undervalued it by ~1000x.
+const CHAIN_ASSET = { BTC: 'BTC', ETH: 'ETH', SOL: 'SOL', MATIC: 'MATIC', AVAX: 'AVAX', ARB: 'ETH', BASE: 'ETH', OP: 'ETH' }
+
+// USD price for a date from a daily [{date:'YYYY-MM-DD', close}] series:
+// exact match, else the nearest close within 3 days (weekend gaps), else null.
+function priceOnDate(prices, dateStr) {
+  if (!Array.isArray(prices) || prices.length === 0) return null
+  const direct = prices.find((p) => p.date === dateStr && isFinite(p.close))
+  if (direct) return direct.close
+  const target = new Date(dateStr + 'T00:00:00Z').getTime()
+  let best = null
+  let bestDelta = Infinity
+  for (const p of prices) {
+    if (!p || !p.date || !isFinite(p.close)) continue
+    const delta = Math.abs(new Date(p.date + 'T00:00:00Z').getTime() - target)
+    if (delta < bestDelta) { bestDelta = delta; best = p }
+  }
+  return bestDelta <= 3 * 86400000 ? best.close : null
+}
+
 export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }) {
   const trapRef = useFocusTrap()
-  const [addresses, setAddresses] = useState([{ chain: 'BTC', address: '', label: '' }])
+  const [addresses, setAddresses] = useState([{ chain: 'BTC', address: '' }])
+  const [custody, setCustody] = useState('Ledger')
+  const [customName, setCustomName] = useState('')
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState('')
   const [step, setStep] = useState('input')
   const [results, setResults] = useState(null)
+  // Custom "Otra wallet" names persist on the same preferences doc the data
+  // layer writes (users/{uid}/settings/preferences): loaded once on open so
+  // the select can offer them again, saved on confirm.
+  const [savedWallets, setSavedWallets] = useState([])
 
   const t = (es, en) => lang === 'es' ? es : en
+
+  const walletOptions = [...buildWalletOptions(BASE_CUSTODIES, savedWallets), OTHER_WALLET]
 
   useEffect(() => {
     const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
@@ -31,8 +70,24 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
     return () => window.removeEventListener('keydown', handleEsc)
   }, [onClose])
 
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { auth, db } = await import('@/lib/firebase')
+        const fs = await import('firebase/firestore')
+        const uid = auth.currentUser?.uid
+        if (!uid || !db) return
+        const snap = await fs.getDoc(fs.doc(db, `users/${uid}/settings`, 'preferences'))
+        const ws = snap.data()?._customWallets
+        if (!cancelled && Array.isArray(ws)) setSavedWallets(ws)
+      } catch { /* saved wallets are a convenience: the select works regardless */ }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
   const addRow = () => {
-    setAddresses(prev => [...prev, { chain: 'BTC', address: '', label: '' }])
+    setAddresses(prev => [...prev, { chain: 'BTC', address: '' }])
   }
 
   const removeRow = (i) => {
@@ -82,25 +137,117 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
     setSyncing(false)
   }, [addresses, t])
 
-  const handleConfirm = useCallback(() => {
+  const handleConfirm = useCallback(async () => {
     if (!results) return
-    const items = results.results.map(r => ({
-      symbol: r.chain,
-      name: r.label || `${r.chain} (Ledger)`,
-      type: 'Crypto',
-      quantity: r.balance,
-      purchasePrice: 0,
-      currentPrice: 0,
-      currency: 'USD',
-      institution: 'Ledger',
-      custodyType: 'self_custody',
-      custodyDetails: r.address,
-      _source: 'ledger',
-      _walletAddress: r.address,
+
+    // The wallet the user typed under "Otra wallet" becomes the institution
+    // (and a saved option for next time); empty text keeps the generic label.
+    const custom = custody === OTHER_WALLET ? normalizeWalletName(customName) : ''
+    const effCustody = custody === OTHER_WALLET ? (custom || OTHER_WALLET) : custody
+    if (custom) {
+      const next = addSavedWallet(savedWallets, custom)
+      if (next !== savedWallets) {
+        setSavedWallets(next)
+        // Same doc and merge semantics as useFirestoreItems.saveSettings, so
+        // the dashboard's settings listener picks the new option up by itself.
+        try {
+          const { auth, db } = await import('@/lib/firebase')
+          const fs = await import('firebase/firestore')
+          const uid = auth.currentUser?.uid
+          if (uid && db) {
+            await fs.setDoc(fs.doc(db, `users/${uid}/settings`, 'preferences'),
+              { _customWallets: next, updatedAt: new Date().toISOString() }, { merge: true })
+          }
+        } catch { /* the import still applies the name */ }
+      }
+    }
+
+    // Historical USD prices for assets that have detected inflows, so each
+    // inflow imports as a BUY at that day's price (real cost basis). One
+    // chart call per asset, via our own cached prices API.
+    const chainsWithFlows = [...new Set(results.results.filter(r => r.inflows?.length > 0).map(r => CHAIN_ASSET[r.chain] || r.chain))]
+    const charts = {}
+    await Promise.all(chainsWithFlows.map(async (chain) => {
+      try {
+        // type=crypto is mandatory: without it the route proxies Yahoo, where
+        // BTC resolves to nothing and ETH to Ethan Allen Interiors.
+        const res = await authFetch(`/api/prices/chart?symbol=${chain}&range=max&interval=1d&type=crypto`)
+        const data = await safeJson(res)
+        if (res.ok && Array.isArray(data?.prices)) charts[chain] = data.prices
+      } catch { /* pricing is best-effort: unpriced inflows import at 0 and stay editable */ }
     }))
-    onSyncComplete({ items, mode: 'merge' })
+
+    // Current price for EVERY imported asset, stored on the item itself. An
+    // item that lands with currentPrice 0 shows $0.00 (or its historical
+    // cost) until the dashboard poll happens to win, which on a shared-IP
+    // CoinGecko rate limit can be a while: price it now, at import time.
+    const spot = {}
+    try {
+      const assets = [...new Set(results.results.map((r) => CHAIN_ASSET[r.chain] || r.chain))]
+      const res = await authFetch('/api/prices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: assets.map((a) => ({ symbol: a, type: 'Crypto' })) }),
+      })
+      const data = await safeJson(res)
+      if (res.ok && data?.prices) {
+        for (const a of assets) {
+          const p = data.prices[a]?.price
+          if (p != null && isFinite(p) && p > 0) spot[a] = p
+        }
+      }
+    } catch { /* spot is best-effort: the next dashboard poll retries */ }
+
+    const items = []
+    const transactions = []
+    for (const r of results.results) {
+      const asset = CHAIN_ASSET[r.chain] || r.chain
+      const inflows = r.inflows || []
+      const priced = inflows
+        .map((f) => ({ ...f, price: priceOnDate(charts[asset], f.date) }))
+        .filter((f) => f.price != null && f.price > 0)
+      const totalQty = priced.reduce((s, f) => s + f.amount, 0)
+      const avgCost = totalQty > 0
+        ? priced.reduce((s, f) => s + f.amount * f.price, 0) / totalQty
+        : 0
+
+      items.push({
+        symbol: asset,
+        name: `${r.chain} (${effCustody})`,
+        type: 'Crypto',
+        quantity: r.balance,
+        // Without priced inflows the cost basis is unknown: default to the
+        // current price (flat return) instead of 0, which read as "no price".
+        purchasePrice: avgCost > 0 ? avgCost : (spot[asset] || 0),
+        currentPrice: spot[asset] || 0,
+        currency: 'USD',
+        institution: effCustody,
+        custodyType: effCustody === 'Exchange' ? 'custodial' : 'self_custody',
+        custodyDetails: r.address,
+        _source: 'ledger',
+        _walletAddress: r.address,
+        ...(r.firstSeen ? { acquisitionDate: r.firstSeen } : {}),
+      })
+
+      for (const f of priced) {
+        transactions.push({
+          type: 'BUY',
+          symbol: asset,
+          quantity: f.amount,
+          pricePerUnit: f.price,
+          totalAmount: f.amount * f.price,
+          currency: 'USD',
+          date: f.date,
+          description: t('Entrada on-chain detectada', 'Detected on-chain inflow'),
+          _source: 'ledger',
+          _walletAddress: r.address,
+        })
+      }
+    }
+
+    onSyncComplete({ items, transactions, mode: 'merge' })
     onClose()
-  }, [results, onSyncComplete, onClose])
+  }, [results, custody, customName, savedWallets, onSyncComplete, onClose, t])
 
   const inputCls = 'w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50'
 
@@ -110,7 +257,7 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
       <div ref={trapRef} className="modal-glass max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <span className="text-xl">🔒</span> Ledger Sync
+            <span className="text-xl">🔒</span> {t('Cripto por dirección', 'Crypto by address')}
           </h2>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label="Close">&times;</button>
         </div>
@@ -121,10 +268,29 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
               <p className="text-xs text-blue-400 font-medium mb-1">{t('Cómo funciona:', 'How it works:')}</p>
               <p className="text-xs text-blue-300/80">
                 {t(
-                  'Pega tus direcciones públicas. Leemos el balance directamente del blockchain. No necesitas conectar tu Ledger ni compartir keys privadas.',
-                  'Paste your public addresses. We read the balance directly from the blockchain. No need to connect your Ledger or share private keys.'
+                  'Pega tus direcciones públicas. Leemos balance e historial directo del blockchain (mempool.space para Bitcoin, Routescan para Ethereum): no conectas tu dispositivo ni compartes keys privadas.',
+                  'Paste your public addresses. We read balance and history straight from the blockchain (mempool.space for Bitcoin, Routescan for Ethereum): no device connection, no private keys.'
                 )}
               </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1">{t('¿Dónde guardas esta cripto?', 'Where do you keep this crypto?')}</label>
+              <select value={custody} onChange={e => setCustody(e.target.value)}
+                className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white">
+                {walletOptions.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              {custody === OTHER_WALLET && (
+                <>
+                  <input value={customName} onChange={e => setCustomName(e.target.value)}
+                    placeholder={t('Ej.: Phantom, MetaMask, Tangem', 'E.g.: Phantom, MetaMask, Tangem')}
+                    maxLength={30}
+                    className={inputCls + ' mt-2'} />
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    {t('El nombre se queda guardado como opción para la próxima vez.', 'The name stays saved as an option for next time.')}
+                  </p>
+                </>
+              )}
             </div>
 
             <div className="space-y-3">
@@ -165,7 +331,7 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
                   <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                   {t('Leyendo blockchain...', 'Reading blockchain...')}
                 </>
-              ) : t('Leer balances', 'Read balances')}
+              ) : t('Leer blockchain', 'Read blockchain')}
             </button>
           </div>
         )}
@@ -173,22 +339,53 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
         {step === 'preview' && results && (
           <div className="p-6 space-y-4">
             <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3">
-              <p className="text-sm text-emerald-400 font-medium">{t('Balances encontrados', 'Balances found')}</p>
+              <p className="text-sm text-emerald-400 font-medium">{t('Lo que encontramos', 'What we found')}</p>
             </div>
 
             <div className="space-y-2">
               {results.results.map((r, i) => (
-                <div key={i} className="flex items-center justify-between px-3 py-2 bg-theme-base rounded-lg">
-                  <div>
-                    <span className="text-white text-sm font-medium">{r.chain}</span>
-                    <span className="text-slate-500 text-xs ml-2 font-mono">{r.address.slice(0, 8)}...{r.address.slice(-6)}</span>
+                <div key={i} className="px-3 py-2 bg-theme-base rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-white text-sm font-medium">{r.chain}</span>
+                      <span className="text-slate-500 text-xs ml-2 font-mono">{r.address.slice(0, 8)}...{r.address.slice(-6)}</span>
+                    </div>
+                    <span className="text-white text-sm font-mono">
+                      {r.balance.toLocaleString(undefined, { maximumFractionDigits: 8 })} {r.chain}
+                    </span>
                   </div>
-                  <span className="text-white text-sm font-mono">
-                    {r.balance.toLocaleString(undefined, { maximumFractionDigits: 8 })} {r.chain}
-                  </span>
+                  <div className="flex flex-wrap gap-x-3 mt-1">
+                    {r.balance === 0 && (
+                      <span className="text-[11px]" style={{ color: '#f59e0b' }}>
+                        {t('balance 0: dirección vacía o con movimientos sin confirmar', '0 balance: empty address or unconfirmed moves')}
+                      </span>
+                    )}
+                    {r.firstSeen && (
+                      <span className="text-[11px] text-slate-500">{t('desde', 'since')} {r.firstSeen}</span>
+                    )}
+                    {r.inflows?.length > 0 && (
+                      <span className="text-[11px] text-slate-500">
+                        {r.inflows.length} {r.inflows.length === 1 ? t('entrada', 'inflow') : t('entradas', 'inflows')}
+                      </span>
+                    )}
+                    {r.historyTruncated && (
+                      <span className="text-[11px]" style={{ color: '#f59e0b' }}>
+                        {t('historial parcial (dirección muy activa)', 'partial history (very active address)')}
+                      </span>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
+
+            {results.results.some(r => r.inflows?.length > 0) && (
+              <p className="text-[11px] text-slate-500">
+                {t(
+                  'Las entradas se importan como compras al precio USD de ese día, para que tu costo y retorno salgan bien.',
+                  'Inflows import as buys at that day\'s USD price, so your cost basis and return come out right.'
+                )}
+              </p>
+            )}
 
             {results.errors?.length > 0 && (
               <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">

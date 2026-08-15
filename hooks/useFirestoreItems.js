@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { sanitizeImportItem } from '@/lib/validation'
 import { SNAPSHOT_SRC_PRIORITY } from '@/components/dashboard/utils'
 import { detectMisstampedMonthlyNavSnapshots } from '@/lib/badDataCleanup'
+import { orphanedAccountSnapshotIds } from '@/lib/accountCleanup'
+import { SNAPSHOT_VERSION } from '@/lib/snapshotVersion'
 
 let _db = null
 let _auth = null
@@ -314,6 +316,15 @@ export function useFirestoreItems() {
     }
   }, [uid, items])
 
+  // FASE GM2. Sube con cada borrado de cuentas. Los efectos una-vez-por-sesión
+  // de useDashboardData (el backfill de 366 días que re-deriva el historial de
+  // portafolio completo) ya corrieron ANTES de un borrado hecho a mitad de
+  // sesión, así que sin esta señal el auto-reparado no ocurre hasta la próxima
+  // recarga: el usuario se queda mirando el snapshot de ayer (que aún contiene
+  // la cuenta borrada) como un pico gigante y una serie punteada, creyendo que
+  // el borrado dejó registro para siempre.
+  const [deletionEpoch, setDeletionEpoch] = useState(0)
+
   const deleteAllItems = useCallback(async ({ cascade } = {}) => {
     if (!uid) return
     const { db, fs } = await getFirebase()
@@ -322,6 +333,7 @@ export function useFirestoreItems() {
       collections.push(`users/${uid}/lots`, `users/${uid}/transactions`, `users/${uid}/snapshots`, `users/${uid}/itemSnapshots`)
     }
     for (const path of collections) await deleteAllDocsIn(db, fs, path)
+    setDeletionEpoch((e) => e + 1)
   }, [uid])
 
   const saveSnapshot = useCallback(async (snapshot) => {
@@ -332,7 +344,13 @@ export function useFirestoreItems() {
     if (items.some((i) => i._source === 'demo')) return
     const { db, fs } = await getFirebase()
     const dateStr = snapshot.date || new Date().toISOString().split('T')[0]
-    const id = dateStr
+    // Per-account calibration anchors share their date with real NAV snapshots
+    // (a YTD calibration sits on Jan 1, where a daily snapshot may also live):
+    // a compound id keeps them from overwriting each other. Portfolio-wide
+    // snapshots keep the plain date id so dedup/precedence logic is untouched.
+    const id = snapshot._account
+      ? `${dateStr}~${snapshot._calibrationKind || 'cal'}~${String(snapshot._account).replace(/[^a-z0-9]+/gi, '-')}`
+      : dateStr
     const clean = Object.fromEntries(Object.entries({ ...snapshot, createdAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
     await fs.setDoc(fs.doc(db, `users/${uid}/snapshots`, id), clean, { merge: true })
   }, [uid, items])
@@ -418,13 +436,40 @@ export function useFirestoreItems() {
     const groupSyms = new Set(groupItems.map((i) => (i.symbol || '').toUpperCase()).filter(Boolean))
     const survivingSyms = new Set(items.filter((i) => !idSet.has(i.id)).map((i) => (i.symbol || '').toUpperCase()))
     const symDeletable = (s) => !!s && groupSyms.has(s) && !survivingSyms.has(s)
+    // Snapshots that describe the ACCOUNT rather than the portfolio (a broker's
+    // NAV history, a per-account calibration anchor) have to go with it. Without
+    // this the group delete removed the positions and left their NAV behind, so
+    // the chart kept plotting an account the portfolio no longer held — a
+    // leftover IBKR NAV of 5,760 topped up with a manual 6,240 bond drew a flat
+    // 12,000 line over a portfolio worth 6,240 (FASE DX). Portfolio-wide
+    // snapshots ('daily' and friends) are never touched: they also measure what
+    // survives.
+    const survivingItems = items.filter((i) => !idSet.has(i.id))
+    const orphanSnapIds = orphanedAccountSnapshotIds(snapshots, groupItems, survivingItems)
+    // FASE GL. Account-LEVEL transactions (a broker's deposits/withdrawals,
+    // fees and taxes carry symbol 'CASH' and no _linkedItemId, and accepted
+    // inferred flows share that shape) never matched the per-item filters
+    // below, so deleting the account left them orphaned — and an orphan
+    // deposit is poison, not residue: every return engine keeps netting money
+    // into an account that no longer exists, and the spreadsheet's monthly
+    // recompute rebuilds history through flows no surviving item explains
+    // (real report: deleting IBKR from Settings left YTD at -29.62% and a
+    // -47.8% "drawdown" that was just the deletion itself). Deleting an
+    // account means it never appears in history again — a WITHDRAWAL is how
+    // you record money that actually left. Same last-item rule as
+    // orphanedAccountSnapshotIds: IBKR split across groups (API + file) must
+    // not lose its ledger while one group survives.
+    const ibkrGone = groupItems.some((i) => i._source === 'ibkr')
+      && !survivingItems.some((i) => i._source === 'ibkr')
     const refs = [
       ...groupItems.map((i) => fs.doc(db, `users/${uid}/items`, i.id)),
       ...lots.filter((l) => symDeletable((l.symbol || '').toUpperCase())).map((l) => fs.doc(db, `users/${uid}/lots`, l.id)),
       ...transactions.filter((t) =>
         idSet.has(t._linkedItemId) || idSet.has(t._destinationItemId) || idSet.has(t._originItemId)
         || symDeletable((t.symbol || '').toUpperCase())
+        || (ibkrGone && (t._source === 'ibkr' || t._source === 'inferred_flow'))
       ).map((t) => fs.doc(db, `users/${uid}/transactions`, t.id)),
+      ...orphanSnapIds.map((id) => fs.doc(db, `users/${uid}/snapshots`, id)),
     ]
     const CHUNK = 30
     for (let i = 0; i < refs.length; i += CHUNK) {
@@ -433,8 +478,13 @@ export function useFirestoreItems() {
       await batch.commit()
     }
     setItems((cur) => cur.filter((it) => !idSet.has(it.id)))
+    if (orphanSnapIds.length > 0) {
+      const goneSnaps = new Set(orphanSnapIds)
+      setSnapshots((cur) => cur.filter((s) => !goneSnaps.has(s.id)))
+    }
+    setDeletionEpoch((e) => e + 1)
     return groupItems.length
-  }, [uid, items, lots, transactions])
+  }, [uid, items, lots, transactions, snapshots])
 
   const addTransaction = useCallback(async (transaction) => {
     if (!uid) return
@@ -458,6 +508,20 @@ export function useFirestoreItems() {
     if (!uid || !txId) return
     const { db, fs } = await getFirebase()
     await fs.deleteDoc(fs.doc(db, `users/${uid}/transactions`, txId))
+  }, [uid])
+
+  // Patch an existing movement in place (fix a wrong date/amount, or attach a
+  // stray one to the account it belongs to via _linkedItemId). The doc id
+  // encodes date/symbol/type/amount purely as a dedupe key for AUTO-generated
+  // rows — the read path trusts the doc id and never re-derives it from the
+  // fields, so editing content without renaming the doc is safe and keeps the
+  // row's identity (and anything already pointing at it) intact.
+  const updateTransaction = useCallback(async (txId, fields) => {
+    if (!uid || !txId || !fields) return
+    const { db, fs } = await getFirebase()
+    const clean = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined))
+    if (Object.keys(clean).length === 0) return
+    await fs.updateDoc(fs.doc(db, `users/${uid}/transactions`, txId), clean)
   }, [uid])
 
   const deleteAllTransactions = useCallback(async () => {
@@ -811,7 +875,56 @@ export function useFirestoreItems() {
   // v16: crypto historical prices now come from CoinGecko (not Yahoo, which
   // collided crypto tickers with unrelated equities) — invalidates docs that
   // cached garbage crypto values.
-  const SNAPSHOT_VERSION = 17
+  // v18: transcribed quarterly NAV ('ibkr_quarterly') now feeds the per-item IBKR
+  // scaling, and destination accounts created from a source item now default their
+  // acquisition date to the source's, instead of "today" — invalidates docs that
+  // cached values computed before either was true (e.g. VITALI reading ~5,760
+  // instead of a flat 6,000 for months before its first backfilled coupon, or a
+  // destination account showing no history because it looked created "today").
+  // A merge-on-save cache never self-heals a stale entry short of this version
+  // bump: `saveItemSnapshots` merges new values OVER old ones, so a wrong number
+  // computed once just sits there until the whole month is forced to recompute.
+  // v19: inferred deposits/withdrawals (lib/inferredFlows.js) can now fill the
+  // quarterly-transcribed gap — invalidates docs cached before an accepted
+  // inferred flow existed to explain that stretch.
+  // v20 (FASE DS): two spreadsheet-correctness fixes land together — (1) a true
+  // static asset (bond, bank balance) held-flat with tracked events is now
+  // marked `estimated:false` instead of always `true`, so an exact figure
+  // (e.g. a bond worth precisely 6,000) stops showing the "~" uncertain marker
+  // it never deserved; (2) the missing-months detector in
+  // PortfolioSpreadsheet.jsx no longer skips a month just because MOST of the
+  // portfolio already has data there — a single item added later than the
+  // rest (VITALI + its destination account) could get permanently stuck
+  // uncovered for any month that crossed that blanket bar. Invalidates docs
+  // cached under either old behavior.
+  // v21 (FASE DV): a backfilled coupon whose destination sat at zero now gets
+  // credited after the fact (creditableBackfills), so that account's balance
+  // changes and every month reconstructed by rewinding from it changes with it
+  // — the cached months were all computed from a balance of 0.
+  // v22 (FASE DW): el loop de "Calculando historial..." dejaba meses guardados a
+  // medias (o vacíos) mientras se cancelaba a sí mismo, así que lo cacheado bajo
+  // v21 no es confiable y tiene que recalcularse entero.
+  // v23 (FASE FT): FASE FH cambió los meses históricos de IBKR al bucket
+  // sintético (IBKR_UNKNOWN_KEY_PREFIX) pero NO subió la versión: el merge de
+  // saveItemSnapshots escribió el bucket AL LADO de las acciones por-item
+  // cacheadas bajo la lógica vieja, y la fila de categoría sumaba ambos
+  // ("Bolsa de Valores" al doble en cada mes pasado, reporte real del
+  // usuario). Los docs v22 con esa mezcla no se pueden reparar por merge:
+  // recálculo completo.
+  // v24 (FASE GL): borrar una cuenta desde Settings dejaba huérfanas sus
+  // transacciones de nivel de cuenta (símbolo CASH, sin _linkedItemId) y el
+  // recompute mensual posterior al borrado horneó meses con esos flujos sin
+  // dueño adentro (Caja & Bancos histórico inflado a ~$7-10K sobre cuentas de
+  // ~$600, reporte real). El caché nunca se autocorrige por merge: recálculo
+  // completo con el archivo ya limpio.
+  // 25 (FASE GU): indexBalanceEvents ahora mueve los DOS saldos de un TRANSFER
+  // entre cuentas del usuario. Todo mes ya cacheado se calculó sin esos eventos
+  // (la cuenta que recibe, plana hacia atrás en su saldo alto de hoy; la que
+  // envía, en su saldo bajo) y el caché nunca se autocorrige por merge.
+  //
+  // El NÚMERO vive en lib/snapshotVersion.js (FASE IE): el spreadsheet adjunto
+  // del correo mensual lee estos mismos docs del lado del servidor y tiene que
+  // rechazar versiones viejas con la misma vara. Bumpear allá, documentar acá.
 
   const saveItemSnapshots = useCallback(async (monthKey, itemsData, currency) => {
     if (!uid || !monthKey || !itemsData) return
@@ -820,7 +933,15 @@ export function useFirestoreItems() {
     const { db, fs } = await getFirebase()
     const ref = fs.doc(db, `users/${uid}/itemSnapshots`, monthKey)
     const existing = await fs.getDoc(ref)
-    const existingItems = existing.exists() ? (existing.data().items || {}) : {}
+    // FASE FT: un doc de versión vieja es INVÁLIDO (loadItemSnapshots ya se
+    // niega a leerlo); fusionar datos nuevos sobre él lo resucita, con la
+    // versión nueva estampada encima del contenido viejo. Así fue como el
+    // bucket sintético de FH terminó sumándose al lado de las acciones
+    // por-item cacheadas bajo la lógica anterior. Versión vieja => reemplazo
+    // completo del doc, nunca merge.
+    const existingData = existing.exists() ? existing.data() : null
+    const staleVersion = existingData != null && (existingData._version || 0) < SNAPSHOT_VERSION
+    const existingItems = existingData && !staleVersion ? (existingData.items || {}) : {}
     const snapData = Object.fromEntries(Object.entries({
       monthKey,
       items: { ...existingItems, ...itemsData },
@@ -828,7 +949,7 @@ export function useFirestoreItems() {
       _version: SNAPSHOT_VERSION,
       ...(currency ? { _currency: currency } : {}),
     }).filter(([, v]) => v !== undefined))
-    await fs.setDoc(ref, snapData, { merge: true })
+    await fs.setDoc(ref, snapData, staleVersion ? undefined : { merge: true })
   }, [uid, items])
 
   const loadItemSnapshots = useCallback(async (monthKeys) => {
@@ -851,8 +972,22 @@ export function useFirestoreItems() {
     return { ...result, __currencies: currencies }
   }, [uid])
 
+  // FASE GB. Mientras un bulkImport está escribiendo, la colección de items
+  // pasa por estados INTERMEDIOS (los lotes van de a 30 operaciones: altas,
+  // updates y borrados aterrizan en commits distintos y el listener entrega
+  // cada estado a medio camino). Cualquier efecto que SUME el portafolio en
+  // esa ventana puede ver items duplicados y grabar un total inflado en un
+  // snapshot permanente: así se regeneraba la meseta de ~$35K cada vez que la
+  // limpieza la borraba y un sync estaba en vuelo (el gate de pricesFetching
+  // de FASE FE solo cubría refrescos de PRECIOS, no imports). Los escritores
+  // de useDashboardData (snapshot diario, backfill, dividendos, limpieza)
+  // consultan esta bandera igual que pricesFetching.
+  const [bulkWriting, setBulkWriting] = useState(false)
+
   const bulkImport = useCallback(async ({ items: newItems, lots: newLots, transactions: newTxs, snapshots: newSnaps, updateItems, deleteIds }, onProgress) => {
     if (!uid) throw new Error('Not authenticated')
+    setBulkWriting(true)
+    try {
     const { db, fs } = await getFirebase()
     const now = new Date().toISOString()
     // Drops undefined AND a caller-supplied `id` — see the hook-scope strip()
@@ -899,16 +1034,26 @@ export function useFirestoreItems() {
     // a gap or refresh same-or-higher-tier data. Without this, re-importing an
     // older/narrower file (or one that estimates where an earlier one
     // observed) silently downgrades a real NAV to a worse one.
-    const existingSnapByDate = new Map((snapshots || []).map((s) => [s.date || s.id, s]))
+    // Per-account calibration anchors (_account) are NOT portfolio NAV: they
+    // must not participate in same-date precedence or their 'manual' priority
+    // would block a real daily/ibkr import landing on the anchor date.
+    const existingSnapByDate = new Map((snapshots || []).filter((s) => s && !s._account).map((s) => [s.date || s.id, s]))
     for (const snap of (newSnaps || [])) {
-      const id = snap.date || now.split('T')[0]
-      const existing = existingSnapByDate.get(id)
-      if (existing) {
-        const incoming = SNAPSHOT_SRC_PRIORITY[snap._source] || 0
-        const current = SNAPSHOT_SRC_PRIORITY[existing._source] || 0
-        if (incoming < current) continue
+      // FASE FU: `_docId` es una decisión explícita del caller (el planificador
+      // de NAV de IBKR) de escribir un doc PARALELO (`fecha~nav~ibkr`) en vez
+      // de pelear por el doc plano de la fecha: la precedencia por fecha no
+      // aplica, el caller ya resolvió la colisión apartándose de ella.
+      const { _docId, ...body } = snap
+      const id = _docId || snap.date || now.split('T')[0]
+      if (!_docId) {
+        const existing = existingSnapByDate.get(id)
+        if (existing) {
+          const incoming = SNAPSHOT_SRC_PRIORITY[snap._source] || 0
+          const current = SNAPSHOT_SRC_PRIORITY[existing._source] || 0
+          if (incoming < current) continue
+        }
       }
-      ops.push({ type: 'set', ref: fs.doc(db, `users/${uid}/snapshots`, id), data: strip({ ...snap, createdAt: now }) })
+      ops.push({ type: 'set', ref: fs.doc(db, `users/${uid}/snapshots`, id), data: strip({ ...body, createdAt: now }) })
     }
 
     const CHUNK = 30
@@ -949,18 +1094,24 @@ export function useFirestoreItems() {
       if (onProgress) onProgress(done, total)
     }
     if (failures > 0) throw new Error(`${failures} of ${total} operations failed`)
+    } finally {
+      // Un pequeño colchón tras el último commit: el listener de Firestore
+      // entrega el estado final un instante después; soltar la bandera en el
+      // mismo tick reabriría la ventana con el penúltimo estado aún en memoria.
+      setTimeout(() => setBulkWriting(false), 1500)
+    }
   }, [uid, snapshots])
 
   return {
     items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, loading,
     addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
     saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
-    addTransaction, deleteTransaction, deleteAllTransactions,
+    addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,
     addFinanceTransaction, updateFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     addAlert, deleteAlert, updateAlert,
     addLot, updateLot, closeLotsFIFO,
     transferFunds, executeSaleAtomic, executeContribution,
-    bulkImport,
+    bulkImport, bulkWriting, deletionEpoch,
     addPortfolio, deletePortfolio,
     saveGoals, saveSettings, saveProfile,
     saveItemSnapshots, loadItemSnapshots,

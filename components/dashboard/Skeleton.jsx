@@ -1,6 +1,10 @@
 'use client'
 
-function Shimmer({ className }) {
+// Exported (was private to this file) so app/dashboard/loading.jsx and
+// page.jsx's ModalSkeleton() can build their own shapes out of the same atom
+// instead of hand-rolling hardcoded-hex placeholders that don't move or
+// color the same way as every other loading moment in the app.
+export function Shimmer({ className }) {
   return <div className={`rounded shimmer ${className}`} style={{ backgroundColor: 'var(--bg-card-hover)', opacity: 0.5 }} />
 }
 

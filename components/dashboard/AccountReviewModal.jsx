@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { getItemValue, getTypeCategory, formatCurrency } from './utils'
 
@@ -16,15 +16,21 @@ const CATEGORY_LABELS = {
   other: { es: 'Otro', en: 'Other' },
 }
 
-export default function AccountReviewModal({ items, onClose, onEditItem, lang, transactions, findings = [] }) {
+const SEV_WEIGHT = { high: 3, medium: 2, low: 1 }
+
+export default function AccountReviewModal({ items: allItems, onClose, onEditItem, onOpenCashflow, onConfirmDistinct, onApplySuggestion, lang, transactions, findings = [], startItemId = null, onlyWithFindings = false, institutionFilter = null }) {
   const t = (es, en) => lang === 'es' ? es : en
   const trapRef = useFocusTrap()
-  const [index, setIndex] = useState(0)
   const [reviewed, setReviewed] = useState({})
+  const [applied, setApplied] = useState(() => new Set())
 
-  const sorted = useMemo(() =>
-    [...items].sort((a, b) => Math.abs(getItemValue(b)) - Math.abs(getItemValue(a))),
-    [items]
+  // "Revisar por institución" scope: everything else about the wizard (order,
+  // findings, progress count) stays untouched, it just walks a narrower list —
+  // the whole point being "fix everything IDC holds" instead of hopping
+  // between VITALI and Fondo Líquido one modal at a time.
+  const items = useMemo(
+    () => (institutionFilter ? allItems.filter((it) => (it.institution || '') === institutionFilter) : allItems),
+    [allItems, institutionFilter]
   )
 
   // Findings come from the shared data-completeness engine (lib/dataCompleteness)
@@ -38,6 +44,32 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
     }
     return m
   }, [findings])
+
+  // Guided mode ("let Chispu recommend"): only the accounts that actually have
+  // gaps, worst first, so the wizard is a to-do list instead of a tour of
+  // everything you own. Falls back to the full list when nothing is missing,
+  // otherwise the modal would open onto an empty state.
+  const sorted = useMemo(() => {
+    const byValue = (a, b) => Math.abs(getItemValue(b)) - Math.abs(getItemValue(a))
+    if (!onlyWithFindings) return [...items].sort(byValue)
+    const gapped = items.filter((it) => (findingsByItem.get(it.id) || []).length > 0)
+    if (gapped.length === 0) return [...items].sort(byValue)
+    const weight = (it) => (findingsByItem.get(it.id) || []).reduce((s, f) => s + (SEV_WEIGHT[f.severity] || 1), 0)
+    return gapped.sort((a, b) => (weight(b) - weight(a)) || byValue(a, b))
+  }, [items, onlyWithFindings, findingsByItem])
+
+  const [index, setIndex] = useState(() => {
+    if (!startItemId) return 0
+    const at = items.findIndex((it) => it.id === startItemId)
+    return at >= 0 ? at : 0
+  })
+  // The initial index above is computed against `items`; re-anchor it once the
+  // real (sorted/filtered) order is known so "review THIS account" lands on it.
+  useEffect(() => {
+    if (!startItemId) return
+    const at = sorted.findIndex((it) => it.id === startItemId)
+    if (at >= 0) setIndex(at)
+  }, [startItemId, sorted])
 
   // Count-based (N of M items without findings) so both numbers in the strip
   // agree — the value-weighted globalScore lives in the dashboard card.
@@ -66,6 +98,29 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
 
   const handleEdit = () => {
     if (onEditItem) onEditItem(item)
+  }
+
+  // Same "cashflow" action ChispuSuggestions already offers on the dashboard —
+  // wired here too so the guided/per-institution review flow can resolve a
+  // finding (e.g. "confirm this is new money") without the user having to
+  // remember to close this modal and go find that button elsewhere.
+  const handleResolve = (f) => {
+    if (f.action?.kind === 'cashflow' && onOpenCashflow) {
+      onClose()
+      onOpenCashflow(f.action.prefill || { flowType: 'DEPOSIT', origin: 'external', linkedId: item.id, alreadyReflected: true })
+    } else {
+      handleEdit()
+    }
+  }
+
+  // Grounded in real data already on file (a past transaction, the account's
+  // own createdAt) — never a guess. See lib/dataCompleteness.js. Stays
+  // in this wizard (doesn't advance/close) so the next finding on the same
+  // account, if any, is still right there.
+  const applySuggestion = (f) => {
+    if (!f.suggestion || !onApplySuggestion) return
+    onApplySuggestion(item.id, f.suggestion.patch)
+    setApplied((p) => new Set(p).add(f.id))
   }
 
   const itemFindings = findingsByItem.get(item.id) || []
@@ -188,10 +243,44 @@ export default function AccountReviewModal({ items, onClose, onEditItem, lang, t
           {itemFindings.length > 0 && (
             <div className="rounded-lg p-3 mb-4" style={{ backgroundColor: '#fffbeb', borderWidth: '1px', borderStyle: 'solid', borderColor: '#fde68a' }}>
               <p className="text-xs font-medium" style={{ color: '#b45309' }}>{t('Chispu detectó:', 'Chispu detected:')}</p>
-              <ul className="mt-1 space-y-1">
+              <ul className="mt-1.5 space-y-1.5">
                 {itemFindings.map(f => (
                   <li key={f.id} className="text-xs" style={{ color: '#d97706' }}>
-                    · {lang === 'es' ? f.textEs : f.textEn}
+                    <div className="flex items-start justify-between gap-2">
+                      <span>· {lang === 'es' ? f.textEs : f.textEn}</span>
+                      <span className="shrink-0 flex items-center gap-2">
+                        {f.suggestion && onApplySuggestion && !applied.has(f.id) && (
+                          <button type="button" onClick={() => applySuggestion(f)}
+                            className="underline font-semibold" style={{ color: '#b45309' }}>
+                            {t('Usar esto', 'Use this')}
+                          </button>
+                        )}
+                        {applied.has(f.id) && (
+                          <span style={{ color: 'var(--accent-green)' }}>✓ {t('Aplicado', 'Applied')}</span>
+                        )}
+                        {f.action?.kind === 'cashflow' && !applied.has(f.id) && (
+                          <button type="button" onClick={() => handleResolve(f)}
+                            className="underline font-medium" style={{ color: '#b45309' }}>
+                            {t('Resolver', 'Resolve')}
+                          </button>
+                        )}
+                        {/* Same permanent answer ChispuSuggestions offers: stamps
+                            _dupConfirmedDistinct on both items so this exact pair
+                            stops asking anywhere, not just in this modal. */}
+                        {f.code === 'dup-suspect' && f.action?.itemIds?.length > 1 && onConfirmDistinct && !applied.has(f.id) && (
+                          <button type="button" onClick={() => onConfirmDistinct(f)}
+                            className="underline font-medium" style={{ color: '#b45309' }}>
+                            {t('No son iguales', 'Not the same')}
+                          </button>
+                        )}
+                      </span>
+                    </div>
+                    {/* Grounded in real data already on file — never invented. */}
+                    {f.suggestion && !applied.has(f.id) && (
+                      <p className="mt-0.5" style={{ color: '#b45309' }}>
+                        💡 {lang === 'es' ? f.suggestion.textEs : f.suggestion.textEn}
+                      </p>
+                    )}
                   </li>
                 ))}
               </ul>

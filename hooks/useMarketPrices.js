@@ -13,6 +13,19 @@ export function useMarketPrices(items) {
   const [prices, setPrices] = useState(_cachedPrices)
   const [dividends, setDividends] = useState(_cachedDividends)
   const [loading, setLoading] = useState(false)
+  // `loading` only ever arms on the very FIRST fetch of the session (see the
+  // gate below) — on purpose, so a background poll never flashes a big
+  // loading UI every 5 minutes. But that also means `loading` is USELESS as
+  // a "don't trust these prices yet" signal for anything past the first
+  // load: a caller gating a write on `!loading` (useDashboardData's daily
+  // snapshot, backfill, and dividend-processing effects) had NO protection
+  // during a background refetch, so a transient bad price mid-poll could get
+  // written straight into a permanent snapshot before the retry corrected
+  // it — the "gráfica con bumps" the user reported. `isFetching` is the
+  // separate, always-armed signal for that: true for every fetch, visible to
+  // NOTHING UI-facing, so it can't reintroduce the flicker `loading`
+  // deliberately avoids.
+  const [isFetching, setIsFetching] = useState(false)
   const [error, setError] = useState(null)
   const [lastUpdate, setLastUpdate] = useState(_cachedLastUpdate)
   const abortRef = useRef(null)
@@ -37,6 +50,7 @@ export function useMarketPrices(items) {
     const { signal } = abortRef.current
 
     if (Object.keys(_cachedPrices).length === 0) setLoading(true)
+    setIsFetching(true)
     setError(null)
     try {
       const stockSyms = symbols.filter((s) => !/crypto|cripto|blockchain/i.test(s.type || ''))
@@ -82,6 +96,7 @@ export function useMarketPrices(items) {
       if (consecutiveFailuresRef.current >= 2) setError(err.message)
     }
     setLoading(false)
+    setIsFetching(false)
   }, [items])
 
   useEffect(() => {
@@ -131,5 +146,5 @@ export function useMarketPrices(items) {
     })
   }, [items, prices, dividends])
 
-  return { enrichedItems, prices, loading, error, lastUpdate, refresh: fetchPrices }
+  return { enrichedItems, prices, loading, isFetching, error, lastUpdate, refresh: fetchPrices }
 }

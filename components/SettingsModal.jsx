@@ -2,12 +2,17 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
-import { Settings, Building2, Users } from 'lucide-react'
+import {
+  Settings, Building2, Users, X, SlidersHorizontal, Share2, Database, Palette,
+  ToggleLeft, Bell, GraduationCap, Link2, Download, AlertTriangle, ChevronDown,
+  Trash2, CheckCircle2, Zap,
+} from 'lucide-react'
 import EntityManager from '@/components/dashboard/EntityManager'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { isNotificationSupported, getNotificationPermission, requestNotificationPermission } from '@/lib/notifications'
 import { BENCHMARKS } from '@/hooks/useBenchmark'
 import { disconnectAllSyncs, IBKR_DISCONNECTED_FIELDS } from '@/lib/brokerRegistry'
+import { useEdgeFade } from '@/hooks/useEdgeFade'
 
 const CURRENCIES = [
   { code: 'USD', name: 'US Dollar', symbol: '$' },
@@ -26,7 +31,50 @@ const CURRENCIES = [
   { code: 'CNY', name: 'Chinese Yuan', symbol: '¥' },
 ]
 
-export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onDeleteItemGroup, onExportBackup, onOpenConnections, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, beginnerMode = false, onToggleBeginner, lang = 'es', onSetLang, portfolioItems = [] }) {
+// Framed group used throughout the General tab — a hairline-bordered card with
+// a small icon+label header, so related controls (theme+language, the two
+// toggles+currency, notification prefs) read as one visual unit instead of a
+// continuous scroll of same-weight rows. Purely presentational: no state.
+function SectionCard({ icon: Icon, title, children }) {
+  return (
+    <div className="rounded-xl border p-4 space-y-3.5" style={{ borderColor: 'var(--card-border)' }}>
+      <div className="flex items-center gap-1.5">
+        <Icon size={13} strokeWidth={2.5} style={{ color: 'var(--text-muted)' }} />
+        <h3 className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{title}</h3>
+      </div>
+      {children}
+    </div>
+  )
+}
+
+// The two on/off preference rows (Beginner mode, Friends) shared identical
+// markup with only the icon/copy/state differing — pulled into one component
+// so the visual treatment can never drift between the two.
+function ToggleCard({ active, onClick, icon: Icon, title, description }) {
+  return (
+    <button
+      type="button" role="switch" aria-checked={active} onClick={onClick}
+      className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg border transition-all text-left"
+      style={active
+        ? { color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' }
+        : { borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-input)' }}>
+      <div className="flex items-start gap-2.5 min-w-0">
+        {Icon && <Icon size={16} strokeWidth={2} className="shrink-0 mt-0.5" style={{ color: active ? 'var(--accent-blue)' : 'var(--text-muted)' }} />}
+        <div className="min-w-0">
+          <div className="text-sm font-medium" style={active ? undefined : { color: 'var(--text-primary)' }}>{title}</div>
+          <div className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>{description}</div>
+        </div>
+      </div>
+      <span className="shrink-0 w-10 h-6 rounded-full flex items-center transition-all px-0.5"
+        style={{ backgroundColor: active ? 'var(--accent-blue)' : 'var(--bg-tertiary)' }}>
+        <span className="w-5 h-5 rounded-full bg-white transition-transform"
+          style={{ transform: active ? 'translateX(16px)' : 'translateX(0)' }} />
+      </span>
+    </button>
+  )
+}
+
+export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onDeleteItemGroup, onExportBackup, onOpenConnections, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, beginnerMode = false, onToggleBeginner, lang = 'es', onSetLang, portfolioItems = [], userEmail = '' }) {
   const trapRef = useFocusTrap()
   const [baseCurrency, setBaseCurrency] = useState(settings?.baseCurrency || 'USD')
   const [benchmarkSymbol, setBenchmarkSymbol] = useState(settings?.benchmarkSymbol || '%5EGSPC')
@@ -63,6 +111,69 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
       await onSaveSettings({ [key]: next[key] })
     } catch (e) {
       setNotifPrefs(notifPrefs) // revert on failure
+      flash('err', e.message || t('Error al guardar', 'Error saving'))
+    }
+  }
+
+  // FASE HZ. Correos periódicos. Las tres cadencias son INDEPENDIENTES: cada
+  // una lleva contenido distinto, así que activar una no condiciona a las
+  // otras. Mensual y anual se muestran deshabilitadas hasta que existan: un
+  // interruptor que se puede encender y no hace nada es peor que uno ausente.
+  const EMAIL_CADENCES = [
+    { key: 'notifyWeekly', es: 'Resumen semanal', en: 'Weekly brief',
+      descEs: 'Tu semana y el año, más el estado del mercado. Domingos.',
+      descEn: 'Your week and your year, plus market levels. Sundays.',
+      ready: true },
+    { key: 'notifyMonthly', es: 'Resumen mensual', en: 'Monthly brief',
+      descEs: 'Tu mes y el año, con el reporte YTD y el spreadsheet de enero al mes cubierto. Día 1.',
+      descEn: 'Your month and your year, with the YTD report and the January-to-date spreadsheet. On the 1st.',
+      ready: true },
+    { key: 'notifyAnnual', es: 'Resumen anual', en: 'Annual brief',
+      descEs: 'El cierre del año, con su reporte y el spreadsheet completo. 1 de enero.',
+      descEn: 'The year close, with its report and the full-year spreadsheet. January 1st.',
+      ready: true },
+  ]
+  const [emailPrefs, setEmailPrefs] = useState(() =>
+    Object.fromEntries(EMAIL_CADENCES.map((c) => [c.key, settings?.[c.key] === true]))
+  )
+  const [testingEmail, setTestingEmail] = useState(null) // la cadencia en vuelo, o null
+  const [testResult, setTestResult] = useState(null)
+  const handleTestEmail = async (cadence = 'weekly') => {
+    setTestingEmail(cadence)
+    setTestResult(null)
+    try {
+      const res = await authFetch('/api/notifications/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cadence }),
+      })
+      const data = await safeJson(res)
+      if (res.ok) {
+        setTestResult({ ok: true, msg: t(`Enviado a ${data?.sentTo || userEmail}. Revisa tu bandeja (y spam).`, `Sent to ${data?.sentTo || userEmail}. Check your inbox (and spam).`) })
+      } else {
+        // El mensaje del servidor SMTP se muestra tal cual: si Zoho rechaza la
+        // autenticación, verlo aquí ahorra una ronda de logs.
+        setTestResult({ ok: false, msg: data?.error || t('No se pudo enviar', 'Could not send') })
+      }
+    } catch (e) {
+      setTestResult({ ok: false, msg: e.message || t('No se pudo enviar', 'Could not send') })
+    } finally {
+      setTestingEmail(null)
+    }
+  }
+
+  const toggleEmailCadence = async (key) => {
+    const next = { ...emailPrefs, [key]: !emailPrefs[key] }
+    setEmailPrefs(next)
+    try {
+      // El correo se captura al suscribirse (igual que el recordatorio de fin
+      // de mes): el cron lo lee del lado del servidor sin listar usuarios de Auth.
+      await onSaveSettings({
+        [key]: next[key],
+        ...(next[key] && userEmail ? { notifyEmail: userEmail } : {}),
+      })
+    } catch (e) {
+      setEmailPrefs(emailPrefs)
       flash('err', e.message || t('Error al guardar', 'Error saving'))
     }
   }
@@ -307,228 +418,282 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   }
 
   const tabs = [
-    { key: 'general', label: t('General', 'General') },
-    { key: 'entities', label: t('Entidades', 'Entities') },
-    { key: 'auto', label: t('Automático', 'Automatic') },
-    { key: 'share', label: t('Compartir', 'Share') },
-    { key: 'data', label: t('Datos', 'Data') },
+    { key: 'general', label: t('General', 'General'), icon: SlidersHorizontal },
+    { key: 'entities', label: t('Entidades', 'Entities'), icon: Building2 },
+    { key: 'auto', label: t('Automático', 'Automatic'), icon: Zap },
+    { key: 'share', label: t('Compartir', 'Share'), icon: Share2 },
+    { key: 'data', label: t('Datos', 'Data'), icon: Database },
   ]
+  // FASE GP: fade the scroll edge only where the tab row actually hides
+  // content — this row has no scrollbar to hint it scrolls at all.
+  const tabsFade = useEdgeFade([tabs.length])
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="settings-modal-title"
       style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
       <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
-          <h2 id="settings-modal-title" className="text-lg font-bold text-white flex items-center gap-2">
-            <Settings size={20} style={{ color: 'var(--text-secondary)' }} />
-            {t('Configuracion', 'Settings')}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-glass-border">
+          <h2 id="settings-modal-title" className="text-base font-bold text-white flex items-center gap-2.5">
+            <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 14%, transparent)' }}>
+              <Settings size={16} style={{ color: 'var(--accent-blue)' }} />
+            </span>
+            {t('Configuración', 'Settings')}
           </h2>
-          <button onClick={onClose} className="hover:text-white text-xl leading-none" style={{ color: 'var(--text-secondary)' }} aria-label="Close">&times;</button>
+          <button onClick={onClose} className="rounded-full transition-colors hover:bg-theme-base" style={{ color: 'var(--text-secondary)' }} aria-label="Close">
+            <X size={18} />
+          </button>
         </div>
 
         {saveStatus && (
-          <div className="mx-6 mt-3 px-3 py-2 rounded-lg text-xs font-medium transition-all" style={{ color: saveStatus.type === 'ok' ? '#34d399' : '#f87171', backgroundColor: saveStatus.type === 'ok' ? 'rgba(52,211,153,0.15)' : 'rgba(239,68,68,0.15)' }}>
+          <div className="mx-5 mt-3 px-3 py-2 rounded-lg text-xs font-medium border flex items-center gap-1.5" style={{
+            color: saveStatus.type === 'ok' ? 'var(--alert-success-icon)' : 'var(--alert-error-icon)',
+            backgroundColor: saveStatus.type === 'ok' ? 'var(--alert-success-bg)' : 'var(--alert-error-bg)',
+            borderColor: saveStatus.type === 'ok' ? 'var(--alert-success-border)' : 'var(--alert-error-border)',
+          }}>
+            {saveStatus.type === 'ok' ? <CheckCircle2 size={14} className="shrink-0" /> : <AlertTriangle size={14} className="shrink-0" />}
             {saveStatus.msg}
           </div>
         )}
 
-        <div className="flex border-b border-glass-border overflow-x-auto">
-          {tabs.map((tb) => (
-            <button key={tb.key} onClick={() => { setTab(tb.key); setConfirmDelete(null) }}
-              className={`flex-1 px-3 py-3 text-sm font-medium transition-colors whitespace-nowrap ${
-                tab === tb.key
-                  ? 'border-b-2'
-                  : 'hover:text-slate-300'
-              }`}
-              style={tab === tb.key ? { color: 'var(--accent-blue)', borderColor: 'var(--accent-blue-soft)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 5%, transparent)' } : { color: 'var(--text-secondary)' }}>
-              {tb.label}
-            </button>
-          ))}
+        <div className="px-5 pt-3.5 pb-3.5 border-b border-glass-border">
+          <div ref={tabsFade.ref} className="flex gap-1 p-1 rounded-xl overflow-x-auto bg-theme-base border border-glass-border" style={tabsFade.maskStyle}>
+            {tabs.map((tb) => {
+              const active = tab === tb.key
+              const Icon = tb.icon
+              return (
+                <button key={tb.key} onClick={() => { setTab(tb.key); setConfirmDelete(null) }}
+                  className="flex-1 flex items-center justify-center gap-1 px-2 py-2 rounded-lg text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all"
+                  style={active
+                    ? { backgroundColor: 'var(--bg-card-hover)', color: 'var(--accent-blue)', boxShadow: 'var(--shadow-card)' }
+                    : { color: 'var(--text-secondary)' }}>
+                  <Icon size={13} strokeWidth={2.25} className="shrink-0" />
+                  {tb.label}
+                </button>
+              )
+            })}
+          </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-5">
           {tab === 'general' && (
-            <div className="space-y-5">
+            <div className="space-y-4">
               {/* Broker syncs moved to their own hub — keep a pointer for discoverability */}
               {onOpenConnections && (
-                <div className="flex items-center justify-between p-3 bg-theme-base border border-glass-border rounded-lg">
-                  <div>
-                    <div className="text-sm text-white font-medium">🔗 {t('Conexiones y Sync', 'Connections & Sync')}</div>
-                    <div className="text-xs text-slate-500">{t('Brokers, exchanges y wallets vinculados.', 'Linked brokers, exchanges and wallets.')}</div>
+                <div className="flex items-center justify-between gap-3 p-3.5 bg-theme-base border border-glass-border rounded-xl">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)' }}>
+                      <Link2 size={16} style={{ color: 'var(--accent-blue)' }} />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="text-sm text-white font-medium">{t('Conexiones y Sync', 'Connections & Sync')}</div>
+                      <div className="text-xs text-slate-500">{t('Brokers, exchanges y wallets vinculados.', 'Linked brokers, exchanges and wallets.')}</div>
+                    </div>
                   </div>
                   <button onClick={() => { onClose(); setTimeout(() => onOpenConnections(), 50) }}
-                    className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors shrink-0 ml-3 border hover:bg-blue-500/10" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors shrink-0 border hover:bg-blue-500/10" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
                     {t('Abrir', 'Open')}
                   </button>
                 </div>
               )}
 
-              {/* Theme toggle */}
-              <div>
-                <label className="text-xs mb-2 block font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Tema', 'Theme')}</label>
-                <div className="flex gap-2">
-                  {[
-                    { key: 'light', label: t('Claro', 'Light'), icon: '☀️' },
-                    { key: 'dark', label: t('Oscuro', 'Dark'), icon: '🌙' },
-                    { key: 'system', label: t('Sistema', 'System'), icon: '💻' },
-                  ].map((opt) => (
-                    <button key={opt.key} onClick={() => onToggleTheme(opt.key)}
-                      className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg transition-all ${
-                        theme === opt.key
-                          ? 'border'
-                          : 'bg-theme-base border border-glass-border text-slate-300 hover:border-slate-500'
-                      }`}
-                      style={theme === opt.key ? { color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' } : undefined}>
-                      <span className="text-lg">{opt.icon}</span>
-                      <span className="text-sm font-medium">{opt.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Language. Moved here from the header: it's a preference you set once,
-                  not a control worth permanent space in the top bar. */}
-              {onSetLang && (
+              <SectionCard icon={Palette} title={t('Apariencia', 'Appearance')}>
+                {/* Theme toggle */}
                 <div>
-                  <label className="text-xs mb-2 block font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Idioma', 'Language')}</label>
+                  <label className="text-xs mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>{t('Tema', 'Theme')}</label>
                   <div className="flex gap-2">
                     {[
-                      { key: 'es', label: 'Español' },
-                      { key: 'en', label: 'English' },
+                      { key: 'light', label: t('Claro', 'Light'), icon: '☀️' },
+                      { key: 'dark', label: t('Oscuro', 'Dark'), icon: '🌙' },
+                      { key: 'system', label: t('Sistema', 'System'), icon: '💻' },
                     ].map((opt) => (
-                      <button key={opt.key} onClick={() => { if (lang !== opt.key) onSetLang() }}
-                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg transition-all ${
-                          lang === opt.key ? 'border' : 'bg-theme-base border border-glass-border text-slate-300 hover:border-slate-500'
+                      <button key={opt.key} onClick={() => onToggleTheme(opt.key)}
+                        className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg transition-all ${
+                          theme === opt.key
+                            ? 'border'
+                            : 'bg-theme-card border border-glass-border text-slate-300 hover:border-slate-500'
                         }`}
-                        style={lang === opt.key ? { color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' } : undefined}>
-                        <span className="text-sm font-medium">{opt.label}</span>
+                        style={theme === opt.key ? { color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' } : undefined}>
+                        <span className="text-base">{opt.icon}</span>
+                        <span className="text-xs font-medium">{opt.label}</span>
                       </button>
                     ))}
                   </div>
                 </div>
-              )}
 
-              {/* Beginner mode toggle */}
-              <div>
-                <label className="text-xs mb-2 block font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Modo principiante', 'Beginner mode')}</label>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={beginnerMode}
+                {/* Language. Moved here from the header: it's a preference you set once,
+                    not a control worth permanent space in the top bar. */}
+                {onSetLang && (
+                  <div>
+                    <label className="text-xs mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>{t('Idioma', 'Language')}</label>
+                    <div className="flex gap-2">
+                      {[
+                        { key: 'es', label: 'Español' },
+                        { key: 'en', label: 'English' },
+                      ].map((opt) => (
+                        <button key={opt.key} onClick={() => { if (lang !== opt.key) onSetLang() }}
+                          className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg transition-all ${
+                            lang === opt.key ? 'border' : 'bg-theme-card border border-glass-border text-slate-300 hover:border-slate-500'
+                          }`}
+                          style={lang === opt.key ? { color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' } : undefined}>
+                          <span className="text-xs font-medium">{opt.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </SectionCard>
+
+              <SectionCard icon={ToggleLeft} title={t('Preferencias', 'Preferences')}>
+                {/* Beginner mode toggle */}
+                <ToggleCard
+                  active={beginnerMode}
                   onClick={() => onToggleBeginner?.(!beginnerMode)}
-                  className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg border transition-all text-left"
-                  style={beginnerMode
-                    ? { color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' }
-                    : { borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-input)' }}>
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium" style={beginnerMode ? undefined : { color: 'var(--text-primary)' }}>
-                      {t('Simplificar el panel', 'Simplify the dashboard')}
-                    </div>
-                    <div className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-                      {t('Oculta métricas avanzadas (Riesgo, Atribución) y colapsa el análisis. Todo sigue accesible.', 'Hides advanced metrics (Risk, Attribution) and collapses analysis. Everything stays accessible.')}
-                    </div>
+                  icon={GraduationCap}
+                  title={t('Simplificar el panel', 'Simplify the dashboard')}
+                  description={t('Oculta métricas avanzadas (Riesgo, Atribución) y colapsa el análisis. Todo sigue accesible.', 'Hides advanced metrics (Risk, Attribution) and collapses analysis. Everything stays accessible.')}
+                />
+
+                {/* Friends tab toggle — social leaderboard, off = hidden + profile purged */}
+                <ToggleCard
+                  active={friendsEnabled}
+                  onClick={toggleFriends}
+                  icon={Users}
+                  title={t('Mostrar la pestaña Amigos', 'Show the Friends tab')}
+                  description={t('Ranking de retorno con tus amigos. Solo se comparte tu % y símbolos, nunca montos. Al apagar se oculta la pestaña y se borra tu perfil público.', 'A return leaderboard with friends. Only your % and symbols are shared, never amounts. Turning it off hides the tab and deletes your public profile.')}
+                />
+
+                {/* Currency + benchmark as compact selects — the old 14-card grid
+                    made the tab feel endless for a choice made once. */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="settings-currency" className="text-xs mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>{t('Moneda principal', 'Base currency')}</label>
+                    <select id="settings-currency" value={baseCurrency} onChange={(e) => setBaseCurrency(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-theme-card border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
+                      {CURRENCIES.map((c) => (
+                        <option key={c.code} value={c.code}>{c.symbol} {c.code} · {c.name}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-slate-600 mt-1">{t('Todos los valores se muestran en esta moneda.', 'All values are displayed in this currency.')}</p>
                   </div>
-                  <span className="shrink-0 w-10 h-6 rounded-full flex items-center transition-all px-0.5"
-                    style={{ backgroundColor: beginnerMode ? 'var(--accent-blue)' : 'var(--bg-tertiary)' }}>
-                    <span className="w-5 h-5 rounded-full bg-white transition-transform"
-                      style={{ transform: beginnerMode ? 'translateX(16px)' : 'translateX(0)' }} />
-                  </span>
-                </button>
-              </div>
-
-              {/* Friends tab toggle — social leaderboard, off = hidden + profile purged */}
-              <div>
-                <label className="text-xs mb-2 block font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Amigos', 'Friends')}</label>
-                <button type="button" role="switch" aria-checked={friendsEnabled} onClick={toggleFriends}
-                  className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg border transition-all text-left"
-                  style={friendsEnabled
-                    ? { color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' }
-                    : { borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-input)' }}>
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium" style={friendsEnabled ? undefined : { color: 'var(--text-primary)' }}>
-                      {t('Mostrar la pestaña Amigos', 'Show the Friends tab')}
-                    </div>
-                    <div className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-                      {t('Ranking de retorno con tus amigos. Solo se comparte tu % y símbolos, nunca montos. Al apagar se oculta la pestaña y se borra tu perfil público.', 'A return leaderboard with friends. Only your % and symbols are shared, never amounts. Turning it off hides the tab and deletes your public profile.')}
-                    </div>
+                  <div>
+                    <label htmlFor="settings-benchmark" className="text-xs mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>{t('Benchmark', 'Benchmark')}</label>
+                    <select id="settings-benchmark" value={benchmarkSymbol} onChange={(e) => setBenchmarkSymbol(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-theme-card border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
+                      {Object.entries(BENCHMARKS).map(([key, bm]) => (
+                        <option key={key} value={key}>{bm.short} · {bm.name}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-slate-600 mt-1">{t('Índice contra el que se compara tu portafolio.', 'Index your portfolio is compared against.')}</p>
                   </div>
-                  <span className="shrink-0 w-10 h-6 rounded-full flex items-center transition-all px-0.5"
-                    style={{ backgroundColor: friendsEnabled ? 'var(--accent-blue)' : 'var(--bg-tertiary)' }}>
-                    <span className="w-5 h-5 rounded-full bg-white transition-transform"
-                      style={{ transform: friendsEnabled ? 'translateX(16px)' : 'translateX(0)' }} />
-                  </span>
-                </button>
-              </div>
-
-              {/* Currency + benchmark as compact selects — the old 14-card grid
-                  made the tab feel endless for a choice made once. */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label htmlFor="settings-currency" className="text-xs mb-1.5 block font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Moneda principal', 'Base currency')}</label>
-                  <select id="settings-currency" value={baseCurrency} onChange={(e) => setBaseCurrency(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
-                    {CURRENCIES.map((c) => (
-                      <option key={c.code} value={c.code}>{c.symbol} {c.code} · {c.name}</option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-slate-600 mt-1">{t('Todos los valores se muestran en esta moneda.', 'All values are displayed in this currency.')}</p>
                 </div>
-                <div>
-                  <label htmlFor="settings-benchmark" className="text-xs mb-1.5 block font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Benchmark', 'Benchmark')}</label>
-                  <select id="settings-benchmark" value={benchmarkSymbol} onChange={(e) => setBenchmarkSymbol(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
-                    {Object.entries(BENCHMARKS).map(([key, bm]) => (
-                      <option key={key} value={key}>{bm.short} · {bm.name}</option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-slate-600 mt-1">{t('Índice contra el que se compara tu portafolio.', 'Index your portfolio is compared against.')}</p>
-                </div>
-              </div>
+              </SectionCard>
 
-              {isNotificationSupported() && (
-                <div>
-                  <label className="text-xs mb-2 block font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Notificaciones', 'Notifications')}</label>
-                  <div className="p-3 bg-theme-base border border-glass-border rounded-lg flex items-center justify-between">
-                    <div>
+              <SectionCard icon={Bell} title={t('Notificaciones', 'Notifications')}>
+                {isNotificationSupported() && (
+                  <div className="p-3 bg-theme-card border border-glass-border rounded-lg flex items-center justify-between gap-3">
+                    <div className="min-w-0">
                       <p className="text-sm text-white font-medium">{t('Alertas del navegador', 'Browser alerts')}</p>
                       <p className="text-xs text-slate-500">{t('Pagos próximos y vencimientos', 'Upcoming payments and maturities')}</p>
                     </div>
                     {getNotificationPermission() === 'granted' ? (
-                      <span className="text-xs font-medium px-2 py-1 bg-emerald-500/10 rounded" style={{ color: 'var(--accent-green)' }}>{t('Activado', 'Enabled')}</span>
+                      <span className="shrink-0 text-xs font-medium px-2 py-1 bg-emerald-500/10 rounded" style={{ color: 'var(--accent-green)' }}>{t('Activado', 'Enabled')}</span>
                     ) : getNotificationPermission() === 'denied' ? (
-                      <span className="text-xs font-medium px-2 py-1 bg-red-500/10 rounded" style={{ color: 'var(--text-negative)' }}>{t('Bloqueado', 'Blocked')}</span>
+                      <span className="shrink-0 text-xs font-medium px-2 py-1 bg-red-500/10 rounded" style={{ color: 'var(--text-negative)' }}>{t('Bloqueado', 'Blocked')}</span>
                     ) : (
                       <button onClick={async () => { await requestNotificationPermission(); }}
-                        className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-blue-500 transition-colors" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
+                        className="shrink-0 px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-blue-500 transition-colors" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
                         {t('Activar', 'Enable')}
                       </button>
                     )}
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Which categories matter to this user — a payment/maturity notice for
-                  someone with no bonds/CDs is just noise, and this was pure all-or-nothing
-                  browser permission before. */}
-              <div>
-                <label className="text-xs mb-2 block font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Qué avisar', 'What to notify about')}</label>
-                <div className="p-3 bg-theme-base border border-glass-border rounded-lg space-y-2.5">
-                  {NOTIF_CATEGORIES.map((c) => (
-                    <label key={c.key} className="flex items-center justify-between gap-3 cursor-pointer">
-                      <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{t(c.es, c.en)}</span>
-                      <button type="button" role="switch" aria-checked={notifPrefs[c.key]} onClick={() => toggleNotifCategory(c.key)}
-                        className="shrink-0 w-9 h-5 rounded-full flex items-center transition-all px-0.5"
-                        style={{ backgroundColor: notifPrefs[c.key] ? 'var(--accent-blue)' : 'var(--bg-tertiary)' }}>
-                        <span className="w-4 h-4 rounded-full bg-white transition-transform"
-                          style={{ transform: notifPrefs[c.key] ? 'translateX(16px)' : 'translateX(0)' }} />
+                {/* Which categories matter to this user — a payment/maturity notice for
+                    someone with no bonds/CDs is just noise, and this was pure all-or-nothing
+                    browser permission before. */}
+                <div>
+                  <label className="text-xs mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>{t('Qué avisar', 'What to notify about')}</label>
+                  <div className="p-3 bg-theme-card border border-glass-border rounded-lg space-y-2.5">
+                    {NOTIF_CATEGORIES.map((c) => (
+                      <label key={c.key} className="flex items-center justify-between gap-3 cursor-pointer">
+                        <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{t(c.es, c.en)}</span>
+                        <button type="button" role="switch" aria-checked={notifPrefs[c.key]} onClick={() => toggleNotifCategory(c.key)}
+                          className="shrink-0 w-9 h-5 rounded-full flex items-center transition-all px-0.5"
+                          style={{ backgroundColor: notifPrefs[c.key] ? 'var(--accent-blue)' : 'var(--bg-tertiary)' }}>
+                          <span className="w-4 h-4 rounded-full bg-white transition-transform"
+                            style={{ transform: notifPrefs[c.key] ? 'translateX(16px)' : 'translateX(0)' }} />
+                        </button>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Correos periódicos: tres cadencias independientes. */}
+                <div>
+                  <label className="text-xs mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>{t('Resúmenes por correo', 'Email briefs')}</label>
+                  <div className="p-3 bg-theme-card border border-glass-border rounded-lg space-y-3">
+                    {EMAIL_CADENCES.map((c) => (
+                      <div key={c.key} className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm" style={{ color: c.ready ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                            {t(c.es, c.en)}
+                            {!c.ready && (
+                              <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>
+                                {t('Pronto', 'Soon')}
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{t(c.descEs, c.descEn)}</p>
+                        </div>
+                        <button type="button" role="switch" aria-checked={!!emailPrefs[c.key]} disabled={!c.ready}
+                          aria-label={t(c.es, c.en)}
+                          onClick={() => c.ready && toggleEmailCadence(c.key)}
+                          className="shrink-0 w-9 h-5 rounded-full flex items-center transition-all px-0.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                          style={{ backgroundColor: emailPrefs[c.key] && c.ready ? 'var(--accent-blue)' : 'var(--bg-tertiary)' }}>
+                          <span className="w-4 h-4 rounded-full bg-white transition-transform"
+                            style={{ transform: emailPrefs[c.key] && c.ready ? 'translateX(16px)' : 'translateX(0)' }} />
+                        </button>
+                      </div>
+                    ))}
+                    <p className="text-[11px] pt-1" style={{ color: 'var(--text-muted)' }}>
+                      {userEmail
+                        ? t(`Se envían a ${userEmail}. Todos los correos van en inglés.`, `Sent to ${userEmail}. All emails are in English.`)
+                        : t('Todos los correos van en inglés.', 'All emails are in English.')}
+                    </p>
+                    {/* Enviar una prueba ahora: el semanal solo sale los
+                        domingos, y esperar días para descubrir que el correo no
+                        sale es el ciclo lento que este repo ya pagó caro. Arma
+                        el MISMO correo de la corrida real. */}
+                    <div className="pt-1 flex flex-wrap gap-2">
+                      <button type="button" onClick={() => handleTestEmail('weekly')} disabled={!!testingEmail}
+                        className="px-3 py-1.5 text-xs rounded-lg border transition-colors disabled:opacity-50"
+                        style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-input)' }}>
+                        {testingEmail === 'weekly' ? t('Enviando...', 'Sending...') : t('Probar semanal', 'Test weekly')}
                       </button>
-                    </label>
-                  ))}
+                      <button type="button" onClick={() => handleTestEmail('monthly')} disabled={!!testingEmail}
+                        className="px-3 py-1.5 text-xs rounded-lg border transition-colors disabled:opacity-50"
+                        style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-input)' }}>
+                        {testingEmail === 'monthly' ? t('Enviando...', 'Sending...') : t('Probar mensual', 'Test monthly')}
+                      </button>
+                      <button type="button" onClick={() => handleTestEmail('annual')} disabled={!!testingEmail}
+                        className="px-3 py-1.5 text-xs rounded-lg border transition-colors disabled:opacity-50"
+                        style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-input)' }}>
+                        {testingEmail === 'annual' ? t('Enviando...', 'Sending...') : t('Probar anual', 'Test annual')}
+                      </button>
+                    </div>
+                    <div>
+                      {testResult && (
+                        <p className="text-[11px] mt-1.5 leading-relaxed"
+                          style={{ color: testResult.ok ? 'var(--accent-green)' : 'var(--text-negative)' }}>
+                          {testResult.msg}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
+              </SectionCard>
 
-              <button onClick={handleSave} disabled={saving}
-                className="w-full py-2.5 rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
+              <button onClick={handleSave} disabled={saving} className="btn-primary w-full">
                 {saving ? '...' : t('Guardar configuracion', 'Save settings')}
               </button>
             </div>
@@ -575,12 +740,17 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
 
             return (
             <div className="space-y-4">
-              <div>
-                <h3 className="text-sm font-medium text-white mb-1">{t('Links de solo lectura', 'Read-only links')}</h3>
-                <p className="text-xs text-slate-500">{t(
-                  'Comparte tu portafolio completo con un asesor, o solo una parte: una entidad o cuentas específicas (ej. solo tu IBKR). Cada link es independiente y se puede revocar sin tocar los demás. Nunca revelan la institución de tus activos.',
-                  'Share your whole portfolio with an advisor, or just a slice: one entity or specific accounts (e.g. only your IBKR). Each link is independent and can be revoked without touching the others. They never reveal the institution behind your assets.'
-                )}</p>
+              <div className="flex items-start gap-2.5">
+                <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)' }}>
+                  <Link2 size={15} style={{ color: 'var(--accent-blue)' }} />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold text-white">{t('Links de solo lectura', 'Read-only links')}</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">{t(
+                    'Comparte tu portafolio completo con un asesor, o solo una parte: una entidad o cuentas específicas (ej. solo tu IBKR). Cada link es independiente y se puede revocar sin tocar los demás. Nunca revelan la institución de tus activos.',
+                    'Share your whole portfolio with an advisor, or just a slice: one entity or specific accounts (e.g. only your IBKR). Each link is independent and can be revoked without touching the others. They never reveal the institution behind your assets.'
+                  )}</p>
+                </div>
               </div>
 
               {/* Existing links */}
@@ -591,7 +761,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               ) : (
                 <div className="space-y-1.5">
                   {shareLinks.map((link) => (
-                    <div key={link.token} className="p-3 bg-theme-base border border-glass-border/60 rounded-lg">
+                    <div key={link.token} className="p-3 bg-theme-base border border-glass-border rounded-xl">
                       <div className="flex items-center gap-2">
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-white font-medium truncate">{link.label || t('Sin nombre', 'Untitled')}</p>
@@ -697,7 +867,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                 </div>
               ) : (
                 <button onClick={() => setShareCreating(true)}
-                  className="w-full px-3 py-2.5 text-xs font-medium text-slate-400 border border-dashed border-glass-border rounded-lg hover:text-blue-400 hover:border-blue-500/30 transition-colors">
+                  className="w-full px-3 py-2.5 text-xs font-medium text-slate-400 border border-dashed border-glass-border rounded-xl hover:text-blue-400 hover:border-blue-500/30 transition-colors">
                   + {t('Crear link para compartir', 'Create share link')}
                 </button>
               )}
@@ -716,12 +886,17 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
 
             return (
             <div className="space-y-4">
-              <div>
-                <h3 className="text-sm font-medium text-white mb-1">{t('Gastos automáticos', 'Automatic expenses')}</h3>
-                <p className="text-xs text-slate-500">{t(
-                  'Cada compra con tarjeta entra sola a tus finanzas, con categoría, monto, moneda, comercio y ubicación. Hay dos caminos y conviene usar los dos: el atajo del iPhone captura al instante lo que pagas con Apple Pay, y el reenvío de correo recoge todo lo demás una vez al día. Si un cobro llega por los dos, se guarda una sola vez.',
-                  'Every card purchase lands in your finances on its own, with category, amount, currency, merchant and location. There are two paths and both are worth using: the iPhone shortcut captures Apple Pay charges instantly, and email forwarding picks up everything else once a day. If a charge arrives through both, it is stored only once.'
-                )}</p>
+              <div className="flex items-start gap-2.5">
+                <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)' }}>
+                  <Zap size={15} style={{ color: 'var(--accent-blue)' }} />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold text-white">{t('Gastos automáticos', 'Automatic expenses')}</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">{t(
+                    'Cada compra con tarjeta entra sola a tus finanzas, con categoría, monto, moneda, comercio y ubicación. Hay dos caminos y conviene usar los dos: el atajo del iPhone captura al instante lo que pagas con Apple Pay, y el reenvío de correo recoge todo lo demás una vez al día. Si un cobro llega por los dos, se guarda una sola vez.',
+                    'Every card purchase lands in your finances on its own, with category, amount, currency, merchant and location. There are two paths and both are worth using: the iPhone shortcut captures Apple Pay charges instantly, and email forwarding picks up everything else once a day. If a charge arrives through both, it is stored only once.'
+                  )}</p>
+                </div>
               </div>
 
               {ingest === null || (ingestLoading && !tokens.length) ? (
@@ -736,7 +911,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                   {tokens.map((tk) => {
                     const address = forwardAddressFor(tk.token)
                     return (
-                      <div key={tk.token} className="p-3 bg-theme-base border border-glass-border/60 rounded-lg space-y-2">
+                      <div key={tk.token} className="p-3 bg-theme-base border border-glass-border rounded-xl space-y-2">
                         <div className="flex items-center gap-2">
                           <div className="flex-1 min-w-0">
                             <p className="text-sm text-white font-medium truncate">📱 {tk.label}</p>
@@ -805,7 +980,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               )}
 
               <button onClick={handleCreateIngestToken} disabled={ingestLoading}
-                className="w-full px-3 py-2.5 text-xs font-medium text-slate-400 border border-dashed border-glass-border rounded-lg hover:text-blue-400 hover:border-blue-500/30 transition-colors disabled:opacity-50">
+                className="w-full px-3 py-2.5 text-xs font-medium text-slate-400 border border-dashed border-glass-border rounded-xl hover:text-blue-400 hover:border-blue-500/30 transition-colors disabled:opacity-50">
                 + {t('Generar token para un dispositivo', 'Generate a token for a device')}
               </button>
 
@@ -840,13 +1015,18 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
           {tab === 'data' && (
             <div className="space-y-4">
               {onExportBackup && (
-                <div className="flex items-center justify-between p-3 bg-theme-base border border-emerald-500/20 rounded-lg">
-                  <div>
-                    <div className="text-sm text-white font-medium">{t('Exportar Backup', 'Export Backup')}</div>
-                    <div className="text-xs text-slate-500">{t('Descarga todos tus datos en formato JSON.', 'Download all your data as JSON.')}</div>
+                <div className="flex items-center justify-between gap-3 p-3.5 rounded-xl border" style={{ backgroundColor: 'var(--alert-success-bg)', borderColor: 'var(--alert-success-border)' }}>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-green) 18%, transparent)' }}>
+                      <Download size={16} style={{ color: 'var(--accent-green)' }} />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{t('Exportar Backup', 'Export Backup')}</div>
+                      <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>{t('Descarga todos tus datos en formato JSON.', 'Download all your data as JSON.')}</div>
+                    </div>
                   </div>
                   <button onClick={onExportBackup}
-                    className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors shrink-0 ml-3 border hover:bg-emerald-500/10" style={{ borderColor: 'color-mix(in srgb, var(--accent-green) 30%, transparent)', color: 'var(--accent-green)' }}>
+                    className="shrink-0 px-3.5 py-2 text-xs font-semibold rounded-lg transition-opacity hover:opacity-90" style={{ backgroundColor: 'var(--accent-green)', color: '#ffffff' }}>
                     {t('Descargar', 'Download')}
                   </button>
                 </div>
@@ -864,9 +1044,12 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                         reveals BELOW it (animated max-height) so arming confirm never
                         shifts the button's position ("la casilla se mueve"). */}
                     <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-sm text-white font-medium">{action.label}</div>
-                        <div className="text-xs text-slate-500">{action.desc}</div>
+                      <div className="min-w-0 flex items-start gap-2">
+                        <Trash2 size={13} className="shrink-0 mt-0.5" style={{ color: 'var(--text-muted)' }} />
+                        <div className="min-w-0">
+                          <div className="text-sm text-white font-medium">{action.label}</div>
+                          <div className="text-xs text-slate-500">{action.desc}</div>
+                        </div>
                       </div>
                       <button onClick={() => handleDelete(action.key)} disabled={busy}
                         className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors shrink-0 border inline-flex items-center gap-1.5 disabled:opacity-70"
@@ -885,15 +1068,18 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                 )}
                 return (
                   <>
-                    <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'rgba(239,68,68,0.25)' }}>
-                      <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-negative)' }}>{t('Empezar de cero', 'Start over')}</p>
+                    <div className="rounded-xl border p-3.5 space-y-2.5" style={{ borderColor: 'var(--alert-error-border)', backgroundColor: 'var(--alert-error-bg)' }}>
+                      <div className="flex items-center gap-1.5">
+                        <AlertTriangle size={13} style={{ color: 'var(--text-negative)' }} />
+                        <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-negative)' }}>{t('Empezar de cero', 'Start over')}</p>
+                      </div>
                       {renderAction({ key: 'all', label: t('Eliminar todo', 'Delete everything'), desc: t('Borra cuentas, historial, transacciones y finanzas, y desconecta todos los brokers vinculados.', 'Deletes accounts, history, transactions and finances, and disconnects every linked broker.'), warn: t('No se puede deshacer. Descarga un backup antes si tienes duda.', 'This cannot be undone. Download a backup first if in doubt.') })}
                     </div>
 
                     <details className="group">
-                      <summary className="flex items-center justify-between cursor-pointer py-1">
-                        <p className="text-xs text-slate-500 uppercase tracking-wider">{t('Borrado selectivo', 'Selective delete')}</p>
-                        <span className="text-xs text-slate-600 group-open:rotate-180 transition-transform">▼</span>
+                      <summary className="flex items-center justify-between cursor-pointer py-1.5 list-none">
+                        <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{t('Borrado selectivo', 'Selective delete')}</p>
+                        <ChevronDown size={14} className="transition-transform group-open:rotate-180" style={{ color: 'var(--text-muted)' }} />
                       </summary>
                       <div className="mt-2 space-y-2">
                         <p className="text-xs text-slate-600">{t('Para casos puntuales: normalmente no necesitas esto.', 'For edge cases: you normally don\'t need these.')}</p>
@@ -918,7 +1104,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                                 key: `group:${g.key}`,
                                 label: g.institution || t('Sin institución', 'No institution'),
                                 desc: `${g.count} ${g.count === 1 ? t('posición', 'position') : t('posiciones', 'positions')} · ${sourceLabel(g.source, g.origin)}`,
-                                warn: t('Se borra solo esta cuenta (posiciones, lots y transacciones); las demás no se tocan.', 'Deletes only this account (positions, lots and transactions); the others are untouched.'),
+                                warn: t('Se borra solo esta cuenta: posiciones, lots, transacciones y su historial de valor. Las demás no se tocan.', 'Deletes only this account: positions, lots, transactions and its value history. The others are untouched.'),
                               }))}
                             </div>
                           </div>
@@ -951,8 +1137,15 @@ function BuildVersionFooter({ lang }) {
     return () => { cancelled = true }
   }, [])
   return (
-    <p className="text-[10px] font-mono text-center pt-2" style={{ color: 'var(--text-muted)' }}>
-      {lang === 'es' ? 'Versión' : 'Build'}: {buildId || '…'}
-    </p>
+    <div className="text-center pt-2 space-y-1">
+      <p className="text-[10px] font-mono" style={{ color: 'var(--text-muted)' }}>
+        {lang === 'es' ? 'Versión' : 'Build'}: {buildId || '…'}
+      </p>
+      <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+        <a href="/terms" target="_blank" rel="noopener noreferrer" className="underline">{lang === 'es' ? 'Términos' : 'Terms'}</a>
+        {' · '}
+        <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline">{lang === 'es' ? 'Privacidad' : 'Privacy'}</a>
+      </p>
+    </div>
   )
 }

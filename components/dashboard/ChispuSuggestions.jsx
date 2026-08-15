@@ -16,13 +16,24 @@ const SEV_STYLE = {
 }
 const SEV_ICON = { high: '⚠', medium: '●', low: 'ℹ' }
 
-export default function ChispuSuggestions({ findings = [], globalScore = 100, lang = 'es', onEditItem, onOpenCashflow, onOpenReview, items = [] }) {
+export default function ChispuSuggestions({ findings = [], globalScore = 100, lang = 'es', onEditItem, onOpenCashflow, onOpenReview, onOpenLiquidYield, onConfirmDistinct, onApplySuggestion, items = [] }) {
   const t = (es, en) => lang === 'es' ? es : en
   const [dismissed, setDismissed] = useState(() => {
     if (typeof window === 'undefined') return new Set()
     try { return new Set(JSON.parse(localStorage.getItem(DISMISS_KEY) || '[]')) } catch { return new Set() }
   })
   const [expanded, setExpanded] = useState(false)
+  const [applied, setApplied] = useState(() => new Set())
+
+  // Findings with a resolved patch stay VISIBLE right after applying (their
+  // own next recompute will drop them once items actually update) but their
+  // row swaps to a small confirmation so the click reads as "done", not as
+  // nothing happening.
+  const applySuggestion = (f) => {
+    if (!f.suggestion || !f.itemId || !onApplySuggestion) return
+    onApplySuggestion(f.itemId, f.suggestion.patch)
+    setApplied((p) => new Set(p).add(f.id))
+  }
 
   const visible = useMemo(() => findings.filter((f) => !dismissed.has(f.id)), [findings, dismissed])
   const shown = expanded ? visible : visible.slice(0, 3)
@@ -69,6 +80,7 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
   const actionLabel = (f) => {
     if (f.action?.kind === 'cashflow') return t('Capturar historia', 'Add history')
     if (f.action?.kind === 'review') return t('Revisar', 'Review')
+    if (f.action?.kind === 'liquid-yield') return t('Ver el desglose', 'See the breakdown')
     return t('Completar', 'Complete')
   }
 
@@ -78,6 +90,8 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
       onOpenCashflow(f.action.prefill || (f.itemId ? { flowType: 'DEPOSIT', origin: 'external', linkedId: f.itemId, alreadyReflected: true } : {}))
     } else if (f.action?.kind === 'review' && onOpenReview) {
       onOpenReview()
+    } else if (f.action?.kind === 'liquid-yield' && onOpenLiquidYield) {
+      onOpenLiquidYield()
     } else if (item && onEditItem) {
       onEditItem(item)
     }
@@ -102,15 +116,49 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
         {shown.map((f) => (
           <div key={f.id} className="flex items-start gap-2 p-2.5 rounded-lg border" style={SEV_STYLE[f.severity]}>
             <span className="text-sm shrink-0 mt-0.5" aria-hidden="true">{SEV_ICON[f.severity]}</span>
-            <p className="text-xs flex-1 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-              {lang === 'es' ? f.textEs : f.textEn}
-            </p>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                {lang === 'es' ? f.textEs : f.textEn}
+              </p>
+              {/* Grounded in real data (a past transaction, the account's own
+                  createdAt) — never invented. See lib/dataCompleteness.js. */}
+              {f.suggestion && !applied.has(f.id) && (
+                <p className="text-xs mt-1" style={{ color: 'var(--accent-blue)' }}>
+                  💡 {lang === 'es' ? f.suggestion.textEs : f.suggestion.textEn}
+                </p>
+              )}
+              {applied.has(f.id) && (
+                <p className="text-xs mt-1" style={{ color: 'var(--accent-green)' }}>
+                  ✓ {t('Aplicado', 'Applied')}
+                </p>
+              )}
+            </div>
             <div className="flex items-center gap-1 shrink-0">
-              <button onClick={() => runAction(f)}
-                className="text-xs px-2 py-1 rounded-lg font-medium whitespace-nowrap"
-                style={{ color: 'var(--accent-blue)', border: '1px solid rgba(37,99,235,0.35)' }}>
-                {actionLabel(f)}
-              </button>
+              {f.suggestion && onApplySuggestion && !applied.has(f.id) && (
+                <button onClick={() => applySuggestion(f)}
+                  className="text-xs px-2 py-1 rounded-lg font-medium whitespace-nowrap"
+                  style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
+                  {t('Usar esto', 'Use this')}
+                </button>
+              )}
+              {!applied.has(f.id) && (
+                <button onClick={() => runAction(f)}
+                  className="text-xs px-2 py-1 rounded-lg font-medium whitespace-nowrap"
+                  style={{ color: 'var(--accent-blue)', border: '1px solid rgba(37,99,235,0.35)' }}>
+                  {actionLabel(f)}
+                </button>
+              )}
+              {/* dup-suspect only: a stronger answer than "dismiss this box" — it
+                  stamps BOTH items (_dupConfirmedDistinct, dataCompleteness.js) so
+                  the same pair stops being asked about everywhere this check runs,
+                  not just here. A plain ✕ only ever hid THIS card's copy of it. */}
+              {f.code === 'dup-suspect' && f.action?.itemIds?.length > 1 && onConfirmDistinct && !applied.has(f.id) && (
+                <button onClick={() => onConfirmDistinct(f)}
+                  className="text-xs px-2 py-1 rounded-lg font-medium whitespace-nowrap"
+                  style={{ color: 'var(--text-muted)', border: '1px solid var(--card-border)' }}>
+                  {t('No son iguales', 'Not the same')}
+                </button>
+              )}
               <button onClick={() => dismiss(f.id)} aria-label={t('Descartar sugerencia', 'Dismiss suggestion')}
                 className="text-xs w-6 h-6 rounded-lg" style={{ color: 'var(--text-muted)' }}>
                 ✕

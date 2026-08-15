@@ -5,8 +5,10 @@ import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { validateItem } from '@/lib/validation'
 import { buildContributionFields } from '@/lib/contributions'
 import InlineCreateAccount from './InlineCreateAccount'
+import FormSection from './FormSection'
+import { InfoTip } from './ui/Tooltip'
+import { currencyOptions } from '@/lib/currencies'
 
-const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
 const ACCOUNT_TYPES = [
   { key: 'taxable', es: 'Tributaria', en: 'Taxable' },
   { key: 'retirement', es: 'Retiro', en: 'Retirement' },
@@ -24,26 +26,49 @@ function stripEnriched(item) {
   return rawItem
 }
 
-function InfoTip({ text }) {
-  const [show, setShow] = useState(false)
+// Some numeric fields arrive with float-math noise (a NAV/unit derived from
+// reinvested dividends can read "1.018837890625"). Nobody edits a form by
+// eyeballing 12 decimals: round only what's SHOWN when the field is first
+// populated, trimming trailing zeros. If the user never touches the field,
+// re-saving it is off by a fraction the size of a rounding error — immaterial
+// for money, and worth it for a form a human can actually read.
+function roundDisplay(v, maxDecimals = 6) {
+  if (v == null || v === '') return ''
+  const n = Number(v)
+  if (!isFinite(n)) return ''
+  return parseFloat(n.toFixed(maxDecimals)).toString()
+}
+
+// Transaction history dates render as DD/MM/YYYY (user request). Pure string
+// reshuffle of the stored 'YYYY-MM-DD' — never new Date('YYYY-MM-DD'), which
+// shifts the day in UTC-6. Anything not in that shape passes through as-is.
+function formatTxDate(date) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(date || ''))
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : date
+}
+
+// FASE EK. "Existe valor actual y valor de compra y son los valores en
+// equivalente en dólares lo que lo hace confuso" — a bare number with no
+// currency in sight reads as baseCurrency by default, especially once it's a
+// small number for a GTQ/MXN/etc. item. This never asks the user to do a
+// mental conversion to sanity-check what they typed: it shows the live
+// baseCurrency equivalent right under the field, computed from whatever is
+// typed RIGHT NOW (not a stored value), so a wrong number or wrong currency
+// pick is visible before Guardar, not after.
+function FxHint({ amount, from, to, convert, t }) {
+  if (!convert || !from || !to || from === to) return null
+  const n = parseFloat(amount)
+  if (!isFinite(n) || n === 0) return null
+  const out = convert(n, from, to)
+  if (!isFinite(out)) return null
   return (
-    <span className="relative inline-block ml-1">
-      <button type="button" onClick={(e) => { e.preventDefault(); setShow(!show) }}
-        className="w-4 h-4 rounded-full bg-slate-600/50 text-xs text-slate-300 hover:bg-blue-500/30 hover:text-blue-300 inline-flex items-center justify-center transition-colors leading-none">
-        i
-      </button>
-      {show && (
-        <div className="absolute z-50 bottom-6 left-1/2 -translate-x-1/2 w-52 p-2 bg-theme-base border border-[#475569] rounded-lg text-xs text-slate-300 shadow-xl"
-          onClick={(e) => e.stopPropagation()}>
-          {text}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-theme-base border-r border-b border-[#475569] rotate-45 -mt-1" />
-        </div>
-      )}
-    </span>
+    <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
+      ≈ {out.toLocaleString(undefined, { style: 'currency', currency: to, maximumFractionDigits: 2 })} {t('(referencia, no se guarda)', '(reference only, not saved)')}
+    </p>
   )
 }
 
-export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es', allItems, onNavigate, onAddTransaction, transactions, onExecuteContribution, onCreateDestination, baseCurrency, entities = [] }) {
+export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es', allItems, onNavigate, onAddTransaction, onDeleteTransaction, onUpdateTransaction, transactions, onExecuteContribution, onCreateDestination, baseCurrency, entities = [], findings = [], onOpenCashflow, convert }) {
   const trapRef = useFocusTrap()
   const [creatingDest, setCreatingDest] = useState(false)
   const [extraItems, setExtraItems] = useState([])
@@ -53,9 +78,9 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     name: item.name || '',
     type: item.type || 'Stock',
     subtype: item.subtype || '',
-    quantity: item.quantity?.toString() || '',
-    purchasePrice: (item._originalPurchasePrice ?? item.purchasePrice)?.toString() || '',
-    currentPrice: (item._originalPrice ?? item.currentPrice)?.toString() || '',
+    quantity: roundDisplay(item.quantity, 8),
+    purchasePrice: roundDisplay(item._originalPurchasePrice ?? item.purchasePrice, 6),
+    currentPrice: roundDisplay(item._originalPrice ?? item.currentPrice, 6),
     institution: item.institution || '',
     entityId: item.entityId || 'default',
     currency: item._originalCurrency || item.currency || 'USD',
@@ -88,6 +113,10 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     safeCap: item.safeCap?.toString() || '',
     safeDiscount: item.safeDiscount?.toString() || '',
     safeType: item.safeType || 'post_money',
+    investmentStage: item.investmentStage || '',
+    roundValuation: item.roundValuation?.toString() || '',
+    ownershipPct: item.ownershipPct?.toString() || '',
+    committedCapital: item.committedCapital?.toString() || '',
     interestRate: item.interestRate?.toString() || '',
     minimumPayment: item.minimumPayment?.toString() || '',
     debtTerm: item.debtTerm || '',
@@ -105,10 +134,66 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     managementFeeType: item.managementFeeType || 'percent',
     expenseRatio: item.expenseRatio?.toString() || '',
     entryFee: item.entryFee?.toString() || '',
+    entryFeeMode: item.entryFeeMode || 'separate',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
+  // Same tap-to-confirm pattern as deleting the whole account, but scoped to
+  // one row: a duplicate (e.g. a double-submitted backfill) needs a way to
+  // remove just that one movement without leaving the modal.
+  const [confirmDeleteTxId, setConfirmDeleteTxId] = useState(null)
+  const [deletingTxId, setDeletingTxId] = useState(null)
+  const handleDeleteTx = async (tx) => {
+    if (confirmDeleteTxId !== tx.id) { setConfirmDeleteTxId(tx.id); return }
+    if (!onDeleteTransaction) return
+    setDeletingTxId(tx.id)
+    try {
+      await onDeleteTransaction(tx.id)
+    } catch (e) {
+      setError(e.message || t('No se pudo borrar el movimiento', 'Could not delete the movement'))
+    }
+    setConfirmDeleteTxId(null)
+    setDeletingTxId(null)
+  }
+
+  // Inline edit of one movement: fix a wrong date/amount, or attach a stray
+  // one (no _linkedItemId) to this account so both the history list and the
+  // chart agree on who owns it.
+  const [editingTxId, setEditingTxId] = useState(null)
+  const [txDraft, setTxDraft] = useState({ date: '', amount: '', link: false })
+  const [showAllTx, setShowAllTx] = useState(false)
+  const [savingTxId, setSavingTxId] = useState(null)
+  const startEditTx = (tx) => {
+    setEditingTxId(tx.id)
+    setConfirmDeleteTxId(null)
+    setTxDraft({
+      date: (tx.date || '').slice(0, 10),
+      amount: String(tx.totalAmount ?? tx.amount ?? ''),
+      link: !!tx._linkedItemId,
+    })
+  }
+  const handleSaveTx = async (tx) => {
+    if (!onUpdateTransaction) return
+    const amt = parseFloat(txDraft.amount)
+    if (!(amt > 0)) { setError(t('El monto debe ser mayor a 0', 'Amount must be greater than 0')); return }
+    if (!txDraft.date) { setError(t('Elige la fecha del movimiento', 'Pick the movement date')); return }
+    setSavingTxId(tx.id)
+    setError('')
+    try {
+      const fields = { date: txDraft.date, totalAmount: amt }
+      if (tx.amount != null) fields.amount = amt
+      // Linking is one-way on purpose: attaching a stray movement is a fix,
+      // detaching a correctly-linked one would only re-create the invisible-row
+      // problem this whole flow exists to solve.
+      if (txDraft.link && !tx._linkedItemId) fields._linkedItemId = item.id
+      await onUpdateTransaction(tx.id, fields)
+      setEditingTxId(null)
+    } catch (e) {
+      setError(e.message || t('No se pudo guardar el movimiento', 'Could not save the movement'))
+    }
+    setSavingTxId(null)
+  }
   // Direct balance/quantity edits change NAV without a cash-flow transaction, which
   // the return math (Modified Dietz) would read as pure gain. When a save changes the
   // item's value we ask whether it's new money (→ DEPOSIT/WITHDRAWAL) or a value
@@ -132,22 +217,126 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
   const t = (es, en) => lang === 'es' ? es : en
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
+  // FASE EK. The currency select used to just relabel the SAME number under a
+  // new currency — switching USD → GTQ left the price field reading, say,
+  // "1967.45", now claimed to be 1967.45 GTQ (≈ $258), a silent ~87% value
+  // change with no visible warning. That silent relabeling is exactly what
+  // corrupted XOCHI's real data in the first place (via a stripping bug
+  // upstream that showed the item's USD-converted price as if it were its
+  // own GTQ price — see app/spreadsheet/page.jsx). Never guess the intent
+  // (mistyped currency vs. genuinely switching currency are OPPOSITE fixes);
+  // ask instead, with the exact converted number shown, so a currency change
+  // can never again silently rewrite what a price means.
+  const [pendingCurrency, setPendingCurrency] = useState(null) // { from, to }
+  const requestCurrencyChange = (to) => {
+    const from = form.currency
+    if (to === from) return
+    const hasPrice = (parseFloat(form.purchasePrice) || 0) > 0 || (parseFloat(form.currentPrice) || 0) > 0
+    if (!hasPrice || !convert) { set('currency', to); return }
+    setPendingCurrency({ from, to })
+  }
+  const resolveCurrencyChange = (mode) => {
+    if (!pendingCurrency) return
+    const { from, to } = pendingCurrency
+    if (mode === 'convert' && convert) {
+      const p = parseFloat(form.purchasePrice)
+      const c = parseFloat(form.currentPrice)
+      if (isFinite(p)) set('purchasePrice', convert(p, from, to).toString())
+      if (isFinite(c)) set('currentPrice', convert(c, from, to).toString())
+    }
+    set('currency', to)
+    setPendingCurrency(null)
+  }
   const handleDestCreated = (newId, newItem) => {
     setExtraItems(prev => [...prev, { id: newId, ...newItem }])
     set('incomeDestination', newId)
     setCreatingDest(false)
   }
 
-  const isMarket = /stock|crypto|fund|etf/i.test(form.type) && !/realestate/i.test(form.type)
+  // Acción común/preferente de empresa PRIVADA: form.type sigue siendo
+  // 'Stock' (matchea el regex de abajo) pero subtype la distingue de una
+  // acción de mercado real. Sin este exclude, editar una ya creada perdía la
+  // sección de ingreso/distribución (hasIncome = !isMarket) y mostraba
+  // "Precio compra" (mercado) en vez de "Valor compra" (manual) — mismo bug
+  // que isMarketAsset en AddAccountModal.jsx, ver isMarketPriced en utils.js.
+  // 'private' es el subtype viejo (antes de separar común/preferente); se
+  // sigue reconociendo aquí para no romper items ya guardados con ese valor.
+  const isPrivateStock = form.type === 'Stock' && (form.subtype === 'private_common' || form.subtype === 'private_preferred' || form.subtype === 'private')
+  const isMarket = /stock|crypto|fund|etf/i.test(form.type) && !/realestate/i.test(form.type) && !isPrivateStock
   const isBank = /bank|banco/i.test(form.type)
   const isBankLike = isBank || (!isMarket && (parseFloat(form.quantity) || 1) === 1)
 
-  const linkedTransactions = useMemo(() =>
-    (transactions || [])
-      .filter(tx => tx._linkedItemId === item.id && (tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL' || tx.type === 'DIVIDEND'))
-      .sort((a, b) => (b.date || '').localeCompare(a.date || '')),
-    [transactions, item.id]
-  )
+  // Movements that count against THIS asset. Matching has to mirror what the
+  // chart does (PortfolioGrowthChart's scopedTransactions: id OR symbol) or the
+  // two disagree in the worst possible way: a row with no _linkedItemId still
+  // inflates "capital invertido" and the return %, but never appeared in this
+  // list, so a duplicate was literally impossible to find and delete from the
+  // UI. A row explicitly linked to a DIFFERENT item is still excluded.
+  // Movements of THIS account: the ones filed against it, the ones that paid
+  // INTO it from somewhere else, and the ones that left it FOR somewhere else.
+  //
+  // Incoming money used to be invisible here. A coupon is filed against the
+  // asset that generated it (VITALI), so the cash account that actually
+  // received the $240 listed nothing at all: the balance had grown and there
+  // was no way to see why, or to find a duplicate payment and delete it. They
+  // are marked `_incomingFrom` so the row can say where the money came from and
+  // stay read-only for linking (it belongs to the source, not to this account).
+  //
+  // Outgoing transfers had the same blind spot the other way: TRANSFER moves
+  // money between two tracked accounts (_originItemId → _linkedItemId), but
+  // the type wasn't even in the filter list below, so an account that SENT
+  // money showed nothing explaining why its balance dropped (FASE DU). Marked
+  // `_outgoingTo` and, like incoming rows, read-only here: editing a transfer
+  // means touching both accounts' balances, which this single-account editor
+  // isn't set up to do safely.
+  const linkedTransactions = useMemo(() => {
+    const sym = (item.symbol || '').toUpperCase()
+    const pool = allItems || existingItems || []
+    const byId = new Map(pool.map((it) => [it.id, it]))
+    const bySym = new Map(pool.filter((it) => it.symbol).map((it) => [String(it.symbol).toUpperCase(), it]))
+    const byName = new Map(pool.filter((it) => it.name).map((it) => [String(it.name).toUpperCase(), it]))
+    const resolve = (ref) => (ref
+      ? (byId.get(ref) || bySym.get(String(ref).toUpperCase()) || byName.get(String(ref).toUpperCase()))
+      : null)
+
+    const own = []
+    const incoming = []
+    const outgoing = []
+    ;(transactions || []).forEach((tx) => {
+      if (tx.type === 'TRANSFER') {
+        if (tx._linkedItemId === item.id) {
+          const source = tx._originItemId ? byId.get(tx._originItemId) : null
+          incoming.push({ ...tx, _incomingFrom: source ? (source.name || source.symbol) : null })
+        } else if (tx._originItemId === item.id) {
+          const dest = tx._linkedItemId ? byId.get(tx._linkedItemId) : null
+          outgoing.push({ ...tx, _outgoingTo: dest ? (dest.name || dest.symbol) : null })
+        }
+        return
+      }
+      if (!['DEPOSIT', 'WITHDRAWAL', 'DIVIDEND', 'INTEREST'].includes(tx.type)) return
+      const isOwn = tx._linkedItemId
+        ? tx._linkedItemId === item.id
+        : (!!sym && (tx.symbol || '').toUpperCase() === sym)
+      if (isOwn) { own.push(tx); return }
+      // Routed here explicitly, or routed here by the source's income setting.
+      let source = null
+      if (tx._destinationItemId && tx._destinationItemId === item.id) {
+        source = tx._linkedItemId ? byId.get(tx._linkedItemId) : null
+      } else if (tx.type === 'DIVIDEND' || tx.type === 'INTEREST') {
+        const src = tx._linkedItemId ? byId.get(tx._linkedItemId) : null
+        if (src && !tx._reinvested && src.dividendAction !== 'reinvest') {
+          const dest = resolve(src.incomeDestination)
+          if (dest && dest.id === item.id) source = src
+        }
+      } else return
+      if (source || (tx._destinationItemId && tx._destinationItemId === item.id)) {
+        incoming.push({ ...tx, _incomingFrom: source ? (source.name || source.symbol) : null })
+      }
+    })
+    return [...own, ...incoming, ...outgoing].sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+  }, [transactions, item.id, item.symbol, allItems, existingItems])
+
+  const itemFindings = useMemo(() => (findings || []).filter((f) => f.itemId === item.id), [findings, item.id])
 
   const handleContribution = async () => {
     const amt = parseFloat(contribAmount)
@@ -258,6 +447,18 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
       if (form.currentPrice && !isMarket) updated.currentPrice = parseFloat(form.currentPrice) || 0
       if (isBank) updated.currentPrice = parseFloat(form.purchasePrice) || 0
 
+      // FASE HV. Desde cuándo es cierto el saldo guardado. Se sella en CADA
+      // guardado de un activo que no cotiza, no solo cuando el número cambia:
+      // el usuario está mirando el campo y apretando Guardar, y eso es
+      // justamente afirmar que ese número vale hoy. Ver AddAccountModal para
+      // qué resuelve el campo. La contra, asumida a propósito: editar solo el
+      // nombre de una cuenta cuyo saldo quedó viejo también lo declara actual.
+      // Es visible y corregible (el desglose de rendimiento que se deduce de
+      // ahí se propone, nunca se aplica solo), y la alternativa (sellar solo
+      // cuando el monto cambia) deja fuera el caso de teclear el mismo número
+      // a propósito para confirmarlo.
+      if (!isMarket) updated.balanceAsOf = new Date().toISOString().slice(0, 10)
+
       // Dividend settings (market assets)
       if (isMarket) {
         updated.dividendAction = form.dividendAction
@@ -278,7 +479,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           updated.incomeAmount = parseFloat(form.incomeAmount) || 0
         }
         if (form.rateType !== 'continuous') {
-          updated.incomePayDay = parseInt(form.incomePayDay) || 1
+          // Ver AddAccountModal: 1..31, y 31 significa "último día del mes".
+          updated.incomePayDay = Math.min(31, Math.max(1, parseInt(form.incomePayDay) || 1))
           updated.incomeMonthsExplicit = form.incomeMonths.length > 0
           updated.incomeMonths = form.incomeMonths.length > 0 ? form.incomeMonths : [0,1,2,3,4,5,6,7,8,9,10,11]
           updated.businessDayRule = form.businessDayRule
@@ -287,7 +489,21 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           updated.incomeMonths = [0,1,2,3,4,5,6,7,8,9,10,11]
           updated.incomeMonthsExplicit = true
         }
-        if (form.incomeDestination) updated.incomeDestination = form.incomeDestination
+        // FASE HV2. `dividendAction` se guardaba SOLO en la rama de activos de
+        // mercado, así que el selector "¿Qué hacés con los pagos?" que este
+        // mismo formulario muestra para un bono, un banco o un alternativo era
+        // un control que no hacía nada: elegir "Se reinvierten" y guardar
+        // dejaba el ítem en 'cash' igual. Reportado por el usuario, que puso
+        // reinvertir en su fondo líquido y siguió viendo el aviso de "¿a qué
+        // cuenta llegan los pagos?" (ese hallazgo excluye a los que reinvierten,
+        // así que seguía saliendo justamente porque el cambio nunca se guardó).
+        // Solo se veía al EDITAR: al crear la cuenta sí se guardaba.
+        updated.dividendAction = form.dividendAction || 'cash'
+        // Reinvertir y tener destino son excluyentes: el dinero se queda o se
+        // va. Sin esto, un destino viejo sobrevive al cambio y los motores que
+        // miran `incomeDestination` siguen mandando el pago a otra cuenta.
+        if (updated.dividendAction === 'reinvest') updated.incomeDestination = ''
+        else if (form.incomeDestination) updated.incomeDestination = form.incomeDestination
         if (form.capitalReturn) {
           updated.capitalReturn = parseFloat(form.capitalReturn) || 0
           if (form.capitalDestination) updated.capitalDestination = form.capitalDestination
@@ -328,7 +544,10 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         updated.managementFeeType = form.managementFeeType || 'percent'
       }
       if (form.expenseRatio) updated.expenseRatio = parseFloat(form.expenseRatio) || 0
-      if (form.entryFee) updated.entryFee = parseFloat(form.entryFee) || 0
+      if (form.entryFee) {
+        updated.entryFee = parseFloat(form.entryFee) || 0
+        updated.entryFeeMode = form.entryFeeMode || 'separate'
+      }
 
       // Tax jurisdiction & asset country
       updated.taxJurisdiction = form.taxJurisdiction || ''
@@ -339,6 +558,15 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         updated.safeType = form.safeType
         updated.safeCap = parseFloat(form.safeCap) || 0
         updated.safeDiscount = parseFloat(form.safeDiscount) || 0
+      }
+
+      // VC/startup direct-investment fields — purely informational, see
+      // AddAccountModal's comment on the same fields.
+      if (isAlternative && form.subtype === 'private_equity') {
+        updated.investmentStage = form.investmentStage || ''
+        updated.roundValuation = parseFloat(form.roundValuation) || 0
+        updated.ownershipPct = parseFloat(form.ownershipPct) || 0
+        updated.committedCapital = parseFloat(form.committedCapital) || 0
       }
 
       // Debt fields
@@ -443,6 +671,11 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
   const inputCls = 'w-full px-3 py-2 bg-[var(--input-bg,#000000)] border border-[var(--card-border,#38383A)] rounded-lg text-sm text-[var(--text-primary,white)] focus:outline-none focus:border-blue-500/50'
   const labelCls = 'text-xs text-[var(--text-secondary,#94a3b8)] mb-1 block'
+  // Ver AddAccountModal: 29/30/31 no caben en todos los meses, y la app paga el
+  // último día real de cada uno.
+  const payDayHint = (parseInt(form.incomePayDay, 10) || 0) >= 29
+    ? t('En los meses más cortos se paga el último día.', 'In shorter months it pays on the last day.')
+    : null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="edit-acct-modal-title"
@@ -455,17 +688,41 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && <div className="p-3 border rounded-lg text-sm" role="alert" aria-live="assertive" style={{ backgroundColor: 'color-mix(in srgb, var(--text-negative) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--text-negative) 20%, transparent)', color: 'var(--text-negative)' }}>{error}</div>}
 
+          {/* Data-gap findings for THIS item, same engine + same "Resolver"
+              action as ChispuSuggestions and AccountReviewModal — someone who
+              opened the editor directly (not through "Completar información")
+              should still see and fix a gap without having to know that other
+              screen exists (FASE DU). */}
+          {itemFindings.length > 0 && (
+            <div className="rounded-lg p-3" style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)' }}>
+              <p className="text-xs font-medium" style={{ color: 'var(--alert-warn-icon)' }}>{t('Chispu detectó:', 'Chispu detected:')}</p>
+              <ul className="mt-1.5 space-y-1.5">
+                {itemFindings.map((f) => (
+                  <li key={f.id} className="text-xs flex items-start justify-between gap-2" style={{ color: 'var(--alert-warn-icon)' }}>
+                    <span>· {lang === 'es' ? f.textEs : f.textEn}</span>
+                    {f.action?.kind === 'cashflow' && onOpenCashflow && (
+                      <button type="button" onClick={() => { onClose(); onOpenCashflow(f.action.prefill || { flowType: 'DEPOSIT', origin: 'external', linkedId: item.id, alreadyReflected: true }) }}
+                        className="shrink-0 underline font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
+                        {t('Resolver', 'Resolve')}
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* Sector badge */}
           {item.sector && (
             <div className="flex gap-2 flex-wrap">
-              <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'rgba(37,99,235,0.1)', color: 'var(--accent-blue)' }}>{item.sector}</span>
-              {item.industry && <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'rgba(168,85,247,0.1)', color: 'var(--accent-purple)' }}>{item.industry}</span>}
+              <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 10%, transparent)', color: 'var(--accent-blue)' }}>{item.sector}</span>
+              {item.industry && <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-purple) 10%, transparent)', color: 'var(--accent-purple)' }}>{item.industry}</span>}
               {item.exchangeName && <span className="text-xs bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] px-2 py-0.5 rounded">{item.exchangeName}</span>}
             </div>
           )}
 
           {/* Section 1: Basic Info */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label htmlFor="edit-name" className={labelCls}>{t('Nombre', 'Name')}</label>
               <input id="edit-name" value={form.name} onChange={e => set('name', e.target.value)} className={inputCls} />
@@ -506,8 +763,13 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
             </div>
             <div>
               <label htmlFor="edit-currency" className={labelCls}>{t('Moneda', 'Currency')}</label>
-              <select id="edit-currency" value={form.currency} onChange={e => set('currency', e.target.value)} className={inputCls}>
-                {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+              {/* FASE ID: misma regla que AddAccountModal: si el item guarda una
+                  moneda fuera de la lista fija (ej. 'GBp', peniques de Londres),
+                  se agrega como opción para que el select nunca muestre una
+                  moneda distinta de la guardada (un value sin opción renderiza
+                  la primera, USD, y se lee como dato corrupto). */}
+              <select id="edit-currency" value={form.currency} onChange={e => requestCurrencyChange(e.target.value)} className={inputCls}>
+                {currencyOptions(form.currency).map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div>
@@ -518,34 +780,67 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
             </div>
           </div>
 
+          {/* Un cambio de moneda con precios ya cargados NUNCA se aplica solo
+              — adivinar entre "convertir" y "solo re-etiquetar" es adivinar
+              la intención, y las dos son arreglos opuestos. */}
+          {pendingCurrency && (
+            <div className="rounded-lg p-3 text-xs space-y-2" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-orange) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--accent-orange) 30%, transparent)' }}>
+              <p style={{ color: 'var(--text-secondary)' }}>
+                {t(
+                  `Cambiaste la moneda de ${pendingCurrency.from} a ${pendingCurrency.to}. ¿Los montos que ves están en ${pendingCurrency.from} y hay que convertirlos, o solo escribiste mal la moneda y el número ya está bien en ${pendingCurrency.to}?`,
+                  `You changed the currency from ${pendingCurrency.from} to ${pendingCurrency.to}. Are the amounts you see in ${pendingCurrency.from} and need converting, or was ${pendingCurrency.from} just the wrong pick and the number is already right in ${pendingCurrency.to}?`
+                )}
+              </p>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => resolveCurrencyChange('convert')}
+                  className="px-2.5 py-1.5 rounded-lg font-medium" style={{ backgroundColor: 'var(--accent-orange)', color: '#fff' }}>
+                  {t('Convertir los montos', 'Convert the amounts')}
+                </button>
+                <button type="button" onClick={() => resolveCurrencyChange('relabel')}
+                  className="px-2.5 py-1.5 rounded-lg font-medium border" style={{ borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
+                  {t('Solo cambiar la etiqueta', 'Just change the label')}
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Section 2: Position */}
           {isBank ? (
             <div>
-              <label htmlFor="edit-current-balance" className={labelCls}>{t('Saldo actual', 'Current balance')}</label>
+              <label htmlFor="edit-current-balance" className={labelCls}>{t('Saldo actual', 'Current balance')} {t('en', 'in')} {form.currency}</label>
               <input id="edit-current-balance" value={form.purchasePrice} onChange={e => { set('purchasePrice', e.target.value); set('quantity', '1') }}
                 type="number" step="any" className={inputCls} />
+              <FxHint amount={form.purchasePrice} from={form.currency} to={baseCurrency} convert={convert} t={t} />
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label htmlFor="edit-quantity" className={labelCls}>{t('Cantidad', 'Quantity')} <InfoTip text={t('Número de unidades, acciones o participaciones que posees.', 'Number of units, shares or participations you own.')} /></label>
                 <input id="edit-quantity" value={form.quantity} onChange={e => set('quantity', e.target.value)}
                   type="number" step="any" className={inputCls} />
               </div>
               <div>
-                <label htmlFor="edit-purchase-price" className={labelCls}>{isMarket ? t('Precio compra', 'Buy price') : t('Valor compra', 'Purchase value')} <InfoTip text={t('Precio por unidad al momento de la compra. Valor total = cantidad × precio.', 'Price per unit at time of purchase. Total value = quantity × price.')} /></label>
+                <label htmlFor="edit-purchase-price" className={labelCls}>
+                  {isMarket ? t('Precio compra', 'Buy price') : t('Valor compra', 'Purchase value')} {t('en', 'in')} {form.currency}
+                  <InfoTip text={t('Precio por unidad al momento de la compra. Valor total = cantidad × precio.', 'Price per unit at time of purchase. Total value = quantity × price.')} />
+                </label>
                 <input id="edit-purchase-price" value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
                   type="number" step="any" className={inputCls} />
+                <FxHint amount={form.purchasePrice} from={form.currency} to={baseCurrency} convert={convert} t={t} />
               </div>
             </div>
           )}
 
           {!isMarket && !isBank && (
             <div>
-              <label htmlFor="edit-current-price" className={labelCls}>{t('Valor actual', 'Current value')} <InfoTip text={t('El valor de mercado actual. Si lo dejas vacío, se usa el precio de compra. Para activos de mercado se actualiza automáticamente.', 'Current market value. If empty, purchase price is used. Market assets update automatically.')} /></label>
+              <label htmlFor="edit-current-price" className={labelCls}>
+                {t('Valor actual', 'Current value')} {t('en', 'in')} {form.currency}
+                <InfoTip text={t('El valor de mercado actual. Si lo dejas vacío, se usa el precio de compra. Para activos de mercado se actualiza automáticamente.', 'Current market value. If empty, purchase price is used. Market assets update automatically.')} />
+              </label>
               <input id="edit-current-price" value={form.currentPrice} onChange={e => set('currentPrice', e.target.value)}
                 type="number" step="any" placeholder={t('Dejar vacío = precio de compra', 'Empty = purchase price')}
                 className={inputCls} />
+              <FxHint amount={form.currentPrice} from={form.currency} to={baseCurrency} convert={convert} t={t} />
             </div>
           )}
 
@@ -582,7 +877,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   <p className="text-xs font-medium" style={{ color: contribType === 'add' ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                     {contribType === 'add' ? t('Nuevo aporte', 'New contribution') : t('Retiro de fondos', 'Withdraw funds')}
                   </p>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
                       <label htmlFor="edit-contrib-amount" className={labelCls}>{t('Monto', 'Amount')} ({form.currency})</label>
                       <input id="edit-contrib-amount" value={contribAmount} onChange={e => setContribAmount(e.target.value)}
@@ -634,69 +929,195 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               {linkedTransactions.length > 0 && (
                 <div className="border border-[var(--card-border,#38383A)] rounded-lg p-3">
                   <p className="text-xs font-medium text-[var(--text-secondary,#94a3b8)] mb-2">
-                    {t('Historial de movimientos', 'Transaction history')}
+                    {t('Historial de movimientos', 'Transaction history')} <span style={{ color: 'var(--text-muted,#475569)' }}>({linkedTransactions.length})</span>
                   </p>
-                  <div className="space-y-1 max-h-28 overflow-y-auto">
-                    {linkedTransactions.map(tx => (
-                      <div key={tx.id} className="flex items-center justify-between text-xs py-1 border-b border-[var(--card-border,#38383A)]/30 last:border-0">
-                        <span style={{ color: 'var(--text-muted)' }}>{tx.date}</span>
-                        <div className="text-right">
-                          <span style={{ color: tx.type === 'DEPOSIT' ? 'var(--accent-green)' : 'var(--text-negative)' }}>
-                            {tx.type === 'DEPOSIT' ? '+' : '-'}{tx.currency || form.currency} {(tx.totalAmount || 0).toLocaleString()}
+                  <div className={`space-y-1 ${showAllTx ? 'max-h-64 overflow-y-auto' : ''}`}>
+                    {(showAllTx ? linkedTransactions : linkedTransactions.slice(0, 3)).map(tx => {
+                      // A DIVIDEND linked to this item means it GENERATED that
+                      // income — a positive event for it — even when the cash
+                      // settles in a different destination account. Only a
+                      // WITHDRAWAL is actually money leaving this item's own
+                      // value; showing the dividend red/negative here read as
+                      // "VITALI lost $240" when its own value never changed.
+                      const outgoing = tx._outgoingTo !== undefined
+                      // Money that arrived FROM another asset. It is filed against
+                      // that asset, so editing or re-linking it here would move
+                      // someone else's record. Visible and deletable (that is how
+                      // you find a duplicated coupon), but not editable.
+                      const incoming = tx._incomingFrom !== undefined
+                      // A TRANSFER's sign depends on which side of it THIS account
+                      // is on, not its type (it's neither a DEPOSIT nor a
+                      // WITHDRAWAL) — incoming is a gain to this account, outgoing
+                      // a loss, same green/red convention as everything else.
+                      const isPositive = tx.type === 'TRANSFER'
+                        ? incoming
+                        : (tx.type === 'DEPOSIT' || tx.type === 'DIVIDEND' || tx.type === 'INTEREST')
+                      const confirming = confirmDeleteTxId === tx.id
+                      // Same story the other way: a transfer OUT touches the
+                      // destination account's balance too, so it isn't editable
+                      // from a single-account form either.
+                      const editing = editingTxId === tx.id && !incoming && !outgoing
+                      if (editing) {
+                        return (
+                          <div key={tx.id} className="py-2 border-b border-[var(--card-border,#38383A)]/30 last:border-0 space-y-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              <div>
+                                <span className="text-[10px] block mb-0.5" style={{ color: 'var(--text-muted)' }}>{t('Fecha', 'Date')}</span>
+                                <input type="date" value={txDraft.date} max={new Date().toISOString().split('T')[0]}
+                                  onChange={e => setTxDraft(d => ({ ...d, date: e.target.value }))} className={inputCls} />
+                              </div>
+                              <div>
+                                <span className="text-[10px] block mb-0.5" style={{ color: 'var(--text-muted)' }}>{t('Monto', 'Amount')} ({tx.currency || form.currency})</span>
+                                <input type="number" step="any" min="0" value={txDraft.amount}
+                                  onChange={e => setTxDraft(d => ({ ...d, amount: e.target.value }))} className={inputCls} />
+                              </div>
+                            </div>
+                            {!tx._linkedItemId && (
+                              <label className="flex items-start gap-2 cursor-pointer p-2 rounded"
+                                style={{ backgroundColor: 'var(--alert-info-bg)', border: '1px solid var(--alert-info-border)' }}>
+                                <input type="checkbox" checked={txDraft.link}
+                                  onChange={e => setTxDraft(d => ({ ...d, link: e.target.checked }))}
+                                  className="w-3.5 h-3.5 mt-0.5 rounded accent-blue-500 shrink-0" />
+                                <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+                                  {t(`Vincular este movimiento a ${item.name || item.symbol}`, `Link this movement to ${item.name || item.symbol}`)}
+                                  <span className="block" style={{ color: 'var(--text-muted)' }}>
+                                    {t('Deja de estar suelto: la lista y la gráfica pasan a contarlo igual.', 'It stops floating loose: the list and the chart start counting it the same way.')}
+                                  </span>
+                                </span>
+                              </label>
+                            )}
+                            <div className="flex gap-2">
+                              <button type="button" onClick={() => { setEditingTxId(null); setError('') }}
+                                className="flex-1 px-2 py-1.5 text-xs rounded border border-[var(--card-border,#38383A)]" style={{ color: 'var(--text-secondary)' }}>
+                                {t('Cancelar', 'Cancel')}
+                              </button>
+                              <button type="button" onClick={() => handleSaveTx(tx)} disabled={savingTxId === tx.id}
+                                className="flex-1 px-2 py-1.5 text-xs font-medium rounded text-white disabled:opacity-50"
+                                style={{ backgroundColor: 'var(--accent-blue-strong, #2563eb)' }}>
+                                {savingTxId === tx.id ? '...' : t('Guardar', 'Save')}
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      }
+                      return (
+                        <div key={tx.id} className="flex items-center justify-between gap-2 text-xs py-1 border-b border-[var(--card-border,#38383A)]/30 last:border-0">
+                          <span style={{ color: 'var(--text-muted)' }}>{formatTxDate(tx.date)}</span>
+                          <div className="text-right min-w-0">
+                            <span style={{ color: isPositive ? 'var(--accent-green)' : 'var(--text-negative)' }}>
+                              {isPositive ? '+' : '-'}{tx.currency || form.currency} {(tx.totalAmount || 0).toLocaleString()}
+                            </span>
+                            {incoming && (
+                              <span className="ml-1 px-1 py-0.5 rounded text-[9px] align-middle"
+                                style={{ color: 'var(--accent-cyan)', backgroundColor: 'color-mix(in srgb, var(--accent-cyan) 15%, transparent)' }}
+                                title={t('Este dinero llegó desde otro activo. El movimiento vive en ese activo: aquí solo se ve entrar.', 'This money arrived from another asset. The record lives on that asset: here you only see it come in.')}>
+                                {tx._incomingFrom ? t(`de ${tx._incomingFrom}`, `from ${tx._incomingFrom}`) : t('recibido', 'received')}
+                              </span>
+                            )}
+                            {outgoing && (
+                              <span className="ml-1 px-1 py-0.5 rounded text-[9px] align-middle"
+                                style={{ color: 'var(--accent-orange)', backgroundColor: 'color-mix(in srgb, var(--accent-orange) 15%, transparent)' }}
+                                title={t('Este dinero salió hacia otro activo. El movimiento vive en ambas cuentas: aquí solo se ve salir.', 'This money left for another asset. The record lives on both accounts: here you only see it go out.')}>
+                                {tx._outgoingTo ? t(`hacia ${tx._outgoingTo}`, `to ${tx._outgoingTo}`) : t('transferido', 'transferred')}
+                              </span>
+                            )}
+                            {!incoming && !outgoing && !tx._linkedItemId && (
+                              <span className="ml-1 px-1 py-0.5 rounded text-[9px] align-middle"
+                                style={{ color: 'var(--accent-orange)', backgroundColor: 'color-mix(in srgb, var(--accent-orange) 15%, transparent)' }}
+                                title={t('Este movimiento se detectó por el símbolo, no está vinculado a la cuenta. Suele ser un registro viejo o duplicado.', 'This movement was matched by symbol, it isn\'t linked to the account. Usually an old or duplicate record.')}>
+                                {t('sin vincular', 'unlinked')}
+                              </span>
+                            )}
+                            {tx.description && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{tx.description}</p>}
+                          </div>
+                          <span className="flex items-center gap-1 shrink-0">
+                            {onUpdateTransaction && !incoming && !outgoing && (
+                              <button type="button" onClick={() => startEditTx(tx)}
+                                className="px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors"
+                                style={{ color: 'var(--text-muted)', borderColor: 'var(--card-border,#38383A)' }}
+                                title={t('Corregir la fecha o el monto, o vincularlo a esta cuenta', 'Fix the date or amount, or link it to this account')}>
+                                {t('Editar', 'Edit')}
+                              </button>
+                            )}
+                            {onDeleteTransaction && (
+                              <button type="button" onClick={() => handleDeleteTx(tx)} disabled={deletingTxId === tx.id}
+                                className="px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors disabled:opacity-50"
+                                style={confirming
+                                  ? { color: '#ffffff', backgroundColor: 'var(--text-negative)', borderColor: 'var(--text-negative)' }
+                                  : { color: 'var(--text-muted)', borderColor: 'var(--card-border,#38383A)' }}
+                                title={t('Borrar este movimiento (ej. un duplicado)', 'Delete this movement (e.g. a duplicate)')}>
+                                {deletingTxId === tx.id ? '...' : confirming ? t('Confirmar', 'Confirm') : t('Borrar', 'Delete')}
+                              </button>
+                            )}
                           </span>
-                          {tx.description && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{tx.description}</p>}
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
+                  </div>
+                  {linkedTransactions.length > 3 && (
+                    <button type="button" onClick={() => setShowAllTx(v => !v)}
+                      className="w-full text-center text-xs mt-2 pt-2 border-t border-[var(--card-border,#38383A)]/50"
+                      style={{ color: 'var(--accent-blue)' }}>
+                      {showAllTx ? t('Ver menos', 'Show less') : t(`Ver todos (${linkedTransactions.length})`, `Show all (${linkedTransactions.length})`)}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Maturity + illiquid — same lifecycle question ("when/how does this
+              asset stop looking like this?"), so one accordion instead of two
+              always-open blocks. Maturity only applies to bonds/alternatives;
+              illiquid applies to those plus real estate. */}
+          {(isBondOrAlt || /realestate|inmueble/i.test(form.type)) && (
+            <FormSection icon="📅" title={t('Vencimiento & Liquidez', 'Maturity & Liquidity')} summary={(() => {
+              const parts = []
+              if (isBondOrAlt && form.maturityDate) parts.push(`${t('Vence', 'Due')} ${form.maturityDate}`)
+              if (form.isIlliquid) parts.push(t('ilíquido', 'illiquid'))
+              return parts.length > 0 ? parts.join(' · ') : t('sin configurar', 'not set')
+            })()}>
+              {isBondOrAlt && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="edit-maturity-date" className={labelCls}>{t('Fecha vencimiento', 'Maturity date')}</label>
+                    <input id="edit-maturity-date" value={form.maturityDate} onChange={e => set('maturityDate', e.target.value)}
+                      type="date" className={inputCls} />
+                  </div>
+                  <div>
+                    <label htmlFor="edit-at-maturity" className={labelCls}>{t('Al vencimiento', 'At maturity')}</label>
+                    <select id="edit-at-maturity" value={form.maturityAction} onChange={e => set('maturityAction', e.target.value)} className={inputCls}>
+                      <option value="return_capital">{t('Devolver capital', 'Return capital')}</option>
+                      <option value="auto_renew">{t('Renovar', 'Auto-renew')}</option>
+                      <option value="convert_equity">{t('Convertir', 'Convert to equity')}</option>
+                    </select>
                   </div>
                 </div>
               )}
-            </div>
-          )}
 
-          {/* Maturity date */}
-          {isBondOrAlt && (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label htmlFor="edit-maturity-date" className={labelCls}>{t('Fecha vencimiento', 'Maturity date')}</label>
-                <input id="edit-maturity-date" value={form.maturityDate} onChange={e => set('maturityDate', e.target.value)}
-                  type="date" className={inputCls} />
-              </div>
-              <div>
-                <label htmlFor="edit-at-maturity" className={labelCls}>{t('Al vencimiento', 'At maturity')}</label>
-                <select id="edit-at-maturity" value={form.maturityAction} onChange={e => set('maturityAction', e.target.value)} className={inputCls}>
-                  <option value="return_capital">{t('Devolver capital', 'Return capital')}</option>
-                  <option value="auto_renew">{t('Renovar', 'Auto-renew')}</option>
-                  <option value="convert_equity">{t('Convertir', 'Convert to equity')}</option>
-                </select>
-              </div>
-            </div>
-          )}
-
-          {/* Illiquid toggle + manual valuation */}
-          {(isBondOrAlt || /realestate|inmueble/i.test(form.type)) && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-3 px-3 py-2 border border-[var(--card-border,#38383A)] rounded-lg">
-                <button type="button" onClick={() => set('isIlliquid', !form.isIlliquid)}
-                  className="w-8 h-4 rounded-full transition-colors relative"
-                  style={{ backgroundColor: form.isIlliquid ? 'var(--accent-orange)' : 'var(--card-border, #38383A)' }}>
-                  <span className={`absolute w-3 h-3 bg-white rounded-full top-0.5 transition-transform ${form.isIlliquid ? 'left-4' : 'left-0.5'}`} />
-                </button>
-                <span className="text-xs text-[var(--text-primary,white)]">{t('Activo ilíquido', 'Illiquid asset')}</span>
-              </div>
-              {form.isIlliquid && (
-                <div>
-                  <label htmlFor="edit-manual-valuation" className={labelCls}>{t('Valuación manual', 'Manual valuation')}</label>
-                  <input id="edit-manual-valuation" value={form.lastManualValuation} onChange={e => set('lastManualValuation', e.target.value)}
-                    type="number" step="any" placeholder={t('Valor estimado actual', 'Current estimated value')} className={inputCls} />
+              <div className="space-y-2">
+                <div className="flex items-center gap-3 px-3 py-2 border border-[var(--card-border,#38383A)] rounded-lg">
+                  <button type="button" onClick={() => set('isIlliquid', !form.isIlliquid)}
+                    className="w-8 h-4 rounded-full transition-colors relative"
+                    style={{ backgroundColor: form.isIlliquid ? 'var(--accent-orange)' : 'var(--card-border, #38383A)' }}>
+                    <span className={`absolute w-3 h-3 bg-white rounded-full top-0.5 transition-transform ${form.isIlliquid ? 'left-4' : 'left-0.5'}`} />
+                  </button>
+                  <span className="text-xs text-[var(--text-primary,white)]">{t('Activo ilíquido', 'Illiquid asset')}</span>
                 </div>
-              )}
-            </div>
+                {form.isIlliquid && (
+                  <div>
+                    <label htmlFor="edit-manual-valuation" className={labelCls}>{t('Valuación manual', 'Manual valuation')}</label>
+                    <input id="edit-manual-valuation" value={form.lastManualValuation} onChange={e => set('lastManualValuation', e.target.value)}
+                      type="number" step="any" placeholder={t('Valor estimado actual', 'Current estimated value')} className={inputCls} />
+                  </div>
+                )}
+              </div>
+            </FormSection>
           )}
 
           {/* Custody for crypto */}
           {isCrypto && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label htmlFor="edit-custody" className={labelCls}>{t('Custodia', 'Custody')}</label>
                 <select id="edit-custody" value={form.custodyType} onChange={e => set('custodyType', e.target.value)} className={inputCls}>
@@ -740,14 +1161,14 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="edit-interest-rate" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa interés %', 'Interest rate %')}</label>
+                  <label htmlFor="edit-interest-rate" className={labelCls}>{t('Tasa interés %', 'Interest rate %')}</label>
                   <input id="edit-interest-rate" value={form.interestRate} onChange={e => set('interestRate', e.target.value)}
                     placeholder="7.5" type="number" step="any" className={inputCls} />
                 </div>
                 <div>
-                  <label htmlFor="edit-debt-term" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Plazo', 'Term')}</label>
+                  <label htmlFor="edit-debt-term" className={labelCls}>{t('Plazo', 'Term')}</label>
                   <select id="edit-debt-term" value={form.debtTerm} onChange={e => set('debtTerm', e.target.value)} className={inputCls}>
                     <option value="">{t('-- Seleccionar --', '-- Select --')}</option>
                     <option value="3m">3 {t('meses', 'months')}</option>
@@ -764,30 +1185,30 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label htmlFor="edit-monthly-payment" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Pago mensual', 'Monthly payment')}</label>
+                  <label htmlFor="edit-monthly-payment" className={labelCls}>{t('Pago mensual', 'Monthly payment')}</label>
                   <input id="edit-monthly-payment" value={form.monthlyPayment} onChange={e => set('monthlyPayment', e.target.value)}
                     placeholder="500" type="number" step="any" className={inputCls} />
                 </div>
                 <div>
-                  <label htmlFor="edit-installments-total" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Cuotas total', 'Total pmts')}</label>
+                  <label htmlFor="edit-installments-total" className={labelCls}>{t('Cuotas total', 'Total pmts')}</label>
                   <input id="edit-installments-total" value={form.installmentsTotal} onChange={e => set('installmentsTotal', e.target.value)}
                     placeholder="24" type="number" step="1" className={inputCls} />
                 </div>
                 <div>
-                  <label htmlFor="edit-installments-remaining" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Cuotas rest.', 'Pmts left')}</label>
+                  <label htmlFor="edit-installments-remaining" className={labelCls}>{t('Cuotas rest.', 'Pmts left')}</label>
                   <input id="edit-installments-remaining" value={form.installmentsRemaining} onChange={e => set('installmentsRemaining', e.target.value)}
                     placeholder="18" type="number" step="1" className={inputCls} />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="edit-min-payment" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Pago mínimo', 'Min payment')}</label>
+                  <label htmlFor="edit-min-payment" className={labelCls}>{t('Pago mínimo', 'Min payment')}</label>
                   <input id="edit-min-payment" value={form.minimumPayment} onChange={e => set('minimumPayment', e.target.value)}
                     placeholder="500" type="number" step="any" className={inputCls} />
                 </div>
                 <div>
-                  <label htmlFor="edit-debt-maturity-date" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Fecha vencimiento', 'Maturity date')}</label>
+                  <label htmlFor="edit-debt-maturity-date" className={labelCls}>{t('Fecha vencimiento', 'Maturity date')}</label>
                   <input id="edit-debt-maturity-date" value={form.maturityDate} onChange={e => set('maturityDate', e.target.value)}
                     type="date" className={inputCls} />
                 </div>
@@ -796,9 +1217,9 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               {isCreditCard && (
                 <div className="border-t border-red-500/10 pt-3 space-y-3">
                   <p className="text-xs uppercase tracking-wide" style={{ color: 'var(--text-negative)' }}>{t('Tarjeta de crédito', 'Credit Card')}</p>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label htmlFor="edit-card-brand" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Marca', 'Brand')}</label>
+                      <label htmlFor="edit-card-brand" className={labelCls}>{t('Marca', 'Brand')}</label>
                       <select id="edit-card-brand" value={form.cardBrand} onChange={e => set('cardBrand', e.target.value)} className={inputCls}>
                         <option value="">{t('-- Seleccionar --', '-- Select --')}</option>
                         <option value="visa">Visa</option>
@@ -807,7 +1228,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                       </select>
                     </div>
                     <div>
-                      <label htmlFor="edit-reward-type" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tipo reward', 'Reward type')}</label>
+                      <label htmlFor="edit-reward-type" className={labelCls}>{t('Tipo reward', 'Reward type')}</label>
                       <select id="edit-reward-type" value={form.rewardType} onChange={e => set('rewardType', e.target.value)} className={inputCls}>
                         <option value="">{t('Ninguno', 'None')}</option>
                         <option value="miles">{t('Millas', 'Miles')}</option>
@@ -817,14 +1238,14 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                     </div>
                   </div>
                   {form.rewardType && (
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label htmlFor="edit-reward-rate" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa reward %', 'Reward rate %')}</label>
+                        <label htmlFor="edit-reward-rate" className={labelCls}>{t('Tasa reward %', 'Reward rate %')}</label>
                         <input id="edit-reward-rate" value={form.rewardRate} onChange={e => set('rewardRate', e.target.value)}
                           placeholder="1.5" type="number" step="any" className={inputCls} />
                       </div>
                       <div>
-                        <label htmlFor="edit-reward-balance" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Balance acumulado', 'Accumulated balance')}</label>
+                        <label htmlFor="edit-reward-balance" className={labelCls}>{t('Balance acumulado', 'Accumulated balance')}</label>
                         <input id="edit-reward-balance" value={form.rewardBalance} onChange={e => set('rewardBalance', e.target.value)}
                           placeholder="5000" type="number" step="any" className={inputCls} />
                       </div>
@@ -841,7 +1262,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               <p className="text-xs font-medium" style={{ color: 'var(--accent-pink)' }}>🔮 SAFE Note</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <div>
-                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tipo', 'Type')}</label>
+                  <label className={labelCls}>{t('Tipo', 'Type')}</label>
                   <select value={form.safeType} onChange={e => set('safeType', e.target.value)} className={inputCls}>
                     <option value="post_money">Post-Money</option>
                     <option value="pre_money">Pre-Money</option>
@@ -849,12 +1270,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">Cap</label>
+                  <label className={labelCls}>Cap</label>
                   <input value={form.safeCap} onChange={e => set('safeCap', e.target.value)}
                     placeholder="10000000" type="number" step="any" className={inputCls} />
                 </div>
                 <div>
-                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Desc %', 'Disc %')}</label>
+                  <label className={labelCls}>{t('Desc %', 'Disc %')}</label>
                   <input value={form.safeDiscount} onChange={e => set('safeDiscount', e.target.value)}
                     placeholder="20" type="number" step="any" className={inputCls} />
                 </div>
@@ -862,18 +1283,65 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
             </div>
           )}
 
+          {/* VC/startup direct investment fields — cap-table context, purely
+              informational (never feeds the return formula). */}
+          {isAlternative && form.subtype === 'private_equity' && (
+            <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'color-mix(in srgb, var(--accent-purple) 20%, transparent)', backgroundColor: 'color-mix(in srgb, var(--accent-purple) 5%, transparent)' }}>
+              <p className="text-xs font-medium" style={{ color: 'var(--accent-purple)' }}>🚀 {t('Ronda de inversión', 'Investment round')}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div>
+                  <label className={labelCls}>{t('Etapa', 'Stage')}</label>
+                  <select value={form.investmentStage} onChange={e => set('investmentStage', e.target.value)} className={inputCls}>
+                    <option value="">{t('-- Opcional --', '-- Optional --')}</option>
+                    <option value="pre_seed">Pre-seed</option>
+                    <option value="seed">Seed</option>
+                    <option value="series_a">Series A</option>
+                    <option value="series_b">Series B</option>
+                    <option value="series_c_plus">Series C+</option>
+                    <option value="growth">{t('Growth / Late stage', 'Growth / Late stage')}</option>
+                    <option value="buyout">Buyout / PE</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>{t('Valuación de la ronda', 'Round valuation')}</label>
+                  <input value={form.roundValuation} onChange={e => set('roundValuation', e.target.value)}
+                    placeholder="10000000" type="number" step="any" className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>% {t('de la empresa', 'of the company')}</label>
+                  <input value={form.ownershipPct} onChange={e => set('ownershipPct', e.target.value)}
+                    placeholder="0.5" type="number" step="any" className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>
+                    {t('Capital comprometido', 'Committed capital')}
+                    {' '}
+                    <InfoTip text={t('El monto total que te comprometiste a aportar (se va llamando por partes). La tarjeta de métricas VC/PE lo usa para el PIC: qué % del compromiso ya se llamó. Opcional, no afecta el rendimiento.', 'The total amount you committed (called in pieces over time). The VC/PE metrics card uses it for PIC: what % of the commitment has been called. Optional, does not affect returns.')} />
+                  </label>
+                  <input value={form.committedCapital} onChange={e => set('committedCapital', e.target.value)}
+                    placeholder="50000" type="number" step="any" className={inputCls} />
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Fees */}
-          <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'color-mix(in srgb, var(--accent-orange) 20%, transparent)', backgroundColor: 'color-mix(in srgb, var(--accent-orange) 5%, transparent)' }}>
-            <p className="text-xs font-medium" style={{ color: 'var(--accent-orange)' }}>{t('Costos & Comisiones', 'Costs & Fees')}</p>
+          <FormSection icon="💸" title={t('Costos & Comisiones', 'Costs & Fees')} summary={(() => {
+            const parts = []
+            if (parseFloat(form.entryFee) > 0) parts.push(`${t('Entrada', 'Entry')} ${parseFloat(form.entryFee).toFixed(2)}`)
+            if (parseFloat(form.managementFee) > 0) parts.push(form.managementFeeType === 'fixed' ? `Mgmt $${parseFloat(form.managementFee).toFixed(2)}` : `Mgmt ${parseFloat(form.managementFee).toFixed(2)}%`)
+            if (parseFloat(form.expenseRatio) > 0) parts.push(`Expense ${parseFloat(form.expenseRatio).toFixed(2)}%`)
+            return parts.length > 0 ? parts.join(' · ') : t('sin configurar', 'not set')
+          })()}>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <div>
-                <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Costo entrada', 'Entry fee')} <InfoTip text={t('Monto fijo en tu moneda (ej: $80). NO es porcentaje. Es el costo de entrada o comisión que pagaste una sola vez.', 'Fixed amount in your currency (e.g. $80). NOT a percentage. One-time entry cost or commission you paid.')} /></label>
+                <label className={labelCls}>{t('Costo entrada', 'Entry fee')} <InfoTip text={t('Monto fijo en tu moneda (ej: $80). NO es porcentaje. Es el costo de entrada o comisión que pagaste una sola vez.', 'Fixed amount in your currency (e.g. $80). NOT a percentage. One-time entry cost or commission you paid.')} /></label>
                 <input value={form.entryFee} onChange={e => set('entryFee', e.target.value)}
                   placeholder="80" type="number" step="any" className={inputCls}
                   title={t('Costo de incorporación, comisión de entrada, etc.', 'Incorporation cost, entry commission, etc.')} />
               </div>
               <div>
-                <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">
+                <label className={labelCls}>
                   {t('Mgmt fee', 'Mgmt fee')}
                   {' '}
                   <button type="button" onClick={() => set('managementFeeType', form.managementFeeType === 'fixed' ? 'percent' : 'fixed')}
@@ -890,12 +1358,59 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   placeholder={form.managementFeeType === 'fixed' ? '50' : '0.50'} type="number" step="any" className={inputCls} />
               </div>
               <div>
-                <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Expense %', 'Expense %')} <InfoTip text={t('Ratio de gastos ANUAL en porcentaje. Ej: 0.03 = 0.03% por año. Este es un costo operativo del fondo/instrumento.', 'Annual expense ratio as a PERCENTAGE. E.g. 0.03 = 0.03% per year. This is the fund/instrument operating cost.')} /></label>
+                <label className={labelCls}>{t('Expense %', 'Expense %')} <InfoTip text={t('Ratio de gastos ANUAL en porcentaje. Ej: 0.03 = 0.03% por año. Este es un costo operativo del fondo/instrumento.', 'Annual expense ratio as a PERCENTAGE. E.g. 0.03 = 0.03% per year. This is the fund/instrument operating cost.')} /></label>
                 <input value={form.expenseRatio} onChange={e => set('expenseRatio', e.target.value)}
                   placeholder="0.03" type="number" step="any" className={inputCls}
                   title={t('Ratio de gastos anual %', 'Annual expense ratio %')} />
               </div>
             </div>
+
+            {/* Only asked once there IS a fee: which side of the purchase value
+                it sits on decides how much really left your pocket, and that is
+                the denominator of every return % for this asset. */}
+            {parseFloat(form.entryFee) > 0 && (() => {
+              const fee = parseFloat(form.entryFee) || 0
+              const typed = (parseFloat(form.quantity) || 1) * (parseFloat(form.purchasePrice) || 0)
+              const cur = form.currency || 'USD'
+              const fmt = (v) => `${cur} ${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+              const modes = [
+                { key: 'separate', es: 'Se pagó aparte', en: 'Paid separately' },
+                { key: 'deducted', es: 'Se descontó del monto', en: 'Deducted from amount' },
+              ]
+              return (
+                <div>
+                  <label className={labelCls}>
+                    {t('¿Cómo se cobró ese costo de entrada?', 'How was that entry cost charged?')}
+                    {' '}
+                    <InfoTip text={t(
+                      'Cambia cuánto dinero salió realmente de tu bolsillo, que es contra lo que se mide tu rendimiento. "Se pagó aparte": mandaste el monto de compra Y ADEMÁS la comisión. "Se descontó del monto": mandaste solo el monto de compra y la comisión salió de ahí, así que al activo entró menos.',
+                      'It changes how much money actually left your pocket, which is what your return is measured against. "Paid separately": you sent the purchase amount AND the fee on top. "Deducted from amount": you sent just the purchase amount and the fee came out of it, so less actually bought the asset.'
+                    )} />
+                  </label>
+                  <div className="flex gap-1.5">
+                    {modes.map(m => (
+                      <button key={m.key} type="button" onClick={() => set('entryFeeMode', m.key)}
+                        className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
+                        style={form.entryFeeMode === m.key
+                          ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' }
+                          : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                        {lang === 'es' ? m.es : m.en}
+                      </button>
+                    ))}
+                  </div>
+                  {typed > 0 && (
+                    <p className="text-xs mt-1.5" style={{ color: 'var(--text-secondary)' }}>
+                      {form.entryFeeMode === 'deducted'
+                        ? t(`Saliste con ${fmt(typed)} en total, y al activo entraron ${fmt(typed - fee)}.`,
+                            `${fmt(typed)} left your pocket in total, and ${fmt(typed - fee)} actually went into the asset.`)
+                        : t(`Saliste con ${fmt(typed + fee)} en total: ${fmt(typed)} al activo más ${fmt(fee)} de comisión.`,
+                            `${fmt(typed + fee)} left your pocket in total: ${fmt(typed)} into the asset plus ${fmt(fee)} in fees.`)}
+                    </p>
+                  )}
+                </div>
+              )
+            })()}
+
             {(parseFloat(form.entryFee) > 0 || parseFloat(form.managementFee) > 0 || parseFloat(form.expenseRatio) > 0) && (
               <p className="text-xs" style={{ color: 'color-mix(in srgb, var(--accent-orange) 60%, transparent)' }}>
                 {parseFloat(form.entryFee) > 0 && `${t('Entrada', 'Entry')}: $${parseFloat(form.entryFee).toFixed(2)}  `}
@@ -915,58 +1430,20 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 })()}
               </p>
             )}
-          </div>
+          </FormSection>
 
-          {/* Tax jurisdiction */}
-          <div>
-            <label className={labelCls}>{t('Jurisdicción fiscal', 'Tax jurisdiction')}</label>
-            <select value={form.taxJurisdiction} onChange={e => set('taxJurisdiction', e.target.value)} className={inputCls}>
-              <option value="">{t('-- Opcional --', '-- Optional --')}</option>
-              <option value="GT">🇬🇹 Guatemala</option>
-              <option value="MX">🇲🇽 México</option>
-              <option value="US">🇺🇸 USA</option>
-              <option value="CO">🇨🇴 Colombia</option>
-              <option value="CL">🇨🇱 Chile</option>
-              <option value="BR">🇧🇷 Brasil</option>
-              <option value="PE">🇵🇪 Perú</option>
-              <option value="AR">🇦🇷 Argentina</option>
-              <option value="OTHER">{t('Otro', 'Other')}</option>
-            </select>
-          </div>
-
-          {/* Asset country */}
-          <div>
-            <label className={labelCls}>{t('País del activo', 'Asset country')}</label>
-            <select value={form.assetCountry} onChange={e => set('assetCountry', e.target.value)} className={inputCls}>
-              <option value="">{t('-- Opcional --', '-- Optional --')}</option>
-              <option value="GT">🇬🇹 Guatemala</option>
-              <option value="MX">🇲🇽 México</option>
-              <option value="US">🇺🇸 USA</option>
-              <option value="CO">🇨🇴 Colombia</option>
-              <option value="CL">🇨🇱 Chile</option>
-              <option value="BR">🇧🇷 Brasil</option>
-              <option value="PE">🇵🇪 Perú</option>
-              <option value="AR">🇦🇷 Argentina</option>
-              <option value="CR">🇨🇷 Costa Rica</option>
-              <option value="PA">🇵🇦 Panamá</option>
-              <option value="ES">🇪🇸 España</option>
-              <option value="UK">🇬🇧 UK</option>
-              <option value="DE">🇩🇪 Alemania</option>
-              <option value="CH">🇨🇭 Suiza</option>
-              <option value="JP">🇯🇵 Japón</option>
-              <option value="CN">🇨🇳 China</option>
-              <option value="KR">🇰🇷 Corea del Sur</option>
-              <option value="HK">🇭🇰 Hong Kong</option>
-              <option value="SG">🇸🇬 Singapur</option>
-              <option value="AU">🇦🇺 Australia</option>
-              <option value="CA">🇨🇦 Canadá</option>
-              <option value="GLOBAL">{t('Global / Multi-país', 'Global / Multi-country')}</option>
-              <option value="OTHER">{t('Otro', 'Other')}</option>
-            </select>
-          </div>
-
-          {/* Notes & Tags */}
-          <div className="space-y-3">
+          {/* Notes, tags, beneficiary, tax jurisdiction & asset country — five
+              rarely-touched fields that used to each get their own always-open
+              block. One accordion, one summary line. */}
+          <FormSection icon="🗂️" title={t('Detalles adicionales', 'Additional details')} summary={(() => {
+            const parts = []
+            if (form.beneficiary) parts.push(form.beneficiary)
+            if (form.taxJurisdiction) parts.push(form.taxJurisdiction)
+            if (form.assetCountry) parts.push(form.assetCountry)
+            if (form.tags) parts.push(`${form.tags.split(',').filter(Boolean).length} ${t('etiquetas', 'tags')}`)
+            if (form.notes) parts.push(t('notas', 'notes'))
+            return parts.length > 0 ? parts.join(' · ') : t('sin configurar', 'not set')
+          })()}>
             <div>
               <label className={labelCls}>{t('Notas', 'Notes')}</label>
               <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
@@ -985,11 +1462,57 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 placeholder={t('Nombre del beneficiario...', 'Beneficiary name...')}
                 className={inputCls} />
             </div>
-          </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>{t('Jurisdicción fiscal', 'Tax jurisdiction')}</label>
+                <select value={form.taxJurisdiction} onChange={e => set('taxJurisdiction', e.target.value)} className={inputCls}>
+                  <option value="">{t('-- Opcional --', '-- Optional --')}</option>
+                  <option value="GT">🇬🇹 Guatemala</option>
+                  <option value="MX">🇲🇽 México</option>
+                  <option value="US">🇺🇸 USA</option>
+                  <option value="CO">🇨🇴 Colombia</option>
+                  <option value="CL">🇨🇱 Chile</option>
+                  <option value="BR">🇧🇷 Brasil</option>
+                  <option value="PE">🇵🇪 Perú</option>
+                  <option value="AR">🇦🇷 Argentina</option>
+                  <option value="OTHER">{t('Otro', 'Other')}</option>
+                </select>
+              </div>
+              <div>
+                <label className={labelCls}>{t('País del activo', 'Asset country')}</label>
+                <select value={form.assetCountry} onChange={e => set('assetCountry', e.target.value)} className={inputCls}>
+                  <option value="">{t('-- Opcional --', '-- Optional --')}</option>
+                  <option value="GT">🇬🇹 Guatemala</option>
+                  <option value="MX">🇲🇽 México</option>
+                  <option value="US">🇺🇸 USA</option>
+                  <option value="CO">🇨🇴 Colombia</option>
+                  <option value="CL">🇨🇱 Chile</option>
+                  <option value="BR">🇧🇷 Brasil</option>
+                  <option value="PE">🇵🇪 Perú</option>
+                  <option value="AR">🇦🇷 Argentina</option>
+                  <option value="CR">🇨🇷 Costa Rica</option>
+                  <option value="PA">🇵🇦 Panamá</option>
+                  <option value="ES">🇪🇸 España</option>
+                  <option value="UK">🇬🇧 UK</option>
+                  <option value="DE">🇩🇪 Alemania</option>
+                  <option value="CH">🇨🇭 Suiza</option>
+                  <option value="JP">🇯🇵 Japón</option>
+                  <option value="CN">🇨🇳 China</option>
+                  <option value="KR">🇰🇷 Corea del Sur</option>
+                  <option value="HK">🇭🇰 Hong Kong</option>
+                  <option value="SG">🇸🇬 Singapur</option>
+                  <option value="AU">🇦🇺 Australia</option>
+                  <option value="CA">🇨🇦 Canadá</option>
+                  <option value="GLOBAL">{t('Global / Multi-país', 'Global / Multi-country')}</option>
+                  <option value="OTHER">{t('Otro', 'Other')}</option>
+                </select>
+              </div>
+            </div>
+          </FormSection>
 
           {/* Section 3: Income/Dividends */}
           {isMarket && item.dividendYield > 0 && (
-            <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'rgba(37,99,235,0.2)', backgroundColor: 'rgba(37,99,235,0.05)' }}>
+            <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 5%, transparent)' }}>
               <p className="text-xs font-medium" style={{ color: 'var(--accent-green)' }}>💰 {t('Dividendo', 'Dividend')}: {item.dividendYield}% {item.incomeFrequency || ''}</p>
               <div>
                 <p className="text-xs text-[var(--text-muted,#475569)] mb-1">{t('Acción con dividendos:', 'Dividend action:')}</p>
@@ -1001,14 +1524,14 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   </button>
                   <button type="button" onClick={() => set('dividendAction', 'reinvest')}
                     className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                    style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                    style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                     🔄 {t('Reinvertir', 'Reinvest')}
                   </button>
                 </div>
               </div>
               {form.dividendAction === 'cash' && (
                 <div>
-                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Dividendos van a:', 'Dividends go to:')}</label>
+                  <label className={labelCls}>{t('Dividendos van a:', 'Dividends go to:')}</label>
                   <select value={form.incomeDestination}
                     onChange={e => { if (e.target.value === '__new__') { setCreatingDest(true); return } set('incomeDestination', e.target.value) }}
                     className={inputCls}>
@@ -1020,7 +1543,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   </select>
                   {creatingDest && onCreateDestination && (
                     <InlineCreateAccount onCreate={onCreateDestination} onCancel={() => setCreatingDest(false)}
-                      onCreated={handleDestCreated} lang={lang} defaultCurrency={form.currency} />
+                      onCreated={handleDestCreated} lang={lang} defaultCurrency={form.currency}
+                      sourceAcquisitionDate={form.acquisitionDate || item.acquisitionDate || null} />
                   )}
                 </div>
               )}
@@ -1028,23 +1552,23 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           )}
 
           {hasIncome && (
-            <button type="button" onClick={() => setShowIncome(!showIncome)}
-              className="w-full text-left px-3 py-2 border border-[var(--card-border,#38383A)] rounded-lg text-xs text-[var(--text-secondary,#94a3b8)] hover:border-blue-500/30 transition-colors flex items-center justify-between">
-              <span>💰 {t('Configurar rendimiento', 'Configure yield')}</span>
-              <span className="text-lg">{showIncome ? '−' : '+'}</span>
-            </button>
-          )}
-
-          {showIncome && hasIncome && (
-            <div className="border border-[var(--card-border,#38383A)] rounded-lg p-3 space-y-3">
+            <FormSection icon="💰" title={t('Configurar rendimiento', 'Configure yield')}
+              open={showIncome} onToggle={setShowIncome}
+              summary={(() => {
+                if (form.rateType === 'variable' && (form.rateMin || form.rateMax)) return `${form.rateMin || 0}%-${form.rateMax || 0}% ${t('variable', 'variable')}`
+                if (form.rateType === 'continuous' && form.incomeRate) return `${form.incomeRate}% ${t('continua', 'continuous')}`
+                if (form.incomeMode === 'percent' && form.incomeRate) return `${form.incomeRate}% ${t('anual', 'annual')}`
+                if (form.incomeMode === 'fixed' && form.incomeAmount) return `${form.currency} ${form.incomeAmount} ${t('por pago', 'per payment')}`
+                return t('sin configurar', 'not set')
+              })()}>
               {/* Rate type */}
               <div>
-                <label className="text-xs text-[var(--text-muted,#475569)] mb-1.5 block">{t('Tipo de tasa', 'Rate type')}</label>
+                <label className={labelCls}>{t('Tipo de tasa', 'Rate type')}</label>
                 <div className="flex gap-1">
                   {[{ key: 'fixed', es: 'Fija', en: 'Fixed' }, { key: 'variable', es: 'Variable', en: 'Variable' }, { key: 'continuous', es: 'Continua', en: 'Continuous' }].map(rt => (
                     <button key={rt.key} type="button" onClick={() => set('rateType', rt.key)}
                       className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                      style={form.rateType === rt.key ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                      style={form.rateType === rt.key ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                       {lang === 'es' ? rt.es : rt.en}
                     </button>
                   ))}
@@ -1055,12 +1579,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               <div className="flex gap-1">
                 <button type="button" onClick={() => set('incomeMode', 'fixed')}
                   className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                  style={form.incomeMode === 'fixed' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                  style={form.incomeMode === 'fixed' ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                   {t('Monto fijo', 'Fixed amount')}
                 </button>
                 <button type="button" onClick={() => set('incomeMode', 'percent')}
                   className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                  style={form.incomeMode === 'percent' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                  style={form.incomeMode === 'percent' ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                   {t('% del saldo', '% of balance')}
                 </button>
               </div>
@@ -1069,39 +1593,41 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               {form.rateType === 'variable' ? (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <div>
-                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa mín %', 'Min %')}</label>
+                    <label className={labelCls}>{t('Tasa mín %', 'Min %')}</label>
                     <input value={form.rateMin} onChange={e => set('rateMin', e.target.value)}
                       placeholder="4.5" type="number" step="any" className={inputCls} />
                   </div>
                   <div>
-                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa máx %', 'Max %')}</label>
+                    <label className={labelCls}>{t('Tasa máx %', 'Max %')}</label>
                     <input value={form.rateMax} onChange={e => set('rateMax', e.target.value)}
                       placeholder="5.5" type="number" step="any" className={inputCls} />
                   </div>
                   <div>
-                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Día pago', 'Pay day')}</label>
+                    <label className={labelCls}>{t('Día pago', 'Pay day')}</label>
                     <input value={form.incomePayDay} onChange={e => set('incomePayDay', e.target.value)}
                       type="number" min="1" max="31" className={inputCls} />
+                      {payDayHint && <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{payDayHint}</p>}
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
                     {form.incomeMode === 'fixed' ? (<>
-                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Monto por pago', 'Per payment')} <InfoTip text={t('Monto fijo que recibes en cada pago, en la moneda del activo.', 'Fixed amount you receive each payment, in the asset\'s currency.')} /></label>
+                      <label className={labelCls}>{t('Monto por pago', 'Per payment')} <InfoTip text={t('Monto fijo que recibes en cada pago, en la moneda del activo.', 'Fixed amount you receive each payment, in the asset\'s currency.')} /></label>
                       <input value={form.incomeAmount} onChange={e => set('incomeAmount', e.target.value)}
                         type="number" step="any" className={inputCls} />
                     </>) : (<>
-                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa anual %', 'Annual rate %')} <InfoTip text={t('Tasa de rendimiento anual en porcentaje. Se divide entre los meses de pago seleccionados.', 'Annual yield rate as percentage. Divided among selected payment months.')} /></label>
+                      <label className={labelCls}>{t('Tasa anual %', 'Annual rate %')} <InfoTip text={t('Tasa de rendimiento anual en porcentaje. Se divide entre los meses de pago seleccionados.', 'Annual yield rate as percentage. Divided among selected payment months.')} /></label>
                       <input value={form.incomeRate} onChange={e => set('incomeRate', e.target.value)}
                         type="number" step="any" className={inputCls} />
                     </>)}
                   </div>
                   {form.rateType !== 'continuous' && (
                     <div>
-                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Día de pago', 'Pay day')}</label>
+                      <label className={labelCls}>{t('Día de pago', 'Pay day')}</label>
                       <input value={form.incomePayDay} onChange={e => set('incomePayDay', e.target.value)}
                         type="number" min="1" max="31" className={inputCls} />
+                      {payDayHint && <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{payDayHint}</p>}
                     </div>
                   )}
                 </div>
@@ -1122,7 +1648,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               {/* Payment months */}
               {form.rateType !== 'continuous' && (
                 <div>
-                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1.5 block">{t('Meses de pago', 'Payment months')}</label>
+                  <label className={labelCls}>{t('Meses de pago', 'Payment months')}</label>
                   <div className="flex flex-wrap gap-1">
                     {['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'].map((label, i) => {
                       const active = form.incomeMonths.includes(i)
@@ -1130,7 +1656,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                         <button key={i} type="button"
                           onClick={() => set('incomeMonths', active ? form.incomeMonths.filter(x => x !== i) : [...form.incomeMonths, i].sort((a, b) => a - b))}
                           className="px-2 py-1 text-xs font-medium rounded transition-all border"
-                          style={active ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.25)', borderColor: 'rgba(37,99,235,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                          style={active ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 25%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                           {label}
                         </button>
                       )
@@ -1143,7 +1669,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   dividend stocks; bonds/CDT/alternatives can reinvest too
                   (processDividends already supports it for any asset). */}
               <div>
-                <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('¿Qué haces con los pagos?', 'What do you do with payments?')}</label>
+                <label className={labelCls}>{t('¿Qué haces con los pagos?', 'What do you do with payments?')}</label>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => set('dividendAction', 'cash')}
                     className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
@@ -1152,7 +1678,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   </button>
                   <button type="button" onClick={() => set('dividendAction', 'reinvest')}
                     className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                    style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                    style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                     🔄 {t('Se reinvierten', 'They reinvest')}
                   </button>
                 </div>
@@ -1165,7 +1691,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 </p>
               ) : (
                 <div>
-                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Pagos van a:', 'Payments go to:')}</label>
+                  <label className={labelCls}>{t('Pagos van a:', 'Payments go to:')}</label>
                   <select value={form.incomeDestination}
                     onChange={e => { if (e.target.value === '__new__') { setCreatingDest(true); return } set('incomeDestination', e.target.value) }}
                     className={inputCls}>
@@ -1177,18 +1703,19 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   </select>
                   {creatingDest && onCreateDestination && (
                     <InlineCreateAccount onCreate={onCreateDestination} onCancel={() => setCreatingDest(false)}
-                      onCreated={handleDestCreated} lang={lang} defaultCurrency={form.currency} />
+                      onCreated={handleDestCreated} lang={lang} defaultCurrency={form.currency}
+                      sourceAcquisitionDate={form.acquisitionDate || item.acquisitionDate || null} />
                   )}
                 </div>
               )}
 
               {/* Capital return */}
               <div>
-                <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Capital devuelto por pago', 'Capital returned per payment')}</label>
+                <label className={labelCls}>{t('Capital devuelto por pago', 'Capital returned per payment')}</label>
                 <input value={form.capitalReturn} onChange={e => set('capitalReturn', e.target.value)}
                   placeholder="0" type="number" step="any" className={inputCls} />
               </div>
-            </div>
+            </FormSection>
           )}
 
           {/* Flow confirmation — a value delta needs classifying before save */}
@@ -1227,36 +1754,44 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
             )
           })()}
 
-          {/* Actions */}
-          <div className="flex gap-3 pt-2">
-            <button type="button" onClick={handleDelete}
-              className="px-4 py-2.5 text-xs font-medium rounded-lg transition-colors border"
-              style={confirmDelete ? { backgroundColor: 'var(--text-negative)', color: '#ffffff', borderColor: 'var(--text-negative)' } : { color: 'var(--text-negative)', borderColor: 'color-mix(in srgb, var(--text-negative) 30%, transparent)' }}>
-              {confirmDelete ? t('Confirmar', 'Confirm') : t('Eliminar', 'Delete')}
-            </button>
-            <div className="flex-1" />
-            {(() => {
-              const qty = parseFloat(form.quantity) || (isBank ? 1 : 0)
-              const price = parseFloat(form.currentPrice) || parseFloat(form.purchasePrice) || 0
-              const total = qty * price
-              const isDebtType = /debt|deuda/i.test(form.type)
-              const fmt = (v) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-              if (total > 0) return (
-                <span className="text-xs font-medium px-2 py-1 rounded" style={{ color: 'var(--accent-green)', backgroundColor: 'color-mix(in srgb, var(--accent-green) 10%, transparent)' }}>
-                  {isDebtType ? t('Deuda', 'Debt') : ''} {form.currency} {fmt(total)}
-                </span>
-              )
-              return null
-            })()}
-            <button type="button" onClick={onClose}
-              className="px-4 py-2.5 border border-[var(--card-border,#38383A)] text-[var(--text-secondary,#cbd5e1)] rounded-lg hover:bg-[var(--input-bg,#2C2C2E)] transition-colors text-sm">
-              {t('Cancelar', 'Cancel')}
-            </button>
-            <button type="submit" disabled={saving}
-              className="px-6 py-2.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors text-sm font-medium"
-              style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}>
-              {saving ? '...' : onNavigate ? t('Guardar →', 'Save →') : t('Guardar', 'Save')}
-            </button>
+          {/* Actions — sticky so Guardar/Cancelar never require scrolling past
+              every accordion, even with Rendimiento expanded. Stacks on mobile
+              (Eliminar+total on top, Cancelar/Guardar full-width below) so four
+              controls don't get squeezed onto one 375px-wide row. */}
+          <div className="sticky bottom-0 -mx-6 -mb-6 mt-2 px-6 py-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 rounded-b-[20px]"
+            style={{ background: 'var(--bg-card)', backdropFilter: 'var(--glass-blur-strong)', WebkitBackdropFilter: 'var(--glass-blur-strong)', borderTop: '1px solid var(--card-border,#38383A)' }}>
+            <div className="flex items-center gap-3 order-2 sm:order-1">
+              <button type="button" onClick={handleDelete}
+                className="px-4 py-2.5 text-xs font-medium rounded-lg transition-colors border"
+                style={confirmDelete ? { backgroundColor: 'var(--text-negative)', color: '#ffffff', borderColor: 'var(--text-negative)' } : { color: 'var(--text-negative)', borderColor: 'color-mix(in srgb, var(--text-negative) 30%, transparent)' }}>
+                {confirmDelete ? t('Confirmar', 'Confirm') : t('Eliminar', 'Delete')}
+              </button>
+              {(() => {
+                const qty = parseFloat(form.quantity) || (isBank ? 1 : 0)
+                const price = parseFloat(form.currentPrice) || parseFloat(form.purchasePrice) || 0
+                const total = qty * price
+                const isDebtType = /debt|deuda/i.test(form.type)
+                const fmt = (v) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                if (total > 0) return (
+                  <span className="text-xs font-medium px-2 py-1 rounded" style={{ color: 'var(--accent-green)', backgroundColor: 'color-mix(in srgb, var(--accent-green) 10%, transparent)' }}>
+                    {isDebtType ? t('Deuda', 'Debt') : ''} {form.currency} {fmt(total)}
+                  </span>
+                )
+                return null
+              })()}
+            </div>
+            <div className="flex-1 order-1 sm:order-2" />
+            <div className="flex gap-3 order-3">
+              <button type="button" onClick={onClose}
+                className="flex-1 sm:flex-none px-4 py-2.5 border border-[var(--card-border,#38383A)] text-[var(--text-secondary,#cbd5e1)] rounded-lg hover:bg-[var(--input-bg,#2C2C2E)] transition-colors text-sm">
+                {t('Cancelar', 'Cancel')}
+              </button>
+              <button type="submit" disabled={saving}
+                className="flex-1 sm:flex-none px-6 py-2.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors text-sm font-medium"
+                style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}>
+                {saving ? '...' : onNavigate ? t('Guardar →', 'Save →') : t('Guardar', 'Save')}
+              </button>
+            </div>
           </div>
 
           {/* Delete warning */}

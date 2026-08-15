@@ -69,7 +69,11 @@ function parseNumber(val) {
   return parseAmount(val)
 }
 
-export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateItem, onDeleteItem, onBulkImport, existingItems, existingLots = [], existingFinanceTransactions = [], activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null }) {
+// onImportComplete (FASE GM): fired once when an import lands on its done
+// screen, with a summary of what was written. The IBKR journey orchestrator
+// listens to it to ADVANCE to the next step instead of dropping the user back
+// on the dashboard wondering whether more steps exist (the reported bug).
+export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateItem, onDeleteItem, onBulkImport, existingItems, existingLots = [], existingFinanceTransactions = [], activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null, onImportComplete = null, journeyActive = false }) {
   const trapRef = useFocusTrap()
   const [mode, setMode] = useState('file')
   const [step, setStep] = useState('upload')
@@ -90,11 +94,6 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   const [ibkrData, setIbkrData] = useState(null)
   const [ibkrImportMode, setIbkrImportMode] = useState('merge')
   const [importProgress, setImportProgress] = useState({ done: 0, total: 0 })
-
-  // Manual form
-  const [manual, setManual] = useState({
-    symbol: '', name: '', type: 'Stock', quantity: '', purchasePrice: '', institution: '',
-  })
 
   const [extraSheets, setExtraSheets] = useState({ snapshots: [], transactions: [] })
   const [biData, setBiData] = useState(null)
@@ -574,34 +573,8 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     setResult({ success, failed, total: preview.length, snapCount, txCount, failReasons })
     setStep('done')
     setImporting(false)
-  }, [preview, onImportItems, onImportSnapshot, onImportTransaction, onAddLot, activePortfolio, extraSheets])
-
-  const doManualImport = useCallback(async () => {
-    if (!manual.symbol && !manual.name) {
-      setError(lang === 'es' ? 'Ingresa al menos el símbolo o nombre.' : 'Enter at least symbol or name.')
-      return
-    }
-    const candidate = sanitizeImportItem({
-      ...manual,
-      quantity: parseNumber(manual.quantity),
-      purchasePrice: parseNumber(manual.purchasePrice),
-    })
-    const errors = validateItem(candidate)
-    if (errors.length > 0) {
-      setError(errors.join(', '))
-      return
-    }
-    setImporting(true)
-    setError('')
-    try {
-      await onImportItems(candidate)
-      setResult({ success: 1, failed: 0, total: 1 })
-      setStep('done')
-    } catch (err) {
-      setError(err.message)
-    }
-    setImporting(false)
-  }, [manual, onImportItems, lang])
+    if (onImportComplete) onImportComplete({ kind: 'generic', summary: { success, failed } })
+  }, [preview, onImportItems, onImportSnapshot, onImportTransaction, onAddLot, activePortfolio, extraSheets, onImportComplete])
 
   const doBIImport = useCallback(async () => {
     if (!biData || !biMatch || !onAddFinanceTransaction) return
@@ -747,8 +720,9 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     } finally {
       setStep('done')
       setImporting(false)
+      if (onImportComplete) onImportComplete({ kind: 'ibkr', summary })
     }
-  }, [ibkrData, onBulkImport, existingItems, activePortfolio, activeEntity, ibkrImportMode])
+  }, [ibkrData, onBulkImport, existingItems, activePortfolio, activeEntity, ibkrImportMode, onImportComplete])
 
   // Dry run of the enrich match, so the preview can promise a concrete outcome
   // ("21 se enlazan, 0 se duplican") instead of making the user guess which mode
@@ -804,9 +778,15 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   // lib/brokerHowTo.js (shared with ConnectionsModal's API flow) — this modal
   // only needs the broker's display name/icon plus its csv.steps/csv.note.
   const brokerInfo = brokerHint ? getBrokerHowTo(brokerHint) : null
+  // "Importar CSV" era literalmente falso para IBKR, cuyo archivo es XML (y
+  // esta pantalla también acepta xlsx y pdf para cualquier broker): decía el
+  // formato equivocado justo arriba de una zona que pide .xml.
   const modalTitle = brokerInfo
-    ? t(`Importar CSV: ${brokerInfo.name}`, `Import CSV: ${brokerInfo.name}`)
+    ? t(`Importar archivo: ${brokerInfo.name}`, `Import file: ${brokerInfo.name}`)
     : t('Importar Portfolio', 'Import Portfolio')
+  // Dentro del viaje, las instrucciones que YA son pasos propios del viaje se
+  // omiten (ver journeyStep en lib/brokerHowTo.js).
+  const brokerSteps = (brokerInfo?.csv?.steps || []).filter((s) => !(journeyActive && s.journeyStep))
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="import-modal-title"
@@ -824,7 +804,6 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
             {[
               { key: 'file', label: t('Archivo', 'File'), icon: '📁' },
               { key: 'paste', label: t('Pegar', 'Paste'), icon: '📋' },
-              { key: 'manual', label: t('Manual', 'Manual'), icon: '✏️' },
             ].map((tab) => (
               <button key={tab.key} onClick={() => { setMode(tab.key); setError('') }}
                 className="flex-1 px-4 py-3 text-sm font-medium transition-colors"
@@ -844,9 +823,12 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
           {/* Upload step */}
           {step === 'upload' && mode === 'file' && (
             <div>
+              {/* FASE IH2: plegadas por defecto, misma razón que el paso 1:
+                  con la lista abierta, la zona de "arrastra tu archivo" (la
+                  única acción de esta pantalla) quedaba fuera de la vista. */}
               {brokerInfo?.csv?.steps && (
                 <div className="mb-4">
-                  <BrokerSteps steps={brokerInfo.csv.steps} note={brokerInfo.csv.note} variant="csv" lang={lang} />
+                  <BrokerSteps steps={brokerSteps} note={brokerInfo.csv.note} variant="csv" lang={lang} collapsible />
                 </div>
               )}
               <div
@@ -1034,58 +1016,6 @@ When done, give me the .xlsx file ready to download.`
               <button onClick={handlePaste}
                 className="mt-3 w-full py-2.5 rounded-lg hover:opacity-90 transition-colors text-sm font-medium" style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
                 {t('Procesar datos', 'Process data')}
-              </button>
-            </div>
-          )}
-
-          {step === 'upload' && mode === 'manual' && (
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-slate-400 mb-1 block">{t('Símbolo', 'Symbol')} *</label>
-                  <input value={manual.symbol} onChange={(e) => setManual({ ...manual, symbol: e.target.value })}
-                    placeholder="AAPL" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#3b82f6]/50" />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-400 mb-1 block">{t('Nombre', 'Name')}</label>
-                  <input value={manual.name} onChange={(e) => setManual({ ...manual, name: e.target.value })}
-                    placeholder="Apple Inc" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#3b82f6]/50" />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-slate-400 mb-1 block">{t('Tipo', 'Type')}</label>
-                  <select value={manual.type} onChange={(e) => setManual({ ...manual, type: e.target.value })}
-                    className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-[#3b82f6]/50">
-                    <option value="Stock">Stock</option>
-                    <option value="Crypto">Crypto</option>
-                    <option value="Bond">{t('Bono/Instrumento', 'Bond')}</option>
-                    <option value="Fund">{t('Fondo/ETF', 'Fund/ETF')}</option>
-                    <option value="Bank">{t('Banco/Cash', 'Bank/Cash')}</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-slate-400 mb-1 block">{t('Institución', 'Institution')}</label>
-                  <input value={manual.institution} onChange={(e) => setManual({ ...manual, institution: e.target.value })}
-                    placeholder="Interactive Brokers" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#3b82f6]/50" />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-slate-400 mb-1 block">{t('Cantidad', 'Quantity')} *</label>
-                  <input value={manual.quantity} onChange={(e) => setManual({ ...manual, quantity: e.target.value })}
-                    placeholder="10" type="number" step="any" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#3b82f6]/50" />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-400 mb-1 block">{t('Precio', 'Price')} *</label>
-                  <input value={manual.purchasePrice} onChange={(e) => setManual({ ...manual, purchasePrice: e.target.value })}
-                    placeholder="150.00" type="number" step="any" className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#3b82f6]/50" />
-                </div>
-              </div>
-              <button onClick={doManualImport} disabled={importing}
-                className="mt-2 w-full py-2.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors text-sm font-medium"
-                style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}>
-                {importing ? t('Importando...', 'Importing...') : t('Agregar', 'Add')}
               </button>
             </div>
           )}

@@ -4,11 +4,25 @@ import { useState, useEffect, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { formatCurrency, formatDate, getItemPrice, isMarketPriced } from './utils'
 import { authFetch, safeJson } from '@/lib/authFetch'
+import { computeVentureMetrics } from '@/lib/ventureMetrics'
 import DocumentVault from './DocumentVault'
 
 // Unified with the app-wide market whitelist (isMarketPriced) — the old local
 // blacklist disagreed with the movers/quotes filter, so the same asset could
 // show "no market data" here while plunging -9.66% in the movers list.
+
+// Mirrors the <option value=...> keys in AddAccountModal/EditAccountModal's
+// "Ronda de inversión" dropdown — item.investmentStage stores the key, not
+// the label, so this is the one place that turns it back into display text.
+const STAGE_LABELS = {
+  pre_seed: { es: 'Pre-seed', en: 'Pre-seed' },
+  seed: { es: 'Seed', en: 'Seed' },
+  series_a: { es: 'Series A', en: 'Series A' },
+  series_b: { es: 'Series B', en: 'Series B' },
+  series_c_plus: { es: 'Series C+', en: 'Series C+' },
+  growth: { es: 'Growth / Late stage', en: 'Growth / Late stage' },
+  buyout: { es: 'Buyout / PE', en: 'Buyout / PE' },
+}
 
 export default function AssetDetailModal({ item, onClose, lang = 'es', uid, transactions = [], convert, baseCurrency = 'USD' }) {
   const trapRef = useFocusTrap()
@@ -74,6 +88,51 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
   const cost = (item.quantity || 0) * (item.purchasePrice || 0)
   const pnl = totalValue - cost
   const pnlPct = cost > 0 ? (pnl / cost) * 100 : 0
+
+  // FASE FQ. GIPS card for Venture/PE (Alternative) positions: since-inception
+  // XIRR + TVPI/DPI/RVPI (+ PIC when committedCapital is set). Money-weighted
+  // on purpose: per GIPS 2020, closed-end/illiquid vehicles where the manager
+  // controls flow timing report IRR as the primary figure, not TWR. This reads
+  // the SAME transactions the frozen return formula reads and touches none of
+  // it: a presentation-only layer over lib/ventureMetrics.js (pure, tested).
+  //  - capital calls: DEPOSIT/BUY linked to this item (the opening deposit of
+  //    an entry-fee asset carries the fee inside, so IRR measures against the
+  //    full out-of-pocket, same convention as getItemCostBasis),
+  //  - distributions: linked WITHDRAWAL/SELL, plus DIVIDEND/INTEREST that was
+  //    NOT reinvested (reinvested income stays inside the residual value;
+  //    counting it as a distribution would double-count it),
+  //  - residual: today's value of the position.
+  const ventureMetrics = useMemo(() => {
+    if (!/alternative|alternativ/i.test(item.type || '')) return null
+    const sym = (item.symbol || item.name || '').toUpperCase()
+    const mine = (transactions || []).filter((tx) =>
+      tx._linkedItemId === item.id || (!tx._linkedItemId && (tx.symbol || '').toUpperCase() === sym))
+    const calls = []
+    const dists = []
+    for (const tx of mine) {
+      const ts = tx.date ? new Date(tx.date).getTime() : 0
+      if (!(ts > 0)) continue
+      const type = (tx.type || '').toUpperCase()
+      const amtRaw = Math.abs(Number(tx.totalAmount ?? tx.amount ?? 0))
+      const cur = tx.currency || baseCurrency
+      const amount = convert ? convert(amtRaw, cur, baseCurrency) : amtRaw
+      if (!(amount > 0) || !isFinite(amount)) continue
+      if (type === 'DEPOSIT' || type === 'BUY') calls.push({ ts, amount })
+      else if (type === 'WITHDRAWAL' || type === 'SELL') dists.push({ ts, amount })
+      else if (type === 'DIVIDEND' || type === 'INTEREST') {
+        const reinvested = tx._reinvested === true || item.dividendAction === 'reinvest'
+        if (!reinvested) dists.push({ ts, amount })
+      }
+    }
+    if (calls.length === 0) return null
+    return computeVentureMetrics({
+      capitalCalls: calls,
+      distributions: dists,
+      residualValue: totalValue,
+      nowTs: Date.now(),
+      committedCapital: item.committedCapital > 0 ? item.committedCapital : undefined,
+    })
+  }, [transactions, item, convert, baseCurrency, totalValue])
 
   // Project an array of {ts, value, date} onto the SVG canvas.
   function project(rawSeries) {
@@ -202,11 +261,83 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
             )}
           </div>
 
+          {/* VC/startup direct investment: cap-table snapshot, own row so it
+              reads as a unit ("Series A · $10M valuation · 0.50% of the
+              company") instead of scattering into the generic details line
+              below. A later round dilutes this — it's a manual snapshot the
+              user updates when they hear about a new one, not tracked
+              automatically. */}
+          {(item.investmentStage || item.roundValuation > 0 || item.ownershipPct > 0) && (
+            <div className="text-xs" style={{ color: 'var(--accent-purple)' }}>
+              🚀 {[
+                item.investmentStage ? (STAGE_LABELS[item.investmentStage]?.[lang] || STAGE_LABELS[item.investmentStage]?.es || item.investmentStage) : null,
+                item.roundValuation > 0 ? `${t('valuación', 'valuation')} ${formatCurrency(item.roundValuation)}` : null,
+                item.ownershipPct > 0 ? `${item.ownershipPct}% ${t('de la empresa', 'of the company')}` : null,
+              ].filter(Boolean).join(' · ')}
+            </div>
+          )}
+
+          {/* FASE FQ. The GIPS card: since-inception IRR + multiples for a
+              Venture/PE position. Only renders when there is at least one
+              capital call to measure against (ventureMetrics is null
+              otherwise), so a plain Alternative with no linked flows shows
+              nothing new. */}
+          {ventureMetrics && (
+            <div className="border rounded-lg p-3" style={{ borderColor: 'color-mix(in srgb, var(--accent-purple) 20%, transparent)', backgroundColor: 'color-mix(in srgb, var(--accent-purple) 5%, transparent)' }}>
+              <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+                <span className="text-xs font-medium" style={{ color: 'var(--accent-purple)' }}>
+                  📊 {t('Métricas VC/PE', 'VC/PE metrics')}
+                </span>
+                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                  {ventureMetrics.annualized
+                    ? t('IRR desde el primer aporte, anualizado (GIPS)', 'IRR since first capital call, annualized (GIPS)')
+                    : t('IRR del período: menos de 1 año, sin anualizar (GIPS)', 'Period IRR: under 1 year, not annualized (GIPS)')}
+                </span>
+              </div>
+              <div className={`grid grid-cols-2 ${ventureMetrics.pic != null ? 'sm:grid-cols-5' : 'sm:grid-cols-4'} gap-2`}>
+                <div className="rounded-md px-2 py-1.5 text-center bg-theme-base">
+                  <span className="text-[10px] uppercase tracking-wide block" style={{ color: 'var(--text-muted)' }}>IRR</span>
+                  <span className="text-sm font-bold" style={{ color: ventureMetrics.irrDisplay == null ? 'var(--text-muted)' : ventureMetrics.irrDisplay >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
+                    {ventureMetrics.irrDisplay == null ? t('N/D', 'N/A') : `${ventureMetrics.irrDisplay >= 0 ? '+' : ''}${(ventureMetrics.irrDisplay * 100).toFixed(2)}%`}
+                  </span>
+                </div>
+                <div className="rounded-md px-2 py-1.5 text-center bg-theme-base">
+                  <span className="text-[10px] uppercase tracking-wide block" style={{ color: 'var(--text-muted)' }}>TVPI</span>
+                  <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{ventureMetrics.tvpi.toFixed(2)}x</span>
+                </div>
+                <div className="rounded-md px-2 py-1.5 text-center bg-theme-base">
+                  <span className="text-[10px] uppercase tracking-wide block" style={{ color: 'var(--text-muted)' }}>DPI</span>
+                  <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{ventureMetrics.dpi.toFixed(2)}x</span>
+                </div>
+                <div className="rounded-md px-2 py-1.5 text-center bg-theme-base">
+                  <span className="text-[10px] uppercase tracking-wide block" style={{ color: 'var(--text-muted)' }}>RVPI</span>
+                  <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{ventureMetrics.rvpi.toFixed(2)}x</span>
+                </div>
+                {ventureMetrics.pic != null && (
+                  <div className="rounded-md px-2 py-1.5 text-center bg-theme-base">
+                    <span className="text-[10px] uppercase tracking-wide block" style={{ color: 'var(--text-muted)' }}>PIC</span>
+                    <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{(ventureMetrics.pic * 100).toFixed(0)}%</span>
+                  </div>
+                )}
+              </div>
+              <p className="text-[10px] mt-2" style={{ color: 'var(--text-muted)' }}>
+                {t('Aportes', 'Paid in')} {formatCurrency(ventureMetrics.paidIn)}
+                {' · '}{t('Distribuciones', 'Distributions')} {formatCurrency(ventureMetrics.distributed)}
+                {' · '}{t('Valor residual', 'Residual value')} {formatCurrency(ventureMetrics.residual)}
+                {ventureMetrics.pic != null ? ` · ${t('Comprometido', 'Committed')} ${formatCurrency(item.committedCapital)}` : ''}
+              </p>
+            </div>
+          )}
+
           {/* Extra details */}
           {(item.maturityDate || item.incomeRate || item.rateType === 'variable' || item.custodyType || item.taxJurisdiction || item.notes) && (
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs" style={{ color: 'var(--text-secondary)' }}>
+              {/* formatDate() en vez del string crudo o un toLocaleDateString()
+                  sin locale: ese último cae al formato numérico por defecto
+                  del navegador (MM/DD/YYYY en uno en-US), y el string crudo
+                  mostraba el ISO tal cual ("2027-06-15") sin formatear. */}
               {item.maturityDate && (
-                <span>{t('Vence', 'Matures')}: <span className="font-medium" style={{ color: 'var(--accent-orange)' }}>{typeof item.maturityDate === 'string' ? item.maturityDate : new Date(item.maturityDate?.seconds ? item.maturityDate.seconds * 1000 : item.maturityDate).toLocaleDateString()}</span></span>
+                <span>{t('Vence', 'Matures')}: <span className="font-medium" style={{ color: 'var(--accent-orange)' }}>{formatDate(item.maturityDate)}</span></span>
               )}
               {item.rateType === 'variable' && item.rateMin > 0 && (
                 <span>{t('Tasa', 'Rate')}: <span className="font-medium" style={{ color: 'var(--accent-blue)' }}>{item.rateMin}% - {item.rateMax}%</span></span>

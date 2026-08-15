@@ -6,36 +6,25 @@ import { authFetch, safeJson } from '@/lib/authFetch'
 import { validateItem } from '@/lib/validation'
 import InlineCreateAccount from './InlineCreateAccount'
 import TimelineEditor, { validateTimelineRows } from './TimelineEditor'
+import { detectCurrency } from '@/lib/institutionCurrency'
+import { getScheduledPayDates, estimateIncomeAmount } from '@/lib/incomeSchedule'
+import { InfoTip } from './ui/Tooltip'
+import { DEBT_CLARIFICATION } from './dashboard/utils'
+import { currencyOptions } from '@/lib/currencies'
 
-const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
-
-const INSTITUTION_CURRENCY = {
-  bi: 'GTQ', banrural: 'GTQ', bam: 'GTQ', industrial: 'GTQ', bantrab: 'GTQ',
-  'g&t': 'GTQ', gyt: 'GTQ', ficohsa: 'GTQ', promerica: 'GTQ',
-  banamex: 'MXN', banorte: 'MXN', azteca: 'MXN', 'hsbc mx': 'MXN',
-  bancolombia: 'COP', davivienda: 'COP', 'bbva co': 'COP', nequi: 'COP',
-  bcp: 'PEN', interbank: 'PEN', scotiabank: 'PEN',
-  itau: 'BRL', bradesco: 'BRL', nubank: 'BRL',
-  'banco estado': 'CLP', bci: 'CLP', 'santander cl': 'CLP',
-  chase: 'USD', 'wells fargo': 'USD', citi: 'USD', bofa: 'USD',
-  schwab: 'USD', fidelity: 'USD', vanguard: 'USD', ibkr: 'USD',
-  barclays: 'GBP', lloyds: 'GBP', 'hsbc uk': 'GBP',
-}
-
-function detectCurrency(institution) {
-  if (!institution) return null
-  const lower = institution.toLowerCase().trim()
-  for (const [key, cur] of Object.entries(INSTITUTION_CURRENCY)) {
-    if (lower.includes(key) || lower === key) return cur
-  }
-  return null
-}
 
 const TYPES = [
   { key: 'Stock', icon: '📈', es: 'Acción', en: 'Stock', subtypes: [
     { key: 'common', es: 'Común', en: 'Common' },
     { key: 'preferred', es: 'Preferente', en: 'Preferred' },
-    { key: 'private', es: 'Privada', en: 'Private' },
+    // Común y preferente de empresa PRIVADA son dos subtipos propios (no un
+    // solo "Privada" genérico) para poder tener las dos a la vez, ej. un
+    // fundador con acciones comunes y un inversionista con preferentes del
+    // mismo cap table. Sin cotización pública que buscar: isMarketAsset las
+    // excluye más abajo y entran manual, con la misma lógica de comisión de
+    // entrada/costBasis/dividendo a otra cuenta que el Bono (ver isPrivateStock).
+    { key: 'private_common', es: 'Privada Común', en: 'Private Common' },
+    { key: 'private_preferred', es: 'Privada Preferente', en: 'Private Preferred' },
   ]},
   { key: 'Crypto', icon: '₿', es: 'Crypto', en: 'Crypto', subtypes: [
     { key: 'holding', es: 'Holding', en: 'Holding' },
@@ -69,7 +58,7 @@ const TYPES = [
     { key: 'club_deal', es: 'Club Deal', en: 'Club Deal' },
     { key: 'safe_note', es: 'SAFE Note', en: 'SAFE Note' },
     { key: 'vc_fund', es: 'Fondo VC', en: 'VC Fund' },
-    { key: 'private_equity', es: 'Capital Privado', en: 'Private Equity' },
+    { key: 'private_equity', es: 'PE / Capital Privado', en: 'PE / Private Equity' },
     { key: 'collectible', es: 'Coleccionable', en: 'Collectible' },
     { key: 'other', es: 'Otro', en: 'Other' },
   ]},
@@ -112,13 +101,22 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     isIlliquid: false,
     custodyType: '', custodyDetails: '',
     notes: '',
-    taxJurisdiction: '',
+    taxJurisdiction: '', assetCountry: '',
     safeCap: '', safeDiscount: '', safeType: 'post_money',
+    investmentStage: '', roundValuation: '', ownershipPct: '', committedCapital: '',
     interestRate: '', minimumPayment: '',
     debtTerm: '', installmentsTotal: '', installmentsRemaining: '', monthlyPayment: '',
     cardBrand: '', rewardType: '', rewardRate: '', rewardBalance: '',
+    entryFee: '', entryFeeMode: 'separate', managementFee: '', managementFeeType: 'percent', expenseRatio: '',
+    accruedInterestAtPurchase: '',
   })
   const [isNewMoney, setIsNewMoney] = useState(true)
+  // Pay dates the schedule implies already happened (acquisitionDate + months
+  // configured are in the past) that the user says they did NOT actually
+  // receive. Everything else in that list is assumed received by default —
+  // matching what the automatic backfill already assumes today — so this only
+  // needs a click when reality differs from the schedule.
+  const [excludedPayDates, setExcludedPayDates] = useState([])
   // How the value was built: one lump at acquisitionDate (default) or several
   // dated contributions captured in a timeline (rows explain the total).
   const [valueTimeline, setValueTimeline] = useState('single')
@@ -128,6 +126,11 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
   const [error, setError] = useState('')
   const [divInfo, setDivInfo] = useState(null)
   const [divLoading, setDivLoading] = useState(false)
+  // Auto-detected dividend (divInfo, from Yahoo) is the default for a market
+  // asset; this lets the user correct it by hand if Yahoo's schedule is wrong
+  // or incomplete, without losing the auto-detected values as a starting
+  // point — seeded into form.incomeRate/incomeMonths when toggled on.
+  const [marketDivOverride, setMarketDivOverride] = useState(false)
   const [searchResults, setSearchResults] = useState([])
   const [searchLoading, setSearchLoading] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
@@ -149,7 +152,14 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     set(field, newId)
     setCreatingDest(null)
   }
-  const isMarketAsset = type === 'Stock' || type === 'Crypto' || type === 'Fund'
+  // Acción común/preferente de empresa PRIVADA: no tiene ticker que buscar
+  // (subtype lo distingue de la acción pública de mercado). Se trata como el
+  // Bono: entrada manual, sin isMarketAsset, con su propia sección de
+  // comisión de entrada/liquidez más abajo (⛔ lógica congelada consumida,
+  // no reescrita: getItemCostBasis/getItemPrincipalCost/getDividendIncomeByItem
+  // en components/dashboard/utils.js ya son genéricas por item, no por tipo).
+  const isPrivateStock = type === 'Stock' && (subtype === 'private_common' || subtype === 'private_preferred')
+  const isMarketAsset = (type === 'Stock' && !isPrivateStock) || type === 'Crypto' || type === 'Fund'
   const isProperty = type === 'RealEstate'
   const isBank = type === 'Bank'
   const isBond = type === 'Bond'
@@ -157,6 +167,33 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
   const isCrypto = type === 'Crypto'
   const isDebt = type === 'Debt'
   const currentTypeInfo = TYPES.find(tp => tp.key === type)
+
+  // If the schedule the user just configured (months + pay day) plus the
+  // acquisition date imply payments that already fell due before today, ask
+  // about them now instead of letting the automatic backfill guess silently
+  // after save. Market assets have their own detected dividend schedule
+  // (divInfo) and aren't covered here.
+  // Un 29, 30 o 31 no cabe en todos los meses. La app paga el último día real
+  // de cada mes (clampPayDay), y eso hay que DECIRLO: si no, un 31 se lee como
+  // una promesa que la app no puede cumplir en febrero.
+  const payDayHint = (parseInt(form.incomePayDay, 10) || 0) >= 29
+    ? t('En los meses más cortos se paga el último día.', 'In shorter months it pays on the last day.')
+    : null
+
+  const payMonthsCount = form.incomeMonths.length > 0 ? form.incomeMonths.length : 12
+  const pastDuePayDates = useMemo(() => {
+    if (isMarketAsset || !showIncome || form.rateType === 'continuous') return []
+    return getScheduledPayDates({
+      acquisitionDate: form.acquisitionDate, incomeMonths: form.incomeMonths,
+      incomePayDay: form.incomePayDay, rateType: form.rateType,
+    })
+  }, [isMarketAsset, showIncome, form.rateType, form.acquisitionDate, form.incomeMonths, form.incomePayDay])
+
+  // Drop stale exclusions if the schedule changed underneath them (e.g. the
+  // user removed a month after marking that date "not received").
+  useEffect(() => {
+    setExcludedPayDates(prev => prev.filter(d => pastDuePayDates.includes(d)))
+  }, [pastDuePayDates])
 
   useEffect(() => {
     const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
@@ -248,7 +285,11 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
   // Dividend fetch
   useEffect(() => {
-    if (!isMarketAsset || !form.symbol || form.symbol.length < 1) { setDivInfo(null); return }
+    if (!isMarketAsset || !form.symbol || form.symbol.length < 1) { setDivInfo(null); setMarketDivOverride(false); return }
+    // A new symbol lookup starting invalidates any manual override made for
+    // the PREVIOUS symbol — otherwise switching AAPL → MSFT mid-form could
+    // silently keep AAPL's hand-edited rate/months on the new pick.
+    setMarketDivOverride(false)
     const timer = setTimeout(async () => {
       const sym = form.symbol.trim().toUpperCase()
       if (sym.length < 1) return
@@ -302,6 +343,14 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     if (!isBank && price <= 0) { setError(t('El precio debe ser mayor a 0', 'Price must be greater than 0')); return }
     if (isMarketAsset && qty <= 0) { setError(t('La cantidad debe ser mayor a 0', 'Quantity must be greater than 0')); return }
     if (form.maturityDate && form.acquisitionDate && form.maturityDate < form.acquisitionDate) { setError(t('La fecha de vencimiento debe ser posterior a la de compra', 'Maturity date must be after acquisition date')); return }
+    // At least one past payment is confirmed received, in cash: make sure
+    // there's somewhere for that money to land, or it silently vanishes from
+    // the destination account's balance.
+    if (showIncome && !isMarketAsset && form.dividendAction !== 'reinvest' &&
+        pastDuePayDates.some(d => !excludedPayDates.includes(d)) && !form.incomeDestination) {
+      setError(t('Marcaste pagos como recibidos: elige a dónde llegó ese dinero', 'You marked payments as received: choose where that money went'))
+      return
+    }
 
     // Timeline mode: rows explain how the value was built over time. Validate
     // them and anchor the item's acquisitionDate on the earliest contribution.
@@ -335,10 +384,19 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
         item.quantity = qty
         item.purchasePrice = price
         if (divInfo?.hasDividend) {
-          item.incomeAmount = divInfo.lastAmount || 0
-          item.incomeMonths = divInfo.paymentMonths || []
+          // marketDivOverride: the user corrected Yahoo's auto-detected
+          // schedule by hand (¿cuándo paga?) — form.incomeRate/incomeMonths
+          // win over divInfo. Same field names either way (incomeAmount/
+          // incomeMonths/incomeFrequency/dividendYield), so nothing
+          // downstream (EditAccountModal's `item.dividendYield > 0` gate,
+          // projectItemAnnualIncome, getEffectiveYield) needs to know which
+          // source it came from.
+          item.incomeAmount = marketDivOverride ? 0 : (divInfo.lastAmount || 0)
+          item.incomeMonths = marketDivOverride
+            ? (form.incomeMonths.length > 0 ? form.incomeMonths : (divInfo.paymentMonths || []))
+            : (divInfo.paymentMonths || [])
           item.incomeFrequency = divInfo.frequency
-          item.dividendYield = divInfo.dividendYield
+          item.dividendYield = marketDivOverride ? (parseFloat(form.incomeRate) || 0) : divInfo.dividendYield
           item.dividendAction = form.dividendAction || 'cash'
         }
       } else if (isProperty) {
@@ -364,6 +422,16 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
       // Subtype
       if (subtype) item.subtype = subtype
 
+      // FASE HV. El valor guardado de un activo que no cotiza es una FOTO de un
+      // momento, y hasta ahora esa foto no llevaba fecha: la app aproximaba con
+      // "¿el pago es del mes en curso o de un mes ya cerrado?", que falla en los
+      // dos bordes (un cupón de hace tres días se acredita encima de un saldo
+      // que ya lo contenía; un saldo tecleado hace dos meses no recibe ninguno
+      // de los cupones posteriores). `balanceAsOf` responde la pregunta exacta:
+      // desde cuándo es cierto lo que está guardado. Se sella al teclearlo, o
+      // sea hoy, que es lo que el usuario pidió.
+      if (!isMarketAsset) item.balanceAsOf = new Date().toISOString().slice(0, 10)
+
       // Income config
       if (showIncome && !isMarketAsset && (form.incomeAmount || form.incomeRate || form.rateMin || form.rateType === 'continuous')) {
         item.incomeMode = form.incomeMode
@@ -378,7 +446,10 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
           item.incomeAmount = parseFloat(form.incomeAmount) || 0
         }
         if (form.rateType !== 'continuous') {
-          item.incomePayDay = parseInt(form.incomePayDay) || 1
+          // Acotado a 1..31: `min`/`max` de un input numérico no impiden TECLEAR
+          // un 45. Un 31 sí es válido y significa "el último día del mes":
+          // `clampPayDay` (lib/incomeSchedule.js) lo recorta mes a mes.
+          item.incomePayDay = Math.min(31, Math.max(1, parseInt(form.incomePayDay) || 1))
           // incomeMonthsExplicit drives backfill of past payments and exempts the
           // asset from the duplicate-cleanup that would otherwise delete legit
           // semi-annual payments. Without it, a bond paying May/Nov never gets its
@@ -398,7 +469,28 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
           item.capitalReturn = parseFloat(form.capitalReturn) || 0
           if (form.capitalDestination) item.capitalDestination = form.capitalDestination
         }
+        // Past-due payments the user marked "not received" — the automatic
+        // backfill (useDashboardData) skips these dates instead of assuming
+        // they happened just because the schedule says so.
+        if (excludedPayDates.length > 0) item.excludedPayDates = excludedPayDates
       }
+
+      // Costs — entry commission (one-time), management fee (recurring, nets
+      // out of future income), expense ratio. Same fields EditAccountModal
+      // already collects; only missing here at creation time.
+      if (form.entryFee) {
+        item.entryFee = parseFloat(form.entryFee) || 0
+        item.entryFeeMode = form.entryFeeMode || 'separate'
+      }
+      if (form.managementFee) {
+        item.managementFee = parseFloat(form.managementFee) || 0
+        item.managementFeeType = form.managementFeeType || 'percent'
+      }
+      if (form.expenseRatio) item.expenseRatio = parseFloat(form.expenseRatio) || 0
+      // Accrued interest paid to the seller at purchase (buying between coupon
+      // dates) — informational: surfaced back to the user in the past-due
+      // preview above so they know part of the first coupon isn't new gain.
+      if (form.accruedInterestAtPurchase) item.accruedInterestAtPurchase = parseFloat(form.accruedInterestAtPurchase) || 0
 
       // Maturity
       if (form.maturityDate) {
@@ -424,12 +516,25 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
       // Tax jurisdiction
       if (form.taxJurisdiction) item.taxJurisdiction = form.taxJurisdiction
+      if (form.assetCountry) item.assetCountry = form.assetCountry
 
       // SAFE Note fields
       if (isAlternative && subtype === 'safe_note') {
         item.safeType = form.safeType
         if (form.safeCap) item.safeCap = parseFloat(form.safeCap) || 0
         if (form.safeDiscount) item.safeDiscount = parseFloat(form.safeDiscount) || 0
+      }
+
+      // VC/startup direct-investment fields — purely informational (cap-table
+      // context: what stage, at what valuation, how much of the company). None
+      // of it feeds the return formula: getItemPrincipalCost/getItemCostBasis
+      // (⛔ congeladas) already have everything they need from
+      // quantity/purchasePrice/entryFee, same as any other Alternativo.
+      if (isAlternative && subtype === 'private_equity') {
+        if (form.investmentStage) item.investmentStage = form.investmentStage
+        if (form.roundValuation) item.roundValuation = parseFloat(form.roundValuation) || 0
+        if (form.ownershipPct) item.ownershipPct = parseFloat(form.ownershipPct) || 0
+        if (form.committedCapital) item.committedCapital = parseFloat(form.committedCapital) || 0
       }
 
       // Debt fields
@@ -465,21 +570,18 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
         }
       }
 
-      // Auto-create cash account for stock dividends
-      if (isMarketAsset && divInfo?.hasDividend && form.dividendAction === 'cash' && form.institution.trim()) {
-        const inst = form.institution.trim()
-        const cashSymbol = `${inst.replace(/\s+/g, '').toUpperCase()}-CASH`
-        const cashExists = existingItems.some(ei =>
-          (ei.symbol || '').toUpperCase() === cashSymbol ||
-          ((ei.type || '').toLowerCase() === 'bank' && (ei.institution || '').toLowerCase() === inst.toLowerCase() && /cash/i.test(ei.name || ei.symbol || ''))
-        )
-        if (!cashExists) {
-          // Inherit the source asset's purchase date so the cash account has real
-          // history (income paid into it can step up from the right month) instead
-          // of appearing to start the day it was auto-created.
-          await onAdd({ type: 'Bank', symbol: cashSymbol, name: `${inst} - Cash`, institution: inst, currency: form.currency, quantity: 1, purchasePrice: 0, currentPrice: 0, accountType: form.accountType, acquisitionDate: form.acquisitionDate || new Date().toISOString().split('T')[0], ...(activeEntity && activeEntity !== 'default' ? { entityId: activeEntity } : {}) })
-        }
-        item.incomeDestination = cashSymbol
+      // Dividend destination for a market asset (stock/crypto/fund): the user
+      // picks it explicitly below (marketDivDestination), same widget as the
+      // non-market flow (destItems + "crear cuenta nueva"). This used to
+      // silently auto-create a generic "{Institution}-Cash" account and route
+      // there without asking — correct for nothing but IBKR (which already
+      // knows the real destination from its own cash transactions and never
+      // reaches this branch: isMarketAsset here is only the manual-add flow).
+      // Left unset, `income-no-dest` in lib/dataCompleteness.js already
+      // surfaces this later via Enrich Data — better than inventing a
+      // destination the user never chose.
+      if (isMarketAsset && divInfo?.hasDividend && form.dividendAction === 'cash' && form.incomeDestination) {
+        item.incomeDestination = form.incomeDestination
       }
 
       if (activePortfolio && activePortfolio !== '__all__') {
@@ -488,6 +590,15 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
       if (activeEntity && activeEntity !== 'default') {
         item.entityId = activeEntity
       }
+
+      // The user already answered "¿de dónde vino este dinero?" right here in
+      // this form — the data-completeness engine (lib/dataCompleteness.js)
+      // must never ask it again for this item, no matter what happens to the
+      // linked DEPOSIT transaction afterward (edited, or lost to some future
+      // dedup pass). Answering once should mean once, or "Capturar historia"
+      // reads as the app not having listened, and worse, invites a real
+      // duplicate deposit from a well-meaning second click.
+      if (isNewMoney && !isDebt) item._newMoneyConfirmed = true
 
       // Same guardrails as file imports (future dates, absurd values, bad currency) —
       // manual entry previously skipped them entirely.
@@ -547,11 +658,27 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
           })
         }
 
-        const singleDeposit = isMerge ? lotQty * lotCost : (item.quantity || 1) * (item.purchasePrice || 0)
+        // Entry fee/brokerage cost adds to the DEPOSIT (the true cash that left
+        // your pocket) but never to the item's own tracked value — so the return
+        // calc sees "you put in 6098, the bond is worth 6000" and starts $98
+        // down from day one, using the existing Modified Dietz math untouched
+        // (deposits already net out of gain; no separate fee-aware code path).
+        // 'deducted' means the fee came OUT of the amount typed, so the cash
+        // that left the pocket is already that amount: adding it again would
+        // overstate the deposit (and understate every return measured against it).
+        // ⛔ LÓGICA CONGELADA (G). El DEPOSIT de apertura vale principal +
+        // comisión y DEBE llevar _linkedItemId (el wrapper de onAdd tiene que
+        // devolver el id, si no nace huérfano). Ver
+        // lib/assetLogic/corporateBondWithEntryFee.js: PREGUNTAR antes de
+        // cambiar esto.
+        const feeOnEntry = (isMerge || form.entryFeeMode === 'deducted')
+          ? 0
+          : (parseFloat(form.entryFee) || 0)
+        const singleDeposit = (isMerge ? lotQty * lotCost : (item.quantity || 1) * (item.purchasePrice || 0)) + feeOnEntry
         if (isNewMoney && onAddTransaction && singleDeposit > 0) {
           await onAddTransaction({
             type: 'DEPOSIT', symbol: item.symbol || '',
-            description: `${item.name || item.symbol} - ${t('Dinero nuevo', 'New money')}`,
+            description: `${item.name || item.symbol} - ${t('Dinero nuevo', 'New money')}${feeOnEntry > 0 ? ` (${t('incl. corretaje', 'incl. brokerage')})` : ''}`,
             date: item.acquisitionDate || new Date().toISOString().split('T')[0],
             totalAmount: Math.round(singleDeposit * 100) / 100, currency: item.currency || 'USD',
             ...(itemId ? { _linkedItemId: itemId } : {}),
@@ -607,7 +734,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               <label className={labelCls}>{t('Tipo de activo', 'Asset type')}</label>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                 {TYPES.map(tp => (
-                  <button key={tp.key} type="button" onClick={() => { setType(tp.key); setSubtype(''); setForm(prev => ({ ...prev, symbol: '', name: '', purchasePrice: '', currentPrice: '', sector: '', industry: '', isIlliquid: false, custodyType: '', maturityDate: '' })); setDivInfo(null); setValueTimeline('single'); setTimelineRows([]) }}
+                  <button key={tp.key} type="button" onClick={() => { setType(tp.key); setSubtype(''); setForm(prev => ({ ...prev, symbol: '', name: '', purchasePrice: '', currentPrice: '', sector: '', industry: '', isIlliquid: false, custodyType: '', maturityDate: '' })); setDivInfo(null); setMarketDivOverride(false); setValueTimeline('single'); setTimelineRows([]); setExcludedPayDates([]) }}
                     className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg transition-all text-center border ${
                       type !== tp.key ? 'bg-[var(--input-bg,#000000)] border-[var(--card-border,#38383A)] text-[var(--text-secondary,#94a3b8)] hover:border-[var(--text-secondary,#94a3b8)]' : ''
                     }`}
@@ -629,6 +756,16 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     </button>
                   ))}
                 </div>
+              )}
+              {/* Un pasivo no es un activo de inversión más entre las opciones
+                  de arriba: es la única categoría que RESTA del patrimonio y
+                  nunca tiene retorno. Mismo texto que la fila "Pasivos" del
+                  Spreadsheet (components/dashboard/utils.js DEBT_CLARIFICATION),
+                  para no decir dos cosas distintas del mismo concepto. */}
+              {type === 'Debt' && (
+                <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
+                  {DEBT_CLARIFICATION[lang]}
+                </p>
               )}
             </div>
 
@@ -813,7 +950,22 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               </div>
             )}
 
-            {(isBond || isAlternative) && (
+            {/* Bonds: one fixed amount, no "today's value" — a bond doesn't
+                trade at a changing mark for this user's holding, it sits at
+                face value until maturity and pays out through the interest
+                schedule below into whatever account you route it to. */}
+            {isBond && (
+              <div>
+                <label htmlFor="add-amountInvested" className={labelCls}>{t('Monto del bono', 'Bond amount')} <span style={{ color: 'var(--text-negative)' }}>*</span></label>
+                <input id="add-amountInvested" value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
+                  placeholder="10000" type="number" step="any" className={inputCls} />
+                <p className="text-xs mt-1" style={{ color: 'var(--text-muted,#475569)' }}>
+                  {t('Se mantiene fijo hasta el vencimiento. Los pagos de interés van a la cuenta que elijas más abajo.', 'Stays fixed until maturity. Interest payments go to the account you pick below.')}
+                </p>
+              </div>
+            )}
+
+            {isAlternative && (
               <div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -834,8 +986,9 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             )}
 
             {/* Soft double-check: does the entered current value match what the rate implies?
-                Non-blocking — the user can save regardless or leave the field empty. */}
-            {(isBond || isAlternative) && (() => {
+                Non-blocking — the user can save regardless or leave the field empty. Bonds
+                no longer have a "today value" input, so this is Alternative-only now. */}
+            {isAlternative && (() => {
               const invested = parseFloat(form.purchasePrice) || 0
               const entered = parseFloat(form.currentPrice) || 0
               const rate = form.incomeMode === 'percent' ? (parseFloat(form.incomeRate) || 0) : 0
@@ -958,8 +1111,18 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               <label htmlFor="add-currency" className={labelCls}>
                 {t('Moneda', 'Currency')} <span style={{ color: 'var(--text-negative)' }}>*</span>
               </label>
+              {/* FASE IF (lo ÚNICO que el usuario pidió aquí): al registrar a
+                  mano una acción de otro país, el campo tiene que mostrar la
+                  moneda de ESE país. La moneda detectada del quote (ej. 'GBp'
+                  de la Bolsa de Londres) puede no estar en la lista fija, y un
+                  <select> con un value fuera de sus opciones RENDERIZA la
+                  primera (USD): se leía "USD · Auto-detected" sobre un precio
+                  de Londres, y cualquiera concluye que la plataforma está
+                  leyendo mal la moneda. La opción detectada se agrega al frente
+                  para que lo que se ve sea siempre lo que se guarda. Cambio de
+                  DISPLAY: no toca ninguna conversión. */}
               <select id="add-currency" value={form.currency} onChange={e => set('currency', e.target.value)} className={inputCls}>
-                {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                {currencyOptions(form.currency).map(c => <option key={c} value={c}>{c}</option>)}
               </select>
               {detectedCurrency && form.currency === detectedCurrency && (
                 <p className="text-xs mt-1" style={{ color: 'var(--accent-green)' }}>✓ {t('Detectada automáticamente', 'Auto-detected')}</p>
@@ -1012,10 +1175,73 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-[var(--text-muted,#475569)]">{t('Próximo pago', 'Next payment')}</p>
+                    {/* FASE II: la etiqueta dice qué fecha ES. Cuando Yahoo da
+                        la fecha de PAGO real (calendarEvents), se muestra como
+                        "Próximo pago". Cuando solo hay la proyección desde el
+                        historial, esa fecha es el EX-DIVIDENDO (el dinero
+                        llega de 0 días a ~3 meses después, según el mercado:
+                        verificado en 5 bolsas) y rotularla "pago" mentía. */}
+                    <p className="text-xs text-[var(--text-muted,#475569)]">
+                      {divInfo.paymentDateIsReal ? t('Próximo pago', 'Next payment') : t('Próx. ex-dividendo', 'Next ex-dividend')}
+                    </p>
                     <p className="text-sm font-semibold text-[var(--text-primary,white)]">{divInfo.nextPaymentDate?.slice(5)}</p>
                   </div>
                 </div>
+
+                {/* Automático por default; el link solo aparece si Yahoo trae
+                    algo mal o incompleto y hace falta corregirlo a mano.
+                    Seedea con lo detectado para no partir de campos vacíos. */}
+                {!marketDivOverride ? (
+                  <button type="button" onClick={() => {
+                    set('incomeMode', 'percent')
+                    set('incomeRate', divInfo.dividendYield ?? '')
+                    set('incomeMonths', divInfo.paymentMonths || [])
+                    if (divInfo.nextPaymentDate) {
+                      const day = parseInt(divInfo.nextPaymentDate.slice(8, 10), 10)
+                      if (day) set('incomePayDay', day)
+                    }
+                    setMarketDivOverride(true)
+                  }} className="text-xs underline" style={{ color: 'var(--text-muted,#475569)' }}>
+                    ✏️ {t('Editar manualmente (si Yahoo trae algo mal)', 'Edit manually (if Yahoo has it wrong)')}
+                  </button>
+                ) : (
+                  <div className="space-y-2 pt-1 border-t border-glass-border/50">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Rendimiento anual %', 'Annual yield %')}</label>
+                        <input value={form.incomeRate} onChange={e => set('incomeRate', e.target.value)}
+                          placeholder={String(divInfo.dividendYield ?? '')} type="number" step="any" className={inputCls} />
+                      </div>
+                      <div>
+                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Día de pago', 'Pay day')}</label>
+                        <input value={form.incomePayDay} onChange={e => set('incomePayDay', e.target.value)}
+                          placeholder="15" type="number" min="1" max="31" className={inputCls} />
+                      {payDayHint && <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{payDayHint}</p>}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1.5 block">{t('¿En qué meses paga?', 'Which months does it pay?')}</label>
+                      <div className="flex flex-wrap gap-1">
+                        {['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'].map((label, i) => {
+                          const active = form.incomeMonths.includes(i)
+                          return (
+                            <button key={i} type="button"
+                              onClick={() => set('incomeMonths', active ? form.incomeMonths.filter(x => x !== i) : [...form.incomeMonths, i].sort((a, b) => a - b))}
+                              className="px-2 py-1 text-xs font-medium rounded transition-all border"
+                              style={active ? { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 25%, transparent)', color: 'var(--accent-blue)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                              {label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                    <button type="button" onClick={() => setMarketDivOverride(false)}
+                      className="text-xs underline" style={{ color: 'var(--text-muted,#475569)' }}>
+                      {t('Usar lo detectado automáticamente', 'Use the auto-detected values')}
+                    </button>
+                  </div>
+                )}
+
                 <div>
                   <p className="text-xs text-[var(--text-muted,#475569)] mb-1">{t('¿Qué hacer con dividendos?', 'What to do with dividends?')}</p>
                   <div className="flex gap-2">
@@ -1031,6 +1257,32 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     </button>
                   </div>
                 </div>
+
+                {/* Opcional a propósito: sin flex query de por medio nadie
+                    sabe todavía a qué cuenta cae el efectivo, y adivinar acá
+                    (auto-crear una cuenta genérica) es peor que preguntar
+                    después. Dejarlo en blanco es válido: el hallazgo
+                    income-no-dest de Enrich Data (lib/dataCompleteness.js)
+                    lo agarra más adelante, con la misma pregunta. IBKR nunca
+                    llega a este flujo: su Flex Query ya trae el destino real
+                    de cada dividendo como una transacción de cash propia. */}
+                {form.dividendAction === 'cash' && (
+                  <div>
+                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('¿A dónde llega el efectivo?', 'Where does the cash land?')}</label>
+                    <select value={form.incomeDestination}
+                      onChange={e => { if (e.target.value === '__new__') { setCreatingDest('income'); return } set('incomeDestination', e.target.value) }}
+                      className={inputCls}>
+                      <option value="">{t('-- Sin definir todavía --', '-- Not set yet --')}</option>
+                      {destItems.map(it => <option key={it.id} value={it.id}>{it.name || it.symbol} {it.institution ? `(${it.institution})` : ''}</option>)}
+                      {onCreateDestination && <option value="__new__">+ {t('Crear cuenta nueva', 'Create new account')}</option>}
+                    </select>
+                    {creatingDest === 'income' && onCreateDestination && (
+                      <InlineCreateAccount onCreate={onCreateDestination} onCancel={() => setCreatingDest(null)}
+                        onCreated={(id, it) => handleDestCreated('incomeDestination', id, it)} lang={lang} defaultCurrency={form.currency}
+                        sourceAcquisitionDate={form.acquisitionDate || null} />
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1095,6 +1347,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                       <label htmlFor="add-varPayDay" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Día de pago', 'Pay day')}</label>
                       <input id="add-varPayDay" value={form.incomePayDay} onChange={e => set('incomePayDay', e.target.value)}
                         placeholder="10" type="number" min="1" max="31" className={inputCls} />
+                      {payDayHint && <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{payDayHint}</p>}
                     </div>
                   </div>
                   {form.rateMin && !form.rateMax && (
@@ -1118,6 +1371,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                       <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Día de pago', 'Pay day')}</label>
                       <input value={form.incomePayDay} onChange={e => set('incomePayDay', e.target.value)}
                         placeholder="10" type="number" min="1" max="31" className={inputCls} />
+                      {payDayHint && <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{payDayHint}</p>}
                     </div>
                   </div>
                 )}
@@ -1195,10 +1449,70 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     </select>
                     {creatingDest === 'income' && onCreateDestination && (
                       <InlineCreateAccount onCreate={onCreateDestination} onCancel={() => setCreatingDest(null)}
-                        onCreated={(id, it) => handleDestCreated('incomeDestination', id, it)} lang={lang} defaultCurrency={form.currency} />
+                        onCreated={(id, it) => handleDestCreated('incomeDestination', id, it)} lang={lang} defaultCurrency={form.currency}
+                        sourceAcquisitionDate={form.acquisitionDate || null} />
                     )}
                   </div>
                 )}
+
+                {/* Past-due payments — the schedule + acquisition date imply
+                    payments that already happened. Ask now, instead of the
+                    automatic backfill silently assuming they were all
+                    received once the account is saved. */}
+                {pastDuePayDates.length > 0 && (() => {
+                  const qty = parseFloat(form.quantity) || 1
+                  const price = parseFloat(form.purchasePrice) || 0
+                  const balance = qty * price
+                  const estimate = estimateIncomeAmount({
+                    balance, incomeMode: form.incomeMode, incomeRate: parseFloat(form.incomeRate) || 0,
+                    incomeAmount: parseFloat(form.incomeAmount) || 0, rateType: form.rateType,
+                    rateMin: parseFloat(form.rateMin) || 0, rateMax: parseFloat(form.rateMax) || 0,
+                    isPerShare: false, qty,
+                  }, payMonthsCount)
+                  const accrued = parseFloat(form.accruedInterestAtPurchase) || 0
+                  const toggle = (d) => setExcludedPayDates(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d])
+                  return (
+                    <div className="rounded-lg p-3 space-y-2" style={{ borderWidth: '1px', borderStyle: 'solid', borderColor: 'color-mix(in srgb, var(--accent-orange) 25%, transparent)', backgroundColor: 'color-mix(in srgb, var(--accent-orange) 6%, transparent)' }}>
+                      <p className="text-xs font-medium" style={{ color: 'var(--accent-orange)' }}>
+                        ⏱ {t(
+                          `Según este calendario, ya deberían haberte pagado ${pastDuePayDates.length} vez${pastDuePayDates.length > 1 ? 'es' : ''}`,
+                          `Based on this schedule, you should have already been paid ${pastDuePayDates.length} time${pastDuePayDates.length > 1 ? 's' : ''}`
+                        )}
+                      </p>
+                      <div className="space-y-1">
+                        {pastDuePayDates.map((d, i) => {
+                          const excluded = excludedPayDates.includes(d)
+                          return (
+                            <div key={d} className="flex items-center justify-between gap-2 text-xs bg-[var(--input-bg,#000000)] rounded px-2 py-1.5">
+                              <span className="text-[var(--text-secondary,#cbd5e1)]">
+                                {new Date(`${d}T00:00:00`).toLocaleDateString(lang === 'es' ? 'es' : 'en', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                {estimate > 0 && <span className="text-[var(--text-muted,#64748b)] ml-1.5">~{form.currency} {estimate.toFixed(2)}</span>}
+                                {i === 0 && estimate > 0 && accrued > 0 && (
+                                  <InfoTip text={t(
+                                    `De este pago, aprox. ${form.currency} ${Math.min(accrued, estimate).toFixed(2)} ya era tuyo desde antes de comprar (interés corrido): no es ganancia nueva.`,
+                                    `Of this payment, approx. ${form.currency} ${Math.min(accrued, estimate).toFixed(2)} was already yours before you bought (accrued interest): not new gain.`
+                                  )} />
+                                )}
+                              </span>
+                              <button type="button" onClick={() => toggle(d)}
+                                className="px-2 py-0.5 rounded text-xs font-medium shrink-0 border transition-colors"
+                                style={excluded
+                                  ? { color: 'var(--text-negative)', backgroundColor: 'color-mix(in srgb, var(--text-negative) 15%, transparent)', borderColor: 'color-mix(in srgb, var(--text-negative) 30%, transparent)' }
+                                  : { color: 'var(--accent-green)', backgroundColor: 'color-mix(in srgb, var(--accent-green) 15%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-green) 30%, transparent)' }}>
+                                {excluded ? t('No recibido', 'Not received') : t('✓ Recibido', '✓ Received')}
+                              </button>
+                            </div>
+                          )
+                        })}
+                      </div>
+                      <p className="text-xs" style={{ color: 'var(--text-muted,#64748b)' }}>
+                        {form.dividendAction === 'reinvest'
+                          ? t('Los marcados como recibidos se reinvierten automáticamente al guardar.', 'Ones marked received reinvest automatically once saved.')
+                          : t('Los marcados como recibidos se agregan a tu historial y a la cuenta de destino al guardar.', 'Ones marked received are added to your history and destination account once saved.')}
+                      </p>
+                    </div>
+                  )
+                })()}
 
                 {/* Capital return */}
                 <div>
@@ -1219,82 +1533,194 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               {t('Opciones avanzadas', 'Advanced options')}
             </button>
 
+            {/* Grouped into small labeled sections (icon + uppercase header,
+                divider between groups) instead of one flat pile of fields —
+                each group answers one question, so it scans instead of reads
+                like a form dump. */}
             {showAdvanced && (
-              <div className="space-y-3 pl-1 ml-1" style={{ borderLeft: '2px solid color-mix(in srgb, var(--accent-blue) 20%, transparent)' }}>
-                {/* Account tax treatment (moved out of the main flow) */}
+              <div className="space-y-4">
+                {/* Cuenta */}
                 <div>
-                  <label htmlFor="add-accountType" className={labelCls}>{t('Tipo de cuenta', 'Account type')}</label>
+                  <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>🏦 {t('Cuenta', 'Account')}</span>
                   <select id="add-accountType" value={form.accountType} onChange={e => set('accountType', e.target.value)} className={inputCls}>
                     {ACCOUNT_TYPES.map(at => <option key={at.key} value={at.key}>{lang === 'es' ? at.es : at.en}</option>)}
                   </select>
-                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                  <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
                     {form.accountType === 'taxable' ? t('Paga impuestos (ej. cuenta de bolsa normal)', 'Pays taxes (e.g. regular brokerage)') :
                      form.accountType === 'retirement' ? t('Ahorro para retiro (ej. 401k, IRA, AFP)', 'Retirement savings (e.g. 401k, IRA)') :
                      t('Exenta de impuestos (ej. Roth IRA)', 'Tax-exempt (e.g. Roth IRA)')}
                   </p>
                 </div>
 
-                {/* Maturity date for bonds/alternatives */}
+                {/* Vencimiento (bonds/alternatives) */}
                 {(isBond || isAlternative) && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className={labelCls}>{t('Fecha de vencimiento', 'Maturity date')}</label>
-                      <input value={form.maturityDate} onChange={e => set('maturityDate', e.target.value)}
-                        type="date" className={inputCls} />
-                    </div>
-                    <div>
-                      <label className={labelCls}>{t('Al vencimiento', 'At maturity')}</label>
-                      <select value={form.maturityAction} onChange={e => set('maturityAction', e.target.value)} className={inputCls}>
-                        <option value="return_capital">{t('Devolver capital', 'Return capital')}</option>
-                        <option value="auto_renew">{t('Renovar', 'Auto-renew')}</option>
-                        <option value="convert_equity">{t('Convertir a acciones', 'Convert to equity')}</option>
-                      </select>
+                  <div className="pt-3.5 border-t border-glass-border/50">
+                    <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>📅 {t('Vencimiento', 'Maturity')}</span>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className={labelCls}>{t('Fecha', 'Date')}</label>
+                        <input value={form.maturityDate} onChange={e => set('maturityDate', e.target.value)}
+                          type="date" className={inputCls} />
+                      </div>
+                      <div>
+                        <label className={labelCls}>{t('Al vencer', 'At maturity')}</label>
+                        <select value={form.maturityAction} onChange={e => set('maturityAction', e.target.value)} className={inputCls}>
+                          <option value="return_capital">{t('Devolver capital', 'Return capital')}</option>
+                          <option value="auto_renew">{t('Renovar', 'Auto-renew')}</option>
+                          <option value="convert_equity">{t('Convertir a acciones', 'Convert to equity')}</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
                 )}
 
-                {/* Illiquid asset toggle */}
-                {(isProperty || isAlternative || (isBond && subtype === 'private_debt')) && (
-                  <div className="flex items-center gap-3 px-3 py-2 border border-[var(--card-border,#38383A)] rounded-lg">
-                    <button type="button" onClick={() => set('isIlliquid', !form.isIlliquid)}
-                      className="w-8 h-4 rounded-full transition-colors relative"
-                      style={{ backgroundColor: form.isIlliquid ? '#f59e0b' : 'var(--card-border, #38383A)' }}>
-                      <span className={`absolute w-3 h-3 bg-white rounded-full top-0.5 transition-transform ${form.isIlliquid ? 'left-4' : 'left-0.5'}`} />
-                    </button>
-                    <div>
-                      <span className="text-xs text-[var(--text-primary,white)] font-medium">{t('Activo ilíquido', 'Illiquid asset')}</span>
-                      <p className="text-xs text-[var(--text-muted,#475569)]">
-                        {t('Sin precio de mercado disponible', 'No market price available')}
+                {/* Costos y comisiones — entry fee, ongoing management fee,
+                    plus (bonds only) interest already accrued at purchase.
+                    Extendido a isPrivateStock: misma comisión de entrada que
+                    un Bono (ronda con carried interest o fee de originación),
+                    no una fórmula nueva. */}
+                {(isBond || isAlternative || isPrivateStock) && (
+                  <div className="pt-3.5 border-t border-glass-border/50">
+                    <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>💰 {t('Costos y comisiones', 'Costs & fees')}</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div>
+                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">
+                          {t('Corretaje/entrada', 'Brokerage/entry')} <InfoTip text={t('Monto fijo, no porcentaje. Comisión o costo que pagaste una sola vez al comprar.', 'Fixed amount, not a percentage. One-time commission or cost you paid on purchase.')} />
+                        </label>
+                        <input value={form.entryFee} onChange={e => set('entryFee', e.target.value)}
+                          placeholder="80" type="number" step="any" className={inputCls} />
+                      </div>
+                      <div>
+                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">
+                          {t('Mgmt fee', 'Mgmt fee')}
+                          {' '}
+                          <button type="button" onClick={() => set('managementFeeType', form.managementFeeType === 'fixed' ? 'percent' : 'fixed')}
+                            className="text-xs px-1.5 py-0.5 rounded bg-[var(--input-bg,#000000)] border border-[var(--card-border,#38383A)]" style={{ color: 'var(--accent-blue)' }}>
+                            {form.managementFeeType === 'fixed' ? '$' : '%'}
+                          </button>
+                        </label>
+                        <input value={form.managementFee} onChange={e => set('managementFee', e.target.value)}
+                          placeholder={form.managementFeeType === 'fixed' ? '50' : '0.50'} type="number" step="any" className={inputCls} />
+                      </div>
+                      <div>
+                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Expense %', 'Expense %')} <InfoTip text={t('Ratio de gastos anual, ej. 0.03 = 0.03%/año.', 'Annual expense ratio, e.g. 0.03 = 0.03%/yr.')} /></label>
+                        <input value={form.expenseRatio} onChange={e => set('expenseRatio', e.target.value)}
+                          placeholder="0.03" type="number" step="any" className={inputCls} />
+                      </div>
+                    </div>
+                    {isBond && (
+                      <div className="mt-2">
+                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">
+                          {t('Interés ya devengado al comprar', 'Interest already accrued at purchase')}
+                          {' '}
+                          <InfoTip text={t('Si el bono se emitió antes de que lo compraras (ej. emitido en enero, tú entraste en marzo), le pagaste al vendedor el interés acumulado desde la emisión. Te lo devuelven en tu primer pago, pero no es ganancia nueva: ponlo aquí para que el resumen lo aclare.', 'If the bond was issued before you bought it (e.g. issued January, you bought March), you paid the seller the interest already accrued since issuance. You get it back in your first payment, but it isn\'t new gain: enter it here so the summary flags it.')} />
+                        </label>
+                        <input value={form.accruedInterestAtPurchase} onChange={e => set('accruedInterestAtPurchase', e.target.value)}
+                          placeholder="0" type="number" step="any" className={inputCls} />
+                      </div>
+                    )}
+                    {/* Which side of the purchase value the fee sits on decides
+                        how much cash really left the pocket, and that is the
+                        denominator of every return % for this asset. */}
+                    {parseFloat(form.entryFee) > 0 && (() => {
+                      const fee = parseFloat(form.entryFee) || 0
+                      const typed = (parseFloat(form.quantity) || 1) * (parseFloat(form.purchasePrice) || 0)
+                      const fmtM = (v) => `${form.currency} ${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      return (
+                        <div className="mt-2">
+                          <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">
+                            {t('¿Cómo se cobró?', 'How was it charged?')}
+                            {' '}
+                            <InfoTip text={t(
+                              'Cambia cuánto dinero salió realmente de tu bolsillo, que es contra lo que se mide tu rendimiento. "Se pagó aparte": mandaste el monto de compra Y ADEMÁS la comisión. "Se descontó del monto": mandaste solo el monto de compra y la comisión salió de ahí, así que al activo entró menos.',
+                              'It changes how much money actually left your pocket, which is what your return is measured against. "Paid separately": you sent the purchase amount AND the fee on top. "Deducted from amount": you sent just the purchase amount and the fee came out of it, so less actually bought the asset.'
+                            )} />
+                          </label>
+                          <div className="flex gap-1.5">
+                            {[
+                              { key: 'separate', es: 'Se pagó aparte', en: 'Paid separately' },
+                              { key: 'deducted', es: 'Se descontó del monto', en: 'Deducted from amount' },
+                            ].map(m => (
+                              <button key={m.key} type="button" onClick={() => set('entryFeeMode', m.key)}
+                                className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
+                                style={form.entryFeeMode === m.key
+                                  ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' }
+                                  : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                                {lang === 'es' ? m.es : m.en}
+                              </button>
+                            ))}
+                          </div>
+                          {typed > 0 && (
+                            <p className="text-xs mt-1.5" style={{ color: 'var(--text-secondary)' }}>
+                              {form.entryFeeMode === 'deducted'
+                                ? t(`Sales con ${fmtM(typed)} en total, y al activo entran ${fmtM(typed - fee)}.`,
+                                    `${fmtM(typed)} leaves your pocket in total, and ${fmtM(typed - fee)} actually goes into the asset.`)
+                                : t(`Sales con ${fmtM(typed + fee)} en total: ${fmtM(typed)} al activo más ${fmtM(fee)} de comisión.`,
+                                    `${fmtM(typed + fee)} leaves your pocket in total: ${fmtM(typed)} into the asset plus ${fmtM(fee)} in fees.`)}
+                            </p>
+                          )}
+                        </div>
+                      )
+                    })()}
+
+                    {(parseFloat(form.entryFee) > 0 || parseFloat(form.managementFee) > 0 || parseFloat(form.expenseRatio) > 0) && (
+                      <p className="text-xs mt-1.5" style={{ color: 'color-mix(in srgb, var(--accent-orange) 70%, transparent)' }}>
+                        {parseFloat(form.entryFee) > 0 && `${t('Entrada', 'Entry')}: ${form.currency} ${parseFloat(form.entryFee).toFixed(2)}  `}
+                        {parseFloat(form.managementFee) > 0 && (form.managementFeeType === 'fixed'
+                          ? `${t('Mgmt', 'Mgmt')}: ${form.currency} ${parseFloat(form.managementFee).toFixed(2)}/yr  `
+                          : `${t('Mgmt', 'Mgmt')}: ${parseFloat(form.managementFee).toFixed(2)}%/yr  `)}
+                        {parseFloat(form.expenseRatio) > 0 && `Expense: ${parseFloat(form.expenseRatio).toFixed(2)}%/yr`}
                       </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Liquidez */}
+                {(isProperty || isAlternative || isPrivateStock || (isBond && subtype === 'private_debt')) && (
+                  <div className="pt-3.5 border-t border-glass-border/50">
+                    <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>💧 {t('Liquidez', 'Liquidity')}</span>
+                    <div className="flex items-center gap-3 px-3 py-2 border border-[var(--card-border,#38383A)] rounded-lg">
+                      <button type="button" onClick={() => set('isIlliquid', !form.isIlliquid)}
+                        className="w-8 h-4 rounded-full transition-colors relative shrink-0"
+                        style={{ backgroundColor: form.isIlliquid ? '#f59e0b' : 'var(--card-border, #38383A)' }}>
+                        <span className={`absolute w-3 h-3 bg-white rounded-full top-0.5 transition-transform ${form.isIlliquid ? 'left-4' : 'left-0.5'}`} />
+                      </button>
+                      <div>
+                        <span className="text-xs text-[var(--text-primary,white)] font-medium">{t('Activo ilíquido', 'Illiquid asset')}</span>
+                        <p className="text-xs text-[var(--text-muted,#475569)]">
+                          {t('Sin precio de mercado disponible', 'No market price available')}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 )}
 
-                {/* Custody type for crypto */}
+                {/* Custodia (crypto) */}
                 {isCrypto && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className={labelCls}>{t('Custodia', 'Custody')}</label>
-                      <select value={form.custodyType} onChange={e => set('custodyType', e.target.value)} className={inputCls}>
-                        <option value="">{t('-- Seleccionar --', '-- Select --')}</option>
-                        <option value="custodial">{t('Exchange/Custodia', 'Exchange/Custodial')}</option>
-                        <option value="self_custody">{t('Self-Custody', 'Self-Custody')}</option>
-                        <option value="defi_protocol">{t('Protocolo DeFi', 'DeFi Protocol')}</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className={labelCls}>{t('Detalles', 'Details')}</label>
-                      <input value={form.custodyDetails} onChange={e => set('custodyDetails', e.target.value)}
-                        placeholder={form.custodyType === 'self_custody' ? 'Ledger Nano X' : form.custodyType === 'defi_protocol' ? 'Osmosis, Aave...' : 'Binance, Kraken...'}
-                        className={inputCls} />
+                  <div className="pt-3.5 border-t border-glass-border/50">
+                    <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>🔐 {t('Custodia', 'Custody')}</span>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <select value={form.custodyType} onChange={e => set('custodyType', e.target.value)} className={inputCls}>
+                          <option value="">{t('-- Seleccionar --', '-- Select --')}</option>
+                          <option value="custodial">{t('Exchange/Custodia', 'Exchange/Custodial')}</option>
+                          <option value="self_custody">{t('Self-Custody', 'Self-Custody')}</option>
+                          <option value="defi_protocol">{t('Protocolo DeFi', 'DeFi Protocol')}</option>
+                        </select>
+                      </div>
+                      <div>
+                        <input value={form.custodyDetails} onChange={e => set('custodyDetails', e.target.value)}
+                          placeholder={form.custodyType === 'self_custody' ? 'Ledger Nano X' : form.custodyType === 'defi_protocol' ? 'Osmosis, Aave...' : 'Binance, Kraken...'}
+                          className={inputCls} />
+                      </div>
                     </div>
                   </div>
                 )}
 
-                {/* SAFE Note fields */}
+                {/* SAFE Note */}
                 {isAlternative && subtype === 'safe_note' && (
-                  <div className="border border-pink-500/20 bg-pink-500/5 rounded-lg p-3 space-y-3">
-                    <p className="text-xs text-pink-400 font-medium">SAFE Note</p>
+                  <div className="pt-3.5 border-t border-glass-border/50">
+                    <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>🔮 SAFE Note</span>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <div>
                         <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tipo', 'Type')}</label>
@@ -1318,27 +1744,135 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   </div>
                 )}
 
-                {/* Tax jurisdiction */}
-                <div>
-                  <label className={labelCls}>{t('Jurisdicción fiscal', 'Tax jurisdiction')}</label>
-                  <select value={form.taxJurisdiction} onChange={e => set('taxJurisdiction', e.target.value)} className={inputCls}>
-                    <option value="">{t('-- Opcional --', '-- Optional --')}</option>
-                    <option value="GT">Guatemala</option>
-                    <option value="MX">México</option>
-                    <option value="US">USA</option>
-                    <option value="CO">Colombia</option>
-                    <option value="CL">Chile</option>
-                    <option value="BR">Brasil</option>
-                    <option value="PE">Perú</option>
-                    <option value="AR">Argentina</option>
-                    <option value="OTHER">{t('Otro', 'Other')}</option>
-                  </select>
+                {/* VC / startup direct investment: cap-table context, purely
+                    informational (never feeds the return formula). */}
+                {isAlternative && subtype === 'private_equity' && (
+                  <div className="pt-3.5 border-t border-glass-border/50">
+                    <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>
+                      🚀 {t('Ronda de inversión', 'Investment round')}
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div>
+                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Etapa', 'Stage')}</label>
+                        <select value={form.investmentStage} onChange={e => set('investmentStage', e.target.value)} className={inputCls}>
+                          <option value="">{t('-- Opcional --', '-- Optional --')}</option>
+                          <option value="pre_seed">Pre-seed</option>
+                          <option value="seed">Seed</option>
+                          <option value="series_a">Series A</option>
+                          <option value="series_b">Series B</option>
+                          <option value="series_c_plus">Series C+</option>
+                          <option value="growth">{t('Growth / Late stage', 'Growth / Late stage')}</option>
+                          <option value="buyout">Buyout / PE</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">
+                          {t('Valuación de la ronda', 'Round valuation')}
+                          {' '}
+                          <InfoTip text={t('La valuación post-money de la ronda en la que entraste: se usa solo para calcular tu % de la empresa aquí abajo, no afecta el rendimiento del activo.', 'The round\'s post-money valuation: used only to calculate your % of the company below, it does not affect the asset\'s return.')} />
+                        </label>
+                        <input value={form.roundValuation} onChange={e => set('roundValuation', e.target.value)}
+                          placeholder="10000000" type="number" step="any" className={inputCls} />
+                      </div>
+                      <div>
+                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">% {t('de la empresa', 'of the company')}</label>
+                        <input value={form.ownershipPct} onChange={e => set('ownershipPct', e.target.value)}
+                          placeholder="0.5" type="number" step="any" className={inputCls} />
+                      </div>
+                      <div>
+                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">
+                          {t('Capital comprometido', 'Committed capital')}
+                          {' '}
+                          <InfoTip text={t('Si te comprometiste a un monto total que se va llamando por partes (capital calls), ponlo aquí: la tarjeta de métricas VC/PE lo usa para calcular el PIC (qué % del compromiso ya se llamó). Opcional, no afecta el rendimiento.', 'If you committed to a total amount that gets called in pieces (capital calls), put it here: the VC/PE metrics card uses it for PIC (what % of the commitment has been called). Optional, does not affect returns.')} />
+                        </label>
+                        <input value={form.committedCapital} onChange={e => set('committedCapital', e.target.value)}
+                          placeholder="50000" type="number" step="any" className={inputCls} />
+                      </div>
+                    </div>
+                    {/* Suggested %, from what's already typed elsewhere in this
+                        form (invested amount) — never auto-filled, just shown
+                        so the user doesn't have to do the division by hand. A
+                        later round dilutes this; there's no attempt to track
+                        that automatically, this is a manual snapshot the user
+                        updates whenever they hear about a new round. */}
+                    {!form.ownershipPct && parseFloat(form.roundValuation) > 0 && (() => {
+                      const invested = (parseFloat(form.quantity) || 1) * (parseFloat(form.purchasePrice) || 0)
+                      if (invested <= 0) return null
+                      const suggested = (invested / parseFloat(form.roundValuation)) * 100
+                      return (
+                        <p className="text-xs mt-1.5" style={{ color: 'var(--text-secondary)' }}>
+                          {t(`Sugerido: ${suggested.toFixed(3)}% (invertiste ${form.currency} ${invested.toLocaleString()} sobre una valuación de ${form.currency} ${parseFloat(form.roundValuation).toLocaleString()}).`,
+                             `Suggested: ${suggested.toFixed(3)}% (you invested ${form.currency} ${invested.toLocaleString()} against a ${form.currency} ${parseFloat(form.roundValuation).toLocaleString()} valuation).`)}
+                          {' '}
+                          <button type="button" onClick={() => set('ownershipPct', suggested.toFixed(3))}
+                            className="underline" style={{ color: 'var(--accent-blue)' }}>
+                            {t('usar', 'use')}
+                          </button>
+                        </p>
+                      )
+                    })()}
+                  </div>
+                )}
+
+                {/* Fiscal + país del activo */}
+                <div className="pt-3.5 border-t border-glass-border/50">
+                  <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>🌍 {t('Fiscal', 'Tax')}</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Jurisdicción fiscal', 'Tax jurisdiction')}</label>
+                      <select value={form.taxJurisdiction} onChange={e => set('taxJurisdiction', e.target.value)} className={inputCls}>
+                        <option value="">{t('-- Opcional --', '-- Optional --')}</option>
+                        <option value="GT">Guatemala</option>
+                        <option value="MX">México</option>
+                        <option value="US">USA</option>
+                        <option value="CO">Colombia</option>
+                        <option value="CL">Chile</option>
+                        <option value="BR">Brasil</option>
+                        <option value="PE">Perú</option>
+                        <option value="AR">Argentina</option>
+                        <option value="OTHER">{t('Otro', 'Other')}</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">
+                        {t('País del activo', 'Asset country')}
+                        {' '}
+                        <InfoTip text={t('De dónde es la empresa/activo en sí, para "Asignación de activos > Geo". Sin esto, un símbolo que no reconocemos (típico en bonos, alternativos o acciones privadas) se asume EE.UU. por defecto, no por la moneda en que lo tengas.', 'Where the company/asset itself is from, for "Asset Allocation > Geo". Without this, a symbol we don\'t recognize (typical for bonds, alternatives or private stock) defaults to the US, not based on the currency it\'s held in.')} />
+                      </label>
+                      <select value={form.assetCountry} onChange={e => set('assetCountry', e.target.value)} className={inputCls}>
+                        <option value="">{t('-- Opcional --', '-- Optional --')}</option>
+                        <option value="GT">Guatemala</option>
+                        <option value="MX">México</option>
+                        <option value="US">USA</option>
+                        <option value="CO">Colombia</option>
+                        <option value="CL">Chile</option>
+                        <option value="BR">Brasil</option>
+                        <option value="PE">Perú</option>
+                        <option value="AR">Argentina</option>
+                        <option value="CR">Costa Rica</option>
+                        <option value="PA">Panamá</option>
+                        <option value="ES">España</option>
+                        <option value="UK">UK</option>
+                        <option value="DE">Alemania</option>
+                        <option value="CH">Suiza</option>
+                        <option value="JP">Japón</option>
+                        <option value="CN">China</option>
+                        <option value="KR">Corea del Sur</option>
+                        <option value="HK">Hong Kong</option>
+                        <option value="SG">Singapur</option>
+                        <option value="AU">Australia</option>
+                        <option value="CA">Canadá</option>
+                        <option value="GLOBAL">{t('Global / Multi-país', 'Global / Multi-country')}</option>
+                        <option value="OTHER">{t('Otro', 'Other')}</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Notes */}
+                {/* Notas */}
                 {(isBond || isAlternative || isProperty) && (
-                  <div>
-                    <label className={labelCls}>{t('Notas', 'Notes')}</label>
+                  <div className="pt-3.5 border-t border-glass-border/50">
+                    <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>📝 {t('Notas', 'Notes')}</span>
                     <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
                       placeholder={t('Detalles adicionales...', 'Additional details...')}
                       rows={2} className={inputCls + ' resize-none'} />
@@ -1374,7 +1908,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 </select>
                 {creatingDest === 'capital' && onCreateDestination && (
                   <InlineCreateAccount onCreate={onCreateDestination} onCancel={() => setCreatingDest(null)}
-                    onCreated={(id, it) => handleDestCreated('capitalDestination', id, it)} lang={lang} defaultCurrency={form.currency} />
+                    onCreated={(id, it) => handleDestCreated('capitalDestination', id, it)} lang={lang} defaultCurrency={form.currency}
+                    sourceAcquisitionDate={form.acquisitionDate || null} />
                 )}
               </div>
             )}

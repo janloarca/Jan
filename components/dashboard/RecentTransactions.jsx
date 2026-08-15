@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import { formatCurrency, formatDate, formatMonth } from './utils'
 
-export default function RecentTransactions({ transactions, lang, onExportCSV, onDeleteTransaction, items = [] }) {
+export default function RecentTransactions({ transactions, lang, onExportCSV, onDeleteTransaction, items = [], convert, baseCurrency }) {
   const itemName = (id) => {
     if (!id) return null
     const it = items.find((i) => i.id === id)
@@ -48,14 +48,23 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, on
       if (!months[key]) months[key] = { inflow: 0, outflow: 0, count: 0 }
       months[key].count++
       const t = (tx.type || '').toUpperCase()
-      const amt = tx.totalAmount || 0
+      // A month can mix currencies (a Q500 withdrawal next to a $26 buy):
+      // summing raw amounts adds quetzales to dollars. Convert each movement
+      // to the base currency first; the chip is labeled in base by
+      // formatCurrency's default. Without a converter (no rates yet) fall
+      // back to the raw amount, same fallback the rest of the app uses.
+      let amt = tx.totalAmount || 0
+      if (convert && tx.currency && baseCurrency && tx.currency !== baseCurrency) {
+        const c = convert(amt, tx.currency, baseCurrency)
+        if (isFinite(c)) amt = c
+      }
       if (t === 'BUY' || t === 'DEPOSIT') months[key].inflow += amt
       else if (t === 'SELL' || t === 'WITHDRAWAL') months[key].outflow += amt
       else if (t === 'DIVIDEND') months[key].inflow += amt
     })
     const sorted = Object.entries(months).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 3)
     return sorted.map(([month, data]) => ({ month, ...data, net: data.inflow - data.outflow }))
-  }, [transactions])
+  }, [transactions, convert, baseCurrency])
 
   const display = showAll ? all : all.slice(0, 5)
 
@@ -274,11 +283,14 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, on
                       ? 'var(--text-negative)'
                       : (tx.type || '').toUpperCase() === 'TRANSFER' ? 'var(--text-secondary)' : 'var(--accent-green)'
                   }}>
-                    {formatCurrency(tx.totalAmount ?? 0)}
+                    {/* The row shows the ORIGINAL amount, so it must wear the
+                        ORIGINAL currency: a Q500 withdrawal rendered as
+                        "$500.00" reads as 7.7x the real movement. */}
+                    {formatCurrency(tx.totalAmount ?? 0, tx.currency)}
                   </span>
                   {tx.quantity > 0 && (
                     <div className="text-xs text-slate-500 font-mono tabular-nums">
-                      {tx.quantity} x {formatCurrency(tx.pricePerUnit || 0)}
+                      {tx.quantity} x {formatCurrency(tx.pricePerUnit || 0, tx.currency)}
                     </div>
                   )}
                 </div>

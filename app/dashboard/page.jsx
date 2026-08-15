@@ -4,28 +4,40 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useDashboardData } from '@/hooks/useDashboardData'
-import { getItemValue, formatCurrency, getTypeCategory, businessDaysSince } from '@/components/dashboard/utils'
+import { getItemValue, formatCurrency, getTypeCategory, ibkrAttentionNeeded } from '@/components/dashboard/utils'
+import { computeLoadStages } from '@/lib/loadStages'
+import { ibkrJourneyProgress } from '@/lib/ibkrJourney'
 import Header from '@/components/dashboard/Header'
+import ChispudoLoader from '@/components/ui/ChispudoLoader'
 import AdBanner from '@/components/AdBanner'
 import MonthEndCheckin, { hasLiveSync } from '@/components/dashboard/MonthEndCheckin'
 import DashboardLoading from './loading'
 import NetWorthCard from '@/components/dashboard/NetWorthCard'
-import ActionButtons from '@/components/dashboard/ActionButtons'
+import CalibrateReturnModal from '@/components/dashboard/CalibrateReturnModal'
+import IBKRJourneyBar from '@/components/dashboard/IBKRJourneyBar'
+import QuickActionsCard from '@/components/dashboard/QuickActionsCard'
 import SectionCollapse from '@/components/dashboard/SectionCollapse'
 import MobileNav from '@/components/dashboard/MobileNav'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import CardBoundary from '@/components/dashboard/CardBoundary'
-import { SkeletonCard, SkeletonChart } from '@/components/dashboard/Skeleton'
+import { SkeletonCard, SkeletonChart, Shimmer } from '@/components/dashboard/Skeleton'
 
+// The most-seen loading moment in the app in practice — the next/dynamic()
+// fallback for 17 different modals below, so it flashes for a beat every
+// time any of them opens. Used to be its own third hardcoded-hex placeholder
+// system (bg-slate-700/*), unrelated to both Skeleton.jsx's Shimmer and to
+// this same file's own DashboardLoading skeleton. Same Shimmer atom as both
+// of those now — this shape (title bar + rows) has no real layout to match,
+// unlike DashboardLoading, so there's no constraint against reusing it as-is.
 function ModalSkeleton() {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" role="status" aria-live="polite" aria-label="Loading">
       <div className="bg-theme-card border border-glass-border rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
-        <div className="h-5 w-32 bg-slate-700/50 rounded animate-pulse mb-4" />
+        <Shimmer className="h-5 w-32 mb-4" />
         <div className="space-y-3">
-          <div className="h-10 bg-slate-700/30 rounded animate-pulse" />
-          <div className="h-10 bg-slate-700/30 rounded animate-pulse" />
-          <div className="h-10 bg-slate-700/30 rounded animate-pulse w-2/3" />
+          <Shimmer className="h-10" />
+          <Shimmer className="h-10" />
+          <Shimmer className="h-10 w-2/3" />
         </div>
       </div>
     </div>
@@ -35,6 +47,8 @@ function ModalSkeleton() {
 const FileImportModal = dynamic(() => import('@/components/FileImportModal'), { loading: () => <ModalSkeleton /> })
 const AddAccountModal = dynamic(() => import('@/components/AddAccountModal'), { loading: () => <ModalSkeleton /> })
 const SellModal = dynamic(() => import('@/components/SellModal'), { loading: () => <ModalSkeleton /> })
+const SellPickerModal = dynamic(() => import('@/components/dashboard/SellPickerModal'), { loading: () => <ModalSkeleton /> })
+const PriceAlertsModal = dynamic(() => import('@/components/dashboard/PriceAlertsModal'), { loading: () => <ModalSkeleton /> })
 const TransferModal = dynamic(() => import('@/components/TransferModal'), { loading: () => <ModalSkeleton /> })
 const IBKRSyncModal = dynamic(() => import('@/components/IBKRSyncModal'), { loading: () => <ModalSkeleton /> })
 const BlockchainSyncModal = dynamic(() => import('@/components/BlockchainSyncModal'), { loading: () => <ModalSkeleton /> })
@@ -45,6 +59,11 @@ const EditAccountModal = dynamic(() => import('@/components/EditAccountModal'), 
 const OptimizeModal = dynamic(() => import('@/components/OptimizeModal'))
 const AssetDetailModal = dynamic(() => import('@/components/dashboard/AssetDetailModal'), { loading: () => <ModalSkeleton /> })
 const AccountReviewModal = dynamic(() => import('@/components/dashboard/AccountReviewModal'), { loading: () => <ModalSkeleton /> })
+const EnrichModal = dynamic(() => import('@/components/dashboard/EnrichModal'), { loading: () => <ModalSkeleton /> })
+const QuarterlyHistoryModal = dynamic(() => import('@/components/dashboard/QuarterlyHistoryModal'), { loading: () => <ModalSkeleton /> })
+const BrokerCompletionModal = dynamic(() => import('@/components/dashboard/BrokerCompletionModal'), { loading: () => <ModalSkeleton /> })
+const InferredFlowsModal = dynamic(() => import('@/components/dashboard/InferredFlowsModal'), { loading: () => <ModalSkeleton /> })
+const LiquidYieldModal = dynamic(() => import('@/components/dashboard/LiquidYieldModal'), { loading: () => <ModalSkeleton /> })
 const CashFlowModal = dynamic(() => import('@/components/CashFlowModal'), { loading: () => <ModalSkeleton /> })
 const PrintSummary = dynamic(() => import('@/components/dashboard/PrintSummary'))
 const OnboardingTour = dynamic(() => import('@/components/dashboard/OnboardingTour'))
@@ -60,7 +79,13 @@ const GainsReport = dynamic(() => import('@/components/dashboard/GainsReport'), 
 const PerformanceAttribution = dynamic(() => import('@/components/dashboard/PerformanceAttribution'), { loading: () => <SkeletonCard /> })
 const RiskMetrics = dynamic(() => import('@/components/dashboard/RiskMetrics'), { loading: () => <SkeletonCard /> })
 const InstitutionPerformance = dynamic(() => import('@/components/dashboard/InstitutionPerformance'), { loading: () => <SkeletonCard /> })
+const InvestedByYearCard = dynamic(() => import('@/components/dashboard/InvestedByYearCard'), { loading: () => <SkeletonCard /> })
 const RebalanceSuggestions = dynamic(() => import('@/components/dashboard/RebalanceSuggestions'), { loading: () => <SkeletonCard /> })
+
+// How long a finished IBKR-journey step stays on screen before it carries the
+// user to the next one (FASE GQ4). Long enough to read the one-line "Listo:
+// N trimestres guardados" confirmation, short enough to still feel automatic.
+const IBKR_AUTO_ADVANCE_MS = 1600
 
 import RecentTransactions from '@/components/dashboard/RecentTransactions'
 import DataQualityCard from '@/components/dashboard/DataQualityCard'
@@ -71,9 +96,11 @@ import { analyzeDataCompleteness } from '@/lib/dataCompleteness'
 import { detectPhantomFlows } from '@/lib/phantomFlows'
 import { detectFakeAggregateTrades, detectImportStampedAcquisitions, detectFakeCashReportItems, detectDuplicateCashDividends, detectCrossSourceDuplicateFlows } from '@/lib/badDataCleanup'
 import { IBKR_DISCONNECTED_FIELDS } from '@/lib/brokerRegistry'
+import { ibkrFailureFeedback, ibkrCooldownRemainingMs, formatCooldown } from '@/lib/ibkrSyncFeedback'
+import { toastStyleFor, toastIconFor } from '@/lib/toastStyle'
+
 import { DEMO_ITEMS, DEMO_LOTS, DEMO_TRANSACTIONS, isDemoItem } from '@/lib/demoData'
 import AssetAllocation from '@/components/dashboard/AssetAllocation'
-import PriceAlerts from '@/components/dashboard/PriceAlerts'
 import NotificationCenter from '@/components/dashboard/NotificationCenter'
 import InstallPrompt from '@/components/dashboard/InstallPrompt'
 import EmptyState from '@/components/dashboard/EmptyState'
@@ -146,7 +173,22 @@ export default function DashboardPage() {
   const [activeEntity, setActiveEntity] = useState('__all__')
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
   const [showReview, setShowReview] = useState(false)
+  // Review wizard targeting: an item id to open on, whether to walk only the
+  // accounts with gaps ("let Chispu recommend"), or narrow the whole wizard to
+  // one institution ("fix everything IDC holds").
+  const [reviewTarget, setReviewTarget] = useState({ itemId: null, guided: false, institution: null })
+  const [showEnrich, setShowEnrich] = useState(false)
+  const [brokerCompletionId, setBrokerCompletionId] = useState(null)
+  // Snapshot of ibkrConnected the moment the IBKR modal opens, so closing it
+  // can tell "just connected for the first time" apart from "just re-synced" —
+  // the checklist should greet a NEW connection, not interrupt a routine sync.
+  const ibkrWasConnectedRef = useRef(false)
   const [toast, setToast] = useState(null)
+  // Hasta cuándo el pill de IBKR no debe mandar otra petición. Vive en el
+  // componente y no en settings a propósito: es una pausa de esta sesión para
+  // no alimentar el bloqueo de IBKR a toques, no un estado que valga la pena
+  // persistir (recargar la página ya pasa por la cadencia del auto-sync).
+  const [ibkrCooldownUntil, setIbkrCooldownUntil] = useState(0)
   const toastTimer = useRef(null)
   const [staleCode, setStaleCode] = useState(false)
 
@@ -257,11 +299,12 @@ export default function DashboardPage() {
 
   // Data layer
   const {
-    items, snapshots, augmentedSnapshots, transactions, goals, settings, profile, effectiveProfile, alerts, lots, portfolios, financeTransactions,
+    items, snapshots, chartSnapshots, augmentedSnapshots, accountCalibrations, transactions, goals, settings, profile, effectiveProfile, alerts, lots, portfolios, financeTransactions,
     dataLoading,
     addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
-    saveSnapshot, deleteAllSnapshots, deleteDemoData,
-    addTransaction, deleteTransaction, deleteAllTransactions,
+    saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
+    addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,
+    deleteTransactionWithReversal, updateTransactionWithReversal,
     addAlert, deleteAlert,
     addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution,
     addPortfolio, deletePortfolio,
@@ -275,14 +318,24 @@ export default function DashboardPage() {
     ratesLoading, ratesError,
     handleRefresh,
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
-    returnYTD, ytdChange, returnSinceStart, sinceStartDate,
+    returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms,
     annualDividends, estimatedAnnualIncome,
-    netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
-    benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName,
+    netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning, ytdDegradedAccounts,
+    brokerCompletionState, ibkrDataComplete, inferredFlowCandidates, inferredFlowReconciliation, ibkrReconciliation, acceptInferredFlow, dismissInferredFlow,
+    liquidYieldCandidates, acceptLiquidYield, dismissLiquidYield,
+    benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName, benchmarkLoading,
     handleIBKRSync, triggerIBKRSync,
     ibkrConnected, ibkrAutoSyncing,
     ibkrSyncStatus, ibkrSyncErrorCode, ibkrLastSync, ibkrSyncSummary,
   } = useDashboardData({ user, lang, activePortfolio, activeEntity })
+
+  // Only matters for the ONE transition into 'ibkr': captures whether it was
+  // already connected, so closing the modal can tell "just connected for the
+  // first time" apart from "just ran a routine re-sync" — the completion
+  // checklist should greet a new connection, not interrupt a routine one.
+  useEffect(() => {
+    if (modal === 'ibkr') ibkrWasConnectedRef.current = ibkrConnected
+  }, [modal]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleOpenImport = useCallback((bh) => {
     setImportBrokerHint(bh || null)
@@ -302,6 +355,16 @@ export default function DashboardPage() {
   const handleIBKRPillClick = useCallback(async () => {
     if (!ibkrConnected) { setModal('ibkr'); return }
     if (ibkrAutoSyncing) return
+    // Dentro del enfriamiento no se manda NADA: repetir el intento es lo que
+    // alimenta el bloqueo de IBKR. Pero tampoco puede parecer que el botón está
+    // muerto, así que se repite la explicación con cuánto falta.
+    const remaining = ibkrCooldownRemainingMs(ibkrCooldownUntil)
+    if (remaining > 0) {
+      showToast(lang === 'es'
+        ? `IBKR nos pidió esperar. Lo reintentamos ${formatCooldown(remaining, lang)}.`
+        : `IBKR asked us to wait. We will retry ${formatCooldown(remaining, lang)}.`, 'warn', 4000)
+      return
+    }
     showToast(lang === 'es' ? 'Sincronizando IBKR… puedes seguir usando la app' : 'Syncing IBKR… you can keep using the app', 'info', 2500)
     const res = await triggerIBKRSync()
     if (res?.ok) {
@@ -313,18 +376,18 @@ export default function DashboardPage() {
       if (res.equityDays <= 1) {
         showToast(lang === 'es'
           ? `IBKR: ${res.count} posiciones, pero SIN historial de valor. Agrega "Equity Summary" a tu Flex Query.`
-          : `IBKR: ${res.count} positions but NO value history. Add "Equity Summary" to your Flex Query.`, 'error', 6000)
+          : `IBKR: ${res.count} positions but NO value history. Add "Equity Summary" to your Flex Query.`, 'warn', 6000)
       } else if (shortHistory) {
         showToast(lang === 'es'
           ? `IBKR: ${res.count} posiciones · solo ${res.equityDays} días de historial (desde ${res.equityOldest}). El período del Flex Query sigue corto: ponlo en "Year to Date".`
-          : `IBKR: ${res.count} positions · only ${res.equityDays} days of history (since ${res.equityOldest}). Your Flex Query period is still short: set it to "Year to Date".`, 'error', 8000)
+          : `IBKR: ${res.count} positions · only ${res.equityDays} days of history (since ${res.equityOldest}). Your Flex Query period is still short: set it to "Year to Date".`, 'warn', 8000)
       } else if ((res.trades || 0) + (res.flows || 0) === 0) {
         // History arrived but zero trades/deposits: the query is missing the
         // Trades / Cash Transactions sections, so the rewound value curve and
         // deposit-aware returns cannot be built.
         showToast(lang === 'es'
           ? `IBKR: ${res.count} posiciones · ${res.equityDays} días de historial, pero 0 trades y 0 depósitos. Agrega "Trades" y "Cash Transactions" a tu Flex Query.`
-          : `IBKR: ${res.count} positions · ${res.equityDays} days of history but 0 trades and 0 deposits. Add "Trades" and "Cash Transactions" to your Flex Query.`, 'error', 8000)
+          : `IBKR: ${res.count} positions · ${res.equityDays} days of history but 0 trades and 0 deposits. Add "Trades" and "Cash Transactions" to your Flex Query.`, 'warn', 8000)
       } else {
         showToast(lang === 'es'
           ? `IBKR: ${res.count} posiciones · ${res.equityDays} días de historial · ${res.trades || 0} trades · ${res.flows || 0} depósitos/retiros · ${res.dividends || 0} dividendos`
@@ -333,17 +396,133 @@ export default function DashboardPage() {
     } else if (res?.error === 'BUSY') {
       // a sync is already running; the spinning pill already communicates this
     } else if (res?.error !== 'NOT_CONNECTED') {
-      showToast(lang === 'es' ? 'IBKR no se pudo actualizar. Revisa la conexión en Ajustes.' : 'IBKR sync failed. Check the connection in Settings.', 'error', 4000)
+      // IBKR bloquea por intentos FALLIDOS, no por volumen, y este botón es el
+      // único camino que se salta toda espera. Un token vencido produce el lazo
+      // exacto que provoca el bloqueo: error, toque, error, toque. Así que un
+      // fallo arma un enfriamiento, y si es algo que el usuario puede arreglar,
+      // le abrimos la pantalla donde se arregla en vez de gastar otro intento.
+      const fb = ibkrFailureFeedback(res?.errorCode, lang)
+      setIbkrCooldownUntil(fb.cooldownMs > 0 ? Date.now() + fb.cooldownMs : 0)
+      showToast(fb.message, fb.tone, 6000)
+      if (fb.action === 'open-connection') setModal('ibkr')
     }
-  }, [ibkrConnected, ibkrAutoSyncing, triggerIBKRSync, lang])
+    // ⚠ showToast NO va en estas dependencias: está declarado con `const` MÁS
+    // ABAJO en este mismo componente (línea ~505), y una deps array se evalúa
+    // en CADA render, así que referenciarlo desde aquí arriba lanza un
+    // ReferenceError de temporal dead zone ("Cannot access 'X' before
+    // initialization") que tumba el dashboard entero antes de pintar nada.
+    // Ya pasó en FASE HC con refetchBenchmark; esta es la segunda vez.
+    // Omitirlo es seguro y es lo que este archivo hacía antes: showToast es un
+    // useCallback con deps [], o sea su identidad nunca cambia.
+  }, [ibkrConnected, ibkrAutoSyncing, triggerIBKRSync, lang, ibkrCooldownUntil])
   const handleOpenBlockchain = useCallback(() => setModal('blockchain'), [])
   const handleOpenPrint = useCallback(() => setModal('print'), [])
-  const handleOpenReview = useCallback(() => setShowReview(true), [])
+  const handleOpenReview = useCallback(() => { setReviewTarget({ itemId: null, guided: false, institution: null }); setShowReview(true) }, [])
+  const handleOpenEnrich = useCallback(() => setShowEnrich(true), [])
+  const handleOpenQuarterly = useCallback(() => setModal('quarterly'), [])
+  const handleCloseEnrich = useCallback(() => setShowEnrich(false), [])
+  const handleEnrichGuided = useCallback(() => { setReviewTarget({ itemId: null, guided: true, institution: null }); setShowReview(true) }, [])
+  const handleEnrichAccount = useCallback((it) => { setReviewTarget({ itemId: it?.id || null, guided: false, institution: null }); setShowReview(true) }, [])
+  const handleEnrichInstitution = useCallback((name) => { setReviewTarget({ itemId: null, guided: false, institution: name }); setShowReview(true) }, [])
   const handleOpenCmdPalette = useCallback(() => setCmdPaletteOpen(true), [])
   const handleCloseCmdPalette = useCallback(() => setCmdPaletteOpen(false), [])
-  const handleCloseModal = useCallback(() => { setModal(null); setImportBrokerHint(null) }, [])
+  // FASE GM. El viaje continuo de IBKR: un orquestador que SECUENCIA los
+  // modales existentes (conectar → archivo → foto → % → resumen) bajo una
+  // barra de progreso fija, para que cerrar un paso AVANCE al siguiente en
+  // vez de soltar al usuario en el dashboard sin saber si faltaban pasos
+  // (el bug reportado). Ningún paso es obligatorio: "Saltar" avanza sin
+  // hacerlo, "Salir" abandona el viaje. Reglas del usuario: secuencia
+  // seguida, cero pop-ups inesperados, nunca de vuelta a la pantalla
+  // principal a mitad del viaje.
+  const [ibkrJourney, setIbkrJourney] = useState(null) // null | 1..5
+  const ibkrJourneyRef = useRef(null)
+  useEffect(() => { ibkrJourneyRef.current = ibkrJourney }, [ibkrJourney])
+  // El avance real de IBKR (cuántos de los 4 requisitos están cumplidos y
+  // cuál sigue), derivado del MISMO brokerCompletionState que alimenta al
+  // checklist. Lo consumen la barra del viaje (checks en los círculos), el
+  // panel de ConnectionsModal y el resumen final.
+  const ibkrProgress = useMemo(() => ibkrJourneyProgress(brokerCompletionState), [brokerCompletionState])
+  // Abrir un paso concreto del viaje, sin pasar por la secuencia. Es lo que
+  // alimenta los círculos tocables de la barra y las filas del panel de
+  // avance: el viaje es una secuencia SUGERIDA, y el usuario pidió poder
+  // "tocar el que quiere editar". Una sola definición de qué modal abre cada
+  // paso, para que saltar y avanzar no puedan discrepar.
+  const openIbkrJourneyStep = useCallback((n) => {
+    const step = Math.max(1, Math.min(5, Number(n) || 1))
+    setIbkrJourney(step)
+    setBrokerCompletionId(null)
+    if (step !== 2) setImportBrokerHint(null)
+    if (step === 1) setModal('ibkr')
+    else if (step === 2) { setImportBrokerHint('ibkr'); setModal('import') }
+    else if (step === 3) setModal('quarterly')
+    else if (step === 4) setModal('calibrate')
+    else { setModal(null); setTimeout(() => setBrokerCompletionId('ibkr'), 50) }
+  }, [])
+  const advanceIbkrJourney = useCallback((fromStep = null) => {
+    const cur = ibkrJourneyRef.current
+    if (cur == null) return
+    // FASE GQ4: a step that auto-advances on its own success passes the step it
+    // was scheduled FROM, so a late timer can never double-advance (skipping a
+    // step) if the user already moved on by hand, skipped, or exited — it just
+    // no-ops. Checked with typeof: this same function is wired straight to the
+    // journey bar's "Skip" button (onClick={onSkip}), which calls it with a
+    // MouseEvent, and a naive `!= null` test would swallow every skip click.
+    if (typeof fromStep === 'number' && cur !== fromStep) return
+    const next = cur + 1
+    if (next > 5) { setIbkrJourney(null); setBrokerCompletionId(null); return }
+    setIbkrJourney(next)
+    if (next !== 2) setImportBrokerHint(null)
+    if (next === 2) { setImportBrokerHint('ibkr'); setModal('import') }
+    else if (next === 3) setModal('quarterly')
+    else if (next === 4) setModal('calibrate')
+    else if (next === 5) { setModal(null); setTimeout(() => setBrokerCompletionId('ibkr'), 50) }
+  }, [])
+  // FASE GQ4: finishing a step's actual work should carry the user forward on
+  // its own — that is the whole point of the journey (FASE GM), and without it
+  // a saved step just sits there with its primary button still reading "Save",
+  // which is exactly what the user hit at step 3 ("se queda ahí y no pasa
+  // automáticamente al siguiente paso"). The short pause is deliberate: it
+  // leaves the confirmation line ("Listo: 14 trimestres guardados...") on
+  // screen long enough to actually read before the next step replaces it.
+  // Only data-entry steps use this. The upload step is NOT auto-advanced on
+  // purpose: its done screen is a real report (how many positions, NAV days,
+  // and the amber "no deposits arrived" warning of FASE GG) that the user
+  // needs to read, and it fires its callback even on a failed import.
+  const autoAdvanceIbkrJourney = useCallback((fromStep) => {
+    if (ibkrJourneyRef.current !== fromStep) return
+    setTimeout(() => advanceIbkrJourney(fromStep), IBKR_AUTO_ADVANCE_MS)
+  }, [advanceIbkrJourney])
+  // El argumento es opcional y se valida con typeof: este callback está
+  // cableado directo a onClick en ConnectionsModal, así que recibe un
+  // MouseEvent cuando nadie le pasa un paso (misma trampa que documenta
+  // FASE GQ4 para advanceIbkrJourney).
+  const startIbkrJourney = useCallback((n) => {
+    openIbkrJourneyStep(typeof n === 'number' ? n : 1)
+  }, [openIbkrJourneyStep])
+  const exitIbkrJourney = useCallback(() => {
+    setIbkrJourney(null)
+    setModal(null)
+    setImportBrokerHint(null)
+    setBrokerCompletionId(null)
+  }, [])
+
+  // Con el viaje activo, cerrar el modal de un paso AVANZA al siguiente en
+  // vez de terminar: la única salida explícita es el botón "Salir" de la
+  // barra (exitIbkrJourney, que no pasa por aquí).
+  const handleCloseModal = useCallback(() => {
+    setModal(null); setImportBrokerHint(null)
+    if (ibkrJourneyRef.current != null) advanceIbkrJourney()
+  }, [advanceIbkrJourney])
   const handleCloseEdit = useCallback(() => setEditItem(null), [])
   const handleCloseSell = useCallback(() => setSellItem(null), [])
+  // Vender era INALCANZABLE: SellModal solo se monta con un sellItem, y nada
+  // en la app llamaba a setSellItem (el único caller previsto era el botón por
+  // fila de AccountsTable, un componente que hoy no se renderiza en ningún
+  // lado). Por eso "no sabía dónde registrar una venta" no era un problema de
+  // descubrimiento sino de que el camino no existía. El picker elige la
+  // posición y recién ahí abre el SellModal de siempre, sin tocar su lógica.
+  const handleOpenSellPicker = useCallback(() => setModal('sellPicker'), [])
+  const handlePickSellItem = useCallback((it) => { setModal(null); setSellItem(it) }, [])
   const handleCloseDetail = useCallback(() => setDetailItem(null), [])
   const handleCloseReview = useCallback(() => setShowReview(false), [])
   const handleDismissToast = useCallback(() => setToast(null), [])
@@ -378,6 +557,36 @@ export default function DashboardPage() {
     } catch (e) { console.error('[ibkr] vault clear on disconnect failed:', e?.message) }
     showToast(lang === 'es' ? 'IBKR desconectado' : 'IBKR disconnected')
   }, [saveSettings, showToast, lang])
+
+  // FASE GO. El usuario pidió "desconexión completa": borrar la cuenta de
+  // IBKR desde la ruedita debe dejarla exactamente como si nunca se hubiera
+  // conectado, no solo sin historial (FASE GL) sino sin credenciales — sin
+  // esto, reabrir el viaje mostraba "IBKR Conectado" con un resumen de
+  // sync fantasma (262 días NAV, 317 trades) de una cuenta que ya no existe,
+  // porque `deleteItemGroup` deliberadamente conservaba token/queryId. Esta
+  // envoltura decide ANTES de borrar (con los items de HOY, mismo criterio
+  // last-item que `ibkrGone` en accountCleanup) si el grupo se lleva el
+  // último item de IBKR, y si es así corre la MISMA desconexión completa que
+  // el botón "Desconectar IBKR" ya usa — un solo camino para "IBKR ya no
+  // está", sin importar por cuál botón se llegó.
+  const handleDeleteItemGroup = useCallback(async (ids) => {
+    const idSet = new Set(ids)
+    const groupHasIbkr = (items || []).some((it) => it && idSet.has(it.id) && it._source === 'ibkr')
+    const survivesIbkr = (items || []).some((it) => it && !idSet.has(it.id) && it._source === 'ibkr')
+    const ibkrGone = groupHasIbkr && !survivesIbkr
+    const result = await deleteItemGroup(ids)
+    if (ibkrGone) await handleIbkrDisconnect()
+    return result
+  }, [items, deleteItemGroup, handleIbkrDisconnect])
+
+  // "Eliminar todo" se lleva TODAS las cuentas, IBKR incluida sin excepción:
+  // misma desconexión completa, sin necesidad de calcular last-item.
+  const handleDeleteAllItems = useCallback(async (opts) => {
+    const hadIbkr = (items || []).some((it) => it && it._source === 'ibkr')
+    const result = await deleteAllItems(opts)
+    if (hadIbkr) await handleIbkrDisconnect()
+    return result
+  }, [items, deleteAllItems, handleIbkrDisconnect])
 
   // Self-heal rows THIS APP invented. Several shipped IBKR file-parser bugs
   // (FASE BU/BV/BY, fixed 2026-07-28) wrote fake data into real imports: a
@@ -454,7 +663,7 @@ export default function DashboardPage() {
     const oauthBroker = hashParams.get('oauth_broker') || params.get('oauth_broker')
     const oauthError = params.get('oauth_error')
     if (oauthError) {
-      showToast(`OAuth error: ${oauthError}`, 'error', 5000)
+      showToast(`OAuth error: ${oauthError}`, 'warn', 5000)
       window.history.replaceState({}, '', '/dashboard')
       return
     }
@@ -466,7 +675,7 @@ export default function DashboardPage() {
         body: JSON.stringify({ action: 'exchange-code', code: oauthCode }),
       }).then(r => r.ok ? safeJson(r) : r.json().catch(() => ({})).then(d => { throw new Error(d.error || 'OAuth failed') }))
         .then(() => showToast(lang === 'es' ? 'Broker vinculado via OAuth' : 'Broker linked via OAuth'))
-        .catch(e => showToast(e.message, 'error', 5000))
+        .catch(e => showToast(e.message, 'warn', 5000))
     }
   }, [])
 
@@ -512,11 +721,61 @@ export default function DashboardPage() {
   }, [rawPortfolioItems, enrichData])
 
   // Data-completeness engine: gap findings + score over RAW data (items carry
-  // their own currency; the engine converts per-tx via `convert`).
+  // their own currency; the engine converts per-tx via `convert`). marketPrices
+  // is passed so the price-completeness checks (no-market-price, no-cost-basis)
+  // can tell "genuinely no price resolves for this symbol" apart from "this
+  // market item's real price is resolved live and was never the right field to
+  // read on the raw item" — without it, every working stock/crypto position
+  // flagged as if its price were missing (it never IS the raw item's own field).
+  // FASE HV11. El precio que la app YA muestra para cada ítem, por id. Es lo
+  // que alimenta la gráfica y el Spreadsheet, así que preguntarle a ESTE mapa
+  // "¿este activo tiene precio?" no puede contradecir lo que el usuario ve.
+  // Antes solo se pasaba el mapa de precios por SÍMBOLO, y dos posiciones del
+  // mismo activo con símbolos distintos daban respuestas distintas.
+  const resolvedPrices = useMemo(() => {
+    const out = {}
+    for (const it of portfolioItems || []) {
+      if (!it?.id) continue
+      const p = Number(it._originalPrice ?? it.currentPrice) || 0
+      if (p > 0) out[it.id] = p
+    }
+    return out
+  }, [portfolioItems])
+
   const dataCompleteness = useMemo(
-    () => analyzeDataCompleteness({ items, transactions, lots, convert, baseCurrency }),
-    [items, transactions, lots, convert, baseCurrency]
+    () => analyzeDataCompleteness({
+      items, transactions, lots, convert, baseCurrency, marketPrices, resolvedPrices,
+      // Mientras la vuelta de precios está en curso o falló, "sin precio actual"
+      // describe a la app, no a los datos del usuario. Ver el comentario en
+      // lib/dataCompleteness.js.
+      pricesReady: !pricesLoading && !pricesError,
+    }),
+    [items, transactions, lots, convert, baseCurrency, marketPrices, resolvedPrices, pricesLoading, pricesError]
   )
+
+  // FASE HV. El rendimiento deducido de una cuenta líquida entra a la MISMA
+  // lista de sugerencias que todo lo demás, en vez de estrenar una superficie
+  // propia: es una pregunta sobre los datos, igual que las otras. Se arma acá y
+  // no en `lib/dataCompleteness.js` porque ese módulo no conoce el motor de
+  // rendimiento, y duplicarlo ahí sería tener dos respuestas distintas a la
+  // misma pregunta.
+  const suggestionFindings = useMemo(() => {
+    const extra = (liquidYieldCandidates || []).map((c) => ({
+      id: `liquid-yield:${c.itemId}`,
+      code: 'liquid-yield',
+      severity: c.status === 'negative-residual' ? 'medium' : 'low',
+      itemId: c.itemId,
+      textEs: c.status === 'negative-residual'
+        ? `${c.name}: entró más de lo que hay en la cuenta. Puede faltar un retiro.`
+        : `${c.name}: ${formatCurrency(c.interest, c.currency)} de tu saldo no vino de ningún movimiento. Parece rendimiento de la cuenta.`,
+      textEn: c.status === 'negative-residual'
+        ? `${c.name}: more went in than the account holds. A withdrawal may be missing.`
+        : `${c.name}: ${formatCurrency(c.interest, c.currency)} of your balance came from no movement. It looks like the account's own yield.`,
+      action: { kind: 'liquid-yield' },
+      suggestion: null,
+    }))
+    return extra.length > 0 ? [...extra, ...dataCompleteness.findings] : dataCompleteness.findings
+  }, [liquidYieldCandidates, dataCompleteness])
 
   // Export XLSX
   const handleExport = useCallback(async () => {
@@ -624,17 +883,21 @@ export default function DashboardPage() {
     try {
       const { generateReport } = await import('@/lib/generateReport')
       await generateReport({
-        items: enrichedItems, snapshots, transactions,
-        netWorth, totalAssets, lang, returnYTD, annualDividends,
+        items: enrichedItems, snapshots: augmentedSnapshots, transactions,
+        netWorth, totalAssets, lang,
+        returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdBreakdown, ytdBreakdownReason,
+        annualDividends, estimatedAnnualIncome,
+        benchmarkName, benchmarkReturn, volatilityPct: riskMetrics?.volatility,
+        sharpe: riskMetrics?.sharpe, beta: riskMetrics?.beta,
         profileName: profile?.name || user?.displayName || '',
-        baseCurrency, convert,
+        baseCurrency, convert, period: 'ytd',
       })
       showToast(lang === 'es' ? 'PDF descargado' : 'PDF downloaded')
     } catch (err) {
       console.error('[report] generation failed:', err)
       showToast(lang === 'es' ? 'Error generando el PDF' : 'Error generating PDF')
     }
-  }, [enrichedItems, snapshots, transactions, lang, netWorth, totalAssets, returnYTD, annualDividends, profile, user, showToast, baseCurrency, convert])
+  }, [enrichedItems, augmentedSnapshots, transactions, lang, netWorth, totalAssets, returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdBreakdown, ytdBreakdownReason, annualDividends, estimatedAnnualIncome, benchmarkName, benchmarkReturn, riskMetrics, profile, user, showToast, baseCurrency, convert])
 
   const handleShare = useCallback(async () => {
     const t = (es, en) => lang === 'es' ? es : en
@@ -733,21 +996,20 @@ export default function DashboardPage() {
   }, [])
 
   // ONE rule for "is the IBKR connection actually in trouble?", shared by the top
-  // banner, the header pill and the ActionButtons dot. They each used to decide on
+  // banner, the header pill and the actions card dot. They each used to decide on
   // their own (`ibkrSyncStatus === 'error'`), so a single transient failure lit up
-  // a warning triangle over data synced hours ago. Split by whether the failure
-  // can heal itself:
-  //   - TOKEN_EXPIRED / INVALID_QUERY / LOCKED need the USER to act, so they warn
-  //     immediately (auto-sync is halted or backed off for these).
-  //   - Everything else (RATE_LIMITED/TIMEOUT/UNKNOWN) retries on its own every
-  //     30min, so it only becomes news once the data is genuinely stale: 5 BUSINESS
-  //     days without a successful sync. Business days because the market is shut on
-  //     weekends and a Friday sync has nothing to add on Sunday.
-  const ibkrNeedsAttention = useMemo(() => {
-    if (!ibkrSyncErrorCode) return false
-    if (['TOKEN_EXPIRED', 'INVALID_QUERY', 'LOCKED'].includes(ibkrSyncErrorCode)) return true
-    return businessDaysSince(settings?._ibkrLastSync || settings?._ibkrLastAutoSync) >= 5
-  }, [ibkrSyncErrorCode, settings?._ibkrLastSync, settings?._ibkrLastAutoSync])
+  // a warning triangle over data synced hours ago.
+  // FASE HX: la regla completa (5 días hábiles sin señal de conexión, para TODO
+  // código de error, midiendo desde la marca MÁS RECIENTE) vive en
+  // ibkrAttentionNeeded (components/dashboard/utils.js, puro y con tests), no
+  // aquí: este memo solo la cablea a settings.
+  const everIbkrSynced = !!(settings?._ibkrLastSync || settings?._ibkrLastAutoSync)
+  const ibkrNeedsAttention = useMemo(() => ibkrAttentionNeeded({
+    errorCode: ibkrSyncErrorCode,
+    lastSync: settings?._ibkrLastSync,
+    lastAutoSync: settings?._ibkrLastAutoSync,
+    connectedAt: settings?._ibkrConnectedAt,
+  }), [ibkrSyncErrorCode, settings?._ibkrLastSync, settings?._ibkrLastAutoSync, settings?._ibkrConnectedAt])
 
   const topBanner = useMemo(() => {
     // Nothing to be stale ABOUT on an empty account: a brand-new user opening the app
@@ -755,18 +1017,33 @@ export default function DashboardPage() {
     // screen, which reads as "this is broken" before they've added anything.
     if (portfolioItems.length === 0) return null
     if (staleCode) return 'stale'
-    if (ibkrSyncErrorCode === 'TOKEN_EXPIRED') return 'ibkr-expired'
-    if (ibkrSyncErrorCode === 'INVALID_QUERY') return 'ibkr-query'
-    if (ibkrSyncErrorCode === 'LOCKED') return 'ibkr-locked'
-    // Any other auto-sync failure self-heals; ibkrNeedsAttention holds the shared
-    // staleness rule so this banner can never disagree with the header pill.
-    if (ibkrNeedsAttention) return 'ibkr-failed'
+    // FASE HX: TODA rama de IBKR pasa por ibkrNeedsAttention (la regla de los
+    // 5 días hábiles). TOKEN_EXPIRED/INVALID_QUERY salían aquí SIN esa
+    // compuerta, así que un solo intento fallido con esos códigos encendía el
+    // banner aunque la conexión hubiera funcionado ayer; ahora solo deciden el
+    // COPY una vez que la barra se cruzó, no el momento en que aparece.
+    if (ibkrNeedsAttention && ibkrSyncErrorCode === 'TOKEN_EXPIRED') return 'ibkr-expired'
+    if (ibkrNeedsAttention && ibkrSyncErrorCode === 'INVALID_QUERY') return 'ibkr-query'
+    // FASE GQ: a first connection that crossed the grace period without ever
+    // landing a sync gets its OWN copy — "your credentials might be wrong"
+    // instead of "the last sync failed" (that phrasing assumes at least one
+    // sync happened). Checked before the general ibkrNeedsAttention branch
+    // below so it takes priority over the generic wording for exactly this
+    // case, never for an established connection that started failing.
+    if (ibkrNeedsAttention && !everIbkrSynced && settings?._ibkrConnectedAt) return 'ibkr-never-connected'
+    // LOCKED (and everything else) self-heals; ibkrNeedsAttention holds the
+    // shared 5-business-day staleness rule so this banner can never disagree
+    // with the header pill. LOCKED still gets its own more useful copy
+    // ("generate a new token") once it actually crosses that bar, instead of
+    // falling through to the generic "sync failed" wording.
+    if (ibkrNeedsAttention) return ibkrSyncErrorCode === 'LOCKED' ? 'ibkr-locked' : 'ibkr-failed'
     if (pricesError || ratesError) return 'prices'
-    // The contribution hint is NOT a top-of-page alarm — it lives as a quiet
-    // muted note inside NetWorthCard (a 40%-growth-with-few-deposits nudge is
-    // informational, not a warning that should shout in amber).
+    // The contribution hint is not an alarm anywhere: it is one line inside the
+    // "Completar información" flow (Nuevo menu), reachable when the user goes
+    // looking. It used to sit under the YTD figure, where it read as a
+    // complaint about the number itself.
     return null
-  }, [staleCode, ibkrSyncErrorCode, ibkrNeedsAttention, pricesError, ratesError, portfolioItems.length])
+  }, [staleCode, ibkrSyncErrorCode, ibkrNeedsAttention, everIbkrSynced, settings?._ibkrConnectedAt, pricesError, ratesError, portfolioItems.length])
 
   // Loading state — show the structural skeleton (same layout as the loaded page)
   // instead of a lone spinner, so first paint already looks like the dashboard.
@@ -775,6 +1052,8 @@ export default function DashboardPage() {
   }
 
   if (!user) return null
+
+  const loadStages = computeLoadStages({ dataLoading, ratesLoading, pricesLoading, benchmarkLoading })
 
   return (
     <div className="min-h-screen bg-theme-base">
@@ -786,7 +1065,24 @@ export default function DashboardPage() {
         onSettings={handleOpenSettings}
         onSignOut={handleSignOut}
         onRefresh={handleRefresh}
-        pricesLoading={pricesLoading || ratesLoading}
+        // Same flags computeLoadStages counts as real stages below, so the
+        // ring never sits at "idle" while one of them is still genuinely in
+        // flight (e.g. rates/prices already landed but the benchmark hasn't).
+        pricesLoading={pricesLoading || ratesLoading || benchmarkLoading}
+        // Real stages, not a timer: your data, the exchange rates, the market
+        // prices, the benchmark. The ring fills as each one actually lands.
+        // dataLoading only ever goes true→false once (the very first load —
+        // see lib/loadStages.js), so computeLoadStages stops counting it as a
+        // stage the moment it resolves instead of leaving every later
+        // refresh stuck with a permanent, meaningless floor.
+        loadStagesDone={loadStages.done}
+        loadStagesTotal={loadStages.total}
+        // Reflects the SAME error signal the "prices" banner already uses
+        // (see staleCode above) — the button's error state and the banner
+        // can never disagree about whether the last refresh actually failed.
+        // Both hooks clear their own error on the next fetch attempt, so a
+        // retry click clears this automatically once the retry lands.
+        refreshError={!!(pricesError || ratesError)}
         onAddAccount={handleOpenAccount}
         onCommandPalette={handleOpenCmdPalette}
         onOpenConnections={handleOpenConnections}
@@ -796,13 +1092,15 @@ export default function DashboardPage() {
         ibkrSyncStatus={ibkrSyncStatus}
         ibkrNeedsAttention={ibkrNeedsAttention}
         onIBKR={handleIBKRPillClick}
+        onEnrich={portfolioItems.length > 0 ? handleOpenEnrich : null}
+        enrichGapCount={dataCompleteness.findings.filter((f) => f.itemId).length}
         friendsEnabled={settings?.friendsEnabled !== false}
       />
 
       {topBanner && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3">
           {topBanner === 'stale' && (
-            <div className="px-4 py-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(37,99,235,0.1)', border: '1px solid rgba(37,99,235,0.2)' }}>
+            <div className="px-4 py-3 rounded-xl flex flex-wrap items-center justify-between gap-y-2" style={{ backgroundColor: 'rgba(37,99,235,0.1)', border: '1px solid rgba(37,99,235,0.2)' }}>
               <div className="flex items-center gap-2">
                 <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--accent-blue)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -819,17 +1117,17 @@ export default function DashboardPage() {
             </div>
           )}
           {topBanner === 'ibkr-expired' && (
-            <div className="px-4 py-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}>
+            <div className="px-4 py-3 rounded-xl flex flex-wrap items-center justify-between gap-y-2" style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)' }}>
               <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" style={{ color: '#fbbf24' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--alert-warn-icon)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
-                <p className="text-sm font-medium" style={{ color: '#fcd34d' }}>
+                <p className="text-sm font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
                   {lang === 'es' ? 'Tu token de IBKR expiró: genera uno nuevo para mantener tu portafolio actualizado' : 'Your IBKR token has expired: generate a new one to keep your portfolio updated'}
                 </p>
               </div>
               <div className="flex items-center gap-3 shrink-0">
-                <button onClick={handleIbkrDisconnect} className="text-xs transition-colors" style={{ color: '#fcd34d', opacity: 0.7 }}>
+                <button onClick={handleIbkrDisconnect} className="text-xs transition-colors" style={{ color: 'var(--alert-warn-icon)', opacity: 0.7 }}>
                   {lang === 'es' ? 'Desconectar' : 'Disconnect'}
                 </button>
                 <button onClick={() => setModal('ibkr')}
@@ -841,17 +1139,17 @@ export default function DashboardPage() {
             </div>
           )}
           {topBanner === 'ibkr-query' && (
-            <div className="px-4 py-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}>
+            <div className="px-4 py-3 rounded-xl flex flex-wrap items-center justify-between gap-y-2" style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)' }}>
               <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" style={{ color: '#fbbf24' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--alert-warn-icon)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
-                <p className="text-sm font-medium" style={{ color: '#fcd34d' }}>
+                <p className="text-sm font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
                   {lang === 'es' ? 'Query ID de IBKR inválido: verifica tu Flex Query en IBKR' : 'Invalid IBKR Query ID: verify your Flex Query in IBKR'}
                 </p>
               </div>
               <div className="flex items-center gap-3 shrink-0">
-                <button onClick={handleIbkrDisconnect} className="text-xs transition-colors" style={{ color: '#fcd34d', opacity: 0.7 }}>
+                <button onClick={handleIbkrDisconnect} className="text-xs transition-colors" style={{ color: 'var(--alert-warn-icon)', opacity: 0.7 }}>
                   {lang === 'es' ? 'Desconectar' : 'Disconnect'}
                 </button>
                 <button onClick={() => setModal('ibkr')}
@@ -862,35 +1160,70 @@ export default function DashboardPage() {
               </div>
             </div>
           )}
-          {topBanner === 'ibkr-locked' && (
-            <div className="px-4 py-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>
+          {/* FASE GQ: a first connect never made it past 5 business days (FASE HX)
+              without a single successful sync. "La última sincronización falló"
+              (ibkr-failed below) implies at least ONE sync happened; this case
+              never did, so the copy points straight at the credentials instead. */}
+          {/* FASE HX: era rojo (rgba(239,68,68)) con botón rojo sólido, o sea el
+              tratamiento de una falla mortal, para lo que es un aviso de datos
+              posiblemente desactualizados que el auto-sync sigue reintentando
+              solo. Ahora usa los tokens --alert-warn-* (mismos que el resto de
+              avisos no fatales, y con variante clara/oscura de verdad: los hex
+              fijos #fca5a5 eran ilegibles en tema claro). */}
+          {topBanner === 'ibkr-never-connected' && (
+            <div className="px-4 py-3 rounded-xl flex flex-wrap items-center justify-between gap-y-2" style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)' }}>
               <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" style={{ color: '#f87171' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--alert-warn-icon)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
-                <p className="text-sm font-medium" style={{ color: '#fca5a5' }}>
-                  {lang === 'es' ? 'IBKR bloqueó tu token: genera uno NUEVO en IBKR o importa un CSV mientras tanto' : 'IBKR locked your token: generate a NEW one in IBKR or import a CSV in the meantime'}
+                <p className="text-sm font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
+                  {lang === 'es' ? 'No pudimos conectar con IBKR en los últimos días: revisa tu Token y Query ID' : "We couldn't connect to IBKR in the last few days: check your Token and Query ID"}
                 </p>
               </div>
               <div className="flex items-center gap-3 shrink-0">
-                <button onClick={handleIbkrDisconnect} className="text-xs transition-colors" style={{ color: '#fca5a5', opacity: 0.7 }}>
+                <button onClick={handleIbkrDisconnect} className="text-xs transition-colors" style={{ color: 'var(--alert-warn-icon)', opacity: 0.7 }}>
                   {lang === 'es' ? 'Desconectar' : 'Disconnect'}
                 </button>
                 <button onClick={() => setModal('ibkr')}
                   className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-                  style={{ backgroundColor: '#dc2626', color: '#fff' }}>
+                  style={{ backgroundColor: '#d97706', color: '#fff' }}>
+                  {lang === 'es' ? 'Revisar credenciales' : 'Check credentials'}
+                </button>
+              </div>
+            </div>
+          )}
+          {/* FASE HX: mismo suavizado que ibkr-never-connected. LOCKED se
+              levanta solo (EZ3: reintento cada 12h), así que rojo-mortal era
+              el tono equivocado incluso cruzada la barra de 5 días. */}
+          {topBanner === 'ibkr-locked' && (
+            <div className="px-4 py-3 rounded-xl flex flex-wrap items-center justify-between gap-y-2" style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)' }}>
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--alert-warn-icon)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+                <p className="text-sm font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
+                  {lang === 'es' ? 'IBKR bloqueó tu token: genera uno NUEVO en IBKR o importa un CSV mientras tanto' : 'IBKR locked your token: generate a NEW one in IBKR or import a CSV in the meantime'}
+                </p>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <button onClick={handleIbkrDisconnect} className="text-xs transition-colors" style={{ color: 'var(--alert-warn-icon)', opacity: 0.7 }}>
+                  {lang === 'es' ? 'Desconectar' : 'Disconnect'}
+                </button>
+                <button onClick={() => setModal('ibkr')}
+                  className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                  style={{ backgroundColor: '#d97706', color: '#fff' }}>
                   {lang === 'es' ? 'Resolver' : 'Resolve'}
                 </button>
               </div>
             </div>
           )}
           {topBanner === 'ibkr-failed' && (
-            <div className="px-4 py-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}>
+            <div className="px-4 py-3 rounded-xl flex flex-wrap items-center justify-between gap-y-2" style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)' }}>
               <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" style={{ color: '#fbbf24' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--alert-warn-icon)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
-                <p className="text-sm font-medium" style={{ color: '#fcd34d' }}>
+                <p className="text-sm font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
                   {lang === 'es' ? 'La última sincronización con IBKR falló: tus datos pueden estar desactualizados' : 'The last IBKR sync failed: your data may be outdated'}
                 </p>
               </div>
@@ -902,12 +1235,12 @@ export default function DashboardPage() {
             </div>
           )}
           {topBanner === 'prices' && (
-            <div className="px-4 py-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}>
+            <div className="px-4 py-3 rounded-xl flex flex-wrap items-center justify-between gap-y-2" style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)' }}>
               <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" style={{ color: '#fbbf24' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--alert-warn-icon)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
-                <p className="text-sm font-medium" style={{ color: '#fcd34d' }}>
+                <p className="text-sm font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
                   {pricesError && ratesError
                     ? (lang === 'es' ? 'Precios y tasas desactualizados: error de conexión' : 'Prices and rates outdated: connection error')
                     : pricesError
@@ -943,8 +1276,16 @@ export default function DashboardPage() {
 
         {/* Time-sensitive alerts (maturities, dividends received) belong at the
             top — buried at page-bottom they were invisible on mobile. */}
-        <NotificationCenter items={portfolioItems} transactions={transactions} lang={lang} settings={settings} />
+        <NotificationCenter items={portfolioItems} transactions={transactions} lang={lang} settings={settings} convert={convert} baseCurrency={baseCurrency} />
         <div className="flex items-center gap-3 flex-wrap">
+          {/* A refresh in flight gets its OWN small confirmation right next to
+              the freshness text — the header button already shows full
+              progress, this is a second, lightweight "yes, it's really
+              happening" cue for whoever's looking at the body instead of the
+              header. Inline, tiny, never blocks the row it sits in. */}
+          {(pricesLoading || ratesLoading) && (
+            <ChispudoLoader mode="inline" size="small" state="refreshing" delay={250} lang={lang} />
+          )}
           {/* Freshness dot: 1-day-old data is normal (snapshots are daily), so
               1-13d stays neutral/muted — amber only kicks in at ≥14d. */}
           {dataAge === 0 ? (
@@ -1012,15 +1353,16 @@ export default function DashboardPage() {
             <NetWorthCard
               netWorth={netWorth} returnYTD={returnYTD} ytdChange={ytdChange}
               returnSinceStart={returnSinceStart} sinceStartDate={sinceStartDate}
-              yearlyChange={yearlyChange} dailyChange={dailyChange} convert={convert}
+              dailyChange={dailyChange} convert={convert}
               lang={lang} netContributions={netContributions} cashTotal={cashTotal} snapshots={augmentedSnapshots} items={portfolioItems}
-              contributionWarning={contributionWarning} onLogFlow={() => setModal('cashflow')}
+              ytdCalibrated={ytdCalibrated} ytdBreakdown={ytdBreakdown} ytdBreakdownReason={ytdBreakdownReason} ytdBreakdownDetail={ytdBreakdownDetail} ytdBreakdownTerms={ytdBreakdownTerms}
+              ytdDegradedAccounts={ytdDegradedAccounts}
             />
             </CardBoundary>
           </div>
 
           <div className="md:col-span-2 lg:col-span-3 flex flex-col gap-4">
-            <CardBoundary id="OR-01"><PortfolioGrowthChart items={portfolioItems} lots={lots} snapshots={snapshots} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} benchmarkSymbol={benchmarkSymbol} benchmarkName={benchmarkName} onSaveSnapshot={saveSnapshot} ibkrSyncSummary={ibkrSyncSummary} onImportBroker={handleOpenImport} /></CardBoundary>
+            <CardBoundary id="OR-01"><PortfolioGrowthChart items={portfolioItems} lots={lots} snapshots={chartSnapshots} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} onSaveSnapshot={saveSnapshot} ibkrSyncSummary={ibkrSyncSummary} onImportBroker={handleOpenImport} /></CardBoundary>
           </div>
         </div>
         </ErrorBoundary>
@@ -1050,13 +1392,18 @@ export default function DashboardPage() {
           const suggestionsCard = (
             <CardBoundary id="SUGG-01">
               <ChispuSuggestions
-                findings={dataCompleteness.findings}
+                findings={suggestionFindings}
                 globalScore={dataCompleteness.globalScore}
                 items={items}
                 lang={lang}
                 onEditItem={setEditItem}
                 onOpenCashflow={handleOpenCashflowPrefilled}
                 onOpenReview={handleOpenReview}
+                onOpenLiquidYield={() => setModal('liquidYield')}
+                onConfirmDistinct={(f) => {
+                  (f.action?.itemIds || []).forEach((id) => updateItem(id, { _dupConfirmedDistinct: true }))
+                }}
+                onApplySuggestion={updateItem}
               />
             </CardBoundary>
           )
@@ -1064,36 +1411,57 @@ export default function DashboardPage() {
             <>
               {hasHigh && suggestionsCard}
 
-              {/* ═══ COMPOSICIÓN: Allocation + Rendimiento por institución ═══ */}
-              <div className="stagger-3 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 items-start">
-                <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} /></CardBoundary>
-                <CardBoundary id="INST-01"><InstitutionPerformance items={portfolioItems} lang={lang} baseCurrency={baseCurrency} /></CardBoundary>
-                <CardBoundary id="OL-03"><PriceAlerts items={portfolioItems} alerts={alerts} marketPrices={marketPrices} addAlert={addAlert} deleteAlert={deleteAlert} lang={lang} /></CardBoundary>
+              {/* ═══ COMPOSICIÓN: Allocation + Rendimiento por institución ═══
+                  Dos COLUMNAS independientes, no una grilla por filas: en una
+                  grilla, la fila 2 arranca donde termina la card más alta de la
+                  fila 1, y una card corta (Price Alerts vacía) quedaba flotando
+                  con un hueco blanco enorme debajo. Cada columna empaqueta sus
+                  cards una tras otra, sin huecos; en móvil colapsa a una sola
+                  columna en el orden natural de lectura. */}
+              {/* Sin items-start: las dos columnas estiran al mismo alto y la
+                  última card de cada una toma el sobrante (flex-1 + h-full
+                  adentro), así el bloque cierra en una línea pareja en vez de
+                  un borde inferior disparejo. */}
+              <div className="stagger-3 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+                <div className="flex flex-col gap-3 sm:gap-4 min-w-0">
+                  <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
+                  <CardBoundary id="INV-01" className="flex-1"><InvestedByYearCard transactions={transactions} items={items} snapshots={augmentedSnapshots} netWorth={netWorth} returnYTD={returnYTD} ytdChange={ytdChange} convert={convert} baseCurrency={baseCurrency} lang={lang} /></CardBoundary>
+                </div>
+                <div className="flex flex-col gap-3 sm:gap-4 min-w-0">
+                  <CardBoundary id="INST-01"><InstitutionPerformance items={portfolioItems} lang={lang} baseCurrency={baseCurrency} transactions={transactions} convert={convert} ibkrDataComplete={ibkrDataComplete} /></CardBoundary>
+                  {/* Las acciones viven DENTRO del marco, a la altura de
+                      "Invertido por año", en vez de una barra de botones
+                      sueltos debajo de las tarjetas. Las alertas de precio
+                      son una acción más (abren su modal) en vez de una card
+                      casi siempre vacía ocupando media columna. */}
+                  <CardBoundary id="ACT-01" className="flex-1">
+                    <QuickActionsCard
+                      onImport={handleOpenImport} onAddAccount={handleOpenAccount}
+                      onTransfer={handleOpenTransfer} onCashFlow={handleOpenCashflow}
+                      onSell={handleOpenSellPicker} onPriceAlerts={() => setModal('priceAlerts')}
+                      onExport={handleExport} onShare={handleShare}
+                      onIntegrations={handleOpenConnections} onReview={handleOpenReview}
+                      itemCount={enrichedItems.length} alertCount={(alerts || []).length} lang={lang}
+                      ibkrSyncStatus={ibkrSyncStatus} ibkrLastSync={ibkrLastSync} ibkrNeedsAttention={ibkrNeedsAttention}
+                    />
+                  </CardBoundary>
+                </div>
               </div>
-
-              <ActionButtons
-                onImport={handleOpenImport} onAddAccount={handleOpenAccount}
-                onTransfer={handleOpenTransfer} onCashFlow={handleOpenCashflow} onExport={handleExport}
-                onShare={handleShare} onIntegrations={handleOpenConnections}
-                onReview={handleOpenReview} itemCount={enrichedItems.length} lang={lang}
-                ibkrSyncStatus={ibkrSyncStatus} ibkrLastSync={ibkrLastSync} ibkrNeedsAttention={ibkrNeedsAttention}
-              />
 
               {!hasHigh && suggestionsCard}
             </>
           )
         })()}
 
-        {/* ═══ INGRESOS ═══ */}
-        <div className="stagger-4"><SectionCollapse title={lang === 'es' ? 'Ingresos' : 'Income'} id="income">
+        {/* ═══ INGRESOS & COSTOS ═══ — both are "what your money did to you this
+            year" (money it made / money it cost), so they read as one section
+            instead of Costs sitting as an unrelated card right below it. */}
+        <div className="stagger-4"><SectionCollapse title={lang === 'es' ? 'Ingresos & Costos' : 'Income & Costs'} id="income">
           <ErrorBoundary lang={lang}>
             <CardBoundary id="IG-01"><DividendIncome transactions={transactions} items={portfolioItems} convert={convert} baseCurrency={baseCurrency} lang={lang} totalAssets={totalAssets} /></CardBoundary>
+            <CardBoundary id="COST-01"><CostsCard transactions={transactions} items={portfolioItems} convert={convert} baseCurrency={baseCurrency} lang={lang} /></CardBoundary>
           </ErrorBoundary>
         </SectionCollapse></div>
-
-        <div className="stagger-4">
-          <CardBoundary id="COST-01"><CostsCard transactions={transactions} convert={convert} baseCurrency={baseCurrency} lang={lang} /></CardBoundary>
-        </div>
 
         {/* ═══ ACTIVIDAD RECIENTE ═══ */}
         <div className="stagger-5"><SectionCollapse title={lang === 'es' ? 'Actividad Reciente' : 'Recent Activity'} id="activity" defaultOpen={false}>
@@ -1116,7 +1484,7 @@ export default function DashboardPage() {
                 </div>
               </div>
             )}
-            <CardBoundary id="HO-02"><RecentTransactions transactions={transactions} items={items} lang={lang} onExportCSV={handleExportTransactionsCSV} onDeleteTransaction={deleteTransaction} /></CardBoundary>
+            <CardBoundary id="HO-02"><RecentTransactions transactions={transactions} items={items} lang={lang} convert={convert} baseCurrency={baseCurrency} onExportCSV={handleExportTransactionsCSV} onDeleteTransaction={deleteTransactionWithReversal} /></CardBoundary>
             <CardBoundary id="HO-03"><DataQualityCard items={portfolioItems} transactions={transactions} snapshots={snapshots} convert={convert} baseCurrency={baseCurrency} lang={lang} onConnect={handleOpenConnections} onImportBroker={handleOpenImport} /></CardBoundary>
           </ErrorBoundary>
         </SectionCollapse></div>
@@ -1141,13 +1509,11 @@ export default function DashboardPage() {
         <InstallPrompt lang={lang} />
 
         <div className="flex items-center justify-center gap-3 pt-4 pb-8">
-          <button onClick={handleReport}
-            className="px-5 py-2.5 text-sm font-medium text-slate-400 bg-theme-surface border border-glass-border/60 rounded-xl hover:bg-theme-elevated hover:text-white hover:border-[#475569] transition-all inline-flex items-center gap-2">
-            {lang === 'es' ? 'Descargar PDF' : 'Download PDF'}
-          </button>
+          {/* Una sola entrada (FASE HT): el modal trae período, vista previa,
+              Imprimir y Descargar PDF, todos sobre los mismos datos. */}
           <button onClick={handleOpenPrint}
             className="px-5 py-2.5 text-sm font-medium text-slate-400 bg-theme-surface border border-glass-border/60 rounded-xl hover:bg-theme-elevated hover:text-white hover:border-[#475569] transition-all inline-flex items-center gap-2">
-            {lang === 'es' ? 'Imprimir Resumen' : 'Print Summary'}
+            {lang === 'es' ? 'Generar reporte' : 'Generate report'}
           </button>
         </div>
 
@@ -1163,7 +1529,7 @@ export default function DashboardPage() {
           onUpdateItem={updateItem} onDeleteItem={deleteItem} onBulkImport={bulkImport}
           existingItems={items} existingLots={lots}
           activePortfolio={activePortfolio} activeEntity={activeEntity !== '__all__' ? activeEntity : 'default'}
-          lang={lang} brokerHint={importBrokerHint}
+          lang={lang} brokerHint={importBrokerHint} journeyActive={ibkrJourney != null}
         />
       )}
 
@@ -1171,8 +1537,17 @@ export default function DashboardPage() {
         <AddAccountModal
           onClose={handleCloseModal}
           onAdd={async (item) => {
-            await addItem(item)
+            // ⛔ LÓGICA CONGELADA (G). Ver
+            // lib/assetLogic/corporateBondWithEntryFee.js: PREGUNTAR antes de
+            // cambiar este wrapper.
+            // MUST return the new id: AddAccountModal links the opening DEPOSIT
+            // to it (_linkedItemId). Swallowing it left that deposit "sin
+            // vincular", which is not cosmetic — every engine that asks "what
+            // explains this account's balance" keys on _linkedItemId, so the
+            // account read as having no history at all (FASE EA).
+            const id = await addItem(item)
             showToast(lang === 'es' ? `${item.symbol || item.name} agregado` : `${item.symbol || item.name} added`)
+            return id
           }}
           onAddTransaction={addTransaction} onAddLot={addLot}
           onCreateDestination={addItem}
@@ -1191,6 +1566,20 @@ export default function DashboardPage() {
         />
       )}
 
+      {modal === 'sellPicker' && (
+        <SellPickerModal
+          items={portfolioItems} onPick={handlePickSellItem} onClose={handleCloseModal}
+          lang={lang} baseCurrency={baseCurrency}
+        />
+      )}
+
+      {modal === 'priceAlerts' && (
+        <PriceAlertsModal
+          items={portfolioItems} alerts={alerts} marketPrices={marketPrices}
+          addAlert={addAlert} deleteAlert={deleteAlert} lang={lang} onClose={handleCloseModal}
+        />
+      )}
+
       {sellItem && (
         <SellModal
           item={sellItem} onClose={handleCloseSell}
@@ -1200,9 +1589,41 @@ export default function DashboardPage() {
         />
       )}
 
+      {/* FASE GM: la barra fija del viaje continuo de IBKR, dibujada ENCIMA
+          del modal del paso activo. Lleva el hilo (Paso X de 5), permite
+          saltar el paso o salir del viaje, y garantiza que ningún cierre de
+          modal deje al usuario en el dashboard preguntándose si faltaban
+          pasos. */}
+      {ibkrJourney != null && (
+        <IBKRJourneyBar
+          step={ibkrJourney}
+          total={5}
+          title={[
+            lang === 'es' ? 'Conectar por API' : 'Connect via API',
+            lang === 'es' ? 'Subir tu Flex XML' : 'Upload your Flex XML',
+            lang === 'es' ? 'Transcribir tu foto de PortfolioAnalyst' : 'Transcribe your PortfolioAnalyst screenshot',
+            lang === 'es' ? 'Copiar tus retornos (%)' : 'Copy your returns (%)',
+            lang === 'es' ? 'Resumen y conciliación' : 'Summary and reconciliation',
+          ][ibkrJourney - 1]}
+          onSkip={advanceIbkrJourney}
+          onExit={exitIbkrJourney}
+          onJump={openIbkrJourneyStep}
+          doneSteps={ibkrProgress.steps.filter((s) => s.done).map((s) => s.step)}
+          lang={lang}
+        />
+      )}
+
       {modal === 'ibkr' && (
         <IBKRSyncModal
-          onClose={handleCloseModal}
+          onClose={() => {
+            const justConnected = !ibkrWasConnectedRef.current && ibkrConnected
+            handleCloseModal()
+            // Greet a brand-new connection with the checklist, once — a routine
+            // re-sync (already connected before opening) never triggers it.
+            // Inside the FASE GM journey the checklist IS the final step, so
+            // the auto-open would collide with the sequence: skip it there.
+            if (justConnected && ibkrJourneyRef.current == null) setTimeout(() => setBrokerCompletionId('ibkr'), 50)
+          }}
           onSyncComplete={async (data, mode, onProgress) => {
             await handleIBKRSync(data, mode, onProgress)
             showToast(lang === 'es' ? `IBKR: ${data.items?.length || 0} posiciones sincronizadas` : `IBKR: ${data.items?.length || 0} positions synced`)
@@ -1210,9 +1631,26 @@ export default function DashboardPage() {
           savedToken={settings?.ibkrToken || ''} savedQueryId={settings?.ibkrQueryId || ''}
           vaultMigrated={!!settings?._ibkrVaultMigrated} syncSummary={ibkrSyncSummary}
           onSaveCredentials={(creds) => { saveSettings({ ...creds, _ibkrLastSync: new Date().toISOString(), _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
+          // FASE GQ: fired by the non-blocking first-connect (handleQuickConnect
+          // in IBKRSyncModal) BEFORE any sync has actually run — deliberately
+          // does NOT stamp _ibkrLastSync (that would lie about a sync that
+          // hasn't happened) and instead stamps _ibkrConnectedAt, one of the
+          // clocks ibkrNeedsAttention's 5-business-day rule reads above. Once
+          // saved, the existing auto-sync effect (useDashboardData) picks up
+          // the new credentials on its own next render — no separate trigger
+          // call needed here.
+          // FASE HX: SIEMPRE se estampa la hora actual (antes preservaba la
+          // marca vieja con `settings?._ibkrConnectedAt ||`): re-guardar
+          // credenciales es un intento de conexión fresco y reinicia el
+          // fusible de 5 días; con la preservación, "me reconecté ayer" no
+          // apagaba una alarma cuyo reloj seguía corriendo desde el primer
+          // intento. No puede spamear escrituras: handleQuickConnect corre a
+          // lo sumo una vez por apertura del modal (autoStartedRef).
+          onSaveCredentialsPending={(creds) => { saveSettings({ ...creds, _ibkrConnectedAt: new Date().toISOString(), _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
           onApiSyncSuccess={() => { saveSettings({ _ibkrLastSync: new Date().toISOString(), _ibkrAutoSyncStatus: 'ok', _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
           onDisconnect={handleIbkrDisconnect}
           uid={user?.uid} lang={lang}
+          journeyActive={ibkrJourney != null}
           lastSyncTime={ibkrLastSync}
           existingItems={enrichedItems} existingTransactions={transactions} existingSnapshots={snapshots}
         />
@@ -1248,21 +1686,36 @@ export default function DashboardPage() {
       {modal === 'ledger' && (
         <LedgerSyncModal
           onClose={handleCloseModal}
-          onSyncComplete={async ({ items: syncItems, mode }) => {
+          onSyncComplete={async ({ items: syncItems, transactions: syncTxs, mode }) => {
+            const newKeys = new Set()
             for (const item of syncItems) {
+              // Match by wallet address when both sides have one: every chain's
+              // address is unique, and several chains now share a symbol (ETH
+              // mainnet vs ETH on Arbitrum/Base/Optimism). The symbol fallback
+              // only applies to legacy items imported before _walletAddress.
               const existing = items.find(it =>
-                it._walletAddress === item._walletAddress ||
-                ((it.symbol || '').toUpperCase() === (item.symbol || '').toUpperCase() &&
+                (item._walletAddress && it._walletAddress === item._walletAddress) ||
+                (!item._walletAddress && !it._walletAddress &&
+                 (it.symbol || '').toUpperCase() === (item.symbol || '').toUpperCase() &&
                  (it._source === 'ledger' || (it.institution || '').toLowerCase() === 'ledger'))
               )
               if (existing) {
                 await updateItem(existing.id, { quantity: item.quantity, _source: 'ledger', _walletAddress: item._walletAddress })
               } else {
                 await addItem(item)
+                newKeys.add(item._walletAddress || item.symbol)
               }
             }
+            // Inflows attach only to NEWLY created items: re-syncing an address
+            // that already exists would duplicate its BUY history.
+            let txCount = 0
+            for (const tx of (syncTxs || [])) {
+              if (newKeys.has(tx._walletAddress || tx.symbol)) { await addTransaction(tx); txCount++ }
+            }
             setModal(null)
-            showToast(lang === 'es' ? `Ledger: ${syncItems.length} balances importados` : `Ledger: ${syncItems.length} balances imported`)
+            showToast(lang === 'es'
+              ? `Cripto: ${syncItems.length} posiciones, ${txCount} compras detectadas`
+              : `Crypto: ${syncItems.length} positions, ${txCount} detected buys`)
           }}
           lang={lang}
         />
@@ -1283,7 +1736,9 @@ export default function DashboardPage() {
             await executeContribution(payload)
             showToast(lang === 'es' ? 'Movimiento registrado' : 'Movement recorded')
           }}
+          onConfirmNewMoney={(itemId) => updateItem(itemId, { _newMoneyConfirmed: true })}
           existingItems={items}
+          transactions={transactions}
           lang={lang}
           baseCurrency={baseCurrency}
           prefill={cashflowPrefill}
@@ -1298,11 +1753,12 @@ export default function DashboardPage() {
       {modal === 'settings' && (
         <SettingsModal
           onClose={handleCloseModal} settings={settings}
+          userEmail={user?.email || ''}
           onSaveSettings={saveSettings}
-          onDeleteAllItems={deleteAllItems} onDeleteAllSnapshots={deleteAllSnapshots}
+          onDeleteAllItems={handleDeleteAllItems} onDeleteAllSnapshots={deleteAllSnapshots}
           onDeleteAllTransactions={deleteAllTransactions}
           onDeleteAllFinanceTransactions={deleteAllFinanceTransactions}
-          onDeleteItemGroup={deleteItemGroup}
+          onDeleteItemGroup={handleDeleteItemGroup}
           onSetLang={() => handleSetLang('toggle')}
           entities={entities}
           onAddEntity={addEntity}
@@ -1335,10 +1791,16 @@ export default function DashboardPage() {
           lastSyncTime={settings?._ibkrLastSync || settings?._ibkrLastAutoSync || null}
           portfolioItems={portfolioItems}
           onOpenIBKR={handleOpenIBKR}
+          onStartIbkrJourney={startIbkrJourney}
+          ibkrProgress={ibkrProgress}
+          onOpenIbkrStep={openIbkrJourneyStep}
           onBackgroundSync={handleIBKRPillClick}
           onImport={handleOpenImport}
           onAddAccount={handleOpenAccount}
           onOpenBlockchain={handleOpenBlockchain}
+          onOpenLedger={() => setModal('ledger')}
+          onCalibrate={() => setModal('calibrate')}
+          onOpenBrokerChecklist={(brokerId) => setBrokerCompletionId(brokerId)}
           onSaveCredentials={(creds) => { saveSettings({ ...creds, _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
           onSyncBroker={async (brokerId, data) => {
             const positions = data?.positions || data || []
@@ -1385,7 +1847,29 @@ export default function DashboardPage() {
 
       {modal === 'print' && (
         <PrintSummary items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets}
-          snapshots={augmentedSnapshots} transactions={transactions} lang={lang} onClose={handleCloseModal} />
+          snapshots={augmentedSnapshots} transactions={transactions}
+          returnYTD={returnYTD} ytdChange={ytdChange}
+          returnSinceStart={returnSinceStart} sinceStartDate={sinceStartDate}
+          ytdBreakdown={ytdBreakdown} ytdBreakdownReason={ytdBreakdownReason}
+          annualDividends={annualDividends}
+          estimatedAnnualIncome={estimatedAnnualIncome}
+          benchmarkName={benchmarkName} benchmarkReturn={benchmarkReturn}
+          volatilityPct={riskMetrics?.volatility}
+          sharpe={riskMetrics?.sharpe} beta={riskMetrics?.beta}
+          baseCurrency={baseCurrency} convert={convert}
+          profileName={profile?.name || user?.displayName || ''}
+          lang={lang} onClose={handleCloseModal} />
+      )}
+
+      {modal === 'calibrate' && (
+        <CalibrateReturnModal
+          netWorth={netWorth} transactions={transactions} convert={convert} baseCurrency={baseCurrency}
+          snapshots={snapshots} accountSnapshots={accountCalibrations} items={portfolioItems}
+          saveSnapshot={saveSnapshot} deleteSnapshot={deleteSnapshot}
+          lang={lang} onClose={handleCloseModal}
+          // Inside the IBKR walkthrough the account being onboarded IS IBKR.
+          preferredAccount={ibkrJourney != null ? 'ibkr' : null}
+          onSaved={() => autoAdvanceIbkrJourney(4)} />
       )}
 
       {editItem && (
@@ -1400,21 +1884,34 @@ export default function DashboardPage() {
             showToast(lang === 'es' ? 'Activo eliminado' : 'Asset deleted')
           }}
           onAddTransaction={addTransaction}
+          onDeleteTransaction={deleteTransactionWithReversal}
+          onUpdateTransaction={updateTransactionWithReversal}
           onExecuteContribution={executeContribution}
           onCreateDestination={addItem}
           transactions={transactions}
           baseCurrency={baseCurrency}
+          convert={convert}
           existingItems={items} lang={lang}
           allItems={portfolioItems}
-          onNavigate={showReview ? null : (dir) => {
-            if (dir === 'next') {
-              const sorted = [...portfolioItems].sort((a, b) => Math.abs(getItemValue(b)) - Math.abs(getItemValue(a)))
-              const currentId = editItem.id
-              const idx = sorted.findIndex(it => it.id === currentId)
-              if (idx >= 0 && idx < sorted.length - 1) setEditItem(sorted[idx + 1])
-              else setEditItem(null)
-            }
-          }} />
+          findings={dataCompleteness.findings}
+          onOpenCashflow={handleOpenCashflowPrefilled}
+          /* FASE HV3. Guardar cierra y devuelve al dashboard, punto.
+           *
+           * Antes, `onNavigate('next')` saltaba a la cuenta SIGUIENTE por
+           * tamaño apenas se guardaba. Reportado por el usuario: arregló su
+           * fondo líquido desde "Chispu te sugiere", guardó, y aterrizó
+           * editando su Bitcoin sin haberlo pedido ("me quedé confundido").
+           * No era aleatorio: el fondo vale $327.89 y Bitcoin $294.05, o sea
+           * era literalmente la siguiente cuenta hacia abajo.
+           *
+           * El encadenado tenía sentido como barrido de "revisá todas tus
+           * cuentas", pero ese barrido ya existe aparte y es AccountReviewModal,
+           * que hace su propio paso a paso y por eso ya desactivaba esto
+           * (`showReview ? null : ...`). O sea el encadenado solo llegaba a
+           * dispararse desde el único lugar donde está mal: una corrección
+           * puntual de UNA cuenta. Sin el prop, el botón además deja de decir
+           * "Guardar →" y dice "Guardar", que es lo que de verdad hace.
+           */ />
       )}
 
       {detailItem && (
@@ -1428,8 +1925,151 @@ export default function DashboardPage() {
           transactions={transactions}
           onClose={handleCloseReview}
           onEditItem={setEditItem}
+          onOpenCashflow={handleOpenCashflowPrefilled}
+          onConfirmDistinct={(f) => {
+            (f.action?.itemIds || []).forEach((id) => updateItem(id, { _dupConfirmedDistinct: true }))
+          }}
+          onApplySuggestion={updateItem}
           lang={lang}
           findings={dataCompleteness.findings}
+          startItemId={reviewTarget.itemId}
+          onlyWithFindings={reviewTarget.guided}
+          institutionFilter={reviewTarget.institution}
+        />
+      )}
+
+      {modal === 'quarterly' && (
+        <QuarterlyHistoryModal
+          saveSnapshot={saveSnapshot}
+          saveSettings={saveSettings}
+          convert={convert}
+          baseCurrency={baseCurrency}
+          snapshots={snapshots}
+          lang={lang}
+          onClose={handleCloseModal}
+          onSaved={(n) => {
+            showToast(lang === 'es' ? `${n} trimestres guardados` : `${n} quarters saved`, 'success')
+            autoAdvanceIbkrJourney(3)
+          }}
+        />
+      )}
+
+      {showEnrich && (
+        <EnrichModal
+          items={portfolioItems}
+          findings={dataCompleteness.findings}
+          contributionWarning={contributionWarning}
+          lang={lang}
+          onClose={handleCloseEnrich}
+          onPickAccount={handleEnrichAccount}
+          onPickInstitution={handleEnrichInstitution}
+          onGuided={handleEnrichGuided}
+          onBrokerChecklist={() => { setShowEnrich(false); setBrokerCompletionId('ibkr') }}
+          hasBroker={portfolioItems.some((it) => it._source === 'ibkr')}
+        />
+      )}
+
+      {brokerCompletionId && (
+        <BrokerCompletionModal
+          brokerId={brokerCompletionId}
+          brokerName={brokerCompletionId === 'ibkr' ? 'Interactive Brokers' : brokerCompletionId}
+          lang={lang}
+          onClose={() => { setBrokerCompletionId(null); setIbkrJourney(null) }}
+          completionState={brokerCompletionState}
+          progress={brokerCompletionId === 'ibkr' ? ibkrProgress : null}
+          onOpenStep={openIbkrJourneyStep}
+          onConnect={() => setModal('ibkr')}
+          onImportHistory={() => handleOpenImport('ibkr')}
+          onQuarterlyHistory={handleOpenQuarterly}
+          onCalibrate={() => setModal('calibrate')}
+          inferredFlowCount={inferredFlowCandidates.length}
+          onReviewInferredFlows={() => setModal('inferredFlows')}
+          reconciliation={ibkrReconciliation}
+        />
+      )}
+
+      {modal === 'inferredFlows' && (
+        <InferredFlowsModal
+          candidates={inferredFlowCandidates}
+          reconciliation={inferredFlowReconciliation}
+          lang={lang}
+          onClose={handleCloseModal}
+          onAccept={async (c) => {
+            await acceptInferredFlow(c)
+            showToast(lang === 'es' ? 'Movimiento registrado' : 'Movement recorded', 'success')
+          }}
+          onDismiss={dismissInferredFlow}
+        />
+      )}
+
+      {modal === 'liquidYield' && (
+        <LiquidYieldModal
+          candidates={liquidYieldCandidates}
+          lang={lang}
+          // setModal(null) y no handleCloseModal a propósito: con un viaje de
+          // IBKR activo, cerrar por ahí AVANZA el paso (FASE GM), y este modal
+          // no es parte de ese viaje.
+          onClose={() => setModal(null)}
+          onAccept={async (c) => {
+            await acceptLiquidYield(c)
+            showToast(lang === 'es' ? 'Rendimiento registrado' : 'Yield recorded', 'success')
+          }}
+          onDismiss={dismissLiquidYield}
+          // Los dos desenlaces posibles de mirar el desglose, cada uno a la
+          // pantalla que ya sabe hacer ese trabajo: falta una salida (Cash Flow,
+          // con el monto del descuadre ya puesto y la fecha a cargo del usuario,
+          // que es el único dato que la app no puede saber), o sobra una fila
+          // (el editor de la cuenta, la única superficie que revierte bien el
+          // crédito que ese pago movió, vía deleteTransactionWithReversal).
+          onRegisterMissing={(c) => {
+            setModal(null)
+            handleOpenCashflowPrefilled({
+              flowType: 'WITHDRAWAL', origin: 'external', linkedId: c.itemId,
+              amount: Math.abs(c.interest), currency: c.currency, date: '',
+            })
+          }}
+          onOpenAccount={(c) => {
+            setModal(null)
+            const it = items.find((i) => i.id === c.itemId)
+            if (it) setEditItem(it)
+          }}
+          // "Esto no pasó": borrar una fila del desglose, sin cerrar la pantalla.
+          //
+          // Lo importante no es el borrado sino lo que va ANTES: un pago que
+          // escribió el motor automático se vuelve a escribir solo en la
+          // siguiente corrida, porque su calendario sigue diciendo que ese mes
+          // paga. Borrarlo a secas no sirve de nada: reaparece. Por eso la fecha
+          // se agrega primero a `excludedPayDates` del activo que lo produce,
+          // que es el mecanismo que ya existe para "esta fecha NO ocurrió"
+          // (hoy solo se podía marcar al crear la cuenta, nunca después).
+          //
+          // El borrado va por deleteTransactionWithReversal, la única vía que
+          // además revierte el crédito que ese pago pudo haber movido en la
+          // cuenta destino.
+          onDeleteMovement={async (m, c) => {
+            if (!m?.txId) return
+            try {
+              // Una sola vía de borrado para todas las pantallas: marcar el mes
+              // como "no pagó" vive DENTRO de deleteTransactionWithReversal, así
+              // que no hay una copia acá que se pueda quedar atrás.
+              //
+              // Lo único propio de esta pantalla: un movimiento ANTERIOR a la
+              // fecha del saldo no puede mover ese saldo. El usuario lo tecleó
+              // leyendo su estado de cuenta, así que ya refleja lo que de verdad
+              // pasó, haya acreditado la app ese cupón o no. Es el invariante 1
+              // de lib/assetLogic/liquidFundYield.js. Uno POSTERIOR a la foto sí
+              // se revierte, porque ese llegó después.
+              const afterPhoto = c?.asOfTs != null && Number.isFinite(m.ts) && m.ts > c.asOfTs
+              await deleteTransactionWithReversal(m.txId, { skipBalanceReversal: !afterPhoto })
+            } catch (err) {
+              // Un borrado que falla NO puede quedarse mudo: la fila desaparece
+              // de la lista igual (se recalcula sola) y el usuario cree que
+              // guardó, hasta que recarga y todo volvió.
+              showToast(lang === 'es'
+                ? `No se pudo borrar el movimiento: ${err.message}`
+                : `Could not delete the movement: ${err.message}`, 'error')
+            }
+          }}
         />
       )}
 
@@ -1440,6 +2080,8 @@ export default function DashboardPage() {
         onAdd={handleOpenAccount} onImport={handleOpenImport}
         onExport={handleExport} onShare={handleShare}
         onSettings={handleOpenSettings} onSearch={handleOpenCmdPalette} lang={lang}
+        onEnrich={portfolioItems.length > 0 ? handleOpenEnrich : null}
+        enrichGapCount={dataCompleteness.findings.filter((f) => f.itemId).length}
         friendsEnabled={settings?.friendsEnabled !== false}
       />
 
@@ -1460,13 +2102,8 @@ export default function DashboardPage() {
         <div className="fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 px-4 py-2.5 rounded-lg shadow-xl text-sm font-medium animate-fade-in border"
           role="status"
           aria-live="polite"
-          style={toast.type === 'error'
-            ? { backgroundColor: 'rgba(127,29,29,0.95)', borderColor: 'rgba(185,28,28,0.5)', color: '#fecaca' }
-            : toast.type === 'info'
-            ? { backgroundColor: 'rgba(30,58,138,0.95)', borderColor: 'rgba(29,78,216,0.5)', color: '#dbeafe' }
-            : { backgroundColor: 'rgba(6,78,59,0.95)', borderColor: 'rgba(5,150,105,0.5)', color: '#d1fae5' }
-          }>
-          <span>{toast.type === 'error' ? '✕' : toast.type === 'info' ? 'ℹ' : '✓'}</span>
+          style={toastStyleFor(toast.type)}>
+          <span>{toastIconFor(toast.type)}</span>
           {toast.msg}
           <button onClick={handleDismissToast} className="ml-1 opacity-60 hover:opacity-100 transition-opacity text-xs" aria-label="Dismiss">✕</button>
         </div>

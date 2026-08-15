@@ -4,8 +4,8 @@
   "description": "Track your entire portfolio. Built for Latin America.",
   "start_url": "/dashboard",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "background_color": "#0A0A12",
+  "theme_color": "#0A0A12",
   "orientation": "portrait-primary",
   "icons": [
     {

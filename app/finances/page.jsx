@@ -85,7 +85,7 @@ export default function FinancesPage() {
     transactions: portfolioTransactions,
   } = useFirestoreItems()
 
-  const { convert } = useExchangeRates()
+  const { convert, loading: ratesLoading, refresh: refreshRates } = useExchangeRates()
 
   const monthTransactions = useMemo(() => {
     return financeTransactions
@@ -158,7 +158,10 @@ export default function FinancesPage() {
     // server-side without ever listing auth users.
     await saveSettings({
       financeReminder: next,
-      ...(next ? { financeReminderEmail: user?.email || '', financeReminderLang: lang } : {}),
+      // Sin `financeReminderLang`: todo correo saliente va en inglés (FASE
+      // HX2), así que guardar un idioma que nadie lee solo haría creer que la
+      // preferencia hace algo.
+      ...(next ? { financeReminderEmail: user?.email || '' } : {}),
     })
   }, [reminderEnabled, saveSettings, user, lang])
 
@@ -233,6 +236,11 @@ export default function FinancesPage() {
   return (
     <div className="min-h-screen bg-theme-base">
       <a href="#main-content" className="skip-link">{t('Ir al contenido', 'Skip to content')}</a>
+      {/* FASE EM. onRefresh was a no-op and no load-stage signal was passed, so
+          the ring could never show real progress — same gap as the spreadsheet
+          page. Finanzas has no market prices to refresh (its numbers are
+          Firestore-live + GTQ conversion), so its two real stages are the data
+          listener and the exchange rate fetch. */}
       <Header
         user={user}
         lang={lang}
@@ -240,8 +248,10 @@ export default function FinancesPage() {
         onImport={() => setModal('import')}
         onSettings={() => router.push('/dashboard')}
         onSignOut={handleSignOut}
-        onRefresh={() => {}}
-        pricesLoading={false}
+        onRefresh={refreshRates}
+        pricesLoading={ratesLoading}
+        loadStagesDone={[!dataLoading, !ratesLoading].filter(Boolean).length}
+        loadStagesTotal={2}
         friendsEnabled={settings?.friendsEnabled !== false}
       />
       <PageTour pageKey="finances" nextRoute="/spreadsheet" nextFlag="spreadsheet" lang={lang} steps={[

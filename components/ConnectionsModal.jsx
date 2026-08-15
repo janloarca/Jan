@@ -7,13 +7,31 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, Rocket } from 'lucide-react'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { getBrokerRegistry, connectorExplainer, IBKR_DISCONNECTED_FIELDS } from '@/lib/brokerRegistry'
+import { getBrokerRegistry, IBKR_DISCONNECTED_FIELDS } from '@/lib/brokerRegistry'
 import { getBrokerHowTo } from '@/lib/brokerHowTo'
-import BrokerSteps from '@/components/ui/BrokerSteps'
+import BrokerConnectModal from '@/components/BrokerConnectModal'
+import BrokerProgressPanel from '@/components/dashboard/BrokerProgressPanel'
 
-export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, onBackgroundSync, onImport, onAddAccount, onOpenBlockchain, onSaveCredentials, lang = 'es', lastSyncTime, portfolioItems = [] }) {
+// Not a lib/brokerRegistry.js entry: IBKR's /api/brokers/ibkr endpoint takes
+// {token, queryId}, not the generic {fields: [...]} shape every registry
+// broker uses, so it's excluded on purpose from getBrokerRegistry() (e.g.
+// disconnectAllSyncs iterates hasApi brokers and handles IBKR separately).
+// This is just enough of a broker-shaped object to feed the SAME wizard every
+// other broker gets — BrokerConnectModal special-cases id === 'ibkr' to
+// render the Token/Query ID pair instead of a generic credentials form.
+const IBKR_PSEUDO_BROKER = { id: 'ibkr', name: 'Interactive Brokers', icon: '🏦', hasApi: true, authType: null, fields: [] }
+
+export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, onStartIbkrJourney, onBackgroundSync, onImport, onAddAccount, onOpenBlockchain, onOpenLedger, onSaveCredentials, onCalibrate, onOpenBrokerChecklist, lang = 'es', lastSyncTime, portfolioItems = [],
+  // FASE IH: el avance real de IBKR (lib/ibkrJourney.js). Mientras nada esté
+  // cumplido, la tarjeta se queda con "Empezar" (no hay progreso que mostrar
+  // y ese es el botón correcto). En cuanto el usuario cumple el primer
+  // requisito aparece el panel con el % y los requisitos tocables, que es lo
+  // que pidió: "un panel con los requisitos y un % del 1 al cien y que toque
+  // el que quiere editar".
+  ibkrProgress = null, onOpenIbkrStep = null,
+}) {
   const trapRef = useFocusTrap()
   const t = (es, en) => lang === 'es' ? es : en
 
@@ -22,16 +40,20 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
   const [ibkrConfigured, setIbkrConfigured] = useState(false)
   const [ibkrSaving, setIbkrSaving] = useState(false)
   const [ibkrError, setIbkrError] = useState('')
-  const [showConfig, setShowConfig] = useState(false)
   const [confirmUnlink, setConfirmUnlink] = useState(false)
   const [saveStatus, setSaveStatus] = useState(null)
   const [brokerConnections, setBrokerConnections] = useState({})
-  const [expandedBroker, setExpandedBroker] = useState(null)
+  const [connectBroker, setConnectBroker] = useState(null)
   const [brokerForm, setBrokerForm] = useState({})
   const [brokerSyncing, setBrokerSyncing] = useState(null)
   const [brokerError, setBrokerError] = useState(null)
 
   const flash = (type, msg) => { setSaveStatus({ type, msg }); setTimeout(() => setSaveStatus(null), 3000) }
+
+  // "Arrancado" = al menos un requisito cumplido. Con cero, la tarjeta se
+  // queda como estaba (un botón "Empezar" y nada más): un panel de 0% sobre
+  // cuatro filas vacías no informa nada que el botón no diga mejor.
+  const ibkrStarted = !!(ibkrProgress && ibkrProgress.started && ibkrProgress.steps?.length)
 
   const BROKER_REGISTRY = getBrokerRegistry(t)
 
@@ -93,6 +115,11 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
   const handleIbkrSave = async () => {
     setIbkrSaving(true)
     setIbkrError('')
+    // Captured BEFORE the write: whether this is a brand-new connection (the
+    // case the continuous flow below is for) vs. a token refresh on an
+    // already-configured account (where popping the checklist unprompted
+    // would just be noise on top of a routine credential update).
+    const wasFreshConnect = !ibkrConfigured
     try {
       const res = await authFetch('/api/brokers/ibkr', {
         method: 'POST',
@@ -102,12 +129,25 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
       if (res.ok) {
         setIbkrConfigured(true)
         setIbkrToken('')
+        setConnectBroker(null)
         // Mirror the credentials into the client settings doc so the rest of the app
         // (ibkrConnected → header pill, auto-sync, IBKRSyncModal "connected" state)
         // sees the connection. The token stays server-side only (vault); we persist
         // the queryId + a migration flag. Without this the vault holds creds but the
         // app still thinks IBKR is unconnected and re-prompts for the token.
         onSaveCredentials?.({ ibkrToken: null, ibkrQueryId: ibkrQueryId.trim(), _ibkrVaultMigrated: true })
+        // Continue straight into "llevar al 100%" instead of dropping the user
+        // back on the connections list to go find that button themselves — the
+        // user's own complaint: "hacer los pasos bien... mas UI paso por paso
+        // sin moverse mucho de pantallas, continuo". Same close+reopen pattern
+        // the existing "Completar historial" button already uses (onClose then
+        // a short delay before the next modal mounts), just fired automatically
+        // on the FIRST successful connect instead of requiring the user to find
+        // and click it.
+        if (wasFreshConnect && onOpenBrokerChecklist) {
+          onClose()
+          setTimeout(() => onOpenBrokerChecklist('ibkr'), 50)
+        }
       } else {
         const d = await safeJson(res) || {}
         setIbkrError(d.error || 'Error')
@@ -171,7 +211,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
       })
       if (res.ok) {
         setBrokerConnections(prev => ({ ...prev, [broker.id]: { configured: true } }))
-        setExpandedBroker(null)
+        setConnectBroker(null)
         setBrokerForm({})
         flash('ok', `${broker.name} ${t('vinculado', 'linked')}`)
       } else {
@@ -232,9 +272,24 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
     setBrokerSyncing(null)
   }
 
+  // FASE IH3. "¿Está vinculado?" tenía DOS respuestas en esta pantalla y se
+  // contradecían a la vista: la fila leía SOLO el vault del servidor
+  // (ibkrConfigured, del fetch de get-credentials) mientras el panel de abajo
+  // lee el estado que usa toda la app (settings: ibkrToken/_ibkrVaultMigrated
+  // + ibkrQueryId, vía el paso 'connect' de lib/ibkrJourney.js). Con el vault
+  // sin contestar todavía, o si su fetch falló (se traga el error con
+  // .catch), la tarjeta imprimía "No vinculado" en rojo justo encima de un
+  // "Conectar por API: Listo" con check verde.
+  //
+  // Manda el estado de la app, no el vault: es el mismo que ya decide el pill
+  // del header, el auto-sync y cómo abre IBKRSyncModal, así que esta pantalla
+  // era la única discrepando (misma lección que FASE AF, que documenta cómo
+  // juzgar por el vault solo hacía leer como desconectada toda conexión ya
+  // migrada).
+  const ibkrLinked = ibkrConfigured || !!ibkrProgress?.steps?.find((s) => s.id === 'connect')?.done
   const syncAge = lastSyncTime ? Date.now() - new Date(lastSyncTime).getTime() : null
   const syncDays = syncAge ? Math.floor(syncAge / 86400000) : null
-  const syncStatus = !ibkrConfigured ? 'disconnected' : !lastSyncTime ? 'never' : syncDays > 7 ? 'stale' : 'ok'
+  const syncStatus = !ibkrLinked ? 'disconnected' : !lastSyncTime ? 'never' : syncDays > 7 ? 'stale' : 'ok'
   const statusColor = {
     disconnected: { dot: 'var(--text-negative)', text: 'var(--text-negative)' },
     never: { dot: 'var(--accent-orange)', text: 'var(--accent-orange)' },
@@ -251,13 +306,11 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
   const nonIbkrInstitutions = institutionSummaries.filter(inst => !inst.isIbkr)
   const traditionalBrokers = BROKER_REGISTRY.filter(b => b.category === 'traditional')
   const cryptoBrokers = BROKER_REGISTRY.filter(b => b.category === 'crypto')
-  const connectedCount = Object.keys(brokerConnections).length + (ibkrConfigured ? 1 : 0)
+  const connectedCount = Object.keys(brokerConnections).length + (ibkrLinked ? 1 : 0)
 
   const renderBrokerCard = (broker) => {
     const conn = brokerConnections[broker.id]
-    const isExpanded = expandedBroker === broker.id
     const isSyncing = brokerSyncing === broker.id
-    const howTo = getBrokerHowTo(broker.id)
     return (
       <div key={broker.id} className="bg-theme-base border border-glass-border/60 rounded-lg overflow-hidden">
         <div className="flex items-center gap-3 px-3 py-2">
@@ -288,76 +341,26 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                   ✕
                 </button>
               </>
-            ) : broker.hasApi ? (
-              <button onClick={() => {
-                if (broker.authType === 'oauth') { handleBrokerConnect(broker); return }
-                setExpandedBroker(isExpanded ? null : broker.id); setBrokerForm({}); setBrokerError(null)
-              }}
-                className="px-2.5 py-1 border text-xs font-medium rounded-md hover:bg-blue-500/10 transition-colors" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
-                {isSyncing ? '...' : broker.authType === 'oauth' ? 'OAuth' : isExpanded ? t('Cancelar', 'Cancel') : 'API'}
-              </button>
-            ) : broker.apiNote ? (
-              <span className="px-2 py-0.5 text-xs text-slate-600 border border-glass-border/40 rounded">
-                {broker.apiNote}
-              </span>
-            ) : null}
-            {/* Brokers with no API (Hapi, DEGIRO, Trade Republic...) only get the
-                CSV path — but "click CSV, figure it out yourself" was the whole
-                gap being fixed here. A "Pasos" toggle previews the researched
-                steps inline, same data BrokerSteps renders inside the import
-                modal, before the user commits to leaving this modal at all. */}
-            {!broker.hasApi && howTo?.csv?.steps && (
-              <button onClick={() => setExpandedBroker(isExpanded ? null : broker.id)}
-                className="px-2.5 py-1 border text-xs font-medium rounded-md hover:bg-theme-elevated transition-colors" style={{ borderColor: 'var(--glass-border)', color: 'var(--text-secondary)' }}>
-                {isExpanded ? t('Ocultar', 'Hide') : t('Pasos', 'Steps')}
+            ) : (
+              /* One entry point instead of the old API / Pasos / CSV row: every
+                 way of bringing data in (file, screenshot, API) lives inside the
+                 step wizard now, so there is nothing left to choose between
+                 before even knowing what each button did (FASE EY). */
+              <button onClick={() => { setConnectBroker(broker); setBrokerForm({}); setBrokerError(null) }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg hover:brightness-110 active:scale-[0.97] transition-all"
+                style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)', boxShadow: '0 1px 4px rgba(37,99,235,0.35)' }}>
+                <Rocket size={13} strokeWidth={2.25} />
+                {t('Empezar', 'Get started')}
               </button>
             )}
-            <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport(broker.id) }, 50) }}
-              className="px-2.5 py-1 border border-glass-border text-xs font-medium rounded-md hover:bg-theme-elevated transition-colors" style={{ color: 'var(--text-secondary)' }}>
-              CSV
-            </button>
           </div>
         </div>
-        {isExpanded && broker.hasApi && !broker.authType && (
-          <div className="px-3 pb-3 pt-1 border-t border-glass-border/30 space-y-2">
-            {/* What happens / why it's safe, BEFORE the credential fields. */}
-            <p className="text-xs px-2.5 py-1.5 rounded-lg" style={{ backgroundColor: 'rgba(37,99,235,0.06)', color: 'var(--accent-blue)' }}>
-              🔒 {connectorExplainer(broker, t)}
-            </p>
-            {howTo?.api?.steps ? (
-              <BrokerSteps steps={howTo.api.steps} note={howTo.api.note} variant="api" lang={lang} />
-            ) : broker.instructions && (
-              <p className="text-xs text-slate-600">{broker.instructions[lang] || broker.instructions.en}</p>
-            )}
-            {brokerError && expandedBroker === broker.id && (
-              <p className="text-xs" style={{ color: 'var(--text-negative)' }}>{brokerError}</p>
-            )}
-            {broker.fields.map(f => (
-              <div key={f.key}>
-                <label className="text-xs text-slate-500 mb-0.5 block">{f.label}</label>
-                <input type={f.type || 'text'} value={brokerForm[f.key] || ''}
-                  onChange={(e) => setBrokerForm(prev => ({ ...prev, [f.key]: e.target.value }))}
-                  placeholder={f.placeholder}
-                  className="w-full px-3 py-1.5 bg-theme-surface border border-glass-border/60 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-              </div>
-            ))}
-            <button onClick={() => handleBrokerConnect(broker)}
-              disabled={isSyncing || broker.fields.some(f => !brokerForm[f.key])}
-              className="w-full py-2 rounded-lg hover:bg-blue-500 disabled:opacity-50 text-xs font-medium" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
-              {isSyncing ? '...' : t('Conectar', 'Connect')}
-            </button>
-          </div>
-        )}
-        {isExpanded && !broker.hasApi && howTo?.csv?.steps && (
-          <div className="px-3 pb-3 pt-1 border-t border-glass-border/30">
-            <BrokerSteps steps={howTo.csv.steps} note={howTo.csv.note} variant="csv" lang={lang} />
-          </div>
-        )}
       </div>
     )
   }
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="connections-modal-title"
       style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
       <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
@@ -367,7 +370,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
             {t('Conexiones y Sync', 'Connections & Sync')}
             {connectedCount > 0 && (
               <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ color: 'var(--accent-green)', backgroundColor: 'rgba(52,211,153,0.12)' }}>
-                {connectedCount} {t('activas', 'active')}
+                {connectedCount} {connectedCount === 1 ? t('activa', 'active') : t('activas', 'active')}
               </span>
             )}
           </h2>
@@ -389,7 +392,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                 ROLE: your live connection when configured, "quick connect" when not. */}
             <div>
               <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">
-                {ibkrConfigured ? t('Conectado', 'Connected') : t('Conexión rápida', 'Quick connect')}
+                {ibkrLinked ? t('Conectado', 'Connected') : t('Conexión rápida', 'Quick connect')}
               </p>
               <div className="p-3 bg-theme-base border border-glass-border rounded-xl">
                 <div className="flex items-center gap-3">
@@ -400,68 +403,82 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-white">Interactive Brokers</p>
                     <p className="text-xs" style={{ color: statusColor.text }}>
-                      {ibkrConfigured ? statusLabel : t('No vinculado', 'Not linked')}
-                      {ibkrConfigured && <span className="text-slate-600 ml-1">· ID: {ibkrQueryId}</span>}
+                      {ibkrLinked ? statusLabel : t('No vinculado', 'Not linked')}
+                      {ibkrLinked && ibkrQueryId && <span className="text-slate-600 ml-1">· ID: {ibkrQueryId}</span>}
                     </p>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
-                    {ibkrConfigured ? (
+                    {ibkrLinked ? (
                       <button onClick={() => { onClose(); if (onBackgroundSync) onBackgroundSync(); else if (onOpenIBKR) setTimeout(() => onOpenIBKR(), 50) }}
                         className="px-2.5 py-1 text-xs font-medium rounded-md hover:bg-blue-500 transition-colors" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
                         {t('Sincronizar', 'Sync')}
                       </button>
                     ) : (
-                      <button onClick={() => setShowConfig(true)}
-                        className="px-2.5 py-1 border text-xs font-medium rounded-md hover:bg-blue-500/10 transition-colors" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
-                        API
+                      /* Same single entry point every other broker got — the
+                         Token/Query ID pair (IBKR's own credential shape, not
+                         the generic fields form) lives inside the wizard's
+                         API step now instead of this inline expansion. */
+                      /* FASE GM: con el orquestador disponible, "Empezar"
+                         arranca el viaje continuo de 5 pasos (conectar →
+                         archivo → foto → % → resumen) en vez del wizard
+                         suelto que soltaba al usuario tras cada paso. */
+                      <button onClick={() => { if (onStartIbkrJourney) onStartIbkrJourney(ibkrStarted ? (ibkrProgress.nextStep || 1) : 1); else setConnectBroker(IBKR_PSEUDO_BROKER) }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg hover:brightness-110 active:scale-[0.97] transition-all"
+                        style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)', boxShadow: '0 1px 4px rgba(37,99,235,0.35)' }}>
+                        <Rocket size={13} strokeWidth={2.25} />
+                        {ibkrStarted ? t('Continuar', 'Continue') : t('Empezar', 'Get started')}
                       </button>
                     )}
-                    <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport('ibkr') }, 50) }}
-                      className="px-2.5 py-1 border border-glass-border text-xs font-medium rounded-md hover:bg-theme-elevated transition-colors" style={{ color: 'var(--text-secondary)' }}>
-                      CSV
-                    </button>
                   </div>
                 </div>
-                {ibkrConfigured && syncStatus === 'stale' && (
+                {ibkrLinked && syncStatus === 'stale' && (
                   <p className="text-xs mt-2 pl-9" style={{ color: 'var(--accent-orange)' }}>
                     {t('Tus datos podrían estar desactualizados', 'Your data may be outdated')}
                   </p>
                 )}
+                {/* El 365-day Flex cap hace que "conectado" casi nunca sea
+                    "completo". Antes eso era un link de texto ("Completar
+                    historial (3 pasos)") que había que saber que existía;
+                    ahora es el panel con el % y los requisitos, cada uno
+                    tocable para ir a editarlo directo. */}
+                {ibkrStarted && (
+                  <div className="mt-3">
+                    <BrokerProgressPanel
+                      progress={ibkrProgress}
+                      lang={lang}
+                      compact
+                      // En la lista compite por espacio con los otros brokers:
+                      // se pliega, y con todo listo arranca plegado.
+                      collapsible
+                      // Sin conectar, la fila de arriba ya trae "Continuar" y
+                      // arranca en el mismo paso; conectado dice "Sincronizar"
+                      // y entonces el panel es el único camino a lo que falta.
+                      showCta={ibkrLinked}
+                      onOpenStep={(n) => {
+                        if (onOpenIbkrStep) { onClose(); setTimeout(() => onOpenIbkrStep(n), 50) }
+                        else if (onOpenBrokerChecklist) { onClose(); setTimeout(() => onOpenBrokerChecklist('ibkr'), 50) }
+                      }}
+                    />
+                  </div>
+                )}
+                {/* Fallback para cuando el avance no llegó como prop (ningún
+                    caller lo omite hoy, pero la puerta al checklist no puede
+                    depender de eso). */}
+                {ibkrLinked && !ibkrStarted && onOpenBrokerChecklist && (
+                  <button onClick={() => { onClose(); setTimeout(() => onOpenBrokerChecklist('ibkr'), 50) }}
+                    className="text-xs mt-2 pl-9 hover:underline transition-colors" style={{ color: 'var(--accent-blue)' }}>
+                    {t('Completar historial', 'Complete history')}
+                  </button>
+                )}
               </div>
 
-              {!ibkrConfigured && showConfig && (
-                <div className="space-y-3 p-3 bg-theme-base border border-glass-border rounded-xl mt-2">
-                  <p className="text-xs text-slate-600">
-                    {t('Ve a IBKR → Performance & Reports → Flex Queries → crea un Activity Flex Query con Open Positions, Trades, Cash Transactions, Cash Report y "Net Asset Value (NAV) in Base" (el historial de valor), período "Year to Date". El Token se genera en la MISMA página: engranaje ⚙ junto a "Flex Web Service". El Query ID es el número junto a tu query en la lista.',
-                       'Go to IBKR → Performance & Reports → Flex Queries → create an Activity Flex Query with Open Positions, Trades, Cash Transactions, Cash Report and "Net Asset Value (NAV) in Base" (the value history), period "Year to Date". The Token is generated on the SAME page: gear ⚙ next to "Flex Web Service". The Query ID is the number next to your query in the list.')}
-                  </p>
-                  {ibkrError && <p className="text-xs" style={{ color: 'var(--text-negative)' }}>{ibkrError}</p>}
-                  <div>
-                    <label className="text-xs text-slate-500 mb-0.5 block">Flex Token</label>
-                    <input type="password" value={ibkrToken} onChange={(e) => setIbkrToken(e.target.value)}
-                      placeholder="••••••••••••••••"
-                      className="w-full px-3 py-1.5 bg-theme-surface border border-glass-border/60 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-slate-500 mb-0.5 block">Query ID</label>
-                    <input type="text" value={ibkrQueryId} onChange={(e) => setIbkrQueryId(e.target.value)}
-                      placeholder="123456"
-                      className="w-full px-3 py-1.5 bg-theme-surface border border-glass-border/60 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-                  </div>
-                  <button onClick={handleIbkrSave} disabled={ibkrSaving || !ibkrToken || !ibkrQueryId}
-                    className="w-full py-2 rounded-lg hover:bg-blue-500 disabled:opacity-50 text-xs font-medium" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
-                    {ibkrSaving ? '...' : t('Conectar', 'Connect')}
-                  </button>
-                </div>
-              )}
-
-              {ibkrConfigured && !confirmUnlink && (
+              {ibkrLinked && !confirmUnlink && (
                 <button onClick={() => setConfirmUnlink(true)}
                   className="text-xs hover:opacity-100 transition-colors mt-2" style={{ color: 'var(--text-negative)', opacity: 0.6 }}>
                   {t('Desvincular', 'Unlink')}
                 </button>
               )}
-              {ibkrConfigured && confirmUnlink && (
+              {ibkrLinked && confirmUnlink && (
                 <div className="p-3 bg-theme-surface border border-glass-border border-l-4 border-l-red-500 rounded-lg space-y-2 mt-2">
                   <p className="text-xs font-medium" style={{ color: 'var(--text-negative)' }}>{t('¿Desvincular Interactive Brokers?', 'Unlink Interactive Brokers?')}</p>
                   <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
@@ -501,7 +518,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
               <summary className="flex items-center justify-between cursor-pointer">
                 <p className="text-xs text-slate-500 uppercase tracking-wider">
                   Crypto
-                  <span className="text-slate-600 ml-1">({cryptoBrokers.length + 1})</span>
+                  <span className="text-slate-600 ml-1">({cryptoBrokers.length + 2})</span>
                 </p>
                 <span className="text-xs text-slate-600 group-open:rotate-180 transition-transform">▼</span>
               </summary>
@@ -515,6 +532,19 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                       <p className="text-xs text-slate-600">Blockchain.com, Ledger, MetaMask</p>
                     </div>
                     <button onClick={() => { onClose(); setTimeout(() => { if (onOpenBlockchain) onOpenBlockchain() }, 50) }}
+                      className="px-2.5 py-1 border text-xs font-medium rounded-md hover:bg-blue-500/10 transition-colors" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
+                      {t('Conectar', 'Connect')}
+                    </button>
+                  </div>
+                </div>
+                <div className="bg-theme-base border border-glass-border/60 rounded-lg">
+                  <div className="flex items-center gap-3 px-3 py-2">
+                    <span className="text-sm">🔒</span>
+                    <div className="flex-1">
+                      <p className="text-sm text-white">{t('Cripto por dirección', 'Crypto by address')}</p>
+                      <p className="text-xs text-slate-600">Ledger, Trezor, Coldcard (watch-only)</p>
+                    </div>
+                    <button onClick={() => { onClose(); setTimeout(() => { if (onOpenLedger) onOpenLedger() }, 50) }}
                       className="px-2.5 py-1 border text-xs font-medium rounded-md hover:bg-blue-500/10 transition-colors" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
                       {t('Conectar', 'Connect')}
                     </button>
@@ -566,9 +596,43 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                 </div>
               </div>
             )}
+
+            {/* Calibrate return: lives here (account-sync context) instead of
+                on the net worth card, which was getting crowded with actions
+                that aren't "look at your number" — this is "fix your number". */}
+            {onCalibrate && (
+              <button onClick={() => { onClose(); setTimeout(() => onCalibrate(), 50) }}
+                className="w-full flex items-center justify-between gap-3 px-3 py-2.5 bg-theme-base border border-glass-border/60 rounded-lg hover:bg-theme-elevated transition-colors text-left">
+                <span className="min-w-0">
+                  <span className="text-sm text-white font-medium block">{t('¿Tu retorno no cuadra con tu broker?', "Your return doesn't match your broker?")}</span>
+                  <span className="text-xs text-slate-500">{t('Escribe el % que ves ahí y lo calibramos', 'Type the % you see there and we calibrate it')}</span>
+                </span>
+                <span className="text-xs shrink-0" style={{ color: 'var(--accent-blue)' }}>{t('Calibrar', 'Calibrate')}</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
     </div>
+    {connectBroker && (
+      <BrokerConnectModal
+        broker={connectBroker}
+        howTo={getBrokerHowTo(connectBroker.id)}
+        lang={lang}
+        onClose={() => setConnectBroker(null)}
+        onCloseAll={onClose}
+        onImport={onImport}
+        brokerForm={brokerForm}
+        setBrokerForm={setBrokerForm}
+        onSubmitApi={connectBroker.id === 'ibkr' ? handleIbkrSave : () => handleBrokerConnect(connectBroker)}
+        isSyncing={connectBroker.id === 'ibkr' ? ibkrSaving : brokerSyncing === connectBroker.id}
+        error={connectBroker.id === 'ibkr' ? ibkrError : brokerError}
+        ibkrToken={ibkrToken}
+        setIbkrToken={setIbkrToken}
+        ibkrQueryId={ibkrQueryId}
+        setIbkrQueryId={setIbkrQueryId}
+      />
+    )}
+    </>
   )
 }

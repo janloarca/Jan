@@ -1,5 +1,7 @@
 import {
   businessDaysSince,
+  ibkrAttentionNeeded,
+  entryFeeAddbacks,
   computeModifiedDietz,
   getItemValue,
   getItemPrice,
@@ -17,6 +19,17 @@ import {
   effectiveAcqTs,
   formatMonth,
   shouldHoldFlat,
+  computeDayChange,
+  quarterEndDate,
+  quartersBetween,
+  quarterSnapshotDate,
+  getDividendIncomeByItem,
+  getIncomeReceivedByItem,
+  getInvestedCapital,
+  getItemCostBasis,
+  getItemPrincipalCost,
+  isMarketPriced,
+  DEBT_CLARIFICATION,
 } from '../utils'
 
 describe('projectItemAnnualIncome', () => {
@@ -66,22 +79,45 @@ describe('augmentSnapshots', () => {
   const ibkrSnap = { date: '2026-03-31', _source: 'ibkr', netWorthUSD: 1000, totalActivosUSD: 1000 }
   const dailySnap = { date: '2026-03-31', netWorthUSD: 5000, totalActivosUSD: 5000 }
   const bond = { id: 'b1', symbol: 'BND', quantity: 1, currentPrice: 300, _originalPrice: 300, _originalCurrency: 'USD', acquisitionDate: '2025-01-01' }
+  // A synced IBKR NAV only describes the portfolio when the portfolio actually
+  // holds IBKR positions, so the top-up fixtures carry one (see the orphan test).
+  const ibkrPos = { id: 'i1', symbol: 'AAPL', _source: 'ibkr', quantity: 1, currentPrice: 10, _originalPrice: 10, _originalCurrency: 'USD', acquisitionDate: '2025-01-01' }
 
   test('augments only IBKR entries with non-IBKR held-flat value', () => {
-    const out = augmentSnapshots([ibkrSnap], [bond], idConvert)
+    const out = augmentSnapshots([ibkrSnap], [bond, ibkrPos], idConvert)
     expect(out[0].netWorthUSD).toBe(1300)
     expect(out[0].totalActivosUSD).toBe(1300)
   })
 
   test('leaves non-IBKR (daily) snapshots untouched', () => {
-    const out = augmentSnapshots([dailySnap], [bond], idConvert)
+    const out = augmentSnapshots([dailySnap], [bond, ibkrPos], idConvert)
     expect(out[0].netWorthUSD).toBe(5000)
   })
 
   test('gates by acquisition date (asset bought after the snapshot is not added)', () => {
     const future = { ...bond, acquisitionDate: '2026-06-01' }
-    const out = augmentSnapshots([ibkrSnap], [future], idConvert)
+    const out = augmentSnapshots([ibkrSnap], [future, ibkrPos], idConvert)
     expect(out[0].netWorthUSD).toBe(1000)
+  })
+
+  // FASE DW: a synced IBKR NAV left behind by an account whose positions are no
+  // longer in the portfolio measures money netWorth does not count. Topping it up
+  // with the manual assets produced a series worth 2x the headline.
+  test('drops a synced IBKR NAV when the portfolio holds no IBKR position', () => {
+    const out = augmentSnapshots([ibkrSnap], [bond], idConvert)
+    expect(out).toEqual([])
+  })
+
+  test('keeps a transcribed quarter even with no IBKR position (typed by hand, often before any import)', () => {
+    const q = { date: '2026-03-31', _source: 'ibkr_quarterly', netWorthUSD: 1000, totalActivosUSD: 1000 }
+    const out = augmentSnapshots([q], [bond], idConvert)
+    expect(out).toHaveLength(1)
+    expect(out[0].netWorthUSD).toBe(1300)
+  })
+
+  test('never drops anything before the items have loaded', () => {
+    const snaps = [ibkrSnap]
+    expect(augmentSnapshots(snaps, [], idConvert)).toBe(snaps)
   })
 
   test('no non-IBKR items → original array, snapshots not mutated', () => {
@@ -343,6 +379,43 @@ describe('getTypeCategory', () => {
   })
 })
 
+describe('isMarketPriced', () => {
+  test('a public stock with a symbol is market-priced', () => {
+    expect(isMarketPriced({ type: 'Stock', symbol: 'AAPL' })).toBe(true)
+  })
+
+  test('private common/preferred stock is NOT market-priced despite type Stock', () => {
+    // Regression: item.type is still 'Stock' for a private company's shares
+    // (it matches MARKET_TYPE_RE on its own), so without checking subtype the
+    // synthetic slug symbol AddAccountModal builds from the company name
+    // would trigger a live Yahoo Finance fetch that can collide with an
+    // unrelated real ticker (FASE FB).
+    expect(isMarketPriced({ type: 'Stock', subtype: 'private_common', symbol: 'ACME-INC' })).toBe(false)
+    expect(isMarketPriced({ type: 'Stock', subtype: 'private_preferred', symbol: 'ACME-INC' })).toBe(false)
+  })
+
+  test('legacy private subtype (pre-split) is also excluded', () => {
+    expect(isMarketPriced({ type: 'Stock', subtype: 'private', symbol: 'ACME-INC' })).toBe(false)
+  })
+
+  test('an item with no symbol is never market-priced', () => {
+    expect(isMarketPriced({ type: 'Stock' })).toBe(false)
+  })
+
+  test('a bond is never market-priced regardless of symbol', () => {
+    expect(isMarketPriced({ type: 'Bond', symbol: 'VITALI' })).toBe(false)
+  })
+})
+
+describe('DEBT_CLARIFICATION', () => {
+  test('states in both locales that a liability is not an investment instrument', () => {
+    expect(DEBT_CLARIFICATION.es).toMatch(/pasivo/i)
+    expect(DEBT_CLARIFICATION.es).toMatch(/no es un instrumento de inversión/i)
+    expect(DEBT_CLARIFICATION.en).toMatch(/liability/i)
+    expect(DEBT_CLARIFICATION.en).toMatch(/not an investment instrument/i)
+  })
+})
+
 describe('getGeographyFromSymbol', () => {
   test('US stocks default', () => {
     expect(getGeographyFromSymbol('AAPL')).toBe('US')
@@ -528,9 +601,16 @@ describe('computeScopedReturns', () => {
     expect(computeScopedReturns(args).mtd).toBeCloseTo(9.09, 1)
   })
 
-  it('computes daily change vs the last snapshot before today', () => {
-    // baseline 1180 (Jul 14) → (1200-1180)/1180 ≈ 1.69%.
-    expect(computeScopedReturns(args).day).toBeCloseTo(1.69, 1)
+  it('computes daily change from today\'s price moves inside the scope', () => {
+    // The scoped day change follows the same rule as the headline HOY: what
+    // prices did today, not a diff against yesterday's snapshot.
+    const moved = [{ ...items[0], change1d: 2 }, items[1]]
+    // 1200 × 2% = +24 on a 1176 start → ~2.04%.
+    expect(computeScopedReturns({ ...args, items: moved }).day).toBeCloseTo(2.04, 1)
+  })
+
+  it('claims nothing for the day when no scoped price moved', () => {
+    expect(computeScopedReturns(args).day).toBeNull()
   })
 
   it('returns nulls when the source has no snapshots or no value', () => {
@@ -538,17 +618,21 @@ describe('computeScopedReturns', () => {
     expect(computeScopedReturns({ ...args, items: [] })).toEqual({ ytd: null, mtd: null, day: null })
   })
 
-  it('nets out a same-day deposit from day change instead of reading it as market gain', () => {
+  it('never reads money that arrived today as a gain', () => {
     // A statement import lands today with a fresh $900 deposit on top of the
-    // Jul 14 baseline (1180). Without netting, (2100-1180)/1180 ≈ 78% "today".
+    // Jul 14 baseline (1180). A snapshot diff called that +78% "today"; the
+    // event-based rule only ever counts what prices and income actually did.
     const freshDeposit = [
       ...transactions,
       { type: 'DEPOSIT', totalAmount: 900, currency: 'USD', date: '2026-07-15', _source: 'ibkr' },
     ]
-    const bigItems = [items[0], items[1], { quantity: 1, currentPrice: 900, _source: 'ibkr' }]
+    const bigItems = [
+      { ...items[0], change1d: 2 }, items[1],
+      { quantity: 1, currentPrice: 900, _source: 'ibkr' },
+    ]
     const { day } = computeScopedReturns({ ...args, items: bigItems, transactions: freshDeposit })
-    // endValue now 2100, baseline 1180, deposit 900 netted out → (2100-1180-900)/1180 ≈ 1.69%
-    expect(day).toBeCloseTo(1.69, 1)
+    // Only the +24 from the priced position counts: 24 / (2100-24) ≈ 1.16%.
+    expect(day).toBeCloseTo(1.16, 1)
   })
 })
 
@@ -623,5 +707,368 @@ describe('businessDaysSince', () => {
   it('never returns negative for a future date', () => {
     const future = new Date('2026-08-05T12:00:00Z').toISOString()
     expect(businessDaysSince(future, tue)).toBe(0)
+  })
+})
+
+// FASE IA: bordes del helper de addback de comisiones (el caso central, con el
+// caso VITALI completo, vive en lib/__tests__/corporateBondWithEntryFee.test.js).
+describe('entryFeeAddbacks', () => {
+  const jan1 = new Date('2026-01-01T00:00:00Z').getTime()
+  const aug = new Date('2026-08-06T00:00:00Z').getTime()
+  const bond = { id: 'b1', entryFee: 98, entryFeeMode: 'separate', acquisitionDate: '2026-01-06', currency: 'USD' }
+  const dep = { type: 'DEPOSIT', date: '2026-01-06', _linkedItemId: 'b1', totalAmount: 6098 }
+
+  it('modo deducted no devuelve nada: el depósito archivado ya era solo el principal', () => {
+    const m = entryFeeAddbacks([{ ...bond, entryFeeMode: 'deducted' }], [dep], { fromTs: jan1, toTs: aug })
+    expect(m.size).toBe(0)
+  })
+
+  it('una compra ANTERIOR a la ventana no devuelve nada: su comisión ya vive en el arranque', () => {
+    const old = { ...bond, acquisitionDate: '2025-06-01' }
+    const oldDep = { ...dep, date: '2025-06-01' }
+    expect(entryFeeAddbacks([old], [oldDep], { fromTs: jan1, toTs: aug }).size).toBe(0)
+  })
+
+  it('sin el depósito vinculado en la lista neteada, no hay nada que devolver', () => {
+    expect(entryFeeAddbacks([bond], [], { fromTs: jan1, toTs: aug }).size).toBe(0)
+    const unlinked = { ...dep, _linkedItemId: null }
+    expect(entryFeeAddbacks([bond], [unlinked], { fromTs: jan1, toTs: aug }).size).toBe(0)
+  })
+
+  it('convierte la comisión a la moneda base con el mismo convert del caller', () => {
+    const q = { ...bond, currency: 'GTQ' }
+    const conv = (v, from, to) => (from === 'GTQ' && to === 'USD' ? v / 7.7 : v)
+    const m = entryFeeAddbacks([q], [dep], { fromTs: jan1, toTs: aug, convert: conv, baseCurrency: 'USD' })
+    expect(m.get('b1')).toBeCloseTo(98 / 7.7, 9)
+  })
+})
+
+// FASE HX: la regla del usuario, textual: "el periodo en que aparezca es si no
+// se conecta en 5 dias habiles ... Ayer se conecto entonces no paso ni un dia".
+describe('ibkrAttentionNeeded', () => {
+  // 2026-08-12 is a Wednesday (the day the user reported the bug).
+  const wed = new Date('2026-08-12T12:00:00Z').getTime()
+  const tueBefore = new Date('2026-08-11T12:00:00Z').toISOString()
+
+  it('is quiet with no error code, regardless of stamps', () => {
+    expect(ibkrAttentionNeeded({ errorCode: null }, wed)).toBe(false)
+    expect(ibkrAttentionNeeded({ errorCode: '' , connectedAt: tueBefore }, wed)).toBe(false)
+  })
+
+  it("the user's exact case: credentials saved YESTERDAY, sync failing today, never synced -> quiet", () => {
+    expect(ibkrAttentionNeeded({ errorCode: 'UNKNOWN', connectedAt: tueBefore }, wed)).toBe(false)
+  })
+
+  it('regression-negative: the old 2-business-day short fuse for never-synced connections is gone', () => {
+    // Connected Friday 2026-08-07, failing on Wednesday 2026-08-12 = 3 business
+    // days. The old rule (>= 2) alarmed here; the unified 5-day rule stays quiet.
+    const fri = new Date('2026-08-07T12:00:00Z').toISOString()
+    expect(ibkrAttentionNeeded({ errorCode: 'TIMEOUT', connectedAt: fri }, wed)).toBe(false)
+  })
+
+  it('fatal codes (TOKEN_EXPIRED / INVALID_QUERY) also wait the 5 business days', () => {
+    // Previously they alarmed from the very first failed attempt.
+    expect(ibkrAttentionNeeded({ errorCode: 'TOKEN_EXPIRED', lastAutoSync: tueBefore }, wed)).toBe(false)
+    expect(ibkrAttentionNeeded({ errorCode: 'INVALID_QUERY', lastSync: tueBefore }, wed)).toBe(false)
+  })
+
+  it('the clock is the MOST RECENT stamp, never a first-truthy || walk', () => {
+    // A months-old manual sync must not outrank yesterday's successful
+    // auto-sync (doAutoSync only stamps _ibkrLastAutoSync).
+    const monthsAgo = new Date('2026-05-04T12:00:00Z').toISOString()
+    expect(ibkrAttentionNeeded({ errorCode: 'LOCKED', lastSync: monthsAgo, lastAutoSync: tueBefore }, wed)).toBe(false)
+  })
+
+  it('alarms once 5 business days pass without any connection signal', () => {
+    // Friday 2026-07-24 -> Friday 2026-07-31 is exactly 5 business days
+    // (mirrors the businessDaysSince fixture above).
+    const fri = new Date('2026-07-24T12:00:00Z').toISOString()
+    const nextFri = new Date('2026-07-31T12:00:00Z').getTime()
+    expect(ibkrAttentionNeeded({ errorCode: 'UNKNOWN', connectedAt: fri }, nextFri)).toBe(true)
+    expect(ibkrAttentionNeeded({ errorCode: 'TOKEN_EXPIRED', lastSync: fri }, nextFri)).toBe(true)
+  })
+
+  it('alarms immediately when there is no stamp at all (no evidence it ever worked)', () => {
+    expect(ibkrAttentionNeeded({ errorCode: 'UNKNOWN' }, wed)).toBe(true)
+    expect(ibkrAttentionNeeded({ errorCode: 'UNKNOWN', connectedAt: 'not-a-date' }, wed)).toBe(true)
+  })
+})
+
+describe('getDividendIncomeByItem', () => {
+  const bond = { id: 'bond1', dividendAction: 'cash' }
+  const reinvestingFund = { id: 'fund1', dividendAction: 'reinvest' }
+
+  it('attributes a cash dividend to the SOURCE item, not wherever it settled', () => {
+    const transactions = [
+      { type: 'DIVIDEND', totalAmount: 240, currency: 'USD', date: '2026-05-15', _linkedItemId: 'bond1' },
+    ]
+    const map = getDividendIncomeByItem(transactions, [bond], null, 'USD')
+    expect(map.get('bond1')).toBe(240)
+  })
+
+  it('excludes reinvested dividends — that gain already shows as higher quantity/value', () => {
+    const transactions = [
+      { type: 'DIVIDEND', totalAmount: 50, currency: 'USD', date: '2026-05-15', _linkedItemId: 'fund1', _reinvested: true },
+      { type: 'DIVIDEND', totalAmount: 30, currency: 'USD', date: '2026-06-15', _linkedItemId: 'fund1' }, // item.dividendAction says reinvest too
+    ]
+    const map = getDividendIncomeByItem(transactions, [reinvestingFund], null, 'USD')
+    expect(map.has('fund1')).toBe(false)
+  })
+
+  it('sums multiple payments for the same item', () => {
+    const transactions = [
+      { type: 'DIVIDEND', totalAmount: 240, currency: 'USD', date: '2026-05-15', _linkedItemId: 'bond1' },
+      { type: 'DIVIDEND', totalAmount: 240, currency: 'USD', date: '2026-12-15', _linkedItemId: 'bond1' },
+    ]
+    const map = getDividendIncomeByItem(transactions, [bond], null, 'USD')
+    expect(map.get('bond1')).toBe(480)
+  })
+
+  it('converts to the target currency', () => {
+    const transactions = [
+      { type: 'DIVIDEND', totalAmount: 100, currency: 'GTQ', date: '2026-05-15', _linkedItemId: 'bond1' },
+    ]
+    const convert = (amt, from, to) => (from === 'GTQ' && to === 'USD' ? amt / 7.8 : amt)
+    const map = getDividendIncomeByItem(transactions, [bond], convert, 'USD')
+    expect(map.get('bond1')).toBeCloseTo(100 / 7.8)
+  })
+
+  it('ignores non-DIVIDEND transactions and unlinked ones', () => {
+    const transactions = [
+      { type: 'DEPOSIT', totalAmount: 6000, currency: 'USD', date: '2026-01-06', _linkedItemId: 'bond1' },
+      { type: 'DIVIDEND', totalAmount: 240, currency: 'USD', date: '2026-05-15' }, // no _linkedItemId
+    ]
+    const map = getDividendIncomeByItem(transactions, [bond], null, 'USD')
+    expect(map.size).toBe(0)
+  })
+
+  it('returns an empty map for no transactions', () => {
+    expect(getDividendIncomeByItem([], [bond], null, 'USD').size).toBe(0)
+    expect(getDividendIncomeByItem(null, [bond], null, 'USD').size).toBe(0)
+  })
+})
+
+describe('getItemCostBasis', () => {
+  it('is just quantity × purchasePrice when there is no entry fee', () => {
+    expect(getItemCostBasis({ quantity: 1, purchasePrice: 6000 })).toBe(6000)
+  })
+
+  it('adds the one-time entry fee on top of the purchase cost', () => {
+    expect(getItemCostBasis({ quantity: 1, purchasePrice: 6000, entryFee: 95.78 })).toBeCloseTo(6095.78)
+  })
+
+  it('scales with quantity for share-based items', () => {
+    expect(getItemCostBasis({ quantity: 10, purchasePrice: 150, entryFee: 5 })).toBeCloseTo(1505)
+  })
+
+  it('treats a missing quantity/price/fee as 0, never NaN', () => {
+    expect(getItemCostBasis({})).toBe(0)
+  })
+
+  it('getItemPrincipalCost excludes the fee that getItemCostBasis includes', () => {
+    const bond = { quantity: 1, purchasePrice: 6000, entryFee: 95.78 }
+    expect(getItemPrincipalCost(bond)).toBe(6000)
+    expect(getItemCostBasis(bond)).toBeCloseTo(6095.78)
+  })
+
+  // The real VITALI case: a $6,000 bond bought for $6,095.78 all-in that has
+  // paid $240 of interest. Gain is measured against principal, the % divides
+  // by all-in cost, so the fee drags the yield 4.00% -> 3.94% without also
+  // being charged as a capital loss.
+  it('yields the expected 3.94% for a bond with an entry fee', () => {
+    const bond = { quantity: 1, purchasePrice: 6000, currentPrice: 6000, entryFee: 95.78 }
+    const value = 6000
+    const income = 240
+    const gain = (value - getItemPrincipalCost(bond)) + income
+    const pct = (gain / getItemCostBasis(bond)) * 100
+    expect(gain).toBeCloseTo(240)
+    expect(pct).toBeCloseTo(3.94, 2)
+  })
+
+  // entryFeeMode 'deducted': the $6,000 you sent already contained the fee, so
+  // only $5,904.22 bought the bond and nothing is added on top.
+  it("entryFeeMode 'deducted' keeps the fee inside the amount sent", () => {
+    const bond = { quantity: 1, purchasePrice: 6000, entryFee: 95.78, entryFeeMode: 'deducted' }
+    expect(getItemCostBasis(bond)).toBeCloseTo(6000)
+    expect(getItemPrincipalCost(bond)).toBeCloseTo(5904.22)
+    // The invariant both cards rely on: the gap between the two IS the fee.
+    expect(getItemCostBasis(bond) - getItemPrincipalCost(bond)).toBeCloseTo(95.78)
+  })
+
+  it('holds the same cost-minus-principal invariant in separate mode', () => {
+    const bond = { quantity: 1, purchasePrice: 6000, entryFee: 95.78 }
+    expect(getItemCostBasis(bond) - getItemPrincipalCost(bond)).toBeCloseTo(95.78)
+  })
+
+  it('defaults to separate mode when entryFeeMode is absent (no behavior change)', () => {
+    expect(getItemCostBasis({ quantity: 1, purchasePrice: 100, entryFee: 5 })).toBe(105)
+  })
+})
+
+describe('computeDayChange', () => {
+  const usd = (a) => a
+  const today = '2026-08-05'
+
+  it('reports only what prices did today', () => {
+    const items = [
+      { id: 'a', quantity: 10, currentPrice: 100, change1d: 2 },   // 1000 → +20
+      { id: 'b', quantity: 5, currentPrice: 40, change1d: -1 },    // 200 → -2
+    ]
+    const r = computeDayChange({ items, transactions: [], netWorth: 1200, convert: usd, today })
+    expect(r.abs).toBeCloseTo(18, 6)
+    expect(r.pct).toBeCloseTo((18 / 1182) * 100, 6)
+  })
+
+  // The bug this function exists for: a $6,000 bond bought in January, typed in
+  // today, must not read as a $6,000 gain today.
+  it('ignores a position typed in today (new money is never a gain)', () => {
+    const items = [
+      { id: 'stock', quantity: 10, currentPrice: 100, change1d: 1 },      // +10
+      { id: 'vitali', quantity: 1, currentPrice: 6000, type: 'bond' },    // no change1d
+    ]
+    const transactions = [
+      { type: 'DEPOSIT', date: '2026-01-06', totalAmount: 6000, currency: 'USD', _linkedItemId: 'vitali' },
+    ]
+    const r = computeDayChange({ items, transactions, netWorth: 7000, convert: usd, today })
+    expect(r.abs).toBeCloseTo(10, 6)
+  })
+
+  it('counts a coupon on the day it was paid, not on any other day', () => {
+    const items = [{ id: 'stock', quantity: 10, currentPrice: 100, change1d: 0 }]
+    const coupon = { type: 'DIVIDEND', date: '2026-05-15', totalAmount: 240, currency: 'USD' }
+    expect(computeDayChange({ items, transactions: [coupon], netWorth: 1240, convert: usd, today }).abs)
+      .toBeCloseTo(0, 6)
+    expect(computeDayChange({ items, transactions: [coupon], netWorth: 1240, convert: usd, today: '2026-05-15' }).abs)
+      .toBeCloseTo(240, 6)
+  })
+
+  it('adds a coupon paid today on top of the day\'s market move', () => {
+    const items = [{ id: 'stock', quantity: 10, currentPrice: 100, change1d: 1 }]
+    const transactions = [{ type: 'DIVIDEND', date: today, totalAmount: 240, currency: 'USD' }]
+    expect(computeDayChange({ items, transactions, netWorth: 1250, convert: usd, today }).abs)
+      .toBeCloseTo(250, 6)
+  })
+
+  it('returns null when there is nothing to measure', () => {
+    const items = [{ id: 'cash', quantity: 1, currentPrice: 500, type: 'bank' }]
+    expect(computeDayChange({ items, transactions: [], netWorth: 500, convert: usd, today })).toBeNull()
+    expect(computeDayChange({ items, transactions: [], netWorth: 0, convert: usd, today })).toBeNull()
+  })
+
+  it('skips debt and excluded items', () => {
+    const items = [
+      { id: 'a', quantity: 10, currentPrice: 100, change1d: 1 },
+      { id: 'd', quantity: 1, currentPrice: 1000, change1d: 50, isDebt: true },
+    ]
+    expect(computeDayChange({ items, transactions: [], netWorth: 1000, convert: usd, today }).abs)
+      .toBeCloseTo(10, 6)
+  })
+
+  it('converts income to the base currency', () => {
+    const items = [{ id: 'a', quantity: 1, currentPrice: 100, change1d: 0 }]
+    const transactions = [{ type: 'INTEREST', date: today, totalAmount: 100, currency: 'EUR' }]
+    const convert = (amt, from, to) => (from === 'EUR' && to === 'USD' ? amt * 1.1 : amt)
+    expect(computeDayChange({ items, transactions, netWorth: 210, convert, baseCurrency: 'USD', today }).abs)
+      .toBeCloseTo(110, 6)
+  })
+})
+
+describe('quarterly NAV helpers', () => {
+  it('maps a quarter to its last calendar day', () => {
+    expect(quarterEndDate(2026, 1)).toBe('2026-03-31')
+    expect(quarterEndDate(2026, 2)).toBe('2026-06-30')
+    expect(quarterEndDate(2026, 3)).toBe('2026-09-30')
+    expect(quarterEndDate(2026, 4)).toBe('2026-12-31')
+    expect(quarterEndDate(2026, 5)).toBeNull()
+  })
+
+  it('lists every quarter from a start up to the one containing today', () => {
+    const rows = quartersBetween(2025, 3, new Date('2026-08-05T12:00:00Z'))
+    expect(rows.map((r) => r.label)).toEqual([
+      'Q3 2025', 'Q4 2025', 'Q1 2026', 'Q2 2026', 'Q3 2026',
+    ])
+  })
+
+  it('caps the row count so a mistyped year cannot explode the grid', () => {
+    expect(quartersBetween(1900, 1, new Date('2026-08-05T12:00:00Z')).length).toBe(80)
+    expect(quartersBetween('abc', 1).length).toBe(0)
+  })
+
+  // The open quarter's figure is the value RIGHT NOW, so dating it at the
+  // future quarter end would put today's portfolio in the future.
+  it('stamps an unfinished quarter with today, a closed one with its end', () => {
+    const today = new Date('2026-08-05T12:00:00Z')
+    expect(quarterSnapshotDate(2026, 3, today)).toBe('2026-08-05')
+    expect(quarterSnapshotDate(2026, 2, today)).toBe('2026-06-30')
+  })
+})
+
+describe('augmentSnapshots with transcribed quarterly NAV', () => {
+  const idConvert = (v) => v
+  const bond = { id: 'b1', symbol: 'BND', quantity: 1, currentPrice: 300, _originalPrice: 300, _originalCurrency: 'USD', acquisitionDate: '2025-01-01' }
+
+  it('tops up a transcribed quarter like any other broker-only NAV', () => {
+    const snap = { date: '2026-03-31', _source: 'ibkr_quarterly', netWorthUSD: 1000, totalActivosUSD: 1000 }
+    const out = augmentSnapshots([snap], [bond], idConvert)
+    expect(out[0].netWorthUSD).toBe(1300)
+  })
+})
+
+// FASE DY: the same 240 was counted as income in the numerator AND as invested
+// capital in the denominator (a bank item stores its balance in purchasePrice,
+// which IS its cost basis by design), so the institution card read 3.79% where
+// the asset-class card read 3.94% on the very same holdings.
+describe('getIncomeReceivedByItem / getInvestedCapital', () => {
+  const bond = { id: 'vitali', symbol: 'VITALI', name: 'Vitali', quantity: 1, purchasePrice: 6000, currentPrice: 6000, entryFee: 98, incomeDestination: 'fondo' }
+  const fondo = { id: 'fondo', symbol: 'IDC-CASH', name: 'Fondo', type: 'bank', quantity: 1, purchasePrice: 240, currentPrice: 240 }
+  const coupon = { type: 'DIVIDEND', date: '2026-05-15', totalAmount: 240, currency: 'USD', _linkedItemId: 'vitali' }
+
+  it('credits the DESTINATION, never the asset that produced it', () => {
+    const m = getIncomeReceivedByItem([coupon], [bond, fondo], null, 'USD')
+    expect(m.get('fondo')).toBe(240)
+    expect(m.get('vitali')).toBeUndefined()
+  })
+
+  it('follows an explicit _destinationItemId over incomeDestination', () => {
+    const other = { id: 'otra', name: 'Otra', type: 'bank', quantity: 1, purchasePrice: 0 }
+    const tx = { ...coupon, _destinationItemId: 'otra' }
+    const m = getIncomeReceivedByItem([tx], [bond, fondo, other], null, 'USD')
+    expect(m.get('otra')).toBe(240)
+    expect(m.get('fondo')).toBeUndefined()
+  })
+
+  it('ignores reinvested income (it never left its own asset)', () => {
+    const m = getIncomeReceivedByItem([{ ...coupon, _reinvested: true }], [bond, fondo], null, 'USD')
+    expect(m.size).toBe(0)
+  })
+
+  it('ignores income with nowhere tracked to land', () => {
+    const orphan = { ...coupon }
+    const m = getIncomeReceivedByItem([orphan], [{ ...bond, incomeDestination: null }], null, 'USD')
+    expect(m.size).toBe(0)
+  })
+
+  it('takes the income back out of the invested capital', () => {
+    const received = getIncomeReceivedByItem([coupon], [bond, fondo], null, 'USD')
+    expect(getInvestedCapital(fondo, received.get('fondo'))).toBe(0)
+    // The bond keeps its full all-in cost: principal plus the entry fee.
+    expect(getInvestedCapital(bond, received.get('vitali'))).toBe(6098)
+  })
+
+  it('never goes negative when more income arrived than the balance holds', () => {
+    const spent = { ...fondo, purchasePrice: 100, currentPrice: 100 }
+    expect(getInvestedCapital(spent, 240)).toBe(0)
+  })
+
+  it('leaves an item with no income received untouched', () => {
+    expect(getInvestedCapital(bond, undefined)).toBe(6098)
+    expect(getInvestedCapital(bond, 0)).toBe(6098)
+  })
+
+  it('makes the two cards agree: 240 gain over 6,098 invested, either grouping', () => {
+    const received = getIncomeReceivedByItem([coupon], [bond, fondo], null, 'USD')
+    const invested = [bond, fondo].reduce((s, it) => s + getInvestedCapital(it, received.get(it.id)), 0)
+    expect(invested).toBe(6098)
+    expect((240 / invested) * 100).toBeCloseTo(3.936, 2)
   })
 })

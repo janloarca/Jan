@@ -8,12 +8,12 @@ import { computeCosts } from '@/lib/costsSummary'
 // Compact dashboard square: what the portfolio pays to hold and trade this year
 // (commissions + fees + taxes + interest). Links to the full Costs tab. Renders
 // nothing when there are no costs, so it never clutters a fresh account.
-export default function CostsCard({ transactions, convert, baseCurrency = 'USD', lang = 'es' }) {
+export default function CostsCard({ transactions, items, convert, baseCurrency = 'USD', lang = 'es' }) {
   const t = (es, en) => (lang === 'es' ? es : en)
   const year = new Date().getFullYear()
   const costs = useMemo(
-    () => computeCosts({ transactions, convert, baseCurrency, year }),
-    [transactions, convert, baseCurrency, year]
+    () => computeCosts({ transactions, items, convert, baseCurrency, year }),
+    [transactions, items, convert, baseCurrency, year]
   )
   if (!costs.hasData) return null
 
@@ -30,6 +30,7 @@ export default function CostsCard({ transactions, convert, baseCurrency = 'USD',
     { label: t('Cargos', 'Fees'), value: costs.fees },
     { label: t('Impuestos', 'Taxes'), value: costs.taxes },
     { label: t('Intereses', 'Interest'), value: costs.interestPaid },
+    { label: t('Costos de cuenta', 'Account costs'), value: costs.assetCosts },
   ].filter((p) => p.value > 0)
 
   return (

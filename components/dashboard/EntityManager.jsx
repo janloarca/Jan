@@ -45,7 +45,7 @@ export default function EntityManager({ entities, onAdd, onUpdate, onDelete, ite
       </div>
 
       {/* How it works — the mechanic is invisible without this */}
-      <div className="p-3 rounded-lg border text-xs space-y-1.5" style={{ backgroundColor: 'var(--alert-info-bg)', borderColor: 'var(--alert-info-border)', color: 'var(--text-secondary)' }}>
+      <div className="p-3 rounded-xl border text-xs space-y-1.5" style={{ backgroundColor: 'var(--alert-info-bg)', borderColor: 'var(--alert-info-border)', color: 'var(--text-secondary)' }}>
         <p className="font-medium" style={{ color: 'var(--alert-info-icon)' }}>{t('¿Cómo funciona?', 'How does it work?')}</p>
         <p>1. {t('Crea una entidad (ej. "Mi empresa").', 'Create an entity (e.g. "My business").')}</p>
         <p>2. {t('Selecciónala en el switcher junto al título del dashboard.', 'Select it in the switcher next to the dashboard title.')}</p>
@@ -57,9 +57,9 @@ export default function EntityManager({ entities, onAdd, onUpdate, onDelete, ite
         {entities.map(entity => {
           const count = countFor(entity.id)
           return (
-            <div key={entity.id} className="px-3 py-2.5 bg-theme-base border border-glass-border/60 rounded-lg">
+            <div key={entity.id} className="px-3 py-2.5 bg-theme-base border border-glass-border/60 rounded-xl">
               <div className="flex items-center gap-2.5">
-                <span className="text-base">{entity.icon || '📁'}</span>
+                <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-base" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 10%, transparent)' }}>{entity.icon || '📁'}</span>
                 {editId === entity.id ? (
                   <div className="flex-1 flex items-center gap-1">
                     <input
@@ -112,7 +112,7 @@ export default function EntityManager({ entities, onAdd, onUpdate, onDelete, ite
       </div>
 
       {adding ? (
-        <div className="space-y-2 p-3 bg-theme-base rounded-lg border border-glass-border">
+        <div className="space-y-2 p-3 bg-theme-base rounded-xl border border-glass-border">
           <input
             type="text" value={newName} onChange={(e) => setNewName(e.target.value)}
             placeholder={t('Nombre de la entidad', 'Entity name')}
@@ -140,7 +140,7 @@ export default function EntityManager({ entities, onAdd, onUpdate, onDelete, ite
         </div>
       ) : (
         <button onClick={() => setAdding(true)}
-          className="w-full px-3 py-2 text-xs text-slate-400 border border-dashed border-glass-border rounded-lg hover:text-blue-400 hover:border-blue-500/30 transition-colors">
+          className="w-full px-3 py-2 text-xs text-slate-400 border border-dashed border-glass-border rounded-xl hover:text-blue-400 hover:border-blue-500/30 transition-colors">
           + {t('Agregar entidad', 'Add entity')}
         </button>
       )}
