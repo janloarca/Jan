@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Info } from 'lucide-react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { solveDietzStartValue, accountKeyOfItem, heldFlatAccountValueUSD } from '@/components/dashboard/utils'
 
@@ -115,6 +116,7 @@ export default function CalibrateReturnModal({ onClose, onSaved, preferredAccoun
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [doneMsg, setDoneMsg] = useState('')
+  const [showHelp, setShowHelp] = useState(false)
 
   const toUSD = (valBase) => {
     if (!isFinite(valBase)) return null
@@ -277,20 +279,46 @@ export default function CalibrateReturnModal({ onClose, onSaved, preferredAccoun
         </div>
 
         <div className="p-6 space-y-4">
-          <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-            {t(
-              'Cada broker muestra el rendimiento de SU cuenta, así que la calibración es por cuenta: elige la cuenta y escribe los porcentajes que ves en esa app (en IBKR: Performance & Reports, PortfolioAnalyst). Ajustamos el valor de arranque de esa cuenta para que el % quede exacto. La curva intermedia se estima y los trades históricos no se recuperan: para eso está la importación de historial.',
-              'Each broker shows the return of ITS account, so calibration is per account: pick the account and type the percentages you see in that app (in IBKR: Performance & Reports, PortfolioAnalyst). We adjust that account start value so the % is exact. The in-between curve is estimated and historical trades are not recovered: use history import for that.'
-            )}
-          </p>
-          {/* FASE FX. El solver reproduce un retorno MONEY-weighted (Dietz);
-              PortfolioAnalyst muestra TWR por defecto. Con flujos en el
-              período los dos números difieren y calibrar con el equivocado
-              corrompe el ancla, así que se pide el MWR explícitamente. */}
-          <div className="p-2.5 rounded-lg text-xs leading-relaxed" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--accent-blue) 25%, transparent)', color: 'var(--text-secondary)' }}>
-            {t(
-              'Precisión: en IBKR, PortfolioAnalyst muestra TWR por defecto. Cambia "Performance Measure" a MWR antes de copiar: nuestro cálculo es money-weighted, igual que el MWR del broker. Si no hiciste depósitos ni retiros en el período, TWR y MWR coinciden y puedes copiar el que veas.',
-              'Precision: in IBKR, PortfolioAnalyst shows TWR by default. Switch "Performance Measure" to MWR before copying: our math is money-weighted, same as the broker\'s MWR. If you made no deposits or withdrawals in the period, TWR and MWR match and either number works.'
+          {/* FASE IH: antes esta pantalla abría con dos párrafos largos
+              siempre visibles (el "cómo funciona" y el aviso de precisión de
+              FASE FX), o sea una pared de texto antes del primer campo: es lo
+              que el usuario señaló en su captura. El resumen de una línea se
+              queda a la vista y el detalle completo, palabra por palabra, vive
+              detrás del botón "i" (mismo patrón que los pasos del viaje). */}
+          <div className="rounded-lg overflow-hidden" style={{ border: '1px solid var(--card-border)' }}>
+            <button type="button" onClick={() => setShowHelp((v) => !v)} aria-expanded={showHelp}
+              className="w-full flex items-center gap-2 px-3 py-2.5 text-left transition-colors hover:bg-theme-elevated">
+              <span className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center"
+                style={showHelp
+                  ? { backgroundColor: 'var(--accent-blue)', color: '#ffffff' }
+                  : { backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>
+                <Info size={12} />
+              </span>
+              <span className="text-xs flex-1 min-w-0" style={{ color: 'var(--text-secondary)' }}>
+                {t('Copia los % que ves en tu broker y anclamos tu curva a ellos.',
+                   'Copy the % your broker shows and we anchor your curve to them.')}
+              </span>
+              <span className="text-[10px] shrink-0" style={{ color: 'var(--text-muted)' }}>{showHelp ? '▴' : '▾'}</span>
+            </button>
+            {showHelp && (
+              <div className="px-3 pb-3 space-y-2" style={{ borderTop: '1px solid var(--card-border)' }}>
+                <p className="text-xs leading-relaxed pt-2.5" style={{ color: 'var(--text-muted)' }}>
+                  {t(
+                    'Cada broker muestra el rendimiento de SU cuenta, así que la calibración es por cuenta: elige la cuenta y escribe los porcentajes que ves en esa app (en IBKR: Performance & Reports, PortfolioAnalyst). Ajustamos el valor de arranque de esa cuenta para que el % quede exacto. La curva intermedia se estima y los trades históricos no se recuperan: para eso está la importación de historial.',
+                    'Each broker shows the return of ITS account, so calibration is per account: pick the account and type the percentages you see in that app (in IBKR: Performance & Reports, PortfolioAnalyst). We adjust that account start value so the % is exact. The in-between curve is estimated and historical trades are not recovered: use history import for that.'
+                  )}
+                </p>
+                {/* FASE FX. El solver reproduce un retorno MONEY-weighted (Dietz);
+                    PortfolioAnalyst muestra TWR por defecto. Con flujos en el
+                    período los dos números difieren y calibrar con el equivocado
+                    corrompe el ancla, así que se pide el MWR explícitamente. */}
+                <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                  {t(
+                    'Precisión: en IBKR, PortfolioAnalyst muestra TWR por defecto. Cambia "Performance Measure" a MWR antes de copiar: nuestro cálculo es money-weighted, igual que el MWR del broker. Si no hiciste depósitos ni retiros en el período, TWR y MWR coinciden y puedes copiar el que veas.',
+                    'Precision: in IBKR, PortfolioAnalyst shows TWR by default. Switch "Performance Measure" to MWR before copying: our math is money-weighted, same as the broker\'s MWR. If you made no deposits or withdrawals in the period, TWR and MWR match and either number works.'
+                  )}
+                </p>
+              </div>
             )}
           </div>
 

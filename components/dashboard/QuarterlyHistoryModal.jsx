@@ -17,12 +17,13 @@
 // date, so the curve is portfolio-wide and not just the broker's slice.
 
 import { useState, useMemo, useRef } from 'react'
+import { Info } from 'lucide-react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { authFetch } from '@/lib/authFetch'
 import { quartersBetween, quarterSnapshotDate, formatCurrency } from './utils'
 import BrokerSteps from '@/components/ui/BrokerSteps'
+import { CURRENCIES, currencyOptions } from '@/lib/currencies'
 
-const CURRENCIES = ['USD', 'EUR', 'GBP', 'MXN', 'GTQ', 'COP', 'BRL', 'CAD']
 
 // Made-up figures. The point is the SHAPE of what to read off the chart, not a
 // number anyone should copy.
@@ -48,7 +49,11 @@ export default function QuarterlyHistoryModal({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [doneMsg, setDoneMsg] = useState('')
-  const [showSteps, setShowSteps] = useState(true)
+  // FASE IH: arranca CERRADO. Con la lista abierta por defecto, lo primero
+  // que veía el usuario al llegar a este paso eran cinco instrucciones y dos
+  // cajas punteadas antes del primer campo (su captura). El ejemplo de abajo
+  // ya explica qué es una fila; el "de dónde salen" queda a un toque.
+  const [showSteps, setShowSteps] = useState(false)
   // Labels whose value came from the screenshot read, not typed by hand — a
   // quick visual "double-check this one" cue. Clears the moment the user
   // touches that field, since an edited value is no longer the AI's claim.
@@ -308,48 +313,56 @@ export default function QuarterlyHistoryModal({
         <div className="px-5 pb-5 overflow-y-auto space-y-4">
           {/* Where the numbers come from — BrokerSteps supplies its own card,
               so this wrapper is just the collapse toggle, not a second box. */}
-          <div>
-            <button type="button" onClick={() => setShowSteps((v) => !v)}
-              className="w-full flex items-center justify-between gap-2 text-left px-1 py-1">
-              <span className="text-xs uppercase tracking-wider font-medium" style={{ color: 'var(--text-muted)' }}>
+          <div className="rounded-lg overflow-hidden" style={{ border: '1px solid var(--card-border)' }}>
+            <button type="button" onClick={() => setShowSteps((v) => !v)} aria-expanded={showSteps}
+              className="w-full flex items-center gap-2 text-left px-3 py-2.5 transition-colors hover:bg-theme-elevated">
+              <span className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center"
+                style={showSteps
+                  ? { backgroundColor: 'var(--accent-blue)', color: '#ffffff' }
+                  : { backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>
+                <Info size={12} />
+              </span>
+              <span className="text-xs flex-1 min-w-0" style={{ color: 'var(--text-secondary)' }}>
                 {t('De dónde salen estos números', 'Where these numbers come from')}
               </span>
-              <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{showSteps ? '▴' : '▾'}</span>
+              <span className="text-[10px] shrink-0" style={{ color: 'var(--text-muted)' }}>{showSteps ? '▴' : '▾'}</span>
             </button>
             {showSteps && (
-              <div className="mt-2">
+              <div className="px-3 pb-3 pt-2.5 space-y-3" style={{ borderTop: '1px solid var(--card-border)' }}>
                 <BrokerSteps steps={STEPS} variant="api" lang={lang} title={false} />
+                {/* FASE IH2: el ejemplo vive DENTRO de la explicación. Es
+                    material didáctico, igual que los pasos, y suelto ocupaba
+                    media pantalla entre la cabecera y los campos que hay que
+                    llenar. Quien ya sabe qué transcribir no lo necesita. */}
+                <div className="rounded-xl p-3" style={{ border: '1px dashed var(--card-border)' }}>
+                <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
+                  {t('Ejemplo (números inventados): cada barra de la gráfica es una fila.',
+                     'Example (made-up numbers): each bar of the chart is one row.')}
+                </p>
+                <div className="flex items-end gap-1.5 h-16 mb-2">
+                  {EXAMPLE.map((e, i) => (
+                    <div key={e.label} className="flex-1 flex flex-col items-center gap-1">
+                      <div className="w-full rounded-t"
+                        style={{ height: `${28 + i * 16}%`, minHeight: 8, backgroundColor: 'var(--accent-blue)', opacity: 0.55 }} />
+                      <span className="text-[9px] whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{e.label}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                  {EXAMPLE.map((e) => (
+                    <div key={e.label} className="flex justify-between text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                      <span>{e.label}</span>
+                      <span className="font-mono">{e.value}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[11px] mt-2" style={{ color: 'var(--text-muted)' }}>
+                  {t('Solo el valor total de la cuenta. No hace falta desglosar por acción.',
+                     'Just the account total. No need to break it down by position.')}
+                </p>
+                </div>
               </div>
             )}
-          </div>
-
-          {/* Generic example, so it is obvious what a row means */}
-          <div className="rounded-xl p-3" style={{ border: '1px dashed var(--card-border)' }}>
-            <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
-              {t('Ejemplo (números inventados): cada barra de la gráfica es una fila.',
-                 'Example (made-up numbers): each bar of the chart is one row.')}
-            </p>
-            <div className="flex items-end gap-1.5 h-16 mb-2">
-              {EXAMPLE.map((e, i) => (
-                <div key={e.label} className="flex-1 flex flex-col items-center gap-1">
-                  <div className="w-full rounded-t"
-                    style={{ height: `${28 + i * 16}%`, minHeight: 8, backgroundColor: 'var(--accent-blue)', opacity: 0.55 }} />
-                  <span className="text-[9px] whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{e.label}</span>
-                </div>
-              ))}
-            </div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
-              {EXAMPLE.map((e) => (
-                <div key={e.label} className="flex justify-between text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                  <span>{e.label}</span>
-                  <span className="font-mono">{e.value}</span>
-                </div>
-              ))}
-            </div>
-            <p className="text-[11px] mt-2" style={{ color: 'var(--text-muted)' }}>
-              {t('Solo el valor total de la cuenta. No hace falta desglosar por acción.',
-                 'Just the account total. No need to break it down by position.')}
-            </p>
           </div>
 
           {/* Screenshot reader: an accelerator, never a requirement. Every value
@@ -429,7 +442,7 @@ export default function QuarterlyHistoryModal({
             <div>
               <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>{t('Moneda', 'Currency')}</label>
               <select value={currency} onChange={(e) => setCurrency(e.target.value)} className={inputCls} style={inputStyle}>
-                {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                {currencyOptions(currency).map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
           </div>

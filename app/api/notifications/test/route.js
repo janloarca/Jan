@@ -3,9 +3,19 @@ import nodemailer from 'nodemailer'
 import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
 import { getAdminDb, getAdminAuth } from '@/lib/firebase-admin'
-import { buildMarketBrief } from '@/lib/marketBrief'
+import { buildMarketBrief, MARKET_WINDOWS } from '@/lib/marketBrief'
 import { buildWeeklyBriefForUser, makeMailer, AUTO_HEADERS } from '@/lib/weeklyBriefBuilder'
+import { buildMonthlyBriefForUser, buildAnnualBriefForUser } from '@/lib/periodBriefBuilder'
 import { makeBriefFetcher } from '@/lib/briefFetcher'
+
+// Qué se prueba por cadencia: el MISMO builder y la MISMA ventana de mercado
+// (MARKET_WINDOWS, compartida con el cron) que usa la corrida real. Una lista
+// cerrada: el body no puede pedir nada que el cron no mande.
+const TESTABLE = {
+  weekly: { build: buildWeeklyBriefForUser, marketOpts: MARKET_WINDOWS.weekly },
+  monthly: { build: buildMonthlyBriefForUser, marketOpts: MARKET_WINDOWS.monthly },
+  annual: { build: buildAnnualBriefForUser, marketOpts: MARKET_WINDOWS.annual },
+}
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -52,18 +62,27 @@ export async function POST(request) {
   const db = getAdminDb()
   if (!db) return NextResponse.json({ error: 'Admin not configured', errorCode: 'INTERNAL' }, { status: 503 })
 
+  // Cadencia a probar (semanal si no se pide otra). Validada contra la lista
+  // cerrada: un valor desconocido es 400, nunca un fallback silencioso.
+  const body = await request.json().catch(() => ({}))
+  const cadence = body?.cadence || 'weekly'
+  const cfg = TESTABLE[cadence]
+  if (!cfg) {
+    return NextResponse.json({ error: 'Unknown cadence', errorCode: 'BAD_REQUEST' }, { status: 400 })
+  }
+
   try {
     const prefsDoc = await db.doc(`users/${uid}/settings/preferences`).get()
     const prefs = prefsDoc.exists ? prefsDoc.data() : {}
 
     let market = null
     try {
-      market = await buildMarketBrief({ fetchSeries: makeBriefFetcher() })
+      market = await buildMarketBrief({ fetchSeries: makeBriefFetcher(cfg.marketOpts.fetcher), ...cfg.marketOpts.brief })
     } catch (e) {
       console.error('[notifications/test] market brief failed:', e.message)
     }
 
-    const mail = await buildWeeklyBriefForUser({ db, uid, prefs, market })
+    const mail = await cfg.build({ db, uid, prefs, market })
     if (!mail) {
       return NextResponse.json({ error: 'Add some holdings first', errorCode: 'NO_DATA' }, { status: 400 })
     }

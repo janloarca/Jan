@@ -177,6 +177,12 @@ export function categoryLabel(cat, lang) {
   return CATEGORY_LABELS[cat]?.[lang === 'es' ? 'es' : 'en'] || cat
 }
 
+// Orden de presentación de esas categorías (el del Spreadsheet). Compartido
+// entre PortfolioSpreadsheet y el spreadsheet adjunto del correo mensual
+// (lib/monthlySpreadsheet.js): dos órdenes distintos harían que "el mismo
+// archivo" no se lea igual en pantalla que en el correo.
+export const CATEGORY_ORDER = ['banks', 'funds', 'stocks', 'crypto', 'alternatives', 'bonds', 'realestate', 'other', 'receivables', 'debts']
+
 export function getItemPrice(item) {
   if (item.isIlliquid && item.lastManualValuation > 0) return item.lastManualValuation
   const candidates = [item.currentPrice, item.purchasePrice, item.price, item.cost, item.averagePrice]

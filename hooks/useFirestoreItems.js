@@ -3,6 +3,7 @@ import { sanitizeImportItem } from '@/lib/validation'
 import { SNAPSHOT_SRC_PRIORITY } from '@/components/dashboard/utils'
 import { detectMisstampedMonthlyNavSnapshots } from '@/lib/badDataCleanup'
 import { orphanedAccountSnapshotIds } from '@/lib/accountCleanup'
+import { SNAPSHOT_VERSION } from '@/lib/snapshotVersion'
 
 let _db = null
 let _auth = null
@@ -906,7 +907,10 @@ export function useFirestoreItems() {
   // entre cuentas del usuario. Todo mes ya cacheado se calculó sin esos eventos
   // (la cuenta que recibe, plana hacia atrás en su saldo alto de hoy; la que
   // envía, en su saldo bajo) y el caché nunca se autocorrige por merge.
-  const SNAPSHOT_VERSION = 25
+  //
+  // El NÚMERO vive en lib/snapshotVersion.js (FASE IE): el spreadsheet adjunto
+  // del correo mensual lee estos mismos docs del lado del servidor y tiene que
+  // rechazar versiones viejas con la misma vara. Bumpear allá, documentar acá.
 
   const saveItemSnapshots = useCallback(async (monthKey, itemsData, currency) => {
     if (!uid || !monthKey || !itemsData) return

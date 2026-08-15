@@ -7,8 +7,8 @@ import { buildContributionFields } from '@/lib/contributions'
 import InlineCreateAccount from './InlineCreateAccount'
 import FormSection from './FormSection'
 import { InfoTip } from './ui/Tooltip'
+import { currencyOptions } from '@/lib/currencies'
 
-const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
 const ACCOUNT_TYPES = [
   { key: 'taxable', es: 'Tributaria', en: 'Taxable' },
   { key: 'retirement', es: 'Retiro', en: 'Retirement' },
@@ -769,7 +769,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   moneda distinta de la guardada (un value sin opción renderiza
                   la primera, USD, y se lee como dato corrupto). */}
               <select id="edit-currency" value={form.currency} onChange={e => requestCurrencyChange(e.target.value)} className={inputCls}>
-                {(CURRENCIES.includes(form.currency) || !form.currency ? CURRENCIES : [form.currency, ...CURRENCIES]).map(c => <option key={c} value={c}>{c}</option>)}
+                {currencyOptions(form.currency).map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div>

@@ -157,7 +157,7 @@ function DoneStep({ result, onClose, onComplementFile, t }) {
   )
 }
 
-export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, savedQueryId, vaultMigrated = false, syncSummary = null, onSaveCredentials, onSaveCredentialsPending, onApiSyncSuccess, onDisconnect, lang = 'es', uid, lastSyncTime, existingItems = [], existingTransactions = [], existingSnapshots = [] }) {
+export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, savedQueryId, vaultMigrated = false, syncSummary = null, onSaveCredentials, onSaveCredentialsPending, onApiSyncSuccess, onDisconnect, lang = 'es', uid, lastSyncTime, existingItems = [], existingTransactions = [], existingSnapshots = [], journeyActive = false }) {
   const trapRef = useFocusTrap()
   // Connected = a usable token (legacy client copy OR migrated to the server
   // vault) AND a query id. Mirrors ibkrConnected in useDashboardData: judging by
@@ -844,29 +844,47 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   eliminar) — vive DENTRO de esta misma pantalla, abierto por
                   defecto la primera vez (mismo localStorage de antes) y
                   colapsable el resto. Todo en un solo segmento. */}
-              <button type="button" onClick={toggleExplainer}
-                className="w-full flex items-center gap-2 text-left px-3 py-2 rounded-lg transition-colors"
-                style={{ backgroundColor: 'rgba(37,99,235,0.08)', color: 'var(--accent-blue)' }}>
-                <Info size={13} className="shrink-0" />
-                <span className="text-xs font-medium flex-1">{t('Cómo funciona la conexión con IBKR', 'How the IBKR connection works')}</span>
-                <ChevronDown size={13} style={{ transform: showExplainer ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} />
-              </button>
-              {showExplainer && (
-                <div className="space-y-2.5 text-xs leading-relaxed text-slate-300 px-3 -mt-2">
-                  <div className="flex gap-2.5">
-                    <span>🔒</span>
-                    <p>{t('Es SOLO LECTURA y cifrado. Usamos un "Flex Query" (un reporte de tu cuenta): nunca podemos operar ni mover tu dinero, solo leer lo que tú configures.',
-                          'It is READ-ONLY and encrypted. We use a "Flex Query" (a report of your account): we can never trade or move your money, only read what you configure.')}</p>
+              {/* FASE IH: el explicador y su contenido comparten una sola caja
+                  (antes el panel abierto flotaba suelto debajo del botón, con
+                  `-mt-2` para pegarlo a mano) y sus colores salen de las
+                  variables de tema, no de un rgba fijo del azul de hoy. */}
+              <div className="rounded-lg overflow-hidden" style={{ border: '1px solid var(--card-border)' }}>
+                <button type="button" onClick={toggleExplainer} aria-expanded={showExplainer}
+                  className="w-full flex items-center gap-2 text-left px-3 py-2.5 transition-colors hover:bg-theme-elevated">
+                  <span className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center"
+                    style={showExplainer
+                      ? { backgroundColor: 'var(--accent-blue)', color: '#ffffff' }
+                      : { backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>
+                    <Info size={12} />
+                  </span>
+                  <span className="text-xs font-medium flex-1 min-w-0" style={{ color: 'var(--text-secondary)' }}>
+                    {t('Cómo funciona la conexión con IBKR', 'How the IBKR connection works')}
+                  </span>
+                  <ChevronDown size={13} style={{ color: 'var(--text-muted)', transform: showExplainer ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} />
+                </button>
+                {showExplainer && (
+                  <div className="space-y-2.5 text-xs leading-relaxed px-3 py-2.5" style={{ color: 'var(--text-muted)', borderTop: '1px solid var(--card-border)' }}>
+                    <div className="flex gap-2.5">
+                      <span>🔒</span>
+                      <p>{t('Es SOLO LECTURA y cifrado. Usamos un "Flex Query" (un reporte de tu cuenta): nunca podemos operar ni mover tu dinero, solo leer lo que tú configures.',
+                            'It is READ-ONLY and encrypted. We use a "Flex Query" (a report of your account): we can never trade or move your money, only read what you configure.')}</p>
+                    </div>
+                    <div className="flex gap-2.5">
+                      <span>🧩</span>
+                      <p>{t('Solo recibimos las secciones que actives en el Flex Query: posiciones y efectivo de hoy, compras/ventas y depósitos (para el retorno real), y el valor diario de tu cuenta (la gráfica histórica).',
+                            'We only receive the sections you enable in the Flex Query: today\'s positions and cash, buys/sells and deposits (for real return), and your daily account value (the historical chart).')}</p>
+                    </div>
                   </div>
-                  <div className="flex gap-2.5">
-                    <span>🧩</span>
-                    <p>{t('Solo recibimos las secciones que actives en el Flex Query: posiciones y efectivo de hoy, compras/ventas y depósitos (para el retorno real), y el valor diario de tu cuenta (la gráfica histórica).',
-                          'We only receive the sections you enable in the Flex Query: today\'s positions and cash, buys/sells and deposits (for real return), and your daily account value (the historical chart).')}</p>
-                  </div>
-                </div>
-              )}
-              {/* Mode tabs: API Sync vs File Import */}
-              <div className="flex bg-theme-base rounded-lg border border-glass-border p-0.5">
+                )}
+              </div>
+              {/* Mode tabs: API Sync vs File Import.
+                  FASE IH2: dentro del viaje no se muestran. Subir el archivo
+                  es el PASO 2, con su propia pantalla: ofrecerlo también como
+                  pestaña acá pone al usuario a elegir entre "este paso" y "el
+                  siguiente", que es justo la bifurcación que el viaje existe
+                  para quitar. Fuera del viaje (abrir IBKR desde conexiones)
+                  las dos pestañas siguen siendo la única puerta al archivo. */}
+              <div className={`flex bg-theme-base rounded-lg border border-glass-border p-0.5 ${journeyActive ? 'hidden' : ''}`}>
                 <button onClick={() => { setImportMode('api'); setError(''); setErrorCode('') }}
                   className={`flex-1 py-2 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-1.5 ${
                     importMode === 'api' ? 'bg-theme-card text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'
@@ -886,8 +904,8 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
               {importMode === 'api' && (
                 <>
               <div>
-                <p className="text-sm text-white font-medium mb-1">{t('Configuración inicial', 'Initial setup')}</p>
-                <p className="text-xs text-slate-500">
+                <p className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>{t('Configuración inicial', 'Initial setup')}</p>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                   {t('Necesitas un Token y un Query ID de tu cuenta IBKR.',
                      'You need a Token and a Query ID from your IBKR account.')}
                 </p>
@@ -899,27 +917,33 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   pantalla tenía su PROPIA copia hardcodeada de 3 pasos con 4
                   párrafos naranjas siempre expandidos debajo del paso 1, la
                   pared de texto que el usuario señaló como agobiante. */}
-              <BrokerSteps steps={getBrokerHowTo('ibkr').api.steps} note={getBrokerHowTo('ibkr').api.note} variant="api" lang={lang} />
+              {/* FASE IH2: plegado por defecto. Con los 6 pasos abiertos, los
+                  campos de Token y Query ID (lo único que esta pantalla pide)
+                  quedaban por debajo del borde inferior: había que hacer
+                  scroll a través de toda la instrucción para llegar a la
+                  acción. Quien ya sabe conseguir su token no lee nada; quien
+                  no, lo abre de un toque. */}
+              <BrokerSteps steps={getBrokerHowTo('ibkr').api.steps} note={getBrokerHowTo('ibkr').api.note} variant="api" lang={lang} collapsible />
 
               <div className="border-t border-glass-border/40 pt-5 space-y-4">
                 <div>
-                  <label className="text-xs text-slate-500 uppercase tracking-wider mb-1.5 block">Token</label>
+                  <label className="text-xs uppercase tracking-wider mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Token</label>
                   <input type="password" value={token} onChange={e => setToken(e.target.value)}
                     placeholder={decrypting ? t('Desencriptando...', 'Decrypting...') : t('Flex Web Service Token', 'Flex Web Service Token')}
                     disabled={decrypting}
-                    className="w-full px-4 py-2.5 bg-theme-base border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[var(--accent-blue)] font-mono"
-                    style={{ borderColor: errorCode === 'TOKEN_EXPIRED' ? 'rgba(239,68,68,0.6)' : 'var(--card-border)' }} />
+                    className="w-full px-4 py-2.5 bg-theme-base border rounded-lg text-sm placeholder-slate-600 focus:outline-none focus:border-[var(--accent-blue)] font-mono"
+                    style={{ color: 'var(--text-primary)', borderColor: errorCode === 'TOKEN_EXPIRED' ? 'rgba(239,68,68,0.6)' : 'var(--card-border)' }} />
                   {errorCode === 'TOKEN_EXPIRED' && (
                     <p className="text-xs text-[var(--alert-error-icon)] mt-1">{t('Este token expiró o es inválido.', 'This token has expired or is invalid.')}</p>
                   )}
                 </div>
 
                 <div>
-                  <label className="text-xs text-slate-500 uppercase tracking-wider mb-1.5 block">Query ID</label>
+                  <label className="text-xs uppercase tracking-wider mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Query ID</label>
                   <input type="text" value={queryId} onChange={e => setQueryId(e.target.value)}
                     placeholder={t('Ej: 123456', 'E.g.: 123456')}
-                    className="w-full px-4 py-2.5 bg-theme-base border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[var(--accent-blue)] font-mono"
-                    style={{ borderColor: errorCode === 'INVALID_QUERY' ? 'rgba(239,68,68,0.6)' : 'var(--card-border)' }} />
+                    className="w-full px-4 py-2.5 bg-theme-base border rounded-lg text-sm placeholder-slate-600 focus:outline-none focus:border-[var(--accent-blue)] font-mono"
+                    style={{ color: 'var(--text-primary)', borderColor: errorCode === 'INVALID_QUERY' ? 'rgba(239,68,68,0.6)' : 'var(--card-border)' }} />
                   {errorCode === 'INVALID_QUERY' && (
                     <p className="text-xs text-[var(--alert-error-icon)] mt-1">{t('Este Query ID no existe o no está activo.', 'This Query ID does not exist or is not active.')}</p>
                   )}

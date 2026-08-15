@@ -120,24 +120,28 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
       descEn: 'Your week and your year, plus market levels. Sundays.',
       ready: true },
     { key: 'notifyMonthly', es: 'Resumen mensual', en: 'Monthly brief',
-      descEs: 'Tu mes y el año, con el spreadsheet de enero al mes en curso.',
-      descEn: 'Your month and your year, with the spreadsheet from January to date.',
-      ready: false },
+      descEs: 'Tu mes y el año, con el reporte YTD y el spreadsheet de enero al mes cubierto. Día 1.',
+      descEn: 'Your month and your year, with the YTD report and the January-to-date spreadsheet. On the 1st.',
+      ready: true },
     { key: 'notifyAnnual', es: 'Resumen anual', en: 'Annual brief',
-      descEs: 'El cierre del año completo con su reporte.',
-      descEn: 'The full year close with its report.',
-      ready: false },
+      descEs: 'El cierre del año, con su reporte y el spreadsheet completo. 1 de enero.',
+      descEn: 'The year close, with its report and the full-year spreadsheet. January 1st.',
+      ready: true },
   ]
   const [emailPrefs, setEmailPrefs] = useState(() =>
     Object.fromEntries(EMAIL_CADENCES.map((c) => [c.key, settings?.[c.key] === true]))
   )
-  const [testingEmail, setTestingEmail] = useState(false)
+  const [testingEmail, setTestingEmail] = useState(null) // la cadencia en vuelo, o null
   const [testResult, setTestResult] = useState(null)
-  const handleTestEmail = async () => {
-    setTestingEmail(true)
+  const handleTestEmail = async (cadence = 'weekly') => {
+    setTestingEmail(cadence)
     setTestResult(null)
     try {
-      const res = await authFetch('/api/notifications/test', { method: 'POST' })
+      const res = await authFetch('/api/notifications/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cadence }),
+      })
       const data = await safeJson(res)
       if (res.ok) {
         setTestResult({ ok: true, msg: t(`Enviado a ${data?.sentTo || userEmail}. Revisa tu bandeja (y spam).`, `Sent to ${data?.sentTo || userEmail}. Check your inbox (and spam).`) })
@@ -149,7 +153,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
     } catch (e) {
       setTestResult({ ok: false, msg: e.message || t('No se pudo enviar', 'Could not send') })
     } finally {
-      setTestingEmail(false)
+      setTestingEmail(null)
     }
   }
 
@@ -579,12 +583,24 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                         domingos, y esperar días para descubrir que el correo no
                         sale es el ciclo lento que este repo ya pagó caro. Arma
                         el MISMO correo de la corrida real. */}
-                    <div className="pt-1">
-                      <button type="button" onClick={handleTestEmail} disabled={testingEmail}
+                    <div className="pt-1 flex flex-wrap gap-2">
+                      <button type="button" onClick={() => handleTestEmail('weekly')} disabled={!!testingEmail}
                         className="px-3 py-1.5 text-xs rounded-lg border transition-colors disabled:opacity-50"
                         style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-input)' }}>
-                        {testingEmail ? t('Enviando...', 'Sending...') : t('Enviarme una prueba', 'Send me a test')}
+                        {testingEmail === 'weekly' ? t('Enviando...', 'Sending...') : t('Probar semanal', 'Test weekly')}
                       </button>
+                      <button type="button" onClick={() => handleTestEmail('monthly')} disabled={!!testingEmail}
+                        className="px-3 py-1.5 text-xs rounded-lg border transition-colors disabled:opacity-50"
+                        style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-input)' }}>
+                        {testingEmail === 'monthly' ? t('Enviando...', 'Sending...') : t('Probar mensual', 'Test monthly')}
+                      </button>
+                      <button type="button" onClick={() => handleTestEmail('annual')} disabled={!!testingEmail}
+                        className="px-3 py-1.5 text-xs rounded-lg border transition-colors disabled:opacity-50"
+                        style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-input)' }}>
+                        {testingEmail === 'annual' ? t('Enviando...', 'Sending...') : t('Probar anual', 'Test annual')}
+                      </button>
+                    </div>
+                    <div>
                       {testResult && (
                         <p className="text-[11px] mt-1.5 leading-relaxed"
                           style={{ color: testResult.ok ? 'var(--accent-green)' : 'var(--text-negative)' }}>

@@ -73,7 +73,7 @@ function parseNumber(val) {
 // screen, with a summary of what was written. The IBKR journey orchestrator
 // listens to it to ADVANCE to the next step instead of dropping the user back
 // on the dashboard wondering whether more steps exist (the reported bug).
-export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateItem, onDeleteItem, onBulkImport, existingItems, existingLots = [], existingFinanceTransactions = [], activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null, onImportComplete = null }) {
+export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateItem, onDeleteItem, onBulkImport, existingItems, existingLots = [], existingFinanceTransactions = [], activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null, onImportComplete = null, journeyActive = false }) {
   const trapRef = useFocusTrap()
   const [mode, setMode] = useState('file')
   const [step, setStep] = useState('upload')
@@ -778,9 +778,15 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   // lib/brokerHowTo.js (shared with ConnectionsModal's API flow) — this modal
   // only needs the broker's display name/icon plus its csv.steps/csv.note.
   const brokerInfo = brokerHint ? getBrokerHowTo(brokerHint) : null
+  // "Importar CSV" era literalmente falso para IBKR, cuyo archivo es XML (y
+  // esta pantalla también acepta xlsx y pdf para cualquier broker): decía el
+  // formato equivocado justo arriba de una zona que pide .xml.
   const modalTitle = brokerInfo
-    ? t(`Importar CSV: ${brokerInfo.name}`, `Import CSV: ${brokerInfo.name}`)
+    ? t(`Importar archivo: ${brokerInfo.name}`, `Import file: ${brokerInfo.name}`)
     : t('Importar Portfolio', 'Import Portfolio')
+  // Dentro del viaje, las instrucciones que YA son pasos propios del viaje se
+  // omiten (ver journeyStep en lib/brokerHowTo.js).
+  const brokerSteps = (brokerInfo?.csv?.steps || []).filter((s) => !(journeyActive && s.journeyStep))
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="import-modal-title"
@@ -817,9 +823,12 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
           {/* Upload step */}
           {step === 'upload' && mode === 'file' && (
             <div>
+              {/* FASE IH2: plegadas por defecto, misma razón que el paso 1:
+                  con la lista abierta, la zona de "arrastra tu archivo" (la
+                  única acción de esta pantalla) quedaba fuera de la vista. */}
               {brokerInfo?.csv?.steps && (
                 <div className="mb-4">
-                  <BrokerSteps steps={brokerInfo.csv.steps} note={brokerInfo.csv.note} variant="csv" lang={lang} />
+                  <BrokerSteps steps={brokerSteps} note={brokerInfo.csv.note} variant="csv" lang={lang} collapsible />
                 </div>
               )}
               <div

@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
+import { currencyOptions } from '@/lib/currencies'
 
 const TYPE_ICONS = { Stock: '📈', Crypto: '₿', Fund: '💼', Inmueble: '🏠', Bank: '🏦', Inversion: '🏛' }
-const CURRENCIES = ['USD','EUR','GBP','MXN','GTQ','COP','CLP','ARS','BRL','PEN','CAD','CHF','JPY','CNY']
 
 const INSTITUTION_CURRENCY = {
   bi: 'GTQ', banrural: 'GTQ', bam: 'GTQ', industrial: 'GTQ', bantrab: 'GTQ',
@@ -284,7 +284,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
                 <span className="text-xs text-slate-500">{t('Moneda:', 'Currency:')}</span>
                 <select value={currentForm.currency} onChange={(e) => set('currency', e.target.value)}
                   className="px-2 py-0.5 bg-theme-card border border-glass-border rounded text-xs text-white focus:outline-none focus:border-blue-500/50">
-                  {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                  {currencyOptions(currentForm.currency).map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
             )}
@@ -323,7 +323,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
                 <label className="text-xs text-slate-500 mb-1 block">{t('O elige otra', 'Or choose another')}</label>
                 <select value={currentForm.currency} onChange={(e) => set('currency', e.target.value)}
                   className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
-                  {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                  {currencyOptions(currentForm.currency).map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
             </div>
