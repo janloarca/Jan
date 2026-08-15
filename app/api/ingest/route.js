@@ -108,7 +108,11 @@ export async function POST(request) {
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
   } catch (err) {
-    console.error('[api/ingest] POST error:', err.message)
+    // err.code (Firestore/gRPC status) alongside the message: the message
+    // alone ("Internal server error") is a generic client-facing string, and
+    // without the code a Firestore permission/path failure is indistinguishable
+    // from anything else in the Vercel function logs.
+    console.error('[api/ingest] POST error:', action, err.code || '', err.message, err.stack)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
