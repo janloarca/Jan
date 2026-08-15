@@ -404,6 +404,24 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
               pudo traer no está medida (quedó plana al valor de hoy). Decirlo
               en una línea es la diferencia entre una cifra que el usuario puede
               descartar y una que lo hace dudar de todo el panel. */}
+          {/* FASE IJ: por qué una fila puede no coincidir con la gráfica de su
+              propia cuenta. La gráfica escopada netea solo depósitos y retiros,
+              así que un traspaso entre cuentas propias lo lee como rendimiento
+              (pérdida en la que envía, ganancia en la que recibe); el panel sí
+              lo netea, porque si no las filas no sumarían el encabezado. Nombrar
+              el monto convierte una contradicción aparente en un hecho. */}
+          {hasBreakdown && ytdBreakdown.groups.some((g) => Math.abs(g.internal || 0) >= 1) && (
+            <p className="text-[10px] mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+              {lang === 'es' ? 'Movido entre tus propias cuentas: ' : 'Moved between your own accounts: '}
+              {ytdBreakdown.groups
+                .filter((g) => Math.abs(g.internal || 0) >= 1)
+                .map((g) => `${g.name} ${g.internal >= 0 ? '+' : '−'}${formatCurrency(cv(Math.abs(g.internal)), displayCur)}`)
+                .join(' · ')}
+              {lang === 'es'
+                ? '. Eso no es rendimiento y por eso se descuenta acá; la gráfica de esa cuenta no lo descuenta, así que va a mostrar otro número.'
+                : '. That is not performance, so it is netted out here; that account\'s chart does not net it, so it will show a different figure.'}
+            </p>
+          )}
           {hasBreakdown && Array.isArray(ytdDegradedAccounts) && ytdDegradedAccounts.length > 0 && (
             <p className="text-[10px] mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
               {lang === 'es'

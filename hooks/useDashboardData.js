@@ -1700,6 +1700,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // applies to the portfolio, so a row's return is measured the way the
     // headline above it is.
     const flowBaseByAccount = new Map()
+    // Cuánto de lo neteado por cuenta es dinero movido entre cuentas del propio
+    // usuario (traspasos + ingreso generado por un activo y pagado a otra
+    // cuenta), que es justo lo que la gráfica escopada NO netea.
+    const internalByAccount = new Map()
     let unattributedFlow = 0
     const addFlow = (key, amt, ts) => {
       flowByAccount.set(key, (flowByAccount.get(key) || 0) + amt)
@@ -1781,6 +1785,16 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       if (!isFinite(amt)) return
       addFlow(toKey, amt, txTs)
       addFlow(fromKey, -amt, txTs)
+      // FASE IJ: se guarda CUÁNTO de la fila es movimiento interno. La gráfica
+      // escopada netea solo DEPOSIT/WITHDRAWAL (flowTypes en
+      // PortfolioGrowthChart), así que un traspaso entre cuentas propias lo lee
+      // como rendimiento: pérdida en la que envía, ganancia en la que recibe. El
+      // panel sí lo netea (tiene que hacerlo, o las filas no sumarían el
+      // encabezado), y esa es toda la diferencia entre las dos cifras para una
+      // cuenta con movimientos internos. Decir el monto convierte "estos dos
+      // números se contradicen" en "esta cuenta movió X a otra cuenta tuya".
+      internalByAccount.set(toKey, (internalByAccount.get(toKey) || 0) + amt)
+      internalByAccount.set(fromKey, (internalByAccount.get(fromKey) || 0) - amt)
     })
 
     // FASE IA: el MISMO addback de comisiones de entrada que el encabezado (ver
@@ -1954,6 +1968,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         flowBase: flowBaseByAccount.get(k) || 0,
         start: realStart != null ? realStart : (startByAccount.get(k) || 0),
         startIsReal: realStart != null,
+        internal: internalByAccount.get(k) || 0,
       }
     })
 
