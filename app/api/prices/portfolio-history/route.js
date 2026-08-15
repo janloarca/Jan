@@ -307,11 +307,24 @@ export async function POST(request) {
     // 'backfill' quedaban a un nivel distinto por pasada, el churn exacto del
     // diente de sierra de la vista "Todas". Un crypto sin id en CRYPTO_MAP no
     // cuenta: ese es estático por diseño (determinista), no por fallo.
+    //
+    // FASE IN: `failedSymbols` responde "¿debe el backfill abstenerse de
+    // escribir?" y por eso deja fuera al crypto sin id en CRYPTO_MAP (estático
+    // determinista, no un fallo transitorio). Pero hay una segunda pregunta,
+    // distinta y hasta ahora sin respuesta: "¿este activo se MIDIÓ o se
+    // mantuvo plano?". Para quien lee un retorno, las dos rutas producen el
+    // mismo defecto: un activo plano en su valor de HOY aporta CERO al cambio
+    // del período, así que su pérdida (o ganancia) desaparece sin dejar rastro.
+    // Eso es exactamente la degradación muda que el invariante 5 prohíbe, una
+    // capa más abajo. `staticFallbackSymbols` las junta a las dos: TODO activo
+    // de mercado que terminó reconstruido como estático, por la razón que sea.
     const failedSymbols = []
+    const staticFallbackSymbols = []
     marketItems.forEach((it) => {
       const sym = (it.symbol || '').toUpperCase()
       if (!allTimeSeries[sym]) {
         failedSymbols.push(sym)
+        staticFallbackSymbols.push(sym)
         staticItems.push(it)
       }
     })
@@ -319,13 +332,14 @@ export async function POST(request) {
       const sym = (it.symbol || '').toUpperCase()
       if (!allTimeSeries[sym]) {
         if (CRYPTO_MAP[sym]) failedSymbols.push(sym)
+        staticFallbackSymbols.push(sym)
         staticItems.push(it)
       }
     })
     const degraded = failedSymbols.length > 0
 
     if (Object.keys(allTimeSeries).length === 0 && staticItems.length === 0) {
-      return NextResponse.json({ dataPoints: [], staticTotal: 0, staticPoints: [], degraded, failedSymbols })
+      return NextResponse.json({ dataPoints: [], staticTotal: 0, staticPoints: [], degraded, failedSymbols, staticFallbackSymbols })
     }
 
     const allTs = new Set()
@@ -563,7 +577,7 @@ export async function POST(request) {
       return s + (it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0)
     }, 0)
 
-    return NextResponse.json({ dataPoints, staticTotal, staticPoints, transactional: usedTransactional, degraded, failedSymbols, cache: kvBackend() })
+    return NextResponse.json({ dataPoints, staticTotal, staticPoints, transactional: usedTransactional, degraded, failedSymbols, staticFallbackSymbols, cache: kvBackend() })
   } catch (err) {
     console.error('portfolio-history error:', err)
     return NextResponse.json({ error: 'Internal server error', errorCode: 'INTERNAL', dataPoints: [] }, { status: 500 })

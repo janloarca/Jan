@@ -111,6 +111,41 @@ describe('portfolio-history degradacion explicita (FASE HJ)', () => {
     expect(data.degraded).toBe(false)
   })
 
+  // FASE IN. `failedSymbols` responde "¿debe el backfill abstenerse de
+  // escribir?" y por eso deja fuera al crypto sin id en CRYPTO_MAP. Pero para
+  // QUIEN LEE UN RETORNO las dos rutas son el mismo defecto: un activo plano en
+  // su valor de HOY aporta CERO al cambio del periodo, o sea su perdida
+  // desaparece. `staticFallbackSymbols` las junta, sin cambiar failedSymbols.
+  test('staticFallbackSymbols junta las dos rutas al camino plano', async () => {
+    const req = mockRequest({
+      items: [
+        { id: 'stk1', symbol: 'AAPL', type: 'Stock', quantity: 10, currentPrice: 200, purchasePrice: 150, acquisitionDate: '2025-01-01' },
+        { id: 'c1', symbol: 'MICOIN', type: 'Crypto', quantity: 5, currentPrice: 10, purchasePrice: 8, acquisitionDate: '2025-01-01' },
+      ],
+      period: 'YTD',
+    })
+    const res = await POST(req)
+    const data = await res.json()
+    // El fallo transitorio se sigue reportando como tal...
+    expect(data.failedSymbols).toContain('AAPL')
+    // ...y el estatico-por-diseno NO, para no bloquear al backfill.
+    expect(data.failedSymbols).not.toContain('MICOIN')
+    // Pero los dos quedan declarados como "no medido".
+    expect(data.staticFallbackSymbols).toEqual(expect.arrayContaining(['AAPL', 'MICOIN']))
+  })
+
+  test('un portafolio 100% estatico no reporta ningun fallback de precios', async () => {
+    const req = mockRequest({
+      items: [
+        { id: 'bond1', symbol: 'IDCBOND', type: 'Bond', quantity: 1, currentPrice: 6000, purchasePrice: 6000, acquisitionDate: '2020-01-01' },
+      ],
+      period: 'YTD',
+    })
+    const res = await POST(req)
+    const data = await res.json()
+    expect(data.staticFallbackSymbols).toEqual([])
+  })
+
   test('maxDuration exportado: sin el, el default de 10s de Vercel mataba la peticion pesada', () => {
     expect(maxDuration).toBe(60)
   })
