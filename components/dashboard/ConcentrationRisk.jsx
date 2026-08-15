@@ -79,7 +79,7 @@ export default function ConcentrationRisk({ items, lang }) {
   const PALETTE = CHART_PALETTE
 
   return (
-    <div className="card-glass rounded-xl p-4">
+    <div>
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />

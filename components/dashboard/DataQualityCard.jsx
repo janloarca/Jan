@@ -60,7 +60,7 @@ export default function DataQualityCard({
   const ringColor = score >= 100 ? 'var(--accent-green)' : score >= 60 ? 'var(--accent-blue)' : '#fbbf24'
 
   return (
-    <div className="bg-theme-card rounded-2xl border border-glass-border p-5 card-primary">
+    <div>
       <div className="flex items-start gap-5">
         <div className="relative shrink-0" style={{ width: 128, height: 128 }}>
           <svg viewBox="0 0 128 128" className="w-full h-full" style={{ transform: 'rotate(-90deg)' }}>

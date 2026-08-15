@@ -72,7 +72,7 @@ export default function FeeAnalysis({ items, netWorth, lang }) {
   const feeColorHex = analysis.avgPct < 0.3 ? 'var(--accent-green)' : analysis.avgPct < 1.0 ? 'var(--accent-orange)' : 'var(--text-negative)'
 
   return (
-    <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-4 sm:p-5">
+    <div>
       <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
         💸 {t('Análisis de Comisiones', 'Fee Analysis')}
       </h3>
