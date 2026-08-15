@@ -19,6 +19,44 @@ const CATEGORY_LABELS = {
   other: { es: 'Otros', en: 'Other' },
 }
 
+// Los tres términos por cuenta (arranque / hoy / movimientos) más el ancla del
+// portafolio. Un solo componente para los dos estados del panel (rechazo y
+// éxito): dos copias del mismo render es como una se queda atrás.
+function AccountTermsTable({ accounts, anchor, lang, cv, displayCur }) {
+  return (
+    <div className="mt-2">
+      <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 gap-y-1 items-baseline">
+        <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Cuenta' : 'Account'}</span>
+        <span className="text-[10px] uppercase tracking-wider text-right" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Arranque' : 'Start'}</span>
+        <span className="text-[10px] uppercase tracking-wider text-right" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Hoy' : 'Now'}</span>
+        <span className="text-[10px] uppercase tracking-wider text-right" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Movimientos' : 'Flows'}</span>
+        {accounts.map((a) => (
+          <Fragment key={a.name}>
+            <span className="text-[11px] truncate" style={{ color: 'var(--text-secondary)' }}>
+              {a.name}{a.real ? <span style={{ color: 'var(--accent-blue)' }}>*</span> : ''}
+            </span>
+            <span className="text-[11px] font-mono tabular-nums text-right" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(a.start ?? 0), displayCur)}</span>
+            <span className="text-[11px] font-mono tabular-nums text-right" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(a.end ?? 0), displayCur)}</span>
+            <span className="text-[11px] font-mono tabular-nums text-right" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(a.flow ?? 0), displayCur)}</span>
+          </Fragment>
+        ))}
+      </div>
+      <div className="flex items-baseline justify-between gap-2 mt-2 pt-2" style={{ borderTop: '1px solid var(--glass-border)' }}>
+        <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Arranque del portafolio' : 'Portfolio year-start'}</span>
+        <span className="text-[11px] font-mono tabular-nums" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(anchor ?? 0), displayCur)}</span>
+      </div>
+      {accounts.some((a) => a.real) && (
+        <p className="text-[10px] mt-1.5" style={{ color: 'var(--text-muted)' }}>
+          <span style={{ color: 'var(--accent-blue)' }}>*</span>{' '}
+          {lang === 'es'
+            ? 'arranque real del broker: nunca se ajusta.'
+            : 'real broker year-start: never adjusted.'}
+        </p>
+      )}
+    </div>
+  )
+}
+
 function getGreeting(lang) {
   const hour = new Date().getHours()
   if (hour < 12) return lang === 'es' ? 'Buenos días' : 'Good morning'
@@ -26,7 +64,7 @@ function getGreeting(lang) {
   return lang === 'es' ? 'Buenas noches' : 'Good evening'
 }
 
-export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdDegradedAccounts }) {
+export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms, ytdDegradedAccounts }) {
   const hasYTD = returnYTD != null && isFinite(returnYTD)
   const displayReturn = hasYTD ? returnYTD : (returnSinceStart != null && isFinite(returnSinceStart) ? returnSinceStart : null)
   const hasReturn = displayReturn != null
@@ -339,36 +377,8 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
                       : (lang === 'es' ? 'Ver detalle por cuenta' : 'See per-account detail')}
                   </button>
                   {showRefusalDetail && (
-                    <div className="mt-2">
-                      <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 gap-y-1 items-baseline">
-                        <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Cuenta' : 'Account'}</span>
-                        <span className="text-[10px] uppercase tracking-wider text-right" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Arranque' : 'Start'}</span>
-                        <span className="text-[10px] uppercase tracking-wider text-right" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Hoy' : 'Now'}</span>
-                        <span className="text-[10px] uppercase tracking-wider text-right" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Movimientos' : 'Flows'}</span>
-                        {ytdBreakdownDetail.accounts.map((a) => (
-                          <Fragment key={a.name}>
-                            <span className="text-[11px] truncate" style={{ color: 'var(--text-secondary)' }}>
-                              {a.name}{a.real ? <span style={{ color: 'var(--accent-blue)' }}>*</span> : ''}
-                            </span>
-                            <span className="text-[11px] font-mono tabular-nums text-right" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(a.start ?? 0), displayCur)}</span>
-                            <span className="text-[11px] font-mono tabular-nums text-right" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(a.end ?? 0), displayCur)}</span>
-                            <span className="text-[11px] font-mono tabular-nums text-right" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(a.flow ?? 0), displayCur)}</span>
-                          </Fragment>
-                        ))}
-                      </div>
-                      <div className="flex items-baseline justify-between gap-2 mt-2 pt-2" style={{ borderTop: '1px solid var(--glass-border)' }}>
-                        <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Arranque del portafolio' : 'Portfolio year-start'}</span>
-                        <span className="text-[11px] font-mono tabular-nums" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(ytdBreakdownDetail.anchor ?? 0), displayCur)}</span>
-                      </div>
-                      {ytdBreakdownDetail.accounts.some((a) => a.real) && (
-                        <p className="text-[10px] mt-1.5" style={{ color: 'var(--text-muted)' }}>
-                          <span style={{ color: 'var(--accent-blue)' }}>*</span>{' '}
-                          {lang === 'es'
-                            ? 'arranque real del broker: nunca se ajusta.'
-                            : 'real broker year-start: never adjusted.'}
-                        </p>
-                      )}
-                    </div>
+                    <AccountTermsTable accounts={ytdBreakdownDetail.accounts} anchor={ytdBreakdownDetail.anchor}
+                      lang={lang} cv={cv} displayCur={displayCur} />
                   )}
                 </div>
               )}
@@ -428,6 +438,29 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
                 ? `Arranque de año ESTIMADO en ${ytdDegradedAccounts.join(', ')}: su fila puede no coincidir con su propia gráfica.`
                 : `Year-start is ESTIMATED for ${ytdDegradedAccounts.join(', ')}: their row may not match their own chart.`}
             </p>
+          )}
+          {/* FASE IK: los tres términos de cada fila, también cuando el panel SÍ
+              muestra. Una fila que no coincide con la gráfica de su cuenta se
+              podía ver pero no diagnosticar: había que deducir de los síntomas
+              si el desvío venía del arranque o de los movimientos, y eso es lo
+              que consume una ronda entera de capturas (lección FASE HP).
+              Colapsado por default: es diagnóstico, no algo que el usuario
+              venga a leer. */}
+          {hasBreakdown && Array.isArray(ytdBreakdownTerms?.accounts) && ytdBreakdownTerms.accounts.length > 0 && (
+            <div className="mt-2">
+              <button type="button" onClick={() => setShowRefusalDetail((v) => !v)}
+                aria-expanded={showRefusalDetail}
+                className="text-[11px] underline decoration-dotted underline-offset-2 cursor-pointer"
+                style={{ color: 'var(--text-muted)' }}>
+                {showRefusalDetail
+                  ? (lang === 'es' ? 'Ocultar detalle por cuenta' : 'Hide per-account detail')
+                  : (lang === 'es' ? 'Ver detalle por cuenta' : 'See per-account detail')}
+              </button>
+              {showRefusalDetail && (
+                <AccountTermsTable accounts={ytdBreakdownTerms.accounts} anchor={ytdBreakdownTerms.anchor}
+                  lang={lang} cv={cv} displayCur={displayCur} />
+              )}
+            </div>
           )}
           {hasBreakdown && ytdBreakdown.groups.some((g) => g.isUnexplained) && (
             <p className="text-[10px] mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
