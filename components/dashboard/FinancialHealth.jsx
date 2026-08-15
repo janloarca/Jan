@@ -117,8 +117,11 @@ export default function FinancialHealth({ items, netWorth, totalAssets, snapshot
     return tips.sort((a, b) => b.points - a.points).slice(0, 3)
   }, [scores])
 
+  // No card chrome of its own: this renders inside the Analysis card (see
+  // AnalysisTabs in app/dashboard/page.jsx), and a card within a card would
+  // double the border and the padding.
   return (
-    <div className="bg-theme-surface/80 rounded-xl border border-glass-border/50 p-4">
+    <div>
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />

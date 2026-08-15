@@ -86,8 +86,11 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
     return null
   }, [hasData, metrics, lang])
 
+  // No card chrome of its own: this renders inside the Analysis card (see
+  // AnalysisTabs in app/dashboard/page.jsx), and a card within a card would
+  // double the border and the padding.
   return (
-    <div className="bg-theme-surface/80 rounded-xl border border-glass-border/50 p-4">
+    <div>
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
         {t('MÉTRICAS DE RIESGO', 'RISK METRICS')}
