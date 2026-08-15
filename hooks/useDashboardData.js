@@ -6,7 +6,7 @@ import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, computeDayChange, augmentSnapshots, projectItemAnnualIncome, buildIncomeEvents, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, hasUnreliableAcqDate, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced, effectiveAcqTs, entryFeeAddbacks, getEffectiveYield } from '@/components/dashboard/utils'
-import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
+import { buildTxEvents, buildCashFlows, rewindableTradeSymbols, brokerAccountTransactions } from '@/lib/portfolioRewind'
 import { indexBalanceEvents } from '@/lib/historicalValues'
 import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget } from '@/lib/autoDividends'
 import { unlinkedOpeningDeposits } from '@/lib/originDeposits'
@@ -41,7 +41,10 @@ export function ibkrSyncChanges(prev, next) {
 // composicion de FASE HN, el rebobinado por item), para que la reparacion diaria
 // vuelva a correr en la siguiente sesion en vez de esperar al dia siguiente.
 // 2: FASE IO, dos posiciones del mismo simbolo ya no colapsan en una sola.
-const BACKFILL_LOGIC_VERSION = 2
+// 3: FASE IX, la caja del broker deja de deshacer los depositos de las cuentas
+//    manuales (y las ventas sin contraparte reconstruible), asi que todo doc
+//    escrito con la logica vieja tiene el pasado hundido y hay que re-derivarlo.
+const BACKFILL_LOGIC_VERSION = 3
 
 // FASE GE. Un solo constructor del payload de items para
 // /api/prices/portfolio-history, compartido por el cálculo de jan1Value y por
@@ -54,14 +57,23 @@ const BACKFILL_LOGIC_VERSION = 2
 // de arranque): cada depósito al broker durante el año se leía como ganancia.
 function buildHistoryItemsPayload({ items, transactions, lots, convert }) {
   const txEventsBySym = buildTxEvents(transactions)
-  const accountCashFlows = buildCashFlows(transactions,
-    (amt, cur2) => convert ? convert(amt, cur2, 'USD') : amt)
+  // FASE IX. Dos reglas, las dos para que las dos mitades del rebobinado
+  // (efectivo y acciones) hablen del mismo portafolio:
+  //  · la caja del broker solo lleva movimientos de ESA cuenta (si no, cada
+  //    depósito manual se deshace dos veces y el efectivo del pasado se hunde), y
+  //  · solo entran los trades cuyas acciones el server también va a rebobinar.
+  // Ver lib/portfolioRewind.js para el detalle de cada una.
+  const brokerItems = (items || []).filter((it) => it?._source === 'ibkr')
+  const brokerTx = brokerAccountTransactions(transactions, brokerItems)
+  const accountCashFlows = buildCashFlows(brokerTx,
+    (amt, cur2) => convert ? convert(amt, cur2, 'USD') : amt,
+    { rewindableSymbols: rewindableTradeSymbols(items, txEventsBySym) })
   // Only rewind the cash line when there is a REAL external flow
   // (deposit/withdrawal). With hold-flat stocks, rewinding cash by BUY/SELL
   // double-counts (the flat holding already implies the shares were owned),
   // which collapses the January baseline and blows up the YTD Dietz. Without
   // deposits, leave cash flat.
-  const hasExternalFlow = (transactions || []).some((t) => /^(DEPOSIT|WITHDRAWAL)$/i.test(t.type || ''))
+  const hasExternalFlow = brokerTx.some((t) => /^(DEPOSIT|WITHDRAWAL)$/i.test(t.type || ''))
   // Prefer the CASH-{ccy} holding; fall back to any single IBKR bank-type item
   // so the ledger still rebuilds cash when the symbol isn't exactly CASH-*.
   const cashItem = (accountCashFlows.length > 0 && hasExternalFlow)

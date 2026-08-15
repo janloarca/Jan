@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from 'react'
 import { formatCurrency, formatCompact, formatAxisTick, formatDate, getItemValue, buildIncomeEvents, isExcludedFromNetWorth, findYearStartAnchor, shouldHoldFlat, hasUnreliableAcqDate, SNAPSHOT_SRC_PRIORITY, BROKER_NAV_SOURCES, computeWindowGrowth, isMarketPriced, effectiveAcqTs } from './utils'
-import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
+import { buildTxEvents, buildCashFlows, rewindableTradeSymbols, brokerAccountTransactions } from '@/lib/portfolioRewind'
 import { indexBalanceEvents } from '@/lib/historicalValues'
 import { isBankLikeItem } from '@/lib/contributions'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
@@ -387,12 +387,24 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       // (deposits step in, buys move cash into shares) like the broker's own chart,
       // instead of holding today's positions flat backwards.
       const txEventsBySym = buildTxEvents(scopedTransactions)
-      const accountCashFlows = buildCashFlows(scopedTransactions,
-        (amt, cur2) => convert ? convert(amt, cur2, 'USD') : amt)
+      // FASE IX. La caja del broker solo lleva movimientos de ESA cuenta, y solo
+      // se deshacen los trades cuyas acciones el server también rebobina. Sin lo
+      // primero, cada depósito de apertura de una cuenta MANUAL se deshace dos
+      // veces (en su propio ítem y otra vez acá) y el efectivo del broker en el
+      // pasado se hunde por la suma de todos ellos; sin lo segundo, la venta de
+      // una posición que hoy ya no existe le resta sus ingresos sin devolver las
+      // acciones que los produjeron. Las dos formas hacen que el portafolio
+      // reconstruido pueda terminar en NEGATIVO, que es lo que dibujaba la vista
+      // "Todas" arrancando en -$6.3K. Ver lib/portfolioRewind.js.
+      const brokerItemsInScope = chartItems.filter((it) => it?._source === 'ibkr')
+      const brokerTx = brokerAccountTransactions(scopedTransactions, brokerItemsInScope)
+      const accountCashFlows = buildCashFlows(brokerTx,
+        (amt, cur2) => convert ? convert(amt, cur2, 'USD') : amt,
+        { rewindableSymbols: rewindableTradeSymbols(chartItems, txEventsBySym) })
       // The whole account ledger attaches to ONE cash item (the broker's cash line).
       // Only rewind cash when there's a REAL external flow (deposit/withdrawal): with
       // hold-flat stocks, rewinding by BUY/SELL double-counts and wrecks the baseline.
-      const hasExternalFlow = (scopedTransactions || []).some((t) => /^(DEPOSIT|WITHDRAWAL)$/i.test(t.type || ''))
+      const hasExternalFlow = brokerTx.some((t) => /^(DEPOSIT|WITHDRAWAL)$/i.test(t.type || ''))
       // Prefer the CASH-{ccy} holding; fall back to any single IBKR bank-type item so
       // the flows still rebuild the cash line when the symbol isn't exactly CASH-*.
       const cashItem = (accountCashFlows.length > 0 && hasExternalFlow)
