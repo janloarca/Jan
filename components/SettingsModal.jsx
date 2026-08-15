@@ -131,8 +131,34 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   const [emailPrefs, setEmailPrefs] = useState(() =>
     Object.fromEntries(EMAIL_CADENCES.map((c) => [c.key, settings?.[c.key] === true]))
   )
+  // FASE IE9. El estado inicial se calcula UNA vez, así que si `settings`
+  // todavía no había llegado cuando el modal se montó (o si la lectura de
+  // Firestore falló, p.ej. con la cuota diaria agotada), los interruptores se
+  // quedaban en apagado para siempre mostrando lo contrario de lo que hay
+  // guardado: el usuario cree que no está suscrito cuando sí lo está
+  // (reporte real con captura). La firma de las banderas es la única
+  // dependencia: cuando el valor guardado cambia, el interruptor lo refleja.
+  const emailSig = EMAIL_CADENCES.map((c) => (settings?.[c.key] === true ? '1' : '0')).join('')
+  useEffect(() => {
+    setEmailPrefs(Object.fromEntries(EMAIL_CADENCES.map((c) => [c.key, settings?.[c.key] === true])))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emailSig])
   const [testingEmail, setTestingEmail] = useState(null) // la cadencia en vuelo, o null
   const [testResult, setTestResult] = useState(null)
+  // El error crudo del servidor se muestra tal cual (es lo que ahorra rondas
+  // de diagnóstico), salvo cuando es un límite de la base de datos: ahí el
+  // texto es un código gRPC que no le dice nada a nadie y encima se resuelve
+  // solo, así que se traduce a qué pasó y qué hacer.
+  const humanizeSendError = (raw) => {
+    const s = String(raw || '')
+    if (/RESOURCE_EXHAUSTED|Quota exceeded/i.test(s)) {
+      return t(
+        'Se alcanzó el límite diario de la base de datos (cada prueba lee todo tu portafolio). Se reinicia solo en unas horas; el envío automático no depende de este botón.',
+        'The database hit its daily limit (each test reads your whole portfolio). It resets on its own within hours; the scheduled email does not depend on this button.',
+      )
+    }
+    return s || t('No se pudo enviar', 'Could not send')
+  }
   const handleTestEmail = async (cadence = 'weekly') => {
     setTestingEmail(cadence)
     setTestResult(null)
@@ -147,11 +173,14 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
         setTestResult({ ok: true, msg: t(`Enviado a ${data?.sentTo || userEmail}. Revisa tu bandeja (y spam).`, `Sent to ${data?.sentTo || userEmail}. Check your inbox (and spam).`) })
       } else {
         // El mensaje del servidor SMTP se muestra tal cual: si Zoho rechaza la
-        // autenticación, verlo aquí ahorra una ronda de logs.
-        setTestResult({ ok: false, msg: data?.error || t('No se pudo enviar', 'Could not send') })
+        // autenticación, verlo aquí ahorra una ronda de logs. La excepción es
+        // la cuota de la base de datos, que llega como "8 RESOURCE_EXHAUSTED:
+        // Quota exceeded" (código gRPC): nadie puede accionar sobre eso sin
+        // saber que es un límite DIARIO que se reinicia solo.
+        setTestResult({ ok: false, msg: humanizeSendError(data?.error) })
       }
     } catch (e) {
-      setTestResult({ ok: false, msg: e.message || t('No se pudo enviar', 'Could not send') })
+      setTestResult({ ok: false, msg: humanizeSendError(e.message) })
     } finally {
       setTestingEmail(null)
     }
@@ -335,7 +364,6 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
     } catch (e) { flash('err', e.message) }
     setShareLoading(false)
   }
-
 
   const tabs = [
     { key: 'general', label: t('General', 'General'), icon: SlidersHorizontal },
