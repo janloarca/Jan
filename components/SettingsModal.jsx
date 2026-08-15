@@ -13,6 +13,7 @@ import { isNotificationSupported, getNotificationPermission, requestNotification
 import { BENCHMARKS } from '@/hooks/useBenchmark'
 import { disconnectAllSyncs, IBKR_DISCONNECTED_FIELDS } from '@/lib/brokerRegistry'
 import { useEdgeFade } from '@/hooks/useEdgeFade'
+import { isFirestoreQuotaError } from '@/lib/firestoreErrors'
 
 const CURRENCIES = [
   { code: 'USD', name: 'US Dollar', symbol: '$' },
@@ -151,7 +152,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   // solo, así que se traduce a qué pasó y qué hacer.
   const humanizeSendError = (raw) => {
     const s = String(raw || '')
-    if (/RESOURCE_EXHAUSTED|Quota exceeded/i.test(s)) {
+    if (isFirestoreQuotaError(s)) {
       return t(
         'Se alcanzó el límite diario de la base de datos (cada prueba lee todo tu portafolio). Se reinicia solo en unas horas; el envío automático no depende de este botón.',
         'The database hit its daily limit (each test reads your whole portfolio). It resets on its own within hours; the scheduled email does not depend on this button.',

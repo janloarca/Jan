@@ -9,6 +9,8 @@ import { computeLoadStages } from '@/lib/loadStages'
 import { ibkrJourneyProgress } from '@/lib/ibkrJourney'
 import Header from '@/components/dashboard/Header'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
+import { InfoTip } from '@/components/ui/Tooltip'
+import { useEdgeFade } from '@/hooks/useEdgeFade'
 import AdBanner from '@/components/AdBanner'
 import MonthEndCheckin, { hasLiveSync } from '@/components/dashboard/MonthEndCheckin'
 import DashboardLoading from './loading'
@@ -79,6 +81,15 @@ const ConcentrationRisk = dynamic(() => import('@/components/dashboard/Concentra
 const GainsReport = dynamic(() => import('@/components/dashboard/GainsReport'), { loading: () => <SkeletonCard /> })
 const PerformanceAttribution = dynamic(() => import('@/components/dashboard/PerformanceAttribution'), { loading: () => <SkeletonCard /> })
 const RiskMetrics = dynamic(() => import('@/components/dashboard/RiskMetrics'), { loading: () => <SkeletonCard /> })
+// These three were already built and registered in cardRegistry.js but had
+// never been mounted anywhere in the app. They are Analysis tabs now.
+const BenchmarkComparison = dynamic(() => import('@/components/dashboard/BenchmarkComparison'), { loading: () => <SkeletonCard /> })
+const CurrencyImpact = dynamic(() => import('@/components/dashboard/CurrencyImpact'), { loading: () => <SkeletonCard /> })
+const FeeAnalysis = dynamic(() => import('@/components/dashboard/FeeAnalysis'), { loading: () => <SkeletonCard /> })
+// InstitutionPerformance is intentionally still imported and still on disk: its
+// six rows duplicated Asset Allocation's "Inst." view number for number, so the
+// dashboard stopped rendering it (see the composition grid below). Nothing about
+// the component or its formula changed, and remounting it is one line.
 const InstitutionPerformance = dynamic(() => import('@/components/dashboard/InstitutionPerformance'), { loading: () => <SkeletonCard /> })
 const InvestedByYearCard = dynamic(() => import('@/components/dashboard/InvestedByYearCard'), { loading: () => <SkeletonCard /> })
 const RebalanceSuggestions = dynamic(() => import('@/components/dashboard/RebalanceSuggestions'), { loading: () => <SkeletonCard /> })
@@ -111,10 +122,20 @@ import EntitySwitcher from '@/components/dashboard/EntitySwitcher'
 import { useEntities } from '@/hooks/useEntities'
 import { authFetch, safeJson } from '@/lib/authFetch'
 
-function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, lots, transactions, convert, baseCurrency, benchmarkData, benchmarkName, beginnerMode }) {
+// Sits in the dashboard's composition grid as Asset Allocation's sibling, so it
+// wears the same card: same shell, same header shape, same segmented control.
+// It used to be a bare tab strip in a collapsed section at the very bottom of
+// the page. Its five original tabs are unchanged; Benchmark, Currency and Fees
+// were already built as components and had simply never been mounted anywhere,
+// and Data quality moved up from "Recent activity".
+function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, lots, transactions, convert, baseCurrency, rates, benchmarkData, benchmarkName, benchmarkReturn, portfolioReturn, beginnerMode, onConnect, onImportBroker }) {
   const [tab, setTab] = useState('health')
   const t = (es, en) => lang === 'es' ? es : en
   const hasLots = lots && lots.length > 0
+  // Nine tabs in a half-width card overflow horizontally. Same affordance the
+  // period selector and the Settings tabs already use: fade only the edge that
+  // is really hiding something.
+  const tabsFade = useEdgeFade([lang, beginnerMode, hasLots])
   // Beginner mode hides the most jargon-heavy tabs (Risk metrics, Attribution)
   const tabs = [
     { key: 'health', label: t('Salud', 'Health') },
@@ -122,13 +143,29 @@ function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, 
     { key: 'concentration', label: t('Concentración', 'Concentration') },
     ...(hasLots ? [{ key: 'gains', label: t('Ganancias', 'Gains') }] : []),
     ...(beginnerMode ? [] : [{ key: 'attribution', label: t('Atribución', 'Attribution') }]),
+    { key: 'benchmark', label: t('Benchmark', 'Benchmark') },
+    { key: 'currency', label: t('Moneda', 'Currency') },
+    { key: 'fees', label: t('Comisiones', 'Fees') },
+    { key: 'quality', label: t('Calidad', 'Quality') },
   ]
   return (
-    <div className="space-y-4">
-      <div className="inline-flex items-center gap-0.5 p-1 rounded-[10px] max-w-full overflow-x-auto" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+    <div className="card-glass rounded-2xl p-4">
+      {/* Header — mirrors AssetAllocation's so the two read as one pair */}
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-purple)' }} />
+          {t('ANÁLISIS', 'ANALYSIS')}
+          <InfoTip text={t(
+            'Distintas lecturas del mismo portafolio: qué tan sano está, cuánto riesgo carga, qué tan concentrado, cómo le fue contra el mercado y qué te están costando las comisiones. Ninguna pestaña cambia tus datos.',
+            'Different readings of the same portfolio: how healthy it is, how much risk it carries, how concentrated it is, how it did against the market and what fees are costing you. No tab changes your data.'
+          )} />
+        </h3>
+      </div>
+
+      <div ref={tabsFade.ref} className="flex items-center gap-0.5 p-1 rounded-[10px] mb-5 max-w-full overflow-x-auto" style={{ backgroundColor: 'var(--bg-tertiary)', ...tabsFade.maskStyle }}>
         {tabs.map(tb => (
           <button key={tb.key} onClick={() => setTab(tb.key)}
-            className="px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap"
+            className="px-2.5 py-1 text-xs font-medium rounded-md transition-all whitespace-nowrap shrink-0"
             style={tab === tb.key
               ? { backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 2px rgba(0,0,0,0.08)' }
               : { color: 'var(--text-muted)' }}>
@@ -151,6 +188,18 @@ function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, 
       )}
       {tab === 'attribution' && !beginnerMode && (
         <CardBoundary id="AN-04"><PerformanceAttribution items={portfolioItems} lang={lang} /></CardBoundary>
+      )}
+      {tab === 'benchmark' && (
+        <CardBoundary id="OL-02"><BenchmarkComparison benchmarkReturn={benchmarkReturn} portfolioReturn={portfolioReturn} benchmarkName={benchmarkName} lang={lang} /></CardBoundary>
+      )}
+      {tab === 'currency' && (
+        <CardBoundary id="PR-04"><CurrencyImpact items={portfolioItems} convert={convert} baseCurrency={baseCurrency} rates={rates} lang={lang} /></CardBoundary>
+      )}
+      {tab === 'fees' && (
+        <CardBoundary id="IG-09"><FeeAnalysis items={portfolioItems} netWorth={netWorth} lang={lang} /></CardBoundary>
+      )}
+      {tab === 'quality' && (
+        <CardBoundary id="HO-03"><DataQualityCard items={portfolioItems} transactions={transactions} snapshots={snapshots} convert={convert} baseCurrency={baseCurrency} lang={lang} onConnect={onConnect} onImportBroker={onImportBroker} /></CardBoundary>
       )}
     </div>
   )
@@ -1432,11 +1481,28 @@ export default function DashboardPage() {
                   un borde inferior disparejo. */}
               <div className="stagger-3 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
                 <div className="flex flex-col gap-3 sm:gap-4 min-w-0">
-                  <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
+                  <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} ibkrDataComplete={ibkrDataComplete} /></CardBoundary>
                   <CardBoundary id="INV-01" className="flex-1"><InvestedByYearCard transactions={transactions} items={items} snapshots={augmentedSnapshots} netWorth={netWorth} returnYTD={returnYTD} ytdChange={ytdChange} convert={convert} baseCurrency={baseCurrency} lang={lang} /></CardBoundary>
                 </div>
                 <div className="flex flex-col gap-3 sm:gap-4 min-w-0">
-                  <CardBoundary id="INST-01"><InstitutionPerformance items={portfolioItems} lang={lang} baseCurrency={baseCurrency} transactions={transactions} convert={convert} ibkrDataComplete={ibkrDataComplete} /></CardBoundary>
+                  {/* Aquí vivía InstitutionPerformance (INST-01). Se dejó de
+                      montar porque sus seis filas repetían, número por número,
+                      lo que ya muestra la vista "Inst." de Asignación de
+                      Activos; el conteo de posiciones y el badge de historial
+                      de IBKR, que solo estaban ahí, se movieron a esa vista.
+                      El componente y su fórmula no se tocaron y siguen en
+                      disco: volver a montarlo es una línea. */}
+                  <CardBoundary id="AN-00">
+                    <AnalysisTabs
+                      lang={lang} portfolioItems={portfolioItems} netWorth={netWorth} totalAssets={totalAssets}
+                      snapshots={augmentedSnapshots} lots={lots} transactions={transactions}
+                      convert={convert} baseCurrency={baseCurrency} rates={rates}
+                      benchmarkData={benchmarkData} benchmarkName={benchmarkName}
+                      benchmarkReturn={benchmarkReturn} portfolioReturn={returnYTD}
+                      beginnerMode={beginnerMode}
+                      onConnect={handleOpenConnections} onImportBroker={handleOpenImport}
+                    />
+                  </CardBoundary>
                   {/* Las acciones viven DENTRO del marco, a la altura de
                       "Invertido por año", en vez de una barra de botones
                       sueltos debajo de las tarjetas. Las alertas de precio
@@ -1493,7 +1559,9 @@ export default function DashboardPage() {
               </div>
             )}
             <CardBoundary id="HO-02"><RecentTransactions transactions={transactions} items={items} lang={lang} convert={convert} baseCurrency={baseCurrency} onExportCSV={handleExportTransactionsCSV} onDeleteTransaction={deleteTransactionWithReversal} /></CardBoundary>
-            <CardBoundary id="HO-03"><DataQualityCard items={portfolioItems} transactions={transactions} snapshots={snapshots} convert={convert} baseCurrency={baseCurrency} lang={lang} onConnect={handleOpenConnections} onImportBroker={handleOpenImport} /></CardBoundary>
+            {/* DataQualityCard (HO-03) se movió a la pestaña "Calidad" de la
+                card de Análisis: mide qué tan confiable es tu historia, que es
+                análisis, no actividad reciente. */}
           </ErrorBoundary>
         </SectionCollapse></div>
 
@@ -1505,13 +1573,9 @@ export default function DashboardPage() {
               <CardBoundary id="IG-10"><RebalanceSuggestions items={portfolioItems} netWorth={netWorth} goals={goals} onSaveGoals={saveGoals} lang={lang} onDismiss={() => saveSettings({ ...settings, hideRebalanceSuggestions: true })} /></CardBoundary>
             )}
           </ErrorBoundary>
-        </SectionCollapse>
-
-        {/* ═══ ANALISIS ═══ */}
-        <SectionCollapse title={lang === 'es' ? 'Análisis' : 'Analysis'} id="analysis" defaultOpen={!beginnerMode && !!(lots && lots.length > 0)}>
-          <ErrorBoundary lang={lang}>
-            <AnalysisTabs lang={lang} portfolioItems={portfolioItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={augmentedSnapshots} lots={lots} transactions={transactions} convert={convert} baseCurrency={baseCurrency} benchmarkData={benchmarkData} benchmarkName={benchmarkName} beginnerMode={beginnerMode} />
-          </ErrorBoundary>
+        {/* La sección "Análisis" que vivía aquí abajo se movió arriba, a la
+            grilla de composición, como card hermana de Asignación de Activos.
+            Estaba repetida al dejarla en los dos lugares. */}
         </SectionCollapse></div>
 
         <InstallPrompt lang={lang} />
