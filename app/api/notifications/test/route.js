@@ -5,7 +5,7 @@ import { rateLimit } from '@/lib/rateLimit'
 import { getAdminDb, getAdminAuth } from '@/lib/firebase-admin'
 import { buildMarketBrief, MARKET_WINDOWS } from '@/lib/marketBrief'
 import { buildWeeklyBriefForUser, makeMailer, AUTO_HEADERS } from '@/lib/weeklyBriefBuilder'
-import { buildMonthlyBriefForUser } from '@/lib/monthlyBriefBuilder'
+import { buildMonthlyBriefForUser, buildAnnualBriefForUser } from '@/lib/periodBriefBuilder'
 import { makeBriefFetcher } from '@/lib/briefFetcher'
 
 // Qué se prueba por cadencia: el MISMO builder y la MISMA ventana de mercado
@@ -14,6 +14,7 @@ import { makeBriefFetcher } from '@/lib/briefFetcher'
 const TESTABLE = {
   weekly: { build: buildWeeklyBriefForUser, marketOpts: MARKET_WINDOWS.weekly },
   monthly: { build: buildMonthlyBriefForUser, marketOpts: MARKET_WINDOWS.monthly },
+  annual: { build: buildAnnualBriefForUser, marketOpts: MARKET_WINDOWS.annual },
 }
 
 export const dynamic = 'force-dynamic'
