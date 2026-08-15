@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react'
-import { formatCurrency, getBaseCurrency, getTypeCategory, getItemValue, isExcludedFromNetWorth, TYPE_COLORS, CHART_PALETTE } from './utils'
+import { formatCurrency, formatDate, getBaseCurrency, getTypeCategory, getItemValue, isExcludedFromNetWorth, TYPE_COLORS, CHART_PALETTE } from './utils'
 import { InfoTip } from '../ui/Tooltip'
 import { attributionRefusalText } from '@/lib/ytdAttribution'
 
@@ -37,7 +37,7 @@ const START_SRC_LABEL = {
   none: { es: 'sin fuente', en: 'no source' },
 }
 
-function AccountTermsTable({ accounts, anchor, lang, cv, displayCur }) {
+function AccountTermsTable({ accounts, anchor, anchorTs, lang, cv, displayCur }) {
   return (
     <div className="mt-2">
       <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 gap-y-1 items-baseline">
@@ -65,7 +65,10 @@ function AccountTermsTable({ accounts, anchor, lang, cv, displayCur }) {
         ))}
       </div>
       <div className="flex items-baseline justify-between gap-2 mt-2 pt-2" style={{ borderTop: '1px solid var(--glass-border)' }}>
-        <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Arranque del portafolio' : 'Portfolio year-start'}</span>
+        <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+          {lang === 'es' ? 'Arranque del portafolio' : 'Portfolio year-start'}
+          {anchorTs ? <span className="ml-1 text-[10px]">({formatDate(new Date(anchorTs))})</span> : null}
+        </span>
         <span className="text-[11px] font-mono tabular-nums" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(anchor ?? 0), displayCur)}</span>
       </div>
       {accounts.some((a) => a.real) && (
@@ -400,7 +403,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
                       : (lang === 'es' ? 'Ver detalle por cuenta' : 'See per-account detail')}
                   </button>
                   {showRefusalDetail && (
-                    <AccountTermsTable accounts={ytdBreakdownDetail.accounts} anchor={ytdBreakdownDetail.anchor}
+                    <AccountTermsTable accounts={ytdBreakdownDetail.accounts} anchor={ytdBreakdownDetail.anchor} anchorTs={ytdBreakdownDetail.anchorTs}
                       lang={lang} cv={cv} displayCur={displayCur} />
                   )}
                 </div>
@@ -480,7 +483,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
                   : (lang === 'es' ? 'Ver detalle por cuenta' : 'See per-account detail')}
               </button>
               {showRefusalDetail && (
-                <AccountTermsTable accounts={ytdBreakdownTerms.accounts} anchor={ytdBreakdownTerms.anchor}
+                <AccountTermsTable accounts={ytdBreakdownTerms.accounts} anchor={ytdBreakdownTerms.anchor} anchorTs={ytdBreakdownTerms.anchorTs}
                   lang={lang} cv={cv} displayCur={displayCur} />
               )}
             </div>
