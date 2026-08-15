@@ -1175,7 +1175,15 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-[var(--text-muted,#475569)]">{t('Próximo pago', 'Next payment')}</p>
+                    {/* FASE II: la etiqueta dice qué fecha ES. Cuando Yahoo da
+                        la fecha de PAGO real (calendarEvents), se muestra como
+                        "Próximo pago". Cuando solo hay la proyección desde el
+                        historial, esa fecha es el EX-DIVIDENDO (el dinero
+                        llega de 0 días a ~3 meses después, según el mercado:
+                        verificado en 5 bolsas) y rotularla "pago" mentía. */}
+                    <p className="text-xs text-[var(--text-muted,#475569)]">
+                      {divInfo.paymentDateIsReal ? t('Próximo pago', 'Next payment') : t('Próx. ex-dividendo', 'Next ex-dividend')}
+                    </p>
                     <p className="text-sm font-semibold text-[var(--text-primary,white)]">{divInfo.nextPaymentDate?.slice(5)}</p>
                   </div>
                 </div>
