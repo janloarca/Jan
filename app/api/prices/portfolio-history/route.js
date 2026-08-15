@@ -273,12 +273,10 @@ export async function POST(request) {
         if (Date.now() > fetchDeadline) return
         const sym = it.symbol.toUpperCase()
         const history = await fetchYahooHistory(sym, range, interval)
-        if (history.length > 0) {
-          allTimeSeries[sym] = {
-            history,
-            ...reconstructionFor(it, sym, hasLots ? lotsBySymbol[sym] : null),
-          }
-        }
+        // Solo el HISTORIAL se guarda por símbolo (es lo único que de verdad
+        // depende del símbolo). La reconstrucción es POR ACTIVO y se arma
+        // abajo: ver el comentario de `marketSeries`.
+        if (history.length > 0 && !allTimeSeries[sym]) allTimeSeries[sym] = { history }
       }))
     }
 
@@ -289,12 +287,7 @@ export async function POST(request) {
       if (!id) return
       const days = getCryptoDays(per)
       const history = await fetchCryptoHistory(id, days)
-      if (history.length > 0) {
-        allTimeSeries[sym] = {
-          history,
-          ...reconstructionFor(it, sym, hasLots ? lotsBySymbol[sym] : null),
-        }
-      }
+      if (history.length > 0 && !allTimeSeries[sym]) allTimeSeries[sym] = { history }
     }))
 
     // FASE HJ. Un ítem de mercado cuyo fetch de historial FALLÓ cae al camino
@@ -337,6 +330,28 @@ export async function POST(request) {
       }
     })
     const degraded = failedSymbols.length > 0
+
+    // FASE IO. UNA entrada POR ACTIVO, no por símbolo. `allTimeSeries` se
+    // indexa por símbolo porque el historial de precios sí depende solo del
+    // símbolo; la reconstrucción (cantidad, lots, ledger) depende del ACTIVO.
+    // Mientras las dos cosas vivieron en el mismo mapa, dos posiciones del
+    // mismo símbolo en cuentas distintas colapsaban: la segunda sobrescribía a
+    // la primera y su cantidad NO se contaba en ningún punto de la serie.
+    // El defecto solo aparece en una petición que abarca las dos cuentas (la
+    // del panel del YTD), nunca en una escopada a una sola (la de su gráfica),
+    // así que se manifiesta como "el panel mide menos que la gráfica sobre los
+    // mismos activos", con un desvío que es el valor ENTERO de la posición
+    // perdida y por eso constante sesión tras sesión.
+    const marketSeries = []
+    ;[...marketItems, ...cryptoItems].forEach((it) => {
+      const sym = (it.symbol || '').toUpperCase()
+      const entry = allTimeSeries[sym]
+      if (!entry) return
+      marketSeries.push({
+        it, sym, history: entry.history,
+        ...reconstructionFor(it, sym, hasLots ? lotsBySymbol[sym] : null),
+      })
+    })
 
     if (Object.keys(allTimeSeries).length === 0 && staticItems.length === 0) {
       return NextResponse.json({ dataPoints: [], staticTotal: 0, staticPoints: [], degraded, failedSymbols, staticFallbackSymbols })
@@ -521,7 +536,8 @@ export async function POST(request) {
       })
       staticPoints.push({ ts, value: Math.round(staticSubtotal * 100) / 100 })
 
-      Object.entries(allTimeSeries).forEach(([sym, data]) => {
+      marketSeries.forEach((data) => {
+        const sym = data.sym
         let price = null
         for (let i = data.history.length - 1; i >= 0; i--) {
           if (data.history[i].ts <= ts) { price = data.history[i].close; break }
@@ -558,10 +574,13 @@ export async function POST(request) {
           contribution = (data.qty || 0) * (price || 0)
         }
         total += contribution
-        // Keyed by SYMBOL (allTimeSeries is reconstructed per symbol, not per
-        // item): the same key an item without its own id falls back to on the
-        // consumer side (ytdBreakdown matches `it.id === k || it.symbol === k`).
-        if (byKey) byKey[sym] = (byKey[sym] || 0) + contribution
+        // Por ID DE ACTIVO cuando lo hay, igual que la rama estática, y con el
+        // símbolo como respaldo para un ítem sin id. Antes iba SIEMPRE por
+        // símbolo, así que dos posiciones del mismo símbolo compartían llave y
+        // el consumidor le entregaba la suma entera a la primera que encontrara:
+        // una cuenta se quedaba con el valor de la otra. El consumidor ya
+        // resuelve las dos formas (`it.id === k || it.symbol === k`).
+        if (byKey) { const k = data.it?.id || sym; byKey[k] = (byKey[k] || 0) + contribution }
       })
 
       const point = { ts, total: Math.round(total * 100) / 100 }
