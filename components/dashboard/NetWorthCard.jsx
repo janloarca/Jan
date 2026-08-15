@@ -26,7 +26,7 @@ function getGreeting(lang) {
   return lang === 'es' ? 'Buenas noches' : 'Good evening'
 }
 
-export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail }) {
+export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdDegradedAccounts }) {
   const hasYTD = returnYTD != null && isFinite(returnYTD)
   const displayReturn = hasYTD ? returnYTD : (returnSinceStart != null && isFinite(returnSinceStart) ? returnSinceStart : null)
   const hasReturn = displayReturn != null
@@ -400,6 +400,17 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
               </div>
             ))}
           </div>
+          {/* FASE IH: una cuenta cuyo arranque salió de un precio que no se
+              pudo traer no está medida (quedó plana al valor de hoy). Decirlo
+              en una línea es la diferencia entre una cifra que el usuario puede
+              descartar y una que lo hace dudar de todo el panel. */}
+          {hasBreakdown && Array.isArray(ytdDegradedAccounts) && ytdDegradedAccounts.length > 0 && (
+            <p className="text-[10px] mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+              {lang === 'es'
+                ? `Sin precios históricos para ${ytdDegradedAccounts.join(', ')}: su arranque de año quedó estimado, así que su fila puede no coincidir con su gráfica.`
+                : `No historical prices for ${ytdDegradedAccounts.join(', ')}: their year-start is estimated, so their row may not match their chart.`}
+            </p>
+          )}
           {hasBreakdown && ytdBreakdown.groups.some((g) => g.isUnexplained) && (
             <p className="text-[10px] mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
               {lang === 'es'

@@ -1298,7 +1298,20 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           if (!cancelled && picked) {
             const toBase = (v) => (baseCurrency !== 'USD' && convert) ? convert(v, 'USD', baseCurrency) : v
             const scale = (obj) => Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, toBase(v)]))
-            setYtdEndpoints({ start: scale(picked.start), end: scale(picked.end) })
+            // FASE IH: los símbolos cuyo precio histórico no se pudo traer NO
+            // están medidos: el server cae a hold-flat y su valor de enero
+            // termina siendo el de HOY. Aceptar eso como medición es la misma
+            // degradación muda que el invariante 5 de la serie histórica
+            // prohíbe, y su firma estaba en los números del usuario: una cripto
+            // que cayó reporta menos pérdida de la real (arranque subestimado) y
+            // una acción que subió reporta menos ganancia (arranque
+            // sobrestimado). Viajan con el desglose para que el reparto sepa
+            // cuáles cuentas no puede tratar como medidas.
+            setYtdEndpoints({
+              start: scale(picked.start),
+              end: scale(picked.end),
+              failedSymbols: data.degraded ? (data.failedSymbols || []) : [],
+            })
           } else if (!cancelled) {
             setYtdEndpoints(null)
           }
@@ -1647,7 +1660,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // Devuelve { breakdown, reason }: breakdown es lo de siempre (o null), y
   // reason nombra POR QUÉ el motor rehusó (FASE HT3), porque un rechazo mudo
   // dejaba al usuario tocando un YTD que no expande sin ninguna explicación.
-  const { breakdown: ytdBreakdown, reason: ytdBreakdownReason, detail: ytdBreakdownDetail } = useMemo(() => {
+  const { breakdown: ytdBreakdown, reason: ytdBreakdownReason, detail: ytdBreakdownDetail, degradedAccounts: ytdDegradedAccounts } = useMemo(() => {
     if (ytdStartValue == null || ytdChange == null) return { breakdown: null, reason: 'no-anchor' }
     const start = ytdEndpoints?.start || {}
 
@@ -1876,6 +1889,22 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         heldFlatAccounts.add(k)
       }
     })
+    // FASE IH: una cuenta cuyo arranque salió de un símbolo cuyo precio
+    // histórico no se pudo traer tampoco está medida (el server lo mantuvo
+    // plano al valor de HOY), así que cuenta como held-flat para todo lo que
+    // sigue: no puede alimentar el despeje del arranque del broker.
+    const failedSyms = new Set((ytdEndpoints?.failedSymbols || []).map((s) => String(s).toUpperCase()))
+    const degradedAccounts = new Set()
+    if (failedSyms.size > 0) {
+      ;(portfolioItems || []).forEach((it) => {
+        const sym = (it.symbol || '').toUpperCase()
+        if (!sym || !failedSyms.has(sym)) return
+        const k = accountOf.get(it.id)
+        if (!k) return
+        degradedAccounts.add(k)
+        heldFlatAccounts.add(k)
+      })
+    }
 
     // A broker's own year-start NAV is an observation, not an estimate, so it is
     // handed over as real and the engine leaves it untouched while pinning the
@@ -1961,6 +1990,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       .map((a) => ({ name: a.name, start: a.start, end: a.endVal, flow: a.flow, real: !!a.startIsReal }))
     return {
       breakdown,
+      // Nombres de las cuentas cuyo arranque quedó sin medir por precios que no
+      // se pudieron traer: el panel lo dice en una línea en vez de presentar esa
+      // fila como si fuera una medición.
+      degradedAccounts: [...degradedAccounts].map((k) => nameOf.get(k) || k),
       reason: breakdown ? null : (chosen.reason || 'unknown'),
       detail: breakdown ? null : {
         ...(chosen.detail || {}),
@@ -2647,7 +2680,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
     // Computed values
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
-    returnYTD, ytdChange, returnSinceStart, sinceStartDate, returnMTD, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail,
+    returnYTD, ytdChange, returnSinceStart, sinceStartDate, returnMTD, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdDegradedAccounts,
     ibkrReturnYTD: ibkrReturns.ytd, ibkrReturnMTD: ibkrReturns.mtd, ibkrDayChange: ibkrReturns.day,
     annualDividends, estimatedAnnualIncome,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,

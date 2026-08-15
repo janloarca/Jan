@@ -320,7 +320,7 @@ export default function DashboardPage() {
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
     returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail,
     annualDividends, estimatedAnnualIncome,
-    netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
+    netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning, ytdDegradedAccounts,
     brokerCompletionState, ibkrDataComplete, inferredFlowCandidates, inferredFlowReconciliation, ibkrReconciliation, acceptInferredFlow, dismissInferredFlow,
     liquidYieldCandidates, acceptLiquidYield, dismissLiquidYield,
     benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName, benchmarkLoading,
@@ -1356,6 +1356,7 @@ export default function DashboardPage() {
               dailyChange={dailyChange} convert={convert}
               lang={lang} netContributions={netContributions} cashTotal={cashTotal} snapshots={augmentedSnapshots} items={portfolioItems}
               ytdCalibrated={ytdCalibrated} ytdBreakdown={ytdBreakdown} ytdBreakdownReason={ytdBreakdownReason} ytdBreakdownDetail={ytdBreakdownDetail}
+              ytdDegradedAccounts={ytdDegradedAccounts}
             />
             </CardBoundary>
           </div>
