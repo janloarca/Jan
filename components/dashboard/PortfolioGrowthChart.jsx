@@ -185,10 +185,30 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   // Transactions belonging to the selected institution. TWR/MWR/markers must use
   // this scoped list: with the full list, a deposit into Interactive Brokers would
   // count as a cash flow against an IDC-only value series and distort its return.
+  // Los ids de TODOS los activos, keyeados por CONTENIDO y no por la identidad
+  // de `items`: esa identidad se rehace en cada tick de precio, y meterla a las
+  // dependencias de abajo recalcularía el scope (y con él la línea de capital y
+  // los marcadores) cada pocos segundos. Es la enfermedad que documentan las
+  // FASES DW/DY.
+  const allItemIdsSig = (items || []).map((it) => it.id).filter(Boolean).sort().join('|')
+  const allItemIds = useMemo(
+    () => new Set(allItemIdsSig ? allItemIdsSig.split('|') : []),
+    [allItemIdsSig]
+  )
   const scopedTransactions = useMemo(() => {
     if (!transactions || shownInst === 'ALL') return transactions
     const scopedIds = new Set(scopedItems.map((it) => it.id).filter(Boolean))
     const scopedSyms = new Set(scopedItems.map((it) => (it.symbol || '').toUpperCase()).filter(Boolean))
+    // FASE IT (extensión de la superficie congelada D, confirmada por el
+    // usuario; spec actualizada en el mismo commit). Un movimiento que trae un
+    // `_linkedItemId` VÁLIDO ya dijo a qué activo pertenece, y si ese activo no
+    // está en este scope, el movimiento tampoco. Sin esto caía hasta la regla
+    // del símbolo de abajo y se colaba igual cuando el mismo símbolo existe en
+    // dos cuentas: un depósito ajeno aparecía como marcador de "Entró dinero" y
+    // se restaba como capital nuevo de una cuenta que no lo recibió, así que su
+    // gráfica y su fila del desglose (que sí respeta el vínculo) divergían por
+    // un monto FIJO. Un vínculo MUERTO (el activo ya no existe) sigue cayendo a
+    // la regla del símbolo, igual que antes: ahí el vínculo no dice nada.
     // IBKR deposit/withdrawal flows carry symbol 'CASH', but the cash HOLDING is
     // 'CASH-USD' etc — a plain symbol match drops every flow in the scoped view. If
     // this scope holds a cash/bank position, include the bare-CASH flows too.
@@ -209,11 +229,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     return transactions.filter((tx) => {
       const sym = (tx.symbol || '').toUpperCase()
       if (tx._linkedItemId && scopedIds.has(tx._linkedItemId)) return true
+      if (tx._linkedItemId && allItemIds.has(tx._linkedItemId)) return false
       if ((tx._source === 'ibkr' || tx._source === 'inferred_flow') && sym.startsWith('CASH')) return scopedHasIbkr
       return (tx.symbol && scopedSyms.has(sym)) ||
         (scopedHasCash && sym.startsWith('CASH'))
     })
-  }, [transactions, scopedItems, shownInst])
+  }, [transactions, scopedItems, shownInst, allItemIds])
 
   // When the manually-added (non-IBKR) assets were first created. Daily snapshots
   // from before this date are broker-only and need the manual-asset overlay; later
