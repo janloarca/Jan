@@ -15,6 +15,7 @@
 // distinto según desde dónde se mire es cómo alguien concluye que la app
 // dice dos cosas.
 
+import { useState } from 'react'
 import { Check, ChevronRight, Minus } from 'lucide-react'
 
 const RING_SIZE = 46
@@ -58,35 +59,61 @@ export default function BrokerProgressPanel({
   // envuelve al panel ya tiene el suyo, para no poner dos botones que hacen
   // exactamente lo mismo a dos centímetros uno del otro.
   showCta = true,
+  // FASE IH3: dentro de una LISTA de conexiones el panel se pliega, porque
+  // ahí compite por espacio con los demás brokers ("si hay muchos brokers no
+  // es mucho espacio?"). El resumen (anillo + estado) se queda siempre
+  // visible: ocupa una fila y es lo que de verdad se escanea.
+  collapsible = false,
 }) {
   const t = (es, en) => (lang === 'es' ? es : en)
+  // Arranca cerrado SOLO cuando ya no hay nada que hacer: cuatro checks verdes
+  // permanentes son la parte que menos vale la pena tener siempre desplegada,
+  // y con algo pendiente esconder qué falta sería esconder justamente la
+  // información por la que existe el panel.
+  const [open, setOpen] = useState(() => !(progress?.complete))
   if (!progress || !progress.steps?.length) return null
 
   const { steps, pct, satisfied, total, complete, nextStep } = progress
   const missing = total - satisfied
+  const showRows = !collapsible || open
+
+  const Summary = (
+    <>
+      <ProgressRing pct={pct} />
+      <div className="min-w-0 flex-1">
+        {!compact && (
+          <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{brokerName}</p>
+        )}
+        <p className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
+          {complete
+            ? t('Todo listo', 'All set')
+            : t(`${satisfied} de ${total} listos`, `${satisfied} of ${total} done`)}
+        </p>
+        <p className="text-[11px] mt-0.5 leading-snug" style={{ color: 'var(--text-muted)' }}>
+          {complete
+            ? t('Tu historial y tus retornos son lo más reales que se puede.', 'Your history and returns are as real as it gets.')
+            : t(`Falta${missing === 1 ? '' : 'n'} ${missing}. Ninguno es obligatorio: tocá el que quieras completar.`,
+                 `${missing} left. None are required: tap the one you want to complete.`)}
+        </p>
+      </div>
+    </>
+  )
 
   return (
     <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--card-border)', backgroundColor: 'var(--bg-card)' }}>
-      <div className="flex items-center gap-3 px-3.5 py-3">
-        <ProgressRing pct={pct} />
-        <div className="min-w-0 flex-1">
-          {!compact && (
-            <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{brokerName}</p>
-          )}
-          <p className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
-            {complete
-              ? t('Todo listo', 'All set')
-              : t(`${satisfied} de ${total} listos`, `${satisfied} of ${total} done`)}
-          </p>
-          <p className="text-[11px] mt-0.5 leading-snug" style={{ color: 'var(--text-muted)' }}>
-            {complete
-              ? t('Tu historial y tus retornos son lo más reales que se puede.', 'Your history and returns are as real as it gets.')
-              : t(`Falta${missing === 1 ? '' : 'n'} ${missing}. Ninguno es obligatorio: tocá el que quieras completar.`,
-                   `${missing} left. None are required: tap the one you want to complete.`)}
-          </p>
-        </div>
-      </div>
+      {collapsible ? (
+        <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open}
+          className="w-full flex items-center gap-3 px-3.5 py-3 text-left transition-colors hover:bg-theme-elevated">
+          {Summary}
+          <span className="shrink-0 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+            {open ? t('Ocultar ▴', 'Hide ▴') : t('Ver pasos ▾', 'See steps ▾')}
+          </span>
+        </button>
+      ) : (
+        <div className="flex items-center gap-3 px-3.5 py-3">{Summary}</div>
+      )}
 
+      {showRows && (
       <div style={{ borderTop: '1px solid var(--card-border)' }}>
         {steps.map((s) => {
           const isDone = s.status === 'done'
@@ -129,8 +156,9 @@ export default function BrokerProgressPanel({
           )
         })}
       </div>
+      )}
 
-      {showCta && !complete && nextStep != null && onOpenStep && (
+      {showRows && showCta && !complete && nextStep != null && onOpenStep && (
         <div className="px-3.5 py-3" style={{ borderTop: '1px solid var(--card-border)' }}>
           <button type="button" onClick={() => onOpenStep(nextStep)}
             className="w-full py-2 text-xs font-semibold rounded-lg transition-all hover:brightness-110 active:scale-[0.99]"

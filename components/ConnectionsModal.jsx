@@ -272,9 +272,24 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
     setBrokerSyncing(null)
   }
 
+  // FASE IH3. "¿Está vinculado?" tenía DOS respuestas en esta pantalla y se
+  // contradecían a la vista: la fila leía SOLO el vault del servidor
+  // (ibkrConfigured, del fetch de get-credentials) mientras el panel de abajo
+  // lee el estado que usa toda la app (settings: ibkrToken/_ibkrVaultMigrated
+  // + ibkrQueryId, vía el paso 'connect' de lib/ibkrJourney.js). Con el vault
+  // sin contestar todavía, o si su fetch falló (se traga el error con
+  // .catch), la tarjeta imprimía "No vinculado" en rojo justo encima de un
+  // "Conectar por API: Listo" con check verde.
+  //
+  // Manda el estado de la app, no el vault: es el mismo que ya decide el pill
+  // del header, el auto-sync y cómo abre IBKRSyncModal, así que esta pantalla
+  // era la única discrepando (misma lección que FASE AF, que documenta cómo
+  // juzgar por el vault solo hacía leer como desconectada toda conexión ya
+  // migrada).
+  const ibkrLinked = ibkrConfigured || !!ibkrProgress?.steps?.find((s) => s.id === 'connect')?.done
   const syncAge = lastSyncTime ? Date.now() - new Date(lastSyncTime).getTime() : null
   const syncDays = syncAge ? Math.floor(syncAge / 86400000) : null
-  const syncStatus = !ibkrConfigured ? 'disconnected' : !lastSyncTime ? 'never' : syncDays > 7 ? 'stale' : 'ok'
+  const syncStatus = !ibkrLinked ? 'disconnected' : !lastSyncTime ? 'never' : syncDays > 7 ? 'stale' : 'ok'
   const statusColor = {
     disconnected: { dot: 'var(--text-negative)', text: 'var(--text-negative)' },
     never: { dot: 'var(--accent-orange)', text: 'var(--accent-orange)' },
@@ -291,7 +306,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
   const nonIbkrInstitutions = institutionSummaries.filter(inst => !inst.isIbkr)
   const traditionalBrokers = BROKER_REGISTRY.filter(b => b.category === 'traditional')
   const cryptoBrokers = BROKER_REGISTRY.filter(b => b.category === 'crypto')
-  const connectedCount = Object.keys(brokerConnections).length + (ibkrConfigured ? 1 : 0)
+  const connectedCount = Object.keys(brokerConnections).length + (ibkrLinked ? 1 : 0)
 
   const renderBrokerCard = (broker) => {
     const conn = brokerConnections[broker.id]
@@ -355,7 +370,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
             {t('Conexiones y Sync', 'Connections & Sync')}
             {connectedCount > 0 && (
               <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ color: 'var(--accent-green)', backgroundColor: 'rgba(52,211,153,0.12)' }}>
-                {connectedCount} {t('activas', 'active')}
+                {connectedCount} {connectedCount === 1 ? t('activa', 'active') : t('activas', 'active')}
               </span>
             )}
           </h2>
@@ -377,7 +392,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                 ROLE: your live connection when configured, "quick connect" when not. */}
             <div>
               <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">
-                {ibkrConfigured ? t('Conectado', 'Connected') : t('Conexión rápida', 'Quick connect')}
+                {ibkrLinked ? t('Conectado', 'Connected') : t('Conexión rápida', 'Quick connect')}
               </p>
               <div className="p-3 bg-theme-base border border-glass-border rounded-xl">
                 <div className="flex items-center gap-3">
@@ -388,12 +403,12 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-white">Interactive Brokers</p>
                     <p className="text-xs" style={{ color: statusColor.text }}>
-                      {ibkrConfigured ? statusLabel : t('No vinculado', 'Not linked')}
-                      {ibkrConfigured && <span className="text-slate-600 ml-1">· ID: {ibkrQueryId}</span>}
+                      {ibkrLinked ? statusLabel : t('No vinculado', 'Not linked')}
+                      {ibkrLinked && ibkrQueryId && <span className="text-slate-600 ml-1">· ID: {ibkrQueryId}</span>}
                     </p>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
-                    {ibkrConfigured ? (
+                    {ibkrLinked ? (
                       <button onClick={() => { onClose(); if (onBackgroundSync) onBackgroundSync(); else if (onOpenIBKR) setTimeout(() => onOpenIBKR(), 50) }}
                         className="px-2.5 py-1 text-xs font-medium rounded-md hover:bg-blue-500 transition-colors" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
                         {t('Sincronizar', 'Sync')}
@@ -416,7 +431,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                     )}
                   </div>
                 </div>
-                {ibkrConfigured && syncStatus === 'stale' && (
+                {ibkrLinked && syncStatus === 'stale' && (
                   <p className="text-xs mt-2 pl-9" style={{ color: 'var(--accent-orange)' }}>
                     {t('Tus datos podrían estar desactualizados', 'Your data may be outdated')}
                   </p>
@@ -432,10 +447,13 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                       progress={ibkrProgress}
                       lang={lang}
                       compact
+                      // En la lista compite por espacio con los otros brokers:
+                      // se pliega, y con todo listo arranca plegado.
+                      collapsible
                       // Sin conectar, la fila de arriba ya trae "Continuar" y
                       // arranca en el mismo paso; conectado dice "Sincronizar"
                       // y entonces el panel es el único camino a lo que falta.
-                      showCta={ibkrConfigured}
+                      showCta={ibkrLinked}
                       onOpenStep={(n) => {
                         if (onOpenIbkrStep) { onClose(); setTimeout(() => onOpenIbkrStep(n), 50) }
                         else if (onOpenBrokerChecklist) { onClose(); setTimeout(() => onOpenBrokerChecklist('ibkr'), 50) }
@@ -446,7 +464,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                 {/* Fallback para cuando el avance no llegó como prop (ningún
                     caller lo omite hoy, pero la puerta al checklist no puede
                     depender de eso). */}
-                {ibkrConfigured && !ibkrStarted && onOpenBrokerChecklist && (
+                {ibkrLinked && !ibkrStarted && onOpenBrokerChecklist && (
                   <button onClick={() => { onClose(); setTimeout(() => onOpenBrokerChecklist('ibkr'), 50) }}
                     className="text-xs mt-2 pl-9 hover:underline transition-colors" style={{ color: 'var(--accent-blue)' }}>
                     {t('Completar historial', 'Complete history')}
@@ -454,13 +472,13 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                 )}
               </div>
 
-              {ibkrConfigured && !confirmUnlink && (
+              {ibkrLinked && !confirmUnlink && (
                 <button onClick={() => setConfirmUnlink(true)}
                   className="text-xs hover:opacity-100 transition-colors mt-2" style={{ color: 'var(--text-negative)', opacity: 0.6 }}>
                   {t('Desvincular', 'Unlink')}
                 </button>
               )}
-              {ibkrConfigured && confirmUnlink && (
+              {ibkrLinked && confirmUnlink && (
                 <div className="p-3 bg-theme-surface border border-glass-border border-l-4 border-l-red-500 rounded-lg space-y-2 mt-2">
                   <p className="text-xs font-medium" style={{ color: 'var(--text-negative)' }}>{t('¿Desvincular Interactive Brokers?', 'Unlink Interactive Brokers?')}</p>
                   <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
