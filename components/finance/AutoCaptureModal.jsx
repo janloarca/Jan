@@ -14,6 +14,13 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
   const t = (es, en) => lang === 'es' ? es : en
 
   const [ingest, setIngest] = useState(null) // null = not loaded yet
+  // Separate from ingestLoading: that flag also covers create/revoke actions,
+  // so a button that only disables on ingestLoading goes quiet-and-unresponsive
+  // (no visual change) for however long the INITIAL list fetch takes — which on
+  // a cold serverless function can be a few real seconds. initialLoading lets
+  // the button say so instead of just ignoring taps.
+  const [initialLoading, setInitialLoading] = useState(true)
+  const [initialError, setInitialError] = useState(null)
   const [ingestLoading, setIngestLoading] = useState(false)
   const [ingestCopied, setIngestCopied] = useState(null) // `${token}:${what}` just copied
   const [ingestSyncing, setIngestSyncing] = useState(false)
@@ -38,14 +45,20 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
     return data
   }, [])
 
-  useEffect(() => {
-    if (ingest !== null) return
-    setIngestLoading(true)
+  // A failed initial load used to fall back to a silent "0 tokens" state,
+  // indistinguishable from a genuinely empty account — the exact silent
+  // degradation this app's own history warns against. Now it surfaces as a
+  // real error with a retry, and the create button stays reachable meanwhile.
+  const loadIngest = useCallback(() => {
+    setInitialLoading(true)
+    setInitialError(null)
     ingestApi({ action: 'list' })
       .then(setIngest)
-      .catch(() => setIngest({ tokens: [], rules: [], emailIngest: { configured: false, address: null } }))
-      .finally(() => setIngestLoading(false))
-  }, [ingest, ingestApi])
+      .catch((e) => setInitialError(e.message || 'Error'))
+      .finally(() => setInitialLoading(false))
+  }, [ingestApi])
+
+  useEffect(() => { loadIngest() }, [loadIngest])
 
   // The token is the credential for BOTH paths: the Shortcut sends it as a
   // bearer header, and the forwarding address carries it as a plus-label.
@@ -132,7 +145,12 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
             'Every card purchase lands in your Flujo on its own, with category, amount, currency, merchant and location. There are two paths and both are worth using: the iPhone shortcut captures Apple Pay charges instantly, and email forwarding picks up everything else once a day. If a charge arrives through both, it is stored only once.'
           )}</p>
 
-          {ingest === null || (ingestLoading && !tokens.length) ? (
+          {initialError ? (
+            <div className="p-3 rounded-xl border text-xs" style={{ borderColor: 'var(--alert-warn-border)', backgroundColor: 'var(--alert-warn-bg)', color: 'var(--alert-warn-icon)' }}>
+              {t('No se pudo cargar tus tokens: ', 'Could not load your tokens: ')}{initialError}
+              <button onClick={loadIngest} className="ml-2 underline font-medium">{t('Reintentar', 'Retry')}</button>
+            </div>
+          ) : initialLoading ? (
             <p className="text-xs text-slate-500">…</p>
           ) : tokens.length === 0 ? (
             <p className="text-xs text-slate-600">{t(
@@ -212,9 +230,13 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
             </div>
           )}
 
-          <button onClick={handleCreateIngestToken} disabled={ingestLoading}
+          <button onClick={handleCreateIngestToken} disabled={ingestLoading || initialLoading}
             className="w-full px-3 py-2.5 text-xs font-medium text-slate-400 border border-dashed border-glass-border rounded-xl hover:text-blue-400 hover:border-blue-500/30 transition-colors disabled:opacity-50">
-            + {t('Generar token para un dispositivo', 'Generate a token for a device')}
+            {initialLoading
+              ? t('Cargando…', 'Loading…')
+              : ingestLoading
+                ? t('Generando…', 'Generating…')
+                : `+ ${t('Generar token para un dispositivo', 'Generate a token for a device')}`}
           </button>
 
           {rules.length > 0 && (
