@@ -19,7 +19,7 @@ import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds, applyLi
 import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
 import { knownContributions, computeLiquidYield, yieldSignature, supersededYieldTxIds } from '@/lib/liquidYield'
 import { clampPayDay, payDateFor, impossiblePayDateFixes, isPayDateExcluded } from '@/lib/incomeSchedule'
-import { attributeYtd, deriveBrokerStart } from '@/lib/ytdAttribution'
+import { attributeYtd, deriveBrokerStart, pickAnchorBreakdown } from '@/lib/ytdAttribution'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes, pairPortfolioWithBenchmark } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
 
@@ -1267,14 +1267,24 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           // the two disagree, the parts would not add up to the number they
           // claim to explain, and a breakdown that does not reconcile is worse
           // than none.
-          const withKeys = pts.filter((p) => p.byKey)
-          if (!cancelled && withKeys.length >= 2 && firstReal && withKeys[0].ts === firstReal.ts) {
+          // FASE IF: se busca el punto con desglose QUE CAE EN EL ANCLA, en vez
+          // de exigir que sea el PRIMERO de la serie. La garantía es la misma
+          // (las partes se miden exactamente en el ancla que usó el
+          // encabezado), pero la versión vieja descartaba el desglose entero
+          // cada vez que la serie traía algún punto anterior al primer total
+          // positivo. Y descartarlo no dejaba al panel sin datos: lo mandaba a
+          // los RESPALDOS, que es de donde salían las filas equivocadas. La
+          // firma en el archivo del usuario: LEGDER con arranque IDÉNTICO a su
+          // valor de hoy (el respaldo held-flat, que para una cripto que cayó
+          // 40% en el año dice +0.00%), y de ahí el error se propagaba al
+          // arranque despejado de IBKR (FASE IE lo calcula restando los
+          // arranques manuales del ancla). Con byKey publicado, cada fila mide
+          // en el mismo motor que su propia gráfica, que es el estándar fijado.
+          const picked = firstReal ? pickAnchorBreakdown(pts, firstReal.ts) : null
+          if (!cancelled && picked) {
             const toBase = (v) => (baseCurrency !== 'USD' && convert) ? convert(v, 'USD', baseCurrency) : v
             const scale = (obj) => Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, toBase(v)]))
-            setYtdEndpoints({
-              start: scale(withKeys[0].byKey),
-              end: scale(withKeys[withKeys.length - 1].byKey),
-            })
+            setYtdEndpoints({ start: scale(picked.start), end: scale(picked.end) })
           } else if (!cancelled) {
             setYtdEndpoints(null)
           }
@@ -1836,10 +1846,21 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // 0 es un hecho, no cobertura faltante. Para IBKR el held-flat también da
     // 0 (effectiveAcqTs es el sello del sync, posterior al ancla), pero su
     // rescate real es el NAV del broker que build(true) ya usa.
+    // FASE IF: se anota CUÁLES cuentas cayeron al respaldo held-flat. Mantener
+    // hoy el valor hacia atrás no es una medición: para una cuenta que se movió
+    // dice exactamente "no pasó nada en el año" (LEGDER: −39.98% en su gráfica,
+    // +0.00% en la fila). No se puede simplemente descartar la cuenta (la fila
+    // desaparecería), pero sí se puede impedir que ese número contamine el
+    // despeje del arranque del broker, que se calcula restando los arranques
+    // manuales del ancla: un manual inflado le resta al broker lo mismo.
+    const heldFlatAccounts = new Set()
     ;[...endByAccount.keys()].forEach((k) => {
       if (startByAccount.has(k)) return
       const est = heldFlatAccountValueUSD(portfolioItems, k, ytdStartTs, convert)
-      if (isFinite(est) && est > 0) startByAccount.set(k, convertSnapshot(est))
+      if (isFinite(est) && est > 0) {
+        startByAccount.set(k, convertSnapshot(est))
+        heldFlatAccounts.add(k)
+      }
     })
 
     // A broker's own year-start NAV is an observation, not an estimate, so it is
@@ -1866,10 +1887,15 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // real de esa fecha. Es la diferencia que hacía rehusar el panel cuando el
     // ancla del broker no se encuentra por fecha: los arranques usaban la
     // estimación por precios del broker y el ancla su NAV real.
-    const derivedBrokerStart = endByAccount.has('ibkr')
+    // Solo con TODOS los arranques manuales medidos: si alguno vino del
+    // respaldo held-flat, su error entra entero al despeje y el broker termina
+    // con una fila equivocada en vez de una ausencia honesta (le pasó a IBKR:
+    // el arranque de LEGDER inflado ~$671 se lo restó al broker).
+    const manualKeys = [...endByAccount.keys()].filter((k) => k !== 'ibkr')
+    const derivedBrokerStart = endByAccount.has('ibkr') && !manualKeys.some((k) => heldFlatAccounts.has(k))
       ? deriveBrokerStart({
         anchor: ytdStartValue,
-        manualStarts: [...endByAccount.keys()].filter((k) => k !== 'ibkr').map((k) => startByAccount.get(k) || 0),
+        manualStarts: manualKeys.map((k) => startByAccount.get(k) || 0),
       })
       : null
 
