@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { Zap } from 'lucide-react'
 import { authFetch, safeJson } from '@/lib/authFetch'
+import { isFirestoreQuotaError } from '@/lib/firestoreErrors'
 
 // Standalone entry point for auto-captured expenses (iPhone Shortcut + forwarded
 // bank alerts), scoped to Flujo. Lives here instead of the shared Settings modal
@@ -27,6 +28,15 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
   const [flashMsg, setFlashMsg] = useState(null)
 
   const flash = (type, msg) => { setFlashMsg({ type, msg }); setTimeout(() => setFlashMsg(null), 3000) }
+
+  // The raw server error is shown as-is (that's what saves a diagnosis round
+  // trip), except when it's the database's daily free-tier quota: that's a
+  // gRPC code nobody can act on, and it resolves itself within hours, so it
+  // gets translated into what happened and that it isn't a bug to report.
+  const humanizeError = (raw) => (isFirestoreQuotaError(raw) ? t(
+    'Se alcanzó el límite diario gratuito de la base de datos. Se reinicia solo en unas horas; no es un error de la app, y el atajo del iPhone y el correo automático no dependen de este botón.',
+    'The database hit its free daily quota. It resets on its own within hours; this is not an app bug, and the iPhone shortcut and automatic email do not depend on this button.',
+  ) : (raw || t('Error', 'Error')))
 
   useEffect(() => {
     const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
@@ -57,7 +67,7 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
     setInitialError(null)
     ingestApi({ action: 'list' })
       .then(setIngest)
-      .catch((e) => setInitialError(e.message || 'Error'))
+      .catch((e) => setInitialError(humanizeError(e.message)))
       .finally(() => setInitialLoading(false))
   }, [ingestApi])
 
@@ -85,7 +95,7 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
       setIngest((p) => ({ ...p, tokens: [...(p?.tokens || []), token] }))
       copyIngest(token.token, 'token', token.token)
       flash('ok', t('Token creado y copiado', 'Token created and copied'))
-    } catch (e) { flash('err', e.message) }
+    } catch (e) { flash('err', humanizeError(e.message)) }
     setIngestLoading(false)
   }
 
@@ -95,7 +105,7 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
       await ingestApi({ action: 'revoke', token })
       setIngest((p) => ({ ...p, tokens: (p?.tokens || []).filter((tk) => tk.token !== token) }))
       flash('ok', t('Token revocado', 'Token revoked'))
-    } catch (e) { flash('err', e.message) }
+    } catch (e) { flash('err', humanizeError(e.message)) }
     setIngestLoading(false)
   }
 
@@ -107,7 +117,7 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
         `Correos revisados: ${res.scanned}. Gastos nuevos: ${res.created}.`,
         `Emails checked: ${res.scanned}. New expenses: ${res.created}.`
       ))
-    } catch (e) { flash('err', e.message) }
+    } catch (e) { flash('err', humanizeError(e.message)) }
     setIngestSyncing(false)
   }
 
@@ -115,7 +125,7 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
     try {
       const { rules } = await ingestApi({ action: 'forget', match })
       setIngest((p) => ({ ...p, rules }))
-    } catch (e) { flash('err', e.message) }
+    } catch (e) { flash('err', humanizeError(e.message)) }
   }
 
   const tokens = ingest?.tokens || []
