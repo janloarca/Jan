@@ -407,8 +407,8 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
           {hasBreakdown && Array.isArray(ytdDegradedAccounts) && ytdDegradedAccounts.length > 0 && (
             <p className="text-[10px] mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
               {lang === 'es'
-                ? `Sin precios históricos para ${ytdDegradedAccounts.join(', ')}: su arranque de año quedó estimado, así que su fila puede no coincidir con su gráfica.`
-                : `No historical prices for ${ytdDegradedAccounts.join(', ')}: their year-start is estimated, so their row may not match their chart.`}
+                ? `Arranque de año ESTIMADO en ${ytdDegradedAccounts.join(', ')}: su fila puede no coincidir con su propia gráfica.`
+                : `Year-start is ESTIMATED for ${ytdDegradedAccounts.join(', ')}: their row may not match their own chart.`}
             </p>
           )}
           {hasBreakdown && ytdBreakdown.groups.some((g) => g.isUnexplained) && (
