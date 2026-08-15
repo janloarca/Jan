@@ -140,8 +140,8 @@ const DEMO_STEPS = (t) => [
   {
     anchor: '[data-tour="nav"]',
     title: t('Hay más páginas', 'There’s more'),
-    body: t('Finanzas: tus gastos e ingresos del mes. Hoja de Cálculo: la matriz mensual de todo tu patrimonio. Amigos: compara tu % de retorno sin revelar montos.',
-            'Finances: your monthly spending and income. Spreadsheet: the month-by-month matrix of your net worth. Friends: compare return % without revealing amounts.'),
+    body: t('Flujo: tus gastos e ingresos del mes. Hoja de Cálculo: la matriz mensual de todo tu patrimonio. Amigos: compara tu % de retorno sin revelar montos.',
+            'Flow: your monthly spending and income. Spreadsheet: the month-by-month matrix of your net worth. Friends: compare return % without revealing amounts.'),
   },
   {
     anchor: '[data-tour="header-settings"]',

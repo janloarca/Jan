@@ -58,7 +58,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
     // "Net Worth", not "Portfolio" — one name for the core concept everywhere
     // (matches the page's own h1 and the NetWorth card).
     { href: '/dashboard', label: lang === 'es' ? 'Patrimonio' : 'Net Worth' },
-    { href: '/finances', label: lang === 'es' ? 'Finanzas' : 'Finances' },
+    { href: '/finances', label: lang === 'es' ? 'Flujo' : 'Flow' },
     { href: '/spreadsheet', label: lang === 'es' ? 'Hoja de Cálculo' : 'Spreadsheet' },
     ...(friendsEnabled !== false ? [{ href: '/friends', label: lang === 'es' ? 'Amigos' : 'Friends' }] : []),
   ]

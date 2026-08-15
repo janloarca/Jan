@@ -18,11 +18,12 @@ import FinanceTransactionList from '@/components/finance/FinanceTransactionList'
 import FinanceInsights from '@/components/finance/FinanceInsights'
 import FinancialProfileCard from '@/components/finance/FinancialProfileCard'
 import AddFinanceTransactionModal from '@/components/finance/AddFinanceTransactionModal'
+import AutoCaptureModal from '@/components/finance/AutoCaptureModal'
 import FileImportModal from '@/components/FileImportModal'
 import { SkeletonCard, SkeletonTable } from '@/components/dashboard/Skeleton'
 import { computeMonthlyAnalysis, buildFinanceInsights, investmentIncomeOfMonth } from '@/lib/financeMonth'
 import PageTour from '@/components/dashboard/PageTour'
-import { Wallet } from 'lucide-react'
+import { Wallet, Zap } from 'lucide-react'
 import { INCOME_GROUPS } from '@/lib/financeCategories'
 import { authFetch } from '@/lib/authFetch'
 
@@ -256,26 +257,26 @@ export default function FinancesPage() {
       />
       <PageTour pageKey="finances" nextRoute="/spreadsheet" nextFlag="spreadsheet" lang={lang} steps={[
         {
-          tab: t('Finanzas', 'Finances'),
+          tab: t('Flujo', 'Flow'),
           title: t('Tu mes en orden', 'Your month in order'),
           body: t('Esta pestaña es para tu vida financiera personal: los ingresos y gastos de cada mes, separados de tus inversiones. Las tarjetas de arriba resumen cuánto entró, cuánto salió y cuánto ahorraste, con la comparación contra el mes anterior.',
                   'This tab is for your personal financial life: each month\'s income and spending, separate from your investments. The cards up top summarize what came in, what went out and what you saved, compared against last month.'),
         },
         {
-          tab: t('Finanzas', 'Finances'),
+          tab: t('Flujo', 'Flow'),
           title: t('Registra o importa movimientos', 'Log or import movements'),
           body: t('Puedes anotar cada gasto a mano con el botón de agregar, o importar el estado de cuenta de tu banco (PDF o Excel). Chispudo detecta duplicados para que re-importar el mismo mes no duplique nada, y te deja categorizar cada movimiento.',
                   'You can log each expense by hand with the add button, or import your bank statement (PDF or Excel). Chispudo detects duplicates so re-importing the same month never double-counts, and lets you categorize every movement.'),
           tip: t('Los movimientos se agrupan en 6 categorías principales para que los reportes sean claros.', 'Movements group into 6 main categories so reports stay clear.'),
         },
         {
-          tab: t('Finanzas', 'Finances'),
+          tab: t('Flujo', 'Flow'),
           title: t('Insights de tu gasto', 'Spending insights'),
           body: t('Chispudo analiza tu mes: detecta gastos hormiga (esos pequeños que suman), calcula tu tasa de ahorro y te muestra cómo cambió cada categoría contra el mes pasado y contra el mismo mes del año anterior.',
                   'Chispudo analyzes your month: it flags small recurring spends that add up, computes your savings rate, and shows how each category moved versus last month and the same month last year.'),
         },
         {
-          tab: t('Finanzas', 'Finances'),
+          tab: t('Flujo', 'Flow'),
           title: t('Conectado con tu portafolio', 'Connected to your portfolio'),
           body: t('Los dividendos e intereses que genera tu portafolio aparecen aquí automáticamente como ingreso de inversión. Así tu tasa de ahorro cuenta la historia completa. También puedes activar un recordatorio mensual por correo para no olvidar registrar tu mes.',
                   'Dividends and interest from your portfolio show up here automatically as investment income, so your savings rate tells the full story. You can also enable a monthly email reminder so you never forget to log your month.'),
@@ -286,7 +287,7 @@ export default function FinancesPage() {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
             <h1 className="text-h1 font-bold text-white flex items-center gap-2">
-              <Wallet size={18} style={{ color: 'var(--accent-blue)' }} /> {t('Finanzas Personales', 'Personal Finances')}
+              <Wallet size={18} style={{ color: 'var(--accent-blue)' }} /> {t('Flujo', 'Flow')}
             </h1>
             <p className="text-caption mt-0.5" style={{ color: 'var(--text-muted)' }}>{t('Ingresos y gastos', 'Income & expenses')}</p>
           </div>
@@ -299,6 +300,10 @@ export default function FinancesPage() {
             <button onClick={() => setModal('import')}
               className="px-3 py-1.5 text-xs font-medium text-slate-300 border border-slate-600/50 rounded-lg hover:bg-theme-elevated transition-colors">
               {t('Importar', 'Import')}
+            </button>
+            <button onClick={() => setModal('auto')}
+              className="hidden sm:inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-slate-300 border border-slate-600/50 rounded-lg hover:bg-theme-elevated transition-colors">
+              <Zap size={12} style={{ color: 'var(--accent-blue)' }} /> {t('Automático', 'Automatic')}
             </button>
             {monthTransactions.length > 0 && (
               <button onClick={handleExportCsv}
@@ -351,7 +356,7 @@ export default function FinancesPage() {
               {t('Importa tu estado de cuenta bancario o agrega transacciones manualmente.',
                  'Import your bank statement or add transactions manually.')}
             </p>
-            <div className="flex items-center justify-center gap-3">
+            <div className="flex flex-wrap items-center justify-center gap-3">
               <button onClick={() => setModal('import')}
                 className="px-4 py-2 rounded-lg hover:opacity-90 transition-colors text-sm font-medium" style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}>
                 {t('Importar Estado de Cuenta', 'Import Bank Statement')}
@@ -359,6 +364,10 @@ export default function FinancesPage() {
               <button onClick={() => setModal('add')}
                 className="px-4 py-2 border border-glass-border text-slate-300 rounded-lg hover:bg-theme-elevated transition-colors text-sm">
                 {t('Agregar Manual', 'Add Manually')}
+              </button>
+              <button onClick={() => setModal('auto')}
+                className="flex items-center gap-1.5 px-4 py-2 border border-glass-border text-slate-300 rounded-lg hover:bg-theme-elevated transition-colors text-sm">
+                <Zap size={14} style={{ color: 'var(--accent-blue)' }} /> {t('Configurar Automático', 'Set Up Automatic')}
               </button>
             </div>
           </div>
@@ -389,10 +398,15 @@ export default function FinancesPage() {
         />
       )}
 
+      {modal === 'auto' && (
+        <AutoCaptureModal onClose={() => setModal(null)} lang={lang} />
+      )}
+
       <MobileNav
         onAdd={() => setModal('add')}
         onImport={() => setModal('import')}
         onExport={handleExportCsv}
+        onAuto={() => setModal('auto')}
         onSettings={() => router.push('/dashboard')}
         lang={lang}
         friendsEnabled={settings?.friendsEnabled !== false}
