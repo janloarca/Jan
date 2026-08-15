@@ -137,3 +137,68 @@ describe('byKey en la rama de mercado (FASE IO)', () => {
     }
   })
 })
+
+// FASE IS. La ULTIMA diferencia entre la fila del panel y la grafica de su
+// cuenta: cada superficie elige su propio punto de arranque.
+//   - la grafica escopada usa chartData[0] de una peticion que SOLO tiene esa
+//     cuenta, o sea su rejilla de tiempo es la de sus propios precios;
+//   - el panel usa el primer punto con total > 0 de la peticion del portafolio
+//     COMPLETO, cuya rejilla es la UNION de todas: cripto cotiza los 365 dias a
+//     las 00:00 UTC, una accion solo en dias habiles al cierre.
+// Si esas dos rejillas no arrancan en el mismo instante, las dos superficies
+// miden el mismo activo en dias distintos, y en cripto un dia son ~1%.
+describe('el punto de arranque que elige cada superficie (FASE IS)', () => {
+  const DAY = 86400000
+  // Rejillas REALISTAS y distintas: cripto todos los dias a medianoche, accion
+  // solo de lunes a viernes al cierre.
+  const cryptoGrid = (startPrice, endPrice, days) => {
+    const out = []
+    for (let i = days; i >= 0; i--) {
+      const ts = Math.floor((NOW - i * DAY) / DAY) * DAY
+      out.push({ ts, close: startPrice + (endPrice - startPrice) * ((days - i) / days) })
+    }
+    return out
+  }
+  const stockGrid = (startPrice, endPrice, days) => {
+    const out = []
+    for (let i = days; i >= 0; i--) {
+      const ts = Math.floor((NOW - i * DAY) / DAY) * DAY + 21 * 3600000
+      const dow = new Date(ts).getUTCDay()
+      if (dow === 0 || dow === 6) continue
+      out.push({ ts, close: startPrice + (endPrice - startPrice) * ((days - i) / days) })
+    }
+    return out
+  }
+
+  beforeEach(() => {
+    fetchWithRetry.mockImplementation(async (url) => {
+      if (url.includes('coingecko')) {
+        return { ok: true, json: async () => coingeckoBody(cryptoGrid(105000, 63000, 300)) }
+      }
+      return { ok: true, json: async () => yahooBody(stockGrid(150, 200, 300)) }
+    })
+  })
+
+  const crypto = [
+    { id: 'btc1', symbol: 'BTC', type: 'Crypto', quantity: 0.00463473, currentPrice: 63000, purchasePrice: 42000, acquisitionDate: '2022-01-06' },
+  ]
+  const stocks = [
+    { id: 'stk1', symbol: 'AAPL', type: 'Stock', quantity: 10, currentPrice: 200, purchasePrice: 150, acquisitionDate: '2020-01-01' },
+  ]
+
+  test('el primer punto de la peticion escopada y el de la completa son el MISMO instante', async () => {
+    const scoped = await (await POST(mockRequest({ items: crypto, period: 'YTD', breakdown: true }))).json()
+    const full = await (await POST(mockRequest({ items: [...stocks, ...crypto], period: 'YTD', breakdown: true }))).json()
+    const scopedFirst = scoped.dataPoints.find((p) => p.total > 0)
+    const fullFirst = full.dataPoints.find((p) => p.total > 0)
+    expect(new Date(fullFirst.ts).toISOString()).toBe(new Date(scopedFirst.ts).toISOString())
+  })
+
+  test('en ese punto, el activo vale lo MISMO en las dos', async () => {
+    const scoped = await (await POST(mockRequest({ items: crypto, period: 'YTD', breakdown: true }))).json()
+    const full = await (await POST(mockRequest({ items: [...stocks, ...crypto], period: 'YTD', breakdown: true }))).json()
+    const scopedFirst = scoped.dataPoints.find((p) => p.total > 0)
+    const fullFirst = full.dataPoints.find((p) => p.total > 0)
+    expect(Math.abs((fullFirst.byKey?.btc1 ?? 0) - (scopedFirst.byKey?.btc1 ?? 0))).toBeLessThan(0.05)
+  })
+})
