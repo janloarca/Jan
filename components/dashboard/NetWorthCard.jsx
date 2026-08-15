@@ -41,7 +41,20 @@ const START_SRC_LABEL = {
   none: { es: 'sin fuente', en: 'no source' },
 }
 
-function AccountTermsTable({ accounts, anchor, anchorTs, lang, cv, displayCur }) {
+// De qué DOC salió el ancla del año. Importa porque las dos formas se
+// comportan distinto ante la reparación diaria: un doc derivado se re-deriva
+// solo, una observación en vivo solo se reescribe si contradice a la
+// composición por un margen ancho. Sin esto, un descuadre chico contra el
+// ancla no se puede diagnosticar: no se sabe si va a corregirse o no.
+const ANCHOR_SRC_LABEL = {
+  daily: { es: 'observado', en: 'observed' },
+  manual: { es: 'transcrito', en: 'transcribed' },
+  backfill: { es: 'derivado', en: 'derived' },
+  ibkr: { es: 'NAV broker', en: 'broker NAV' },
+  ibkr_quarterly: { es: 'trimestre transcrito', en: 'transcribed quarter' },
+}
+
+function AccountTermsTable({ accounts, anchor, anchorTs, anchorSrc, lang, cv, displayCur }) {
   return (
     <div className="mt-2">
       <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 gap-y-1 items-baseline">
@@ -72,6 +85,9 @@ function AccountTermsTable({ accounts, anchor, anchorTs, lang, cv, displayCur })
         <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
           {lang === 'es' ? 'Arranque del portafolio' : 'Portfolio year-start'}
           {anchorTs ? <span className="ml-1 text-[10px]">({formatDate(new Date(anchorTs))})</span> : null}
+          {ANCHOR_SRC_LABEL[anchorSrc] ? (
+            <span className="ml-1 text-[10px]">· {ANCHOR_SRC_LABEL[anchorSrc][lang === 'es' ? 'es' : 'en']}</span>
+          ) : null}
         </span>
         <span className="text-[11px] font-mono tabular-nums" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(anchor ?? 0), displayCur)}</span>
       </div>
@@ -407,7 +423,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
                       : (lang === 'es' ? 'Ver detalle por cuenta' : 'See per-account detail')}
                   </button>
                   {showRefusalDetail && (
-                    <AccountTermsTable accounts={ytdBreakdownDetail.accounts} anchor={ytdBreakdownDetail.anchor} anchorTs={ytdBreakdownDetail.anchorTs}
+                    <AccountTermsTable accounts={ytdBreakdownDetail.accounts} anchor={ytdBreakdownDetail.anchor} anchorTs={ytdBreakdownDetail.anchorTs} anchorSrc={ytdBreakdownDetail.anchorSrc}
                       lang={lang} cv={cv} displayCur={displayCur} />
                   )}
                 </div>
@@ -487,7 +503,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
                   : (lang === 'es' ? 'Ver detalle por cuenta' : 'See per-account detail')}
               </button>
               {showRefusalDetail && (
-                <AccountTermsTable accounts={ytdBreakdownTerms.accounts} anchor={ytdBreakdownTerms.anchor} anchorTs={ytdBreakdownTerms.anchorTs}
+                <AccountTermsTable accounts={ytdBreakdownTerms.accounts} anchor={ytdBreakdownTerms.anchor} anchorTs={ytdBreakdownTerms.anchorTs} anchorSrc={ytdBreakdownTerms.anchorSrc}
                   lang={lang} cv={cv} displayCur={displayCur} />
               )}
             </div>

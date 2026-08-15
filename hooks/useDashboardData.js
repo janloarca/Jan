@@ -1391,7 +1391,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     return [...snapshots, ...extra].sort((a, b) => (a.date || '').localeCompare(b.date || ''))
   }, [accountCalibrations, snapshots, portfolioItems, convert])
 
-  const { returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated, ytdStartValue, ytdStartTs, ytdFlowsUsed } = useMemo(() => {
+  const { returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated, ytdStartValue, ytdStartTs, ytdStartSrc, ytdFlowsUsed } = useMemo(() => {
     const year = new Date().getUTCFullYear()
     const yearStartTs = Date.UTC(year, 0, 1)
     const todayStr = new Date().toISOString().split('T')[0]
@@ -1402,6 +1402,13 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     let flowAware = false
     let anchorUSD = null
     let anchorCalibrated = false
+    // FASE IQ: de qué DOC salió el ancla del año. Todo el YTD (el encabezado y
+    // el reparto por cuenta) cuelga de este único documento, y sus dos formas
+    // se comportan distinto ante la reparación diaria: un 'backfill' es
+    // derivado y se re-deriva solo, un 'daily' es una observación y solo se
+    // reescribe si difiere de la composición en más de 8%. Sin saber cuál es,
+    // un descuadre chico contra ese ancla no se puede diagnosticar.
+    let anchorSrc = null
     // When the start value is not actually Jan 1's, the window starts where the
     // value does (see jan1Ts). Only ever moves FORWARD from Jan 1.
     let startTs = yearStartTs
@@ -1422,6 +1429,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         // backfill lot-aware leía cada depósito a IBKR como ganancia.
         flowAware = REAL_SNAPSHOT_SOURCES.includes(bestSnap._source) || !!bestSnap._transactional
         anchorCalibrated = !!bestSnap._calibrated
+        anchorSrc = bestSnap._source || 'daily'
       }
     }
     if (startVal == null || startVal <= 0) {
@@ -1497,7 +1505,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
 
     const calibrated = ytdCalApplied || anchorCalibrated
-    if (startVal == null || startVal <= 0) return { returnYTD: null, ytdChange: null, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated, ytdStartValue: null, ytdStartTs: null, ytdFlowsUsed: null }
+    if (startVal == null || startVal <= 0) return { returnYTD: null, ytdChange: null, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated, ytdStartValue: null, ytdStartTs: null, ytdStartSrc: null, ytdFlowsUsed: null }
     let ytdFlows = flowAware ? transactions : dietzTransactions
     // Denominator override: stays null unless the anchor moved and the capital
     // that created it was larger than the value it bought (see below).
@@ -1578,7 +1586,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // SAME quantities instead of rebuilding its own version of them (which is
     // how it ended up contradicting this very number). No value computed above
     // is touched; nothing here alters the frozen YTD formula.
-    return { returnYTD: clampedPct, ytdChange: adjAbs, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated, ytdStartValue: startVal, ytdStartTs: startTs, ytdFlowsUsed: ytdFlows }
+    return { returnYTD: clampedPct, ytdChange: adjAbs, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated, ytdStartValue: startVal, ytdStartTs: startTs, ytdStartSrc: anchorSrc, ytdFlowsUsed: ytdFlows }
   }, [jan1Value, jan1Ts, jan1Transactional, netWorth, transactions, dietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot, accountCalibrations, portfolioItems])
 
   // FASE GR3: per-account year-start values from the SPREADSHEET's own monthly
@@ -2094,7 +2102,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       // que el arranque puede estar parado semanas después. En una cuenta que se
       // movió fuerte en enero eso cambia por completo su número, y sin la fecha
       // no hay forma de distinguirlo de un arranque mal reconstruido.
-      terms: { accounts: termAccounts, anchor: ytdStartValue, anchorTs: ytdStartTs },
+      terms: { accounts: termAccounts, anchor: ytdStartValue, anchorTs: ytdStartTs, anchorSrc: ytdStartSrc },
       // FASE II: nombres de las cuentas cuyo arranque de año NO está medido,
       // por cualquiera de las dos razones: la reconstrucción por ítem no las
       // cubrió (respaldo held-flat = valor de hoy hacia atrás) o sus precios
@@ -2123,13 +2131,14 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         accounts: termAccounts,
         anchor: ytdStartValue,
         anchorTs: ytdStartTs,
+        anchorSrc: ytdStartSrc,
         // Un solo bit que separa "el NAV del broker no se encontró por fecha"
         // de "se encontró y contradice al ancla": sin él, cada ronda de
         // diagnóstico se va en deducirlo de los síntomas (lección FASE HP).
         brokerAnchorFound: brokerStartUSD != null,
       },
     }
-  }, [ytdEndpoints, portfolioItems, convert, baseCurrency, ytdChange, ytdStartValue, ytdStartTs, ytdFlowsUsed, snapshots, convertSnapshot, spreadsheetStart, transactions, lots])
+  }, [ytdEndpoints, portfolioItems, convert, baseCurrency, ytdChange, ytdStartValue, ytdStartTs, ytdStartSrc, ytdFlowsUsed, snapshots, convertSnapshot, spreadsheetStart, transactions, lots])
 
   // Month-to-date return (Modified Dietz) — the "how are we doing THIS month"
   // number for the Friends monthly leaderboard. Same shape as YTD, anchored to
