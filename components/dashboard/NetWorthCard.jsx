@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react'
-import { formatCurrency, getBaseCurrency, getTypeCategory, getItemValue, isExcludedFromNetWorth, TYPE_COLORS, CHART_PALETTE } from './utils'
+import { formatCurrency, formatDate, getBaseCurrency, getTypeCategory, getItemValue, isExcludedFromNetWorth, TYPE_COLORS, CHART_PALETTE } from './utils'
 import { InfoTip } from '../ui/Tooltip'
 import { attributionRefusalText } from '@/lib/ytdAttribution'
 
@@ -22,7 +22,22 @@ const CATEGORY_LABELS = {
 // Los tres términos por cuenta (arranque / hoy / movimientos) más el ancla del
 // portafolio. Un solo componente para los dos estados del panel (rechazo y
 // éxito): dos copias del mismo render es como una se queda atrás.
-function AccountTermsTable({ accounts, anchor, lang, cv, displayCur }) {
+// De dónde salió el arranque de cada cuenta. El arranque es el ÚNICO término
+// estimado del reparto, así que es el único lugar por donde entra error: sin
+// esto, una fila que no coincide con la gráfica de su cuenta obliga a deducir
+// la fuente de los síntomas, que es lo que consume una ronda entera.
+const START_SRC_LABEL = {
+  api: { es: 'medido', en: 'measured' },
+  sheet: { es: 'hoja', en: 'sheet' },
+  flat: { es: 'estimado', en: 'estimated' },
+  new: { es: 'abrió este año', en: 'opened this year' },
+  nav: { es: 'NAV broker', en: 'broker NAV' },
+  derived: { es: 'despejado', en: 'derived' },
+  mixed: { es: 'mixto', en: 'mixed' },
+  none: { es: 'sin fuente', en: 'no source' },
+}
+
+function AccountTermsTable({ accounts, anchor, anchorTs, lang, cv, displayCur }) {
   return (
     <div className="mt-2">
       <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 gap-y-1 items-baseline">
@@ -32,8 +47,16 @@ function AccountTermsTable({ accounts, anchor, lang, cv, displayCur }) {
         <span className="text-[10px] uppercase tracking-wider text-right" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Movimientos' : 'Flows'}</span>
         {accounts.map((a) => (
           <Fragment key={a.name}>
-            <span className="text-[11px] truncate" style={{ color: 'var(--text-secondary)' }}>
+            {/* Sin truncar: la etiqueta de fuente es el dato que hace útil a
+                esta tabla, y en un teléfono un nombre largo la cortaba justo a
+                ella ("Interactive Brokers (des..."). */}
+            <span className="text-[11px] leading-tight" style={{ color: 'var(--text-secondary)' }}>
               {a.name}{a.real ? <span style={{ color: 'var(--accent-blue)' }}>*</span> : ''}
+              {START_SRC_LABEL[a.src] && (
+                <span className="ml-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                  ({START_SRC_LABEL[a.src][lang === 'es' ? 'es' : 'en']})
+                </span>
+              )}
             </span>
             <span className="text-[11px] font-mono tabular-nums text-right" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(a.start ?? 0), displayCur)}</span>
             <span className="text-[11px] font-mono tabular-nums text-right" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(a.end ?? 0), displayCur)}</span>
@@ -42,7 +65,10 @@ function AccountTermsTable({ accounts, anchor, lang, cv, displayCur }) {
         ))}
       </div>
       <div className="flex items-baseline justify-between gap-2 mt-2 pt-2" style={{ borderTop: '1px solid var(--glass-border)' }}>
-        <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Arranque del portafolio' : 'Portfolio year-start'}</span>
+        <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+          {lang === 'es' ? 'Arranque del portafolio' : 'Portfolio year-start'}
+          {anchorTs ? <span className="ml-1 text-[10px]">({formatDate(new Date(anchorTs))})</span> : null}
+        </span>
         <span className="text-[11px] font-mono tabular-nums" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(anchor ?? 0), displayCur)}</span>
       </div>
       {accounts.some((a) => a.real) && (
@@ -377,7 +403,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
                       : (lang === 'es' ? 'Ver detalle por cuenta' : 'See per-account detail')}
                   </button>
                   {showRefusalDetail && (
-                    <AccountTermsTable accounts={ytdBreakdownDetail.accounts} anchor={ytdBreakdownDetail.anchor}
+                    <AccountTermsTable accounts={ytdBreakdownDetail.accounts} anchor={ytdBreakdownDetail.anchor} anchorTs={ytdBreakdownDetail.anchorTs}
                       lang={lang} cv={cv} displayCur={displayCur} />
                   )}
                 </div>
@@ -457,7 +483,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
                   : (lang === 'es' ? 'Ver detalle por cuenta' : 'See per-account detail')}
               </button>
               {showRefusalDetail && (
-                <AccountTermsTable accounts={ytdBreakdownTerms.accounts} anchor={ytdBreakdownTerms.anchor}
+                <AccountTermsTable accounts={ytdBreakdownTerms.accounts} anchor={ytdBreakdownTerms.anchor} anchorTs={ytdBreakdownTerms.anchorTs}
                   lang={lang} cv={cv} displayCur={displayCur} />
               )}
             </div>

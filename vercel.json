@@ -7,7 +7,7 @@
     },
     {
       "path": "/api/cron/notifications",
-      "schedule": "0 22 * * *"
+      "schedule": "0 13 * * *"
     },
     {
       "path": "/api/cron/email-ingest",
