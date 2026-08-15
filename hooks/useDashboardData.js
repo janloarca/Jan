@@ -36,6 +36,13 @@ export function ibkrSyncChanges(prev, next) {
   return any ? changes : null
 }
 
+// Version de la logica que produce los docs historicos derivados. SUBIRLA cada
+// vez que cambie COMO se reconstruye el pasado (la ruta de portfolio-history, la
+// composicion de FASE HN, el rebobinado por item), para que la reparacion diaria
+// vuelva a correr en la siguiente sesion en vez de esperar al dia siguiente.
+// 2: FASE IO, dos posiciones del mismo simbolo ya no colapsan en una sola.
+const BACKFILL_LOGIC_VERSION = 2
+
 // FASE GE. Un solo constructor del payload de items para
 // /api/prices/portfolio-history, compartido por el cálculo de jan1Value y por
 // el backfill. Antes el backfill mandaba items SIN txEvents/cashFlows: los
@@ -287,7 +294,18 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
   }, [deletionEpoch])
   useEffect(() => {
-    const todayKey = new Date().toISOString().split('T')[0]
+    // FASE IR: la compuerta de "ya corri hoy" lleva la VERSION de la logica de
+    // reconstruccion, no solo el dia. Una pasada que ya completo con el codigo
+    // viejo dejaba el historico congelado hasta el dia siguiente aunque el
+    // calculo hubiera cambiado en el medio: exactamente lo que le paso al ancla
+    // del 1 de enero tras el arreglo de FASE IO (el doc quedo derivado con la
+    // reconstruccion vieja, y el desglose acusaba el descuadre sin forma de
+    // corregirse solo hasta el otro dia). Es la misma leccion que SNAPSHOT_VERSION
+    // ya resuelve para el cache del Spreadsheet: una compuerta que no se entera
+    // de que la logica cambio conserva datos derivados de la version anterior.
+    // Al subir esta constante, la proxima sesion re-deriva la ventana entera una
+    // vez, sin importar que la pasada del dia ya hubiera completado.
+    const todayKey = `${new Date().toISOString().split('T')[0]}:${BACKFILL_LOGIC_VERSION}`
     if (backfillDayRef.current === todayKey) return
     if (backfillRunningRef.current) return
     const att = backfillAttemptRef.current
