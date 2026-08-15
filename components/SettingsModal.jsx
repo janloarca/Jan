@@ -336,7 +336,6 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
     setShareLoading(false)
   }
 
-
   const tabs = [
     { key: 'general', label: t('General', 'General'), icon: SlidersHorizontal },
     { key: 'entities', label: t('Entidades', 'Entities'), icon: Building2 },
