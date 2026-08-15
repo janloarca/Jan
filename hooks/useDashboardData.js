@@ -1819,6 +1819,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // start, PER ITEM first so each holding can take its value from whichever
     // engine is authoritative for it, then folded up to accounts.
     const startByItem = new Map()
+    // FASE IL: de qué FUENTE salió el arranque de cada ítem. El arranque es el
+    // único término estimado del reparto, así que es el único lugar por donde
+    // entra error: saber si una fila se midió con el mismo motor que su gráfica
+    // ('api'), o si cayó a un respaldo, es la diferencia entre diagnosticar y
+    // deducir de los síntomas. Solo se ANOTA: cero cambio en qué valor se elige.
+    const srcByItem = new Map()
     Object.entries(start || {}).forEach(([k, v]) => {
       // A byKey entry is keyed by item id, or by symbol when the item had none.
       const ownerId = accountOf.has(k)
@@ -1826,6 +1832,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         : (portfolioItems || []).find((it) => (it.symbol || '').toUpperCase() === k)?.id
       if (!ownerId) return
       startByItem.set(ownerId, (startByItem.get(ownerId) || 0) + (Number(v) || 0))
+      srcByItem.set(ownerId, 'api')
     })
     // FASE IC (regla del usuario: "la gráfica es el valor real"): la
     // reconstrucción por ítem del API (byKey) es EL MISMO MOTOR que dibuja la
@@ -1848,7 +1855,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // fijó.
     if (spreadsheetStart) {
       Object.entries(spreadsheetStart).forEach(([itemId, v]) => {
-        if (!startByItem.has(itemId) && accountOf.has(itemId) && isFinite(v)) startByItem.set(itemId, v)
+        if (!startByItem.has(itemId) && accountOf.has(itemId) && isFinite(v)) {
+          startByItem.set(itemId, v)
+          srcByItem.set(itemId, 'sheet')
+        }
       })
     }
     // An asset bought AFTER the anchor was worth nothing at the anchor. That is
@@ -1863,13 +1873,21 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       if (!it || it._source === 'ibkr') return
       if (shouldHoldFlat(it, transactions, lots)) return
       const acq = effectiveAcqTs(it)
-      if (acq != null && acq > ytdStartTs) startByItem.set(itemId, 0)
+      if (acq != null && acq > ytdStartTs) {
+        startByItem.set(itemId, 0)
+        srcByItem.set(itemId, 'new')
+      }
     })
     const startByAccount = new Map()
+    // Las fuentes que compusieron el arranque de cada cuenta. Una cuenta con
+    // ítems de fuentes distintas se reporta como mixta en vez de elegir una.
+    const startSrcByAccount = new Map()
     startByItem.forEach((v, itemId) => {
       const acct = accountOf.get(itemId)
       if (!acct) return
       startByAccount.set(acct, (startByAccount.get(acct) || 0) + v)
+      if (!startSrcByAccount.has(acct)) startSrcByAccount.set(acct, new Set())
+      startSrcByAccount.get(acct).add(srcByItem.get(itemId) || 'api')
     })
     // The per-item reconstruction is not always available (its endpoints only
     // publish when the series' first point IS the anchor the headline used), and
@@ -1901,6 +1919,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       if (isFinite(est) && est > 0) {
         startByAccount.set(k, convertSnapshot(est))
         heldFlatAccounts.add(k)
+        startSrcByAccount.set(k, new Set(['flat']))
       }
     })
     // FASE IH: una cuenta cuyo arranque salió de un símbolo cuyo precio
@@ -1917,6 +1936,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         if (!k) return
         degradedAccounts.add(k)
         heldFlatAccounts.add(k)
+        startSrcByAccount.set(k, new Set(['flat']))
       })
     }
 
@@ -1956,11 +1976,20 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       })
       : null
 
-    const build = (brokerStartOverride) => [...endByAccount.keys()].map((k) => {
+    const srcLabel = (k, realStart, brokerSrc) => {
+      if (realStart != null) return brokerSrc
+      const set = startSrcByAccount.get(k)
+      if (!set || set.size === 0) return 'none'
+      if (set.size > 1) return 'mixed'
+      return [...set][0]
+    }
+
+    const build = (brokerStartOverride, brokerSrc) => [...endByAccount.keys()].map((k) => {
       const realStart = (k === 'ibkr' && brokerStartOverride != null && brokerStartOverride > 0)
         ? brokerStartOverride
         : null
       return {
+        startSrc: srcLabel(k, realStart, brokerSrc),
         key: k,
         name: nameOf.get(k) || k,
         endVal: endByAccount.get(k) || 0,
@@ -1991,9 +2020,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const diagDerived = {}
     const diagEst = {}
     const attempts = [
-      { accounts: build(brokerStartUSD), diag: diagReal },
-      ...(derivedBrokerStart != null ? [{ accounts: build(derivedBrokerStart), diag: diagDerived }] : []),
-      { accounts: build(null), diag: diagEst },
+      { accounts: build(brokerStartUSD, 'nav'), diag: diagReal },
+      ...(derivedBrokerStart != null ? [{ accounts: build(derivedBrokerStart, 'derived'), diag: diagDerived }] : []),
+      { accounts: build(null, null), diag: diagEst },
     ]
     let breakdown = null
     // Los términos del intento que DE VERDAD alimentó el panel: con tres
@@ -2019,8 +2048,8 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // los movimientos, que es exactamente lo que consume una ronda entera
     // (lección FASE HP). Van detrás de un toggle: es diagnóstico, no algo que
     // el usuario venga a leer.
-    const termAccounts = (usedAccounts || build(null))
-      .map((a) => ({ name: a.name, start: a.start, end: a.endVal, flow: a.flow, real: !!a.startIsReal }))
+    const termAccounts = (usedAccounts || build(null, null))
+      .map((a) => ({ name: a.name, start: a.start, end: a.endVal, flow: a.flow, real: !!a.startIsReal, src: a.startSrc }))
     return {
       breakdown,
       terms: { accounts: termAccounts, anchor: ytdStartValue },
@@ -2181,11 +2210,6 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   const brokerCompletionState = useMemo(() => ({
     ibkrConnected: !!((settings?.ibkrToken || settings?._ibkrVaultMigrated) && settings?.ibkrQueryId),
     ibkrSnapshotSpanDays: computeIbkrSnapshotSpanDays(snapshots),
-    // Cuántos días de NAV real llegaron (no cuánto abarcan): un sync de HOY
-    // tiene span 0 y sin embargo sí trajo el reporte. Lo consume el paso
-    // "traer tus últimos ~365 días" de lib/ibkrJourney.js; nada más lee este
-    // campo, así que agregarlo no mueve el gate de hasCompleteBrokerData.
-    ibkrNavDays: (snapshots || []).filter((s) => s && s._source === 'ibkr').length,
     hasQuarterlyHistory: (snapshots || []).some((s) => s && s._source === 'ibkr_quarterly'),
     hasIbkrCalibration: accountCalibrations.some((c) => c && c._account === 'ibkr'),
     earliestNeededDays: computeEarliestNeededDays(portfolioItems),
