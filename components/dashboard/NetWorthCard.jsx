@@ -30,6 +30,10 @@ const START_SRC_LABEL = {
   api: { es: 'medido', en: 'measured' },
   sheet: { es: 'hoja', en: 'sheet' },
   flat: { es: 'estimado', en: 'estimated' },
+  // Vino del API, pero el server no consiguió su historial de precios y lo
+  // reconstruyó PLANO en el valor de hoy: el activo aporta cero al retorno del
+  // período. Decir "medido" acá sería la afirmación más engañosa posible.
+  flatprice: { es: 'sin precios: plano', en: 'no prices: flat' },
   new: { es: 'abrió este año', en: 'opened this year' },
   nav: { es: 'NAV broker', en: 'broker NAV' },
   derived: { es: 'despejado', en: 'derived' },

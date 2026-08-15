@@ -1311,6 +1311,16 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
               start: scale(picked.start),
               end: scale(picked.end),
               failedSymbols: data.degraded ? (data.failedSymbols || []) : [],
+              // FASE IN: TODO activo de mercado que el server terminó
+              // reconstruyendo como estático, incluida la rama determinista que
+              // `failedSymbols` deja fuera a propósito (un símbolo que el
+              // proveedor de precios no reconoce). Para el retorno las dos
+              // rutas producen el mismo defecto: plano en el valor de HOY
+              // aporta CERO al cambio del período, o sea la pérdida de ese
+              // activo desaparece. Es la firma exacta del caso LEGDER: su
+              // Bitcoin plano en $292.01 hace que el panel cuente solo la
+              // pérdida del Ethereum.
+              staticFallbackSymbols: data.staticFallbackSymbols || [],
             })
           } else if (!cancelled) {
             setYtdEndpoints(null)
@@ -1825,6 +1835,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // ('api'), o si cayó a un respaldo, es la diferencia entre diagnosticar y
     // deducir de los síntomas. Solo se ANOTA: cero cambio en qué valor se elige.
     const srcByItem = new Map()
+    const staticFallbackSyms = new Set(
+      (ytdEndpoints?.staticFallbackSymbols || []).map((s) => String(s).toUpperCase())
+    )
     Object.entries(start || {}).forEach(([k, v]) => {
       // A byKey entry is keyed by item id, or by symbol when the item had none.
       const ownerId = accountOf.has(k)
@@ -1832,7 +1845,13 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         : (portfolioItems || []).find((it) => (it.symbol || '').toUpperCase() === k)?.id
       if (!ownerId) return
       startByItem.set(ownerId, (startByItem.get(ownerId) || 0) + (Number(v) || 0))
-      srcByItem.set(ownerId, 'api')
+      // FASE IN: byKey trae el valor igual cuando el server lo reconstruyó
+      // PLANO, así que "vino del API" no equivale a "está medido". Sin esta
+      // distinción la etiqueta decía `medido` sobre un activo cuyo arranque es
+      // literalmente su valor de hoy, que es la afirmación más engañosa
+      // posible: un activo plano aporta cero al retorno del período.
+      const ownerSym = ((portfolioItems || []).find((it) => it.id === ownerId)?.symbol || '').toUpperCase()
+      srcByItem.set(ownerId, (ownerSym && staticFallbackSyms.has(ownerSym)) ? 'flatprice' : 'api')
     })
     // FASE IC (regla del usuario: "la gráfica es el valor real"): la
     // reconstrucción por ítem del API (byKey) es EL MISMO MOTOR que dibuja la
@@ -2067,7 +2086,18 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       // panel entero. De paso es el discriminador que faltaba para diagnosticar:
       // si una cuenta aparece acá, su arranque es un respaldo; si no aparece y
       // su fila igual no coincide, la causa está en otro lado.
-      degradedAccounts: [...heldFlatAccounts].map((k) => nameOf.get(k) || k),
+      // El nombre de toda cuenta cuyo arranque NO está medido, por cualquiera de
+      // las tres vías: cayó al respaldo held-flat, sus precios fallaron, o
+      // (FASE IN) alguno de sus activos de mercado se reconstruyó plano. Las
+      // tres producen el mismo defecto para el lector, así que se nombran
+      // juntas. Ojo: esto es SOLO el texto del aviso; `heldFlatAccounts` (que
+      // gatea el despeje del arranque del broker) no se toca acá.
+      degradedAccounts: [...new Set([
+        ...[...heldFlatAccounts],
+        ...[...startSrcByAccount.entries()]
+          .filter(([, set]) => set.has('flatprice'))
+          .map(([k]) => k),
+      ])].map((k) => nameOf.get(k) || k),
       pricesFailed: [...degradedAccounts].map((k) => nameOf.get(k) || k),
       reason: breakdown ? null : (chosen.reason || 'unknown'),
       detail: breakdown ? null : {
