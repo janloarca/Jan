@@ -1312,7 +1312,22 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           // arranque despejado de IBKR (FASE IE lo calcula restando los
           // arranques manuales del ancla). Con byKey publicado, cada fila mide
           // en el mismo motor que su propia gráfica, que es el estándar fijado.
-          const picked = firstReal ? pickAnchorBreakdown(pts, firstReal.ts) : null
+          // FASE IW: el desglose se mide en el ARRANQUE DEL AÑO cuando la serie
+          // tiene un punto ahí, no en el primer punto con total positivo. Los
+          // dos coinciden en un portafolio que nació a mitad de año (ahí el
+          // ancla ES ese primer punto), pero no en uno que ya existía el 1 de
+          // enero: la serie puede arrancar unos días después, y entonces cada
+          // fila medía su cuenta en un día distinto al que el panel declaraba.
+          // Sobre una cuenta volátil eso vale de verdad: LEGDER subió de ~$1,534
+          // el 1 de enero a ~$1,780 el 15, así que medir el 6 le daba $1,661.52
+          // y su fila quedaba $127 lejos de su propia gráfica, sin que ningún
+          // otro término estuviera mal.
+          const yearStartTs = Date.UTC(new Date().getUTCFullYear(), 0, 1)
+          const atYearStart = pts.find((p) => p && p.byKey
+            && new Date(p.ts).getUTCFullYear() === new Date(yearStartTs).getUTCFullYear()
+            && new Date(p.ts).getUTCMonth() === 0 && new Date(p.ts).getUTCDate() === 1)
+          const anchorTsForBreakdown = atYearStart ? atYearStart.ts : firstReal?.ts
+          const picked = anchorTsForBreakdown != null ? pickAnchorBreakdown(pts, anchorTsForBreakdown) : null
           if (!cancelled && picked) {
             const toBase = (v) => (baseCurrency !== 'USD' && convert) ? convert(v, 'USD', baseCurrency) : v
             const scale = (obj) => Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, toBase(v)]))
