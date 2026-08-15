@@ -54,7 +54,7 @@ const ANCHOR_SRC_LABEL = {
   ibkr_quarterly: { es: 'trimestre transcrito', en: 'transcribed quarter' },
 }
 
-function AccountTermsTable({ accounts, anchor, anchorTs, anchorSrc, lang, cv, displayCur }) {
+function AccountTermsTable({ accounts, anchor, anchorTs, anchorSrc, measuredTs, lang, cv, displayCur }) {
   return (
     <div className="mt-2">
       <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 gap-y-1 items-baseline">
@@ -91,6 +91,18 @@ function AccountTermsTable({ accounts, anchor, anchorTs, anchorSrc, lang, cv, di
         </span>
         <span className="text-[11px] font-mono tabular-nums" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(anchor ?? 0), displayCur)}</span>
       </div>
+      {/* FASE IU: el panel mide los arranques en el punto donde el API entrega
+          el desglose, que NO tiene por que caer en la fecha del ancla. Cuando
+          se separan, cada fila mide su cuenta en otro dia, y en una cuenta
+          volatil eso aparece como un desvio que no cuadra con nada. Solo se
+          nombra cuando de verdad difieren: si coinciden, decirlo seria ruido. */}
+      {measuredTs && anchorTs && new Date(measuredTs).toISOString().slice(0, 10) !== new Date(anchorTs).toISOString().slice(0, 10) && (
+        <p className="text-[10px] mt-1.5" style={{ color: 'var(--text-muted)' }}>
+          {lang === 'es'
+            ? `Los arranques por cuenta se midieron el ${formatDate(new Date(measuredTs))}, no en la fecha del ancla.`
+            : `Per-account starts were measured on ${formatDate(new Date(measuredTs))}, not on the anchor's date.`}
+        </p>
+      )}
       {accounts.some((a) => a.real) && (
         <p className="text-[10px] mt-1.5" style={{ color: 'var(--text-muted)' }}>
           <span style={{ color: 'var(--accent-blue)' }}>*</span>{' '}
@@ -423,7 +435,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
                       : (lang === 'es' ? 'Ver detalle por cuenta' : 'See per-account detail')}
                   </button>
                   {showRefusalDetail && (
-                    <AccountTermsTable accounts={ytdBreakdownDetail.accounts} anchor={ytdBreakdownDetail.anchor} anchorTs={ytdBreakdownDetail.anchorTs} anchorSrc={ytdBreakdownDetail.anchorSrc}
+                    <AccountTermsTable accounts={ytdBreakdownDetail.accounts} anchor={ytdBreakdownDetail.anchor} anchorTs={ytdBreakdownDetail.anchorTs} anchorSrc={ytdBreakdownDetail.anchorSrc} measuredTs={ytdBreakdownDetail.measuredTs}
                       lang={lang} cv={cv} displayCur={displayCur} />
                   )}
                 </div>
@@ -503,7 +515,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
                   : (lang === 'es' ? 'Ver detalle por cuenta' : 'See per-account detail')}
               </button>
               {showRefusalDetail && (
-                <AccountTermsTable accounts={ytdBreakdownTerms.accounts} anchor={ytdBreakdownTerms.anchor} anchorTs={ytdBreakdownTerms.anchorTs} anchorSrc={ytdBreakdownTerms.anchorSrc}
+                <AccountTermsTable accounts={ytdBreakdownTerms.accounts} anchor={ytdBreakdownTerms.anchor} anchorTs={ytdBreakdownTerms.anchorTs} anchorSrc={ytdBreakdownTerms.anchorSrc} measuredTs={ytdBreakdownTerms.measuredTs}
                   lang={lang} cv={cv} displayCur={displayCur} />
               )}
             </div>

@@ -1339,6 +1339,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
               // Bitcoin plano en $292.01 hace que el panel cuente solo la
               // pérdida del Ethereum.
               staticFallbackSymbols: data.staticFallbackSymbols || [],
+              // FASE IU: el INSTANTE en el que de verdad se midio el desglose.
+              // No tiene por que ser la fecha del ancla, y cuando se separan el
+              // panel mide los arranques en un dia distinto al que declara.
+              measuredTs: picked.startTs ?? null,
             })
           } else if (!cancelled) {
             setYtdEndpoints(null)
@@ -2120,7 +2124,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       // que el arranque puede estar parado semanas después. En una cuenta que se
       // movió fuerte en enero eso cambia por completo su número, y sin la fecha
       // no hay forma de distinguirlo de un arranque mal reconstruido.
-      terms: { accounts: termAccounts, anchor: ytdStartValue, anchorTs: ytdStartTs, anchorSrc: ytdStartSrc },
+      terms: {
+        accounts: termAccounts, anchor: ytdStartValue,
+        anchorTs: ytdStartTs, anchorSrc: ytdStartSrc,
+        measuredTs: ytdEndpoints?.measuredTs ?? null,
+      },
       // FASE II: nombres de las cuentas cuyo arranque de año NO está medido,
       // por cualquiera de las dos razones: la reconstrucción por ítem no las
       // cubrió (respaldo held-flat = valor de hoy hacia atrás) o sus precios
@@ -2150,6 +2158,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         anchor: ytdStartValue,
         anchorTs: ytdStartTs,
         anchorSrc: ytdStartSrc,
+        measuredTs: ytdEndpoints?.measuredTs ?? null,
         // Un solo bit que separa "el NAV del broker no se encontró por fecha"
         // de "se encontró y contradice al ancla": sin él, cada ronda de
         // diagnóstico se va en deducirlo de los síntomas (lección FASE HP).
