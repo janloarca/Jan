@@ -1990,10 +1990,17 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       .map((a) => ({ name: a.name, start: a.start, end: a.endVal, flow: a.flow, real: !!a.startIsReal }))
     return {
       breakdown,
-      // Nombres de las cuentas cuyo arranque quedó sin medir por precios que no
-      // se pudieron traer: el panel lo dice en una línea en vez de presentar esa
-      // fila como si fuera una medición.
-      degradedAccounts: [...degradedAccounts].map((k) => nameOf.get(k) || k),
+      // FASE II: nombres de las cuentas cuyo arranque de año NO está medido,
+      // por cualquiera de las dos razones: la reconstrucción por ítem no las
+      // cubrió (respaldo held-flat = valor de hoy hacia atrás) o sus precios
+      // históricos no se pudieron traer. Las dos producen el mismo defecto (una
+      // fila que no coincide con la gráfica de su propia cuenta) y el usuario
+      // merece saber CUÁL fila mirar con desconfianza, en vez de dudar del
+      // panel entero. De paso es el discriminador que faltaba para diagnosticar:
+      // si una cuenta aparece acá, su arranque es un respaldo; si no aparece y
+      // su fila igual no coincide, la causa está en otro lado.
+      degradedAccounts: [...heldFlatAccounts].map((k) => nameOf.get(k) || k),
+      pricesFailed: [...degradedAccounts].map((k) => nameOf.get(k) || k),
       reason: breakdown ? null : (chosen.reason || 'unknown'),
       detail: breakdown ? null : {
         ...(chosen.detail || {}),
