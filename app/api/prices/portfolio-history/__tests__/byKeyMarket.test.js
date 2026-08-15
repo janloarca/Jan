@@ -202,3 +202,44 @@ describe('el punto de arranque que elige cada superficie (FASE IS)', () => {
     expect(Math.abs((fullFirst.byKey?.btc1 ?? 0) - (scopedFirst.byKey?.btc1 ?? 0))).toBeLessThan(0.05)
   })
 })
+
+// FASE IV. CoinGecko se consume por su API PUBLICA (sin key) y ese plan limita
+// el historico a los ULTIMOS 365 DIAS. Pedir exactamente 365 (periodo 1Y) o
+// 'max' (periodo ALL) cae fuera del rango permitido: la respuesta vuelve vacia,
+// el activo cae al camino estatico y se dibuja PLANO en su valor de hoy con
+// "+0.00%" sobre una cripto que se movio 40% en el ano. El patron de que
+// periodos fallaban lo delataba: todos los que quedan por debajo del limite
+// funcionaban, y los dos unicos que lo tocan no.
+describe('la ventana de historial de cripto se mantiene dentro del limite (FASE IV)', () => {
+  const crypto = [{ id: 'btc1', symbol: 'BTC', type: 'Crypto', quantity: 0.5, currentPrice: 63000, purchasePrice: 42000, acquisitionDate: '2022-01-06' }]
+
+  const daysAskedFor = async (period) => {
+    let asked = null
+    fetchWithRetry.mockImplementation(async (url) => {
+      if (url.includes('coingecko')) {
+        const m = url.match(/[?&]days=([^&]+)/)
+        asked = m ? m[1] : null
+        return { ok: true, json: async () => coingeckoBody(series(105000, 63000, 300)) }
+      }
+      return { ok: true, json: async () => yahooBody(series(150, 200, 300)) }
+    })
+    await POST(mockRequest({ items: crypto, period }))
+    return asked
+  }
+
+  test.each(['DAY', '1W', '1M', '3M', 'YTD', '1Y', 'ALL'])('%s pide una ventana que el plan publico si entrega', async (period) => {
+    const asked = await daysAskedFor(period)
+    expect(asked).not.toBeNull()
+    // Nunca 'max' y nunca el borde de 365: los dos que devolvian vacio.
+    expect(asked).not.toBe('max')
+    const n = Number(asked)
+    expect(Number.isFinite(n)).toBe(true)
+    expect(n).toBeGreaterThan(0)
+    expect(n).toBeLessThanOrEqual(364)
+  })
+
+  test('1Y y ALL piden la ventana MAS LARGA disponible, no una recortada de mas', async () => {
+    expect(Number(await daysAskedFor('1Y'))).toBe(364)
+    expect(Number(await daysAskedFor('ALL'))).toBe(364)
+  })
+})

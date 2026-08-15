@@ -99,14 +99,27 @@ function validAcqTs(raw) {
   return t
 }
 
+// FASE IV. CoinGecko se consume por su API PÚBLICA (sin key, ver
+// fetchCryptoHistory), y ese plan limita el histórico a los ÚLTIMOS 365 DÍAS:
+// pedir exactamente 365, o 'max', cae fuera del rango permitido y la respuesta
+// vuelve vacía. Ahí el activo cae al camino estático y se dibuja PLANO en su
+// valor de hoy, con "+0.00%" sobre una cripto que se movió 40% en el año.
+//
+// El patrón de qué períodos fallaban lo delata sin ambigüedad: DAY/1W/1M/3M y
+// YTD (todos por debajo del límite) funcionaban, y 1Y y ALL (los dos únicos
+// que lo tocan) no. Acotar por debajo del borde devuelve el histórico completo
+// que ese plan sí entrega. Para ALL significa un año hacia atrás en vez de
+// "todo", que es lo máximo disponible sin key: un dato real y acotado, no una
+// línea plana que afirma que no pasó nada.
+const CRYPTO_MAX_DAYS = 364
 function getCryptoDays(period) {
-  const map = { DAY: 1, '1W': 7, '1M': 30, '3M': 90, '6M': 180, '1Y': 365, ALL: 'max' }
+  const map = { DAY: 1, '1W': 7, '1M': 30, '3M': 90, '6M': 180, '1Y': 365, ALL: CRYPTO_MAX_DAYS }
   if (period === 'YTD') {
     const now = new Date()
     const jan1 = new Date(now.getFullYear(), 0, 1)
-    return Math.ceil((now - jan1) / 86400000)
+    return Math.min(CRYPTO_MAX_DAYS, Math.ceil((now - jan1) / 86400000))
   }
-  return map[period] || 365
+  return Math.min(CRYPTO_MAX_DAYS, map[period] || 365)
 }
 
 // Transaction-rewind inputs (lib/portfolioRewind): per-item share deltas and
