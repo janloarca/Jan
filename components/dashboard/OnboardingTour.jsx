@@ -439,7 +439,15 @@ export default function OnboardingTour({ lang, onAction, onComplete, onSeedDemo,
                   {current.action === 'add' ? t('Agregar ahora', 'Add now') : t('Ir a ajustes', 'Go to settings')}
                 </button>
               )}
-              <button onClick={() => { if (step < classicSteps.length - 1) setStep(step + 1); else handleFinish() }}
+              {/* "Empezar" tiene que EMPEZAR algo. Antes solo cerraba el tour y
+                  dejaba al usuario en la nada después de cinco pantallas de
+                  texto; ahora abre el recorrido guiado, igual que el botón del
+                  intro. */}
+              <button onClick={() => {
+                if (step < classicSteps.length - 1) { setStep(step + 1); return }
+                handleFinish()
+                setTimeout(() => onAction?.('add'), 300)
+              }}
                 className="flex-1 px-4 py-3.5 text-sm font-medium transition-colors border-l border-glass-border hover:opacity-80"
                 style={{ color: 'var(--accent-blue)' }}>
                 {step < classicSteps.length - 1 ? t('Siguiente', 'Next') : t('Empezar', 'Start')}
