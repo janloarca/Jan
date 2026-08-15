@@ -2052,7 +2052,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       .map((a) => ({ name: a.name, start: a.start, end: a.endVal, flow: a.flow, real: !!a.startIsReal, src: a.startSrc }))
     return {
       breakdown,
-      terms: { accounts: termAccounts, anchor: ytdStartValue },
+      // La FECHA del ancla, no solo su valor: `findYearStartAnchor` acepta el
+      // snapshot más cercano dentro de una ventana alrededor del 1 de enero, así
+      // que el arranque puede estar parado semanas después. En una cuenta que se
+      // movió fuerte en enero eso cambia por completo su número, y sin la fecha
+      // no hay forma de distinguirlo de un arranque mal reconstruido.
+      terms: { accounts: termAccounts, anchor: ytdStartValue, anchorTs: ytdStartTs },
       // FASE II: nombres de las cuentas cuyo arranque de año NO está medido,
       // por cualquiera de las dos razones: la reconstrucción por ítem no las
       // cubrió (respaldo held-flat = valor de hoy hacia atrás) o sus precios
@@ -2069,6 +2074,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         ...(chosen.detail || {}),
         accounts: termAccounts,
         anchor: ytdStartValue,
+        anchorTs: ytdStartTs,
         // Un solo bit que separa "el NAV del broker no se encontró por fecha"
         // de "se encontró y contradice al ancla": sin él, cada ronda de
         // diagnóstico se va en deducirlo de los síntomas (lección FASE HP).
