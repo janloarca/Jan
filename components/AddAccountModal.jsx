@@ -11,6 +11,7 @@ import { getScheduledPayDates, estimateIncomeAmount } from '@/lib/incomeSchedule
 import { InfoTip } from './ui/Tooltip'
 import { DEBT_CLARIFICATION } from './dashboard/utils'
 import { currencyOptions } from '@/lib/currencies'
+import GuidedAssetSteps, { guidedFieldsFor } from './GuidedAssetSteps'
 
 
 const TYPES = [
@@ -80,11 +81,29 @@ const ACCOUNT_TYPES = [
   { key: 'tax-free', es: 'Libre', en: 'Tax-free' },
 ]
 
-export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAddLot, onCreateDestination, existingItems = [], activePortfolio, activeEntity = 'default', lang = 'es' }) {
+// Subtipo por defecto del modo guiado. El formulario largo deja el subtipo
+// vacío a propósito (el usuario lo elige); el guiado no pregunta, así que
+// necesita uno razonable. Ninguno cambia una fórmula: para Stock se elige
+// 'common' EXPRESAMENTE porque los private_* son los únicos que cambian de
+// naturaleza (dejan de ser activo de mercado, ver isPrivateStock).
+const GUIDED_SUBTYPE = {
+  Stock: 'common', Crypto: 'holding', Fund: 'etf', Bond: 'corporate',
+  Bank: 'savings', RealEstate: 'property', Alternative: 'other', Debt: 'other',
+}
+
+export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAddLot, onCreateDestination, existingItems = [], activePortfolio, activeEntity = 'default', lang = 'es',
+  // ---- Modo guiado (onboarding de usuario nuevo) ----
+  // guidedType fija el tipo y cambia SOLO el render: una pregunta por pantalla
+  // en vez del formulario de 2 pasos. El estado, la búsqueda de símbolo y
+  // handleSubmit son exactamente los mismos, así que el depósito de apertura
+  // (⛔ superficie G de lib/assetLogic/corporateBondWithEntryFee.js) se sigue
+  // escribiendo en un solo lugar.
+  guidedType = null, guidedProgress = null, onSaved = null, onExitGuided = null }) {
   const trapRef = useFocusTrap()
   const [step, setStep] = useState(1)
-  const [type, setType] = useState('Stock')
-  const [subtype, setSubtype] = useState('')
+  const [type, setType] = useState(guidedType || 'Stock')
+  const [subtype, setSubtype] = useState(guidedType ? (GUIDED_SUBTYPE[guidedType] || '') : '')
+  const [guidedIndex, setGuidedIndex] = useState(0)
   const [form, setForm] = useState({
     symbol: '', name: '', quantity: '', purchasePrice: '', currentPrice: '',
     institution: '', currency: 'USD', acquisitionDate: new Date().toISOString().split('T')[0],
@@ -200,6 +219,14 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     window.addEventListener('keydown', handleEsc)
     return () => window.removeEventListener('keydown', handleEsc)
   }, [onClose])
+
+  // En modo guiado el tipo puede cambiar solo: elegir un resultado de la
+  // búsqueda lo re-clasifica (handleSelectSymbol). El subtipo por defecto tiene
+  // que seguirlo, o una acción quedaría guardada con el subtipo de cripto.
+  useEffect(() => {
+    if (!guidedType) return
+    setSubtype(GUIDED_SUBTYPE[type] || '')
+  }, [type, guidedType])
 
   const usedInstitutions = useMemo(() => {
     const insts = new Set()
@@ -697,13 +724,49 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
           await onAdd({ ...source, currentPrice: Math.max(0, srcBal), purchasePrice: Math.max(0, srcBal) })
         }
       }
-      onClose()
+      // En modo guiado el orquestador (GuidedSetup) decide qué sigue: avanzar al
+      // activo siguiente o mostrar el cierre. Cerrar aquí lo sacaría del flujo.
+      if (onSaved) onSaved(item)
+      else onClose()
     } catch (err) { setError(err.message) }
     setSaving(false)
   }
 
   const inputCls = 'w-full min-w-0 px-3 py-2 bg-[var(--input-bg,#000000)] border border-[var(--card-border,#38383A)] rounded-lg text-sm text-[var(--text-primary,white)] placeholder-[var(--text-muted,#475569)] focus:outline-none focus:border-blue-500/50'
   const labelCls = 'text-xs text-[var(--text-secondary,#94a3b8)] mb-1 block font-medium'
+
+  // ---- MODO GUIADO ----
+  // Va DESPUÉS de todos los hooks a propósito: un return temprano entre hooks
+  // cambia el conteo entre renders y tumba el árbol (regla dura de CLAUDE.md).
+  if (guidedType) {
+    const guidedFields = guidedFieldsFor({ type, isMarketAsset })
+    const idx = Math.min(guidedIndex, guidedFields.length - 1)
+    const exit = onExitGuided || onClose
+    const goNext = () => {
+      if (idx < guidedFields.length - 1) { setError(''); setGuidedIndex(idx + 1); return }
+      handleSubmit({ preventDefault: () => {} })
+    }
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={exit} role="dialog" aria-modal="true"
+        style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+        <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+          <GuidedAssetSteps ctx={{
+            t, form, set, type,
+            typeLabel: currentTypeInfo ? t(currentTypeInfo.es, currentTypeInfo.en) : type,
+            typeIcon: currentTypeInfo?.icon || '',
+            isMarketAsset, isBank, isDebt, isProperty,
+            fieldIndex: idx, fields: guidedFields, goNext,
+            goBack: () => { setError(''); setGuidedIndex(Math.max(0, idx - 1)) },
+            onExit: exit,
+            searchResults, showDropdown, setShowDropdown, searchLoading, fetchingQuote,
+            handleSelectSymbol, inputRef, dropdownRef,
+            filteredInstitutions, showInstSuggestions, setShowInstSuggestions,
+            saving, error, progress: guidedProgress,
+          }} />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="add-account-title"

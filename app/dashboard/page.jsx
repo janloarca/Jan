@@ -67,6 +67,7 @@ const LiquidYieldModal = dynamic(() => import('@/components/dashboard/LiquidYiel
 const CashFlowModal = dynamic(() => import('@/components/CashFlowModal'), { loading: () => <ModalSkeleton /> })
 const PrintSummary = dynamic(() => import('@/components/dashboard/PrintSummary'))
 const OnboardingTour = dynamic(() => import('@/components/dashboard/OnboardingTour'))
+const GuidedSetup = dynamic(() => import('@/components/dashboard/GuidedSetup'))
 const CommandPalette = dynamic(() => import('@/components/dashboard/CommandPalette'))
 const ChatWidget = dynamic(() => import('@/components/ChatWidget'), { ssr: false })
 
@@ -169,6 +170,10 @@ export default function DashboardPage() {
   const [lang, setLang] = useState('es')
   const [beginnerMode, setBeginnerMode] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  // Primeros pasos guiados: le preguntamos al usuario qué tiene y lo
+  // acompañamos activo por activo. Es lo que ve un usuario nuevo en vez de
+  // caer directo en el formulario largo.
+  const [showGuided, setShowGuided] = useState(false)
   const [activePortfolio, setActivePortfolio] = useState('__all__')
   const [activeEntity, setActiveEntity] = useState('__all__')
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
@@ -342,6 +347,7 @@ export default function DashboardPage() {
     setModal('import')
   }, [])
   const handleOpenAccount = useCallback(() => setModal('account'), [])
+  const handleOpenGuided = useCallback(() => { setModal(null); setShowGuided(true) }, [])
   const handleOpenSettings = useCallback(() => setModal('settings'), [])
   const handleOpenConnections = useCallback(() => setModal('connections'), [])
   const handleOpenTransfer = useCallback(() => setModal('transfer'), [])
@@ -1327,7 +1333,9 @@ export default function DashboardPage() {
         {/* One onboarding surface at a time — don't stack this under the tour modal */}
         {portfolioItems.length === 0 && !dataLoading && !showOnboarding && (
           <EmptyState
-            onAdd={handleOpenAccount}
+            // Con cero activos, "agregar" significa el recorrido guiado: el
+            // formulario largo sigue disponible desde el botón "Nuevo".
+            onAdd={handleOpenGuided}
             onImport={handleOpenImport}
             onTemplate={async () => {
               const { generateTemplate } = await import('@/lib/generateTemplate')
@@ -2087,13 +2095,35 @@ export default function DashboardPage() {
       {showOnboarding && (
         <OnboardingTour lang={lang}
           onAction={(action) => {
-            if (action === 'add') setModal('account')
+            // Un usuario nuevo que dice "agregar mi primer activo" no puede
+            // aterrizar en el formulario largo: ese es el momento exacto en que
+            // más ayuda necesita. Va al recorrido guiado.
+            if (action === 'add') handleOpenGuided()
             else if (action === 'settings') setModal('settings')
           }}
           onComplete={() => setShowOnboarding(false)}
           onSeedDemo={handleSeedDemo}
           onClearDemo={handleClearDemo}
           demoActive={isDemoMode}
+        />
+      )}
+
+      {showGuided && (
+        <GuidedSetup
+          onClose={() => setShowGuided(false)}
+          onAdd={async (item) => {
+            // Mismo wrapper que el alta manual: DEBE devolver el id o el
+            // depósito de apertura nace huérfano (⛔ lógica congelada G).
+            const id = await addItem(item)
+            showToast(lang === 'es' ? `${item.symbol || item.name} agregado` : `${item.symbol || item.name} added`)
+            return id
+          }}
+          onAddTransaction={addTransaction} onAddLot={addLot}
+          onCreateDestination={addItem}
+          existingItems={items} activePortfolio={activePortfolio}
+          activeEntity={activeEntity !== '__all__' ? activeEntity : 'default'}
+          onConnectBroker={handleOpenConnections}
+          lang={lang}
         />
       )}
 
