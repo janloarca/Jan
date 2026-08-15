@@ -5,7 +5,7 @@ import { useExchangeRates } from './useExchangeRates'
 import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, hasUnreliableAcqDate, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced, effectiveAcqTs, entryFeeAddbacks, getEffectiveYield } from '@/components/dashboard/utils'
+import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, computeDayChange, augmentSnapshots, projectItemAnnualIncome, buildIncomeEvents, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, hasUnreliableAcqDate, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced, effectiveAcqTs, entryFeeAddbacks, getEffectiveYield } from '@/components/dashboard/utils'
 import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
 import { indexBalanceEvents } from '@/lib/historicalValues'
 import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget } from '@/lib/autoDividends'
@@ -398,6 +398,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
               symbol: l.symbol, quantity: l.quantity,
               acquisitionDate: l.acquisitionDate, closedDate: l.closedDate || null,
             })) : undefined,
+            // FASE IG: misma corriente de ingresos que la gráfica y que el fetch
+            // del ancla. Va en LOS DOS o en ninguno: el ancla sale de un doc
+            // archivado por este backfill y las partes del panel del otro fetch,
+            // así que si reconstruyen distinto el reparto deja de cuadrar contra
+            // su propio ancla (que es como el panel terminaba rehusando).
+            income: buildIncomeEvents(transactions, assetItems, convert, 'USD'),
             // FASE GD: con huecos más viejos que la ventana clásica de 30 días
             // se pide el año completo (resolución diaria en la ruta); los gaps
             // fuera del rango devuelto simplemente no matchean ningún punto.
@@ -1244,6 +1250,14 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
               acquisitionDate: l.acquisitionDate,
               closedDate: l.closedDate || null,
             })) : undefined,
+            // FASE IG: la MISMA corriente de ingresos que manda la gráfica. El
+            // server levanta el valor del activo como escalón desde la fecha de
+            // cada pago reinvertido; sin ella, esta reconstrucción no veía esos
+            // escalones y la de la gráfica sí, así que las dos daban enero
+            // distinto para toda cuenta con rendimiento que se reinvierte
+            // (ClubCashIn, los fondos líquidos de IDC). Es la diferencia que
+            // quedaba entre la fila del panel y la gráfica de esa misma cuenta.
+            income: buildIncomeEvents(transactions, jan1Items, convert, 'USD'),
             period: 'YTD',
             breakdown: true,
           }),
