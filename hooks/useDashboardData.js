@@ -1660,7 +1660,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // Devuelve { breakdown, reason }: breakdown es lo de siempre (o null), y
   // reason nombra POR QUÉ el motor rehusó (FASE HT3), porque un rechazo mudo
   // dejaba al usuario tocando un YTD que no expande sin ninguna explicación.
-  const { breakdown: ytdBreakdown, reason: ytdBreakdownReason, detail: ytdBreakdownDetail, degradedAccounts: ytdDegradedAccounts } = useMemo(() => {
+  const { breakdown: ytdBreakdown, reason: ytdBreakdownReason, detail: ytdBreakdownDetail, terms: ytdBreakdownTerms, degradedAccounts: ytdDegradedAccounts } = useMemo(() => {
     if (ytdStartValue == null || ytdChange == null) return { breakdown: null, reason: 'no-anchor' }
     const start = ytdEndpoints?.start || {}
 
@@ -1990,9 +1990,20 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const diagReal = {}
     const diagDerived = {}
     const diagEst = {}
-    const breakdown = attributeYtd({ accounts: build(brokerStartUSD), ...args }, diagReal)
-      || (derivedBrokerStart != null ? attributeYtd({ accounts: build(derivedBrokerStart), ...args }, diagDerived) : null)
-      || attributeYtd({ accounts: build(null), ...args }, diagEst)
+    const attempts = [
+      { accounts: build(brokerStartUSD), diag: diagReal },
+      ...(derivedBrokerStart != null ? [{ accounts: build(derivedBrokerStart), diag: diagDerived }] : []),
+      { accounts: build(null), diag: diagEst },
+    ]
+    let breakdown = null
+    // Los términos del intento que DE VERDAD alimentó el panel: con tres
+    // intentos posibles, mostrar los del último no describiría lo que el
+    // usuario está viendo.
+    let usedAccounts = null
+    for (const at of attempts) {
+      breakdown = attributeYtd({ accounts: at.accounts, ...args }, at.diag)
+      if (breakdown) { usedAccounts = at.accounts; break }
+    }
     // El detail viaja con la razón DEL MISMO intento (FASE HY): mezclar la
     // razón del intento estimado con los números del intento real describiría
     // un rechazo que no ocurrió.
@@ -2001,10 +2012,18 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // intento reportado (arranque/hoy/flujos) y el ancla. Con solo el residuo
     // total ($6,667.71) supimos la escala pero no QUÉ cuenta faltaba: con esta
     // lista, la próxima captura es el diagnóstico completo (lección FASE HP).
-    const debugAccounts = breakdown ? null : build(null)
+    // FASE IK: los mismos términos, también cuando el panel SÍ muestra. Hasta
+    // ahora solo existían en el estado de RECHAZO, así que una fila que no
+    // coincide con la gráfica de su cuenta se podía ver pero no diagnosticar:
+    // había que deducir de los síntomas si el desvío venía del arranque o de
+    // los movimientos, que es exactamente lo que consume una ronda entera
+    // (lección FASE HP). Van detrás de un toggle: es diagnóstico, no algo que
+    // el usuario venga a leer.
+    const termAccounts = (usedAccounts || build(null))
       .map((a) => ({ name: a.name, start: a.start, end: a.endVal, flow: a.flow, real: !!a.startIsReal }))
     return {
       breakdown,
+      terms: { accounts: termAccounts, anchor: ytdStartValue },
       // FASE II: nombres de las cuentas cuyo arranque de año NO está medido,
       // por cualquiera de las dos razones: la reconstrucción por ítem no las
       // cubrió (respaldo held-flat = valor de hoy hacia atrás) o sus precios
@@ -2019,7 +2038,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       reason: breakdown ? null : (chosen.reason || 'unknown'),
       detail: breakdown ? null : {
         ...(chosen.detail || {}),
-        accounts: debugAccounts,
+        accounts: termAccounts,
         anchor: ytdStartValue,
         // Un solo bit que separa "el NAV del broker no se encontró por fecha"
         // de "se encontró y contradice al ancla": sin él, cada ronda de
@@ -2697,7 +2716,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
     // Computed values
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
-    returnYTD, ytdChange, returnSinceStart, sinceStartDate, returnMTD, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdDegradedAccounts,
+    returnYTD, ytdChange, returnSinceStart, sinceStartDate, returnMTD, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms, ytdDegradedAccounts,
     ibkrReturnYTD: ibkrReturns.ytd, ibkrReturnMTD: ibkrReturns.mtd, ibkrDayChange: ibkrReturns.day,
     annualDividends, estimatedAnnualIncome,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
