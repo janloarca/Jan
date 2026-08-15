@@ -1934,6 +1934,24 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const heldFlatAccounts = new Set()
     ;[...endByAccount.keys()].forEach((k) => {
       if (startByAccount.has(k)) return
+      // Una cuenta ABIERTA DESPUÉS del ancla no tiene arranque que estimar: su
+      // valor ese día era CERO, y eso es un hecho. Se reconoce por ausencia
+      // porque un activo adquirido después del ancla no aporta ninguna entrada
+      // al desglose en ese punto (el server lo salta antes de escribirla), así
+      // que la cuenta llega hasta acá sin nada. Sin esta rama caía al respaldo
+      // held-flat y su etiqueta pasaba de nombrar el hecho ("abrió este año") a
+      // "sin fuente", que suena a dato faltante cuando es lo contrario.
+      const own = (portfolioItems || []).filter((it) => accountOf.get(it.id) === k)
+      const bornThisYear = own.length > 0 && own.every((it) => {
+        if (it._source === 'ibkr' || shouldHoldFlat(it, transactions, lots)) return false
+        const acq = effectiveAcqTs(it)
+        return acq != null && acq > ytdStartTs
+      })
+      if (bornThisYear) {
+        startByAccount.set(k, 0)
+        startSrcByAccount.set(k, new Set(['new']))
+        return
+      }
       const est = heldFlatAccountValueUSD(portfolioItems, k, ytdStartTs, convert)
       if (isFinite(est) && est > 0) {
         startByAccount.set(k, convertSnapshot(est))
