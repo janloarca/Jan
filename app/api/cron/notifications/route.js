@@ -5,6 +5,7 @@ import { buildMarketBrief, MARKET_WINDOWS } from '@/lib/marketBrief'
 import { buildWeeklyBriefForUser, makeMailer, AUTO_HEADERS } from '@/lib/weeklyBriefBuilder'
 import { buildMonthlyBriefForUser, buildAnnualBriefForUser, monthRefFor } from '@/lib/periodBriefBuilder'
 import { makeBriefFetcher } from '@/lib/briefFetcher'
+import { makeContextCache } from '@/lib/briefContext'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -93,6 +94,11 @@ export async function GET(request) {
     return NextResponse.json({ ok: true, skipped: `nothing due on ${now.toISOString().slice(0, 10)}` })
   }
 
+  // Un mismo usuario puede recibir dos cadencias en la misma corrida (el día 1,
+  // y el 1 de enero hasta tres): el portafolio se lee UNA vez y se comparte.
+  // Vive solo lo que dura esta petición, así que ningún correo puede salir con
+  // datos de otra corrida.
+  const ctxCache = makeContextCache()
   const report = {}
   for (const cadence of cadences) {
     const cfg = CADENCES[cadence]
@@ -121,7 +127,7 @@ export async function GET(request) {
             if (!uid || !email.includes('@')) { skipped++; continue }
             if (prefs[cfg.dedupField] === dedupKey) { skipped++; continue }
 
-            const mail = await cfg.build({ db, uid, prefs, market, now })
+            const mail = await cfg.build({ db, uid, prefs, market, now, cache: ctxCache })
             if (!mail) { skipped++; continue }
 
             await mailer.transport.sendMail({
