@@ -272,8 +272,16 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
   // backdrop-filter: none }`, pero una regla CSS no puede vencer a un estilo
   // inline, así que esta card seguía creando una capa de composición en tema
   // claro contra la regla que el propio globals.css declara.
+  // `card card-hero`: el fondo/borde/radio salen de .card como cualquier otra
+  // card, y .card-hero solo aporta la sombra más profunda. Se va `rounded-2xl`
+  // porque es exactamente el mismo 16px que .card ya pone.
+  // El gradiente se queda: pinta encima del background-color de .card (es
+  // background-IMAGE). En tema claro los dos extremos son #FFFFFF, así que ahí
+  // no cambia un píxel; en oscuro el fondo queda un punto más opaco
+  // (rgb(19,19,31) → rgb(23,23,36)), que para la card hero es la dirección
+  // correcta.
   return (
-    <div className="bg-gradient-to-br from-theme-card to-theme-surface rounded-2xl p-5 card-hero h-full flex flex-col">
+    <div className="card card-hero bg-gradient-to-br from-theme-card to-theme-surface p-5 h-full flex flex-col">
       {/* Greeting + currency picker — the milestone pill (a second colored
           badge next to the picker) is gone: the combined today/YTD line below
           already says whether things are up or down, so a second label

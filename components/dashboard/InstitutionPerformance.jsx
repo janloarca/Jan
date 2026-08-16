@@ -56,7 +56,7 @@ export default function InstitutionPerformance({ items, lang, baseCurrency, tran
 
 
   return (
-    <div className="bg-theme-surface rounded-2xl border border-glass-border p-4 card-primary">
+    <div className="card p-4">
       {/* Header */}
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue)' }} />

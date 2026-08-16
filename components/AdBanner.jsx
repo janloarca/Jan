@@ -48,7 +48,7 @@ export default function AdBanner({ lang = 'es' }) {
   if (!enabled || unfilled) return null
 
   return (
-    <div className="card-glass rounded-2xl px-4 pt-2 pb-3">
+    <div className="card px-4 pt-2 pb-3">
       <p className="text-[10px] uppercase tracking-wider mb-1.5" style={{ color: 'var(--text-muted)' }}>
         {lang === 'es' ? 'Publicidad' : 'Ad'}
       </p>

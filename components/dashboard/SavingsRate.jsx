@@ -81,7 +81,7 @@ export default function SavingsRate({ goals, transactions, netWorth, snapshots, 
   const ringColor = rates.savingsRate >= 30 ? '#34d399' : rates.savingsRate >= 15 ? '#f59e0b' : '#ef4444'
 
   return (
-    <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-4 sm:p-5">
+    <div className="card p-4 sm:p-5">
       <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
         🎯 {t('Tasa de Ahorro', 'Savings Rate')}
       </h3>

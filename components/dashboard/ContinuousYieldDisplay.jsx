@@ -37,7 +37,7 @@ export default function ContinuousYieldDisplay({ items, lang }) {
   const totalDaily = yields.reduce((s, y) => s + y.dailyRate, 0)
 
   return (
-    <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-4">
+    <div className="card p-4">
       <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-3">
         <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
         {t('RENDIMIENTO CONTINUO', 'CONTINUOUS YIELD')}

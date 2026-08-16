@@ -49,7 +49,7 @@ export default function MonthEndCheckin({ settings, saveSettings, hasItems, hasL
   const handleManual = () => { dismiss(); onAddManual?.() }
 
   return (
-    <div className="card-glass rounded-2xl p-4 sm:p-5">
+    <div className="card p-4 sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2">
           <span aria-hidden="true">📅</span>

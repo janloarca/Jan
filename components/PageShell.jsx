@@ -73,7 +73,7 @@ export default function PageShell({
         {...headerProps}
       />
       <main id="main-content"
-        className={`${WIDTHS[width] || WIDTHS.narrow} mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-5 ${mainClassName}`}>
+        className={`${WIDTHS[width] || WIDTHS.narrow} mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6 ${mainClassName}`}>
         {children}
       </main>
       {/* MobileNav already renders its own bottom spacer, so pages must NOT add
