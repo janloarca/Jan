@@ -71,7 +71,13 @@ function AccountTermsTable({ accounts, anchor, anchorTs, anchorSrc, measuredTs, 
               {a.name}{a.real ? <span style={{ color: 'var(--accent-blue)' }}>*</span> : ''}
               {START_SRC_LABEL[a.src] && (
                 <span className="ml-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                  ({START_SRC_LABEL[a.src][lang === 'es' ? 'es' : 'en']})
+                  ({START_SRC_LABEL[a.src][lang === 'es' ? 'es' : 'en']}
+                  {/* FASE IX7. De qué día salió ese NAV. El arranque del broker
+                      se resuelve con arrastre, así que "el 1 de enero" puede ser
+                      en realidad el cierre del 31 de diciembre (feriado de
+                      mercado). Sin la fecha, la única forma de saber qué día se
+                      está usando era deducirlo de que el número no cambiaba. */}
+                  {a.srcDate ? ` · ${formatDate(`${a.srcDate}T00:00:00Z`)}` : ''})
                 </span>
               )}
             </span>

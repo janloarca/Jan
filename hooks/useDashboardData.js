@@ -13,7 +13,7 @@ import { unlinkedOpeningDeposits } from '@/lib/originDeposits'
 import { corruptSnapshotRunIds, feEraSuspectDailyIds } from '@/lib/corruptSnapshots'
 import { planEquitySnapshotWrites, misplacedPlainNavMigrations } from '@/lib/ibkrSnapshotPlan'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
-import { staleBackfillDates, buildNavByDate, composeDailyTotals, windowDates, divergentDailyDates, navAsOf } from '@/lib/snapshotBackfill'
+import { staleBackfillDates, buildNavByDate, composeDailyTotals, windowDates, divergentDailyDates, navAsOf, navEntryAsOf } from '@/lib/snapshotBackfill'
 import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanDays, earliestNeededDays as computeEarliestNeededDays } from '@/lib/brokerCompletion'
 import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds, applyLifetimeNetConstraint } from '@/lib/inferredFlows'
 import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
@@ -2054,9 +2054,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const anchorDateStr = ytdStartTs != null && isFinite(ytdStartTs)
       ? new Date(ytdStartTs).toISOString().split('T')[0]
       : null
-    const navAtAnchor = anchorDateStr
-      ? navAsOf(buildNavByDate(snapshots || []), anchorDateStr)
+    const navEntry = anchorDateStr
+      ? navEntryAsOf(buildNavByDate(snapshots || []), anchorDateStr)
       : null
+    const navAtAnchor = navEntry ? navEntry.value : null
     // Respaldo para un portafolio sin docs de NAV por fecha (nada compuesto
     // todavía): el comportamiento de siempre, la observación de arranque de año
     // más cercana.
@@ -2102,6 +2103,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         : null
       return {
         startSrc: srcLabel(k, realStart, brokerSrc),
+        // FASE IX7: de QUÉ día salió el NAV del broker. Con arrastre, "el 1 de
+        // enero" puede ser el cierre del 31 de diciembre, y esa fecha es lo que
+        // permite ver si la regla de FASE IX5 se está aplicando y contra qué
+        // día, en vez de deducirlo de que el número no cambió.
+        startDate: (k === 'ibkr' && realStart != null && brokerSrc === 'nav') ? (navEntry?.date || null) : null,
         key: k,
         name: nameOf.get(k) || k,
         endVal: endByAccount.get(k) || 0,
@@ -2161,7 +2167,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // (lección FASE HP). Van detrás de un toggle: es diagnóstico, no algo que
     // el usuario venga a leer.
     const termAccounts = (usedAccounts || build(null, null))
-      .map((a) => ({ name: a.name, start: a.start, end: a.endVal, flow: a.flow, real: !!a.startIsReal, src: a.startSrc }))
+      .map((a) => ({ name: a.name, start: a.start, end: a.endVal, flow: a.flow, real: !!a.startIsReal, src: a.startSrc, srcDate: a.startDate || null }))
     return {
       breakdown,
       // La FECHA del ancla, no solo su valor: `findYearStartAnchor` acepta el
