@@ -158,6 +158,9 @@ function HeroPreviewCard() {
 export default function Home() {
   const router = useRouter()
   const [checking, setChecking] = useState(true)
+  // Sin esto el splash caía al default 'es' pase lo que pase, así que quien
+  // tiene la app en inglés igual veía la pantalla de carga en español.
+  const [lang] = useState(() => (typeof window !== 'undefined' && localStorage.getItem('chispudo-lang') === 'en' ? 'en' : 'es'))
 
   useEffect(() => {
     import('@/lib/firebase').then(({ auth }) => {
@@ -176,7 +179,7 @@ export default function Home() {
   }, [router])
 
   if (checking) {
-    return <ChispudoLoader mode="fullscreen" state="initial-loading" />
+    return <ChispudoLoader mode="fullscreen" state="initial-loading" lang={lang} />
   }
 
   return (
