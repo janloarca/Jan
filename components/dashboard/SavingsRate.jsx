@@ -90,7 +90,8 @@ export default function SavingsRate({ goals, transactions, netWorth, snapshots, 
         <div className="flex items-center gap-4 mb-4">
           <div className="relative w-16 h-16 shrink-0">
             <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
-              <circle cx="18" cy="18" r="15" fill="none" stroke="#38383A" strokeWidth="3" />
+              {/* Pista del anillo: token de tema (ver ValueBreakdown, mismo defecto). */}
+              <circle cx="18" cy="18" r="15" fill="none" stroke="var(--card-border)" strokeWidth="3" />
               <circle cx="18" cy="18" r="15" fill="none" stroke={ringColor} strokeWidth="3"
                 strokeDasharray={`${ringPct * 0.94} 100`} strokeLinecap="round" />
             </svg>

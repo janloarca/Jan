@@ -6,6 +6,7 @@ import { isOriginFullyRecorded } from '@/lib/originDeposits'
 import { buildContributionFields } from '@/lib/contributions'
 import { buildTransferTransaction } from '@/lib/transferTx'
 import { currencyOptions } from '@/lib/currencies'
+import BusyLabel from '@/components/ui/BusyLabel'
 
 
 export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, onExecuteContribution, onConfirmNewMoney, existingItems = [], transactions = [], lang = 'es', baseCurrency = 'USD', prefill = null }) {
@@ -482,7 +483,7 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
               <button type="submit" disabled={saving || !amount || parseFloat(amount) <= 0}
                 className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-40"
                 style={{ color: '#ffffff', backgroundColor: isTransfer ? 'var(--accent-blue)' : flowType === 'DEPOSIT' ? 'var(--accent-green)' : 'var(--accent-red)' }}>
-                {saving ? '...' : isTransfer ? t('Transferir', 'Transfer') : t('Registrar', 'Log')}
+                {<BusyLabel busy={saving} lang={lang}>{isTransfer ? t('Transferir', 'Transfer') : t('Registrar', 'Log')}</BusyLabel>}
               </button>
             </div>
             {!isTransfer && (

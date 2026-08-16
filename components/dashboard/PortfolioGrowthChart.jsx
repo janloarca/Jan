@@ -12,6 +12,7 @@ import { computeTWRSeries, computeAnchoredReturnSeries, computeAnchoredMWRSeries
 import { authFetch, safeJson } from '@/lib/authFetch'
 import ErrorState from '@/components/ui/ErrorState'
 import { useEdgeFade } from '@/hooks/useEdgeFade'
+import BusyLabel, { BusyRing } from '@/components/ui/BusyLabel'
 
 function polyline(pts) {
   return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
@@ -1627,7 +1628,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       <div className="card p-5">
         <div className="flex items-center justify-center min-h-[260px]">
           <div className="flex items-center gap-2 text-slate-500 text-sm">
-            <div className="w-4 h-4 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
+            <BusyRing size="16px" />
             {t('Cargando datos...', 'Loading data...')}
           </div>
         </div>
@@ -2321,7 +2322,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
               <button onClick={handleSaveSnapshots} disabled={snapshotSaving || !snapshotRows.some(r => r.date && r.value)}
                 className="px-3 py-1 text-xs rounded disabled:opacity-40 transition-colors"
                 style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
-                {snapshotSaving ? '...' : t('Guardar', 'Save')}
+                {<BusyLabel busy={snapshotSaving} lang={lang}>{t('Guardar', 'Save')}</BusyLabel>}
               </button>
             </div>
           </div>

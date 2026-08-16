@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { detectCurrency } from '@/lib/institutionCurrency'
 import { currencyOptions } from '@/lib/currencies'
+import BusyLabel from '@/components/ui/BusyLabel'
 
 
 const SUBTYPES = [
@@ -144,7 +145,7 @@ export default function InlineCreateAccount({ onCreate, onCancel, onCreated, lan
         <button type="button" onClick={submit} disabled={busy}
           className="flex-1 py-1.5 text-xs rounded-lg font-medium text-white disabled:opacity-50"
           style={{ backgroundColor: 'var(--accent-blue-strong, #2563eb)' }}>
-          {busy ? '...' : t('Crear y usar', 'Create & use')}
+          {<BusyLabel busy={busy} lang={lang}>{t('Crear y usar', 'Create & use')}</BusyLabel>}
         </button>
       </div>
     </div>

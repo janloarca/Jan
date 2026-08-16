@@ -8,6 +8,7 @@ import { getItemValue, formatCurrency, getTypeCategory, ibkrAttentionNeeded } fr
 import { computeLoadStages } from '@/lib/loadStages'
 import { ibkrJourneyProgress } from '@/lib/ibkrJourney'
 import Header from '@/components/dashboard/Header'
+import PullToRefresh from '@/components/ui/PullToRefresh'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
 import { InfoTip } from '@/components/ui/Tooltip'
 import { useEdgeFade } from '@/hooks/useEdgeFade'
@@ -1123,6 +1124,19 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-theme-base">
       <a href="#main-content" className="skip-link">{lang === 'es' ? 'Ir al contenido' : 'Skip to content'}</a>
+      {/* Jalar hacia abajo para actualizar. Solo acá: el gesto reemplaza al
+          refresco NATIVO de Safari (la app no es PWA), y en el resto de las
+          pantallas conviene conservarlo como salida de emergencia.
+          Recibe EXACTAMENTE los mismos valores que el anillo del header de
+          abajo, así los dos nunca pueden contar historias distintas. */}
+      <PullToRefresh
+        onRefresh={handleRefresh}
+        loading={pricesLoading || ratesLoading || benchmarkLoading}
+        error={!!(pricesError || ratesError)}
+        stagesDone={loadStages.done}
+        stagesTotal={loadStages.total}
+        lang={lang}
+      />
       <Header
         user={user} lang={lang}
         setLang={() => handleSetLang('toggle')}

@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { auth, app } from '@/lib/firebase'
 import Logo from '@/components/ui/Logo'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
+import { BusyRing } from '@/components/ui/BusyLabel'
 
 // Google sign-in, ENCENDIDO otra vez (FASE HY2): funciona, verificado en
 // producción por el usuario.
@@ -411,7 +412,7 @@ export default function LoginPage() {
     <Suspense fallback={
       <div className="flex items-center justify-center min-h-screen bg-theme-base" style={{ background: 'radial-gradient(ellipse at 20% 50%, rgba(37,99,235,0.08) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(37,99,235,0.06) 0%, transparent 50%), var(--bg-primary)' }}>
         <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-          <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--text-secondary)', borderTopColor: 'transparent' }} />
+          <BusyRing size="16px" />
         </div>
       </div>
     }>

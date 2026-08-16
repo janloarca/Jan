@@ -12,6 +12,7 @@ import { InfoTip } from './ui/Tooltip'
 import { DEBT_CLARIFICATION } from './dashboard/utils'
 import { currencyOptions } from '@/lib/currencies'
 import GuidedAssetSteps, { guidedFieldsFor } from './GuidedAssetSteps'
+import BusyLabel, { BusyRing } from '@/components/ui/BusyLabel'
 
 
 const TYPES = [
@@ -850,7 +851,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                       autoComplete="off" className={inputCls + ' pr-8'} />
                     {(searchLoading || fetchingQuote) && (
                       <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
-                        <div className="w-3.5 h-3.5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                        <BusyRing size="14px" style={{ color: 'var(--accent-blue)' }} />
                       </div>
                     )}
                   </div>
@@ -878,7 +879,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     <div className="flex items-center gap-2">
                       {form.sector && <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 10%, transparent)', color: 'var(--accent-blue)' }}>{form.sector}</span>}
                       {fetchingQuote ? (
-                        <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                        <BusyRing size="12px" style={{ color: 'var(--accent-blue)' }} />
                       ) : form.purchasePrice ? (
                         <span className="text-xs text-emerald-400 font-medium">{form.currency} {parseFloat(form.purchasePrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                       ) : null}
@@ -1217,7 +1218,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             {/* Dividend info for market assets */}
             {isMarketAsset && divLoading && (
               <div className="flex items-center gap-2 text-xs text-[var(--text-muted,#475569)] py-1">
-                <div className="w-3 h-3 border-2 border-[var(--text-muted,#475569)] border-t-transparent rounded-full animate-spin" />
+                <BusyRing size="12px" />
                 {t('Buscando dividendos...', 'Looking up dividends...')}
               </div>
             )}
@@ -2061,7 +2062,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               </button>
               <button type="submit" disabled={saving}
                 className="flex-1 py-2.5 bg-blue-600 rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium" style={{ color: '#ffffff' }}>
-                {saving ? '...' : t('Registrar', 'Register')}
+                {<BusyLabel busy={saving} lang={lang}>{t('Registrar', 'Register')}</BusyLabel>}
               </button>
             </div>
           </>)}
