@@ -35,6 +35,36 @@ import {
   PULL_THRESHOLD_PX, MAX_PULL_PX, DIRECTION_LOCK_PX,
 } from '@/lib/pullToRefresh'
 
+// Cuántos PullToRefresh hay vivos. Con DOS sitios de montaje (tablero y
+// Finanzas) aparece un caso que con uno solo no existía: en una navegación
+// entre esas dos pantallas, si React monta el nuevo antes de limpiar el viejo,
+// el removeAttribute del que se va corre DESPUÉS del setAttribute del que llega
+// y `data-ptr` queda quitado CON un gesto vivo, o sea vuelve el pull-to-refresh
+// nativo de Safari y los dos pelean. El primero en montar pone el atributo, el
+// último en desmontar lo quita, y así el orden de commit de React deja de
+// importar.
+let mountedCount = 0
+
+// El ancestro scrolleable más cercano entre `el` y `boundary`, si es que puede
+// scrollear HACIA ARRIBA. Vive acá y no en lib/pullToRefresh.js porque es puro
+// recorrido de DOM; la decisión que sale de esto sí es pura y está en
+// `shouldClaim`.
+function blockedByInnerScroller(el, boundary) {
+  let n = el
+  while (n && n !== boundary && n !== document.body && n.nodeType === 1) {
+    if (n.scrollHeight > n.clientHeight + 1) {
+      const oy = getComputedStyle(n).overflowY
+      if (oy === 'auto' || oy === 'scroll') {
+        // Con scrollTop > 0 todavía le queda recorrido hacia arriba, así que el
+        // tirón es suyo. En su propio tope, pasa de largo hacia el gesto.
+        return n.scrollTop > 0
+      }
+    }
+    n = n.parentElement
+  }
+  return false
+}
+
 const SIZE = 34
 const BOLT = Math.round(SIZE * 0.46)
 // Cuánto se queda el check verde antes de recogerse. Mismo criterio (y mismo
@@ -77,8 +107,15 @@ export default function PullToRefresh({
   // patrón que `data-journey` en IBKRJourneyBar.
   useEffect(() => {
     const root = document.documentElement
+    mountedCount += 1
     root.setAttribute('data-ptr', 'on')
-    return () => root.removeAttribute('data-ptr')
+    return () => {
+      mountedCount -= 1
+      if (mountedCount <= 0) {
+        mountedCount = 0
+        root.removeAttribute('data-ptr')
+      }
+    }
   }, [])
 
   const finish = useCallback(() => {
@@ -95,6 +132,7 @@ export default function PullToRefresh({
       if (e.touches.length !== 1) { finish(); return }
       if (phaseRef.current === 'refreshing' || phaseRef.current === 'done') return
       const tch = e.touches[0]
+      const scope = tch.target?.closest?.(scopeSelector) || null
       g.current = {
         active: true,
         claimed: false,
@@ -104,7 +142,10 @@ export default function PullToRefresh({
         released: false,
         x0: tch.clientX,
         y0: tch.clientY,
-        insideMain: !!(tch.target?.closest?.(scopeSelector)),
+        insideMain: !!scope,
+        // Se resuelve en el touchstart, que es el único momento con un `target`
+        // y con el scroller todavía en su posición inicial.
+        blockedByScroller: scope ? blockedByInnerScroller(tch.target, scope) : false,
       }
     }
 
@@ -119,7 +160,7 @@ export default function PullToRefresh({
       if (!s.claimed) {
         // Antes del mínimo no se decide nada: a 1-2px la dirección es ruido.
         if (Math.abs(dx) < DIRECTION_LOCK_PX && Math.abs(dy) < DIRECTION_LOCK_PX) return
-        if (!shouldClaim({ dx, dy, atTop: atTop(), insideMain: s.insideMain })) {
+        if (!shouldClaim({ dx, dy, atTop: atTop(), insideMain: s.insideMain, blockedByScroller: s.blockedByScroller })) {
           s.released = true
           return
         }
