@@ -177,12 +177,20 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
         const cl = data?.cronLookup
         const auto = cl
           ? (cl.includesYou
-            ? t(' El envío automático te encuentra correctamente.', ' The scheduled send finds you correctly.')
+            ? t(` El envío automático te encuentra correctamente (vía ${cl.via}).`, ` The scheduled send finds you correctly (via ${cl.via}).`)
             : t(` OJO: el envío automático NO te encuentra (${cl.error || 'revisa que el interruptor esté encendido'}).`, ` HEADS UP: the scheduled send does NOT find you (${cl.error || 'check the toggle is on'}).`))
           : ''
+        // Cuándo corrió el cron por última vez: sin este dato, "no me llegó"
+        // no distingue entre un cron que nunca se ejecutó y uno que sí corrió
+        // pero no envió (FASE IF2).
+        const lr = data?.lastCronRun
+        const runMsg = lr?.at
+          ? t(` Última corrida automática: ${new Date(lr.at).toLocaleString()} (${lr.result || 'sin detalle'}).`,
+              ` Last scheduled run: ${new Date(lr.at).toLocaleString()} (${lr.result || 'no detail'}).`)
+          : t(' El envío automático NUNCA ha corrido todavía.', ' The scheduled send has NEVER run yet.')
         setTestResult({
           ok: !cl || cl.includesYou,
-          msg: t(`Enviado a ${data?.sentTo || userEmail}. Revisa tu bandeja (y spam).`, `Sent to ${data?.sentTo || userEmail}. Check your inbox (and spam).`) + auto,
+          msg: t(`Enviado a ${data?.sentTo || userEmail}. Revisa tu bandeja (y spam).`, `Sent to ${data?.sentTo || userEmail}. Check your inbox (and spam).`) + auto + runMsg,
         })
       } else {
         // El mensaje del servidor SMTP se muestra tal cual: si Zoho rechaza la
