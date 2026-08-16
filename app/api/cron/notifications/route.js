@@ -128,7 +128,27 @@ export async function GET(request) {
 
   const now = new Date()
   const cadences = dueCadences(now)
+
+  // FASE IF2. Deja constancia de CADA corrida, incluidas las que no mandan
+  // nada. Cuando un correo no llega, la primera pregunta es "¿el cron llegó a
+  // ejecutarse?", y hoy esa respuesta solo vivía en los logs de la plataforma:
+  // sin ella, "no llegó" es indistinguible entre un cron que nunca corrió, uno
+  // que corrió y no encontró suscriptores, y uno que falló al enviar. Es
+  // best-effort: si la escritura falla, el envío sigue su curso.
+  const stamp = async (extra) => {
+    try {
+      await db.doc('system/notificationsCron').set({
+        lastRunAt: now.toISOString(),
+        cadences,
+        ...extra,
+      }, { merge: true })
+    } catch (e) {
+      console.error('[cron/notifications] heartbeat failed:', e?.message)
+    }
+  }
+
   if (cadences.length === 0) {
+    await stamp({ lastResult: 'nothing-due' })
     return NextResponse.json({ ok: true, skipped: `nothing due on ${now.toISOString().slice(0, 10)}` })
   }
 
@@ -197,5 +217,6 @@ export async function GET(request) {
   }
 
   mailer.transport.close()
+  await stamp({ lastResult: 'ran', report })
   return NextResponse.json({ ok: true, cadences, report })
 }

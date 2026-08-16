@@ -118,7 +118,19 @@ export async function POST(request) {
       cronLookup = { error: e?.message || String(e) }
     }
 
-    return NextResponse.json({ ok: true, sentTo: email, attached: mail.attachments.length > 0, cronLookup })
+    // FASE IF2. La constancia de la última corrida del cron: responde "¿llegó
+    // a ejecutarse?" sin abrir los logs de la plataforma, que es la pregunta
+    // que quedó sin respuesta cuando el primer envío automático no llegó.
+    let lastCronRun = null
+    try {
+      const doc = await db.doc('system/notificationsCron').get()
+      if (doc.exists) {
+        const d = doc.data()
+        lastCronRun = { at: d.lastRunAt || null, result: d.lastResult || null, report: d.report || null }
+      }
+    } catch { /* sin constancia, la UI simplemente no la muestra */ }
+
+    return NextResponse.json({ ok: true, sentTo: email, attached: mail.attachments.length > 0, cronLookup, lastCronRun })
   } catch (err) {
     // El mensaje del servidor SMTP viaja de vuelta a propósito: si Zoho
     // rechaza la autenticación, saberlo aquí ahorra una ronda de logs.

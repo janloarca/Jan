@@ -120,7 +120,7 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
   }
 
   return (
-    <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-4">
+    <div>
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-cyan)' }} />
@@ -289,7 +289,7 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
       {/* Goal probability in MC mode */}
       {mode === 'montecarlo' && mcResult?.goalProbability != null && goalValue > 0 && (
         <div className="mt-3 px-3 py-2 bg-theme-base rounded-lg border border-glass-border/50 flex items-center gap-2">
-          <span className="text-sm font-bold" style={{ color: mcResult.goalProbability >= 70 ? 'var(--accent-green)' : mcResult.goalProbability >= 40 ? '#fbbf24' : '#f87171' }}>
+          <span className="text-sm font-bold" style={{ color: mcResult.goalProbability >= 70 ? 'var(--accent-green)' : mcResult.goalProbability >= 40 ? 'var(--accent-orange)' : 'var(--text-negative)' }}>
             {mcResult.goalProbability}%
           </span>
           <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>

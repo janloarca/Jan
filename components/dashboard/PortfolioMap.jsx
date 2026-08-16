@@ -133,7 +133,7 @@ export default function PortfolioMap({ items, lang }) {
   ]
 
   return (
-    <div className="bg-theme-card rounded-2xl border border-glass-border p-5 card-primary">
+    <div>
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-cyan)' }} />
@@ -235,7 +235,9 @@ export default function PortfolioMap({ items, lang }) {
               const val = getItemValue(item)
               const pctOfGroup = selectedGroup.value > 0 ? (val / selectedGroup.value) * 100 : 0
               const cat = getTypeCategory(item.type)
-              const clr = TYPE_COLORS[cat]?.bg || '#6366f1'
+              // Respaldo desde la paleta validada, igual que arriba en este
+              // mismo archivo. Antes era un indigo suelto fuera de esa paleta.
+              const clr = TYPE_COLORS[cat]?.bg || CHART_PALETTE[i % CHART_PALETTE.length]
               const hasRet = item.currentPrice != null && item.purchasePrice > 0
               const retPct = hasRet ? ((item.currentPrice - item.purchasePrice) / item.purchasePrice) * 100 : null
 

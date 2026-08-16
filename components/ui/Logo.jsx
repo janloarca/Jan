@@ -107,7 +107,10 @@ export default function Logo({
       {bolt}
       <WordmarkTag
         style={{
-          fontWeight: 800,
+          // 900, no 800: era el ÚNICO consumidor del 800 de Inter en toda la
+          // app, y ese peso se quitó de la carga para pagar el 700 de
+          // JetBrains Mono (ver app/layout.jsx). El 900 ya venía cargado.
+          fontWeight: 900,
           fontSize: Math.round(size * 0.9),
           lineHeight: 1,
           letterSpacing: '-0.02em',

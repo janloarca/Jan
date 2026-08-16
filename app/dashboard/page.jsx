@@ -86,6 +86,8 @@ const RiskMetrics = dynamic(() => import('@/components/dashboard/RiskMetrics'), 
 const BenchmarkComparison = dynamic(() => import('@/components/dashboard/BenchmarkComparison'), { loading: () => <SkeletonCard /> })
 const CurrencyImpact = dynamic(() => import('@/components/dashboard/CurrencyImpact'), { loading: () => <SkeletonCard /> })
 const FeeAnalysis = dynamic(() => import('@/components/dashboard/FeeAnalysis'), { loading: () => <SkeletonCard /> })
+const PortfolioMap = dynamic(() => import('@/components/dashboard/PortfolioMap'), { loading: () => <SkeletonCard /> })
+const ProjectionSimulator = dynamic(() => import('@/components/dashboard/ProjectionSimulator'), { loading: () => <SkeletonCard /> })
 // InstitutionPerformance is intentionally still imported and still on disk: its
 // six rows duplicated Asset Allocation's "Inst." view number for number, so the
 // dashboard stopped rendering it (see the composition grid below). Nothing about
@@ -128,7 +130,7 @@ import { authFetch, safeJson } from '@/lib/authFetch'
 // the page. Its five original tabs are unchanged; Benchmark, Currency and Fees
 // were already built as components and had simply never been mounted anywhere,
 // and Data quality moved up from "Recent activity".
-function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, lots, transactions, convert, baseCurrency, rates, benchmarkData, benchmarkName, benchmarkReturn, portfolioReturn, beginnerMode, onConnect, onImportBroker }) {
+function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, lots, transactions, convert, baseCurrency, rates, benchmarkData, benchmarkName, benchmarkReturn, portfolioReturn, volatility, goalValue, beginnerMode, onConnect, onImportBroker }) {
   const [tab, setTab] = useState('health')
   const t = (es, en) => lang === 'es' ? es : en
   const hasLots = lots && lots.length > 0
@@ -147,6 +149,8 @@ function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, 
     { key: 'currency', label: t('Moneda', 'Currency') },
     { key: 'fees', label: t('Comisiones', 'Fees') },
     { key: 'quality', label: t('Calidad', 'Quality') },
+    { key: 'map', label: t('Mapa', 'Map') },
+    { key: 'projection', label: t('Proyección', 'Projection') },
   ]
   return (
     <div className="card-glass rounded-2xl p-4">
@@ -200,6 +204,12 @@ function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, 
       )}
       {tab === 'quality' && (
         <CardBoundary id="HO-03"><DataQualityCard items={portfolioItems} transactions={transactions} snapshots={snapshots} convert={convert} baseCurrency={baseCurrency} lang={lang} onConnect={onConnect} onImportBroker={onImportBroker} /></CardBoundary>
+      )}
+      {tab === 'map' && (
+        <CardBoundary id="OR-06"><PortfolioMap items={portfolioItems} lang={lang} /></CardBoundary>
+      )}
+      {tab === 'projection' && (
+        <CardBoundary id="IG-11"><ProjectionSimulator netWorth={netWorth} lang={lang} volatility={volatility} goalValue={goalValue} /></CardBoundary>
       )}
     </div>
   )
@@ -1499,6 +1509,7 @@ export default function DashboardPage() {
                       convert={convert} baseCurrency={baseCurrency} rates={rates}
                       benchmarkData={benchmarkData} benchmarkName={benchmarkName}
                       benchmarkReturn={benchmarkReturn} portfolioReturn={returnYTD}
+                      volatility={riskMetrics?.volatility} goalValue={goals?.portfolioGoal}
                       beginnerMode={beginnerMode}
                       onConnect={handleOpenConnections} onImportBroker={handleOpenImport}
                     />
