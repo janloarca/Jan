@@ -255,6 +255,8 @@ merge, igual que siempre.
 
 - [x] Toda la cripto del Spreadsheet era una línea plana inventada: `days=max` a la API pública de CoinGecko (FASE IX4). Salió persiguiendo un residuo de $59 y resultó mucho más grande que el residuo. La captura del usuario (Hoja, meses oct/nov/dic 2025) mostraba LEGDER en **~$1,008** los tres meses, con Ethereum en ~713.30 / ~713.30 / ~715.52 (o sea plano) y el tilde de "~ valor estimado", mientras la gráfica de ESA MISMA cuenta muestra ~$2,000 en esas fechas: dos pantallas contando historias distintas del mismo activo, y la de la Hoja simplemente el valor de HOY mantenido plano hacia atrás. Causa: `rangeToDays('max')` en `app/api/prices/chart/route.js` devolvía literalmente `'max'`, y la API **pública** de CoinGecko (sin llave) solo sirve 365 días: rechaza esa ventana y la respuesta vuelve vacía, con lo que `lib/historicalValues.js` cae a su fallback hold-flat. Y `rangeForMonths` pide `'max'` en cuanto la tabla abarca más de un año, o sea SIEMPRE en un portafolio con historia: por eso los meses de 2026 (fetcheados alguna sesión con `'1y'`) sí traen precio real y los de 2025 no. Es el MISMO defecto y el MISMO arreglo que FASE IV hizo en `portfolio-history/route.js`, que aquella pasada no tocó esta segunda ruta: se pide la ventana más larga que la API de verdad sirve (364 días) y todas las ventanas se acotan a ese tope. Más allá de ~364 días no hay dato disponible y el hold-flat se queda, que es honesto; lo que no se vale es perder el año que SÍ se puede traer. Bump a `SNAPSHOT_VERSION` 26 porque los meses ya cacheados guardaron el plano y el caché nunca se autocorrige por merge (lección DS/FT). 4 tests nuevos que verifican por la URL que de verdad se le pide a CoinGecko (`rangeToDays` no es exportable: un `route.js` del App Router solo admite exports reconocidos por Next, misma restricción que FASE IV): nunca `max`, nunca más de 364, y las ventanas cortas sin cambio. `npx jest` (1646/1646) y `npm run build`.
 
+- [x] El "Sin atribuir" de $59.11, descompuesto al centavo: el ancla y el panel leían el NAV del broker con reglas distintas (FASE IX5). El usuario lo puso en una línea: "en una app financiera cada centavo tiene que cuadrar". Con la Hoja ya mostrando precios reales de cripto (FASE IX4) y desplegada hasta Caja & Bancos, el residuo quedó descompuesto EXACTO contra los valores del 31-dic del Spreadsheet: **IDC $3,529.97** (3,276.45 en bonos + 253.52 del fondo líquido en quetzales) idéntico al panel, **Banco Industrial $602.12** idéntico, **OSMO $0** idéntico, **LEGDER 1,537.37 vs 1,534.50 (−$2.87)** y **ClubCashIn 641.68 vs 655.78 (+$14.10)**. Restando la mitad manual del ancla (11,815.44 − 6,311.14) sale **$5,504.30** de NAV del broker, contra los **$5,433.96** que el panel imprimía en su fila: **$70.34**. Y 70.34 − 14.10 + 2.87 = **59.11 exacto**. Causa raíz: el ancla es un doc COMPUESTO (FASE HN: NAV real + reconstrucción manual) y `composeDailyTotals` resuelve el NAV con arrastre (`carriedValue`), así que para el 1 de enero (feriado de mercado, sin NAV propio) usa el cierre del 31 de diciembre; el panel lo resolvía con `findYearStartAnchor`, que toma el PRIMER doc de enero, o sea el 2. Dos respuestas a "cuánto valía la cuenta el 1 de enero", separadas por un día hábil de mercado. La regla correcta es la del compositor (el último cierre conocido EN o antes de esa fecha, no el siguiente), y sobre todo es la que hace que la resta cierre por construcción, que es el principio entero del panel desde FASE GR: descomponer el ancla que el encabezado de verdad usa. `navAsOf` (`lib/snapshotBackfill.js`, exportada, la misma `carriedValue` que ya usaba el compositor) reemplaza esa lectura; `findYearStartAnchor` queda como respaldo para un portafolio sin docs de NAV por fecha, así que nada cambia donde no hay composición. 5 tests nuevos con los números exactos del reporte, incluido uno que fija la identidad contra `composeDailyTotals` (el NAV que el panel lee tiene que ser el mismo que el compositor sumó ese día). Quedan pendientes las dos piezas chicas ya nombradas y medidas: ClubCashIn ($14.10, el panel ~2.4 meses adelantado en el rebobinado del rendimiento reinvertido contra lo que dicen el Spreadsheet Y el ancla) y LEGDER ($2.87, el instante exacto de la cripto entre el cierre del 31-dic y las 00:00 UTC del 1-ene). `npx jest` (1651/1651) y `npm run build`.
+
 ## Lecciones — Módulo Amigos / social (FASE X)
 
 - **Todo lo cross-user va por Admin SDK, nunca cliente Firestore.** `firestore.rules`
@@ -485,44 +487,14 @@ borra, pero no se edita ni se re-vincula (el movimiento vive en el origen).
 
 Seis clases invertidas con color (`stocks/bonds/funds/crypto/realestate/
 alternatives`); efectivo, por cobrar y "otros" son neutros a propósito. Elegida
-en OKLCH, no a ojo: banda de luminosidad para tema claro y oscuro, piso de
-croma, y el par más cercano en visión normal a ΔE 18.10, bonds vs realestate
-(la paleta vieja tenía pares bajo 8: tres morados casi idénticos en
-stocks/funds/alternatives). **Seis es el techo:** un séptimo tono tumba a otro
-bajo el piso legible, así que lo que sobre se agrupa en un "Otros" neutro.
-
-**⛔ Ahora se hace cumplir, ya no es solo prosa (FASE IY).** Durante mucho
-tiempo este párrafo citó `scripts/validate_palette.js`, un script de un skill
-EXTERNO que nunca estuvo en este repo: no había carpeta `scripts/`, ni tarea
-npm, ni test, ni hook, así que nada habría fallado si alguien le subía la
-saturación a un color. `lib/colorMath.js` (OKLab/OKLCH, ΔE, simulación de
-daltonismo por Viénot 1999, contraste WCAG; todo a mano porque no hay librería
-de color instalada) más `lib/__tests__/palette.test.js` miden cada afirmación
-de arriba. Verificado que el guardián falla DE VERDAD: subirle la saturación a
-`bonds` tumba 3 tests y convertir un neutral en un séptimo tono tumba 2.
-`lib/__tests__/colorMath.test.js` prueba los conversores contra anclas
-conocidas, porque si no el test de paleta podría pasar por la razón equivocada
-(y de hecho atrapó un error real mío: había aplicado la proyección de
-daltonismo directo sobre RGB en vez de convertir a espacio LMS primero).
-
-**Corrección de un número que estaba mal.** Este archivo y `lib/colors.js`
-afirmaban "el par más apretado en daltonismo queda en ΔE 6". Eso es cierto
-para UN tipo, no en general. Medido: protanopia 8.18 (funds vs stocks),
-deuteranopia 6.27 (realestate vs alternatives, que es justo el "verde profundo
-vs magenta" que el comentario describía), y **tritanopía 3.27** (alternatives
-vs funds), que NO llega a 6. La tritanopía aplana magenta contra morado y no
-hay color que lo arregle sin rehacer la paleta; se acepta a conciencia por su
-prevalencia (~0.01%) y porque la mitigación real es otra: TODO lugar donde
-salen estos colores imprime también el nombre de la clase, así que la identidad
-nunca la carga el color solo. El test de tritanopía tiene su propio nombre y su
-propio piso justamente para no esconder eso detrás de un umbral cómodo.
-
-Colisiones conocidas entre `SEMANTIC` y `CATEGORY`, fijadas en el test para que
-no empeoren en silencio pero NO forzadas (arreglarlas es cambiar la paleta, o
-sea decisión de producto): `warning` vs `crypto` están a ΔE **2.34**, o sea son
-el mismo naranja. Vale notar que el comentario de `lib/colors.js` se felicitaba
-por haber arreglado una colisión más leve (verde inmobiliario vs verde de
-ganancia, que mide 9.76) mientras esta pasaba desapercibida.
+en OKLCH y VERIFICADA con `scripts/validate_palette.js` del skill `dataviz`, no
+a ojo: banda de luminosidad para tema claro y oscuro, piso de croma, y el par
+más cercano en visión normal a ΔE 18 (la paleta vieja tenía pares bajo 8: tres
+morados casi idénticos en stocks/funds/alternatives). El par más apretado en
+daltonismo queda en ΔE 6, por eso TODO lugar donde salen estos colores imprime
+también el nombre de la clase: la identidad nunca la carga el color solo.
+**Seis es el techo:** un séptimo tono tumba a otro bajo el piso legible, así que
+lo que sobre se agrupa en un "Otros" neutro.
 
 ## Copy / texto visible — reglas del usuario
 
