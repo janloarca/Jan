@@ -22,7 +22,7 @@ export default function SharedPortfolioPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--bg-primary)' }}>
-        <div className="card-glass rounded-2xl p-8 text-center">
+        <div className="card p-8 text-center">
           <div className="shimmer h-6 w-48 rounded mb-3 mx-auto" />
           <div className="text-slate-400 text-sm">Loading portfolio...</div>
         </div>
@@ -33,7 +33,7 @@ export default function SharedPortfolioPage() {
   if (error || !data) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--bg-primary)' }}>
-        <div className="card-glass rounded-2xl p-8 text-center max-w-sm">
+        <div className="card p-8 text-center max-w-sm">
           <div className="rounded-2xl p-3 inline-block mb-4" style={{ backgroundColor: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.15)' }}>
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent-red)' }}>
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
@@ -158,7 +158,7 @@ function SharedDashboard({ items, snapshots, baseCurrency, label, display }) {
 
       <main className="max-w-5xl mx-auto px-4 py-8 space-y-6">
         {/* Net Worth */}
-        <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-6">
+        <div className="card p-6">
           {showAmounts ? (
             <>
               <span className="text-xs text-slate-500 block mb-1">Net Worth</span>
@@ -199,7 +199,7 @@ function SharedDashboard({ items, snapshots, baseCurrency, label, display }) {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Asset Allocation */}
-          <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-5">
+          <div className="card p-5">
             <h3 className="text-sm font-medium text-slate-400 mb-4">Asset Allocation</h3>
             <div className="space-y-2">
               {byCategory.map(([cat, val]) => {
@@ -226,7 +226,7 @@ function SharedDashboard({ items, snapshots, baseCurrency, label, display }) {
           </div>
 
           {/* Top Holdings */}
-          <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-5">
+          <div className="card p-5">
             <h3 className="text-sm font-medium text-slate-400 mb-4">Top Holdings</h3>
             <div className="space-y-2">
               {topHoldings.map((it) => {
@@ -261,7 +261,7 @@ function SharedDashboard({ items, snapshots, baseCurrency, label, display }) {
 
         {/* Portfolio Growth */}
         {snapshots.length >= 2 && (
-          <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-5">
+          <div className="card p-5">
             <h3 className="text-sm font-medium text-slate-400 mb-4">Portfolio Growth</h3>
             <GrowthChart snapshots={snapshots} showAmounts={showAmounts} />
           </div>
@@ -360,7 +360,7 @@ function IncomeMaturitySummary({ items, showAmounts = true }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {incomeItems.length > 0 && (
-        <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-5">
+        <div className="card p-5">
           <h3 className="text-sm font-medium text-slate-400 mb-3">Estimated Annual Income</h3>
           {showAmounts && <div className="text-2xl font-bold mb-3" style={{ color: 'var(--accent-green)' }}>{formatCurrency(totalEstIncome)}</div>}
           <div className="space-y-1.5">
@@ -378,7 +378,7 @@ function IncomeMaturitySummary({ items, showAmounts = true }) {
       )}
 
       {maturingItems.length > 0 && (
-        <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-5">
+        <div className="card p-5">
           <h3 className="text-sm font-medium text-slate-400 mb-3">Upcoming Maturities</h3>
           <div className="space-y-2">
             {maturingItems.slice(0, 6).map((it) => {
@@ -439,7 +439,7 @@ function RiskOverview({ items, totalAssets, byCategory }) {
   const scoreLabel = metrics.diversificationScore >= 70 ? 'Good' : metrics.diversificationScore >= 40 ? 'Moderate' : 'Concentrated'
 
   return (
-    <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-5">
+    <div className="card p-5">
       <h3 className="text-sm font-medium text-slate-400 mb-4">Risk Overview</h3>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="text-center">

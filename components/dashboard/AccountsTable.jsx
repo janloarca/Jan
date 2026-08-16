@@ -85,7 +85,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
   const t = (es, en) => lang === 'es' ? es : en
 
   return (
-    <div className="bg-theme-card rounded-2xl border border-glass-border p-5 card-primary">
+    <div className="card p-5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-base font-semibold text-white">
           {t('Cuentas e Instrumentos', 'Accounts & Instruments')}

@@ -153,7 +153,7 @@ function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, 
     { key: 'projection', label: t('Proyección', 'Projection') },
   ]
   return (
-    <div className="card-glass rounded-2xl p-4">
+    <div className="card p-4">
       {/* Header — mirrors AssetAllocation's so the two read as one pair */}
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
@@ -1323,7 +1323,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-5 space-y-3 sm:space-y-4">
+      <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
         {/* Demo mode: the exit must always be obvious, even after the tour ends */}
         {isDemoMode && (
           <div className="flex items-center justify-between gap-2 px-4 py-2 rounded-xl text-xs"
@@ -1414,7 +1414,7 @@ export default function DashboardPage() {
         {/* ═══ RESUMEN ═══ */}
         {portfolioItems.length > 0 && <>
         <ErrorBoundary lang={lang}>
-        <div className="stagger-1 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 items-stretch">
+        <div className="stagger-1 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6 items-stretch">
           <div className="md:col-span-1 lg:col-span-2 flex flex-col gap-4">
             <CardBoundary id="OL-01" className="h-full">
             <NetWorthCard
@@ -1489,12 +1489,12 @@ export default function DashboardPage() {
                   última card de cada una toma el sobrante (flex-1 + h-full
                   adentro), así el bloque cierra en una línea pareja en vez de
                   un borde inferior disparejo. */}
-              <div className="stagger-3 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-                <div className="flex flex-col gap-3 sm:gap-4 min-w-0">
+              <div className="stagger-3 grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                <div className="flex flex-col gap-4 sm:gap-6 min-w-0">
                   <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} ibkrDataComplete={ibkrDataComplete} /></CardBoundary>
                   <CardBoundary id="INV-01" className="flex-1"><InvestedByYearCard transactions={transactions} items={items} snapshots={augmentedSnapshots} netWorth={netWorth} returnYTD={returnYTD} ytdChange={ytdChange} convert={convert} baseCurrency={baseCurrency} lang={lang} /></CardBoundary>
                 </div>
-                <div className="flex flex-col gap-3 sm:gap-4 min-w-0">
+                <div className="flex flex-col gap-4 sm:gap-6 min-w-0">
                   {/* Aquí vivía InstitutionPerformance (INST-01). Se dejó de
                       montar porque sus seis filas repetían, número por número,
                       lo que ya muestra la vista "Inst." de Asignación de
@@ -1554,7 +1554,7 @@ export default function DashboardPage() {
             {/* Gross money in vs out — one compact strip (three separate airy cards
                 wasted a whole row of vertical space on tablets) */}
             {(contributionsSummary.totalContributed > 0 || contributionsSummary.totalWithdrawn > 0) && (
-              <div className="bg-theme-surface/80 rounded-xl border border-glass-border/50 px-4 py-2.5 mb-3 grid grid-cols-3 gap-3">
+              <div className="card px-4 py-2.5 mb-3 grid grid-cols-3 gap-3">
                 <div className="flex items-baseline gap-2 min-w-0">
                   <span className="text-xs text-slate-500 shrink-0">{lang === 'es' ? 'Aportado' : 'Deposited'}</span>
                   <span className="text-sm font-bold font-mono tabular-nums truncate" style={{ color: 'var(--accent-green)' }}>{formatCurrency(contributionsSummary.totalContributed)}</span>
