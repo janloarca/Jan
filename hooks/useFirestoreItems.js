@@ -927,6 +927,9 @@ export function useFirestoreItems() {
   // plano en su valor de HOY. Los meses ya cacheados guardaron ese plano (el
   // caso real: LEGDER en ~$1,008 durante oct/nov/dic 2025, cuando la gráfica de
   // esa misma cuenta dice ~$2,000), y el caché no se autocorrige por merge.
+  // 27 (FASE IX6): el rendimiento reinvertido se indexaba por SÍMBOLO, así que
+  // dos cuentas homónimas sin ticker propio (DOS "ClubCashIn") se acreditaban
+  // el rendimiento de ambas. Todo mes cacheado tiene esa mezcla horneada.
   //
   // El NÚMERO vive en lib/snapshotVersion.js (FASE IE): el spreadsheet adjunto
   // del correo mensual lee estos mismos docs del lado del servidor y tiene que
