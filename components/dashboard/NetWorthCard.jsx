@@ -54,7 +54,7 @@ const ANCHOR_SRC_LABEL = {
   ibkr_quarterly: { es: 'trimestre transcrito', en: 'transcribed quarter' },
 }
 
-function AccountTermsTable({ accounts, anchor, anchorTs, anchorSrc, measuredTs, lang, cv, displayCur }) {
+function AccountTermsTable({ accounts, anchor, anchorTs, anchorSrc, measuredTs, unmappedStart = 0, unmappedCount = 0, lang, cv, displayCur }) {
   return (
     <div className="mt-2">
       <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 gap-y-1 items-baseline">
@@ -97,6 +97,22 @@ function AccountTermsTable({ accounts, anchor, anchorTs, anchorSrc, measuredTs, 
         </span>
         <span className="text-[11px] font-mono tabular-nums" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(anchor ?? 0), displayCur)}</span>
       </div>
+      {/* FASE IX8. Arranque que el motor SÍ midió y el panel no pudo colgar de
+          ninguna cuenta. Separa las dos causas posibles de "Sin atribuir", que
+          desde afuera se ven idénticas: si esta línea aparece, parte del residuo
+          se está perdiendo ACÁ, al agrupar por cuenta; si no aparece, viene de
+          que el ancla archivada y el motor reconstruyen distinto. Solo se
+          muestra cuando hay algo que nombrar. */}
+      {unmappedStart ? (
+        <div className="flex items-baseline justify-between gap-2 mt-1">
+          <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+            {lang === 'es'
+              ? `Arranque sin cuenta (${unmappedCount})`
+              : `Start with no account (${unmappedCount})`}
+          </span>
+          <span className="text-[11px] font-mono tabular-nums" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(unmappedStart), displayCur)}</span>
+        </div>
+      ) : null}
       {/* FASE IU: el panel mide los arranques en el punto donde el API entrega
           el desglose, que NO tiene por que caer en la fecha del ancla. Cuando
           se separan, cada fila mide su cuenta en otro dia, y en una cuenta
@@ -462,7 +478,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
                       : (lang === 'es' ? 'Ver detalle por cuenta' : 'See per-account detail')}
                   </button>
                   {showRefusalDetail && (
-                    <AccountTermsTable accounts={ytdBreakdownDetail.accounts} anchor={ytdBreakdownDetail.anchor} anchorTs={ytdBreakdownDetail.anchorTs} anchorSrc={ytdBreakdownDetail.anchorSrc} measuredTs={ytdBreakdownDetail.measuredTs}
+                    <AccountTermsTable accounts={ytdBreakdownDetail.accounts} anchor={ytdBreakdownDetail.anchor} anchorTs={ytdBreakdownDetail.anchorTs} anchorSrc={ytdBreakdownDetail.anchorSrc} measuredTs={ytdBreakdownDetail.measuredTs} unmappedStart={ytdBreakdownDetail.unmappedStart} unmappedCount={ytdBreakdownDetail.unmappedCount}
                       lang={lang} cv={cv} displayCur={displayCur} />
                   )}
                 </div>
@@ -542,7 +558,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
                   : (lang === 'es' ? 'Ver detalle por cuenta' : 'See per-account detail')}
               </button>
               {showRefusalDetail && (
-                <AccountTermsTable accounts={ytdBreakdownTerms.accounts} anchor={ytdBreakdownTerms.anchor} anchorTs={ytdBreakdownTerms.anchorTs} anchorSrc={ytdBreakdownTerms.anchorSrc} measuredTs={ytdBreakdownTerms.measuredTs}
+                <AccountTermsTable accounts={ytdBreakdownTerms.accounts} anchor={ytdBreakdownTerms.anchor} anchorTs={ytdBreakdownTerms.anchorTs} anchorSrc={ytdBreakdownTerms.anchorSrc} measuredTs={ytdBreakdownTerms.measuredTs} unmappedStart={ytdBreakdownTerms.unmappedStart} unmappedCount={ytdBreakdownTerms.unmappedCount}
                   lang={lang} cv={cv} displayCur={displayCur} />
               )}
             </div>
