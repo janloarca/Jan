@@ -10,6 +10,7 @@ import { useExchangeRates } from '@/hooks/useExchangeRates'
 const FINANCE_CURRENCY = 'GTQ'
 
 import Header from '@/components/dashboard/Header'
+import PullToRefresh from '@/components/ui/PullToRefresh'
 import MobileNav from '@/components/dashboard/MobileNav'
 import MonthSelector from '@/components/finance/MonthSelector'
 import FinanceSummaryCards from '@/components/finance/FinanceSummaryCards'
@@ -254,6 +255,17 @@ export default function FinancesPage() {
         loadStagesDone={[!dataLoading, !ratesLoading].filter(Boolean).length}
         loadStagesTotal={2}
         friendsEnabled={settings?.friendsEnabled !== false}
+      />
+      {/* Jalar hacia abajo para actualizar (FASE JF). Recibe EXACTAMENTE los
+          mismos valores que el Header de arriba, para que los dos indicadores
+          de esta pantalla no puedan contar historias distintas. Acá tambien
+          reemplaza a la recarga nativa de Safari, igual que en el tablero. */}
+      <PullToRefresh
+        onRefresh={refreshRates}
+        loading={ratesLoading}
+        stagesDone={[!dataLoading, !ratesLoading].filter(Boolean).length}
+        stagesTotal={2}
+        lang={lang}
       />
       <PageTour pageKey="finances" nextRoute="/spreadsheet" nextFlag="spreadsheet" lang={lang} steps={[
         {
