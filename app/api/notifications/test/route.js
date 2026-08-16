@@ -7,6 +7,7 @@ import { buildMarketBrief, MARKET_WINDOWS } from '@/lib/marketBrief'
 import { buildWeeklyBriefForUser, makeMailer, AUTO_HEADERS } from '@/lib/weeklyBriefBuilder'
 import { buildMonthlyBriefForUser, buildAnnualBriefForUser } from '@/lib/periodBriefBuilder'
 import { makeBriefFetcher } from '@/lib/briefFetcher'
+import { findSubscribers } from '@/app/api/cron/notifications/route'
 
 // Qué se prueba por cadencia: el MISMO builder y la MISMA ventana de mercado
 // (MARKET_WINDOWS, compartida con el cron) que usa la corrida real. Una lista
@@ -96,7 +97,28 @@ export async function POST(request) {
     })
     mailer.transport.close()
 
-    return NextResponse.json({ ok: true, sentTo: email, attached: mail.attachments.length > 0 })
+    // FASE IF. El botón de prueba probaba TODO menos la única pieza que el
+    // envío automático no comparte con él: cómo el cron encuentra a los
+    // suscriptores (una consulta de grupo de colecciones que exige un índice
+    // y que nunca había corrido en producción). Ahora la ejercita también y
+    // reporta el resultado, así "la prueba llega pero el automático no" deja
+    // de ser un misterio que solo los logs de la plataforma pueden resolver.
+    let cronLookup = null
+    try {
+      const flag = cadence === 'weekly' ? 'notifyWeekly' : cadence === 'monthly' ? 'notifyMonthly' : 'notifyAnnual'
+      const found = await findSubscribers(db, flag)
+      cronLookup = {
+        flag,
+        found: found.docs.length,
+        via: found.via,
+        includesYou: found.docs.some((d) => d.ref.parent.parent?.id === uid),
+        ...(found.error ? { error: found.error } : {}),
+      }
+    } catch (e) {
+      cronLookup = { error: e?.message || String(e) }
+    }
+
+    return NextResponse.json({ ok: true, sentTo: email, attached: mail.attachments.length > 0, cronLookup })
   } catch (err) {
     // El mensaje del servidor SMTP viaja de vuelta a propósito: si Zoho
     // rechaza la autenticación, saberlo aquí ahorra una ronda de logs.

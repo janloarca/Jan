@@ -76,6 +76,44 @@ const CADENCES = {
   },
 }
 
+// FASE IF. Quiénes están suscritos a una cadencia.
+//
+// La vía natural es una consulta de GRUPO DE COLECCIONES sobre `settings`,
+// pero ese tipo de consulta EXIGE un índice que Firestore no crea solo, y sin
+// él tira FAILED_PRECONDITION. Peor: esa consulta nunca se había ejecutado en
+// producción (el botón de prueba lee el doc del usuario directo, así que
+// probaba todo MENOS esto), o sea el primer envío real era la primera vez que
+// corría. Ante cualquier fallo se barre la lista de usuarios y se lee su doc
+// de preferencias: más lento, pero no depende de ningún índice. Con pocos
+// usuarios el costo es despreciable, y un correo que sale tarde es
+// infinitamente mejor que uno que no sale.
+//
+// El fallback SOLO se usa cuando la consulta FALLA, nunca cuando devuelve
+// vacío: "nadie suscrito" es una respuesta legítima y barrer a todos los
+// usuarios para confirmarla sería gastar lecturas por nada.
+export async function findSubscribers(db, flag) {
+  try {
+    const snap = await db.collectionGroup('settings').where(flag, '==', true).get()
+    return { docs: snap.docs, via: 'collectionGroup', error: null }
+  } catch (e) {
+    const reason = e?.message || String(e)
+    console.error(`[cron/notifications] collectionGroup(${flag}) failed, falling back:`, reason)
+    try {
+      const userRefs = await db.collection('users').listDocuments()
+      const docs = []
+      for (const userRef of userRefs) {
+        const prefsRef = userRef.collection('settings').doc('preferences')
+        const prefs = await prefsRef.get()
+        if (prefs.exists && prefs.data()?.[flag] === true) docs.push(prefs)
+      }
+      return { docs, via: 'userScan', error: reason }
+    } catch (e2) {
+      console.error(`[cron/notifications] user scan also failed:`, e2?.message)
+      return { docs: [], via: 'failed', error: `${reason} | scan: ${e2?.message}` }
+    }
+  }
+}
+
 export async function GET(request) {
   const secret = process.env.CRON_SECRET
   const auth = request.headers.get('authorization') || ''
@@ -103,11 +141,14 @@ export async function GET(request) {
   for (const cadence of cadences) {
     const cfg = CADENCES[cadence]
     if (!cfg) continue
-    let sent = 0, skipped = 0, failed = 0, optedIn = 0
+    let sent = 0, skipped = 0, failed = 0, optedIn = 0, via = null, lookupError = null
     try {
-      const snap = await db.collectionGroup('settings').where(cfg.flag, '==', true).get()
-      optedIn = snap.size
-      if (!snap.empty) {
+      const found = await findSubscribers(db, cfg.flag)
+      const docs = found.docs
+      via = found.via
+      lookupError = found.error
+      optedIn = docs.length
+      if (docs.length > 0) {
         // El brief de mercado es el MISMO para todos los usuarios de la
         // cadencia: se arma una sola vez por corrida, con SU ventana.
         let market = null
@@ -118,7 +159,7 @@ export async function GET(request) {
         }
 
         const dedupKey = cfg.dedupKey(now)
-        for (const doc of snap.docs) {
+        for (const doc of docs) {
           try {
             if (doc.id !== 'preferences') { skipped++; continue }
             const prefs = doc.data()
@@ -147,8 +188,12 @@ export async function GET(request) {
       }
     } catch (e) {
       console.error(`[cron/notifications] ${cadence} cadence failed:`, e.message)
+      lookupError = lookupError || e?.message || String(e)
     }
-    report[cadence] = { optedIn, sent, skipped, failed }
+    // `via` y `error` viajan en la respuesta a propósito: cuando un correo no
+    // llega, lo primero que hay que saber es si el cron encontró suscriptores
+    // y por qué vía, y eso no debería requerir leer logs de la plataforma.
+    report[cadence] = { optedIn, sent, skipped, failed, via, ...(lookupError ? { error: lookupError } : {}) }
   }
 
   mailer.transport.close()
