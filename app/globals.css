@@ -228,9 +228,24 @@ textarea:focus-visible {
 
 /* Dark mode — lift Tailwind slate grays that fall under AA contrast on the dark
    base (slate-500 #64748B ≈ 3.9:1, slate-600 #475569 ≈ 2.4:1 for small text).
-   Mirrors the light-theme override block below; hierarchy is kept by the delta. */
-:root:not([data-theme="light"]) .text-slate-500 { color: #8A94A6; }
+   Mirrors the light-theme override block below; hierarchy is kept by the delta.
+
+   LOS TRES NIVELES CANÓNICOS de texto, y qué clase es alias de cuál:
+     1. --text-primary    · .text-white       · 21.0 oscuro / 17.1 claro
+     2. --text-secondary  · .text-slate-400   ·  8.8 oscuro /  9.8 claro
+     3. --text-muted      · .text-slate-500   ·  6.7 oscuro /  7.2 claro
+   Los dos últimos NO se fusionan: son una jerarquía deliberada y los
+   comentarios de :root y [data-theme="light"] explican que ya se subieron una
+   vez a propósito. Código nuevo debería usar la variable directo; estas clases
+   quedan como alias exactos para lo que ya existe (~1000 usos, barrerlos en
+   JSX sería un diff que nadie puede revisar y cero cambio visual). */
+:root:not([data-theme="light"]) .text-slate-500 { color: var(--text-muted); }
 :root:not([data-theme="light"]) .text-slate-600 { color: #707A8A; }
+/* .text-slate-400 NO tenía regla en oscuro: se quedaba en el gris crudo de
+   Tailwind (#94a3b8) mientras en claro sí resolvía a --text-secondary. O sea el
+   MISMO JSX daba un nivel de jerarquía distinto según el tema. Ahora es
+   simétrico, y de paso sube el contraste de 7.69 a 8.75. */
+:root:not([data-theme="light"]) .text-slate-400 { color: var(--text-secondary); }
 
 /* ONE brand blue. Tailwind's blue-500 family (#3b82f6) drifted in as a second
    accent competing with the brand indigo (--accent-blue). Collapse every blue
@@ -256,7 +271,10 @@ textarea:focus-visible {
 [data-theme="light"] .text-slate-300 { color: rgba(30, 30, 50, 0.8) !important; }
 [data-theme="light"] .text-slate-400 { color: var(--text-secondary) !important; }
 [data-theme="light"] .text-slate-500 { color: var(--text-muted) !important; }
-[data-theme="light"] .text-slate-600 { color: rgba(30, 30, 50, 0.4) !important; }
+/* Era rgba(30,30,50,0.4), que compone a #A1A1AB: 2.43:1 sobre el fondo y
+   2.45:1 sobre una card blanca. Eso NO llega ni al piso de texto grande (3.0),
+   mucho menos al de texto normal (4.5), en 84 usos. #6B7280 da 4.59 y 4.83. */
+[data-theme="light"] .text-slate-600 { color: #6B7280 !important; }
 [data-theme="light"] .bg-slate-700\/20 { background-color: rgba(30, 30, 50, 0.06) !important; }
 [data-theme="light"] .bg-slate-700\/30 { background-color: rgba(30, 30, 50, 0.08) !important; }
 [data-theme="light"] .bg-slate-700\/50 { background-color: rgba(30, 30, 50, 0.12) !important; }
@@ -644,8 +662,10 @@ html.theme-transitioning *::after {
   box-shadow: 0 0 12px rgba(37, 99, 235, 0.2), var(--shadow-card);
 }
 
-/* WCAG AA: Tailwind text-slate-500 (#64748b) = 3.8:1 on dark bg — boost to ~5.6:1 */
-.text-slate-500 { color: #7c8a9c; }
+/* Aquí vivía `.text-slate-500 { color: #7c8a9c }`, una regla MUERTA: perdía por
+   especificidad contra la de oscuro (:root:not([data-theme="light"]), 0-3-0) y
+   por !important contra la de claro. Nunca pintó nada. El nivel real lo fijan
+   esas dos reglas, ambas apuntando ya a var(--text-muted). */
 
 /* WCAG 2.5.5: minimum 44x44px touch targets for close buttons */
 button[aria-label="Close"] {
