@@ -513,6 +513,30 @@ html.theme-transitioning *::after {
   background-size: 200% 100%;
 }
 
+/* ─── EL BARRIDO DE LA MARCA ───────────────────────────────────────────────
+   Una sola definición del arco que gira, compartida por los tres lugares que
+   dicen "Chispudo está trabajando": el anillo del header
+   (ChispudoRefreshButton), el splash (ChispudoLoader) y el anillo de botón
+   (BusyLabel). Antes eran tres @keyframes idénticos en tres <style jsx>
+   distintos, que es como uno se queda atrás.
+
+   Va acá y no en un <style jsx> por una razón concreta: los tres lo aplican
+   desde un `style` INLINE, y un estilo inline no puede ver un nombre de
+   keyframe con el scope de styled-jsx. La geometría del anillo (radio,
+   circunferencia, la fracción 22/78 del arco) vive aparte, en
+   `lib/brandRing.js`.
+
+   Con movimiento reducido NO se detiene, se hace lento: un indicador de
+   ocupado congelado se lee como una pantalla trabada, que es peor que el
+   movimiento que se quería evitar. */
+@keyframes chispuSweep {
+  0%   { transform: rotate(-90deg); }
+  100% { transform: rotate(270deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .busy-ring-arc { animation-duration: 2.6s !important; }
+}
+
 /* ─── EL SISTEMA DE CARDS ──────────────────────────────────────────────────
    `.card` es el tratamiento canónico. Antes convivían CUATRO: .card-glass,
    .card-primary, .card-hero, y un patrón escrito a mano sin ninguna clase

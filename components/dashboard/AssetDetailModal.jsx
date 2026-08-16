@@ -441,7 +441,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
                   })()}
                   {hp && (
                     <g>
-                      <line x1={hp.x} y1={16} x2={hp.x} y2={192} stroke="#475569" strokeDasharray="4 3" />
+                      <line x1={hp.x} y1={16} x2={hp.x} y2={192} stroke="var(--text-muted)" strokeDasharray="4 3" />
                       <circle cx={hp.x} cy={hp.y} r="4" fill={lineColor} stroke="var(--bg-card)" strokeWidth="2" />
                     </g>
                   )}

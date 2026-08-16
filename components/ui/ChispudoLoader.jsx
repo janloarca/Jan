@@ -44,10 +44,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, CircleAlert, WifiOff } from 'lucide-react'
 import { BOLT_PATH, BOLT_VIEWBOX, boltStrokeWidth } from '@/lib/brandBolt'
+import { RING_R as R, RING_C as C, sweepDash, progressDashOffset } from '@/lib/brandRing'
 
 const SIZES = { small: 28, medium: 48, large: 88 }
-const R = 13.5
-const C = 2 * Math.PI * R
 
 // Dither for the splash's background tint. A very light wash over a light
 // background BANDS, and not marginally: 7% of --accent-blue over #F8F9FB moves
@@ -249,9 +248,9 @@ export default function ChispudoLoader({
               className="chispu-loader-anim"
               style={{
                 stroke: ringColor(state),
-                strokeDasharray: `${C * 0.22} ${C * 0.78}`,
+                strokeDasharray: sweepDash(),
                 transformOrigin: '16px 16px',
-                animation: 'chispuLoaderSweep 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite',
+                animation: 'chispuSweep 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite',
               }} />
           ) : (
             <circle cx="16" cy="16" r={R} fill="none" strokeWidth={strokeW} strokeLinecap="round"
@@ -260,7 +259,7 @@ export default function ChispudoLoader({
               style={{
                 stroke: ringColor(state),
                 strokeDasharray: C,
-                strokeDashoffset: C * (1 - Math.max(0.06, (pct ?? 0) / 100)),
+                strokeDashoffset: progressDashOffset(pct, 0.06),
                 transition: 'stroke-dashoffset 320ms cubic-bezier(0.4, 0, 0.2, 1)',
               }} />
           )}
@@ -374,10 +373,10 @@ export default function ChispudoLoader({
           0%, 100% { transform: scale(1);    opacity: 0.94; }
           50%      { transform: scale(1.04); opacity: 1; }
         }
-        @keyframes chispuLoaderSweep {
-          0%   { transform: rotate(-90deg); }
-          100% { transform: rotate(270deg); }
-        }
+        /* El barrido ya no se define acá: es chispuSweep en globals.css,
+           compartido con ChispudoRefreshButton y BusyLabel. Ojo: nada de
+           backticks en un comentario DENTRO de este template literal, que lo
+           cortan por la mitad. */
         @keyframes chispuLoaderCheckIn {
           0%   { opacity: 0; transform: scale(0.5); }
           100% { opacity: 1; transform: scale(1); }

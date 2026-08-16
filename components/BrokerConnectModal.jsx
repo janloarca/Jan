@@ -22,6 +22,7 @@ import { buildBrokerConnectSteps } from '@/lib/brokerConnectSteps'
 import { connectorExplainer } from '@/lib/brokerRegistry'
 import BrokerSteps from '@/components/ui/BrokerSteps'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
+import BusyLabel from '@/components/ui/BusyLabel'
 
 const STEP_ICON = { file: FileSpreadsheet, screenshot: Camera, api: KeyRound }
 
@@ -175,7 +176,7 @@ export default function BrokerConnectModal({
                 disabled={isSyncing || (broker.id === 'ibkr' ? (!ibkrToken || !ibkrQueryId) : (step.authType !== 'oauth' && step.fields.some((f) => !brokerForm[f.key])))}
                 className="w-full py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity"
                 style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
-                {isSyncing ? '...' : step.cta}
+                {<BusyLabel busy={isSyncing} lang={lang}>{step.cta}</BusyLabel>}
               </button>
             </div>
           )}
