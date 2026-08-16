@@ -921,6 +921,12 @@ export function useFirestoreItems() {
   // entre cuentas del usuario. Todo mes ya cacheado se calculó sin esos eventos
   // (la cuenta que recibe, plana hacia atrás en su saldo alto de hoy; la que
   // envía, en su saldo bajo) y el caché nunca se autocorrige por merge.
+  // 26 (FASE IX4): /api/prices/chart pedía `days=max` a CoinGecko para cualquier
+  // tabla que abarcara más de un año, y la API pública lo RECHAZA (solo sirve
+  // 365 días), así que devolvía vacío y toda la cripto caía a "~ estimado"
+  // plano en su valor de HOY. Los meses ya cacheados guardaron ese plano (el
+  // caso real: LEGDER en ~$1,008 durante oct/nov/dic 2025, cuando la gráfica de
+  // esa misma cuenta dice ~$2,000), y el caché no se autocorrige por merge.
   //
   // El NÚMERO vive en lib/snapshotVersion.js (FASE IE): el spreadsheet adjunto
   // del correo mensual lee estos mismos docs del lado del servidor y tiene que
