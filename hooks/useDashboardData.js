@@ -1958,9 +1958,25 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // Las fuentes que compusieron el arranque de cada cuenta. Una cuenta con
     // ítems de fuentes distintas se reporta como mixta en vez de elegir una.
     const startSrcByAccount = new Map()
+    // FASE IX8. Lo que el motor SÍ midió pero el panel no pudo colgar de ninguna
+    // cuenta. Es una vía de pérdida silenciosa: la llave que devuelve el server
+    // es el id del activo (o su símbolo si no tiene id), y si no resuelve contra
+    // `accountOf` esa entrada simplemente se cae de la suma, con lo que el
+    // arranque total queda por debajo del ancla y la diferencia aparece como
+    // "Sin atribuir" sin decir de dónde salió. Se acumula para poder NOMBRARLA
+    // en vez de deducirla: la lección de FASE HP, la única que de verdad ha
+    // cortado estos casos.
+    let unmappedStart = 0
+    const unmappedKeys = []
     startByItem.forEach((v, itemId) => {
       const acct = accountOf.get(itemId)
-      if (!acct) return
+      if (!acct) {
+        if (Number.isFinite(v) && Math.abs(v) > 0.005) {
+          unmappedStart += v
+          unmappedKeys.push(itemId)
+        }
+        return
+      }
       startByAccount.set(acct, (startByAccount.get(acct) || 0) + v)
       if (!startSrcByAccount.has(acct)) startSrcByAccount.set(acct, new Set())
       startSrcByAccount.get(acct).add(srcByItem.get(itemId) || 'api')
@@ -2179,6 +2195,13 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         accounts: termAccounts, anchor: ytdStartValue,
         anchorTs: ytdStartTs, anchorSrc: ytdStartSrc,
         measuredTs: ytdEndpoints?.measuredTs ?? null,
+        // FASE IX8: arranque que el motor midió y el panel no pudo colgar de
+        // ninguna cuenta. Distinto de "Sin atribuir" (que es la diferencia
+        // contra el ancla): esto dice si parte de esa diferencia se pierde
+        // ACÁ, al agrupar, en vez de venir de que el ancla y el motor
+        // reconstruyan distinto.
+        unmappedStart: Math.abs(unmappedStart) > 0.005 ? unmappedStart : 0,
+        unmappedCount: unmappedKeys.length,
       },
       // FASE II: nombres de las cuentas cuyo arranque de año NO está medido,
       // por cualquiera de las dos razones: la reconstrucción por ítem no las
