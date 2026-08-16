@@ -7,6 +7,7 @@ import { authFetch, safeJson } from '@/lib/authFetch'
 import { buildFriendStats } from '@/lib/friendsStats'
 import { getItemValue } from '@/components/dashboard/utils'
 import PageShell, { PageTitle } from '@/components/PageShell'
+import PullToRefresh from '@/components/ui/PullToRefresh'
 import { Users, UserPlus, KeyRound } from 'lucide-react'
 import { SkeletonCard } from '@/components/dashboard/Skeleton'
 import PageTour from '@/components/dashboard/PageTour'
@@ -151,6 +152,15 @@ export default function FriendsPage() {
     } catch { /* leave prior state */ }
   }, [api])
 
+  // Refresco A PEDIDO (el gesto de jalar, y el botón del header). `refresh` por
+  // sí solo no sirve para alimentar un indicador: no dice cuándo terminó, así
+  // que el anillo se cerraría antes de que lleguen los datos.
+  const [refreshing, setRefreshing] = useState(false)
+  const handleManualRefresh = useCallback(async () => {
+    setRefreshing(true)
+    try { await refresh() } finally { setRefreshing(false) }
+  }, [refresh])
+
   // Publish my stats once data is ready, then load groups + global.
   const doSync = useCallback(async () => {
     if (!myStats.all) return
@@ -245,7 +255,17 @@ export default function FriendsPage() {
   const joinDisabled = busy || !joinCode.trim()
 
   return (
-    <PageShell user={user} lang={lang} setLang={handleSetLang} settings={settings} width="narrow">
+    <PageShell user={user} lang={lang} setLang={handleSetLang} settings={settings} width="narrow"
+      // Sin esto el botón de refrescar del header es un control MUERTO en esta
+      // pantalla: PageShell le pasa `onRefresh={() => {}}` por default, y el
+      // spread de headerProps es lo último, así que lo pisa.
+      // Sin etapas a propósito: acá el refresco es UN viaje de red (dos
+      // llamadas en paralelo), no hay sub-etapas independientes que reportar,
+      // así que el anillo barre indeterminado en vez de inventar un porcentaje.
+      headerProps={{ onRefresh: handleManualRefresh, pricesLoading: refreshing }}>
+      {/* Jalar para actualizar (FASE JH). Mismo `onRefresh` y misma señal de
+          carga que el botón de arriba, para que los dos no puedan discrepar. */}
+      <PullToRefresh onRefresh={handleManualRefresh} loading={refreshing} lang={lang} />
       <PageTour pageKey="friends" nextRoute="/dashboard" nextFlag={null} lang={lang} steps={[
         {
           tab: t('Amigos', 'Friends'),
