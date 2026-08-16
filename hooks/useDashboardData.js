@@ -13,7 +13,7 @@ import { unlinkedOpeningDeposits } from '@/lib/originDeposits'
 import { corruptSnapshotRunIds, feEraSuspectDailyIds } from '@/lib/corruptSnapshots'
 import { planEquitySnapshotWrites, misplacedPlainNavMigrations } from '@/lib/ibkrSnapshotPlan'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
-import { staleBackfillDates, buildNavByDate, composeDailyTotals, windowDates, divergentDailyDates } from '@/lib/snapshotBackfill'
+import { staleBackfillDates, buildNavByDate, composeDailyTotals, windowDates, divergentDailyDates, navAsOf } from '@/lib/snapshotBackfill'
 import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanDays, earliestNeededDays as computeEarliestNeededDays } from '@/lib/brokerCompletion'
 import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds, applyLifetimeNetConstraint } from '@/lib/inferredFlows'
 import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
@@ -2044,13 +2044,31 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // swallow the entire anchor and leaves nothing for the other accounts --
     // the panel then refuses every time and the YTD figure stops being
     // tappable at all. The un-augmented doc is the broker's own balance.
-    const brokerAnchor = findYearStartAnchor(
-      (snapshots || []).filter((s) => s && BROKER_NAV_SOURCES.includes(s._source)),
-      new Date().getFullYear()
-    )
-    const brokerStartUSD = brokerAnchor
-      ? convertSnapshot(brokerAnchor.netWorthUSD ?? brokerAnchor.totalActivosUSD ?? 0)
+    // FASE IX5. Primero, el NAV EN la fecha del ancla con la MISMA regla de
+    // arrastre con la que se compuso ese doc (lib/snapshotBackfill.js). El panel
+    // descompone el ancla que usa el encabezado, así que leer su mitad de broker
+    // con otra regla hace que la resta no cierre: el 1 de enero es feriado, el
+    // compositor arrastró el NAV del 31 de diciembre ($5,504.30) y
+    // findYearStartAnchor tomaba el PRIMER doc de enero (el 2, $5,433.96). Esos
+    // $70.34 eran el grueso del residuo "Sin atribuir".
+    const anchorDateStr = ytdStartTs != null && isFinite(ytdStartTs)
+      ? new Date(ytdStartTs).toISOString().split('T')[0]
       : null
+    const navAtAnchor = anchorDateStr
+      ? navAsOf(buildNavByDate(snapshots || []), anchorDateStr)
+      : null
+    // Respaldo para un portafolio sin docs de NAV por fecha (nada compuesto
+    // todavía): el comportamiento de siempre, la observación de arranque de año
+    // más cercana.
+    const brokerAnchor = navAtAnchor == null
+      ? findYearStartAnchor(
+        (snapshots || []).filter((s) => s && BROKER_NAV_SOURCES.includes(s._source)),
+        new Date().getFullYear()
+      )
+      : null
+    const brokerStartUSD = navAtAnchor != null
+      ? convertSnapshot(navAtAnchor)
+      : (brokerAnchor ? convertSnapshot(brokerAnchor.netWorthUSD ?? brokerAnchor.totalActivosUSD ?? 0) : null)
 
     // El arranque del broker despejado del ancla (lib/ytdAttribution.js): con
     // broker conectado el ancla es un doc compuesto (NAV real + reconstrucción
