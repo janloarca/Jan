@@ -11,6 +11,7 @@ const FINANCE_CURRENCY = 'GTQ'
 
 import Header from '@/components/dashboard/Header'
 import PullToRefresh from '@/components/ui/PullToRefresh'
+import { computeLoadStages } from '@/lib/loadStages'
 import MobileNav from '@/components/dashboard/MobileNav'
 import MonthSelector from '@/components/finance/MonthSelector'
 import FinanceSummaryCards from '@/components/finance/FinanceSummaryCards'
@@ -235,6 +236,13 @@ export default function FinancesPage() {
     router.push('/login')
   }
 
+  // Un solo cálculo para el anillo del header y para el gesto de jalar, con el
+  // helper compartido en vez de una expresión propia: acá no hay precios de
+  // mercado que cargar, así que la única etapa re-ejecutable son las tasas, y
+  // `computeLoadStages` es el que sabe no contar `dataLoading` una vez resuelto
+  // (si no, cada refresco arrancaba en un 50% que no significaba nada).
+  const loadStages = computeLoadStages({ dataLoading, ratesLoading })
+
   return (
     <div className="min-h-screen bg-theme-base">
       <a href="#main-content" className="skip-link">{t('Ir al contenido', 'Skip to content')}</a>
@@ -252,8 +260,8 @@ export default function FinancesPage() {
         onSignOut={handleSignOut}
         onRefresh={refreshRates}
         pricesLoading={ratesLoading}
-        loadStagesDone={[!dataLoading, !ratesLoading].filter(Boolean).length}
-        loadStagesTotal={2}
+        loadStagesDone={loadStages.done}
+        loadStagesTotal={loadStages.total}
         friendsEnabled={settings?.friendsEnabled !== false}
       />
       {/* Jalar hacia abajo para actualizar (FASE JF). Recibe EXACTAMENTE los
@@ -263,8 +271,8 @@ export default function FinancesPage() {
       <PullToRefresh
         onRefresh={refreshRates}
         loading={ratesLoading}
-        stagesDone={[!dataLoading, !ratesLoading].filter(Boolean).length}
-        stagesTotal={2}
+        stagesDone={loadStages.done}
+        stagesTotal={loadStages.total}
         lang={lang}
       />
       <PageTour pageKey="finances" nextRoute="/spreadsheet" nextFlag="spreadsheet" lang={lang} steps={[
