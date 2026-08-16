@@ -171,7 +171,34 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
       })
       const data = await safeJson(res)
       if (res.ok) {
-        setTestResult({ ok: true, msg: t(`Enviado a ${data?.sentTo || userEmail}. Revisa tu bandeja (y spam).`, `Sent to ${data?.sentTo || userEmail}. Check your inbox (and spam).`) })
+        // El diagnóstico del envío AUTOMÁTICO: la prueba y el cron comparten
+        // todo menos cómo se encuentra a los suscriptores, y esa pieza es
+        // justamente la que puede fallar sola (FASE IF).
+        const cl = data?.cronLookup
+        // El fallback (userScan) funciona, pero significa que la consulta
+        // rápida está fallando: el motivo suele traer el enlace exacto para
+        // crear el índice que falta, y esconderlo sería dejar el problema de
+        // raíz sin arreglar detrás de un mensaje en verde (FASE IF3).
+        const slow = cl?.via === 'userScan'
+          ? t(` Está usando el camino lento porque la consulta rápida falla: ${cl.error || 'sin detalle'}`, ` It is using the slow path because the fast query fails: ${cl.error || 'no detail'}`)
+          : ''
+        const auto = cl
+          ? (cl.includesYou
+            ? t(` El envío automático te encuentra correctamente (vía ${cl.via}).`, ` The scheduled send finds you correctly (via ${cl.via}).`) + slow
+            : t(` OJO: el envío automático NO te encuentra (${cl.error || 'revisa que el interruptor esté encendido'}).`, ` HEADS UP: the scheduled send does NOT find you (${cl.error || 'check the toggle is on'}).`))
+          : ''
+        // Cuándo corrió el cron por última vez: sin este dato, "no me llegó"
+        // no distingue entre un cron que nunca se ejecutó y uno que sí corrió
+        // pero no envió (FASE IF2).
+        const lr = data?.lastCronRun
+        const runMsg = lr?.at
+          ? t(` Última corrida automática: ${new Date(lr.at).toLocaleString()} (${lr.result || 'sin detalle'}).`,
+              ` Last scheduled run: ${new Date(lr.at).toLocaleString()} (${lr.result || 'no detail'}).`)
+          : t(' El envío automático NUNCA ha corrido todavía.', ' The scheduled send has NEVER run yet.')
+        setTestResult({
+          ok: !cl || cl.includesYou,
+          msg: t(`Enviado a ${data?.sentTo || userEmail}. Revisa tu bandeja (y spam).`, `Sent to ${data?.sentTo || userEmail}. Check your inbox (and spam).`) + auto + runMsg,
+        })
       } else {
         // El mensaje del servidor SMTP se muestra tal cual: si Zoho rechaza la
         // autenticación, verlo aquí ahorra una ronda de logs. La excepción es
