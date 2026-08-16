@@ -175,9 +175,16 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
         // todo menos cómo se encuentra a los suscriptores, y esa pieza es
         // justamente la que puede fallar sola (FASE IF).
         const cl = data?.cronLookup
+        // El fallback (userScan) funciona, pero significa que la consulta
+        // rápida está fallando: el motivo suele traer el enlace exacto para
+        // crear el índice que falta, y esconderlo sería dejar el problema de
+        // raíz sin arreglar detrás de un mensaje en verde (FASE IF3).
+        const slow = cl?.via === 'userScan'
+          ? t(` Está usando el camino lento porque la consulta rápida falla: ${cl.error || 'sin detalle'}`, ` It is using the slow path because the fast query fails: ${cl.error || 'no detail'}`)
+          : ''
         const auto = cl
           ? (cl.includesYou
-            ? t(` El envío automático te encuentra correctamente (vía ${cl.via}).`, ` The scheduled send finds you correctly (via ${cl.via}).`)
+            ? t(` El envío automático te encuentra correctamente (vía ${cl.via}).`, ` The scheduled send finds you correctly (via ${cl.via}).`) + slow
             : t(` OJO: el envío automático NO te encuentra (${cl.error || 'revisa que el interruptor esté encendido'}).`, ` HEADS UP: the scheduled send does NOT find you (${cl.error || 'check the toggle is on'}).`))
           : ''
         // Cuándo corrió el cron por última vez: sin este dato, "no me llegó"
