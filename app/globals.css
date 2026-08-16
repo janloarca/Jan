@@ -513,6 +513,22 @@ html.theme-transitioning *::after {
   background-size: 200% 100%;
 }
 
+/* ─── JALAR PARA ACTUALIZAR ────────────────────────────────────────────────
+   Solo mientras `components/ui/PullToRefresh.jsx` está montado, o sea solo en
+   el tablero. El componente pone y quita `data-ptr` en <html> (mismo patrón
+   que `data-journey` más abajo), así que en Finanzas, Hoja, Amigos y Costos
+   esta regla no existe y el gesto NATIVO de Safari sigue recargando la página,
+   que es la salida de emergencia cuando la app se queda pegada a un build
+   viejo (FASES HK/HM).
+
+   `contain` y no `none` a propósito: corta el encadenamiento del scroll y el
+   refresco nativo, pero conserva el rebote elástico dentro del elemento, que
+   es parte de cómo se siente la página en iOS. */
+html[data-ptr="on"],
+html[data-ptr="on"] body {
+  overscroll-behavior-y: contain;
+}
+
 /* ─── EL BARRIDO DE LA MARCA ───────────────────────────────────────────────
    Una sola definición del arco que gira, compartida por los tres lugares que
    dicen "Chispudo está trabajando": el anillo del header
