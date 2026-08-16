@@ -36,9 +36,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { RefreshCw, Zap, Check, CircleAlert } from 'lucide-react'
+import { RING_R as R, RING_C as C, sweepDash, progressDashOffset } from '@/lib/brandRing'
 
-const R = 13.5
-const C = 2 * Math.PI * R
 // Mínimo táctil de iOS. El control puede verse más chico (en el header mide 36
 // para compartir la banda con el resto de la fila) sin bajar de esto al tocar.
 const TOUCH_TARGET = 44
@@ -213,7 +212,7 @@ export default function ChispudoRefreshButton({
               className="chispu-anim"
               style={{
                 stroke: ringColor,
-                strokeDasharray: `${C * 0.22} ${C * 0.78}`,
+                strokeDasharray: sweepDash(),
                 transformOrigin: '16px 16px',
                 animation: 'chispuSweep 1.1s linear infinite',
               }} />
@@ -227,7 +226,7 @@ export default function ChispudoRefreshButton({
                 stroke: ringColor,
                 opacity: ringOpacity,
                 strokeDasharray: C,
-                strokeDashoffset: C * (1 - Math.max(0.08, (ringPct ?? 0) / 100)),
+                strokeDashoffset: progressDashOffset(ringPct, 0.08),
                 transition: 'stroke-dashoffset 320ms cubic-bezier(0.4, 0, 0.2, 1), stroke 250ms ease-out',
               }} />
           )}
@@ -276,10 +275,8 @@ export default function ChispudoRefreshButton({
           0%   { opacity: 1;   transform: translate(-50%, -50%) rotate(var(--a, 0deg)) translateY(0)   scale(1); }
           100% { opacity: 0;   transform: translate(-50%, -50%) rotate(var(--a, 0deg)) translateY(-16px) scale(0.4); }
         }
-        @keyframes chispuSweep {
-          0%   { transform: rotate(-90deg); }
-          100% { transform: rotate(270deg); }
-        }
+        /* chispuSweep ya no se define acá: vive en globals.css, compartido con
+           ChispudoLoader y BusyLabel. Eran tres copias idénticas. */
         @keyframes chispuCheckIn {
           0%   { opacity: 0; transform: scale(0.5); }
           100% { opacity: 1; transform: scale(1); }

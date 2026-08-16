@@ -87,7 +87,10 @@ export default function ValueBreakdown({ items, lang }) {
         {/* Donut */}
         <div className="relative shrink-0">
           <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-            <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#38383A" strokeWidth={strokeWidth} />
+            {/* La pista de la dona: token de tema, no un gris fijo. #38383A es un gris
+                de tema OSCURO, así que en tema claro dibujaba un aro oscuro y pesado
+                alrededor de una card blanca. */}
+            <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="var(--card-border)" strokeWidth={strokeWidth} />
             {data.map((seg) => {
               const dash = (seg.pct / 100) * circumference
               const gap = circumference - dash

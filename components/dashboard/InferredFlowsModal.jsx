@@ -11,6 +11,7 @@
 import { useState } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { formatCurrency, formatDate } from './utils'
+import BusyLabel from '@/components/ui/BusyLabel'
 
 export default function InferredFlowsModal({
   candidates = [], reconciliation = null, onClose, onAccept, onDismiss, lang = 'es',
@@ -147,7 +148,7 @@ export default function InferredFlowsModal({
                   <button type="button" disabled={busy} onClick={() => accept(c)}
                     className="flex-1 py-1.5 text-xs font-medium rounded-lg text-white disabled:opacity-50"
                     style={{ backgroundColor: 'var(--accent-blue-strong, #2563eb)' }}>
-                    {busy ? '...' : t('Sí, registrarlo', 'Yes, record it')}
+                    {<BusyLabel busy={busy} lang={lang}>{t('Sí, registrarlo', 'Yes, record it')}</BusyLabel>}
                   </button>
                 </div>
               </div>

@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { currencyOptions } from '@/lib/currencies'
+import BusyLabel from '@/components/ui/BusyLabel'
 
 const TYPE_ICONS = { Stock: '📈', Crypto: '₿', Fund: '💼', Inmueble: '🏠', Bank: '🏦', Inversion: '🏛' }
 
@@ -486,7 +487,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
             <button type="button" onClick={handleSave} disabled={saving}
               className="px-5 py-2.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors text-xs font-medium"
               style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}>
-              {saving ? '...' : t('Guardar →', 'Save →')}
+              {<BusyLabel busy={saving} lang={lang}>{t('Guardar →', 'Save →')}</BusyLabel>}
             </button>
           </div>
         </div>

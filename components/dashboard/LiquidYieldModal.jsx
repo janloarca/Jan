@@ -15,6 +15,7 @@
 import { useState } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { formatCurrency, formatDate } from './utils'
+import BusyLabel from '@/components/ui/BusyLabel'
 
 const KIND_LABEL = {
   deposit: ['Depósito', 'Deposit'],
@@ -30,7 +31,7 @@ const KIND_LABEL = {
 // dos totales: si un retiro que el usuario ve en su lista no aparece acá, ya
 // sabemos que el problema es cómo quedó archivado ese movimiento, y si aparece,
 // lo que falta es otro movimiento distinto.
-function Movements({ list, cur, t, total, onDelete, candidate }) {
+function Movements({ list, cur, t, lang, total, onDelete, candidate }) {
   const [confirmId, setConfirmId] = useState(null)
   const [busyId, setBusyId] = useState(null)
   if (!list || list.length === 0) return null
@@ -60,7 +61,7 @@ function Movements({ list, cur, t, total, onDelete, candidate }) {
                 style={confirmId === m.txId
                   ? { color: 'var(--alert-error-icon)', backgroundColor: 'var(--alert-error-bg)', fontWeight: 600 }
                   : { color: 'var(--text-muted)' }}>
-                {busyId === m.txId ? '...' : confirmId === m.txId ? t('¿Seguro?', 'Sure?') : t('No pasó', 'Did not happen')}
+                {<BusyLabel busy={busyId === m.txId} lang={lang}>{confirmId === m.txId ? t('¿Seguro?', 'Sure?') : t('No pasó', 'Did not happen')}</BusyLabel>}
               </button>
             )}
           </span>
@@ -157,7 +158,7 @@ export default function LiquidYieldModal({
                       {t('Eso no es rendimiento negativo: falta un movimiento por registrar. Abajo está exactamente lo que contamos, para que veas cuál falta. No se escribe nada hasta que lo revises.',
                          'That is not a negative yield: a movement is missing. Below is exactly what we counted, so you can see which one. Nothing is written until you check.')}
                     </p>
-                    <Movements list={c.contributions} cur={cur} t={t} total={c.contributed} onDelete={onDeleteMovement} candidate={c} />
+                    <Movements list={c.contributions} cur={cur} t={t} lang={lang} total={c.contributed} onDelete={onDeleteMovement} candidate={c} />
                     {/* FASE HV6. El desglose deja de ser solo un informe. Mirando
                         la lista solo hay dos desenlaces, y cada uno tiene su
                         botón: falta una salida (se registra, con el monto ya
@@ -188,7 +189,7 @@ export default function LiquidYieldModal({
                       {t('Los movimientos explican tu saldo completo: no hay rendimiento que registrar.',
                          'Your movements explain the whole balance: there is no yield to record.')}
                     </p>
-                    <Movements list={c.contributions} cur={cur} t={t} total={c.contributed} onDelete={onDeleteMovement} candidate={c} />
+                    <Movements list={c.contributions} cur={cur} t={t} lang={lang} total={c.contributed} onDelete={onDeleteMovement} candidate={c} />
                   </>
                 ) : (
                   <>
@@ -239,7 +240,7 @@ export default function LiquidYieldModal({
                         <p className="text-[11px] mb-1" style={{ color: 'var(--text-muted)' }}>
                           {t('Lo que contamos como que entró:', 'What we counted as going in:')}
                         </p>
-                        <Movements list={c.contributions} cur={cur} t={t} total={c.contributed} onDelete={onDeleteMovement} candidate={c} />
+                        <Movements list={c.contributions} cur={cur} t={t} lang={lang} total={c.contributed} onDelete={onDeleteMovement} candidate={c} />
                         <p className="text-[11px] mb-1" style={{ color: 'var(--text-muted)' }}>
                           {t('Cómo se reparte el rendimiento:', 'How the yield is spread:')}
                         </p>
@@ -273,7 +274,7 @@ export default function LiquidYieldModal({
                     <button type="button" disabled={busy} onClick={() => run(c, onAccept)}
                       className="flex-1 py-1.5 text-xs font-medium rounded-lg text-white disabled:opacity-50"
                       style={{ backgroundColor: 'var(--accent-blue-strong, #2563eb)' }}>
-                      {busy ? '...' : t('Sí, registrarlo', 'Yes, record it')}
+                      {<BusyLabel busy={busy} lang={lang}>{t('Sí, registrarlo', 'Yes, record it')}</BusyLabel>}
                     </button>
                   )}
                 </div>

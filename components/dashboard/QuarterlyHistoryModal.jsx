@@ -23,6 +23,7 @@ import { authFetch } from '@/lib/authFetch'
 import { quartersBetween, quarterSnapshotDate, formatCurrency } from './utils'
 import BrokerSteps from '@/components/ui/BrokerSteps'
 import { CURRENCIES, currencyOptions } from '@/lib/currencies'
+import BusyLabel from '@/components/ui/BusyLabel'
 
 
 // Made-up figures. The point is the SHAPE of what to read off the chart, not a
@@ -524,7 +525,7 @@ export default function QuarterlyHistoryModal({
           <button type="button" onClick={save} disabled={saving || filledCount === 0}
             className="flex-1 py-2 text-body font-medium rounded-lg text-white disabled:opacity-50"
             style={{ backgroundColor: 'var(--accent-blue-strong, #2563eb)' }}>
-            {saving ? '...' : t(`Guardar ${filledCount || ''}`.trim(), `Save ${filledCount || ''}`.trim())}
+            {<BusyLabel busy={saving} lang={lang}>{t(`Guardar ${filledCount || ''}`.trim(), `Save ${filledCount || ''}`.trim())}</BusyLabel>}
           </button>
         </div>
       </div>

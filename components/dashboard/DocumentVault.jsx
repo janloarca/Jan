@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useDocumentVault } from '@/hooks/useDocumentVault'
+import BusyLabel from '@/components/ui/BusyLabel'
 
 const FILE_ICONS = {
   'application/pdf': '📄',
@@ -76,7 +77,7 @@ export default function DocumentVault({ uid, itemId, lang }) {
           {docs.length > 0 && <span className="text-slate-600">({docs.length})</span>}
         </h4>
         <label className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer" style={{ backgroundColor: 'rgba(37,99,235,0.2)', color: 'var(--accent-blue)' }}>
-          {uploading ? '...' : `+ ${t('Subir', 'Upload')}`}
+          {<BusyLabel busy={uploading} lang={lang}>{`+ ${t('Subir', 'Upload')}`}</BusyLabel>}
           <input ref={fileRef} type="file" className="hidden" onChange={handleUpload} disabled={uploading}
             accept=".pdf,.jpg,.jpeg,.png,.webp,.xlsx,.xls,.csv" />
         </label>

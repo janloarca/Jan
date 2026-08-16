@@ -8,6 +8,7 @@ import InlineCreateAccount from './InlineCreateAccount'
 import FormSection from './FormSection'
 import { InfoTip } from './ui/Tooltip'
 import { currencyOptions } from '@/lib/currencies'
+import BusyLabel from '@/components/ui/BusyLabel'
 
 const ACCOUNT_TYPES = [
   { key: 'taxable', es: 'Tributaria', en: 'Taxable' },
@@ -920,7 +921,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                     <button type="button" onClick={handleContribution} disabled={contribSaving || !contribAmount || parseFloat(contribAmount) <= 0}
                       className="flex-1 px-3 py-2 text-xs font-medium rounded-lg disabled:opacity-40"
                       style={{ backgroundColor: contribType === 'add' ? 'var(--accent-green)' : 'var(--text-negative)', color: '#ffffff' }}>
-                      {contribSaving ? '...' : t('Registrar', 'Record')}
+                      {<BusyLabel busy={contribSaving} lang={lang}>{t('Registrar', 'Record')}</BusyLabel>}
                     </button>
                   </div>
                 </div>
@@ -994,7 +995,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                               <button type="button" onClick={() => handleSaveTx(tx)} disabled={savingTxId === tx.id}
                                 className="flex-1 px-2 py-1.5 text-xs font-medium rounded text-white disabled:opacity-50"
                                 style={{ backgroundColor: 'var(--accent-blue-strong, #2563eb)' }}>
-                                {savingTxId === tx.id ? '...' : t('Guardar', 'Save')}
+                                {<BusyLabel busy={savingTxId === tx.id} lang={lang}>{t('Guardar', 'Save')}</BusyLabel>}
                               </button>
                             </div>
                           </div>
@@ -1046,7 +1047,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                                   ? { color: '#ffffff', backgroundColor: 'var(--text-negative)', borderColor: 'var(--text-negative)' }
                                   : { color: 'var(--text-muted)', borderColor: 'var(--card-border,#38383A)' }}
                                 title={t('Borrar este movimiento (ej. un duplicado)', 'Delete this movement (e.g. a duplicate)')}>
-                                {deletingTxId === tx.id ? '...' : confirming ? t('Confirmar', 'Confirm') : t('Borrar', 'Delete')}
+                                {<BusyLabel busy={deletingTxId === tx.id} lang={lang}>{confirming ? t('Confirmar', 'Confirm') : t('Borrar', 'Delete')}</BusyLabel>}
                               </button>
                             )}
                           </span>
@@ -1789,7 +1790,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               <button type="submit" disabled={saving}
                 className="flex-1 sm:flex-none px-6 py-2.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors text-sm font-medium"
                 style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}>
-                {saving ? '...' : onNavigate ? t('Guardar →', 'Save →') : t('Guardar', 'Save')}
+                {<BusyLabel busy={saving} lang={lang}>{onNavigate ? t('Guardar →', 'Save →') : t('Guardar', 'Save')}</BusyLabel>}
               </button>
             </div>
           </div>

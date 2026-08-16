@@ -14,6 +14,7 @@ import { BENCHMARKS } from '@/hooks/useBenchmark'
 import { disconnectAllSyncs, IBKR_DISCONNECTED_FIELDS } from '@/lib/brokerRegistry'
 import { useEdgeFade } from '@/hooks/useEdgeFade'
 import { isFirestoreQuotaError } from '@/lib/firestoreErrors'
+import BusyLabel from '@/components/ui/BusyLabel'
 
 const CURRENCIES = [
   { code: 'USD', name: 'US Dollar', symbol: '$' },
@@ -669,7 +670,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               </SectionCard>
 
               <button onClick={handleSave} disabled={saving} className="btn-primary w-full">
-                {saving ? '...' : t('Guardar configuracion', 'Save settings')}
+                {<BusyLabel busy={saving} lang={lang}>{t('Guardar configuracion', 'Save settings')}</BusyLabel>}
               </button>
             </div>
           )}
@@ -832,7 +833,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                   <div className="flex gap-2">
                     <button onClick={handleCreateShare} disabled={shareLoading || !canCreate}
                       className="flex-1 py-2 rounded-lg hover:bg-emerald-500 disabled:opacity-50 text-xs font-medium" style={{ color: '#ffffff', backgroundColor: 'var(--accent-green)' }}>
-                      {shareLoading ? '...' : t('Crear y copiar link', 'Create & copy link')}
+                      {<BusyLabel busy={shareLoading} lang={lang}>{t('Crear y copiar link', 'Create & copy link')}</BusyLabel>}
                     </button>
                     <button onClick={() => setShareCreating(false)}
                       className="px-3 py-2 border border-glass-border text-xs rounded-lg hover:bg-theme-elevated transition-colors" style={{ color: 'var(--text-secondary)' }}>
@@ -896,8 +897,9 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                         style={armed
                           ? { backgroundColor: 'var(--text-negative)', color: '#ffffff', borderColor: 'var(--text-negative)' }
                           : { color: 'var(--text-negative)', borderColor: 'rgba(239,68,68,0.3)' }}>
-                        {busy && <span className="inline-block w-3 h-3 rounded-full border-2 border-white/40 border-t-white animate-spin" />}
-                        {busy ? t('Borrando…', 'Deleting…') : armed ? t('Confirmar', 'Confirm') : t('Eliminar', 'Delete')}
+                        <BusyLabel busy={busy} lang={lang} busyLabel={t('Borrando…', 'Deleting…')}>
+                          {armed ? t('Confirmar', 'Confirm') : t('Eliminar', 'Delete')}
+                        </BusyLabel>
                       </button>
                     </div>
                     <div className="overflow-hidden transition-all duration-200 ease-out"

@@ -15,6 +15,7 @@ import { validateItem, sanitizeImportItem, sanitizeCell } from '@/lib/validation
 import { getBrokerHowTo } from '@/lib/brokerHowTo'
 import BrokerSteps from '@/components/ui/BrokerSteps'
 import { reconcileBrokerPositions } from '@/lib/brokerReconcile'
+import ChispudoLoader from '@/components/ui/ChispudoLoader'
 
 // Default institution stamped on imported items when the import was opened for a
 // specific broker (brokerHint) and the file itself has no institution column —
@@ -839,7 +840,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
               >
                 {pdfReading ? (
                   <div className="py-4">
-                    <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin mx-auto mb-3" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
+                    <div className="flex justify-center mb-3"><ChispudoLoader mode="inline" size={24} state="section-loading" lang={lang} /></div>
                     <p className="text-white font-medium mb-1">{t('Chispu está leyendo tu PDF con IA...', 'Chispu is reading your PDF with AI...')}</p>
                     <p className="text-slate-500 text-sm">{t('Un estado grande puede tardar hasta medio minuto', 'A large statement can take up to half a minute')}</p>
                   </div>
