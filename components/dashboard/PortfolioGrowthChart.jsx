@@ -1455,9 +1455,26 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     }))
   }, [geo, contributionLine, shownMode, showContributions, chartHeight, pad])
 
+  // FASE IX3. Las etiquetas se eligen por ÍNDICE (cada `step` puntos) pero se
+  // dibujan en X proporcional al TIEMPO, y las dos cosas no coinciden cuando la
+  // serie tiene densidad despareja: en ALL, los años viejos son puntos semanales
+  // sintetizados y los meses recientes son diarios, así que índices repartidos
+  // parejo caen amontonados en el tramo denso. El resultado es el eje ilegible
+  // de la captura del usuario ("ago0ct25ene26feb26mar26abr26jun26ago 26", todo
+  // encimado). Se filtra por SEPARACIÓN REAL en píxeles, que es la unidad en la
+  // que de verdad chocan; un eje que ya venía separado no cambia.
   const resolvedXLabels = useMemo(() => {
     if (!geo) return []
-    return xLabels.map((xl) => ({ ...xl, x: geo.points[xl.idx]?.x })).filter((xl) => xl.x != null)
+    const placed = xLabels
+      .map((xl) => ({ ...xl, x: geo.points[xl.idx]?.x }))
+      .filter((xl) => xl.x != null)
+      .sort((a, b) => a.x - b.x)
+    const MIN_GAP_PX = 46
+    const out = []
+    for (const xl of placed) {
+      if (out.length === 0 || xl.x - out[out.length - 1].x >= MIN_GAP_PX) out.push(xl)
+    }
+    return out
   }, [xLabels, geo])
 
 
@@ -1528,8 +1545,18 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   // Annualized (CAGR) companion for multi-year spans — "+180% ALL" over 6 years is
   // easy to misread as a yearly figure.
   const spanYears = chartData.length > 1 ? (chartData[chartData.length - 1].ts - chartData[0].ts) / (365.25 * 86400000) : 0
-  const cagrPct = spanYears > 1.5 && firstVal > 0 && lastVal > 0
-    ? (Math.pow(lastVal / firstVal, 1 / spanYears) - 1) * 100
+  // FASE IX3. Anualiza LA MISMA cantidad que el encabezado, no el crecimiento
+  // bruto del saldo. Con `lastVal / firstVal` el acompañante medía la razón
+  // cruda entre el primer y el último punto, que en un portafolio que recibió
+  // aportes es sobre todo el dinero que metiste: al lado de un encabezado que
+  // dice "+14.82% ALL · sin contar $19,063.81 de aportes" imprimía
+  // "≈ +76.0%/año", o sea el mismo período anualizado a cinco veces su propio
+  // encabezado. Es la misma contradicción de FASE IX2 (un acompañante que no
+  // netea lo que su número sí netea), una línea más abajo. Ahora es el espejo
+  // exacto de annualizedReturn, que ya hacía lo correcto para las pestañas de
+  // rendimiento. Guard de la base (1 + r) > 0: un -100% no tiene raíz real.
+  const cagrPct = spanYears > 1.5 && growthPct != null && (1 + growthPct / 100) > 0
+    ? (Math.pow(1 + growthPct / 100, 1 / spanYears) - 1) * 100
     : null
   // Same annualized companion for the performance modes: a cumulative "+180%
   // TWR" over 6 years reads as a yearly figure without it. Guard the base
