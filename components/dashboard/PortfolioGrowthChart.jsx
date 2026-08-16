@@ -1523,7 +1523,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   // The actual math lives in computeWindowGrowth (utils.js), pinned by a test
   // that recalculates the XOCHI+VITALI regression case above with the real
   // function.
-  const { growthPct, displayAbs } = computeWindowGrowth({ firstVal, lastVal, investedBase, entryFeesInScope })
+  const { growthPct, displayAbs, newCapitalPrincipal } = computeWindowGrowth({ firstVal, lastVal, investedBase, entryFeesInScope })
   const lastReturn = activeReturnData.length > 0 ? activeReturnData[activeReturnData.length - 1] : 0
   // Annualized (CAGR) companion for multi-year spans — "+180% ALL" over 6 years is
   // easy to misread as a yearly figure.
@@ -1733,9 +1733,23 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                 ? `${t('desde', 'since')} ${formatDate(new Date(valueRebasedFrom).toISOString())}`
                 : period === 'YTD' ? t('este año', 'this year') : period === 'DAY' ? t('hoy', 'today') : period === 'CUSTOM' ? t('rango', 'range') : period}
             </span>
-            {/* Raw NAV delta — deposits count as "growth" here. The deposit-adjusted
-                return lives in the YTD badge (Dietz) and the Performance tab. */}
-            <span className="text-xs text-slate-600 ml-1.5">{t('· incluye depósitos', '· includes deposits')}</span>
+            {/* FASE IX2. Este rótulo decía "incluye depósitos" y el comentario que
+                tenía encima decía "raw NAV delta - deposits count as growth here",
+                pero el número que está a su lado es `displayAbs`, y desde FASE EC
+                computeWindowGrowth le RESTA el capital nuevo (growthAbs -
+                newCapitalPrincipal). O sea el rótulo afirmaba lo contrario de lo
+                que imprime: una vista de 1 año cuya línea va de ~$12.5K a ~$27.2K
+                encabezaba "-$1,257.95 · incluye depósitos", que solo se puede leer
+                como que algo está roto. Lo que de verdad pasó es que la ventana
+                trajo ~$15K de aportes y el portafolio, sin contarlos, perdió eso.
+                Ahora el rótulo dice qué se descontó, y solo aparece cuando de
+                verdad se descontó algo (sin aportes en la ventana no hay nada que
+                aclarar). Cero contacto con el número: la fórmula no se tocó. */}
+            {newCapitalPrincipal > 0.005 && (
+              <span className="text-xs text-slate-600 ml-1.5">
+                {t('· sin contar', '· net of')} {formatCurrency(newCapitalPrincipal)} {t('de aportes', 'in contributions')}
+              </span>
+            )}
             {cagrPct != null && (
               <span className="text-xs text-slate-500 ml-1.5 font-mono tabular-nums">≈ {cagrPct >= 0 ? '+' : ''}{cagrPct.toFixed(1)}%/{t('año', 'yr')}</span>
             )}
