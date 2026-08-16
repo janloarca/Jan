@@ -1521,7 +1521,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                 const val = isCurrent ? grandTotal : (monthlyTotals[mk] || null)
                 const isFallback = !isCurrent && val != null && fallbackMonths.has(mk)
                 return (
-                  <td key={mk} className="text-right py-3.5 px-2 font-black tabular-nums font-mono text-base" style={isCurrent ? { backgroundColor: CURRENT_COL_BG, color: 'var(--text-primary)' } : { color: val ? 'var(--text-secondary)' : 'var(--text-muted)' }}
+                  <td key={mk} className="text-right py-3.5 px-2 font-bold tabular-nums font-mono text-base" style={isCurrent ? { backgroundColor: CURRENT_COL_BG, color: 'var(--text-primary)' } : { color: val ? 'var(--text-secondary)' : 'var(--text-muted)' }}
                     title={isFallback ? t('Valor total del snapshot (sin desglose por categoría para este mes)', 'Snapshot total (no per-category breakdown for this month)') : undefined}>
                     {val ? formatCurrency(val) : '-'}{isFallback ? <span style={{ color: 'var(--text-muted)' }}>*</span> : null}
                   </td>

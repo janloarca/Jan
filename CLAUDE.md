@@ -485,14 +485,44 @@ borra, pero no se edita ni se re-vincula (el movimiento vive en el origen).
 
 Seis clases invertidas con color (`stocks/bonds/funds/crypto/realestate/
 alternatives`); efectivo, por cobrar y "otros" son neutros a propósito. Elegida
-en OKLCH y VERIFICADA con `scripts/validate_palette.js` del skill `dataviz`, no
-a ojo: banda de luminosidad para tema claro y oscuro, piso de croma, y el par
-más cercano en visión normal a ΔE 18 (la paleta vieja tenía pares bajo 8: tres
-morados casi idénticos en stocks/funds/alternatives). El par más apretado en
-daltonismo queda en ΔE 6, por eso TODO lugar donde salen estos colores imprime
-también el nombre de la clase: la identidad nunca la carga el color solo.
-**Seis es el techo:** un séptimo tono tumba a otro bajo el piso legible, así que
-lo que sobre se agrupa en un "Otros" neutro.
+en OKLCH, no a ojo: banda de luminosidad para tema claro y oscuro, piso de
+croma, y el par más cercano en visión normal a ΔE 18.10, bonds vs realestate
+(la paleta vieja tenía pares bajo 8: tres morados casi idénticos en
+stocks/funds/alternatives). **Seis es el techo:** un séptimo tono tumba a otro
+bajo el piso legible, así que lo que sobre se agrupa en un "Otros" neutro.
+
+**⛔ Ahora se hace cumplir, ya no es solo prosa (FASE IY).** Durante mucho
+tiempo este párrafo citó `scripts/validate_palette.js`, un script de un skill
+EXTERNO que nunca estuvo en este repo: no había carpeta `scripts/`, ni tarea
+npm, ni test, ni hook, así que nada habría fallado si alguien le subía la
+saturación a un color. `lib/colorMath.js` (OKLab/OKLCH, ΔE, simulación de
+daltonismo por Viénot 1999, contraste WCAG; todo a mano porque no hay librería
+de color instalada) más `lib/__tests__/palette.test.js` miden cada afirmación
+de arriba. Verificado que el guardián falla DE VERDAD: subirle la saturación a
+`bonds` tumba 3 tests y convertir un neutral en un séptimo tono tumba 2.
+`lib/__tests__/colorMath.test.js` prueba los conversores contra anclas
+conocidas, porque si no el test de paleta podría pasar por la razón equivocada
+(y de hecho atrapó un error real mío: había aplicado la proyección de
+daltonismo directo sobre RGB en vez de convertir a espacio LMS primero).
+
+**Corrección de un número que estaba mal.** Este archivo y `lib/colors.js`
+afirmaban "el par más apretado en daltonismo queda en ΔE 6". Eso es cierto
+para UN tipo, no en general. Medido: protanopia 8.18 (funds vs stocks),
+deuteranopia 6.27 (realestate vs alternatives, que es justo el "verde profundo
+vs magenta" que el comentario describía), y **tritanopía 3.27** (alternatives
+vs funds), que NO llega a 6. La tritanopía aplana magenta contra morado y no
+hay color que lo arregle sin rehacer la paleta; se acepta a conciencia por su
+prevalencia (~0.01%) y porque la mitigación real es otra: TODO lugar donde
+salen estos colores imprime también el nombre de la clase, así que la identidad
+nunca la carga el color solo. El test de tritanopía tiene su propio nombre y su
+propio piso justamente para no esconder eso detrás de un umbral cómodo.
+
+Colisiones conocidas entre `SEMANTIC` y `CATEGORY`, fijadas en el test para que
+no empeoren en silencio pero NO forzadas (arreglarlas es cambiar la paleta, o
+sea decisión de producto): `warning` vs `crypto` están a ΔE **2.34**, o sea son
+el mismo naranja. Vale notar que el comentario de `lib/colors.js` se felicitaba
+por haber arreglado una colisión más leve (verde inmobiliario vs verde de
+ganancia, que mide 9.76) mientras esta pasaba desapercibida.
 
 ## Copy / texto visible — reglas del usuario
 
