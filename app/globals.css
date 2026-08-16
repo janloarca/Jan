@@ -42,6 +42,11 @@
   --glass-border: 1px solid rgba(255, 255, 255, 0.08);
   --glass-border-color: rgba(255, 255, 255, 0.08);
   --glass-shine: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  /* Bloque gris de los skeletons. Token propio y no --bg-card-hover, que en tema
+     claro es #FFFFFF: sobre una card blanca eso hacía que TODO placeholder de
+     carga fuera literalmente invisible. Este valor reproduce exacto lo que el
+     tema oscuro ya renderizaba (rgb(35,35,55) al 0.7 por opacidad 0.5 = 0.35). */
+  --skeleton-base: rgba(35, 35, 55, 0.35);
 }
 
 [data-theme="light"] {
@@ -85,6 +90,7 @@
   --glass-border: 1px solid #E5E7EB;
   --glass-border-color: #E5E7EB;
   --glass-shine: none;
+  --skeleton-base: #E8EAEE;
 }
 
 /* Semantic alert tints (info / warning / error / success) — theme-aware so the
@@ -507,30 +513,83 @@ html.theme-transitioning *::after {
   background-size: 200% 100%;
 }
 
-/* Card depth system — glassmorphism with shadows + blur */
-.card-hero {
-  box-shadow: var(--shadow-elevated);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+/* ─── EL SISTEMA DE CARDS ──────────────────────────────────────────────────
+   `.card` es el tratamiento canónico. Antes convivían CUATRO: .card-glass,
+   .card-primary, .card-hero, y un patrón escrito a mano sin ninguna clase
+   (`bg-theme-card/80 rounded-xl border border-glass-border/50`) que NO tenía
+   ni sombra ni radio de 16. Dos cards lado a lado en la misma grilla usaban
+   fondos, radios y hover distintos.
+
+   Por qué importaba de verdad, medido y no a ojo: en tema claro una card
+   blanca sobre el fondo #F8F9FB da 1.053:1 de contraste, y el borde al 50% de
+   ese patrón compone a #EFF0F3, o sea 1.082:1. Prácticamente no tenían borde.
+   Con el borde completo (#E5E7EB, 1.175:1) más la sombra, por fin se ven.
+
+   Tres niveles, y solo tres:
+     · .card            → toda card del tablero
+     · .card card-hero  → una sola (NetWorthCard), sombra más profunda
+     · rounded-lg ...   → paneles ANIDADOS dentro de una card. No son cards y
+                          no llevan esta clase.
+
+   No necesita bloque de tema claro: --bg-card ya es #FFFFFF ahí, --glass-border
+   ya es 1px solid #E5E7EB y --shadow-card ya es la sombra suave. La capa de
+   tokens siempre estuvo bien; eran las clases de card las que la contradecían.
+
+   `background-color` y no `background`: NetWorthCard trae un gradiente por
+   utilidades de Tailwind y el atajo lo borraría.
+
+   SIN backdrop-filter, a propósito. Sobre las cards del tablero es un no-op
+   VISUAL: el body es un color plano, y desenfocar un fondo uniforme no cambia
+   un píxel. Pero cuesta una capa de composición por card en el iPad. El blur
+   se queda donde sí hay algo detrás: modales, tooltips, header, nav, y la card
+   de la landing (que sí está sobre los degradados de ambiente). */
+.card {
+  background-color: var(--bg-card);
   border: var(--glass-border);
-}
-.card-primary {
+  border-radius: 16px;
   box-shadow: var(--shadow-card);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border: var(--glass-border);
 }
 
-/* Glass utility class for components */
+/* Opt-in, y SOLO para cards que de verdad son un enlace o un botón. Safari en
+   iPadOS aplica :hover al primer toque y lo deja pegado hasta que tocás en otro
+   lado, así que una card no clickeable que se levanta al tocarla es una
+   promesa falsa. Sin scale(): remuestrea el texto a mitad de transición, y los
+   numerales tabulares son lo único que esta app no puede comprometer; además
+   un hijo escalado se solapa con sus vecinos. El blanket de
+   prefers-reduced-motion de más abajo ya cubre esta transición. */
+@media (hover: hover) and (pointer: fine) {
+  .card-interactive {
+    transition: box-shadow 0.2s, border-color 0.2s, transform 0.2s;
+  }
+  .card-interactive:hover {
+    box-shadow: var(--shadow-elevated);
+    transform: translateY(-1px);
+  }
+}
+
+/* Modificador PURO de `.card`, no una card alternativa: lo único que aporta es
+   la sombra más profunda. El fondo, el borde y el radio los pone `.card`, así
+   que solo hay UN lugar que define cómo se ve el borde de una card.
+   Ya no lleva backdrop-filter, por la misma razón que `.card`: la NetWorthCard
+   está sobre el body plano, así que el blur no cambiaba un píxel y sí costaba
+   una capa de composición. De paso eso vuelve innecesario el
+   `backdrop-filter: none` que el tema claro tenía que ponerle encima. */
+.card-hero {
+  box-shadow: var(--shadow-elevated);
+}
+
+/* Único consumidor: la card del hero de la landing (`app/page.jsx`). Conserva
+   el blur, a diferencia de `.card`, porque ahí sí hay algo detrás que
+   desenfocar: los degradados radiales de ambiente de esa página. Cualquier
+   card del TABLERO va con `.card`.
+   `.card-primary` se retiró en esta misma pasada: había quedado con cero
+   consumidores. */
 .card-glass {
   background: var(--bg-card);
   box-shadow: var(--shadow-card);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   border: var(--glass-border);
-  transition: background-color 0.2s, box-shadow 0.2s;
-}
-.card-glass {
   transition: background-color 0.2s, box-shadow 0.2s, transform 0.2s, border-color 0.2s;
 }
 .card-glass:hover {
@@ -538,7 +597,6 @@ html.theme-transitioning *::after {
   box-shadow: var(--shadow-elevated);
   transform: translateY(-1px);
 }
-[data-theme="light"] .card-glass:hover { transform: translateY(-1px); }
 
 /* Glass modal overlay + container */
 .modal-backdrop {
@@ -738,20 +796,20 @@ button[aria-label="Close"] {
    Cards become opaque white with hairline borders + soft shadow;
    the primary CTA becomes near-black; pills use a soft indigo wash.
    ============================================================ */
-[data-theme="light"] .card-glass,
-[data-theme="light"] .card-primary,
-[data-theme="light"] .card-hero {
-  background: #FFFFFF;
+/* Solo `.card-glass` (la landing). `.card-primary` ya no existe y `.card-hero`
+   ya no trae blur, así que las dos salieron de este selector.
+   De las cinco declaraciones que tenía, tres eran REDUNDANTES con los tokens de
+   tema claro (`background: #FFFFFF` es --bg-card, `1px solid #E5E7EB` es
+   --glass-border, y --shadow-card ya es esa sombra); lo único propio de tema
+   claro es apagar el glassmorphism. */
+[data-theme="light"] .card-glass {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  border: 1px solid #E5E7EB;
-  box-shadow: var(--shadow-card);
 }
-[data-theme="light"] .card-glass:hover,
-[data-theme="light"] .card-hero:hover {
-  background: #FFFFFF;
+/* El hover base deja el borde igual; en claro se oscurece un punto para que el
+   estado se note sin depender de la sombra, que en este tema es muy suave. */
+[data-theme="light"] .card-glass:hover {
   border-color: #D1D5DB;
-  box-shadow: var(--shadow-elevated);
 }
 
 [data-theme="light"] .btn-primary {

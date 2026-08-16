@@ -38,7 +38,7 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
   // columna vecina y el bloque de patrimonio queda pegado abajo, de modo que
   // las dos columnas terminan en la misma línea.
   return (
-    <div data-card-id="INV-01" className="card-glass rounded-2xl p-4 h-full flex flex-col">
+    <div data-card-id="INV-01" className="card p-4 h-full flex flex-col">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
