@@ -107,7 +107,15 @@ export default function RootLayout({ children }) {
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+        {/* JetBrains Mono NECESITA el 700: la app usa `font-mono font-bold` en
+            23 sitios, incluido el número grande de patrimonio, y sin ese peso
+            cargado el navegador lo SINTETIZA (engorda los trazos por su
+            cuenta), que es lo que hace ver el número emborronado.
+            El 800 de Inter se quita en el mismo cambio para que el costo sea
+            neutro: `font-extrabold` tiene CERO usos, `text-display` (que lo
+            especifica) tiene CERO usos, y su único consumidor era Logo.jsx,
+            que pasa a 900, ya cargado. Mismo número de archivos de fuente. */}
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         {/* AdSense loader + site-verification snippet. Site-wide so Google's crawler
             can verify on public pages (the dashboard is behind auth). With Auto Ads

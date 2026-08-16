@@ -165,7 +165,7 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
               </div>
             </div>
             <div className="text-right">
-              <p className="text-2xl font-black font-mono tabular-nums" style={{ color: val < 0 ? '#dc2626' : '#0f172a' }}>
+              <p className="text-2xl font-bold font-mono tabular-nums" style={{ color: val < 0 ? '#dc2626' : '#0f172a' }}>
                 {formatCurrency(val)}
               </p>
               <p className="text-xs text-slate-400">{item.currency || 'USD'}</p>

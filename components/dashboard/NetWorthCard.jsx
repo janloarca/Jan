@@ -266,9 +266,14 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
     if (dx > 0 && movers.gainers.length > 0) setMoversTab('gainers')
   }
 
+  // El contenedor ya no lleva `style` inline: duplicaba EXACTAMENTE lo que
+  // .card-hero pone (sombra, borde, blur). Y no era inocuo: el tema claro apaga
+  // el glassmorphism a propósito con `[data-theme="light"] .card-hero {
+  // backdrop-filter: none }`, pero una regla CSS no puede vencer a un estilo
+  // inline, así que esta card seguía creando una capa de composición en tema
+  // claro contra la regla que el propio globals.css declara.
   return (
-    <div className="bg-gradient-to-br from-theme-card to-theme-surface rounded-2xl p-5 card-hero h-full flex flex-col"
-      style={{ backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)', boxShadow: 'var(--shadow-elevated)', border: 'var(--glass-border)' }}>
+    <div className="bg-gradient-to-br from-theme-card to-theme-surface rounded-2xl p-5 card-hero h-full flex flex-col">
       {/* Greeting + currency picker — the milestone pill (a second colored
           badge next to the picker) is gone: the combined today/YTD line below
           already says whether things are up or down, so a second label
@@ -300,7 +305,15 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
           view. No sparkline beside it: at 60x24px it had no axis, no label
           and no legend, so it read as decoration nobody could interpret —
           the real chart is one tap away in the Valor/Rendimiento card. */}
-      <p className="min-w-0 text-[2.25rem] sm:text-[3rem] leading-none text-white tracking-tight font-bold font-mono tabular-nums drop-shadow-sm mb-1.5">{formatCurrency(displayValue, displayCur)}</p>
+      {/* Sin `drop-shadow-sm`: una sombra sobre un numeral de 48px es lo que
+          hacía que la negrita sintetizada se viera sucia, y con el peso 700 ya
+          cargado de verdad (app/layout.jsx) no aporta nada.
+          `text-white` a var(--text-primary): no-op demostrable en ambos temas
+          (en oscuro los dos son #FFFFFF, y en claro globals.css ya remapea
+          .text-white a esa misma variable), pero quita una dependencia
+          implícita de un remapeo que vive en otro archivo. */}
+      <p className="min-w-0 text-[2.25rem] sm:text-[3rem] leading-none tracking-tight font-bold font-mono tabular-nums mb-1.5"
+        style={{ color: 'var(--text-primary)' }}>{formatCurrency(displayValue, displayCur)}</p>
 
       {/* Today + YTD, one line. Direction lives ONLY in the small arrow —
           the numbers themselves stay in plain text color, so the line reads
