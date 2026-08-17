@@ -18,11 +18,11 @@ export default function CategoryBreakdown({ transactions, type = 'EXPENSE', lang
 
   if (sorted.length === 0) {
     return (
-      <div className="bg-theme-card border border-glass-border rounded-xl p-4">
-        <h3 className="text-sm font-semibold text-white mb-3">
+      <div className="card p-4">
+        <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>
           {type === 'EXPENSE' ? t('Gastos por Categoría', 'Expenses by Category') : t('Ingresos por Categoría', 'Income by Category')}
         </h3>
-        <p className="text-xs text-slate-500">{t('Sin datos este mes', 'No data this month')}</p>
+        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('Sin datos este mes', 'No data this month')}</p>
       </div>
     )
   }
@@ -30,27 +30,27 @@ export default function CategoryBreakdown({ transactions, type = 'EXPENSE', lang
   const fmt = (v) => v.toLocaleString(lang === 'es' ? 'es-GT' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
   return (
-    <div className="bg-theme-card border border-glass-border rounded-xl p-4">
-      <h3 className="text-sm font-semibold text-white mb-3">
+    <div className="card p-4">
+      <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>
         {type === 'EXPENSE' ? t('Gastos por Categoría', 'Expenses by Category') : t('Ingresos por Categoría', 'Income by Category')}
       </h3>
       <div className="space-y-2">
         {sorted.map(({ category, amount, pct }) => (
           <div key={category}>
-            <div className="flex items-center justify-between text-xs mb-1">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: CATEGORY_COLORS[category] || '#64748b' }} />
-                <span className="text-slate-300">{category}</span>
+            <div className="flex items-center justify-between gap-2 text-xs mb-1">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: CATEGORY_COLORS[category] || 'var(--text-muted)' }} />
+                <span className="truncate" style={{ color: 'var(--text-secondary)' }}>{category}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-slate-400">Q{fmt(amount)}</span>
-                <span className="text-slate-500 w-10 text-right">{pct.toFixed(1)}%</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="font-mono tabular-nums" style={{ color: 'var(--text-secondary)' }}>Q{fmt(amount)}</span>
+                <span className="font-mono tabular-nums w-11 text-right" style={{ color: 'var(--text-muted)' }}>{pct.toFixed(1)}%</span>
               </div>
             </div>
             <div className="w-full h-1.5 bg-theme-base rounded-full overflow-hidden">
               <div
                 className="h-full rounded-full transition-all"
-                style={{ width: `${pct}%`, backgroundColor: CATEGORY_COLORS[category] || '#64748b' }}
+                style={{ width: `${pct}%`, backgroundColor: CATEGORY_COLORS[category] || 'var(--text-muted)' }}
               />
             </div>
           </div>

@@ -23,7 +23,9 @@ import AddFinanceTransactionModal from '@/components/finance/AddFinanceTransacti
 import AutoCaptureModal from '@/components/finance/AutoCaptureModal'
 import FileImportModal from '@/components/FileImportModal'
 import { SkeletonCard, SkeletonTable } from '@/components/dashboard/Skeleton'
+import InlineNotice from '@/components/ui/InlineNotice'
 import { computeMonthlyAnalysis, buildFinanceInsights, investmentIncomeOfMonth } from '@/lib/financeMonth'
+import { planRecategorize } from '@/lib/recategorize'
 import PageTour from '@/components/dashboard/PageTour'
 import { Wallet, Zap } from 'lucide-react'
 import { INCOME_GROUPS } from '@/lib/financeCategories'
@@ -174,7 +176,10 @@ export default function FinancesPage() {
   // a hand-typed entry never writes a rule from a description the user typed.
   const handleRecategorize = useCallback(async (tx, category) => {
     if (!tx?.id || !category || category === tx.category) return
-    await updateFinanceTransaction(tx.id, { category, _needsReview: false })
+    // `_categorySetByUser` is what keeps the bulk re-read (planRecategorize)
+    // off this row forever, including if the user deliberately picks the
+    // fallback category.
+    await updateFinanceTransaction(tx.id, { category, _needsReview: false, _categorySetByUser: true })
     const merchant = tx.merchant || tx.description
     if (!merchant || !String(tx._source || '').startsWith('auto_')) return
     await authFetch('/api/ingest', {
@@ -183,6 +188,50 @@ export default function FinancesPage() {
       body: JSON.stringify({ action: 'learn', merchant, category }),
     }).catch(() => {})
   }, [updateFinanceTransaction])
+
+  // A transaction's category is frozen on the document at capture time, so
+  // every improvement to the classifier is invisible on everything already
+  // recorded. This offers the re-read explicitly, with the count up front, and
+  // only over rows a machine put in the "could not tell" bucket — see
+  // lib/recategorize.js for exactly what it refuses to touch.
+  const [ingestRules, setIngestRules] = useState([])
+  const [recatBusy, setRecatBusy] = useState(false)
+  const [recatDone, setRecatDone] = useState(null)
+
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    authFetch('/api/ingest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'list' }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelled && Array.isArray(d?.rules)) setIngestRules(d.rules) })
+      // Rules are an improvement to the plan, never a requirement: without them
+      // the built-in rules still run, so a failure here must stay silent.
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [user])
+
+  const recatPlan = useMemo(
+    () => planRecategorize(financeTransactions, { rules: ingestRules }),
+    [financeTransactions, ingestRules]
+  )
+
+  const handleRecategorizeAll = useCallback(async () => {
+    if (recatPlan.length === 0) return
+    setRecatBusy(true)
+    let done = 0
+    for (const change of recatPlan) {
+      try {
+        await updateFinanceTransaction(change.id, { category: change.to })
+        done++
+      } catch { /* keep going: one failed write must not strand the rest */ }
+    }
+    setRecatBusy(false)
+    setRecatDone(done)
+  }, [recatPlan, updateFinanceTransaction])
 
   const t = (es, en) => lang === 'es' ? es : en
 
@@ -337,6 +386,24 @@ export default function FinancesPage() {
         {/* A brand-new user sees the empty state directly, not a stack of Q0.00
             cards and blank breakdowns with the guidance buried below the fold. */}
         {financeTransactions.length > 0 && <>
+        {recatPlan.length > 0 && (
+          <InlineNotice
+            tone="info"
+            actionLabel={t('Reclasificar', 'Reclassify')}
+            onAction={handleRecategorizeAll}
+            busy={recatBusy}
+          >
+            {t(
+              `${recatPlan.length} ${recatPlan.length === 1 ? 'movimiento quedó' : 'movimientos quedaron'} en "Otros" y ahora sí ${recatPlan.length === 1 ? 'se puede clasificar' : 'se pueden clasificar'}. No toca lo que corregiste a mano.`,
+              `${recatPlan.length} ${recatPlan.length === 1 ? 'transaction is' : 'transactions are'} sitting in "Other" and can now be classified. Nothing you fixed by hand is touched.`
+            )}
+          </InlineNotice>
+        )}
+        {recatPlan.length === 0 && recatDone != null && (
+          <InlineNotice tone="success">
+            {t(`Listo: ${recatDone} reclasificados.`, `Done: ${recatDone} reclassified.`)}
+          </InlineNotice>
+        )}
         <FinanceSummaryCards income={income} expenses={expenses}
           investmentIncome={investmentIncome.total}
           momIncomePct={analysis.momIncomePct} momExpensesPct={analysis.momExpensesPct}
