@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Pencil, Check, X } from 'lucide-react'
 import BusyLabel from '@/components/ui/BusyLabel'
+import { Shimmer } from '@/components/dashboard/Skeleton'
 import VerifiedBadge from '@/components/friends/VerifiedBadge'
 import { YOU_COLOR, pctColor, fmtPct, timeAgo, initialOf } from '@/components/friends/friendsUi'
 
@@ -20,6 +21,12 @@ const MAX_NAME = 40
 // el ancho completo.
 export default function YourCard({
   displayName, verified, stats, updatedAt, lang, t,
+  // `ready` = las piezas asíncronas que alimentan estos tres números ya
+  // asentaron (precios + el ancla del año). Sin esa señal, un número en null se
+  // imprime como "-" y ese guión significa TRES cosas a la vez: todavía no
+  // llega, no hay cartera que medir, y no se puede medir. Las tres se veían
+  // idénticas, así que el guión no decía nada.
+  ready = true, hasPortfolio = true,
   busy = false, savingName = false, onUpdate, onSaveName,
 }) {
   const [editing, setEditing] = useState(false)
@@ -41,6 +48,13 @@ export default function YourCard({
 
   const initial = initialOf(editing ? draft : displayName)
   const ago = timeAgo(updatedAt, lang)
+
+  const metrics = [
+    { k: 'ytd', label: t('AÑO', 'YEAR'), v: stats?.ytd ?? null },
+    { k: 'mtd', label: t('MES', 'MONTH'), v: stats?.mtd ?? null },
+    { k: 'day', label: t('HOY', 'TODAY'), v: stats?.day ?? null },
+  ]
+  const allNull = metrics.every((m) => m.v == null)
 
   return (
     <div
@@ -124,23 +138,36 @@ export default function YourCard({
           derecha y "hoy" colgaba solo debajo, en letra más chica, como si fuera
           menos importante que las otras dos. */}
       <div className="grid grid-cols-3 gap-2 mt-4">
-        {[
-          { k: 'ytd', label: t('AÑO', 'YEAR'), v: stats?.ytd },
-          { k: 'mtd', label: t('MES', 'MONTH'), v: stats?.mtd },
-          { k: 'day', label: t('HOY', 'TODAY'), v: stats?.day },
-        ].map((m) => (
+        {metrics.map((m) => (
           <div
             key={m.k}
             className="rounded-lg px-2 py-2 text-center"
             style={{ backgroundColor: `color-mix(in srgb, ${pctColor(m.v)} 12%, transparent)` }}
           >
-            <div className="text-lg font-bold font-mono tabular-nums leading-tight" style={{ color: pctColor(m.v) }}>
-              {fmtPct(m.v)}
+            <div className="text-lg font-bold font-mono tabular-nums leading-tight flex items-center justify-center h-[1.4em]" style={{ color: pctColor(m.v) }}>
+              {/* Esqueleto con el alto de la cifra que va a reemplazar, para que
+                  al llegar el número no salte el layout. Usa el `Shimmer`
+                  compartido, el único átomo de carga de la app. */}
+              {m.v == null && !ready ? <Shimmer className="w-12 h-4 rounded" /> : fmtPct(m.v)}
             </div>
             <div className="text-[9px] uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>{m.label}</div>
           </div>
         ))}
       </div>
+
+      {/* Cuando de verdad no hay número, la razón se dice UNA vez debajo en vez
+          de dejar tres guiones mudos. Son dos situaciones distintas y la
+          diferencia le importa a quien la lee: una se arregla agregando un
+          activo, la otra no se arregla con nada. */}
+      {ready && allNull && (
+        <p className="text-[11px] mt-2 text-center" style={{ color: 'var(--text-muted)' }}>
+          {hasPortfolio
+            ? t('Todavía no podemos medir tu retorno: falta historial de este año en tu portafolio.',
+                'We cannot measure your return yet: your portfolio is missing history for this year.')
+            : t('Agrega tu primer activo y tus porcentajes aparecen acá.',
+                'Add your first asset and your percentages show up here.')}
+        </p>
+      )}
 
       <div className="flex items-center justify-between gap-3 mt-4 pt-3 border-t" style={{ borderColor: 'var(--card-border)' }}>
         <p className="text-[10px] min-w-0" style={{ color: 'var(--text-muted)' }}>

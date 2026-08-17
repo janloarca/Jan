@@ -249,14 +249,20 @@ export async function POST(request) {
       return NextResponse.json({ ok: true, pseudonym: patch.pseudonym })
     }
     if (action === 'global') {
-      // Anonymity: return ONLY pseudonym + ytd — never uid, movers, or symbols.
+      // Qué métrica se rankea. El orden y el corte del top TIENEN que ocurrir
+      // acá: la respuesta se recorta a GLOBAL_TOP, así que reordenar del lado
+      // del cliente reordenaría una lista ya truncada por la otra métrica (los
+      // primeros 20 del año no son los primeros 20 del mes). Sale UNA sola
+      // métrica por respuesta, nunca las dos: menos de lo que ya se publicaba.
+      const metric = body.metric === 'mtd' ? 'mtd' : 'ytd'
+      // Anonymity: return ONLY pseudonym + the ranked % — never uid, movers, or symbols.
       const snap = await db.collection('friendProfiles').where('globalOptIn', '==', true).limit(GLOBAL_SCAN_CAP).get()
       const all = snap.docs.map((d) => {
         const p = d.data()
-        return { uid: d.id, pseudonym: p.pseudonym || 'Anónimo', verified: !!p.verified, ytd: statsForScope(p, 'all')?.ytd ?? null }
-      }).filter((r) => r.ytd != null).sort((a, b) => b.ytd - a.ytd)
+        return { uid: d.id, pseudonym: p.pseudonym || 'Anónimo', verified: !!p.verified, value: statsForScope(p, 'all')?.[metric] ?? null }
+      }).filter((r) => r.value != null).sort((a, b) => b.value - a.value)
       const yourRank = all.findIndex((r) => r.uid === uid)
-      const top = all.slice(0, GLOBAL_TOP).map((r, i) => ({ rank: i + 1, pseudonym: r.pseudonym, verified: r.verified, ytd: r.ytd, isYou: r.uid === uid }))
+      const top = all.slice(0, GLOBAL_TOP).map((r, i) => ({ rank: i + 1, pseudonym: r.pseudonym, verified: r.verified, value: r.value, isYou: r.uid === uid }))
       // `optedIn` sale del PROPIO documento, no se deduce del ranking. El
       // cliente lo deducía de `yourRank != null`, y `yourRank` se calcula sobre
       // una lista ya filtrada por `ytd != null`: alguien que SÍ está apuntado
@@ -266,9 +272,17 @@ export async function POST(request) {
       const mine = await profileRef.get()
       return NextResponse.json({
         top,
+        metric,
         yourRank: yourRank >= 0 ? yourRank + 1 : null,
         total: all.length,
         optedIn: mine.exists ? !!mine.data().globalOptIn : false,
+        // Cuándo publicaste por última vez. Viaja acá porque esta acción YA lee
+        // tu propio documento para `optedIn`, así que cuesta CERO lecturas
+        // extra, y esta app ya tocó el techo de cuota de Firestore en
+        // producción (FASE IE9). Antes la pantalla lo sacaba de tu fila dentro
+        // de un grupo, así que sin grupos nunca se veía: se leía un porcentaje
+        // sin nada que dijera que es una foto quieta hasta que la republiques.
+        yourUpdatedAt: mine.exists ? (mine.data().updatedAt || null) : null,
       })
     }
 
