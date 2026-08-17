@@ -20,6 +20,9 @@ const MAX_MEMBERS = 30
 const MAX_MOVERS = 5
 const GLOBAL_SCAN_CAP = 500
 const GLOBAL_TOP = 20
+// Umbral de la insignia "sincronizado". Tiene que coincidir con el que calcula
+// el cliente (app/friends/page.jsx), que es de donde sale syncedPct.
+const VERIFIED_MIN_SYNCED = 0.6
 
 // Human-friendly invite codes: no 0/O/1/I/L to avoid transcription errors.
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
@@ -99,7 +102,14 @@ export async function POST(request) {
         avatar: String(body.avatar || '').slice(0, 8),
         stats: ibkr ? { all, ibkr } : { all },
         // Soft trust signal: portfolio is mostly broker-synced (not hand-typed).
-        verified: !!body.verified,
+        // DERIVED from syncedPct, not read from body.verified. For an honest
+        // client the result is identical (it computes the same `pct >= 0.6`),
+        // but there is no longer a second, independent input to believe: a
+        // client could previously claim verified:true while reporting a
+        // syncedPct that contradicts it. This does NOT close the hole —
+        // syncedPct is still self-reported, so the badge can be self-awarded.
+        // Verifying it for real is a separate feature.
+        verified: syncedPct >= VERIFIED_MIN_SYNCED,
         syncedPct,
         updatedAt: new Date().toISOString(),
       }
@@ -114,7 +124,15 @@ export async function POST(request) {
       for (const gd of snap.docs) {
         const g = { id: gd.id, ...gd.data() }
         const memberUids = Array.isArray(g.memberUids) ? g.memberUids.slice(0, MAX_MEMBERS) : []
-        const profs = await Promise.all(memberUids.map((m) => db.collection('friendProfiles').doc(m).get()))
+        // getAll en vez de N .get() sueltos: con 20 grupos de 30 miembros esto
+        // pasaba de 600 lecturas por llamada, y desde que la pantalla tiene
+        // jalar-para-refrescar se puede pedir muchas veces seguidas. Esta app ya
+        // tocó el techo de cuota de Firestore en producción (FASE IE9).
+        // ⚠️ getAll() SIN argumentos lanza (validateMinNumberOfArguments), así
+        // que un grupo sin miembros tiene que cortocircuitar.
+        const profs = memberUids.length === 0
+          ? []
+          : await db.getAll(...memberUids.map((m) => db.collection('friendProfiles').doc(m)))
         const rows = profs.filter((p) => p.exists).map((p) => {
           const prof = p.data()
           const st = statsForScope(prof, g.scope) || {}
@@ -239,7 +257,19 @@ export async function POST(request) {
       }).filter((r) => r.ytd != null).sort((a, b) => b.ytd - a.ytd)
       const yourRank = all.findIndex((r) => r.uid === uid)
       const top = all.slice(0, GLOBAL_TOP).map((r, i) => ({ rank: i + 1, pseudonym: r.pseudonym, verified: r.verified, ytd: r.ytd, isYou: r.uid === uid }))
-      return NextResponse.json({ top, yourRank: yourRank >= 0 ? yourRank + 1 : null, total: all.length })
+      // `optedIn` sale del PROPIO documento, no se deduce del ranking. El
+      // cliente lo deducía de `yourRank != null`, y `yourRank` se calcula sobre
+      // una lista ya filtrada por `ytd != null`: alguien que SÍ está apuntado
+      // pero todavía no tiene YTD quedaba fuera, y el botón le decía
+      // "Participar" cuando ya participaba. Es un booleano sobre uno mismo, así
+      // que no abre ninguna ventana a los datos de nadie más.
+      const mine = await profileRef.get()
+      return NextResponse.json({
+        top,
+        yourRank: yourRank >= 0 ? yourRank + 1 : null,
+        total: all.length,
+        optedIn: mine.exists ? !!mine.data().globalOptIn : false,
+      })
     }
 
     // ---- disable: purge my public presence -----------------------------------
