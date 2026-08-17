@@ -446,6 +446,66 @@ merge, igual que siempre.
   3 confirmadas sin duplicar, 1 a revisión cuyo monto se corrigió de Q520 a Q500,
   1 huérfana señalada, cero pageerrors.
 
+### ⛔ Dos tarjetas nunca son una tarjeta (FASE AS)
+
+El bug que lo obligó, encontrado auditando los TRES estados reales del usuario
+(no reportado por él, y silencioso): importar el de G&T después del de BI
+fusionaba HOSTALES CA Q22 y COMO LA FLOR Q50. Son cuatro cargos reales en dos
+tarjetas distintas, cada par por el mismo monto y a tres días. Se perdían Q72
+Y se le reescribía la fecha al cargo que sobrevivía. `reconcileStatement` no
+tenía noción de tarjeta: solo miraba monto, fecha, moneda y comercio, y ahí
+los dos pares son indistinguibles.
+
+- **`cardKey` (banco + últimos cuatro) va en CADA fila**, estampado en un solo
+  lugar (`parseCardStatement`, no en cada parser). Dos `cardKey` distintos no
+  se aparean jamás, por más que todo lo demás coincida. El banco entra a la
+  llave aunque los cuatro dígitos no se lean, para que dos bancos distintos no
+  puedan colisionar.
+- **Una fila SIN tarjeta sigue siendo elegible contra cualquiera.** Es el punto
+  entero de mix-and-match: lo que capturó el atajo o el correo no sabe en qué
+  tarjeta cayó. Hay test que lo fija, porque "arreglar" esto endureciendo la
+  regla mata la función.
+- **Las filas ya importadas se protegen leyendo los cuatro dígitos de su
+  etiqueta de cuenta** (`account`: "Bi (Contecnica) •9856"). Sin eso, todo lo
+  importado antes de este cambio quedaba expuesto a la misma fusión para
+  siempre.
+- **Un comercio que NO coincide es evidencia, no un volado.** `PARK-CENTRO` se
+  ofrecía como "¿el mismo cargo?" contra `CLUB ALEMAN GARITA 2` (ambos Q30, un
+  día aparte, similitud 0.00) con "sí" por defecto, o sea a un clic de tirar un
+  cargo. Contra una fila que ya trae el nombre que puso el BANCO el desacuerdo
+  es la respuesta; contra una captura automática, cuya descripción pudo no
+  resolverse, se sigue preguntando. Ese es el discriminador correcto, no contar
+  tokens: "ZZQX 4471" tiene tokens y aun así no dice nada.
+- **Las huérfanas dejan fuera lo que está en otra tarjeta**: eran 23 filas de
+  ruido enterrando el único hallazgo que esa lista existe para mostrar.
+- Resultado con los tres archivos reales: 73 + 79 + 15 = 167 movimientos, cero
+  fusiones silenciosas, cero huérfanas de ruido.
+
+### La categoría se congela al importar (FASE AS)
+
+- **Cada mejora del clasificador es INVISIBLE sobre lo ya guardado**, porque la
+  categoría se decide una vez y queda escrita en el documento. Pedirle al
+  usuario que borre y re-importe para ver un arreglo no es una respuesta.
+  `lib/recategorize.js` (puro) planifica la relectura y Flujo la ofrece con el
+  conteo por delante (misma lección que "Reparar ahora" de FASE HP: si el
+  arreglo corre invisible, hacerlo disparable y visible).
+- Solo toca filas que clasificó una MÁQUINA y que siguen en el bucket de "no
+  supe". Nunca una tecleada a mano, nunca una en una categoría real, nunca una
+  que el usuario corrigió (`_categorySetByUser`, que `handleRecategorize`
+  estampa justo para esto).
+- **El KIND de la fila le gana al texto del comercio.** El estado ya dijo qué
+  ES la fila: "MEMBRESIA CLUB BI" hacía match con el needle `club` y se
+  archivaba como salida nocturna, y "FIN/CT 0013 000001 27" no nombra ningún
+  comercio, así que 'Otros Gastos' afirmaba "no supe" cuando el banco sí lo
+  dijo. Categorías Seguros / Impuestos / Comisiones / Financiamiento, en el
+  grupo Financiero, que pasó de tener una sola categoría a ser un grupo real
+  (obligaciones, no elecciones).
+- Medido sobre los tres estados: "Otros" de julio pasa de Q49,678 a Q2,959, y
+  el 80% de ese bucket era UNA póliza de seguro (USD 5,166.46). Lo que queda
+  son comercios con nombre propio, que es exactamente lo que las reglas
+  aprendidas resuelven: la tabla de fábrica sigue solo con genéricos
+  ('seguros', 'declaraguate', 'iusi', 'comision').
+
 ### Recordatorio por correo (cron)
 - SMTP genérico con nodemailer contra un buzón del PROPIO dominio — sin servicios de envío de terceros (decisión del usuario); el código no se casa con ningún host
 - Gating silencioso por env vars (`SMTP_HOST/USER/PASS`; sin ellas → no-op) — patrón kvConfigured
