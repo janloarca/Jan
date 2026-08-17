@@ -401,6 +401,51 @@ merge, igual que siempre.
   `next build && next start`, subiendo los tres PDFs reales por un file input:
   3/3 detectados, parseados y reconciliados, cero pageerrors.
 
+### Mix and match: el estado de cuenta contra lo ya capturado (FASE AR)
+- El caso real: el atajo del iPhone y el correo capturan la compra EN VIVO, y el
+  estado de cuenta llega un mes después con esas MISMAS compras. `lib/
+  statementReconcile.js` (`reconcileStatement`) resuelve ese cruce; el camino de
+  CSV de banco sigue con `matchStatement`. Tres supuestos de aquel rompen aquí, y
+  los TRES se confirmaron contra los estados reales antes de escribir código:
+  1. **Dedup dentro del archivo**: un estado repite legítimamente una fila (dos
+     parqueos de Q20 el mismo día, real en el de G&T) y el parser YA probó que
+     ambas existen al reconciliar contra los totales impresos. Colapsarlas
+     PIERDE un cobro. Por eso `reconcileStatement` no dedupea in-file: la
+     multiplicidad la garantiza la reconciliación, no una heurística de texto.
+  2. **Ciego a la MONEDA**: estos estados traen GTQ y USD en un mismo documento,
+     así que un cargo de $200 matcheaba uno de Q200. Arreglado en AMBOS motores.
+  3. **Monto exacto**: Apple Pay captura la AUTORIZACIÓN y el estado trae la
+     LIQUIDACIÓN. Con propina o pre-autorización de gasolina difieren, y exigir
+     igualdad al centavo convierte una compra en dos filas.
+- **Asignación 1:1 codiciosa**: cada fila del estado reclama a lo más una fila ya
+  registrada y viceversa. Eso es lo que hace que dos cobros idénticos sigan
+  siendo dos, sin depender de que las descripciones se parezcan.
+- **Confirmar y ENRIQUECER, no saltar**: el estado es el registro del banco, así
+  que una fila que confirma actualiza la ya registrada (monto liquidado, fecha de
+  operación, tarjeta, cuota) y conserva lo que solo la captura temprana tiene
+  (GPS del atajo). La CATEGORÍA que el usuario ya revisó (`_needsReview:false`)
+  NUNCA se pisa; solo se rellena si nunca la vio y el estado aporta algo mejor
+  que el fallback. La DESCRIPCIÓN tampoco se toca: "Rally Padel Guatemala" de
+  Wallet se lee mejor que el "RALLY PADEL" truncado del banco.
+- **Monto ajustado siempre va a REVISIÓN**, jamás se aplica solo: es un juicio
+  ("¿propina o cobro aparte?"). Banda 0.7-1.35x y tope de 500 absolutos, y aun
+  así la decide el usuario; sin marcar se corrige el existente, marcado se
+  importa aparte. Un monto exacto con comercio incomparable (descripción de
+  menos de 3 caracteres, que `descSimilarity` ignora) también va a revisión.
+- **Huérfanas**: lo registrado DENTRO del rango de fechas del estado que el
+  estado no trae. Casi siempre es otra tarjeta, pero es también la firma de un
+  mismo cobro capturado dos veces, así que se muestra en vez de callarse.
+- La tabla de comercios de `lib/expenseCategorize.js` solo lleva patrones
+  GENÉRICOS ('est de serv', 'park ', 'brewing', 'gastronomia', 'farma ',
+  'hostal'). Un comercio con nombre propio pertenece a las reglas APRENDIDAS
+  (`action:'learn'`), no a la tabla de fábrica: llenarla de nombres locales la
+  sobreajusta a la ciudad de un solo usuario. Medido sobre los tres estados
+  reales: 37% → 30% en Otros Gastos solo con genéricos.
+- Verificado en NAVEGADOR con el `FileImportModal` REAL y el PDF real, sembrando
+  filas como si el atajo/correo ya las hubieran capturado: 79 filas → 75 nuevas,
+  3 confirmadas sin duplicar, 1 a revisión cuyo monto se corrigió de Q520 a Q500,
+  1 huérfana señalada, cero pageerrors.
+
 ### Recordatorio por correo (cron)
 - SMTP genérico con nodemailer contra un buzón del PROPIO dominio — sin servicios de envío de terceros (decisión del usuario); el código no se casa con ningún host
 - Gating silencioso por env vars (`SMTP_HOST/USER/PASS`; sin ellas → no-op) — patrón kvConfigured

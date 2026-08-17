@@ -12,6 +12,7 @@ import { parseAmount, parseImportDate } from '@/lib/numberParse'
 import { FIELD_MAP, BROKER_PRESETS, guessMapping } from '@/lib/importMapping'
 import { FINANCE_CATEGORIES, CATEGORY_COLORS } from '@/lib/financeCategories'
 import { matchStatement } from '@/lib/statementMatcher'
+import { reconcileStatement, enrichmentFor } from '@/lib/statementReconcile'
 import { validateItem, sanitizeImportItem, sanitizeCell } from '@/lib/validation'
 import { getBrokerHowTo } from '@/lib/brokerHowTo'
 import BrokerSteps from '@/components/ui/BrokerSteps'
@@ -75,7 +76,7 @@ function parseNumber(val) {
 // screen, with a summary of what was written. The IBKR journey orchestrator
 // listens to it to ADVANCE to the next step instead of dropping the user back
 // on the dashboard wondering whether more steps exist (the reported bug).
-export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateItem, onDeleteItem, onBulkImport, existingItems, existingLots = [], existingFinanceTransactions = [], activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null, onImportComplete = null, journeyActive = false }) {
+export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateFinanceTransaction, onUpdateItem, onDeleteItem, onBulkImport, existingItems, existingLots = [], existingFinanceTransactions = [], activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null, onImportComplete = null, journeyActive = false }) {
   const trapRef = useFocusTrap()
   const [mode, setMode] = useState('file')
   const [step, setStep] = useState('upload')
@@ -176,10 +177,22 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       if (text && detectCardStatement(text)) {
         const parsed = parseCardStatement(text)
         if (parsed && parsed.transactions.length > 0) {
-          const match = matchStatement(parsed.transactions, existingFinanceTransactions)
+          // Card statements go through reconcileStatement, NOT matchStatement:
+          // the statement arrives a month after the Shortcut and the email
+          // already captured these same purchases, and that cross-method case
+          // needs multiplicity, currency and settled-vs-authorized amounts
+          // handled. See lib/statementReconcile.js for why each one matters.
+          const match = reconcileStatement(parsed.transactions, existingFinanceTransactions)
           setBiData({ transactions: parsed.transactions, finalBalance: 0, currency: 'GTQ', card: parsed })
           setBiMatch(match)
-          setBiSelected(new Set(match.newTxs.map((_, i) => `n${i}`)))
+          // New rows import by default. A review row is checked only when the
+          // evidence says it is a SEPARATE charge; left unchecked it means
+          // "same charge" and the statement's amount is applied to the row
+          // already recorded.
+          setBiSelected(new Set([
+            ...match.newTxs.map((_, i) => `n${i}`),
+            ...match.review.map((x, i) => (x.defaultSame ? null : `r${i}`)).filter(Boolean),
+          ]))
           if (parsed.cardLast4) setStmtAccount(`${parsed.bankLabel} •${parsed.cardLast4}`)
           setStep('bi-preview')
           setPdfReading(false)
@@ -612,13 +625,49 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     setError('')
     let success = 0
     let failed = 0
+    let updated = 0
 
-    // Only the rows the user left checked: new rows (pre-checked) plus any
-    // likely-duplicates they explicitly confirmed. Exact matches never import.
-    const toImport = [
-      ...biMatch.newTxs.filter((_, i) => biSelected.has(`n${i}`)),
-      ...biMatch.likely.filter((_, i) => biSelected.has(`l${i}`)).map((x) => x.parsed),
-    ]
+    // Two shapes reach this handler. A card statement is reconciled with
+    // reconcileStatement (confirmed / review / orphans), because the Shortcut
+    // and the email have usually captured the same purchases already; a bank
+    // CSV still uses matchStatement (exact / likely).
+    const isCard = Array.isArray(biMatch.confirmed)
+
+    // Only the rows the user left checked. For a card statement a checked
+    // REVIEW row means "this is a separate charge, import it"; leaving it
+    // unchecked means "same charge", and the statement's settled amount is
+    // applied to the row already recorded instead.
+    const toImport = isCard
+      ? [
+        ...biMatch.newTxs.filter((_, i) => biSelected.has(`n${i}`)),
+        ...biMatch.review.filter((_, i) => biSelected.has(`r${i}`)).map((x) => x.row),
+      ]
+      : [
+        ...biMatch.newTxs.filter((_, i) => biSelected.has(`n${i}`)),
+        ...biMatch.likely.filter((_, i) => biSelected.has(`l${i}`)).map((x) => x.parsed),
+      ]
+
+    // The statement is the bank's own record, so a row it confirms gets
+    // enriched (settled amount, posting date, card, installment) rather than
+    // skipped. Anything only the earlier capture has (GPS from the Shortcut,
+    // a category the user fixed) is preserved by enrichmentFor.
+    if (isCard && onUpdateFinanceTransaction) {
+      const toUpdate = [
+        ...biMatch.confirmed,
+        ...biMatch.review
+          .filter((_, i) => !biSelected.has(`r${i}`))
+          .map((x) => ({ match: x.match, updates: enrichmentFor(x.row, x.match).updates })),
+      ]
+      for (const u of toUpdate) {
+        if (!u.match?.id || !u.updates || Object.keys(u.updates).length === 0) continue
+        try {
+          await onUpdateFinanceTransaction(u.match.id, u.updates)
+          updated++
+        } catch {
+          failed++
+        }
+      }
+    }
 
     for (const tx of toImport) {
       try {
@@ -654,10 +703,15 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       }
     }
 
-    setResult({ success, failed, total: biData.transactions.length, skipped: biMatch.exact.length, isBI: true })
+    setResult({
+      success, failed, updated,
+      total: biData.transactions.length,
+      skipped: isCard ? biMatch.confirmed.length : biMatch.exact.length,
+      isBI: true,
+    })
     setStep('done')
     setImporting(false)
-  }, [biData, biMatch, biSelected, stmtAccount, onAddFinanceTransaction, onImportItems, onUpdateItem, existingItems, selectedBankAccount])
+  }, [biData, biMatch, biSelected, stmtAccount, onAddFinanceTransaction, onUpdateFinanceTransaction, onImportItems, onUpdateItem, existingItems, selectedBankAccount])
 
   const doIBKRImport = useCallback(async () => {
     // History-only files are valid: a Flex XML for a closed year can carry just
@@ -1203,7 +1257,9 @@ When done, give me the .xlsx file ready to download.`
               )}
               <p className="text-slate-400 text-sm mb-3">
                 {t(`${biData.transactions.length} transacciones en el estado`, `${biData.transactions.length} transactions in the statement`)}
-                {biMatch && `: ${biMatch.newTxs.length} ${t('nuevas', 'new')} · ${biMatch.exact.length} ${t('ya registradas', 'already recorded')}${biMatch.likely.length > 0 ? ` · ${biMatch.likely.length} ${t('a revisar', 'to review')}` : ''}`}
+                {biMatch && (Array.isArray(biMatch.confirmed)
+                  ? `: ${biMatch.newTxs.length} ${t('nuevas', 'new')} · ${biMatch.confirmed.length} ${t('ya capturadas', 'already captured')}${biMatch.review.length > 0 ? ` · ${biMatch.review.length} ${t('a revisar', 'to review')}` : ''}`
+                  : `: ${biMatch.newTxs.length} ${t('nuevas', 'new')} · ${biMatch.exact.length} ${t('ya registradas', 'already recorded')}${biMatch.likely.length > 0 ? ` · ${biMatch.likely.length} ${t('a revisar', 'to review')}` : ''}`)}
                 {biData.finalBalance > 0 && `: ${t('Saldo final', 'Final balance')}: Q${biData.finalBalance.toLocaleString()}`}
               </p>
 
@@ -1219,6 +1275,52 @@ When done, give me the .xlsx file ready to download.`
 
               {biMatch && (
                 <div className="space-y-3 mb-4">
+                  {/* REVIEW — the cross-method judgement call: the statement's
+                      settled amount differs from what was captured live (a tip,
+                      a fuel pre-authorization), or the merchant text is too
+                      weak to decide. Checked = separate charge, import it.
+                      Unchecked = same charge, correct the recorded one. */}
+                  {biMatch.review?.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold mb-1" style={{ color: 'var(--alert-warn-icon)' }}>
+                        ⚠ {t(`¿El mismo cobro? (${biMatch.review.length}): marca solo los que sean cobros APARTE`,
+                             `Same charge? (${biMatch.review.length}): check only the ones that are SEPARATE charges`)}
+                      </p>
+                      <div className="overflow-x-auto max-h-44 overflow-y-auto border rounded-lg" style={{ borderColor: 'var(--alert-warn-border)' }}>
+                        <table className="w-full text-xs">
+                          <tbody>
+                            {biMatch.review.map(({ row, match, relation }, i) => (
+                              <tr key={`r${i}`} className="border-b border-glass-border/50">
+                                <td className="py-1.5 px-2">
+                                  <input type="checkbox" checked={biSelected.has(`r${i}`)} onChange={(e) => {
+                                    const next = new Set(biSelected)
+                                    e.target.checked ? next.add(`r${i}`) : next.delete(`r${i}`)
+                                    setBiSelected(next)
+                                  }} />
+                                </td>
+                                <td className="py-1.5 px-2 text-slate-400 whitespace-nowrap">{row.date}</td>
+                                <td className="py-1.5 px-2 text-white max-w-[150px] truncate">{row.description}</td>
+                                <td className="py-1.5 px-2 text-right whitespace-nowrap" style={{ color: 'var(--text-negative)' }}>
+                                  {row.currency === 'USD' ? '$' : 'Q'}{row.amount.toLocaleString()}
+                                </td>
+                                <td className="py-1.5 px-2 text-slate-500 max-w-[170px] truncate">
+                                  {relation === 'adjusted'
+                                    ? t(`ya tienes ${match.currency === 'USD' ? '$' : 'Q'}${match.amount.toLocaleString()} el ${match.date}`,
+                                        `you have ${match.currency === 'USD' ? '$' : 'Q'}${match.amount.toLocaleString()} on ${match.date}`)
+                                    : `≈ ${match.date} · ${match.description}`}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <p className="text-xs text-slate-600 mt-1">
+                        {t('Sin marcar, se corrige el movimiento que ya tenías con el monto final del banco.',
+                           'Left unchecked, the movement you already had is corrected with the bank\'s final amount.')}
+                      </p>
+                    </div>
+                  )}
+
                   {/* NEW — pre-checked, will import */}
                   {biMatch.newTxs.length > 0 && (
                     <div>
@@ -1264,7 +1366,7 @@ When done, give me the .xlsx file ready to download.`
                   )}
 
                   {/* LIKELY DUPLICATES — default unchecked, user decides */}
-                  {biMatch.likely.length > 0 && (
+                  {biMatch.likely?.length > 0 && (
                     <div>
                       <p className="text-xs font-semibold mb-1" style={{ color: 'var(--alert-warn-icon)' }}>
                         ⚠ {t(`Posibles duplicados (${biMatch.likely.length}): marca solo las que SÍ falten`, `Possible duplicates (${biMatch.likely.length}): check only the truly missing ones`)}
@@ -1297,8 +1399,55 @@ When done, give me the .xlsx file ready to download.`
                     </div>
                   )}
 
+                  {/* CONFIRMED — captured live by the Shortcut/email (or typed
+                      by hand) and now confirmed by the bank. Not re-imported;
+                      enriched with what only the statement knows. */}
+                  {biMatch.confirmed?.length > 0 && (
+                    <details className="text-xs">
+                      <summary className="cursor-pointer" style={{ color: 'var(--accent-green)' }}>
+                        ✓ {t(`Ya capturadas (${biMatch.confirmed.length}): el banco las confirma, no se duplican`,
+                             `Already captured (${biMatch.confirmed.length}): the bank confirms them, no duplicates`)}
+                      </summary>
+                      <div className="mt-1 max-h-40 overflow-y-auto border border-glass-border/40 rounded-lg p-2 space-y-0.5">
+                        {biMatch.confirmed.map(({ row, changes }, i) => (
+                          <p key={i} className="text-slate-500 truncate">
+                            {row.date} · {row.description} · {row.currency === 'USD' ? '$' : 'Q'}{row.amount.toLocaleString()}
+                            {changes.length > 0 && (
+                              <span style={{ color: 'var(--alert-warn-icon)' }}>
+                                {' → '}{changes.map((c) => `${c.field}: ${c.from} → ${c.to}`).join(', ')}
+                              </span>
+                            )}
+                          </p>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+
+                  {/* ORPHANS — recorded inside the statement's own window but
+                      absent from it. Informational: the usual cause is another
+                      card, but it is also how a double-capture shows up. */}
+                  {biMatch.orphans?.length > 0 && (
+                    <details className="text-xs">
+                      <summary className="cursor-pointer" style={{ color: 'var(--text-muted)' }}>
+                        ? {t(`Tienes ${biMatch.orphans.length} movimiento(s) de estas fechas que el estado no trae`,
+                             `You have ${biMatch.orphans.length} movement(s) from these dates the statement does not include`)}
+                      </summary>
+                      <div className="mt-1 max-h-32 overflow-y-auto border border-glass-border/40 rounded-lg p-2 space-y-0.5">
+                        <p className="text-slate-600 mb-1">
+                          {t('Normal si son de otra tarjeta. Si no, revisa que no sea el mismo cobro capturado dos veces.',
+                             'Normal if they are from another card. If not, check they are not the same charge captured twice.')}
+                        </p>
+                        {biMatch.orphans.map((o, i) => (
+                          <p key={i} className="text-slate-500 truncate">
+                            {o.date} · {o.description} · {o.currency === 'USD' ? '$' : 'Q'}{(o.amount || 0).toLocaleString()}
+                          </p>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+
                   {/* EXACT — skipped, collapsed */}
-                  {biMatch.exact.length > 0 && (
+                  {biMatch.exact?.length > 0 && (
                     <details className="text-xs">
                       <summary className="cursor-pointer" style={{ color: 'var(--text-muted)' }}>
                         ⏭ {t(`Ya registradas (${biMatch.exact.length}): se omiten`, `Already recorded (${biMatch.exact.length}): skipped`)}
@@ -1591,6 +1740,20 @@ When done, give me the .xlsx file ready to download.`
                           : <>{result.success} {result.isBI ? t('transacciones importadas', 'transactions imported') : t('activos importados', 'assets imported')}</>}
                       {result.failed > 0 && <>, {result.failed} {t('fallidos', 'failed')}</>}
                     </p>
+                    {/* The cross-method outcome: what the statement confirmed
+                        instead of duplicating, and what it corrected. */}
+                    {result.skipped > 0 && (
+                      <p className="text-xs mt-1" style={{ color: 'var(--accent-green)' }}>
+                        {t(`${result.skipped} ya las tenías capturadas: el banco las confirmó, no se duplicaron.`,
+                           `${result.skipped} were already captured: the bank confirmed them, nothing was duplicated.`)}
+                      </p>
+                    )}
+                    {result.updated > 0 && (
+                      <p className="text-xs mt-1" style={{ color: 'var(--accent-blue)' }}>
+                        {t(`${result.updated} se corrigieron con el monto y los datos finales del banco.`,
+                           `${result.updated} were corrected with the bank's final amount and data.`)}
+                      </p>
+                    )}
                   </>
                 )
               })()}
