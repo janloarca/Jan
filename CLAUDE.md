@@ -358,6 +358,47 @@ merge, igual que siempre.
   `_source:'auto_*'` guarda una regla por comercio (`action:'learn'`). Solo aprenden las
   filas automáticas, para no fabricar reglas de descripciones escritas a mano.
 
+### Estados de cuenta de TARJETA en PDF: parseo determinístico que reconcilia (FASE AQ)
+- Tres formatos guatemaltecos aprendidos de estados REALES (que NO se commitean:
+  traen nombre, dirección, NIT y tarjeta): Contecnica/BI, G&T Continental y BAC
+  Credomatic (AMEX). `lib/parsers/guateCardStatements.js` + `lib/parsers/
+  pdfTextLayout.js` + `lib/pdfExtract.js`; enganchado en `FileImportModal.handlePdf`
+  ANTES de la ruta de IA, con fallback total a ella (un scan de pura imagen, un
+  formato desconocido o un fallo del worker degradan al camino que ya existía).
+- **La regla número uno: RECONCILIAR O DECIRLO.** Cada estado imprime sus propios
+  totales; el parser re-suma cada fila y compara por moneda y por lado. Los tres
+  estados reales cuadraron al centavo por AMBOS extractores (pdftotext y pdf.js),
+  y el preview lo dice con insignia verde/ámbar. Un estado importado mal en
+  silencio es como un mes deja de ser confiable (invariante 5 una capa más).
+- **Débito vs crédito es POSICIÓN DE COLUMNA, auto-calibrada POR PÁGINA** desde
+  los encabezados/totales del propio documento (páginas del mismo estado imprimen
+  la tabla a offsets distintos: col ~47 vs ~105 visto de verdad). Jamás offsets
+  fijos. pdf.js kernea acentos y puede partir "Créditos" en "Cré ditos": los
+  regex de calibración llevan `\s?` interno por eso, visto con pdfjs-dist v4.
+- Trampas por banco fijadas en tests: BI ordena operación→consumo y G&T
+  consumo→transacción (INVERTIDO); G&T mezcla dd-mm-yyyy con dd-MMM-yyyy en la
+  MISMA columna y pega el marcador "APPLEPAYQ" a la letra de moneda; BAC fecha
+  MES-PRIMERO sin año ("JUN/25", año inferido del corte con wrap DIC→enero),
+  crédito con MENOS AL FINAL ("1,185.00-"), moneda decidida por CUÁL de 4
+  columnas, y descripciones que envuelven a líneas vecinas. El monto "pelado"
+  (".00") exige frontera de espacio o dispara dentro de "2C.20-83" y
+  "PAGO RECIBIDO...406" (ambos misfires reales).
+- **Un pago A la tarjeta es transferencia entre cuentas propias, no ingreso ni
+  gasto**: va a `excluded` (visible en preview, nunca importado) junto con su
+  CORRECCIÓN; sí cuenta para la reconciliación. Cashback/devoluciones → INCOME
+  'Otros Ingresos'. La fecha del movimiento es la de CONSUMO (calza con la
+  ventana de dedup de la captura automática); la de operación viaja como
+  `postedDate`. Pagar la luz CON la tarjeta (EEGSA) sigue siendo gasto.
+- `public/pdf.worker.min.mjs` es COPIA VENDORIZADA del worker de pdfjs-dist
+  (webpack no puede parsear el worker pre-minificado: "Syntax Error" de build
+  visto de verdad, por eso se sirve estático). Al actualizar pdfjs-dist hay que
+  RE-COPIARLO; pdf.js rehúsa correr con versiones API/worker distintas, así que
+  una copia vieja falla ruidoso y cae al camino de IA. pdfjs-dist va PINNED a
+  4.10.38: la v6 no compila con el webpack de Next 14.
+- Verificado con la superficie real (lección GQ3): Playwright + Chromium contra
+  `next build && next start`, subiendo los tres PDFs reales por un file input:
+  3/3 detectados, parseados y reconciliados, cero pageerrors.
+
 ### Recordatorio por correo (cron)
 - SMTP genérico con nodemailer contra un buzón del PROPIO dominio — sin servicios de envío de terceros (decisión del usuario); el código no se casa con ningún host
 - Gating silencioso por env vars (`SMTP_HOST/USER/PASS`; sin ellas → no-op) — patrón kvConfigured

@@ -20,6 +20,7 @@
     "mailparser": "^3.9.14",
     "next": "14.2.21",
     "nodemailer": "^9.0.3",
+    "pdfjs-dist": "^4.10.38",
     "react": "^18",
     "react-datasheet-grid": "^4.11.6",
     "react-dom": "^18",
