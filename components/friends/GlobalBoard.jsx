@@ -19,11 +19,17 @@ import { avatarColor, pctColor, fmtPct, initialOf, MEDALS } from '@/components/f
 // deducirse del ranking (se deducía de `yourRank != null`, que es null si tu
 // YTD todavía no existe, así que a quien ya participaba el botón le seguía
 // diciendo "Participar").
-export default function GlobalBoard({ global, loading, error, lang, t, api, flash, onChanged, onRetry }) {
+export default function GlobalBoard({ global, loading, error, lang, t, metric = 'ytd', api, flash, onChanged, onRetry }) {
   const [busy, setBusy] = useState(false)
   const optedIn = !!global?.optedIn
   const top = global?.top || []
   const total = global?.total ?? 0
+  // La métrica que el servidor DE VERDAD rankeó, no la que el botón muestra:
+  // mientras el fetch de la nueva está en vuelo, la tabla en pantalla sigue
+  // siendo la anterior, y rotularla con la nueva la describiría mal por un
+  // instante.
+  const shown = global?.metric || metric
+  const metricLabel = shown === 'mtd' ? t('del mes', 'monthly') : t('del año', 'yearly')
 
   const toggle = useCallback(async () => {
     setBusy(true)
@@ -41,7 +47,7 @@ export default function GlobalBoard({ global, loading, error, lang, t, api, flas
         <div className="min-w-0">
           <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>🌎 {t('Ranking global', 'Global ranking')}</div>
           <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-            {t('Anónimo: solo un seudónimo y tu % del año.', 'Anonymous: just a pseudonym and your yearly %.')}
+            {t(`Anónimo: solo un seudónimo y tu % ${metricLabel}.`, `Anonymous: just a pseudonym and your ${metricLabel} %.`)}
           </div>
         </div>
         <button onClick={toggle} disabled={busy}
@@ -103,7 +109,7 @@ export default function GlobalBoard({ global, loading, error, lang, t, api, flas
                   {r.verified && <VerifiedBadge lang={lang} />}
                   {r.isYou && <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>({t('tú', 'you')})</span>}
                 </span>
-                <span className="text-sm font-bold font-mono tabular-nums shrink-0" style={{ color: pctColor(r.ytd) }}>{fmtPct(r.ytd)}</span>
+                <span className="text-sm font-bold font-mono tabular-nums shrink-0" style={{ color: pctColor(r.value) }}>{fmtPct(r.value)}</span>
               </div>
             )
           })}
@@ -118,8 +124,8 @@ export default function GlobalBoard({ global, loading, error, lang, t, api, flas
           )}
           {optedIn && global?.yourRank == null && (
             <div className="px-4 py-2 text-xs" style={{ color: 'var(--text-muted)' }}>
-              {t('Ya estás dentro, pero todavía no tenemos tu % del año, así que no apareces en la tabla.',
-                 'You are in, but we do not have your yearly % yet, so you are not on the board.')}
+              {t(`Ya estás dentro, pero todavía no tenemos tu % ${metricLabel}, así que no apareces en la tabla.`,
+                 `You are in, but we do not have your ${metricLabel} % yet, so you are not on the board.`)}
             </div>
           )}
           {optedIn && global?.yourRank != null && global.yourRank > top.length && (

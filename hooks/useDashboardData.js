@@ -1257,8 +1257,23 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // from the same engine that produced jan1Value. Feeds the "what drove my YTD"
   // breakdown, so the parts are guaranteed to reconcile with the headline.
   const [ytdEndpoints, setYtdEndpoints] = useState(null)
+  // ¿La reconstrucción del ancla del año ya contestó al menos una vez?
+  //
+  // Es un LATCH de una sola vía a propósito: este efecto se re-ejecuta con cada
+  // tick de precios (su identidad de `enrichedItems` cambia), así que una
+  // bandera que volviera a false en cada corrida haría parpadear a un esqueleto
+  // cada pocos minutos. Misma distinción que `loading` vs `isFetching` de FASE
+  // FE: lo que se quiere saber acá es si la PRIMERA respuesta ya llegó.
+  //
+  // Sin esto, un `returnYTD` en null es indistinguible entre "todavía no llega"
+  // y "no se puede medir", y toda pantalla que imprima esos dos casos igual
+  // (Amigos imprimía "-" para ambos) miente en uno de los dos.
+  const [ytdResolved, setYtdResolved] = useState(false)
   useEffect(() => {
-    if (!enrichedItems || enrichedItems.length === 0) return
+    // Sin activos no hay nada que reconstruir, y esa ausencia YA es la
+    // respuesta: se marca resuelto en vez de dejar el latch colgado para
+    // siempre en una cartera vacía.
+    if (!enrichedItems || enrichedItems.length === 0) { setYtdResolved(true); return }
     let cancelled = false
     async function fetchJan1() {
       try {
@@ -1375,7 +1390,14 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             setYtdEndpoints(null)
           }
         }
-      } catch {}
+      } catch {} finally {
+        // Se marca en el `finally`, así que un fetch que falla o vuelve !ok
+        // también cuenta como "ya contestó": la pregunta que responde el latch
+        // es si la espera terminó, no si el resultado fue bueno. Guardado por
+        // `cancelled` porque una corrida abortada no terminó nada: la que la
+        // reemplaza es la que va a marcarlo.
+        if (!cancelled) setYtdResolved(true)
+      }
     }
     fetchJan1()
     return () => { cancelled = true }
@@ -2909,7 +2931,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
     // Computed values
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
-    returnYTD, ytdChange, returnSinceStart, sinceStartDate, returnMTD, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms, ytdDegradedAccounts,
+    returnYTD, ytdChange, returnSinceStart, sinceStartDate, returnMTD, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms, ytdDegradedAccounts, ytdResolved,
     ibkrReturnYTD: ibkrReturns.ytd, ibkrReturnMTD: ibkrReturns.mtd, ibkrDayChange: ibkrReturns.day,
     annualDividends, estimatedAnnualIncome,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,

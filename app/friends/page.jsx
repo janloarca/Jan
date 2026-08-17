@@ -60,7 +60,15 @@ export default function FriendsPage() {
   const {
     enrichedItems, returnYTD, returnMTD, ibkrReturnYTD, ibkrReturnMTD, ibkrDayChange,
     dailyChange, totalAssets, profile, settings, dataLoading, saveProfile,
+    ytdResolved, pricesLoading,
   } = useDashboardData({ user, lang, activePortfolio: '__all__' })
+
+  // Las tres cifras de tu tarjeta cuelgan de dos piezas asíncronas que asientan
+  // DESPUÉS de que `dataLoading` se apaga: los precios del día y la
+  // reconstrucción del ancla del año. Sin esta señal, ese hueco se pintaba con
+  // el mismo "-" que significa "no hay nada que medir".
+  const statsReady = !!ytdResolved && !pricesLoading
+  const hasPortfolio = (enrichedItems || []).length > 0
 
   const t = useCallback((es, en) => (lang === 'es' ? es : en), [lang])
 
@@ -97,6 +105,15 @@ export default function FriendsPage() {
 
   const [groups, setGroups] = useState(null)
   const [global, setGlobal] = useState(null)
+  // El ranking global tiene su propio error: si fallan tus grupos, la culpa no
+  // es de esta tarjeta y no tiene por qué acusarse a sí misma.
+  const [globalError, setGlobalError] = useState(null)
+  const [globalLoading, setGlobalLoading] = useState(true)
+  // Se sube para pedir el ranking de nuevo sin que su efecto dependa de nada
+  // cuya identidad cambie sola (al publicar, al refrescar a mano, al entrar o
+  // salir del ranking).
+  const [globalEpoch, setGlobalEpoch] = useState(0)
+  const reloadGlobal = useCallback(() => setGlobalEpoch((n) => n + 1), [])
   // Un error de carga es un ESTADO, no algo que se traga un catch vacío. Sin
   // esto, `groups` se quedaba en null para siempre y la pantalla mostraba un
   // "…" suelto sin decir nunca que la llamada había fallado, ni ofrecer
@@ -140,9 +157,8 @@ export default function FriendsPage() {
 
   const refresh = useCallback(async () => {
     try {
-      const [g, gl] = await Promise.all([api({ action: 'list' }), api({ action: 'global' })])
+      const g = await api({ action: 'list' })
       setGroups(g.groups || [])
-      setGlobal(gl)
       setLoadError(null)
     } catch (e) {
       // Se conserva lo que ya estaba en pantalla (un dato viejo vale más que una
@@ -150,6 +166,28 @@ export default function FriendsPage() {
       setLoadError(e.message || 'Error')
     }
   }, [api])
+
+  // El ranking global vive en su propio efecto, keyeado por la MÉTRICA elegida.
+  //
+  // El orden y el corte del top ocurren en el servidor (la respuesta se recorta
+  // a los primeros N), así que cambiar de "Año" a "Este mes" no se puede
+  // resolver reordenando en el cliente: hay que volver a pedir la lista. Antes
+  // el selector no tocaba esta tarjeta en absoluto, así que fuera de un grupo
+  // era un control que no hacía nada.
+  //
+  // Separarlo de `refresh` además evita re-escanear el ranking entero en cada
+  // publicación: ese escaneo lee hasta GLOBAL_SCAN_CAP documentos y esta app ya
+  // tocó el techo de cuota de Firestore en producción (FASE IE9).
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    setGlobalLoading(true)
+    api({ action: 'global', metric })
+      .then((gl) => { if (!cancelled) { setGlobal(gl); setGlobalError(null) } })
+      .catch((e) => { if (!cancelled) setGlobalError(e.message || 'Error') })
+      .finally(() => { if (!cancelled) setGlobalLoading(false) })
+    return () => { cancelled = true }
+  }, [api, metric, user, globalEpoch])
 
   // Publica mis números y relee. Es lo que corre en TODO refresco de esta
   // pantalla: el botón del header, el gesto de jalar y el botón "Publicar" de
@@ -173,8 +211,8 @@ export default function FriendsPage() {
   const [refreshing, setRefreshing] = useState(false)
   const handleManualRefresh = useCallback(async () => {
     setRefreshing(true)
-    try { await doSync() } finally { setRefreshing(false) }
-  }, [doSync])
+    try { await doSync(); reloadGlobal() } finally { setRefreshing(false) }
+  }, [doSync, reloadGlobal])
 
   useEffect(() => {
     if (syncedRef.current) return
@@ -333,6 +371,13 @@ export default function FriendsPage() {
 
   const createDisabled = busy || !createName.trim()
   const joinDisabled = busy || !joinCode.trim()
+  // Los botones de empezar salen en UN solo lugar por estado. Existen en dos
+  // sitios a propósito (arriba, y dentro de la tarjeta de "aún no estás en
+  // ningún grupo", donde son la acción que se está pidiendo), pero sin grupos
+  // se renderizaban LOS DOS a la vez: el mismo par de botones dos veces en la
+  // misma pantalla.
+  const loadingGroups = groups === null && !loadError
+  const showStartOnTop = !loadingGroups && !(groups !== null && groups.length === 0)
   const startButtons = (
     <div className="flex gap-2">
       <button onClick={() => { setCreating((v) => !v); setJoining(false) }}
@@ -393,12 +438,17 @@ export default function FriendsPage() {
         displayName={displayName}
         verified={verified}
         stats={myStats.all}
-        updatedAt={groups?.flatMap((g) => g.rows || []).find((r) => r.isYou)?.updatedAt}
+        // Tu propia hora de publicación viene del servidor y no de tu fila
+        // dentro de un grupo: derivada de los grupos, quien no está en ninguno
+        // no la veía nunca, o sea leía un porcentaje sin nada que dijera que es
+        // una foto quieta hasta que la vuelva a publicar.
+        updatedAt={global?.yourUpdatedAt || groups?.flatMap((g) => g.rows || []).find((r) => r.isYou)?.updatedAt}
+        ready={statsReady} hasPortfolio={hasPortfolio}
         lang={lang} t={t}
         busy={busy} savingName={savingName}
         onUpdate={handleUpdate} onSaveName={handleSaveName} />
 
-      {startButtons}
+      {showStartOnTop && startButtons}
 
       {creating && (
         <div className="card p-3 space-y-3">
@@ -497,8 +547,9 @@ export default function FriendsPage() {
         </InlineNotice>
       )}
 
-      <GlobalBoard global={global} loading={refreshing} error={loadError && !global} lang={lang} t={t}
-        api={api} flash={flash} onChanged={refresh} onRetry={handleManualRefresh} />
+      <GlobalBoard global={global} loading={globalLoading} error={!!globalError && !global} lang={lang} t={t}
+        metric={metric}
+        api={api} flash={flash} onChanged={reloadGlobal} onRetry={reloadGlobal} />
 
       <div className="text-center text-micro pt-2" style={{ color: 'var(--text-muted)' }}>Chispudo · chispu.xyz</div>
 
