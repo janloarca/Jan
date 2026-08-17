@@ -411,6 +411,7 @@ export default function FinancesPage() {
           onClose={() => setModal(null)}
           onImportItems={addItem}
           onAddFinanceTransaction={addFinanceTransaction}
+          onUpdateFinanceTransaction={updateFinanceTransaction}
           existingFinanceTransactions={financeTransactions}
           onUpdateItem={updateItem}
           existingItems={items}
