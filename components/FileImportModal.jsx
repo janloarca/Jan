@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { detectBI, parseBI } from '@/lib/parsers/biParser'
+import { detectCardStatement, parseCardStatement } from '@/lib/parsers/guateCardStatements'
 import { detectCoinbase, parseCoinbase } from '@/lib/parsers/coinbaseParser'
 import { detectKraken, parseKraken } from '@/lib/parsers/krakenParser'
 import { isIBKRSectionedFormat, parseIBKRFile, formatIBKRFileResult, detectIBKRFileKind, pickSectionedCsvFromWorkbook } from '@/lib/parsers/ibkrFileParser'
@@ -161,6 +162,35 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   }, [lang])
 
   const handlePdf = useCallback(async (file) => {
+    // FIRST: the deterministic path. A Guatemalan credit-card statement
+    // (Contecnica/BI, G&T Continental, BAC Credomatic) is parsed locally with
+    // pdf.js + format-specific parsers that reconcile against the statement's
+    // own totals: exact, free, and offline, so the AI never sees it. Anything
+    // unrecognized (or an image-only scan) falls through to the AI path that
+    // handled every PDF before this existed.
+    setPdfReading(true)
+    setError('')
+    try {
+      const { extractPdfLayoutText } = await import('@/lib/pdfExtract')
+      const text = await extractPdfLayoutText(file)
+      if (text && detectCardStatement(text)) {
+        const parsed = parseCardStatement(text)
+        if (parsed && parsed.transactions.length > 0) {
+          const match = matchStatement(parsed.transactions, existingFinanceTransactions)
+          setBiData({ transactions: parsed.transactions, finalBalance: 0, currency: 'GTQ', card: parsed })
+          setBiMatch(match)
+          setBiSelected(new Set(match.newTxs.map((_, i) => `n${i}`)))
+          if (parsed.cardLast4) setStmtAccount(`${parsed.bankLabel} •${parsed.cardLast4}`)
+          setStep('bi-preview')
+          setPdfReading(false)
+          return
+        }
+      }
+    } catch (err) {
+      // The deterministic path must never block the AI path that always existed.
+      console.warn('[import] deterministic card path failed:', err?.message)
+    }
+
     // Vercel caps serverless request bodies around 4.5MB and base64 inflates
     // ~33%, so AI reading caps at 3MB. Bigger statements fall back to the
     // manual prompt flow.
@@ -170,10 +200,9 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         ? 'PDF demasiado grande para la lectura con IA (máx 3MB). Usa el prompt manual de abajo con tu propia IA.'
         : 'PDF too large for AI reading (max 3MB). Use the manual prompt below with your own AI.')
       setAiOpen(true)
+      setPdfReading(false)
       return
     }
-    setPdfReading(true)
-    setError('')
     try {
       const dataUrl = await new Promise((resolve, reject) => {
         const reader = new FileReader()
@@ -210,7 +239,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     } finally {
       setPdfReading(false)
     }
-  }, [lang, hydrateFromPdf])
+  }, [lang, hydrateFromPdf, existingFinanceTransactions])
 
   const handleFile = useCallback(async (file) => {
     setError('')
@@ -1147,9 +1176,31 @@ When done, give me the .xlsx file ready to download.`
             <div>
               <div className="flex items-center gap-2 px-3 py-2 mb-3 bg-[#34d399]/10 border border-[#34d399]/20 rounded-lg">
                 <span className="text-[#34d399] text-xs font-medium">
-                  {t('Formato detectado: Banco Industrial', 'Format detected: Banco Industrial')}
+                  {biData.card
+                    ? `${t('Formato detectado', 'Format detected')}: ${biData.card.bankLabel}${biData.card.cardLast4 ? ` •${biData.card.cardLast4}` : ''}${biData.card.cutDate ? ` · ${t('corte', 'cut')} ${biData.card.cutDate}` : ''}`
+                    : t('Formato detectado: Banco Industrial', 'Format detected: Banco Industrial')}
                 </span>
               </div>
+              {/* The parse re-adds every row and compares against the statement's
+                  own printed totals, per currency and per side. Saying so (or
+                  saying it does NOT add up) is the whole point: a statement
+                  imported wrong silently is how a month's numbers stop being
+                  trustworthy. */}
+              {biData.card && (
+                <div className="px-3 py-2 mb-3 rounded-lg border text-xs"
+                  style={biData.card.reconciled
+                    ? { borderColor: 'var(--alert-success-border)', backgroundColor: 'var(--alert-success-bg)', color: 'var(--accent-green)' }
+                    : { borderColor: 'var(--alert-warn-border)', backgroundColor: 'var(--alert-warn-bg)', color: 'var(--alert-warn-icon)' }}>
+                  {biData.card.reconciled
+                    ? t('✓ Cuadra al centavo contra los totales impresos del estado de cuenta.', '✓ Adds up to the cent against the statement\'s own printed totals.')
+                    : t('⚠ La lectura NO cuadra contra los totales del estado. Revisa las filas antes de importar.', '⚠ The parse does NOT add up against the statement totals. Review the rows before importing.')}
+                  {!biData.card.reconciled && biData.card.reconciliation.filter((x) => !x.ok).map((x) => (
+                    <span key={`${x.currency}${x.side}`} className="block mt-0.5">
+                      {x.currency} {x.side === 'debit' ? t('cargos', 'debits') : t('créditos', 'credits')}: {t('esperado', 'expected')} {x.expected.toLocaleString()} · {t('leído', 'parsed')} {x.computed.toLocaleString()}
+                    </span>
+                  ))}
+                </div>
+              )}
               <p className="text-slate-400 text-sm mb-3">
                 {t(`${biData.transactions.length} transacciones en el estado`, `${biData.transactions.length} transactions in the statement`)}
                 {biMatch && `: ${biMatch.newTxs.length} ${t('nuevas', 'new')} · ${biMatch.exact.length} ${t('ya registradas', 'already recorded')}${biMatch.likely.length > 0 ? ` · ${biMatch.likely.length} ${t('a revisar', 'to review')}` : ''}`}
@@ -1202,7 +1253,7 @@ When done, give me the .xlsx file ready to download.`
                                   </select>
                                 </td>
                                 <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap" style={{ color: tx.type === 'INCOME' ? 'var(--accent-green)' : 'var(--accent-red)' }}>
-                                  {tx.type === 'INCOME' ? '+' : '-'}Q{tx.amount.toLocaleString()}
+                                  {tx.type === 'INCOME' ? '+' : '-'}{tx.currency === 'USD' ? '$' : 'Q'}{tx.amount.toLocaleString()}
                                 </td>
                               </tr>
                             ))}
@@ -1233,7 +1284,7 @@ When done, give me the .xlsx file ready to download.`
                                 <td className="py-1.5 px-2 text-slate-400 whitespace-nowrap">{parsed.date}</td>
                                 <td className="py-1.5 px-2 text-white max-w-[150px] truncate">{parsed.description}</td>
                                 <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap" style={{ color: parsed.type === 'INCOME' ? 'var(--accent-green)' : 'var(--accent-red)' }}>
-                                  {parsed.type === 'INCOME' ? '+' : '-'}Q{parsed.amount.toLocaleString()}
+                                  {parsed.type === 'INCOME' ? '+' : '-'}{parsed.currency === 'USD' ? '$' : 'Q'}{parsed.amount.toLocaleString()}
                                 </td>
                                 <td className="py-1.5 px-2 text-slate-500 max-w-[150px] truncate">
                                   ≈ {match.date} · {match.description}
@@ -1254,7 +1305,24 @@ When done, give me the .xlsx file ready to download.`
                       </summary>
                       <div className="mt-1 max-h-32 overflow-y-auto border border-glass-border/40 rounded-lg p-2 space-y-0.5">
                         {biMatch.exact.map(({ parsed }, i) => (
-                          <p key={i} className="text-slate-500 truncate">{parsed.date} · {parsed.description} · Q{parsed.amount.toLocaleString()}</p>
+                          <p key={i} className="text-slate-500 truncate">{parsed.date} · {parsed.description} · {parsed.currency === 'USD' ? '$' : 'Q'}{parsed.amount.toLocaleString()}</p>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+
+                  {/* Payments TO the card are transfers between the user's own
+                      accounts: importing them as income or expense would
+                      distort the month, so they never import, but hiding them
+                      entirely would make the statement look misread. */}
+                  {biData.card?.excluded?.length > 0 && (
+                    <details className="text-xs">
+                      <summary className="cursor-pointer" style={{ color: 'var(--text-muted)' }}>
+                        ⏭ {t(`Pagos a la tarjeta (${biData.card.excluded.length}): no se importan, son transferencias`, `Card payments (${biData.card.excluded.length}): not imported, they are transfers`)}
+                      </summary>
+                      <div className="mt-1 max-h-32 overflow-y-auto border border-glass-border/40 rounded-lg p-2 space-y-0.5">
+                        {biData.card.excluded.map((e, i) => (
+                          <p key={i} className="text-slate-500 truncate">{e.date} · {e.description} · {e.currency === 'USD' ? '$' : 'Q'}{e.amount.toLocaleString()}</p>
                         ))}
                       </div>
                     </details>
