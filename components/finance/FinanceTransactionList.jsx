@@ -3,6 +3,12 @@
 import { useState } from 'react'
 import { CATEGORY_COLORS, FINANCE_CATEGORIES } from '@/lib/financeCategories'
 
+// The month's ledger. Two layouts on purpose: a table from `sm` up, and one
+// card per row below it. A five-column table on a phone needs sideways
+// scrolling to reach the description, and it lives INSIDE a vertical scroller,
+// so the gesture that reveals it competes with the one that scrolls the list —
+// the description column was simply off-screen in the user's own screenshot.
+
 export default function FinanceTransactionList({ transactions, onDelete, onRecategorize, lang = 'es' }) {
   const [filter, setFilter] = useState('ALL')
   const [search, setSearch] = useState('')
@@ -10,6 +16,10 @@ export default function FinanceTransactionList({ transactions, onDelete, onRecat
   // matters here: correcting an auto-captured category is the gesture that
   // teaches the classifier, so it has to be one click away.
   const [editing, setEditing] = useState(null)
+  // Two-tap delete instead of window.confirm: this was one of the last native
+  // dialogs left in the app, and it cannot be styled or dismissed by tapping
+  // away on a phone.
+  const [confirming, setConfirming] = useState(null)
   const t = (es, en) => lang === 'es' ? es : en
 
   const filtered = transactions
@@ -23,13 +33,91 @@ export default function FinanceTransactionList({ transactions, onDelete, onRecat
     .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
 
   const fmt = (v) => v.toLocaleString(lang === 'es' ? 'es-GT' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const shownTotal = filtered.reduce((s, tx) => s + (tx.type === 'INCOME' ? 1 : -1) * (tx.amount || 0), 0)
+
+  const keyOf = (tx, i) => tx.id || i
+
+  const CategoryCell = ({ tx, i }) => (
+    onRecategorize && editing === keyOf(tx, i) ? (
+      <select
+        autoFocus
+        defaultValue={tx.category}
+        onBlur={() => setEditing(null)}
+        onChange={(e) => { onRecategorize(tx, e.target.value); setEditing(null) }}
+        className="px-1.5 py-1 bg-theme-base border border-glass-border rounded-md text-xs focus:outline-none"
+        style={{ color: 'var(--text-primary)' }}>
+        {(tx.type === 'INCOME' ? FINANCE_CATEGORIES.INCOME : FINANCE_CATEGORIES.EXPENSE).map(cat => (
+          <option key={cat} value={cat}>{cat}</option>
+        ))}
+      </select>
+    ) : (
+      <button
+        onClick={() => onRecategorize && setEditing(keyOf(tx, i))}
+        disabled={!onRecategorize}
+        title={onRecategorize ? t('Cambiar categoría', 'Change category') : undefined}
+        className="inline-flex items-center gap-1 rounded-md px-1 -mx-1 transition-colors disabled:cursor-default hover:bg-theme-elevated max-w-full">
+        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: CATEGORY_COLORS[tx.category] || 'var(--text-muted)' }} />
+        <span className="truncate" style={{ color: 'var(--text-secondary)' }}>{tx.category}</span>
+        {tx._needsReview && (
+          <span title={t('Revisa la categoría', 'Check the category')} style={{ color: 'var(--alert-warn-icon)' }}>?</span>
+        )}
+      </button>
+    )
+  )
+
+  const DeleteButton = ({ tx, i }) => {
+    if (!onDelete) return null
+    const k = keyOf(tx, i)
+    return confirming === k ? (
+      <span className="inline-flex items-center gap-1 whitespace-nowrap">
+        <button onClick={() => { onDelete(tx.id); setConfirming(null) }}
+          className="font-semibold" style={{ color: 'var(--text-negative)' }}>
+          {t('Borrar', 'Delete')}
+        </button>
+        <button onClick={() => setConfirming(null)} style={{ color: 'var(--text-muted)' }}>
+          {t('No', 'No')}
+        </button>
+      </span>
+    ) : (
+      <button onClick={() => setConfirming(k)}
+        aria-label={t('Eliminar', 'Delete')}
+        className="transition-colors hover:opacity-100 opacity-60"
+        style={{ color: 'var(--text-muted)' }}>
+        &times;
+      </button>
+    )
+  }
+
+  const Amount = ({ tx }) => (
+    <span className="font-medium font-mono tabular-nums whitespace-nowrap"
+      style={{ color: tx.type === 'INCOME' ? 'var(--accent-green)' : 'var(--text-negative)' }}>
+      {tx.type === 'INCOME' ? '+' : '-'}Q{fmt(tx.amount)}
+    </span>
+  )
+
+  const Description = ({ tx }) => (
+    <>
+      {String(tx._source || '').startsWith('auto_') && (
+        <span title={t('Capturado automáticamente', 'Captured automatically')} className="mr-1">⚡</span>
+      )}
+      {tx.description || '-'}
+      {tx.location && <span style={{ color: 'var(--text-muted)' }}> · {tx.location}</span>}
+    </>
+  )
 
   return (
-    <div className="bg-theme-card border border-glass-border rounded-xl p-4">
+    <div className="card p-4">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3">
-        <h3 className="text-sm font-semibold text-white">{t('Transacciones', 'Transactions')}</h3>
+        <div className="flex items-baseline gap-2 min-w-0">
+          <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{t('Transacciones', 'Transactions')}</h3>
+          {filtered.length > 0 && (
+            <span className="text-xs font-mono tabular-nums" style={{ color: 'var(--text-muted)' }}>
+              {filtered.length} · {shownTotal >= 0 ? '+' : '-'}Q{fmt(Math.abs(shownTotal))}
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <div className="flex bg-theme-base rounded-lg border border-glass-border text-xs">
+          <div className="flex bg-theme-base rounded-lg border border-glass-border text-xs shrink-0">
             {[
               { key: 'ALL', label: t('Todos', 'All') },
               { key: 'INCOME', label: t('Ingresos', 'Income') },
@@ -47,78 +135,63 @@ export default function FinanceTransactionList({ transactions, onDelete, onRecat
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder={t('Buscar...', 'Search...')}
-            className="px-3 py-1.5 bg-theme-base border border-glass-border rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 w-full sm:w-36"
+            className="px-3 py-1.5 bg-theme-base border border-glass-border rounded-lg text-xs focus:outline-none focus:border-blue-500/50 w-full sm:w-36"
+            style={{ color: 'var(--text-primary)' }}
           />
         </div>
       </div>
 
       {filtered.length === 0 ? (
-        <p className="text-xs text-slate-500 text-center py-6">{t('Sin transacciones', 'No transactions')}</p>
+        <p className="text-xs text-center py-6" style={{ color: 'var(--text-muted)' }}>{t('Sin transacciones', 'No transactions')}</p>
       ) : (
-        <div className="overflow-x-auto max-h-96 overflow-y-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-slate-500 border-b border-glass-border sticky top-0 bg-theme-card">
-                <th className="text-left py-2 px-2">{t('Fecha', 'Date')}</th>
-                <th className="text-left py-2 px-2">{t('Descripción', 'Description')}</th>
-                <th className="text-left py-2 px-2">{t('Categoría', 'Category')}</th>
-                <th className="text-right py-2 px-2">{t('Monto', 'Amount')}</th>
-                <th className="text-center py-2 px-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((tx, i) => (
-                <tr key={tx.id || i} className="border-b border-glass-border/50 hover:bg-theme-elevated">
-                  <td className="py-2 px-2 text-slate-400 whitespace-nowrap">{tx.date}</td>
-                  <td className="py-2 px-2 text-white max-w-[200px] truncate">
-                    {String(tx._source || '').startsWith('auto_') && (
-                      <span title={t('Capturado automáticamente', 'Captured automatically')} className="mr-1">⚡</span>
-                    )}
-                    {tx.description || '-'}
-                    {tx.location && <span className="text-slate-600"> · {tx.location}</span>}
-                  </td>
-                  <td className="py-2 px-2">
-                    {onRecategorize && editing === (tx.id || i) ? (
-                      <select
-                        autoFocus
-                        defaultValue={tx.category}
-                        onBlur={() => setEditing(null)}
-                        onChange={(e) => { onRecategorize(tx, e.target.value); setEditing(null) }}
-                        className="px-1.5 py-1 bg-theme-base border border-glass-border rounded-md text-xs text-white focus:outline-none">
-                        {(tx.type === 'INCOME' ? FINANCE_CATEGORIES.INCOME : FINANCE_CATEGORIES.EXPENSE).map(cat => (
-                          <option key={cat} value={cat}>{cat}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <button
-                        onClick={() => onRecategorize && setEditing(tx.id || i)}
-                        disabled={!onRecategorize}
-                        title={onRecategorize ? t('Cambiar categoría', 'Change category') : undefined}
-                        className="inline-flex items-center gap-1 rounded-md px-1 -mx-1 transition-colors disabled:cursor-default hover:bg-theme-elevated">
-                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: CATEGORY_COLORS[tx.category] || '#64748b' }} />
-                        <span className="text-slate-300">{tx.category}</span>
-                        {tx._needsReview && (
-                          <span title={t('Revisa la categoría', 'Check the category')} style={{ color: '#f59e0b' }}>?</span>
-                        )}
-                      </button>
-                    )}
-                  </td>
-                  <td className="py-2 px-2 text-right font-medium font-mono tabular-nums whitespace-nowrap"
-                    style={{ color: tx.type === 'INCOME' ? 'var(--accent-green)' : 'var(--text-negative)' }}>
-                    {tx.type === 'INCOME' ? '+' : '-'}Q{fmt(tx.amount)}
-                  </td>
-                  <td className="py-2 px-2 text-center">
-                    {onDelete && (
-                      <button onClick={() => { if (confirm(lang === 'es' ? '¿Eliminar esta transacción?' : 'Delete this transaction?')) onDelete(tx.id) }} className="text-slate-600 hover:text-red-400 transition-colors">
-                        &times;
-                      </button>
-                    )}
-                  </td>
+        <>
+          {/* Phone: one card per row, nothing to reach sideways for. */}
+          <div className="sm:hidden max-h-96 overflow-y-auto divide-y" style={{ borderColor: 'var(--card-border)' }}>
+            {filtered.map((tx, i) => (
+              <div key={keyOf(tx, i)} className="py-2.5 flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs truncate" style={{ color: 'var(--text-primary)' }}><Description tx={tx} /></p>
+                  <div className="flex items-center gap-2 mt-1 text-xs min-w-0">
+                    <span className="font-mono tabular-nums shrink-0" style={{ color: 'var(--text-muted)' }}>{tx.date}</span>
+                    <span className="shrink-0" style={{ color: 'var(--text-muted)' }}>·</span>
+                    <CategoryCell tx={tx} i={i} />
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  <Amount tx={tx} />
+                  <span className="text-xs"><DeleteButton tx={tx} i={i} /></span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden sm:block max-h-96 overflow-y-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-glass-border sticky top-0 bg-theme-card" style={{ color: 'var(--text-muted)' }}>
+                  <th className="text-left py-2 px-2 font-normal">{t('Fecha', 'Date')}</th>
+                  <th className="text-left py-2 px-2 font-normal">{t('Descripción', 'Description')}</th>
+                  <th className="text-left py-2 px-2 font-normal">{t('Categoría', 'Category')}</th>
+                  <th className="text-right py-2 px-2 font-normal">{t('Monto', 'Amount')}</th>
+                  <th className="text-center py-2 px-2"></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {filtered.map((tx, i) => (
+                  <tr key={keyOf(tx, i)} className="border-b border-glass-border/50 hover:bg-theme-elevated">
+                    <td className="py-2 px-2 font-mono tabular-nums whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{tx.date}</td>
+                    <td className="py-2 px-2 max-w-[200px] truncate" style={{ color: 'var(--text-primary)' }}>
+                      <Description tx={tx} />
+                    </td>
+                    <td className="py-2 px-2 max-w-[160px]"><CategoryCell tx={tx} i={i} /></td>
+                    <td className="py-2 px-2 text-right"><Amount tx={tx} /></td>
+                    <td className="py-2 px-2 text-center"><DeleteButton tx={tx} i={i} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   )

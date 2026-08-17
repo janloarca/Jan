@@ -10,7 +10,10 @@ export default function FinanceSummaryCards({ income, expenses, investmentIncome
   const savingsRate = totalIncome > 0 ? (savings / totalIncome) * 100 : 0
   const t = (es, en) => lang === 'es' ? es : en
 
-  const fmt = (v) => v.toLocaleString(lang === 'es' ? 'es-GT' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const fmt = (v) => Math.abs(v).toLocaleString(lang === 'es' ? 'es-GT' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  // The sign goes OUTSIDE the currency mark. Savings is the one card here that
+  // can go negative, and `Q${v}` printed it as "Q-118,879.20".
+  const money = (v) => `${v < 0 ? '-' : ''}Q${fmt(v)}`
 
   const Delta = ({ pct, goodWhenDown = false }) => {
     if (pct == null || !isFinite(pct)) return null
@@ -26,10 +29,10 @@ export default function FinanceSummaryCards({ income, expenses, investmentIncome
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-      <div className="bg-theme-card border border-glass-border rounded-xl p-4">
-        <p className="text-caption text-slate-500 mb-1">{t('Ingresos', 'Income')}</p>
+      <div className="card p-4">
+        <p className="text-caption mb-1" style={{ color: 'var(--text-muted)' }}>{t('Ingresos', 'Income')}</p>
         <p className="text-h2 font-mono tabular-nums" style={{ color: 'var(--accent-green)' }}>
-          Q{fmt(totalIncome)}
+          {money(totalIncome)}
           <Delta pct={momIncomePct} />
         </p>
         {investmentIncome > 0 && (
@@ -38,20 +41,20 @@ export default function FinanceSummaryCards({ income, expenses, investmentIncome
           </p>
         )}
       </div>
-      <div className="bg-theme-card border border-glass-border rounded-xl p-4">
-        <p className="text-caption text-slate-500 mb-1">{t('Gastos', 'Expenses')}</p>
+      <div className="card p-4">
+        <p className="text-caption mb-1" style={{ color: 'var(--text-muted)' }}>{t('Gastos', 'Expenses')}</p>
         <p className="text-h2 font-mono tabular-nums" style={{ color: 'var(--text-negative)' }}>
-          Q{fmt(expenses)}
+          {money(expenses)}
           <Delta pct={momExpensesPct} goodWhenDown />
         </p>
       </div>
-      <div className="bg-theme-card border border-glass-border rounded-xl p-4">
-        <p className="text-caption text-slate-500 mb-1">{t('Ahorro', 'Savings')}</p>
-        <p className="text-h2 font-mono tabular-nums" style={{ color: savings >= 0 ? 'var(--accent-blue-soft)' : '#f87171' }}>
-          Q{fmt(savings)}
+      <div className="card p-4">
+        <p className="text-caption mb-1" style={{ color: 'var(--text-muted)' }}>{t('Ahorro', 'Savings')}</p>
+        <p className="text-h2 font-mono tabular-nums" style={{ color: savings >= 0 ? 'var(--accent-blue-soft)' : 'var(--text-negative)' }}>
+          {money(savings)}
         </p>
         {totalIncome > 0 && (
-          <p className="text-xs font-mono tabular-nums mt-0.5" style={{ color: savingsRate >= 0 ? 'rgba(37,99,235,0.7)' : 'rgba(248,113,113,0.7)' }}>
+          <p className="text-xs font-mono tabular-nums mt-0.5" style={{ color: savingsRate >= 0 ? 'var(--accent-blue-soft)' : 'var(--text-negative)', opacity: 0.75 }}>
             {savingsRate >= 0 ? '+' : ''}{savingsRate.toFixed(1)}%
           </p>
         )}
