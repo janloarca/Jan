@@ -1,12 +1,12 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from 'react'
-import { formatCurrency, formatCompact, formatAxisTick, formatDate, getItemValue, buildIncomeEvents, isExcludedFromNetWorth, findYearStartAnchor, shouldHoldFlat, hasUnreliableAcqDate, SNAPSHOT_SRC_PRIORITY, BROKER_NAV_SOURCES, computeWindowGrowth, isMarketPriced, effectiveAcqTs } from './utils'
+import { formatCurrency, formatCompact, formatAxisTick, formatDate, getItemValue, buildIncomeEvents, isExcludedFromNetWorth, findYearStartAnchor, shouldHoldFlat, hasUnreliableAcqDate, SNAPSHOT_SRC_PRIORITY, BROKER_NAV_SOURCES, computeWindowGrowth, isMarketPriced, effectiveAcqTs, accountKeyOfItem } from './utils'
 import { buildTxEvents, buildCashFlows, rewindableTradeSymbols, brokerAccountTransactions } from '@/lib/portfolioRewind'
 import { indexBalanceEvents } from '@/lib/historicalValues'
 import { isBankLikeItem } from '@/lib/contributions'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
-import { buildNavByDate, composeDailyTotals, divergentDailyDates, staleBackfillDates, windowDates } from '@/lib/snapshotBackfill'
+import { buildNavByDate, composeDailyTotals, divergentDailyDates, staleBackfillDates, windowDates, navAsOf } from '@/lib/snapshotBackfill'
 import { staticValueAt } from '@/lib/staticOverlay'
 import { computeTWRSeries, computeAnchoredReturnSeries, computeAnchoredMWRSeries, filterValueSpikes } from './analytics'
 import { authFetch, safeJson } from '@/lib/authFetch'
@@ -1289,6 +1289,10 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
             }
           }),
           period: 'YTD',
+          // FASE IX9: el desglose por ítem del MISMO punto que se archiva, para
+          // poder imprimir la mitad manual del ancla cuenta por cuenta. Sin él,
+          // comparar el ancla contra el panel obliga a deducir de la resta.
+          breakdown: true,
         }),
       })
       if (!res.ok) { push(`${t('El servidor de historial falló', 'History server failed')} (${res.status}).`); setRepairState({ running: false, lines }); return }
@@ -1308,6 +1312,48 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       const composed = composeDailyTotals({
         gaps: windowDates(366), manualPoints: pts, navByDate, hasBrokerItems: composing,
       })
+      // ⛔ FASE IX9. El ancla del YTD es EL doc de esta misma composición para el
+      // 1 de enero, y el panel la descompone por cuenta. Cuando las dos no
+      // cuadran, la resta sola no dice de qué lado está la diferencia, y eso ha
+      // costado varias rondas de capturas. Acá se imprime la composición TAL
+      // COMO se archiva: sus dos mitades, y la manual cuenta por cuenta, con el
+      // MISMO criterio de agrupación que usa el panel (accountKeyOfItem). La
+      // fila que no coincida con la del panel es la respuesta.
+      const anchorDate = `${new Date().getUTCFullYear()}-01-01`
+      const anchorEntry = composed.find((c) => c.date === anchorDate)
+      if (anchorEntry) {
+        const navHalf = navAsOf(navByDate, anchorDate)
+        const manualHalf = navHalf == null ? anchorEntry.total : anchorEntry.total - navHalf
+        push(`${formatDate(`${anchorDate}T00:00:00Z`)}: ${t('manual', 'manual')} ${manualHalf.toFixed(2)}`
+          + (navHalf == null ? '' : ` + NAV ${navHalf.toFixed(2)}`)
+          + ` = ${anchorEntry.total.toFixed(2)}`)
+        // resolveGapFills se queda con el ÚLTIMO punto del día, así que el
+        // desglose se lee del mismo para describir lo que de verdad se archivó.
+        const dayPts = pts.filter((p) => p && p.byKey
+          && new Date(p.ts).toISOString().split('T')[0] === anchorDate)
+        const dayPt = dayPts.length > 0 ? dayPts[dayPts.length - 1] : null
+        if (dayPt) {
+          const byAccount = new Map()
+          const nameByKey = new Map()
+          assets.forEach((it) => {
+            const k = accountKeyOfItem(it) || (it.institution || it.name || '?')
+            nameByKey.set(k, it.institution || it.name || k)
+            const v = dayPt.byKey[it.id] ?? dayPt.byKey[(it.symbol || '').toUpperCase()]
+            if (Number.isFinite(v)) byAccount.set(k, (byAccount.get(k) || 0) + v)
+          })
+          const parts = [...byAccount.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .map(([k, v]) => `${nameByKey.get(k) || k} ${v.toFixed(2)}`)
+          if (parts.length > 0) push(`  ${parts.join(' · ')}`)
+        } else {
+          push(`  ${t('sin punto propio de esa fecha (se arrastró)', 'no point on that date (carried)')}`)
+        }
+      } else {
+        // Que el ancla NO esté en la composición es tan informativo como sus
+        // números: significa que la reparación no la reescribe, y entonces el
+        // doc archivado es de otra época y no de esta corrida.
+        push(`${formatDate(`${anchorDate}T00:00:00Z`)}: ${t('fuera de la composición (no se reescribe)', 'not in the composition (never rewritten)')}`)
+      }
       const gaps = staleBackfillDates(snapshots, { windowDays: 366, treatDailyAsStale: !hasBroker })
       const divergent = divergentDailyDates(snapshots, composed)
       const targets = new Set([...gaps, ...divergent])
