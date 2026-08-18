@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { CATEGORY_COLORS, FINANCE_CATEGORIES } from '@/lib/financeCategories'
 
 // The month's ledger. Two layouts on purpose: a table from `sm` up, and one
@@ -33,6 +33,27 @@ export default function FinanceTransactionList({ transactions, onDelete, onRecat
     .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
 
   const fmt = (v) => v.toLocaleString(lang === 'es' ? 'es-GT' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+  // The hour, when the capture carried one. It is what makes two identical
+  // charges legible as two instead of looking like a duplicate the app failed
+  // to catch, so it belongs on screen and not only in the dedup logic.
+  //
+  // Only after mounting: the stored value is an absolute instant and the hour a
+  // reader wants is their OWN, which the server cannot know — rendering it
+  // during SSR puts UTC in the HTML and the local hour in the browser, and React
+  // throws out the whole tree over the mismatch.
+  //
+  // Built by hand rather than with toLocaleTimeString: `hour: '2-digit'` gives
+  // 12-hour time with a " p. m." tail in es-GT, which is long and noisy in a
+  // dense row, and `hour12: false` renders midnight as 24:00 in some locales.
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
+  const timeOf = (tx) => {
+    if (!mounted || !tx.occurredAt) return null
+    const d = new Date(tx.occurredAt)
+    if (isNaN(d.getTime())) return null
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  }
   const shownTotal = filtered.reduce((s, tx) => s + (tx.type === 'INCOME' ? 1 : -1) * (tx.amount || 0), 0)
 
   const keyOf = (tx, i) => tx.id || i
@@ -152,7 +173,9 @@ export default function FinanceTransactionList({ transactions, onDelete, onRecat
                 <div className="min-w-0 flex-1">
                   <p className="text-xs truncate" style={{ color: 'var(--text-primary)' }}><Description tx={tx} /></p>
                   <div className="flex items-center gap-2 mt-1 text-xs min-w-0">
-                    <span className="font-mono tabular-nums shrink-0" style={{ color: 'var(--text-muted)' }}>{tx.date}</span>
+                    <span className="font-mono tabular-nums shrink-0" style={{ color: 'var(--text-muted)' }}>
+                      {tx.date}{timeOf(tx) ? ` ${timeOf(tx)}` : ''}
+                    </span>
                     <span className="shrink-0" style={{ color: 'var(--text-muted)' }}>·</span>
                     <CategoryCell tx={tx} i={i} />
                   </div>
@@ -179,7 +202,12 @@ export default function FinanceTransactionList({ transactions, onDelete, onRecat
               <tbody>
                 {filtered.map((tx, i) => (
                   <tr key={keyOf(tx, i)} className="border-b border-glass-border/50 hover:bg-theme-elevated">
-                    <td className="py-2 px-2 font-mono tabular-nums whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{tx.date}</td>
+                    <td className="py-2 px-2 font-mono tabular-nums whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
+                      {tx.date}
+                      {/* Espacio de verdad, no solo un margen: si no, copiar la
+                          celda o leerla con lector de pantalla da "2026-08-0320:32". */}
+                      {timeOf(tx) && <span className="opacity-70">{' '}{timeOf(tx)}</span>}
+                    </td>
                     <td className="py-2 px-2 max-w-[200px] truncate" style={{ color: 'var(--text-primary)' }}>
                       <Description tx={tx} />
                     </td>

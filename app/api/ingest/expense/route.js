@@ -15,7 +15,14 @@ export const dynamic = 'force-dynamic'
 //   POST /api/ingest/expense
 //   Authorization: Bearer <ingest token>
 //   { "amount": 17, "currency": "GTQ", "merchant": "Rally Padel Guatemala",
-//     "date": "2026-08-03", "lat": 14.57, "lon": -90.48, "clientId": "..." }
+//     "date": "2026-08-03", "occurredAt": "2026-08-03T14:32:00-06:00",
+//     "lat": 14.57, "lon": -90.48, "clientId": "..." }
+//
+// `occurredAt` is optional but worth sending: the hour is what separates one
+// charge captured twice (Wallet AND the forwarded alert) from two identical
+// charges at the same place. Without it the arrival time is used instead, which
+// is close enough here because the automation fires at the register — see
+// lib/sameCharge.js.
 //
 // Auth is the opaque ingest token, not a Firebase ID token: Shortcuts can only
 // attach a static header. See lib/ingestTokens.js for the trust model.
@@ -51,7 +58,13 @@ export async function POST(request) {
     const resolved = await resolveIngestToken(db, token)
     if (!resolved) return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
 
-    const input = normalizeExpenseInput({ ...body, source: 'shortcut' })
+    // The automation POSTs at the register, so arrival is a good stand-in for
+    // the purchase instant when the shortcut does not send `occurredAt`.
+    const input = normalizeExpenseInput({
+      receivedAt: new Date().toISOString(),
+      ...body,
+      source: 'shortcut',
+    })
     if (input.error) return NextResponse.json({ error: input.error }, { status: 400 })
 
     const rules = await readUserRules(db, resolved.uid)
