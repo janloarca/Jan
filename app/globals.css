@@ -67,8 +67,19 @@
   --text-muted: #4B5563;
   --accent-blue: #2563EB;
   --accent-blue-strong: #1D4ED8;
-  --accent-blue-soft: #3B82F6;
-  --accent-green: #059669;
+  /* Los dos siguientes se oscurecieron un escalón porque sobre BLANCO se usan
+     como TEXTO, y ahí sus valores previos (#3B82F6 = 3.68:1, #059669 = 3.77:1)
+     no llegaban al mínimo de 4.5 para texto chico: la cifra de ahorro de Flujo,
+     los porcentajes de las tarjetas y el "actual" del Spreadsheet quedaban
+     lavados sobre la card. Ahora 5.17 y 5.48, medidos con lib/colorMath.js y
+     fijados en lib/__tests__/palette.test.js.
+     En tema claro esto deja a --accent-blue-soft igual que --accent-blue: es a
+     propósito, no un descuido. Sobre blanco no existe un azul MÁS claro que ese
+     que siga siendo legible como texto, así que la distinción "suave" solo
+     puede vivir en el tema oscuro, donde el fondo la permite. Los usos
+     decorativos (puntos de 2px) no notan la diferencia. */
+  --accent-blue-soft: #2563EB;
+  --accent-green: #047857;
   --accent-red: #DC2626;
   --text-negative: #DC2626;
   --accent-orange: #D97706;
@@ -105,9 +116,19 @@
 }
 [data-theme="light"] {
   --alert-info-bg: #EFF4FF;    --alert-info-border: #BFD3FF;    --alert-info-icon: #2563EB;
-  --alert-warn-bg: #FFFBEB;    --alert-warn-border: #FDE68A;    --alert-warn-icon: #D97706;
-  --alert-error-bg: #FEF2F2;   --alert-error-border: #FECACA;   --alert-error-icon: #DC2626;
-  --alert-success-bg: #ECFDF5; --alert-success-border: #A7F3D0; --alert-success-icon: #059669;
+  /* warn-icon un escalón más oscuro por la misma razón: no siempre vive sobre
+     su propio fondo ámbar. El "?" de "revisá esta categoría" se pinta sobre la
+     card blanca, donde #D97706 medía 3.19:1. #B45309 da 5.02 ahí y sigue
+     pasando sobre el ámbar pálido de los banners. */
+  --alert-warn-bg: #FFFBEB;    --alert-warn-border: #FDE68A;    --alert-warn-icon: #B45309;
+  /* red-700, no red-600: sobre blanco #DC2626 pasa (4.83) pero sobre su propio
+     fondo teñido cae a 4.41, y un banner de error es justo donde el texto vive
+     sobre ese fondo. Lo destapó el guardián de abajo, no la vista. */
+  --alert-error-bg: #FEF2F2;   --alert-error-border: #FECACA;   --alert-error-icon: #B91C1C;
+  /* Mismo verde que --accent-green por la misma razón y para que no vuelvan a
+     divergir: era el único de los cuatro iconos de alerta que no llegaba a 4.5
+     sobre blanco (3.77 contra 4.83 de error y 5.17 de info). */
+  --alert-success-bg: #ECFDF5; --alert-success-border: #A7F3D0; --alert-success-icon: #047857;
 }
 
 /* Glass opacity variants — needed because Tailwind can't apply /NN to CSS-var colors */

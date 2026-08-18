@@ -5,6 +5,7 @@ import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { Zap } from 'lucide-react'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { isFirestoreQuotaError } from '@/lib/firestoreErrors'
+import LearnedRulesList from '@/components/finance/LearnedRulesList'
 
 // Standalone entry point for auto-captured expenses (iPhone Shortcut + forwarded
 // bank alerts), scoped to Flujo. Lives here instead of the shared Settings modal
@@ -252,25 +253,7 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
                 : `+ ${t('Generar token para un dispositivo', 'Generate a token for a device')}`}
           </button>
 
-          {rules.length > 0 && (
-            <div>
-              <p className="text-xs font-medium text-white mb-1">{t('Categorías que le enseñaste', 'Categories you taught it')}</p>
-              <p className="text-xs text-slate-500 mb-2">{t(
-                'Cada vez que corriges la categoría de un gasto automático, se guarda la regla y el siguiente cobro de ese comercio entra ya clasificado.',
-                'Every time you fix the category of an automatic expense, the rule is saved and the next charge from that merchant lands already classified.'
-              )}</p>
-              <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
-                {rules.map((r) => (
-                  <div key={r.match} className="flex items-center gap-2 px-2 py-1.5 bg-theme-base rounded-lg">
-                    <span className="flex-1 min-w-0 text-xs text-slate-400 truncate">{r.match}</span>
-                    <span className="shrink-0 text-xs" style={{ color: 'var(--accent-blue)' }}>{r.category}</span>
-                    <button onClick={() => handleForgetRule(r.match)} aria-label={t('Olvidar', 'Forget')}
-                      className="shrink-0 px-1 text-xs" style={{ color: 'var(--text-negative)', opacity: 0.6 }}>✕</button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          <LearnedRulesList rules={rules} onForget={handleForgetRule} busy={ingestLoading} lang={lang} />
 
           <p className="text-xs text-slate-600">{t(
             'El token da permiso para agregar gastos a tu cuenta, nunca para leerla. Si pierdes el teléfono, revócalo aquí.',
