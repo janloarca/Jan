@@ -618,25 +618,13 @@ html[data-ptr="on"] body {
   box-shadow: var(--shadow-elevated);
 }
 
-/* Único consumidor: la card del hero de la landing (`app/page.jsx`). Conserva
-   el blur, a diferencia de `.card`, porque ahí sí hay algo detrás que
-   desenfocar: los degradados radiales de ambiente de esa página. Cualquier
-   card del TABLERO va con `.card`.
-   `.card-primary` se retiró en esta misma pasada: había quedado con cero
-   consumidores. */
-.card-glass {
-  background: var(--bg-card);
-  box-shadow: var(--shadow-card);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border: var(--glass-border);
-  transition: background-color 0.2s, box-shadow 0.2s, transform 0.2s, border-color 0.2s;
-}
-.card-glass:hover {
-  background: var(--bg-card-hover);
-  box-shadow: var(--shadow-elevated);
-  transform: translateY(-1px);
-}
+/* `.card-glass` se retiró en FASE JJ, por la misma razón que `.card-primary`
+   antes: cero consumidores. Su único usuario era la card del hero de la
+   landing, y esa página pasó a ser de PALETA FIJA (se ve blanca sin importar
+   el tema del visitante, porque la app arranca en oscuro y el selector de tema
+   vive detrás del login). Una clase construida sobre tokens de tema no le
+   servía: dibuja su card con hex explícito. Cualquier card del TABLERO va con
+   `.card`. */
 
 /* Glass modal overlay + container */
 .modal-backdrop {
@@ -836,22 +824,6 @@ button[aria-label="Close"] {
    Cards become opaque white with hairline borders + soft shadow;
    the primary CTA becomes near-black; pills use a soft indigo wash.
    ============================================================ */
-/* Solo `.card-glass` (la landing). `.card-primary` ya no existe y `.card-hero`
-   ya no trae blur, así que las dos salieron de este selector.
-   De las cinco declaraciones que tenía, tres eran REDUNDANTES con los tokens de
-   tema claro (`background: #FFFFFF` es --bg-card, `1px solid #E5E7EB` es
-   --glass-border, y --shadow-card ya es esa sombra); lo único propio de tema
-   claro es apagar el glassmorphism. */
-[data-theme="light"] .card-glass {
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-/* El hover base deja el borde igual; en claro se oscurece un punto para que el
-   estado se note sin depender de la sombra, que en este tema es muy suave. */
-[data-theme="light"] .card-glass:hover {
-  border-color: #D1D5DB;
-}
-
 [data-theme="light"] .btn-primary {
   background: #111827;
   color: #FFFFFF;

@@ -5,7 +5,7 @@ import { ADSENSE_CLIENT } from '@/lib/adsense'
 
 export const metadata = {
   title: 'Chispudo: Portfolio Tracker for Latin America',
-  description: 'Track stocks, crypto, bonds, real estate, DeFi, SAFE notes and more. Built for LatAm. Free forever.',
+  description: 'Track stocks, crypto, bonds, real estate, DeFi, SAFE notes and more. Built for Latin America.',
   keywords: ['portfolio tracker', 'investment', 'LatAm', 'Guatemala', 'Mexico', 'Colombia', 'stocks', 'crypto', 'bonds', 'DeFi'],
   openGraph: {
     title: 'Chispudo: Track Your Entire Portfolio',
@@ -17,7 +17,7 @@ export const metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'Chispudo: Portfolio Tracker for Latin America',
-    description: 'Track every asset type. Built for LatAm. Free forever.',
+    description: 'Track every asset type. Built for Latin America.',
   },
   metadataBase: new URL('https://chispu.xyz'),
   // manifest: '/manifest.json',  // disabled — SW causes stale cache issues
