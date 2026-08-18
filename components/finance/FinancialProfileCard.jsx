@@ -81,10 +81,10 @@ export default function FinancialProfileCard({ profile, onSaveProfile, analysis,
   ]
 
   return (
-    <div className="bg-theme-card rounded-2xl border border-glass-border p-4">
+    <div className="card p-4">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+          <h3 className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
             👤 {t('Mi perfil financiero', 'My financial profile')}
             {savedFlash && <span className="text-xs font-medium" style={{ color: 'var(--accent-green)' }}>✓ {t('Guardado', 'Saved')}</span>}
           </h3>
