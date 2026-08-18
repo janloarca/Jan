@@ -58,10 +58,15 @@ https://chispu.xyz/api/ingest/expense
 | `amount` | Número | variable *Monto* de la transacción |
 | `currency` | Texto | `GTQ` |
 | `merchant` | Texto | variable *Comercio* de la transacción |
-| `date` | Texto | variable *Fecha* con formato `yyyy-MM-dd` |
 | `occurredAt` | Texto | variable *Fecha* con formato `yyyy-MM-dd'T'HH:mm:ssZ` |
 | `lat` | Número | *Latitud* de Ubicación actual |
 | `lon` | Número | *Longitud* de Ubicación actual |
+
+**No hace falta mandar `date` aparte.** Con `occurredAt` el día se toma de sus
+primeros diez caracteres, o sea el día que marcaba tu reloj, y eso es más
+correcto que calcularlo aparte: una compra de las 23:50 en Guatemala es el 3 de
+agosto, aunque en UTC ya sea el 4. Una acción *Formatear fecha* menos en el
+atajo, y un lugar menos donde las dos puedan discrepar.
 
 Los nombres exactos de las variables cambian entre versiones de iOS. Si la
 automatización no te expone *Comercio* o *Monto* por separado, usa la variable
