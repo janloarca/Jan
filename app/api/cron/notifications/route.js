@@ -6,6 +6,7 @@ import { buildWeeklyBriefForUser, makeMailer, AUTO_HEADERS } from '@/lib/weeklyB
 import { buildMonthlyBriefForUser, buildAnnualBriefForUser, monthRefFor } from '@/lib/periodBriefBuilder'
 import { makeBriefFetcher } from '@/lib/briefFetcher'
 import { makeContextCache } from '@/lib/briefContext'
+import { sweepInbox } from '@/lib/emailIngest'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -21,8 +22,13 @@ export const maxDuration = 300
 // día 1 = mensual. Y la decisión vive en código testeable en vez de en una
 // expresión cron.
 //
+// Por la MISMA razón de cupo, desde FASE JM también corre el barrido diario del
+// buzón de gastos (camino C). No es una notificación, pero es otra cosa que
+// tiene que pasar una vez al día y no tenía dónde: su cron propio era el tercero
+// y por lo tanto no se programaba.
+//
 // Gating (convención del repo: no-op silencioso sin configurar):
-//   CRON_SECRET, SMTP_HOST / SMTP_USER / SMTP_PASS
+//   CRON_SECRET, SMTP_HOST / SMTP_USER / SMTP_PASS, IMAP_HOST / IMAP_USER / IMAP_PASS
 //
 // Suscripciones: users/{uid}/settings/preferences con notifyWeekly /
 // notifyMonthly = true. Cada cadencia es independiente: elegir una no
@@ -121,10 +127,31 @@ export async function GET(request) {
     return NextResponse.json({ error: 'Unauthorized', errorCode: 'BAD_REQUEST' }, { status: 401 })
   }
 
-  const mailer = makeMailer(nodemailer)
-  if (!mailer) return NextResponse.json({ ok: true, skipped: 'SMTP not configured' })
   const db = getAdminDb()
   if (!db) return NextResponse.json({ error: 'Admin not configured', errorCode: 'INTERNAL' }, { status: 503 })
+
+  // El barrido del buzón de gastos (camino C) viaja en ESTE cron y no en el
+  // suyo: el plan Hobby permite 2 crons y vercel.json llegó a declarar 3, así
+  // que el tercero simplemente no se programaba. Como el camino de correo
+  // nunca estuvo encendido (faltan las IMAP_*), nadie lo habría notado hasta
+  // configurarlo y quedarse esperando un barrido que no existía.
+  //
+  // Va ANTES de los cortes de abajo a propósito: sin SMTP, o un día sin ninguna
+  // cadencia pendiente (o sea casi todos), esta ruta retorna temprano, y el
+  // barrido no depende de ninguna de las dos cosas.
+  //
+  // Envuelto en su propio try: un buzón caído no puede impedir que salgan los
+  // correos, y un fallo de correo no puede tragarse los gastos ya escritos.
+  let emailIngest = null
+  try {
+    emailIngest = await sweepInbox({ db, limit: 100 })
+  } catch (err) {
+    console.error('[cron/notifications] email sweep failed:', err?.message)
+    emailIngest = { error: err?.message || 'sweep failed' }
+  }
+
+  const mailer = makeMailer(nodemailer)
+  if (!mailer) return NextResponse.json({ ok: true, emailIngest, skipped: 'SMTP not configured' })
 
   const now = new Date()
   const cadences = dueCadences(now)
@@ -140,6 +167,7 @@ export async function GET(request) {
       await db.doc('system/notificationsCron').set({
         lastRunAt: now.toISOString(),
         cadences,
+        emailIngest,
         ...extra,
       }, { merge: true })
     } catch (e) {
@@ -149,7 +177,7 @@ export async function GET(request) {
 
   if (cadences.length === 0) {
     await stamp({ lastResult: 'nothing-due' })
-    return NextResponse.json({ ok: true, skipped: `nothing due on ${now.toISOString().slice(0, 10)}` })
+    return NextResponse.json({ ok: true, emailIngest, skipped: `nothing due on ${now.toISOString().slice(0, 10)}` })
   }
 
   // Un mismo usuario puede recibir dos cadencias en la misma corrida (el día 1,

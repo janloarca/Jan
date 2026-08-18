@@ -6,14 +6,21 @@ export const dynamic = 'force-dynamic'
 // IMAP + parsing a batch of messages needs more than the default budget.
 export const maxDuration = 60
 
-// Scheduled sweep of the forwarding mailbox (ingest path C).
+// Sweep of the forwarding mailbox (ingest path C), on demand.
 //
-// vercel.json fires this daily. Daily is a plan constraint, not a design choice:
-// Vercel's Hobby tier only runs cron jobs once a day. The split is deliberate
+// NOT in vercel.json any more. The Hobby tier allows two cron jobs and this was
+// the third declared, so it was never actually scheduled — and because the email
+// path had never been switched on, nothing revealed that. The daily sweep now
+// rides along in /api/cron/notifications, which already runs every day.
+//
+// This route stays because it is the way to run the sweep deliberately: from a
+// terminal with CRON_SECRET, or by adding it back as a cron on a plan with room.
+// "Sincronizar ahora" in Settings runs the same sweep as the signed-in user.
+//
+// Daily is a plan constraint, not a design choice. The split is deliberate
 // anyway — the Shortcut (path A) captures Apple Pay charges instantly, and this
-// sweep is the once-a-day net that catches everything else (physical swipes,
-// online charges, any card not in Wallet). Users who don't want to wait can hit
-// "Sincronizar ahora" in Settings, which runs the same sweep.
+// sweep is the net that catches everything else (physical swipes, online
+// charges, any card not in Wallet).
 //
 // Gating: CRON_SECRET to authenticate the caller, IMAP_* to do anything at all.
 // Missing IMAP config is a silent no-op, matching /api/cron/finance-reminder.

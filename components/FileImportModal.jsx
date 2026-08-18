@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { detectBI, parseBI } from '@/lib/parsers/biParser'
 import { detectCardStatement, parseCardStatement } from '@/lib/parsers/guateCardStatements'
+import { fingerprintStatement, describeFingerprint } from '@/lib/parsers/statementFingerprint'
 import { detectCoinbase, parseCoinbase } from '@/lib/parsers/coinbaseParser'
 import { detectKraken, parseKraken } from '@/lib/parsers/krakenParser'
 import { isIBKRSectionedFormat, parseIBKRFile, formatIBKRFileResult, detectIBKRFileKind, pickSectionedCsvFromWorkbook } from '@/lib/parsers/ibkrFileParser'
@@ -92,6 +93,10 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   const [aiCopied, setAiCopied] = useState(false)
   const [histCopied, setHistCopied] = useState(false)
   const [pdfReading, setPdfReading] = useState(false)
+  // Qué era el PDF que no reconocimos. Null cuando sí lo reconocimos o cuando ni
+  // siquiera parecía un estado de cuenta.
+  const [stmtFingerprint, setStmtFingerprint] = useState(null)
+  const [fpCopied, setFpCopied] = useState(false)
   const [pdfNotice, setPdfNotice] = useState('')
   const fileRef = useRef(null)
   const [ibkrData, setIbkrData] = useState(null)
@@ -174,6 +179,17 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     try {
       const { extractPdfLayoutText } = await import('@/lib/pdfExtract')
       const text = await extractPdfLayoutText(file)
+      // Si NO lo reconocemos, dejar constancia de qué era antes de caer a la
+      // IA. Un estado de un banco que todavía no soportamos se veía igual que un
+      // archivo malo: el usuario no sabía cuál de las dos cosas pasó, y sin
+      // saber cómo imprime ese banco no hay forma de escribirle un parser. Es
+      // observación pura, jamás montos.
+      if (text && !detectCardStatement(text)) {
+        const fp = fingerprintStatement(text)
+        setStmtFingerprint(fp.looksLikeStatement ? fp : null)
+      } else {
+        setStmtFingerprint(null)
+      }
       if (text && detectCardStatement(text)) {
         // Las reglas que el usuario ya enseñó corrigiendo categorías. Sin
         // ellas, el mismo comercio volvía a "Otros Gastos" en cada import por
@@ -186,7 +202,13 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
           // needs multiplicity, currency and settled-vs-authorized amounts
           // handled. See lib/statementReconcile.js for why each one matters.
           const match = reconcileStatement(parsed.transactions, existingFinanceTransactions)
-          setBiData({ transactions: parsed.transactions, finalBalance: 0, currency: 'GTQ', card: parsed })
+          // La moneda sale de las filas, no de una constante: un estado que
+          // no sea guatemalteco se etiquetaba GTQ pase lo que pase. Gana la más
+          // frecuente, que es la del cuerpo del estado (BAC imprime dos).
+          const freq = {}
+          for (const tx of parsed.transactions) freq[tx.currency || 'GTQ'] = (freq[tx.currency || 'GTQ'] || 0) + 1
+          const mainCurrency = Object.entries(freq).sort((a, b) => b[1] - a[1])[0]?.[0] || 'GTQ'
+          setBiData({ transactions: parsed.transactions, finalBalance: 0, currency: mainCurrency, card: parsed })
           setBiMatch(match)
           // New rows import by default. A review row is checked only when the
           // evidence says it is a SEPARATE charge; left unchecked it means
@@ -905,6 +927,37 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         <div className="flex-1 overflow-y-auto p-6">
           {error && (
             <div className="mb-4 p-3 bg-[#f87171]/10 border border-[#f87171]/20 text-[#f87171] rounded-lg text-sm">{error}</div>
+          )}
+
+          {/* Un estado de cuenta de un banco que todavía no leemos de forma
+              exacta. Se muestra en TODOS los pasos a propósito: lo que sigue es
+              la lectura con IA, y quien la está mirando merece saber por qué no
+              fue la exacta. La huella describe la FORMA del documento (páginas,
+              filas, convención de números, moneda), nunca un monto ni un
+              comercio: eso es de quien recibió el estado. */}
+          {stmtFingerprint && (
+            <div className="mb-4 p-3 rounded-lg text-xs"
+              style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)', color: 'var(--text-secondary)' }}>
+              <p className="font-medium mb-1" style={{ color: 'var(--alert-warn-icon)' }}>
+                {stmtFingerprint.issuers.length
+                  ? t(`Todavía no leemos ${stmtFingerprint.issuers[0]} de forma exacta`, `We don't read ${stmtFingerprint.issuers[0]} exactly yet`)
+                  : t('Todavía no reconocemos este banco', "We don't recognize this bank yet")}
+              </p>
+              <p className="mb-2">{t(
+                'Lo vamos a leer con IA, que funciona pero no reconcilia contra los totales que el estado imprime. Si querés lectura exacta, mandá esta línea (no lleva montos ni comercios):',
+                'We will read it with AI, which works but does not reconcile against the totals the statement prints. For exact reading, send this line (it carries no amounts or merchants):'
+              )}</p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 min-w-0 font-mono break-words px-2 py-1 rounded bg-theme-base" style={{ color: 'var(--text-muted)' }}>
+                  {describeFingerprint(stmtFingerprint, lang)}
+                </code>
+                <button onClick={() => { navigator.clipboard.writeText(describeFingerprint(stmtFingerprint, lang)); setFpCopied(true); setTimeout(() => setFpCopied(false), 2000) }}
+                  className="shrink-0 px-2 py-1 rounded-md font-medium"
+                  style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
+                  {fpCopied ? t('¡Copiado!', 'Copied!') : t('Copiar', 'Copy')}
+                </button>
+              </div>
+            </div>
           )}
 
           {/* Upload step */}
