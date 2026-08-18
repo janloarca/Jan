@@ -11,12 +11,17 @@ mismos que ves en cualquier gráfica de la app.
 
 - `chispudo-post-fragmentos.png` — imagen estática, 1080×1080 (cuadrado nativo
   de feed, se ve completo en escritorio y celular sin recorte).
-- `chispudo-post-fragmentos.mp4` — la misma escena animada: los fragmentos
-  entran desde fuera de encuadre, aterrizan dispersos, y el rayo se revela
-  encima. H.264, 1080×1080, 30fps, ~3.9s, pensado para loopear (el último
-  medio segundo se desvanece a blanco). Sin audio: en el feed de LinkedIn
-  el video arranca muteado por defecto, así que tiene que decir algo incluso
-  en silencio.
+- `chispudo-post-fragmentos-hd.mp4` — **el que hay que subir.** La escena
+  animada en 2160×2160 a 60fps (~4s, H.264, sin audio: el feed de LinkedIn
+  arranca muteado, así que tiene que decir algo en silencio). Coreografía v2:
+  cada fragmento entra con su propio retraso y rota en vuelo (seis cosas al
+  unísono se leen mecánicas, desfasadas se leen vivas), las estelas se dibujan
+  hacia el centro cuando cada uno aterriza, el rayo llega con overshoot y un
+  pulso que se expande, y en el reposo los fragmentos derivan unos pocos
+  píxeles para que nada quede congelado. Termina en fundido a blanco para
+  loopear.
+- `chispudo-post-fragmentos.mp4` — la v1 (1080×1080, 30fps, todos los
+  fragmentos al unísono). Se queda como referencia de qué cambió; no subirla.
 - `chispudo-post-fragmentos.svg` — el original de la imagen estática.
 
 Se regeneran con `build_post_image.py` y `build_post_animation.py`
