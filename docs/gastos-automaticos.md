@@ -59,6 +59,7 @@ https://chispu.xyz/api/ingest/expense
 | `currency` | Texto | `GTQ` |
 | `merchant` | Texto | variable *Comercio* de la transacción |
 | `date` | Texto | variable *Fecha* con formato `yyyy-MM-dd` |
+| `occurredAt` | Texto | variable *Fecha* con formato `yyyy-MM-dd'T'HH:mm:ssZ` |
 | `lat` | Número | *Latitud* de Ubicación actual |
 | `lon` | Número | *Longitud* de Ubicación actual |
 
@@ -66,6 +67,18 @@ Los nombres exactos de las variables cambian entre versiones de iOS. Si la
 automatización no te expone *Comercio* o *Monto* por separado, usa la variable
 completa de la transacción en `merchant` y el parser se queda con el nombre: lo
 único indispensable es que `amount` sea un número.
+
+`occurredAt` es opcional pero conviene mandarlo: **la hora es lo único que
+distingue un cobro capturado dos veces de dos cobros iguales.** Dos parqueos de
+Q20 el mismo día en el mismo lugar son dos cobros si pasaron a horas distintas y
+uno solo si pasaron a la misma, y ningún parecido de nombres puede decidir eso.
+Es el mismo campo *Fecha* de la transacción, solo que con el formato completo
+(`yyyy-MM-dd'T'HH:mm:ssZ` en la acción *Formatear fecha*).
+
+Si no lo mandás no se rompe nada: se usa la hora en que llegó la solicitud, que
+acá se le parece bastante porque la automatización dispara en el momento del
+cobro. La diferencia es el margen con que se comparan dos capturas: un minuto
+cuando las dos horas son reales, cinco cuando alguna es aproximada.
 
 La respuesta te dice qué pasó, para que puedas mostrar una notificación al final
 del atajo sin una segunda llamada:
@@ -85,7 +98,7 @@ ese cobro ya estaba registrado.
 curl -X POST https://chispu.xyz/api/ingest/expense \
   -H "Authorization: Bearer <tu token>" \
   -H "Content-Type: application/json" \
-  -d '{"amount":17,"currency":"GTQ","merchant":"Rally Padel Guatemala","date":"2026-08-03"}'
+  -d '{"amount":17,"currency":"GTQ","merchant":"Rally Padel Guatemala","date":"2026-08-03","occurredAt":"2026-08-03T14:32:00-06:00"}'
 ```
 
 ## Paso 3 (camino C): reenvío de correo
@@ -132,10 +145,20 @@ en la noche). No se duplica, por dos capas:
 
 1. **Id determinístico.** El mismo evento repetido resuelve siempre al mismo
    documento, así que reintentar el atajo no escribe dos veces.
-2. **Barrido de casi-duplicados.** Mismo monto y moneda, con ±1 día de diferencia
-   y un comercio que se parece, cuenta como ya capturado. La ventana de ±1 día
-   existe porque el cargo puede postearse al día siguiente de la compra. Esto
-   también protege contra un gasto que ya habías escrito a mano.
+2. **La hora.** Es lo que decide cuando las dos capturas la tienen: mismo monto
+   y mismo instante es un cobro, mismo monto a horas distintas son dos. Se
+   comparan instantes y no la etiqueta del día, así que un cobro de las 7pm (que
+   en UTC cae al día siguiente) no se parte en dos por eso. El margen es de un
+   minuto cuando las dos horas son las reales, y de cinco cuando alguna es la de
+   llegada, para absorber la demora de un correo reenviado.
+3. **Comercio, solo el mismo día.** Cuando falta la hora de un lado, se compara
+   el nombre del comercio dentro del mismo día. Esto también protege contra un
+   gasto que ya habías escrito a mano.
+
+Fechas distintas son **dos cobros**, siempre: dos parqueos de Q20 el lunes y el
+martes son dos parqueos. Si un transporte llegara a reportar al día siguiente,
+vas a ver un duplicado que podés borrar, y eso es a propósito: un duplicado que
+se ve se arregla, un cobro que se borró solo no.
 
 ## Categorías
 
