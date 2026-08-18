@@ -56,11 +56,18 @@ https://chispu.xyz/api/ingest/expense
 | Campo | Tipo | Valor |
 |---|---|---|
 | `amount` | Número | variable *Monto* de la transacción |
-| `currency` | Texto | `GTQ` |
+| `currency` | Texto | `GTQ` (o la propiedad *Currency* de Transaction, si tu iOS la ofrece) |
 | `merchant` | Texto | variable *Comercio* de la transacción |
 | `occurredAt` | Texto | variable *Fecha* con formato `yyyy-MM-dd'T'HH:mm:ssZ` |
 | `lat` | Número | *Latitud* de Ubicación actual |
 | `lon` | Número | *Longitud* de Ubicación actual |
+
+**Sobre la moneda.** `currency` es una constante que escribís una vez, así que
+una compra en otra moneda entraría bajo la equivocada. Dos defensas: si la
+variable *Transaction* de tu iOS ofrece una propiedad **Currency**, usala ahí y
+es exacto; y si no, el servidor lee la moneda que el propio monto declare
+("$100.00", "100.00 USD") y esa le gana a la constante. Un "$" solo pisa a una
+moneda que no se escriba con "$", para que en México "$100.00" siga siendo pesos.
 
 **No hace falta mandar `date` aparte.** Con `occurredAt` el día se toma de sus
 primeros diez caracteres, o sea el día que marcaba tu reloj, y eso es más
