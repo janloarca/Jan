@@ -9,13 +9,13 @@ import { useExchangeRates } from '@/hooks/useExchangeRates'
 // so a USD entry isn't added 1:1 to GTQ totals (and mislabeled "Q").
 const FINANCE_CURRENCY = 'GTQ'
 
-import Header from '@/components/dashboard/Header'
+import PageShell, { PageTitle } from '@/components/PageShell'
 import PullToRefresh from '@/components/ui/PullToRefresh'
 import { computeLoadStages } from '@/lib/loadStages'
-import MobileNav from '@/components/dashboard/MobileNav'
 import MonthSelector from '@/components/finance/MonthSelector'
 import FinanceSummaryCards from '@/components/finance/FinanceSummaryCards'
-import CategoryBreakdown from '@/components/finance/CategoryBreakdown'
+import BreakdownCard from '@/components/finance/BreakdownCard'
+import MonthStatusBar from '@/components/finance/MonthStatusBar'
 import FinanceTransactionList from '@/components/finance/FinanceTransactionList'
 import FinanceInsights from '@/components/finance/FinanceInsights'
 import FinancialProfileCard from '@/components/finance/FinancialProfileCard'
@@ -28,8 +28,14 @@ import { computeMonthlyAnalysis, buildFinanceInsights, investmentIncomeOfMonth }
 import { planRecategorize, isMachineDescribed } from '@/lib/recategorize'
 import PageTour from '@/components/dashboard/PageTour'
 import { Wallet, Zap } from 'lucide-react'
-import { INCOME_GROUPS } from '@/lib/financeCategories'
 import { authFetch } from '@/lib/authFetch'
+
+// Los botones secundarios de la barra de acciones. Antes eran
+// `text-slate-300 border-slate-600/50`, o sea un borde de tema oscuro sobre un
+// fondo que en tema claro es casi blanco: se veían como texto flotando sin
+// caja. Van por tokens, como el resto de la app.
+const SECONDARY_BTN = 'px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors hover:bg-theme-elevated'
+const SECONDARY_STYLE = { color: 'var(--text-secondary)', borderColor: 'var(--card-border)' }
 
 export default function FinancesPage() {
   const router = useRouter()
@@ -137,25 +143,11 @@ export default function FinancesPage() {
     })
   }, [financeTransactions, portfolioTransactions, investmentIncome, month, year, convert])
   const monthInsights = useMemo(() => buildFinanceInsights(analysis, lang), [analysis, lang])
-  const incomeByGroup = useMemo(() => {
-    const byCat = {}
-    for (const tx of monthTransactions) {
-      if (tx.type !== 'INCOME') continue
-      byCat[tx.category] = (byCat[tx.category] || 0) + (tx.amount || 0)
-    }
-    const out = {}
-    for (const g of INCOME_GROUPS) {
-      if (g.autoOnly) continue
-      out[g.key] = g.categories.reduce((s, c) => s + (byCat[c] || 0), 0)
-    }
-    return out
-  }, [monthTransactions])
 
-  const isCurrentMonth = month === now.getMonth() && year === now.getFullYear()
-  const daysLeft = isCurrentMonth
-    ? new Date(year, month + 1, 0).getDate() - now.getDate()
-    : 0
-
+  // El desglose por grupo (y por categoría dentro de cada grupo) sale del MISMO
+  // motor que produce los totales, así que una fila desplegada siempre suma su
+  // grupo y los grupos siempre suman el total. Antes la página lo armaba a mano
+  // por su cuenta y otra card lo re-derivaba una tercera vez.
   const reminderEnabled = !!settings?.financeReminder
   const handleToggleReminder = useCallback(async () => {
     const next = !reminderEnabled
@@ -282,25 +274,19 @@ export default function FinancesPage() {
     // dashboard and spreadsheet already get.
     return (
       <div className="min-h-screen bg-theme-base">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-5">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <SkeletonCard /><SkeletonCard /><SkeletonCard />
-        </div>
-        <SkeletonTable />
+        {/* Mismo ancho y mismo ritmo que PageShell, para que el borde del
+            contenido no salte cuando llegan los datos. */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <SkeletonCard /><SkeletonCard /><SkeletonCard />
+          </div>
+          <SkeletonTable />
         </div>
       </div>
     )
   }
 
   if (!user) return null
-
-  const handleSignOut = async () => {
-    const { auth } = await import('@/lib/firebase')
-    const { signOut } = await import('firebase/auth')
-    document.cookie = '__session=; path=/; max-age=0'
-    if (auth) await signOut(auth)
-    router.push('/login')
-  }
 
   // Un solo cálculo para el anillo del header y para el gesto de jalar, con el
   // helper compartido en vez de una expresión propia: acá no hay precios de
@@ -309,27 +295,40 @@ export default function FinancesPage() {
   // (si no, cada refresco arrancaba en un 50% que no significaba nada).
   const loadStages = computeLoadStages({ dataLoading, ratesLoading })
 
+  // Una línea corta para que la ausencia de flechas no se lea como un dato que
+  // falta. El POR QUÉ completo vive arriba, en la barra de estado, junto a los
+  // días transcurridos: ahí es donde ya se está hablando del mes en curso.
+  const deltaSilentReason = analysis.partialMonth
+    ? t('Variaciones al cerrar el mes', 'Changes once the month closes')
+    : null
+
   return (
-    <div className="min-h-screen bg-theme-base">
-      <a href="#main-content" className="skip-link">{t('Ir al contenido', 'Skip to content')}</a>
-      {/* FASE EM. onRefresh was a no-op and no load-stage signal was passed, so
-          the ring could never show real progress — same gap as the spreadsheet
-          page. Finanzas has no market prices to refresh (its numbers are
-          Firestore-live + GTQ conversion), so its two real stages are the data
-          listener and the exchange rate fetch. */}
-      <Header
-        user={user}
-        lang={lang}
-        setLang={handleSetLang}
-        onImport={() => setModal('import')}
-        onSettings={() => router.push('/dashboard')}
-        onSignOut={handleSignOut}
-        onRefresh={refreshRates}
-        pricesLoading={ratesLoading}
-        loadStagesDone={loadStages.done}
-        loadStagesTotal={loadStages.total}
-        friendsEnabled={settings?.friendsEnabled !== false}
-      />
+    // El armazón compartido. Antes esta página montaba a mano su propio Header,
+    // su MobileNav, el skip link y un `handleSignOut` copiado palabra por
+    // palabra de PageShell, y escribía su título con las mismas clases que
+    // PageTitle. De paso corrige el ritmo vertical: usaba `space-y-4 sm:space-y-5`
+    // contra el `sm:space-y-6` del resto de la app, o sea quedaba 4px más
+    // apretada que cualquier otra ruta y justo en el borde de la proporción que
+    // hace que las cards no se fundan entre sí.
+    //
+    // FASE EM. onRefresh was a no-op and no load-stage signal was passed, so the
+    // ring could never show real progress. Finanzas has no market prices to
+    // refresh (its numbers are Firestore-live + GTQ conversion), so its two real
+    // stages are the data listener and the exchange rate fetch.
+    <PageShell
+      user={user} lang={lang} setLang={handleSetLang} settings={settings} width="wide"
+      onAdd={() => setModal('add')}
+      onImport={() => setModal('import')}
+      onExport={handleExportCsv}
+      onAuto={() => setModal('auto')}
+      onSettings={() => router.push('/dashboard')}
+      headerProps={{
+        onRefresh: refreshRates,
+        pricesLoading: ratesLoading,
+        loadStagesDone: loadStages.done,
+        loadStagesTotal: loadStages.total,
+      }}
+    >
       {/* Jalar hacia abajo para actualizar (FASE JF). Recibe EXACTAMENTE los
           mismos valores que el Header de arriba, para que los dos indicadores
           de esta pantalla no puedan contar historias distintas. Acá tambien
@@ -369,40 +368,50 @@ export default function FinancesPage() {
         },
       ]} />
 
-      <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-5">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div>
-            <h1 className="text-h1 font-bold text-white flex items-center gap-2">
-              <Wallet size={18} style={{ color: 'var(--accent-blue)' }} /> {t('Flujo', 'Flow')}
-            </h1>
-            <p className="text-caption mt-0.5" style={{ color: 'var(--text-muted)' }}>{t('Ingresos y gastos', 'Income & expenses')}</p>
-          </div>
-          <div className="flex items-center gap-3">
+      <PageTitle
+        icon={Wallet}
+        title={t('Flujo', 'Flow')}
+        subtitle={t('Ingresos y gastos', 'Income & expenses')}
+        actions={
+          <div className="flex items-center flex-wrap gap-2 sm:gap-3">
             <MonthSelector month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y) }} lang={lang} />
             <button onClick={() => setModal('add')}
-              className="px-3 py-1.5 text-xs font-medium bg-blue-600 rounded-lg hover:bg-blue-500 transition-colors" style={{ color: '#ffffff' }}>
+              className="px-3 py-1.5 text-xs font-medium rounded-lg transition-opacity hover:opacity-90"
+              style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
               + {t('Agregar', 'Add')}
             </button>
             <button onClick={() => setModal('import')}
-              className="px-3 py-1.5 text-xs font-medium text-slate-300 border border-slate-600/50 rounded-lg hover:bg-theme-elevated transition-colors">
+              className={SECONDARY_BTN} style={SECONDARY_STYLE}>
               {t('Importar', 'Import')}
             </button>
             <button onClick={() => setModal('auto')}
-              className="hidden sm:inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-slate-300 border border-slate-600/50 rounded-lg hover:bg-theme-elevated transition-colors">
+              className={`hidden sm:inline-flex items-center gap-1 ${SECONDARY_BTN}`} style={SECONDARY_STYLE}>
               <Zap size={12} style={{ color: 'var(--accent-blue)' }} /> {t('Automático', 'Automatic')}
             </button>
             {monthTransactions.length > 0 && (
               <button onClick={handleExportCsv}
-                className="hidden sm:inline-flex px-3 py-1.5 text-xs font-medium text-slate-300 border border-slate-600/50 rounded-lg hover:bg-theme-elevated transition-colors">
+                className={`hidden sm:inline-flex ${SECONDARY_BTN}`} style={SECONDARY_STYLE}>
                 {t('Exportar', 'Export')}
               </button>
             )}
           </div>
-        </div>
+        }
+      />
 
         {/* A brand-new user sees the empty state directly, not a stack of Q0.00
             cards and blank breakdowns with the guidance buried below the fold. */}
         {financeTransactions.length > 0 && <>
+        <MonthStatusBar
+          status={analysis.status}
+          partialMonth={analysis.partialMonth}
+          daysElapsed={analysis.daysElapsed}
+          daysInMonth={analysis.daysInMonth}
+          daysLeft={analysis.daysLeft}
+          reminderEnabled={reminderEnabled}
+          onToggleReminder={handleToggleReminder}
+          reminderEmail={settings?.financeReminderEmail || user?.email || ''}
+          lang={lang}
+        />
         {recatPlan.length > 0 && (
           <InlineNotice
             tone="info"
@@ -421,28 +430,43 @@ export default function FinancesPage() {
             {t(`Listo: ${recatDone} reclasificados.`, `Done: ${recatDone} reclassified.`)}
           </InlineNotice>
         )}
+        {/* Lo que de verdad pasa cuando un ahorro sale en -245%: no es que se
+            gastara tres veces el sueldo, es que el sueldo todavía no está
+            registrado. Decirlo es más útil que pintar el número de rojo. */}
+        {analysis.incomeLooksUnlogged && (
+          <InlineNotice tone="warn">
+            {t('Este mes no tiene ningún ingreso recurrente registrado (salario, renta, freelance), así que el resultado de abajo mide gastos contra casi nada. Agrega tu ingreso del mes y las cifras cuadran.',
+               'This month has no recurring income logged (salary, rent, freelance), so the result below measures spending against almost nothing. Add your income for the month and the figures line up.')}
+          </InlineNotice>
+        )}
+
         <FinanceSummaryCards income={income} expenses={expenses}
           investmentIncome={investmentIncome.total}
           momIncomePct={analysis.momIncomePct} momExpensesPct={analysis.momExpensesPct}
+          momComparable={analysis.momComparable}
           lang={lang} />
 
-        <FinanceInsights
-          analysis={analysis}
-          insights={monthInsights}
-          investmentIncome={investmentIncome}
-          incomeByGroup={incomeByGroup}
-          lang={lang}
-          isCurrentMonth={isCurrentMonth}
-          daysLeft={daysLeft}
-          reminderEnabled={reminderEnabled}
-          onToggleReminder={handleToggleReminder}
-          reminderEmail={settings?.financeReminderEmail || user?.email || ''}
-        />
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <CategoryBreakdown transactions={monthTransactions} type="EXPENSE" lang={lang} />
-          <CategoryBreakdown transactions={monthTransactions} type="INCOME" lang={lang} />
+        {/* Una card por lado, cada grupo desplegable a sus categorías. Antes
+            eran cuatro cards dibujando el mismo dinero dos veces por lado. */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 items-start">
+          <BreakdownCard
+            title={t('Gastos', 'Expenses')}
+            groups={analysis.groups}
+            total={analysis.expenses}
+            silentReason={deltaSilentReason}
+            lang={lang}
+          />
+          <BreakdownCard
+            title={t('Ingresos', 'Income')}
+            groups={analysis.incomeGroups}
+            total={analysis.income}
+            silentReason={deltaSilentReason}
+            emptyText={t('Sin ingresos registrados este mes', 'No income logged this month')}
+            lang={lang}
+          />
         </div>
+
+        <FinanceInsights insights={monthInsights} lang={lang} />
 
         <FinanceTransactionList
           transactions={monthTransactions}
@@ -455,8 +479,8 @@ export default function FinancesPage() {
         {financeTransactions.length === 0 && (
           <div className="text-center py-12">
             <div className="text-5xl mb-4">📊</div>
-            <p className="text-white font-semibold mb-2">{t('Sin transacciones aún', 'No transactions yet')}</p>
-            <p className="text-slate-500 text-sm mb-4">
+            <p className="font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>{t('Sin transacciones aún', 'No transactions yet')}</p>
+            <p className="text-sm mb-4" style={{ color: 'var(--text-muted)' }}>
               {t('Importa tu estado de cuenta bancario o agrega transacciones manualmente.',
                  'Import your bank statement or add transactions manually.')}
             </p>
@@ -466,11 +490,13 @@ export default function FinancesPage() {
                 {t('Importar Estado de Cuenta', 'Import Bank Statement')}
               </button>
               <button onClick={() => setModal('add')}
-                className="px-4 py-2 border border-glass-border text-slate-300 rounded-lg hover:bg-theme-elevated transition-colors text-sm">
+                className="px-4 py-2 rounded-lg border hover:bg-theme-elevated transition-colors text-sm"
+                style={SECONDARY_STYLE}>
                 {t('Agregar Manual', 'Add Manually')}
               </button>
               <button onClick={() => setModal('auto')}
-                className="flex items-center gap-1.5 px-4 py-2 border border-glass-border text-slate-300 rounded-lg hover:bg-theme-elevated transition-colors text-sm">
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg border hover:bg-theme-elevated transition-colors text-sm"
+                style={SECONDARY_STYLE}>
                 <Zap size={14} style={{ color: 'var(--accent-blue)' }} /> {t('Configurar Automático', 'Set Up Automatic')}
               </button>
             </div>
@@ -480,7 +506,6 @@ export default function FinancesPage() {
         {/* Moved here from Settings: nobody found it there, and this data is
             time-sensitive — it belongs next to the money it describes. */}
         <FinancialProfileCard profile={profile} onSaveProfile={saveProfile} analysis={analysis} lang={lang} />
-      </main>
 
       {modal === 'add' && (
         <AddFinanceTransactionModal
@@ -507,16 +532,6 @@ export default function FinancesPage() {
       {modal === 'auto' && (
         <AutoCaptureModal onClose={() => setModal(null)} lang={lang} />
       )}
-
-      <MobileNav
-        onAdd={() => setModal('add')}
-        onImport={() => setModal('import')}
-        onExport={handleExportCsv}
-        onAuto={() => setModal('auto')}
-        onSettings={() => router.push('/dashboard')}
-        lang={lang}
-        friendsEnabled={settings?.friendsEnabled !== false}
-      />
-    </div>
+    </PageShell>
   )
 }
