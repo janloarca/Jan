@@ -117,14 +117,29 @@ curl -X POST https://chispu.xyz/api/ingest/expense \
 
 ### Del lado del servidor (una sola vez)
 
-1. Crea el buzón `gastos@chispu.xyz` en la misma cuenta de Zoho que
-   `recordatorios@chispu.xyz`.
-2. Genera una contraseña de aplicación (Zoho → Seguridad → App Passwords).
-3. En Vercel, define `IMAP_HOST`, `IMAP_USER`, `IMAP_PASS` y
-   `NEXT_PUBLIC_INGEST_EMAIL`. Los detalles están en `.env.local.example`.
+No hace falta crear ningún buzón: se reusa `reminders@chispu.xyz`, el que ya
+manda los recordatorios y los reportes. Lo que identifica al usuario es la
+etiqueta `+<token>`, no el nombre del buzón, así que `reminders+<token>@chispu.xyz`
+llega a ese mismo buzón tal como está.
+
+1. Zoho → Seguridad → App Passwords: sirve la misma que ya usa el SMTP.
+2. En Vercel, define `IMAP_HOST=imap.zoho.com`, `IMAP_USER=reminders@chispu.xyz`,
+   `IMAP_PASS` y `NEXT_PUBLIC_INGEST_EMAIL=reminders@chispu.xyz`. Los detalles
+   están en `.env.local.example`.
 
 Sin esas variables el barrido es un no-op silencioso y la pestaña Automático
-esconde la opción de correo, así que se puede desplegar antes de crear el buzón.
+esconde la opción de correo, así que se puede desplegar antes de configurarlo.
+
+**Compartir el buzón es seguro, y esto es lo que lo hace seguro:** el barrido
+solo marca como leído un correo que traía un token nuestro. Uno sin token (un
+rebote, una respuesta automática, cualquier cosa dirigida a una persona) se deja
+exactamente como estaba, así que un proceso de fondo nunca decide por vos qué ya
+viste. Y los recorre del más nuevo al más viejo, para que una acumulación de
+correo ajeno no se coma el presupuesto del barrido y tape las alertas de hoy.
+
+Opcional, más ordenado: una regla de Zoho que mueva lo dirigido a `reminders+*`
+a una carpeta (por ejemplo `Gastos`) y `IMAP_MAILBOX` apuntando ahí. Con eso el
+barrido ni siquiera mira la bandeja donde caen los rebotes.
 
 ### Del lado del usuario
 
@@ -133,7 +148,7 @@ esconde la opción de correo, así que se puede desplegar antes de crear el buz�
    aparece en Configuración → Automático, con esta forma:
 
    ```
-   gastos+<tu token>@chispu.xyz
+   reminders+<tu token>@chispu.xyz
    ```
 
    En Gmail: Configuración → Filtros → crear filtro con `De: alertas@tubanco.com`
@@ -145,9 +160,11 @@ por ella dejaría que cualquiera escribiera gastos en la cuenta de otro.
 
 ### Cadencia
 
-El barrido corre una vez al día. Es límite del plan Hobby de Vercel, que solo
-permite crons diarios, no una decisión de diseño. Si no quieres esperar, el botón
-**Sincronizar ahora** en Configuración → Automático corre el mismo barrido.
+El barrido corre una vez al día, dentro del cron de notificaciones (7am hora de
+Guatemala). Va ahí y no en un cron propio porque el plan Hobby de Vercel permite
+dos, y el suyo era el tercero: estaba declarado pero nunca se programaba. Si no
+quieres esperar, el botón **Sincronizar ahora** en Configuración → Automático
+corre el mismo barrido.
 
 ## Doble conteo
 

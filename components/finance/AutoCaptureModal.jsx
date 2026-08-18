@@ -114,10 +114,29 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
     setIngestSyncing(true)
     try {
       const res = await ingestApi({ action: 'sync-email' })
-      flash('ok', t(
-        `Correos revisados: ${res.scanned}. Gastos nuevos: ${res.created}.`,
-        `Emails checked: ${res.scanned}. New expenses: ${res.created}.`
-      ))
+      // Un barrido que no encuentra nada tiene tres causas MUY distintas y desde
+      // afuera se ven iguales: no llegó nada, llegó pero ninguno traía token (o
+      // sea la regla de reenvío apunta a la dirección sin +token), o llegaron
+      // los nuestros y ya estaban registrados. Decir cuál ahorra la ronda de
+      // diagnóstico, que es la lección del botón "Reparar ahora".
+      if (res.created > 0) {
+        flash('ok', t(
+          `${res.created} gasto(s) nuevo(s) de ${res.ours} correo(s) tuyo(s).`,
+          `${res.created} new expense(s) from ${res.ours} of your emails.`
+        ))
+      } else if (res.ours > 0) {
+        flash('ok', t(
+          `${res.ours} correo(s) tuyo(s), nada nuevo que agregar (ya estaban o no eran cobros).`,
+          `${res.ours} of your emails, nothing new to add (already recorded or not charges).`
+        ))
+      } else if (res.scanned > 0) {
+        flash('err', t(
+          `Revisé ${res.scanned} correo(s) y ninguno venía con tu token. Revisa que la regla reenvíe a la dirección con +token de arriba.`,
+          `Checked ${res.scanned} email(s), none carried your token. Check that your rule forwards to the +token address above.`
+        ))
+      } else {
+        flash('ok', t('No había correos nuevos.', 'No new emails.'))
+      }
     } catch (e) { flash('err', humanizeError(e.message)) }
     setIngestSyncing(false)
   }
