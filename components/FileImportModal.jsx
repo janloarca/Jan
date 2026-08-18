@@ -76,7 +76,7 @@ function parseNumber(val) {
 // screen, with a summary of what was written. The IBKR journey orchestrator
 // listens to it to ADVANCE to the next step instead of dropping the user back
 // on the dashboard wondering whether more steps exist (the reported bug).
-export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateFinanceTransaction, onUpdateItem, onDeleteItem, onBulkImport, existingItems, existingLots = [], existingFinanceTransactions = [], activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null, onImportComplete = null, journeyActive = false }) {
+export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateFinanceTransaction, onUpdateItem, onDeleteItem, onBulkImport, existingItems, existingLots = [], existingFinanceTransactions = [], ingestRules = [], activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null, onImportComplete = null, journeyActive = false }) {
   const trapRef = useFocusTrap()
   const [mode, setMode] = useState('file')
   const [step, setStep] = useState('upload')
@@ -175,7 +175,10 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       const { extractPdfLayoutText } = await import('@/lib/pdfExtract')
       const text = await extractPdfLayoutText(file)
       if (text && detectCardStatement(text)) {
-        const parsed = parseCardStatement(text)
+        // Las reglas que el usuario ya enseñó corrigiendo categorías. Sin
+        // ellas, el mismo comercio volvía a "Otros Gastos" en cada import por
+        // más veces que se lo hubiera corregido.
+        const parsed = parseCardStatement(text, { rules: ingestRules })
         if (parsed && parsed.transactions.length > 0) {
           // Card statements go through reconcileStatement, NOT matchStatement:
           // the statement arrives a month after the Shortcut and the email

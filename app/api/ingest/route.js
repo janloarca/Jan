@@ -70,7 +70,7 @@ export async function POST(request) {
       const category = String(body.category || '')
       const known = [...FINANCE_CATEGORIES.EXPENSE, ...FINANCE_CATEGORIES.INCOME]
       if (!known.includes(category)) return NextResponse.json({ error: 'Unknown category' }, { status: 400 })
-      const rule = ruleFromCorrection(body.merchant, category)
+      const rule = ruleFromCorrection(body.merchant, category, body.label)
       if (!rule) return NextResponse.json({ error: 'Invalid rule' }, { status: 400 })
 
       const { tokens, rules } = await readIngestDoc(db, uid)

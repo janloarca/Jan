@@ -25,7 +25,7 @@ import FileImportModal from '@/components/FileImportModal'
 import { SkeletonCard, SkeletonTable } from '@/components/dashboard/Skeleton'
 import InlineNotice from '@/components/ui/InlineNotice'
 import { computeMonthlyAnalysis, buildFinanceInsights, investmentIncomeOfMonth } from '@/lib/financeMonth'
-import { planRecategorize } from '@/lib/recategorize'
+import { planRecategorize, isMachineDescribed } from '@/lib/recategorize'
 import PageTour from '@/components/dashboard/PageTour'
 import { Wallet, Zap } from 'lucide-react'
 import { INCOME_GROUPS } from '@/lib/financeCategories'
@@ -170,23 +170,40 @@ export default function FinancesPage() {
     })
   }, [reminderEnabled, saveSettings, user, lang])
 
-  // Fixing the category of a transaction also TEACHES the auto-capture
-  // classifier: the rule is stored per merchant, so the next charge from that
-  // place lands already classified. Only auto-captured rows teach, so correcting
-  // a hand-typed entry never writes a rule from a description the user typed.
-  const handleRecategorize = useCallback(async (tx, category) => {
-    if (!tx?.id || !category || category === tx.category) return
+  // Fixing the category of a transaction also TEACHES the classifier: the rule
+  // is stored per merchant, so the next charge from that place lands already
+  // classified.
+  //
+  // What teaches is a description a MACHINE produced — the Shortcut, the
+  // forwarded alert, or a statement import — because those are merchant names a
+  // bank or Wallet wrote and they repeat verbatim. A hand-typed entry does not,
+  // so it never writes a rule from wording the user invented.
+  //
+  // The statement case used to be missing, and it was the one that mattered
+  // most: those rows carry `source: 'card_import'`, a different field AND a
+  // different value from the Shortcut's `_source: 'auto_*'`, so correcting any
+  // of the ~167 imported rows taught nothing at all.
+  const handleRecategorize = useCallback(async (tx, category, label) => {
+    if (!tx?.id || !category || (category === tx.category && !label)) return
     // `_categorySetByUser` is what keeps the bulk re-read (planRecategorize)
     // off this row forever, including if the user deliberately picks the
     // fallback category.
-    await updateFinanceTransaction(tx.id, { category, _needsReview: false, _categorySetByUser: true })
+    const patch = { category, _needsReview: false, _categorySetByUser: true }
+    if (label) patch.userLabel = label
+    await updateFinanceTransaction(tx.id, patch)
+
     const merchant = tx.merchant || tx.description
-    if (!merchant || !String(tx._source || '').startsWith('auto_')) return
+    if (!merchant || !isMachineDescribed(tx)) return
     await authFetch('/api/ingest', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'learn', merchant, category }),
-    }).catch(() => {})
+      body: JSON.stringify({ action: 'learn', merchant, category, label: label || null }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      // Keep the local copy in step so the next correction, and the bulk
+      // re-read, already see what was just taught.
+      .then((d) => { if (Array.isArray(d?.rules)) setIngestRules(d.rules) })
+      .catch(() => {})
   }, [updateFinanceTransaction])
 
   // A transaction's category is frozen on the document at capture time, so
@@ -480,6 +497,7 @@ export default function FinancesPage() {
           onAddFinanceTransaction={addFinanceTransaction}
           onUpdateFinanceTransaction={updateFinanceTransaction}
           existingFinanceTransactions={financeTransactions}
+          ingestRules={ingestRules}
           onUpdateItem={updateItem}
           existingItems={items}
           lang={lang}

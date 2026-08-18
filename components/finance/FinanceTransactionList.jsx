@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { CATEGORY_COLORS, FINANCE_CATEGORIES } from '@/lib/financeCategories'
+import { CATEGORY_COLORS } from '@/lib/financeCategories'
+import CategoryEditor from '@/components/finance/CategoryEditor'
 
 // The month's ledger. Two layouts on purpose: a table from `sm` up, and one
 // card per row below it. A five-column table on a phone needs sideways
@@ -58,32 +59,30 @@ export default function FinanceTransactionList({ transactions, onDelete, onRecat
 
   const keyOf = (tx, i) => tx.id || i
 
+  // La fila que se está corrigiendo. El editor NO se ancla a ella: los dos
+  // layouts (tarjetas y tabla) viven en el DOM al mismo tiempo, así que un
+  // popover por fila se montaba dos veces, y además la lista tiene scroll en
+  // ambos ejes, que lo recortaba y arrastraba las filas de lado al abrirlo
+  // (medido en un teléfono: la descripción se salía de pantalla).
+  //
+  // En su lugar se monta UNA sola capa centrada, fuera de los dos contenedores
+  // con scroll. Nada que recortar y nada que duplicar.
+  const editingTx = editing == null ? null : filtered.find((tx, i) => keyOf(tx, i) === editing)
+
   const CategoryCell = ({ tx, i }) => (
-    onRecategorize && editing === keyOf(tx, i) ? (
-      <select
-        autoFocus
-        defaultValue={tx.category}
-        onBlur={() => setEditing(null)}
-        onChange={(e) => { onRecategorize(tx, e.target.value); setEditing(null) }}
-        className="px-1.5 py-1 bg-theme-base border border-glass-border rounded-md text-xs focus:outline-none"
-        style={{ color: 'var(--text-primary)' }}>
-        {(tx.type === 'INCOME' ? FINANCE_CATEGORIES.INCOME : FINANCE_CATEGORIES.EXPENSE).map(cat => (
-          <option key={cat} value={cat}>{cat}</option>
-        ))}
-      </select>
-    ) : (
-      <button
-        onClick={() => onRecategorize && setEditing(keyOf(tx, i))}
-        disabled={!onRecategorize}
-        title={onRecategorize ? t('Cambiar categoría', 'Change category') : undefined}
-        className="inline-flex items-center gap-1 rounded-md px-1 -mx-1 transition-colors disabled:cursor-default hover:bg-theme-elevated max-w-full">
-        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: CATEGORY_COLORS[tx.category] || 'var(--text-muted)' }} />
-        <span className="truncate" style={{ color: 'var(--text-secondary)' }}>{tx.category}</span>
-        {tx._needsReview && (
-          <span title={t('Revisa la categoría', 'Check the category')} style={{ color: 'var(--alert-warn-icon)' }}>?</span>
-        )}
-      </button>
-    )
+    <button
+      onClick={() => onRecategorize && setEditing(keyOf(tx, i))}
+      disabled={!onRecategorize}
+      title={onRecategorize ? t('Cambiar categoría', 'Change category') : undefined}
+      className="inline-flex items-center gap-1 rounded-md px-1 -mx-1 transition-colors disabled:cursor-default hover:bg-theme-elevated max-w-full">
+      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: CATEGORY_COLORS[tx.category] || 'var(--text-muted)' }} />
+      <span className="truncate" style={{ color: 'var(--text-secondary)' }}>
+        {tx.category}{tx.userLabel ? ` · ${tx.userLabel}` : ''}
+      </span>
+      {tx._needsReview && (
+        <span title={t('Revisa la categoría', 'Check the category')} style={{ color: 'var(--alert-warn-icon)' }}>?</span>
+      )}
+    </button>
   )
 
   const DeleteButton = ({ tx, i }) => {
@@ -220,6 +219,21 @@ export default function FinanceTransactionList({ transactions, onDelete, onRecat
             </table>
           </div>
         </>
+      )}
+
+      {editingTx && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
+          onMouseDown={(e) => { if (e.target === e.currentTarget) setEditing(null) }}
+        >
+          <CategoryEditor
+            tx={editingTx}
+            lang={lang}
+            onCancel={() => setEditing(null)}
+            onApply={(category, label) => { onRecategorize(editingTx, category, label); setEditing(null) }}
+          />
+        </div>
       )}
     </div>
   )
