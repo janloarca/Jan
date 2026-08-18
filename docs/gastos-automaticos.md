@@ -207,7 +207,9 @@ guardar reglas a partir de descripciones sueltas.
 | Síntoma | Causa probable |
 |---|---|
 | El atajo responde 401 | Token mal copiado, o falta el prefijo `Bearer ` |
-| El atajo responde 400 `INVALID_AMOUNT` | `amount` llegó vacío o como texto no numérico |
+| El atajo responde 400 `MISSING_AMOUNT` | No llegó ningún monto. Causa dominante: correr la automatización **a mano** desde Atajos, donde no hay ninguna transacción de Wallet de la cual sacarlo. Probar con una compra real de Apple Pay |
+| El atajo responde 400 `INVALID_AMOUNT` | Llegó un monto pero no se puede leer como número. Revisar que el campo use la variable Transacción → Monto y no texto escrito |
+| La automatización no dispara con un cobro en línea | La automatización de Wallet solo ve **Apple Pay**. Un cargo en línea a la tarjeta, o una compra con la tarjeta física, no la disparan: eso lo cubre el camino de correo |
 | Responde `"status": "duplicate"` | Ya estaba registrado, no es error |
 | El correo no entra | La regla de reenvío perdió el `+<token>`, o el correo llegó sin monto reconocible |
 | Todo cae en Otros Gastos | Aún no hay regla para ese comercio: corrígelo una vez y se aprende |
