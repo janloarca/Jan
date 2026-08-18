@@ -24,25 +24,32 @@ que el dibujo entre en un círculo del 90% del lado antes de exportar.
 ## Banner del perfil (portada)
 
 `chispudo-linkedin-banner-1584x396.png` es la medida que pide LinkedIn para la
-portada de un perfil personal. El de `3168x792` es el mismo a doble resolución:
-subí ese si querés que se vea nítido en pantallas retina, LinkedIn lo reduce
-solo. El `.svg` es el original, por si hay que reencuadrarlo.
+portada de un perfil personal. El de `3168x792` es el mismo al doble de
+resolución: subí ese si querés que se vea nítido en pantallas retina, LinkedIn
+lo reduce solo. El `.svg` es el original, por si hay que reencuadrarlo.
 
 Sin texto a propósito: el nombre ya lo dice el avatar justo debajo, y cualquier
 frase se corta en el recorte de móvil.
 
-Dos cosas de la composición no son gusto, son la geometría de LinkedIn:
+**El recurso central es un knockout.** Un corte diagonal parte el banner en dos
+planos de tono distinto, y el rayo lo cruza justo por la mitad invirtiendo su
+propio tono al pasar: la figura es una sola, pero se lee oscura sobre el plano
+claro y clara sobre el plano oscuro. Eso no se consigue con un degradado, y es
+lo que hace que la pieza se vea compuesta en vez de decorada.
 
-- **Las ondas salen del avatar.** En el escritorio la foto de perfil cae
-  centrada en (200, 392) con radio 152 en coordenadas del banner, y los círculos
-  están centrados exactamente ahí. Por eso el avatar se ve dentro de la
-  composición y no pegado encima. Si algún día cambias la foto de perfil, el
-  banner sigue funcionando: las ondas salen de la posición, no de la imagen.
-- **Nada importante cerca de los bordes.** En móvil LinkedIn recorta los lados.
+Dos decisiones más no son gusto, son la geometría de LinkedIn:
 
-El fondo es exactamente `#2563EB`, el mismo azul del avatar, para que las dos
-piezas se lean como una sola. Color plano y filo duro, sin degradados ni
-sombras: por eso no hay bandas de color aunque el archivo mida 3168 px de ancho.
+- **Las ondas salen del avatar.** En escritorio la foto de perfil cae centrada en
+  (200, 392) con radio 152 en coordenadas del banner, y los círculos están
+  centrados exactamente ahí, recortados al plano claro. Por eso el avatar se ve
+  dentro de la composición y no pegado encima. Si cambiás la foto, el banner
+  sigue funcionando: las ondas salen de la posición, no de la imagen.
+- **Nada importante cerca de los bordes**, que es lo que el móvil recorta.
 
-Se regenera con `build_banner.py` (`brand/source/scripts/`), que comprueba que
-el rayo no invada la zona del avatar ni se salga por la derecha.
+Color plano y filo duro en todo: sin degradados, sin glow, sin grano. El fondo es
+exactamente `#2563EB`, el mismo azul del avatar, para que las dos piezas se lean
+como una sola, y al no haber degradado no aparecen bandas ni a 3168 px de ancho.
+
+Se regenera con `build_banner.py` (`brand/source/scripts/`), que comprueba antes
+de exportar que el corte cruce el rayo entre el 35% y el 65% de su ancho: si
+pasa por fuera, la inversión no ocurre y la pieza pierde su único recurso.
