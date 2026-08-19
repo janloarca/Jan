@@ -19,6 +19,7 @@ import MonthStatusBar from '@/components/finance/MonthStatusBar'
 import FinanceTransactionList from '@/components/finance/FinanceTransactionList'
 import FinanceInsights from '@/components/finance/FinanceInsights'
 import FinancialProfileCard from '@/components/finance/FinancialProfileCard'
+import IncomePlanCalendar from '@/components/finance/IncomePlanCalendar'
 import AddFinanceTransactionModal from '@/components/finance/AddFinanceTransactionModal'
 import AutoCaptureModal from '@/components/finance/AutoCaptureModal'
 import FileImportModal from '@/components/FileImportModal'
@@ -93,6 +94,8 @@ export default function FinancesPage() {
     saveSettings,
     profile,
     saveProfile,
+    incomePlan,
+    saveIncomePlan,
     transactions: portfolioTransactions,
   } = useFirestoreItems()
 
@@ -502,6 +505,17 @@ export default function FinancesPage() {
             </div>
           </div>
         )}
+
+        {/* El plan del año. Va fuera del bloque que exige transacciones: se
+            puede planear el año sin haber registrado un solo movimiento, y de
+            hecho es lo primero que alguien nuevo puede hacer acá. */}
+        <IncomePlanCalendar
+          plan={incomePlan}
+          onSave={saveIncomePlan}
+          financeTransactions={financeTransactions}
+          convert={convert}
+          lang={lang}
+        />
 
         {/* Moved here from Settings: nobody found it there, and this data is
             time-sensitive — it belongs next to the money it describes. */}

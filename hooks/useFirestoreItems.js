@@ -115,6 +115,7 @@ export function useFirestoreItems() {
   const [goals, setGoals] = useState(initCache?.goals || null)
   const [settings, setSettings] = useState(initCache?.settings || null)
   const [profile, setProfile] = useState(initCache?.profile || null)
+  const [incomePlan, setIncomePlan] = useState(initCache?.incomePlan || null)
   const [loading, setLoading] = useState(!initCache)
   const [uid, setUid] = useState(_auth?.currentUser?.uid || null)
 
@@ -170,14 +171,16 @@ export function useFirestoreItems() {
 
       try {
         // Independent docs — fetch in parallel instead of three round-trips in series.
-        const [goalsDoc, prefsDoc, profileDoc] = await Promise.all([
+        const [goalsDoc, prefsDoc, profileDoc, planDoc] = await Promise.all([
           fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'goals')),
           fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'preferences')),
           fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'profile')),
+          fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'incomePlan')),
         ])
         if (!cancelled && goalsDoc.exists()) setGoals(sanitizeDoc(goalsDoc.data()))
         if (!cancelled && prefsDoc.exists()) setSettings(sanitizeDoc(prefsDoc.data()))
         if (!cancelled && profileDoc.exists()) setProfile(sanitizeDoc(profileDoc.data()))
+        if (!cancelled && planDoc.exists()) setIncomePlan(sanitizeDoc(planDoc.data()))
       } catch (e) { console.error('[firestore] settings load failed:', e?.message) }
 
       if (!cancelled) setLoading(false)
@@ -214,9 +217,9 @@ export function useFirestoreItems() {
   // no se escribe nada, así una navegación rápida nunca cachea arrays vacíos.
   useEffect(() => {
     if (uid && !loading) {
-      _cacheByUid[uid] = { items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile }
+      _cacheByUid[uid] = { items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, incomePlan }
     }
-  }, [uid, loading, items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile])
+  }, [uid, loading, items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, incomePlan])
 
   const addItem = useCallback(async (item) => {
     if (!uid) { console.error('[addItem] No uid — write skipped'); return }
@@ -552,6 +555,21 @@ export function useFirestoreItems() {
     const clean = Object.fromEntries(Object.entries({ ...profileData, updatedAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
     await fs.setDoc(fs.doc(db, `users/${uid}/settings`, 'profile'), clean, { merge: true })
     setProfile((prev) => ({ ...prev, ...profileData }))
+  }, [uid])
+
+  // El plan de ingresos (el tablero de salarios de Flujo). A diferencia de los
+  // otros docs de settings se escribe SIN merge, a propósito: siempre se manda
+  // el plan completo ya serializado, y así borrar un cuadrito lo borra de
+  // verdad. Con merge, un mapa anidado se fusiona campo a campo y lo eliminado
+  // sobrevive a la escritura (lección FASE FT).
+  const saveIncomePlan = useCallback(async (planDoc) => {
+    if (!uid) return
+    const { db, fs } = await getFirebase()
+    const clean = Object.fromEntries(
+      Object.entries({ ...planDoc, updatedAt: new Date().toISOString() }).filter(([, v]) => v !== undefined)
+    )
+    await fs.setDoc(fs.doc(db, `users/${uid}/settings`, 'incomePlan'), clean)
+    setIncomePlan(clean)
   }, [uid])
 
   const addAlert = useCallback(async (alert) => {
@@ -1112,7 +1130,7 @@ export function useFirestoreItems() {
   }, [uid, snapshots])
 
   return {
-    items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, loading,
+    items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, incomePlan, loading,
     addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
     saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,
@@ -1122,7 +1140,7 @@ export function useFirestoreItems() {
     transferFunds, executeSaleAtomic, executeContribution,
     bulkImport, bulkWriting, deletionEpoch,
     addPortfolio, deletePortfolio,
-    saveGoals, saveSettings, saveProfile,
+    saveGoals, saveSettings, saveProfile, saveIncomePlan,
     saveItemSnapshots, loadItemSnapshots,
   }
 }
