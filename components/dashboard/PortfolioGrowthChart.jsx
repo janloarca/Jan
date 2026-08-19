@@ -6,7 +6,8 @@ import { buildTxEvents, buildCashFlows, rewindableTradeSymbols, brokerAccountTra
 import { indexBalanceEvents } from '@/lib/historicalValues'
 import { isBankLikeItem } from '@/lib/contributions'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
-import { buildNavByDate, composeDailyTotals, divergentDailyDates, staleBackfillDates, windowDates, navAsOf } from '@/lib/snapshotBackfill'
+import { buildNavByDate, composeDailyTotals, divergentDailyDates, staleBackfillDates, windowDates, navAsOf, brokerConnectedTsOf } from '@/lib/snapshotBackfill'
+import { buildHistoryRequestBody } from '@/lib/historyPayload'
 import { staticValueAt } from '@/lib/staticOverlay'
 import { computeTWRSeries, computeAnchoredReturnSeries, computeAnchoredMWRSeries, filterValueSpikes } from './analytics'
 import { authFetch, safeJson } from '@/lib/authFetch'
@@ -155,7 +156,14 @@ function buildGeometry(values, mode, height, width, pad, extraSeries, timestamps
   return { points, baselineY, yTicks, cw, ch, adjustedMin, range }
 }
 
-export default function PortfolioGrowthChart({ items, lots, snapshots, transactions, lang, convert, baseCurrency, onSaveSnapshot, ibkrSyncSummary = null, onImportBroker = null }) {
+// repairItems / repairSnapshots (FASE JU): "Reparar ahora" escribe los MISMOS
+// docs que el backfill automático, así que tiene que mirar los MISMOS datos.
+// `items` viene escopado por portafolio/entidad (correcto para la gráfica,
+// incorrecto para archivar el patrimonio) y `snapshots` trae además los docs
+// sintéticos de calibración, que no existen en Firestore y hacen que fechas sin
+// dato real se lean como cubiertas. Sin estos props el comportamiento es el de
+// antes.
+export default function PortfolioGrowthChart({ items, lots, snapshots, transactions, lang, convert, baseCurrency, onSaveSnapshot, ibkrSyncSummary = null, onImportBroker = null, repairItems = null, repairSnapshots = null }) {
   const [period, setPeriod] = useState('YTD')
   const [hoverIdx, setHoverIdx] = useState(null)
   const [dataPoints, setDataPoints] = useState([])
@@ -1322,9 +1330,11 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     const push = (s) => { lines.push(s); setRepairState({ running: true, lines: [...lines] }) }
     setRepairState({ running: true, lines: [] })
     try {
-      const all = (items || []).filter((it) => !isExcludedFromNetWorth(it))
+      const srcItems = repairItems || items
+      const srcSnapshots = repairSnapshots || snapshots
+      const all = (srcItems || []).filter((it) => !isExcludedFromNetWorth(it))
       const hasBroker = all.some((it) => it && it._source === 'ibkr')
-      const navByDate = buildNavByDate(snapshots)
+      const navByDate = buildNavByDate(srcSnapshots)
       const composing = hasBroker && navByDate.size > 0
       push(`${t('NAV real del broker', 'Real broker NAV')}: ${navByDate.size} ${t('días', 'days')}`)
       if (hasBroker && navByDate.size === 0) {
@@ -1339,37 +1349,51 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         return s + Math.abs(convert ? convert(v, cur, 'USD') : v)
       }, 0)
 
-      const { balanceEventsById } = indexBalanceEvents(transactions, all, convert, 'USD')
-      const txBySym = buildTxEvents(transactions)
+      // ⛔ FASE JU. El MISMO cuerpo que el backfill automático, armado en
+      // lib/historyPayload.js. Este bloque tenía su propia copia y le faltaban
+      // DOS campos: `lots` (la cantidad reconstruida de cada posición de
+      // mercado) e `income` (el rendimiento REINVERTIDO, que nunca entra a
+      // balanceEventsById y por lo tanto solo viaja por ese canal). Sin
+      // `income`, cada cuenta que compone se archivaba pegada a su valor de
+      // HOY: el ancla del 1 de enero quedaba arriba y la diferencia salía en la
+      // fila "Sin atribuir" del panel del YTD. No falla ruidosamente, se ve
+      // como una reconstrucción plana que parece funcionar.
+      //
+      // breakdown (FASE IX9): el desglose por ítem del MISMO punto que se
+      // archiva, para poder imprimir la mitad manual del ancla cuenta por
+      // cuenta. Sin él, comparar el ancla contra el panel obliga a deducir de
+      // la resta.
       const res = await authFetch('/api/prices/portfolio-history', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          items: assets.map((it) => {
-            const cur = it._originalCurrency || it.currency || 'USD'
-            const toUSD = (p) => convert ? convert(p || 0, cur, 'USD') : (p || 0)
-            return {
-              id: it.id, symbol: it.symbol, type: it.type, quantity: it.quantity,
-              currentPrice: toUSD(it._originalPrice ?? it.currentPrice),
-              purchasePrice: toUSD(it._originalPurchasePrice ?? it.purchasePrice),
-              currency: 'USD',
-              acquisitionDate: it.acquisitionDate,
-              _holdFlat: shouldHoldFlat(it, transactions, lots),
-              _dateUnreliable: hasUnreliableAcqDate(it),
-              txEvents: txBySym[(it.symbol || '').toUpperCase()] || undefined,
-              ...(balanceEventsById[it.id]?.length ? { cashFlows: balanceEventsById[it.id], _flowClampZero: true } : {}),
-            }
-          }),
-          period: 'YTD',
-          // FASE IX9: el desglose por ítem del MISMO punto que se archiva, para
-          // poder imprimir la mitad manual del ancla cuenta por cuenta. Sin él,
-          // comparar el ancla contra el panel obliga a deducir de la resta.
-          breakdown: true,
-        }),
+        body: JSON.stringify(buildHistoryRequestBody({
+          items: assets, transactions, lots, convert,
+          period: 'YTD', breakdown: true,
+        })),
       })
       if (!res.ok) { push(`${t('El servidor de historial falló', 'History server failed')} (${res.status}).`); setRepairState({ running: false, lines }); return }
       const data = await safeJson(res)
-      if (data.degraded) push(`${t('Aviso: faltaron precios de', 'Note: missing prices for')} ${(data.failedSymbols || []).join(', ')}`)
+      // ⛔ FASE JU. El backfill automático REHÚSA persistir desde una respuesta
+      // degradada (FASE HJ): cada sesión puede fallar un subconjunto distinto
+      // de símbolos, así que escribir estos totales deja docs 'backfill' a un
+      // nivel distinto por pasada, el churn exacto del diente de sierra. Este
+      // botón escribe los MISMOS docs, así que se rige por la MISMA regla, con
+      // el mismo tope por PESO (un símbolo muerto o dust que falla siempre no
+      // debe congelar la reparación para siempre). Antes solo lo avisaba.
+      if (data.degraded) {
+        const failed = (data.failedSymbols || []).map((s) => String(s).toUpperCase())
+        const failedSet = new Set(failed)
+        const val = (it) => Math.abs(getItemValue(it))
+        const failedVal = assets.reduce((s, it) => failedSet.has((it.symbol || '').toUpperCase()) ? s + val(it) : s, 0)
+        const totalVal = assets.reduce((s, it) => s + val(it), 0)
+        push(`${t('Aviso: faltaron precios de', 'Note: missing prices for')} ${failed.join(', ')}`)
+        if (totalVal > 0 && failedVal > totalVal * 0.02) {
+          push(t('No se escribe nada: eso es demasiado del portafolio como para archivarlo. Reintentá en un rato.',
+            'Nothing written: that is too much of the portfolio to archive. Try again in a while.'))
+          setRepairState({ running: false, lines })
+          return
+        }
+      }
       // FASE HS: si el respaldo de precios (Upstash/KV) está activo, un hipo
       // del proveedor deja de degradar la reconstrucción. Se muestra para que
       // "¿está configurado?" se pueda VER en vez de deducirlo de los síntomas.
@@ -1426,8 +1450,17 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         // doc archivado es de otra época y no de esta corrida.
         push(`${formatDate(`${anchorDate}T00:00:00Z`)}: ${t('fuera de la composición (no se reescribe)', 'not in the composition (never rewritten)')}`)
       }
-      const gaps = staleBackfillDates(snapshots, { windowDays: 366, treatDailyAsStale: !hasBroker })
-      const divergent = divergentDailyDates(snapshots, composed)
+      // FASE JU: `brokerConnectedTs`, la MISMA señal (y el mismo helper) que el
+      // backfill automático. Un doc 'daily' escrito ANTES de conectar el broker
+      // suma solo las cuentas manuales y es intocable sin esto (FASE HG): la
+      // reparación lo dejaba congelado mientras el backfill sí lo rellenaba, o
+      // sea las dos escribían historias distintas.
+      const gaps = staleBackfillDates(srcSnapshots, {
+        windowDays: 366,
+        treatDailyAsStale: !hasBroker,
+        brokerConnectedTs: brokerConnectedTsOf(srcItems),
+      })
+      const divergent = divergentDailyDates(srcSnapshots, composed)
       const targets = new Set([...gaps, ...divergent])
       const fills = composed.filter((f) => targets.has(f.date))
       push(`${t('Huecos', 'Gaps')}: ${gaps.length} · ${t('escrituras corruptas', 'corrupt writes')}: ${divergent.length}`)
@@ -1445,7 +1478,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           totalActivosUSD: f.total,
           totalDebtUSD: debtUSD,
           _source: 'backfill',
-          _transactional: !!f.composed,
+          // FASE JU: mismo criterio que el backfill automático. Un doc
+          // compuesto es flow-aware por construcción (su mitad de broker ES la
+          // medición del broker); si no, manda lo que el server reportó. Antes
+          // se ignoraba `data.transactional`, así que una serie rebobinada a
+          // través del ledger real se archivaba marcada como si no lo fuera.
+          _transactional: f.composed ? true : !!data.transactional,
         })
         written++
         if (written % 25 === 0) push(`${t('Escribiendo', 'Writing')}... ${written}/${fills.length}`)
@@ -1456,7 +1494,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       lines.push(`Error: ${err?.message || err}`)
       setRepairState({ running: false, lines })
     }
-  }, [items, snapshots, transactions, lots, convert, onSaveSnapshot, t])
+  }, [items, snapshots, repairItems, repairSnapshots, transactions, lots, convert, onSaveSnapshot, t])
 
   const drawdown = useMemo(() => {
     if (chartData.length < 3) return null

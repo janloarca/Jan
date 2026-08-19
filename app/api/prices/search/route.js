@@ -2,28 +2,27 @@ import { NextResponse } from 'next/server'
 import { rateLimit } from '@/lib/rateLimit'
 import { verifyAuth } from '@/lib/apiAuth'
 import { fetchWithRetry } from '@/lib/fetchWithRetry'
+import { CRYPTO_MAP } from '@/lib/cryptoMap'
 
-const CRYPTO_MAP = {
-  BTC: { id: 'bitcoin', name: 'Bitcoin' },
-  ETH: { id: 'ethereum', name: 'Ethereum' },
-  SOL: { id: 'solana', name: 'Solana' },
-  ADA: { id: 'cardano', name: 'Cardano' },
-  DOT: { id: 'polkadot', name: 'Polkadot' },
-  AVAX: { id: 'avalanche-2', name: 'Avalanche' },
-  MATIC: { id: 'matic-network', name: 'Polygon' },
-  LINK: { id: 'chainlink', name: 'Chainlink' },
-  UNI: { id: 'uniswap', name: 'Uniswap' },
-  XRP: { id: 'ripple', name: 'XRP' },
-  DOGE: { id: 'dogecoin', name: 'Dogecoin' },
-  BNB: { id: 'binancecoin', name: 'BNB' },
-  ATOM: { id: 'cosmos', name: 'Cosmos' },
-  NEAR: { id: 'near', name: 'NEAR Protocol' },
-  LTC: { id: 'litecoin', name: 'Litecoin' },
-  USDT: { id: 'tether', name: 'Tether' },
-  USDC: { id: 'usd-coin', name: 'USD Coin' },
-  SHIB: { id: 'shiba-inu', name: 'Shiba Inu' },
-  AAVE: { id: 'aave', name: 'Aave' },
+// FASE JU. Este archivo traía su PROPIA lista de 19 monedas mientras el resto
+// de la app (precios actuales e historial) usa lib/cryptoMap.js, que tiene 60+.
+// O sea el buscador no podía encontrar OSMO, TON, SUI, TRX, ARB, OP, TIA ni
+// ninguna de las otras 40, aunque la app sí supiera cotizarlas: había que
+// teclear el símbolo a mano. Ahora se deriva de la lista compartida, así que
+// agregar una moneda ahí la vuelve buscable sin tocar nada acá.
+//
+// El nombre para mostrar sale del id de CoinGecko salvo donde ese id no es el
+// nombre de la moneda ('havven' es SNX, 'the-open-network' es Toncoin).
+const CRYPTO_NAMES = {
+  BTC: 'Bitcoin', XRP: 'XRP', BNB: 'BNB', MATIC: 'Polygon', NEAR: 'NEAR Protocol',
+  USDC: 'USD Coin', AVAX: 'Avalanche', EGLD: 'MultiversX', SNX: 'Synthetix',
+  TON: 'Toncoin', OSMO: 'Osmosis', ARB: 'Arbitrum', OP: 'Optimism',
+  TIA: 'Celestia', SUI: 'Sui', TRX: 'TRON', INJ: 'Injective', GRT: 'The Graph',
+  LDO: 'Lido DAO', MKR: 'Maker', RNDR: 'Render', IMX: 'Immutable X',
+  DYDX: 'dYdX', SCRT: 'Secret', AKT: 'Akash Network', SEI: 'Sei',
 }
+const titleCase = (id) => String(id).split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+const cryptoName = (sym, coinId) => CRYPTO_NAMES[sym] || titleCase(coinId)
 
 async function searchYahoo(query) {
   try {
@@ -50,10 +49,11 @@ async function searchYahoo(query) {
 function searchCrypto(query) {
   const q = query.toUpperCase()
   return Object.entries(CRYPTO_MAP)
-    .filter(([sym, info]) => sym.includes(q) || info.name.toUpperCase().includes(q))
-    .map(([sym, info]) => ({
+    .map(([sym, coinId]) => ({ sym, name: cryptoName(sym, coinId) }))
+    .filter(({ sym, name }) => sym.includes(q) || name.toUpperCase().includes(q))
+    .map(({ sym, name }) => ({
       symbol: sym,
-      name: info.name,
+      name,
       type: 'Crypto',
       exchange: 'Crypto',
     }))

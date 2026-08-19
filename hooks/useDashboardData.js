@@ -5,15 +5,14 @@ import { useExchangeRates } from './useExchangeRates'
 import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, computeDayChange, augmentSnapshots, projectItemAnnualIncome, buildIncomeEvents, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, hasUnreliableAcqDate, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced, effectiveAcqTs, entryFeeAddbacks, getEffectiveYield } from '@/components/dashboard/utils'
-import { buildTxEvents, buildCashFlows, rewindableTradeSymbols, brokerAccountTransactions } from '@/lib/portfolioRewind'
-import { indexBalanceEvents } from '@/lib/historicalValues'
+import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced, effectiveAcqTs, entryFeeAddbacks, getEffectiveYield } from '@/components/dashboard/utils'
+import { buildHistoryRequestBody } from '@/lib/historyPayload'
 import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget } from '@/lib/autoDividends'
 import { unlinkedOpeningDeposits } from '@/lib/originDeposits'
 import { corruptSnapshotRunIds, feEraSuspectDailyIds } from '@/lib/corruptSnapshots'
 import { planEquitySnapshotWrites, misplacedPlainNavMigrations } from '@/lib/ibkrSnapshotPlan'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
-import { staleBackfillDates, buildNavByDate, composeDailyTotals, windowDates, divergentDailyDates, navAsOf, navEntryAsOf } from '@/lib/snapshotBackfill'
+import { staleBackfillDates, buildNavByDate, composeDailyTotals, windowDates, divergentDailyDates, navAsOf, navEntryAsOf, brokerConnectedTsOf } from '@/lib/snapshotBackfill'
 import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanDays, earliestNeededDays as computeEarliestNeededDays } from '@/lib/brokerCompletion'
 import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds, applyLifetimeNetConstraint } from '@/lib/inferredFlows'
 import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
@@ -44,78 +43,11 @@ export function ibkrSyncChanges(prev, next) {
 // 3: FASE IX, la caja del broker deja de deshacer los depositos de las cuentas
 //    manuales (y las ventas sin contraparte reconstruible), asi que todo doc
 //    escrito con la logica vieja tiene el pasado hundido y hay que re-derivarlo.
-const BACKFILL_LOGIC_VERSION = 3
-
-// FASE GE. Un solo constructor del payload de items para
-// /api/prices/portfolio-history, compartido por el cálculo de jan1Value y por
-// el backfill. Antes el backfill mandaba items SIN txEvents/cashFlows: los
-// docs 'backfill' que escribía eran lot-aware para las posiciones con trades
-// reales (las compras de mitad de año NO existen en el valor de enero) pero
-// ciegos al timing de los depósitos, y el YTD anclado en uno de esos docs
-// excluía además los flujos de IBKR (regla de FASE AI, pensada para
-// reconstrucciones hold-flat puras donde el depósito ya vive dentro del valor
-// de arranque): cada depósito al broker durante el año se leía como ganancia.
-function buildHistoryItemsPayload({ items, transactions, lots, convert }) {
-  const txEventsBySym = buildTxEvents(transactions)
-  // FASE IX. Dos reglas, las dos para que las dos mitades del rebobinado
-  // (efectivo y acciones) hablen del mismo portafolio:
-  //  · la caja del broker solo lleva movimientos de ESA cuenta (si no, cada
-  //    depósito manual se deshace dos veces y el efectivo del pasado se hunde), y
-  //  · solo entran los trades cuyas acciones el server también va a rebobinar.
-  // Ver lib/portfolioRewind.js para el detalle de cada una.
-  const brokerItems = (items || []).filter((it) => it?._source === 'ibkr')
-  const brokerTx = brokerAccountTransactions(transactions, brokerItems)
-  const accountCashFlows = buildCashFlows(brokerTx,
-    (amt, cur2) => convert ? convert(amt, cur2, 'USD') : amt,
-    { rewindableSymbols: rewindableTradeSymbols(items, txEventsBySym) })
-  // Only rewind the cash line when there is a REAL external flow
-  // (deposit/withdrawal). With hold-flat stocks, rewinding cash by BUY/SELL
-  // double-counts (the flat holding already implies the shares were owned),
-  // which collapses the January baseline and blows up the YTD Dietz. Without
-  // deposits, leave cash flat.
-  const hasExternalFlow = brokerTx.some((t) => /^(DEPOSIT|WITHDRAWAL)$/i.test(t.type || ''))
-  // Prefer the CASH-{ccy} holding; fall back to any single IBKR bank-type item
-  // so the ledger still rebuilds cash when the symbol isn't exactly CASH-*.
-  const cashItem = (accountCashFlows.length > 0 && hasExternalFlow)
-    ? (items.find((it) => it._source === 'ibkr' && /^CASH-/i.test(it.symbol || ''))
-       || items.find((it) => it._source === 'ibkr' && /bank|cash/i.test(it.type || '')))
-    : null
-  // Per-item balance history for the MANUAL side, from the same index the
-  // spreadsheet reconstructs with. Without it a destination account was held
-  // flat at today's balance all the way back, so a coupon earned in May was
-  // already sitting there on Jan 1: start and end matched and YTD read +0.00%
-  // on a bond that had really paid 240 (FASE DW). Note these never carry
-  // _flowIsAccountLevel — only the broker's own reconciled cash ledger
-  // promotes the whole response to "transactional".
-  const { balanceEventsById } = indexBalanceEvents(transactions, items, convert, 'USD')
-  return items.map((it) => {
-    const cur = it._originalCurrency || it.currency || 'USD'
-    const toUSD = (p) => convert ? convert(p || 0, cur, 'USD') : (p || 0)
-    return {
-      id: it.id,
-      symbol: it.symbol, type: it.type, quantity: it.quantity,
-      currentPrice: toUSD(it._originalPrice ?? it.currentPrice),
-      purchasePrice: toUSD(it._originalPurchasePrice ?? it.purchasePrice),
-      currency: 'USD',
-      acquisitionDate: it.acquisitionDate,
-      _holdFlat: shouldHoldFlat(it, transactions, lots),
-      // FASE HL: la fecha es un sello de sync, así que el server no puede
-      // usarla como puerta de existencia (ni los lots que ese import creó).
-      _dateUnreliable: hasUnreliableAcqDate(it),
-      txEvents: txEventsBySym[(it.symbol || '').toUpperCase()] || undefined,
-      // The broker's own reconciled ledger keeps the shape it always had. A
-      // manual account's flows are marked _flowClampZero: an opening DEPOSIT
-      // can exceed the asset's own value (it carries the entry fee: 6,098
-      // deposited into a 6,000 bond), and rewinding past it would leave the
-      // asset at -98 instead of "did not exist yet".
-      ...(cashItem && it.id === cashItem.id
-        ? { cashFlows: accountCashFlows }
-        : (balanceEventsById[it.id]?.length
-          ? { cashFlows: balanceEventsById[it.id], _flowClampZero: true }
-          : {})),
-    }
-  })
-}
+// 4: FASE JU, "Reparar ahora" mandaba un cuerpo SIN income ni lots, asi que
+//    todo doc que ese boton escribio dejo pegada a su valor de hoy cualquier
+//    cuenta que compone su rendimiento. Se sube para que la pasada correcta
+//    corra en la MISMA sesion en vez de esperar al dia siguiente.
+const BACKFILL_LOGIC_VERSION = 4
 
 export function useDashboardData({ user, lang, activePortfolio, activeEntity = '__all__' }) {
   const firestoreData = useFirestoreItems()
@@ -346,13 +278,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // "congelado" sin el broker mientras los días de al lado sí lo incluyen —
     // el diente de sierra de la vista "Todas" con IBKR conectado. Mismo patrón
     // que manualAddedTs en PortfolioGrowthChart.jsx, del lado del broker.
-    const brokerAddedTs = (() => {
-      const ts = enrichedItems
-        .filter((it) => it && it._source === 'ibkr' && it.createdAt)
-        .map((it) => new Date(it.createdAt).getTime())
-        .filter((t) => isFinite(t))
-      return ts.length > 0 ? Math.min(...ts) : null
-    })()
+    const brokerAddedTs = brokerConnectedTsOf(enrichedItems)
     // FASE GD: ventana de un año, no 30 días. Desde que un NAV de broker no
     // cuenta como cobertura del día completo (staleBackfillDates), los meses
     // que quedaron solo-broker (la regla de reemplazo que GD eliminó destruyó
@@ -394,7 +320,6 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           } catch (e) { console.error('[nav-migration]', e?.message) }
         }
         if (cancelled) return
-        const allLots = (lots || []).filter(l => l.quantity > 0)
         // Only ASSETS go to portfolio-history (it has no isDebt notion, so a debt
         // would be summed as a positive asset). Debt is held flat and subtracted below.
         const allAssetItems = enrichedItems.filter(it => !it.isDebt && !isExcludedFromNetWorth(it))
@@ -418,28 +343,20 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         const res = await authFetch('/api/prices/portfolio-history', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            // FASE GE: el MISMO payload transaccional que jan1Value, no una
-            // versión recortada. Sin txEvents/cashFlows los docs 'backfill'
-            // ignoraban el timing de los depósitos, y el YTD/TWR anclado en
-            // ellos leía cada depósito a IBKR como ganancia (+27% sobre un
-            // año real menor).
-            items: buildHistoryItemsPayload({ items: assetItems, transactions, lots, convert }),
-            lots: allLots.length > 0 ? allLots.map(l => ({
-              symbol: l.symbol, quantity: l.quantity,
-              acquisitionDate: l.acquisitionDate, closedDate: l.closedDate || null,
-            })) : undefined,
-            // FASE IG: misma corriente de ingresos que la gráfica y que el fetch
-            // del ancla. Va en LOS DOS o en ninguno: el ancla sale de un doc
-            // archivado por este backfill y las partes del panel del otro fetch,
-            // así que si reconstruyen distinto el reparto deja de cuadrar contra
-            // su propio ancla (que es como el panel terminaba rehusando).
-            income: buildIncomeEvents(transactions, assetItems, convert, 'USD'),
-            // FASE GD: con huecos más viejos que la ventana clásica de 30 días
-            // se pide el año completo (resolución diaria en la ruta); los gaps
-            // fuera del rango devuelto simplemente no matchean ningún punto.
+          // FASE GE/JU: el MISMO cuerpo transaccional que jan1Value y que
+          // "Reparar ahora", armado en lib/historyPayload.js, no una versión
+          // recortada. Sin txEvents/cashFlows los docs 'backfill' ignoraban el
+          // timing de los depósitos; sin `income`, el rendimiento reinvertido
+          // (que nunca entra a balanceEventsById) queda invisible y la cuenta
+          // que compone se archiva pegada a su valor de hoy.
+          //
+          // FASE GD: con huecos más viejos que la ventana clásica de 30 días se
+          // pide el año completo (resolución diaria en la ruta); los gaps fuera
+          // del rango devuelto simplemente no matchean ningún punto.
+          body: JSON.stringify(buildHistoryRequestBody({
+            items: assetItems, transactions, lots, convert,
             period: gaps.some((d) => (Date.now() - new Date(`${d}T00:00:00Z`).getTime()) > 32 * 86400000) ? 'YTD' : '1M',
-          }),
+          })),
         })
         if (!res.ok) {
           console.warn('[backfill] portfolio-history respondió', res.status, ': no se escribe nada esta sesión')
@@ -1278,7 +1195,6 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     let cancelled = false
     async function fetchJan1() {
       try {
-        const allLots = (lots || []).filter(l => l.quantity > 0)
         // Reconstruct the SAME portfolio that netWorth (endValue) measures — same
         // predicate as the chart (PortfolioGrowthChart) and the netWorth loop. Sending
         // raw enrichedItems here included excluded/debt items (e.g. an IBKR bank line)
@@ -1289,24 +1205,16 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         const res = await authFetch('/api/prices/portfolio-history', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            items: buildHistoryItemsPayload({ items: jan1Items, transactions, lots, convert }),
-            lots: allLots.length > 0 ? allLots.map(l => ({
-              symbol: l.symbol, quantity: l.quantity,
-              acquisitionDate: l.acquisitionDate,
-              closedDate: l.closedDate || null,
-            })) : undefined,
-            // FASE IG: la MISMA corriente de ingresos que manda la gráfica. El
-            // server levanta el valor del activo como escalón desde la fecha de
-            // cada pago reinvertido; sin ella, esta reconstrucción no veía esos
-            // escalones y la de la gráfica sí, así que las dos daban enero
-            // distinto para toda cuenta con rendimiento que se reinvierte
-            // (ClubCashIn, los fondos líquidos de IDC). Es la diferencia que
-            // quedaba entre la fila del panel y la gráfica de esa misma cuenta.
-            income: buildIncomeEvents(transactions, jan1Items, convert, 'USD'),
-            period: 'YTD',
-            breakdown: true,
-          }),
+          // FASE IG/JU: el MISMO cuerpo que el backfill que ARCHIVA el ancla.
+          // El server levanta el valor del activo como escalón desde la fecha
+          // de cada pago reinvertido; sin `income`, esta reconstrucción no veía
+          // esos escalones y la de la gráfica sí, así que las dos daban enero
+          // distinto para toda cuenta con rendimiento que se reinvierte
+          // (ClubCashIn, los fondos líquidos de IDC).
+          body: JSON.stringify(buildHistoryRequestBody({
+            items: jan1Items, transactions, lots, convert,
+            period: 'YTD', breakdown: true,
+          })),
         })
         if (!res.ok || cancelled) return
         const data = await safeJson(res)
