@@ -17,6 +17,11 @@ import { projectWealth, suggestSavingsRate, annualizedReturnPct } from '@/lib/we
 // acá es lo que solo tiene sentido contra el patrimonio: cuánto de cada mes se
 // ahorra, y a qué tasa rinde lo ya invertido.
 
+// Punto de partida cuando no hay historial de Flujo del cual medir el ahorro
+// real. Va declarado como constante para que se lea como lo que es: un valor
+// para empezar a jugar, no una medición.
+const FALLBACK_SAVINGS = 50
+
 const MONTHS_ES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
@@ -56,12 +61,26 @@ export default function WealthProjectionCard({
     [returnSinceStart, sinceStartDate, today]
   )
 
+  // El ahorro por defecto: lo que la persona de VERDAD ahorró si se puede
+  // medir, y si no un punto de partida declarado. Cero sería igual de
+  // arbitrario y además deja la card inerte: una proyección plana no enseña
+  // que los controles hacen algo.
   const savingsDefault = plan.defaultSavingsRate != null
     ? plan.defaultSavingsRate
-    : (suggestedSavings ? suggestedSavings.pct : 0)
-  const returnPct = plan.returnRate != null
-    ? plan.returnRate
-    : (suggestedReturn != null ? Math.round(suggestedReturn * 10) / 10 : 0)
+    : (suggestedSavings ? suggestedSavings.pct : FALLBACK_SAVINGS)
+
+  // La tasa NO se precarga con el retorno histórico, y es a propósito. Un
+  // portafolio que hizo +100% en tres años anualiza a ~26%, y usar eso como
+  // "lo que espero" convierte la proyección en una fantasía que la app estaría
+  // firmando. Un ahorro es una DECISIÓN del usuario (un default es un punto de
+  // partida); un retorno es una propiedad del mercado (un default es una
+  // afirmación). Así que el histórico se ofrece a un toque y nunca se aplica
+  // solo, el mismo patrón que ya usa la sugerencia de % de empresa al dar de
+  // alta un alternativo.
+  const returnPct = plan.returnRate != null ? plan.returnRate : 0
+  const returnHint = plan.returnRate == null && suggestedReturn != null
+    ? Math.round(suggestedReturn * 10) / 10
+    : null
 
   const projection = useMemo(() => projectWealth({
     startValue: netWorth,
@@ -92,7 +111,10 @@ export default function WealthProjectionCard({
     if (vals.length < 2) return null
     const min = Math.min(...vals)
     const max = Math.max(...vals)
-    const span = max - min || 1
+    // Sin movimiento no hay nada que dibujar: una línea plana pegada al borde
+    // se ve como un bloque en blanco, que es peor que no tener gráfica.
+    const span = max - min
+    if (!(span > 0)) return null
     const pts = vals.map((v, i) => {
       const x = (i / (vals.length - 1)) * 100
       const y = 100 - ((v - min) / span) * 100
@@ -167,10 +189,17 @@ export default function WealthProjectionCard({
                 />
                 <span className="text-xs" style={{ color: 'var(--text-muted)' }}>%</span>
               </span>
-              {suggestedReturn != null && plan.returnRate == null && (
-                <span className="text-[10px] block mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                  {t('el tuyo, anualizado', 'yours, annualized')}
-                </span>
+              {returnHint != null ? (
+                <button type="button" onClick={() => savePlan({ ...plan, returnRate: returnHint })}
+                  className="text-[10px] block mt-0.5 hover:underline text-left" style={{ color: 'var(--accent-blue)' }}>
+                  {t(`tu histórico: ${returnHint}% · usar`, `yours so far: ${returnHint}% · use it`)}
+                </button>
+              ) : (
+                plan.returnRate == null && (
+                  <span className="text-[10px] block mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                    {t('poné la que esperás', 'set what you expect')}
+                  </span>
+                )
               )}
             </label>
 
@@ -187,9 +216,11 @@ export default function WealthProjectionCard({
                 />
                 <span className="text-xs" style={{ color: 'var(--text-muted)' }}>%</span>
               </span>
-              {suggestedSavings && plan.defaultSavingsRate == null && (
+              {plan.defaultSavingsRate == null && (
                 <span className="text-[10px] block mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                  {t(`lo que ahorraste en ${suggestedSavings.months} mes(es)`, `what you saved over ${suggestedSavings.months} month(s)`)}
+                  {suggestedSavings
+                    ? t(`lo que ahorraste en ${suggestedSavings.months} mes(es)`, `what you saved over ${suggestedSavings.months} month(s)`)
+                    : t('punto de partida, cambialo', 'a starting point, change it')}
                 </span>
               )}
             </label>
