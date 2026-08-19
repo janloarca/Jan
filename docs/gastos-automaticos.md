@@ -3,12 +3,12 @@
 Cada compra con tarjeta entra sola a Finanzas, con categoría, monto, moneda,
 comercio y ubicación. Hay dos caminos y están pensados para usarse juntos.
 
-| | Camino A: atajo | Camino C: correo |
-|---|---|---|
-| Qué captura | Apple Pay acercando el teléfono (**verificado**). Apple Pay dentro de una app o un sitio: sin verificar, ver abajo | Todo lo que el banco avisa por correo |
-| Cuándo entra | Al instante | Barrido diario (o "Sincronizar ahora") |
-| Cubre tarjeta física | No | Sí |
-| Trae ubicación GPS | Sí | No (solo la que traiga el texto) |
+| | Camino A: atajo (iOS) | Camino B: notificación (Android) | Camino C: correo |
+|---|---|---|---|
+| Qué captura | Apple Pay acercando el teléfono (**verificado**). Apple Pay dentro de una app o un sitio: sin verificar, ver abajo | Todo lo que el banco avisa por push | Todo lo que el banco avisa por correo |
+| Cuándo entra | Al instante | Al instante | Barrido diario (o "Sincronizar ahora") |
+| Cubre tarjeta física | No | Sí | Sí |
+| Trae ubicación GPS | Sí | No (solo la que traiga el texto) | No (solo la que traiga el texto) |
 
 Los dos escriben en el mismo lugar y el mismo cobro nunca se guarda dos veces
 (ver "Doble conteo" más abajo).
@@ -137,6 +137,64 @@ curl -X POST https://chispu.xyz/api/ingest/expense \
   -H "Content-Type: application/json" \
   -d '{"amount":17,"currency":"GTQ","merchant":"Rally Padel Guatemala","date":"2026-08-03","occurredAt":"2026-08-03T14:32:00-06:00"}'
 ```
+
+
+## Camino B: Android (notificación del banco)
+
+Android tiene lo que iOS no: **una app puede leer las notificaciones**. Eso
+cambia de qué nos colgamos. En iPhone hay que colgarse de la billetera, que solo
+ve Apple Pay; en Android nos colgamos del **push del propio banco**, que se
+dispara con todo — tarjeta física, compra en línea, Google Pay, transferencia.
+
+Por eso este camino no es el equivalente del atajo: es mejor. Cubre de una vez
+lo que en iPhone necesita dos caminos.
+
+### Del lado del teléfono
+
+Con **MacroDroid** (más simple) o **Tasker** (más potente):
+
+1. Darle acceso a notificaciones a la app de automatización.
+2. Disparador: *Notificación recibida*, filtrado a la app de tu banco.
+3. Acción: *Petición HTTP*, `POST` a `https://chispu.xyz/api/ingest/expense`,
+   con el header `Authorization: Bearer <tu token>` y este cuerpo:
+
+   ```json
+   {"source":"android","title":"","text":""}
+   ```
+
+   En los dos campos vacíos van las variables de **título** y **texto** de la
+   notificación que ofrece la app de automatización.
+4. **Excluir la app de la optimización de batería.** Es el modo de fallo típico
+   en Android: sin eso el sistema apaga el escucha y las capturas se detienen sin
+   avisar.
+
+### Por qué el texto se parsea en el servidor
+
+El push llega como texto plano y el parseo pasa acá, no en Tasker. No es
+comodidad: ese parser ya resuelve la ambigüedad del `$` contra la moneda base
+del usuario (en México, Colombia, Chile, Argentina y Uruguay el peso local se
+escribe `$`), las dos convenciones de número de LatAm, y la diferencia entre un
+cobro y un reverso. Una copia de esa lógica dentro de una app de automatización
+se queda atrás en la primera corrección, y quien la configuró no tiene cómo
+darse cuenta.
+
+Es el **mismo** módulo que usa el camino de correo (`lib/alertIngest.js`). Lo
+único que difiere entre los dos es de dónde sale el instante del cobro: el correo
+lo saca de su cabecera `Date`, el push usa la hora de llegada, que es exacta
+porque llega en segundos.
+
+### Lo que este camino no trae
+
+El push suele traer menos que un correo. El de Banco G&T, por ejemplo, trae
+comercio, ciudad y monto, pero **no la hora ni los últimos cuatro dígitos**. La
+hora no importa (la de llegada es mejor dato); los últimos cuatro sí se pierden,
+así que con dos tarjetas del mismo banco no se puede distinguir cuál se usó.
+
+### El permiso, dicho de frente
+
+El acceso a notificaciones deja que la app de automatización lea **todas** tus
+notificaciones, no solo las del banco. Es tu teléfono y tu decisión, pero
+conviene tomarla sabiéndolo.
 
 ## Paso 3 (camino C): reenvío de correo
 

@@ -11,6 +11,12 @@ import LearnedRulesList from '@/components/finance/LearnedRulesList'
 // bank alerts), scoped to Flujo. Lives here instead of the shared Settings modal
 // (which opens from Patrimonio/dashboard) so configuring it never pulls a Flujo
 // user away from this page — the entire feature is Flujo's, not Patrimonio's.
+
+// El cuerpo que la app de automatización de Android manda. Los dos campos van
+// vacíos a propósito: ahí se pegan las variables de la notificación, igual que
+// en el atajo del iPhone se pegan las de la transacción.
+const ANDROID_BODY = '{"source":"android","title":"","text":""}'
+
 export default function AutoCaptureModal({ onClose, lang = 'es' }) {
   const trapRef = useFocusTrap()
   const t = (es, en) => lang === 'es' ? es : en
@@ -118,7 +124,7 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
   const handleCreateIngestToken = async () => {
     setIngestLoading(true)
     try {
-      const { token } = await ingestApi({ action: 'create', label: 'iPhone' })
+      const { token } = await ingestApi({ action: 'create', label: t('Teléfono', 'Phone') })
       setIngest((p) => ({ ...p, tokens: [...(p?.tokens || []), token] }))
       copyIngest(token.token, 'token', token.token)
       flash('ok', t('Token creado y copiado', 'Token created and copied'))
@@ -177,7 +183,15 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
   const tokens = ingest?.tokens || []
   const rules = ingest?.rules || []
   const emailReady = ingest?.emailIngest?.configured && ingest?.emailIngest?.address
-  const endpoint = `${typeof window !== 'undefined' ? window.location.origin : ''}/api/ingest/expense`
+  // El origen se resuelve DESPUÉS de montar, no durante el render: el servidor
+  // no tiene `window`, así que calcularlo acá pone una URL distinta en el HTML
+  // que en el navegador y React tira el árbol entero por el desajuste. Hoy no se
+  // nota porque el modal solo monta tras un clic, pero es la misma clase de
+  // bug que la hora de la lista de transacciones, y basta con que alguien lo
+  // renderice abierto para que aparezca.
+  const [origin, setOrigin] = useState('')
+  useEffect(() => { setOrigin(window.location.origin) }, [])
+  const endpoint = `${origin}/api/ingest/expense`
   const copyLabel = (token, what) => (ingestCopied === `${token}:${what}` ? t('¡Copiado!', 'Copied!') : t('Copiar', 'Copy'))
 
   return (
@@ -200,8 +214,8 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
 
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           <p className="text-xs text-slate-500">{t(
-            'Cada compra con tarjeta entra sola a tu Flujo, con categoría, monto, moneda, comercio y ubicación. Hay dos caminos y conviene usar los dos: el atajo del iPhone captura al instante los pagos con Apple Pay, y el reenvío de correo recoge todo lo demás una vez al día (tarjeta física y cobros en línea). Si un cobro llega por los dos, se guarda una sola vez.',
-            'Every card purchase lands in your Flujo on its own, with category, amount, currency, merchant and location. There are two paths and both are worth using: the iPhone shortcut captures Apple Pay charges instantly, and email forwarding picks up everything else once a day (physical card and online charges). If a charge arrives through both, it is stored only once.'
+            'Cada compra con tarjeta entra sola a tu Flujo, con categoría, monto, moneda, comercio y ubicación. En iPhone, el atajo captura al instante los pagos con Apple Pay. En Android, la notificación de tu banco captura todo al instante, incluida la tarjeta física. Y el reenvío de correo recoge lo que falte, una vez al día. Si un cobro llega por más de un camino, se guarda una sola vez.',
+            'Every card purchase lands in your Flujo on its own, with category, amount, currency, merchant and location. On iPhone, the shortcut captures Apple Pay charges instantly. On Android, your bank notification captures everything instantly, physical card included. And email forwarding picks up whatever is left, once a day. If a charge arrives through more than one path, it is stored only once.'
           )}</p>
 
           {initialError ? (
@@ -274,14 +288,34 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
                 </div>
               </div>
 
+
               <div>
-                <p className="text-xs font-medium text-white mb-1">{t('2. Reenvío de correo (una vez al día)', '2. Email forwarding (once a day)')}</p>
+                <p className="text-xs font-medium text-white mb-1">{t('2. Android (instantáneo)', '2. Android (instant)')}</p>
+                <p className="text-xs text-slate-500">{t(
+                  'Con una app de automatización (MacroDroid o Tasker): disparador "Notificación recibida" filtrado a la app de tu banco, acción "Petición HTTP" POST al endpoint de arriba, con el header Authorization y este cuerpo. Pon las variables de título y texto de la notificación en los dos campos vacíos:',
+                  'With an automation app (MacroDroid or Tasker): trigger "Notification received" filtered to your bank app, action "HTTP Request" POST to the endpoint above, with the Authorization header and this body. Put the notification title and text variables into the two empty fields:'
+                )}</p>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <code className="flex-1 min-w-0 text-xs text-slate-400 font-mono break-all bg-theme-surface px-2 py-1 rounded">{ANDROID_BODY}</code>
+                  <button onClick={() => copyIngest('android', 'body', ANDROID_BODY)}
+                    className="shrink-0 px-2 py-1 text-xs font-medium rounded-md" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
+                    {copyLabel('android', 'body')}
+                  </button>
+                </div>
+                <p className="text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>{t(
+                  'Lee el aviso de tu banco, no la billetera, así que captura todo: tarjeta física, compras en línea y Google Pay. Acuérdate de excluir la app de la optimización de batería, o Android la apaga sola.',
+                  'It reads your bank alert, not the wallet, so it captures everything: physical card, online purchases and Google Pay. Remember to exclude the app from battery optimization, or Android will kill it.'
+                )}</p>
+              </div>
+
+              <div>
+                <p className="text-xs font-medium text-white mb-1">{t('3. Reenvío de correo (una vez al día)', '3. Email forwarding (once a day)')}</p>
                 <p className="text-xs text-slate-500">{emailReady ? t(
                   'En tu correo, crea una regla que reenvíe las alertas de tu banco a la dirección de arriba. Captura también las compras con tarjeta física, que Apple Pay no ve.',
                   'In your mail client, create a rule that forwards your bank alerts to the address above. This also captures physical card purchases, which Apple Pay never sees.'
                 ) : t(
-                  'Falta configurar el buzón del servidor (IMAP). Mientras tanto funciona solo el atajo del iPhone.',
-                  'The server mailbox (IMAP) is not configured yet. Until then only the iPhone shortcut works.'
+                  'Falta configurar el buzón del servidor (IMAP). Mientras tanto funcionan el atajo del iPhone y el camino de Android.',
+                  'The server mailbox (IMAP) is not configured yet. Until then the iPhone shortcut and the Android path work.'
                 )}</p>
                 {emailReady && (
                   <button onClick={handleSyncEmail} disabled={ingestSyncing}
