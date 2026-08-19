@@ -5,7 +5,7 @@ comercio y ubicación. Hay dos caminos y están pensados para usarse juntos.
 
 | | Camino A: atajo | Camino C: correo |
 |---|---|---|
-| Qué captura | Apple Pay acercando el teléfono. Apple Pay dentro de una app o un sitio: **sin verificar**, ver abajo | Todo lo que el banco avisa por correo |
+| Qué captura | Apple Pay acercando el teléfono (**verificado**). Apple Pay dentro de una app o un sitio: sin verificar, ver abajo | Todo lo que el banco avisa por correo |
 | Cuándo entra | Al instante | Barrido diario (o "Sincronizar ahora") |
 | Cubre tarjeta física | No | Sí |
 | Trae ubicación GPS | Sí | No (solo la que traiga el texto) |
@@ -18,20 +18,28 @@ Los dos escriben en el mismo lugar y el mismo cobro nunca se guarda dos veces
 > camino A se cuelga de la automatización *Transacción* de Wallet, que solo ve
 > Apple Pay, y el camino C existe para cubrir el resto.
 
-> ⚠️ **Duda abierta, sin resolver: ¿Apple Pay EN LÍNEA dispara la
-> automatización?** iOS rotula ese disparador como *"When Any Card is **tapped**"*,
-> y "tapped" apunta literalmente a acercar el teléfono. No está verificado si un
-> pago con Apple Pay dentro de una app o un sitio web cuenta como la misma
-> transacción de Wallet.
+> ✅ **Apple Pay EN TIENDA: verificado el 19 ago 2026.** Compra real de GTQ 18.00
+> en un McDonald's de Guatemala acercando el teléfono. iOS registró *"Tapped a
+> Wallet pass or payment card — Running Show Notification"* a las 8:06, el push
+> del banco marcó el mismo cobro a las 8:06, y el servidor contestó
+> `{"ok":true,"status":"created","category":"Alimentación","amount":18,"merchant":"Mcdonalds 50 Bancos"}`.
+> El gasto quedó en Flujo con su ⚡, con la hora local correcta (08:06, no
+> corrida) y clasificado en Alimentación sin intervención.
+>
+> ⚠️ **Lo que sigue SIN verificar: ¿Apple Pay dentro de una app o un sitio web
+> dispara la misma automatización?** iOS rotula el disparador como *"When Any
+> Card is **tapped**"*, y "tapped" apunta literalmente a acercar el teléfono. La
+> pantalla de configuración de ese disparador **no ofrece ninguna opción** de
+> tienda contra línea (solo Categories y Merchants), así que la pregunta no se
+> puede contestar mirando ajustes.
 >
 > Esta guía llegó a afirmar las dos cosas en distintos momentos y una de las dos
 > estaba mal, así que queda escrito como pregunta hasta que haya evidencia.
 >
-> **Cómo se resuelve, con un A/B de dos compras:** hacer una compra en tienda
-> acercando el teléfono, mirar la línea de "último uso" del token en
-> Configuración → Automático, y después una compra con Apple Pay en línea y
-> mirar otra vez. Si la primera registra y la segunda no, la respuesta es que
-> solo cubre el toque físico, y esta tabla se corrige con ese dato.
+> **Lo que falta para cerrarla:** una compra con Apple Pay en línea, y mirar la
+> línea de "último uso" del token en Configuración → Automático. Si no se mueve,
+> la respuesta es que solo cubre el toque físico, y esta tabla se corrige con ese
+> dato.
 >
 > No cambia qué hacer mientras tanto: el camino C cubre las dos igual.
 
