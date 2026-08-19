@@ -97,6 +97,7 @@ const InstitutionPerformance = dynamic(() => import('@/components/dashboard/Inst
 const InvestedByYearCard = dynamic(() => import('@/components/dashboard/InvestedByYearCard'), { loading: () => <SkeletonCard /> })
 const RebalanceSuggestions = dynamic(() => import('@/components/dashboard/RebalanceSuggestions'), { loading: () => <SkeletonCard /> })
 const WealthProjectionCard = dynamic(() => import('@/components/dashboard/WealthProjectionCard'), { loading: () => <SkeletonCard /> })
+const InvestmentComparator = dynamic(() => import('@/components/dashboard/InvestmentComparator'), { loading: () => <SkeletonCard /> })
 
 // How long a finished IBKR-journey step stays on screen before it carries the
 // user to the next one (FASE GQ4). Long enough to read the one-line "Listo:
@@ -1610,6 +1611,15 @@ export default function DashboardPage() {
             acá arriba. */}
         <div className="stagger-6"><SectionCollapse title={lang === 'es' ? 'Proyecciones' : 'Projections'} id="projections" defaultOpen={false}>
           <ErrorBoundary lang={lang}>
+            <CardBoundary id="PROJ-01">
+              <InvestmentComparator
+                scenarios={settings?.investmentScenarios}
+                onSave={(list) => saveSettings({ ...settings, investmentScenarios: list })}
+                netWorth={netWorth}
+                baseCurrency={baseCurrency}
+                lang={lang}
+              />
+            </CardBoundary>
             <CardBoundary id="PROJ-02">
               <WealthProjectionCard
                 netWorth={netWorth}
