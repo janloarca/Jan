@@ -354,7 +354,7 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
                   </div>
                   <div className="flex flex-wrap gap-x-3 mt-1">
                     {r.balance === 0 && (
-                      <span className="text-[11px]" style={{ color: '#f59e0b' }}>
+                      <span className="text-[11px]" style={{ color: 'var(--accent-orange)' }}>
                         {t('balance 0: dirección vacía o con movimientos sin confirmar', '0 balance: empty address or unconfirmed moves')}
                       </span>
                     )}
@@ -367,7 +367,7 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
                       </span>
                     )}
                     {r.historyTruncated && (
-                      <span className="text-[11px]" style={{ color: '#f59e0b' }}>
+                      <span className="text-[11px]" style={{ color: 'var(--accent-orange)' }}>
                         {t('historial parcial (dirección muy activa)', 'partial history (very active address)')}
                       </span>
                     )}

@@ -295,7 +295,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
     disconnected: { dot: 'var(--text-negative)', text: 'var(--text-negative)' },
     never: { dot: 'var(--accent-orange)', text: 'var(--accent-orange)' },
     stale: { dot: 'var(--accent-orange)', text: 'var(--accent-orange)' },
-    ok: { dot: '#34d399', text: '#34d399' },
+    ok: { dot: 'var(--accent-green)', text: 'var(--accent-green)' },
   }[syncStatus]
   const statusLabel = {
     disconnected: t('No vinculado', 'Not linked'),
@@ -379,7 +379,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
         </div>
 
         {saveStatus && (
-          <div className="mx-6 mt-3 px-3 py-2 rounded-lg text-xs font-medium transition-all" style={{ color: saveStatus.type === 'ok' ? '#34d399' : '#f87171', backgroundColor: saveStatus.type === 'ok' ? 'rgba(52,211,153,0.15)' : 'rgba(239,68,68,0.15)' }}>
+          <div className="mx-6 mt-3 px-3 py-2 rounded-lg text-xs font-medium transition-all" style={{ color: saveStatus.type === 'ok' ? 'var(--accent-green)' : 'var(--accent-red)', backgroundColor: saveStatus.type === 'ok' ? 'rgba(52,211,153,0.15)' : 'rgba(239,68,68,0.15)' }}>
             {saveStatus.msg}
           </div>
         )}

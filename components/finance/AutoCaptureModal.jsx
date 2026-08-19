@@ -193,7 +193,7 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
         </div>
 
         {flashMsg && (
-          <div className="mx-6 mt-3 px-3 py-2 rounded-lg text-xs font-medium transition-all" style={{ color: flashMsg.type === 'ok' ? '#34d399' : '#f87171', backgroundColor: flashMsg.type === 'ok' ? 'rgba(52,211,153,0.15)' : 'rgba(239,68,68,0.15)' }}>
+          <div className="mx-6 mt-3 px-3 py-2 rounded-lg text-xs font-medium transition-all" style={{ color: flashMsg.type === 'ok' ? 'var(--accent-green)' : 'var(--accent-red)', backgroundColor: flashMsg.type === 'ok' ? 'rgba(52,211,153,0.15)' : 'rgba(239,68,68,0.15)' }}>
             {flashMsg.msg}
           </div>
         )}

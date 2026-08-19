@@ -152,7 +152,7 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
                 </button>
                 <button onClick={() => setSyncMode('replace')}
                   className="flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors border"
-                  style={syncMode === 'replace' ? { backgroundColor: 'rgba(245,158,11,0.2)', color: '#fbbf24', borderColor: 'rgba(245,158,11,0.4)' } : { backgroundColor: 'var(--bg-input)', color: 'var(--text-secondary)', borderColor: 'var(--border-color)' }}>
+                  style={syncMode === 'replace' ? { backgroundColor: 'rgba(245,158,11,0.2)', color: 'var(--alert-warn-icon)', borderColor: 'rgba(245,158,11,0.4)' } : { backgroundColor: 'var(--bg-input)', color: 'var(--text-secondary)', borderColor: 'var(--border-color)' }}>
                   {t('Reemplazar', 'Replace')}
                   <span className="block text-xs mt-0.5 opacity-60">{t('Borra todo de Blockchain.com', 'Delete all from Blockchain.com')}</span>
                 </button>

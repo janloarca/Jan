@@ -1311,7 +1311,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   <div className="flex gap-2">
                     <button type="button" onClick={() => set('dividendAction', 'cash')}
                       className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.dividendAction !== 'cash' ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
-                      style={form.dividendAction === 'cash' ? { color: '#22d3ee', backgroundColor: 'rgba(6,182,212,0.2)', borderColor: 'rgba(6,182,212,0.4)' } : undefined}>
+                      style={form.dividendAction === 'cash' ? { color: 'var(--accent-cyan)', backgroundColor: 'rgba(6,182,212,0.2)', borderColor: 'rgba(6,182,212,0.4)' } : undefined}>
                       💵 {t('Efectivo', 'Cash')}
                     </button>
                     <button type="button" onClick={() => set('dividendAction', 'reinvest')}
@@ -1746,7 +1746,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     <div className="flex items-center gap-3 px-3 py-2 border border-[var(--card-border,#38383A)] rounded-lg">
                       <button type="button" onClick={() => set('isIlliquid', !form.isIlliquid)}
                         className="w-8 h-4 rounded-full transition-colors relative shrink-0"
-                        style={{ backgroundColor: form.isIlliquid ? '#f59e0b' : 'var(--card-border, #38383A)' }}>
+                        style={{ backgroundColor: form.isIlliquid ? 'var(--accent-orange)' : 'var(--card-border, #38383A)' }}>
                         <span className={`absolute w-3 h-3 bg-white rounded-full top-0.5 transition-transform ${form.isIlliquid ? 'left-4' : 'left-0.5'}`} />
                       </button>
                       <div>
