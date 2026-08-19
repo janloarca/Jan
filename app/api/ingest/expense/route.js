@@ -1,8 +1,18 @@
 import { NextResponse } from 'next/server'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { rateLimit } from '@/lib/rateLimit'
-import { resolveIngestToken, readUserRules, stampIngestResult } from '@/lib/ingestTokens'
-import { normalizeExpenseInput, ingestExpense, explainIngestError } from '@/lib/expenseIngest'
+import { resolveIngestToken, readUserRules, readUserBaseCurrency, stampIngestResult } from '@/lib/ingestTokens'
+import { expenseFromAlert } from '@/lib/alertIngest'
+import { normalizeExpenseInput, ingestExpense, explainIngestError, INGEST_SOURCES } from '@/lib/expenseIngest'
+
+// De qué transporte dice venir la captura. Se acepta del cuerpo pero SOLO de la
+// lista cerrada: no es una frontera de seguridad (esa es el token), pero sí
+// decide el id determinístico del documento, así que un valor libre dejaría que
+// un cliente se saliera del espacio de dedup de su propia cuenta.
+function sourceOf(body) {
+  const s = String(body?.source || '').toLowerCase()
+  return INGEST_SOURCES.includes(s) ? s : 'shortcut'
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -58,13 +68,59 @@ export async function POST(request) {
     const resolved = await resolveIngestToken(db, token)
     if (!resolved) return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
 
-    // The automation POSTs at the register, so arrival is a good stand-in for
-    // the purchase instant when the shortcut does not send `occurredAt`.
-    const input = normalizeExpenseInput({
-      receivedAt: new Date().toISOString(),
-      ...body,
-      source: 'shortcut',
-    })
+    // Dos formas de mandar el mismo gasto, y la diferencia es de dónde sale el
+    // dato, no de qué se hace con él:
+    //
+    //   estructurada — el atajo de iOS ya trae monto y comercio separados,
+    //                  porque Wallet se los entrega así.
+    //   texto crudo  — Android manda el push del banco tal cual lo mostró la
+    //                  pantalla, y el parseo pasa acá.
+    //
+    // El parseo va en el SERVIDOR y no en la app de automatización a propósito:
+    // ese parser ya resuelve la ambigüedad del "$" contra la moneda del usuario,
+    // las dos convenciones de número de LatAm y la diferencia entre un cobro y un
+    // reverso. Meterlo en Tasker o MacroDroid sería una segunda copia que se
+    // queda atrás, y el usuario que la configuró no tiene cómo darse cuenta.
+    const rawText = typeof body?.text === 'string' ? body.text : ''
+    const rawTitle = typeof body?.title === 'string' ? body.title : ''
+    // La hora de LLEGADA sirve como instante de la compra en los dos caminos: el
+    // atajo dispara en la caja y el push del banco llega en segundos.
+    const receivedAt = new Date().toISOString()
+
+    let input
+    let alertSkip = null
+    if (rawText || rawTitle) {
+      // La moneda base decide qué significa un "$" suelto: para una tarjeta
+      // mexicana son pesos, y leerlos como dólares multiplica el cobro por el
+      // tipo de cambio, en silencio.
+      const base = await readUserBaseCurrency(db, resolved.uid)
+      // Sin offset a propósito: un push no trae zona horaria, y no la necesita.
+      // Llega en segundos, así que la hora de llegada es mejor dato que una hora
+      // de pared impresa en el texto sin zona con qué colocarla.
+      const out = expenseFromAlert({
+        subject: rawTitle,
+        text: rawText,
+        receivedAt,
+        defaultCurrency: base || 'GTQ',
+        source: sourceOf(body),
+      })
+      input = out.input
+      alertSkip = out.skip || null
+    } else {
+      input = normalizeExpenseInput({
+        receivedAt,
+        ...body,
+        source: sourceOf(body),
+      })
+    }
+
+    // Un reverso o un texto que no era una alerta NO son fallos: son resultados
+    // legítimos, y decirlos como error haría que el usuario persiguiera un
+    // problema que no existe.
+    if (alertSkip) {
+      await stampIngestResult(db, token, alertSkip)
+      return NextResponse.json({ ok: true, status: 'skipped', reason: alertSkip, message: explainIngestError(alertSkip) })
+    }
     // El error viaja con una frase legible además del código, porque el único
     // lugar donde el usuario lo ve es una notificación del teléfono: ahí no hay
     // consola, ni logs, ni forma de preguntar nada. Un código suelto obliga a
