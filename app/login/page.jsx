@@ -272,13 +272,23 @@ function LoginForm() {
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Tu control financiero personal</p>
         </div>
 
-        <div className="bg-theme-card rounded-xl p-6" style={{ backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)', boxShadow: 'var(--shadow-elevated)', border: 'var(--glass-border)' }}>
-          <h2 className="text-lg font-semibold text-white text-center mb-5">
+        {/* Era `rounded-xl` (12px) contra los 16px de toda card de la app, más un
+            `backdropFilter` que `.card` quitó a propósito: el fondo de atrás es
+            un degradado radial, o sea baja frecuencia, y desenfocar un degradado
+            suave no cambia un píxel, solo cuesta una capa de composición. La
+            sombra sí se conserva más profunda (`--shadow-elevated`): esta card
+            flota sobre la pantalla en vez de vivir en una grilla, mismo criterio
+            que `.card-hero`. */}
+        <div className="card p-6" style={{ boxShadow: 'var(--shadow-elevated)' }}>
+          <h2 className="text-h2 text-center mb-5" style={{ color: 'var(--text-primary)' }}>
             {isSignUp ? 'Crear cuenta' : 'Iniciar sesión'}
           </h2>
 
           {inAppBrowser && (
-            <div className="mb-4 p-3 rounded-lg text-sm" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', color: '#fbbf24' }}>
+            /* `#fbbf24` medía 1.67:1 sobre la card blanca. Los tres tokens de
+               aviso ya existen y su valor OSCURO es exactamente el que estaba
+               escrito acá a mano, así que en tema oscuro no cambia nada. */
+            <div className="mb-4 p-3 rounded-lg text-sm" style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)', color: 'var(--alert-warn-icon)' }}>
               Para mejor experiencia, abre en tu navegador:
               <a href={typeof window !== 'undefined' ? window.location.href : '#'}
                 target="_blank" rel="noopener noreferrer"
@@ -289,7 +299,7 @@ function LoginForm() {
           )}
 
           {error && (
-            <div role="alert" aria-live="assertive" className="mb-4 p-3 rounded-lg text-sm" style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: 'var(--text-negative)' }}>
+            <div role="alert" aria-live="assertive" className="mb-4 p-3 rounded-lg text-sm" style={{ backgroundColor: 'var(--alert-error-bg)', border: '1px solid var(--alert-error-border)', color: 'var(--alert-error-icon)' }}>
               {error}
             </div>
           )}
@@ -306,7 +316,7 @@ function LoginForm() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-2.5 rounded-lg text-white placeholder-slate-600 focus:outline-none text-base"
-                style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: 'var(--glass-border)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.2)' }}
+                style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: 'var(--glass-border)', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.2)' }}
                 required
               />
             </div>
@@ -320,7 +330,7 @@ function LoginForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-4 py-2.5 rounded-lg text-white placeholder-slate-600 focus:outline-none text-base"
-                style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: 'var(--glass-border)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.2)' }}
+                style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: 'var(--glass-border)', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.2)' }}
                 required
               />
             </div>
@@ -341,7 +351,7 @@ function LoginForm() {
           )}
 
           {showReset && (
-            <div className="mt-3 p-3 rounded-lg" style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: 'var(--glass-border)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}>
+            <div className="mt-3 p-3 rounded-lg" style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: 'var(--glass-border)' }}>
               {resetSent ? (
                 <p className="text-sm text-center" style={{ color: 'var(--accent-green)' }}>
                   Revisa tu email para restablecer tu contraseña.

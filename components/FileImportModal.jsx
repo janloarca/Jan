@@ -916,7 +916,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
             ].map((tab) => (
               <button key={tab.key} onClick={() => { setMode(tab.key); setError('') }}
                 className="flex-1 px-4 py-3 text-sm font-medium transition-colors"
-                style={mode === tab.key ? { color: 'var(--accent-green)', borderBottom: '2px solid #34d399', backgroundColor: 'rgba(52,211,153,0.05)' } : { color: '#94a3b8' }}>
+                style={mode === tab.key ? { color: 'var(--accent-green)', borderBottom: '2px solid #34d399', backgroundColor: 'rgba(52,211,153,0.05)' } : { color: 'var(--text-muted)' }}>
                 {tab.icon} {tab.label}
               </button>
             ))}
@@ -1004,7 +1004,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                   await generateTemplate()
                 }}
                 className="mt-4 w-full py-3 border rounded-lg transition-colors text-sm font-medium flex items-center justify-center gap-2"
-                style={{ backgroundColor: 'rgba(8,145,178,0.2)', borderColor: 'rgba(6,182,212,0.3)', color: '#22d3ee' }}>
+                style={{ backgroundColor: 'rgba(8,145,178,0.2)', borderColor: 'rgba(6,182,212,0.3)', color: 'var(--accent-cyan)' }}>
                 <span>📥</span> {t('Descargar plantilla de ejemplo', 'Download example template')}
               </button>
               <p className="mt-2 text-xs text-slate-500 text-center">
@@ -1604,7 +1604,7 @@ When done, give me the .xlsx file ready to download.`
                           <td className="py-1.5 px-1.5 text-right text-slate-300">{item.quantity?.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
                           <td className="py-1.5 px-1.5 text-right text-slate-300">${item.currentPrice?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                           <td className="py-1.5 px-1.5 text-right text-white font-medium">${val.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</td>
-                          <td className="py-1.5 px-1.5 text-right font-medium" style={{ color: gain > 0 ? '#34d399' : gain < 0 ? '#f87171' : '#64748b' }}>
+                          <td className="py-1.5 px-1.5 text-right font-medium" style={{ color: gain > 0 ? 'var(--accent-green)' : gain < 0 ? 'var(--accent-red)' : 'var(--text-muted)' }}>
                             {cost > 0 ? `${gain >= 0 ? '+' : ''}${gain.toFixed(1)}%` : '-'}
                           </td>
                         </tr>
@@ -1620,7 +1620,7 @@ When done, give me the .xlsx file ready to download.`
                   ("Activity Statement", "Trades section") stays out of the way. */}
               {ibkrMissingHistory && (
                 <div className="mt-3 px-3 py-2.5 rounded-lg text-xs" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)' }}>
-                  <p className="font-medium" style={{ color: '#fcd34d' }}>
+                  <p className="font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
                     {ibkrData._period?.singleDay
                       ? t(`Este archivo cubre un solo día: ${ibkrData._period.raw}.`, `This file covers a single day: ${ibkrData._period.raw}.`)
                       : t('Este archivo tiene lo que tienes hoy, pero no cómo llegaste ahí.', 'This file has what you hold today, but not how you got there.')}
@@ -1645,7 +1645,7 @@ When done, give me the .xlsx file ready to download.`
                   far back as IBKR keeps statements. */}
               {!ibkrMissingHistory && ibkrOlderThanFile > 0 && (
                 <div className="mt-3 px-3 py-2.5 rounded-lg text-xs" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)' }}>
-                  <p className="font-medium" style={{ color: '#fcd34d' }}>
+                  <p className="font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
                     {t(`${ibkrOlderThanFile} de estas posiciones ya las tenías antes de que empiece este archivo.`,
                        `${ibkrOlderThanFile} of these positions were already yours before this file starts.`)}
                   </p>
@@ -1696,7 +1696,7 @@ When done, give me the .xlsx file ready to download.`
                       },
                       {
                         key: 'replace',
-                        accent: '#fb923c',
+                        accent: 'var(--accent-orange)',
                         title: t('Borrar y empezar de nuevo', 'Delete and start over'),
                         desc: ibkrCount > 0
                           ? t(`Elimina tus ${ibkrCount} posiciones de IBKR y las vuelve a crear desde este archivo.`,
@@ -1821,20 +1821,20 @@ When done, give me the .xlsx file ready to download.`
                 </p>
               )}
               {result.replaced > 0 && (
-                <p className="text-xs mt-1" style={{ color: '#fb923c' }}>{t(`${result.replaced} posiciones anteriores reemplazadas`, `${result.replaced} previous positions replaced`)}</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--accent-orange)' }}>{t(`${result.replaced} posiciones anteriores reemplazadas`, `${result.replaced} previous positions replaced`)}</p>
               )}
               {result.snapCount > 0 && (
-                <p className="text-xs mt-1" style={{ color: '#22d3ee' }}>📊 {result.snapCount} {t('periodos de historial', 'history periods')}</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--accent-cyan)' }}>📊 {result.snapCount} {t('periodos de historial', 'history periods')}</p>
               )}
               {result.isIBKR && result.navDays > 0 && (
-                <p className="text-xs mt-1" style={{ color: '#22d3ee' }}>📊 {result.navDays} {t('días de historial de valor importados', 'days of value history imported')}</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--accent-cyan)' }}>📊 {result.navDays} {t('días de historial de valor importados', 'days of value history imported')}</p>
               )}
               {/* IBKR import with ZERO NAV days: the file lacked the daily-value
                   section, so history and returns stay empty even though the
                   import "succeeded". Say so here, where it is still actionable. */}
               {result.isIBKR && result.navDays === 0 && (
                 <div className="mt-3 mx-auto max-w-sm px-3 py-2.5 rounded-lg text-left text-xs" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)' }}>
-                  <p className="font-medium" style={{ color: '#fcd34d' }}>
+                  <p className="font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
                     {t('El archivo no trae el valor diario de tu cuenta (sección "Net Asset Value (NAV) in Base").',
                        'The file has no daily account value (the "Net Asset Value (NAV) in Base" section).')}
                   </p>

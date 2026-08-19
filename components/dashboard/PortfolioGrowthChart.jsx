@@ -12,6 +12,7 @@ import { staticValueAt } from '@/lib/staticOverlay'
 import { computeTWRSeries, computeAnchoredReturnSeries, computeAnchoredMWRSeries, filterValueSpikes } from './analytics'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import ErrorState from '@/components/ui/ErrorState'
+import InlineNotice from '@/components/ui/InlineNotice'
 import { useEdgeFade } from '@/hooks/useEdgeFade'
 import SegmentedTabs from '@/components/ui/SegmentedTabs'
 import BusyLabel, { BusyRing } from '@/components/ui/BusyLabel'
@@ -1982,13 +1983,19 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           desde snapshots. Antes esto era 100% silencioso (el EmptyState de
           error solo aparece con la gráfica vacía) y el usuario no tenía forma
           de saber que la serie estaba incompleta. */}
+      {/* Este es literalmente la firma de `InlineNotice`: aviso ámbar compacto
+          dentro de una card, con una salida para reintentar. El comentario de
+          cabecera de ese componente ya nombraba a este archivo como uno de los
+          dos originales duplicados a mano. */}
       {fetchError && chartData.length >= 2 && (
-        <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs mb-3"
-          style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)', color: 'var(--alert-warn-icon)' }}>
-          <span>⚠</span>
-          <span>{t('Historial de mercado incompleto esta sesión: la línea puede tener huecos.', 'Market history incomplete this session: the line may have gaps.')}</span>
-          <button onClick={fetchHistory} className="underline" style={{ color: 'inherit' }}>{t('Reintentar', 'Retry')}</button>
-        </div>
+        <InlineNotice
+          tone="warn"
+          actionLabel={t('Reintentar', 'Retry')}
+          onAction={fetchHistory}
+          className="mb-3"
+        >
+          {t('Historial de mercado incompleto esta sesión: la línea puede tener huecos.', 'Market history incomplete this session: the line may have gaps.')}
+        </InlineNotice>
       )}
 
       {/* La caída máxima es un HECHO del período, no una alarma: toda gráfica de

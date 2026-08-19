@@ -13,6 +13,7 @@ import ChispudoLoader from '@/components/ui/ChispudoLoader'
 import { InfoTip } from '@/components/ui/Tooltip'
 import { useEdgeFade } from '@/hooks/useEdgeFade'
 import SegmentedTabs from '@/components/ui/SegmentedTabs'
+import PageBanner from '@/components/ui/PageBanner'
 import AdBanner from '@/components/AdBanner'
 import MonthEndCheckin, { hasLiveSync } from '@/components/dashboard/MonthEndCheckin'
 import DashboardLoading from './loading'
@@ -1236,166 +1237,76 @@ export default function DashboardPage() {
         friendsEnabled={settings?.friendsEnabled !== false}
       />
 
-      {topBanner && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3">
-          {topBanner === 'stale' && (
-            <div className="px-4 py-3 rounded-xl flex flex-wrap items-center justify-between gap-y-2" style={{ backgroundColor: 'rgba(37,99,235,0.1)', border: '1px solid rgba(37,99,235,0.2)' }}>
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--accent-blue)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                <p className="text-sm font-medium" style={{ color: 'var(--accent-blue)' }}>
-                  {lang === 'es' ? 'Hay una nueva versión disponible' : 'A new version is available'}
-                </p>
-              </div>
-              <button onClick={() => { if (typeof caches !== 'undefined') caches.keys().then(ks => Promise.all(ks.map(k => caches.delete(k)))); window.location.reload() }}
-                className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
-                style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
-                {lang === 'es' ? 'Actualizar' : 'Update'}
-              </button>
-            </div>
-          )}
-          {topBanner === 'ibkr-expired' && (
-            <div className="px-4 py-3 rounded-xl flex flex-wrap items-center justify-between gap-y-2" style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)' }}>
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--alert-warn-icon)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-                <p className="text-sm font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
-                  {lang === 'es' ? 'Tu token de IBKR expiró: genera uno nuevo para mantener tu portafolio actualizado' : 'Your IBKR token has expired: generate a new one to keep your portfolio updated'}
-                </p>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <button onClick={handleIbkrDisconnect} className="text-xs transition-colors" style={{ color: 'var(--alert-warn-icon)', opacity: 0.7 }}>
-                  {lang === 'es' ? 'Desconectar' : 'Disconnect'}
-                </button>
-                <button onClick={() => setModal('ibkr')}
-                  className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-                  style={{ backgroundColor: 'var(--alert-warn-icon)', color: '#fff' }}>
-                  {lang === 'es' ? 'Actualizar' : 'Update'}
-                </button>
-              </div>
-            </div>
-          )}
-          {topBanner === 'ibkr-query' && (
-            <div className="px-4 py-3 rounded-xl flex flex-wrap items-center justify-between gap-y-2" style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)' }}>
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--alert-warn-icon)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-                <p className="text-sm font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
-                  {lang === 'es' ? 'Query ID de IBKR inválido: verifica tu Flex Query en IBKR' : 'Invalid IBKR Query ID: verify your Flex Query in IBKR'}
-                </p>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <button onClick={handleIbkrDisconnect} className="text-xs transition-colors" style={{ color: 'var(--alert-warn-icon)', opacity: 0.7 }}>
-                  {lang === 'es' ? 'Desconectar' : 'Disconnect'}
-                </button>
-                <button onClick={() => setModal('ibkr')}
-                  className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-                  style={{ backgroundColor: 'var(--alert-warn-icon)', color: '#fff' }}>
-                  {lang === 'es' ? 'Configurar' : 'Configure'}
-                </button>
-              </div>
-            </div>
-          )}
-          {/* FASE GQ: a first connect never made it past 5 business days (FASE HX)
-              without a single successful sync. "La última sincronización falló"
-              (ibkr-failed below) implies at least ONE sync happened; this case
-              never did, so the copy points straight at the credentials instead. */}
-          {/* FASE HX: era rojo (rgba(239,68,68)) con botón rojo sólido, o sea el
-              tratamiento de una falla mortal, para lo que es un aviso de datos
-              posiblemente desactualizados que el auto-sync sigue reintentando
-              solo. Ahora usa los tokens --alert-warn-* (mismos que el resto de
-              avisos no fatales, y con variante clara/oscura de verdad: los hex
-              fijos #fca5a5 eran ilegibles en tema claro). */}
-          {topBanner === 'ibkr-never-connected' && (
-            <div className="px-4 py-3 rounded-xl flex flex-wrap items-center justify-between gap-y-2" style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)' }}>
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--alert-warn-icon)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-                <p className="text-sm font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
-                  {lang === 'es' ? 'No pudimos conectar con IBKR en los últimos días: revisa tu Token y Query ID' : "We couldn't connect to IBKR in the last few days: check your Token and Query ID"}
-                </p>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <button onClick={handleIbkrDisconnect} className="text-xs transition-colors" style={{ color: 'var(--alert-warn-icon)', opacity: 0.7 }}>
-                  {lang === 'es' ? 'Desconectar' : 'Disconnect'}
-                </button>
-                <button onClick={() => setModal('ibkr')}
-                  className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-                  style={{ backgroundColor: 'var(--alert-warn-icon)', color: '#fff' }}>
-                  {lang === 'es' ? 'Revisar credenciales' : 'Check credentials'}
-                </button>
-              </div>
-            </div>
-          )}
-          {/* FASE HX: mismo suavizado que ibkr-never-connected. LOCKED se
-              levanta solo (EZ3: reintento cada 12h), así que rojo-mortal era
-              el tono equivocado incluso cruzada la barra de 5 días. */}
-          {topBanner === 'ibkr-locked' && (
-            <div className="px-4 py-3 rounded-xl flex flex-wrap items-center justify-between gap-y-2" style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)' }}>
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--alert-warn-icon)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-                <p className="text-sm font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
-                  {lang === 'es' ? 'IBKR bloqueó tu token: genera uno NUEVO en IBKR o importa un CSV mientras tanto' : 'IBKR locked your token: generate a NEW one in IBKR or import a CSV in the meantime'}
-                </p>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <button onClick={handleIbkrDisconnect} className="text-xs transition-colors" style={{ color: 'var(--alert-warn-icon)', opacity: 0.7 }}>
-                  {lang === 'es' ? 'Desconectar' : 'Disconnect'}
-                </button>
-                <button onClick={() => setModal('ibkr')}
-                  className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-                  style={{ backgroundColor: 'var(--alert-warn-icon)', color: '#fff' }}>
-                  {lang === 'es' ? 'Resolver' : 'Resolve'}
-                </button>
-              </div>
-            </div>
-          )}
-          {topBanner === 'ibkr-failed' && (
-            <div className="px-4 py-3 rounded-xl flex flex-wrap items-center justify-between gap-y-2" style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)' }}>
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--alert-warn-icon)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-                <p className="text-sm font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
-                  {lang === 'es' ? 'La última sincronización con IBKR falló: tus datos pueden estar desactualizados' : 'The last IBKR sync failed: your data may be outdated'}
-                </p>
-              </div>
-              <button onClick={() => setModal('ibkr')}
-                className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
-                style={{ backgroundColor: 'var(--alert-warn-icon)', color: '#fff' }}>
-                {lang === 'es' ? 'Reintentar' : 'Retry'}
-              </button>
-            </div>
-          )}
-          {topBanner === 'prices' && (
-            <div className="px-4 py-3 rounded-xl flex flex-wrap items-center justify-between gap-y-2" style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)' }}>
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--alert-warn-icon)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-                <p className="text-sm font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
-                  {pricesError && ratesError
-                    ? (lang === 'es' ? 'Precios y tasas desactualizados: error de conexión' : 'Prices and rates outdated: connection error')
-                    : pricesError
-                      ? (lang === 'es' ? 'Precios desactualizados: no se pudo conectar' : 'Prices outdated: could not connect')
-                      : (lang === 'es' ? 'Tasas de cambio desactualizadas' : 'Exchange rates outdated')}
-                </p>
-              </div>
-              <button onClick={handleRefresh}
-                className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
-                style={{ backgroundColor: 'var(--alert-warn-icon)', color: '#fff' }}>
-                {lang === 'es' ? 'Reintentar' : 'Retry'}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Eran SIETE bloques de ~20 líneas escritos a mano, seis de ellos copias
+          casi exactas que solo diferían en el texto, el rótulo del botón y si
+          llevaban o no el link de "Desconectar". Ahora son datos: `PageBanner`
+          pone la forma y esta tabla dice qué cambia en cada caso. El aviso de
+          versión nueva además tenía su azul como rgba fijo en vez del token. */}
+      {topBanner && (() => {
+        const es = lang === 'es'
+        const ibkrFix = { secondaryLabel: es ? 'Desconectar' : 'Disconnect', onSecondary: handleIbkrDisconnect, onAction: () => setModal('ibkr') }
+        const BANNERS = {
+          stale: {
+            tone: 'brand', icon: 'refresh',
+            message: es ? 'Hay una nueva versión disponible' : 'A new version is available',
+            actionLabel: es ? 'Actualizar' : 'Update',
+            onAction: () => {
+              if (typeof caches !== 'undefined') caches.keys().then((ks) => Promise.all(ks.map((k) => caches.delete(k))))
+              window.location.reload()
+            },
+          },
+          'ibkr-expired': {
+            ...ibkrFix,
+            message: es ? 'Tu token de IBKR expiró: genera uno nuevo para mantener tu portafolio actualizado' : 'Your IBKR token has expired: generate a new one to keep your portfolio updated',
+            actionLabel: es ? 'Actualizar' : 'Update',
+          },
+          'ibkr-query': {
+            ...ibkrFix,
+            message: es ? 'Query ID de IBKR inválido: verifica tu Flex Query en IBKR' : 'Invalid IBKR Query ID: verify your Flex Query in IBKR',
+            actionLabel: es ? 'Configurar' : 'Configure',
+          },
+          // FASE GQ: una primera conexión que nunca llegó a sincronizar ni una
+          // vez. "La última sincronización falló" (ibkr-failed) da por hecho que
+          // hubo AL MENOS una, así que esta copia apunta a las credenciales.
+          // FASE HX: era rojo con botón rojo sólido, el tratamiento de una falla
+          // mortal, para algo que el auto-sync sigue reintentando solo.
+          'ibkr-never-connected': {
+            ...ibkrFix,
+            message: es ? 'No pudimos conectar con IBKR en los últimos días: revisa tu Token y Query ID' : "We couldn't connect to IBKR in the last few days: check your Token and Query ID",
+            actionLabel: es ? 'Revisar credenciales' : 'Check credentials',
+          },
+          // FASE HX: mismo suavizado. LOCKED se levanta solo (EZ3: reintento
+          // cada 12h), así que rojo-mortal era el tono equivocado incluso
+          // cruzada la barra de 5 días.
+          'ibkr-locked': {
+            ...ibkrFix,
+            message: es ? 'IBKR bloqueó tu token: genera uno NUEVO en IBKR o importa un CSV mientras tanto' : 'IBKR locked your token: generate a NEW one in IBKR or import a CSV in the meantime',
+            actionLabel: es ? 'Resolver' : 'Resolve',
+          },
+          'ibkr-failed': {
+            message: es ? 'La última sincronización con IBKR falló: tus datos pueden estar desactualizados' : 'The last IBKR sync failed: your data may be outdated',
+            actionLabel: es ? 'Reintentar' : 'Retry',
+            onAction: () => setModal('ibkr'),
+          },
+          prices: {
+            message: pricesError && ratesError
+              ? (es ? 'Precios y tasas desactualizados: error de conexión' : 'Prices and rates outdated: connection error')
+              : pricesError
+                ? (es ? 'Precios desactualizados: no se pudo conectar' : 'Prices outdated: could not connect')
+                : (es ? 'Tasas de cambio desactualizadas' : 'Exchange rates outdated'),
+            actionLabel: es ? 'Reintentar' : 'Retry',
+            onAction: handleRefresh,
+          },
+        }
+        const b = BANNERS[topBanner]
+        if (!b) return null
+        const { message, ...rest } = b
+        return (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3">
+            <PageBanner {...rest}>{message}</PageBanner>
+          </div>
+        )
+      })()}
 
       <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
         {/* Demo mode: the exit must always be obvious, even after the tour ends */}

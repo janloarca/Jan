@@ -212,7 +212,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
           {/* Header */}
           <div className="px-4 py-3 border-b border-glass-border flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#34d399' }} />
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-green)' }} />
               <span className="text-sm font-semibold text-white">{t('Asistente AI', 'AI Assistant')}</span>
             </div>
             <div className="flex items-center gap-1">
