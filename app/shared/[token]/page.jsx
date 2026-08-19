@@ -110,10 +110,13 @@ function SharedDashboard({ items, snapshots, baseCurrency, label, display }) {
     [items]
   )
 
-  const catColors = {
-    stocks: 'var(--accent-blue)', crypto: '#f59e0b', funds: '#34d399', bonds: '#8b5cf6',
-    banks: '#06b6d4', realestate: '#ec4899', alternatives: '#f97316', debts: '#ef4444', other: '#64748b',
-  }
+  // `TYPE_COLORS` ya estaba importado arriba y no se usaba: esta página tenía su
+  // propia copia de la paleta por clase de activo, con otros tonos (crypto
+  // #f59e0b contra #E07227, funds #34d399 contra #B274DC...). O sea el mismo
+  // portafolio se pintaba de un color para su dueño y de otro para quien lo
+  // recibe compartido. La compartida es `lib/colors.js`, elegida en OKLCH y con
+  // su propio test de guardián; esta era una copia suelta que nadie validó.
+  const catColor = (cat) => (TYPE_COLORS[cat] || TYPE_COLORS.other).bg
 
   return (
     <div className="min-h-screen bg-theme-base">
@@ -167,7 +170,7 @@ function SharedDashboard({ items, snapshots, baseCurrency, label, display }) {
           ) : (
             <>
               <span className="text-xs text-slate-500 block mb-1">All-time Return</span>
-              <div className="text-3xl font-bold" style={{ color: growthPct == null ? 'var(--text-primary)' : growthPct >= 0 ? '#34d399' : '#f87171' }}>
+              <div className="text-3xl font-bold" style={{ color: growthPct == null ? 'var(--text-primary)' : growthPct >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                 {growthPct == null ? '-' : `${growthPct >= 0 ? '+' : ''}${growthPct.toFixed(1)}%`}
               </div>
               <p className="text-xs text-slate-500 mt-1">Percentages-only view: amounts are hidden by the owner.</p>
@@ -189,7 +192,7 @@ function SharedDashboard({ items, snapshots, baseCurrency, label, display }) {
             {showAmounts && showPerf && growthPct != null && (
               <div>
                 <span className="text-slate-500">All-time: </span>
-                <span className="font-medium" style={{ color: growthPct >= 0 ? '#34d399' : '#f87171' }}>
+                <span className="font-medium" style={{ color: growthPct >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                   {growthPct >= 0 ? '+' : ''}{growthPct.toFixed(1)}%
                 </span>
               </div>
@@ -208,13 +211,13 @@ function SharedDashboard({ items, snapshots, baseCurrency, label, display }) {
                   <div key={cat}>
                     <div className="flex items-center justify-between text-xs mb-1">
                       <span className="text-slate-300 capitalize flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: catColors[cat] || catColors.other }} />
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: catColor(cat) }} />
                         {cat}
                       </span>
                       <span className="text-slate-400">{pct.toFixed(1)}%{showAmounts ? ` · ${formatCurrency(val)}` : ''}</span>
                     </div>
                     <div className="h-1.5 bg-slate-700/50 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: catColors[cat] || catColors.other }} />
+                      <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: catColor(cat) }} />
                     </div>
                   </div>
                 )
@@ -239,7 +242,7 @@ function SharedDashboard({ items, snapshots, baseCurrency, label, display }) {
                 return (
                   <div key={it.id} className="flex items-center justify-between py-1.5">
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: catColors[cat] || catColors.other }} />
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: catColor(cat) }} />
                       <span className="text-sm text-white truncate">{it.name || it.symbol}</span>
                       {it.symbol && <span className="text-xs text-slate-500">{it.symbol}</span>}
                     </div>
@@ -247,7 +250,7 @@ function SharedDashboard({ items, snapshots, baseCurrency, label, display }) {
                       {showAmounts && <span className="text-sm text-white font-medium">{formatCurrency(it.value)}</span>}
                       <span className="text-xs text-slate-500 ml-2">{pct.toFixed(1)}%</span>
                       {gainPct != null && (
-                        <span className="text-xs font-medium ml-2" style={{ color: gainPct >= 0 ? '#34d399' : '#f87171' }}>
+                        <span className="text-xs font-medium ml-2" style={{ color: gainPct >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                           {gainPct >= 0 ? '+' : ''}{gainPct.toFixed(1)}%
                         </span>
                       )}
@@ -384,7 +387,7 @@ function IncomeMaturitySummary({ items, showAmounts = true }) {
             {maturingItems.slice(0, 6).map((it) => {
               const days = Math.ceil((new Date(it.maturityDate) - new Date()) / 86400000)
               const val = (it.quantity || 1) * getItemPrice(it)
-              const color = days <= 90 ? '#f87171' : days <= 365 ? '#fbbf24' : '#34d399'
+              const color = days <= 90 ? 'var(--text-negative)' : days <= 365 ? 'var(--alert-warn-icon)' : 'var(--accent-green)'
               return (
                 <div key={it.id} className="flex items-center justify-between text-xs">
                   <div>
@@ -435,7 +438,7 @@ function RiskOverview({ items, totalAssets, byCategory }) {
 
   if (!metrics) return null
 
-  const scoreColor = metrics.diversificationScore >= 70 ? '#34d399' : metrics.diversificationScore >= 40 ? '#fbbf24' : '#f87171'
+  const scoreColor = metrics.diversificationScore >= 70 ? 'var(--accent-green)' : metrics.diversificationScore >= 40 ? 'var(--alert-warn-icon)' : 'var(--text-negative)'
   const scoreLabel = metrics.diversificationScore >= 70 ? 'Good' : metrics.diversificationScore >= 40 ? 'Moderate' : 'Concentrated'
 
   return (

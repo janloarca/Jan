@@ -16,6 +16,20 @@ import { Shimmer } from '@/components/dashboard/Skeleton'
 // purpose (net worth card, movers, goals, chart, allocation, performance) so
 // nothing jumps when the real content lands — only the atom changed, not the
 // shape.
+//
+// FASE JU: eso último era falso a medias. El átomo se migró, pero el
+// ENVOLTORIO no: los seis usaban `rounded-xl` (12px) sin sombra contra los 16px
+// + sombra de `.card`, y el contenedor iba en `py-6 space-y-6 gap-6` contra el
+// `py-4 sm:py-6 space-y-4 sm:space-y-6 gap-4 sm:gap-6` que la página real usa
+// desde FASE JB. O sea en CADA carga en frío de la pantalla principal las cards
+// cambiaban de radio, les aparecía la sombra y todo se recorría unos píxeles.
+// Ahora usan `.card` y el mismo ritmo.
+//
+// Lo que NO se hace, a propósito: cambiar estas formas por los `SkeletonCard` /
+// `SkeletonChart` / `SkeletonTable` genéricos de Skeleton.jsx. Esos tienen una
+// forma FIJA que no corresponde a ninguna card real del tablero, así que
+// usarlos haría saltar MÁS cosas, no menos. Las de acá están talladas a mano
+// contra la grilla de verdad, que es justo el punto del archivo.
 export default function DashboardLoading() {
   return (
     <div className="min-h-screen bg-theme-base">
@@ -37,7 +51,7 @@ export default function DashboardLoading() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
         {/* Status bar */}
         <div className="flex items-center gap-3">
           <Shimmer className="w-2 h-2 rounded-full" />
@@ -45,11 +59,11 @@ export default function DashboardLoading() {
         </div>
 
         {/* Main grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6">
           {/* Left column */}
-          <div className="lg:col-span-2 space-y-4">
+          <div className="lg:col-span-2 flex flex-col gap-4 sm:gap-6 min-w-0">
             {/* Net Worth skeleton */}
-            <div className="bg-theme-card rounded-xl border border-glass-border p-5">
+            <div className="card p-4 sm:p-5">
               <div className="flex items-center gap-2 mb-3">
                 <Shimmer className="w-20 h-3" />
                 {/* Same as the logo mark above: already theme-correct
@@ -61,7 +75,7 @@ export default function DashboardLoading() {
             </div>
 
             {/* Top Movers skeleton */}
-            <div className="bg-theme-card rounded-xl border border-glass-border p-5">
+            <div className="card p-4 sm:p-5">
               <Shimmer className="w-28 h-3 mb-4" />
               <div className="space-y-3">
                 {[...Array(4)].map((_, i) => (
@@ -76,7 +90,7 @@ export default function DashboardLoading() {
             </div>
 
             {/* Goals skeleton */}
-            <div className="bg-theme-card rounded-xl border border-glass-border p-5">
+            <div className="card p-4 sm:p-5">
               <Shimmer className="w-32 h-3 mb-4" />
               <div className="space-y-3">
                 <Shimmer className="w-full h-3 rounded-full" />
@@ -86,9 +100,9 @@ export default function DashboardLoading() {
           </div>
 
           {/* Right column */}
-          <div className="lg:col-span-3 space-y-4">
+          <div className="lg:col-span-3 flex flex-col gap-4 sm:gap-6 min-w-0">
             {/* Chart skeleton */}
-            <div className="bg-theme-card rounded-xl border border-glass-border p-5">
+            <div className="card p-4 sm:p-5">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <Shimmer className="w-28 h-3 mb-2" />
@@ -104,7 +118,7 @@ export default function DashboardLoading() {
             </div>
 
             {/* Allocation skeleton */}
-            <div className="bg-theme-card rounded-xl border border-glass-border p-5">
+            <div className="card p-4 sm:p-5">
               <Shimmer className="w-28 h-3 mb-4" />
               <div className="flex items-center gap-6">
                 <Shimmer className="w-[160px] h-[160px] rounded-full shrink-0" />
@@ -123,7 +137,7 @@ export default function DashboardLoading() {
         </div>
 
         {/* Performance skeleton */}
-        <div className="bg-theme-card rounded-xl border border-glass-border p-5">
+        <div className="card p-4 sm:p-5">
           <Shimmer className="w-24 h-3 mb-4" />
           <div className="grid grid-cols-5 gap-2">
             {[...Array(5)].map((_, i) => (
