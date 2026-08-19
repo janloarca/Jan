@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { rateLimit } from '@/lib/rateLimit'
-import { resolveIngestToken, readUserRules } from '@/lib/ingestTokens'
+import { resolveIngestToken, readUserRules, stampIngestResult } from '@/lib/ingestTokens'
 import { normalizeExpenseInput, ingestExpense, explainIngestError } from '@/lib/expenseIngest'
 
 export const dynamic = 'force-dynamic'
@@ -70,11 +70,16 @@ export async function POST(request) {
     // consola, ni logs, ni forma de preguntar nada. Un código suelto obliga a
     // una ronda de diagnóstico por cada fallo (la lección de "Reparar ahora").
     if (input.error) {
+      // Se deja constancia también del fallo: "el atajo llegó y lo rechazamos"
+      // y "el atajo nunca llegó" son diagnósticos opuestos y desde afuera se ven
+      // igual (no aparece el gasto).
+      await stampIngestResult(db, token, input.error)
       return NextResponse.json({ error: input.error, message: explainIngestError(input.error) }, { status: 400 })
     }
 
     const rules = await readUserRules(db, resolved.uid)
     const result = await ingestExpense({ db, uid: resolved.uid, input, rules })
+    await stampIngestResult(db, token, result.status)
 
     return NextResponse.json({
       ok: true,

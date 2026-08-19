@@ -209,7 +209,8 @@ guardar reglas a partir de descripciones sueltas.
 | El atajo responde 401 | Token mal copiado, o falta el prefijo `Bearer ` |
 | El atajo responde 400 `MISSING_AMOUNT` | No llegó ningún monto. Causa dominante: correr la automatización **a mano** desde Atajos, donde no hay ninguna transacción de Wallet de la cual sacarlo. Probar con una compra real de Apple Pay |
 | El atajo responde 400 `INVALID_AMOUNT` | Llegó un monto pero no se puede leer como número. Revisar que el campo use la variable Transacción → Monto y no texto escrito |
-| La automatización no dispara con un cobro en línea | La automatización de Wallet solo ve **Apple Pay**. Un cargo en línea a la tarjeta, o una compra con la tarjeta física, no la disparan: eso lo cubre el camino de correo |
+| La automatización no dispara | Cubre **Apple Pay**, tanto la compra en tienda como la de una app o un sitio web: las dos son transacciones de Wallet. Lo que NO cubre es un cargo al número de tarjeta sin Apple Pay (tarjeta física, o una tarjeta guardada en un sitio) — eso lo recoge el camino de correo. Si el cobro SÍ fue con Apple Pay y aun así no disparó, revisar en Atajos → Automatización: **Ejecutar inmediatamente** encendido, la automatización **sin filtro** de tarjeta ni de comercio, y que esté en el mismo teléfono con que se pagó (las automatizaciones no se sincronizan entre dispositivos) |
+| No sé si el atajo llegó al servidor | Configuración → Automático muestra, bajo cada token, **cuándo se usó por última vez y cómo terminó**. "Nunca se ha usado" significa que la petición no llegó ni una vez: el problema está en el teléfono, no en el servidor |
 | Responde `"status": "duplicate"` | Ya estaba registrado, no es error |
 | El correo no entra | La regla de reenvío perdió el `+<token>`, o el correo llegó sin monto reconocible |
 | Todo cae en Otros Gastos | Aún no hay regla para ese comercio: corrígelo una vez y se aprende |

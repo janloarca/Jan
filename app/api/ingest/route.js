@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { rateLimit } from '@/lib/rateLimit'
-import { readIngestDoc, createIngestToken, revokeIngestToken } from '@/lib/ingestTokens'
+import { readIngestDoc, createIngestToken, revokeIngestToken, listIngestTokensWithUsage } from '@/lib/ingestTokens'
 import { sweepInbox, imapConfigured } from '@/lib/emailIngest'
 import { ruleFromCorrection } from '@/lib/expenseCategorize'
 import { FINANCE_CATEGORIES } from '@/lib/financeCategories'
@@ -41,7 +41,9 @@ export async function POST(request) {
 
   try {
     if (action === 'list') {
-      const { tokens, rules } = await readIngestDoc(db, uid)
+      // Con historial de uso: es lo que contesta "¿el atajo llegó siquiera?",
+      // que sin este dato hay que deducir de los síntomas.
+      const { tokens, rules } = await listIngestTokensWithUsage(db, uid)
       return NextResponse.json({
         tokens,
         rules,
