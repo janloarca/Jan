@@ -39,7 +39,7 @@ export default function EntitySwitcher({ entities, activeEntity, onSelect, onAdd
             }`}
             style={activeEntity === '__all__'
               ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.1)' }
-              : { color: '#cbd5e1' }
+              : { color: 'var(--text-muted)' }
             }
           >
             📊 {allLabel}
@@ -54,7 +54,7 @@ export default function EntitySwitcher({ entities, activeEntity, onSelect, onAdd
               }`}
               style={activeEntity === entity.id
                 ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.1)' }
-                : { color: '#cbd5e1' }
+                : { color: 'var(--text-muted)' }
               }
             >
               {entity.icon || '📁'} {entity.name}

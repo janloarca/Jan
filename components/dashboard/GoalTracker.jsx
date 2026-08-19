@@ -36,9 +36,12 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
 
   const scenarios = useMemo(() => {
     const rates = [
-      { key: 'conservative', rate: 5, label: t('Conservador', 'Conservative'), color: '#fbbf24' },
+      // Eran hexes del tema oscuro: 1.67:1 y 1.81:1 sobre la card blanca. La
+      // etiqueta ("Conservador/Base/Optimista") ya dice cuál es cuál, así que el
+      // color solo tenía que ser legible.
+      { key: 'conservative', rate: 5, label: t('Conservador', 'Conservative'), color: 'var(--alert-warn-icon)' },
       { key: 'base', rate: 7, label: t('Base', 'Base'), color: 'var(--accent-green)' },
-      { key: 'optimistic', rate: 10, label: t('Optimista', 'Optimistic'), color: '#22d3ee' },
+      { key: 'optimistic', rate: 10, label: t('Optimista', 'Optimistic'), color: 'var(--accent-blue)' },
     ]
     return rates.map((s) => ({
       ...s,
@@ -133,7 +136,7 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
             </div>
             <div className="w-full h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
               <div className="h-full rounded-full transition-all"
-                style={{ width: `${incomePct}%`, background: 'linear-gradient(90deg, #4F46E5, #818CF8)' }} />
+                style={{ width: `${incomePct}%`, background: 'linear-gradient(90deg, var(--accent-blue), var(--accent-blue-soft))' }} />
             </div>
             <div className="flex justify-between mt-1">
               <span className="text-xs text-slate-500">{formatCurrency(effectiveIncome)}</span>
@@ -152,7 +155,7 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
             </div>
             <div className="w-full h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
               <div className="h-full rounded-full transition-all"
-                style={{ width: `${portfolioPct}%`, background: 'linear-gradient(90deg, #4F46E5, #818CF8)' }} />
+                style={{ width: `${portfolioPct}%`, background: 'linear-gradient(90deg, var(--accent-blue), var(--accent-blue-soft))' }} />
             </div>
             <div className="flex justify-between mt-1">
               <span className="text-xs text-slate-500">{formatCurrency(netWorth)}</span>

@@ -2287,12 +2287,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           <input type="date" value={customRange.from}
             onChange={e => setCustomRange(prev => ({ ...prev, from: e.target.value }))}
             max={customRange.to || new Date().toISOString().split('T')[0]}
-            className="px-2 py-1 bg-theme-base border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[#3b82f6]" />
+            className="px-2 py-1 bg-theme-base border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[var(--accent-blue)]" />
           <label className="text-xs text-slate-400">{t('Hasta', 'To')}:</label>
           <input type="date" value={customRange.to}
             onChange={e => setCustomRange(prev => ({ ...prev, to: e.target.value }))}
             max={new Date().toISOString().split('T')[0]}
-            className="px-2 py-1 bg-theme-base border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[#3b82f6]" />
+            className="px-2 py-1 bg-theme-base border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[var(--accent-blue)]" />
         </div>
       )}
 
@@ -2341,12 +2341,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
               <div key={i} className="flex gap-2 items-center">
                 <input type="date" value={row.date}
                   onChange={e => setSnapshotRows(prev => prev.map((r, idx) => idx === i ? { ...r, date: e.target.value } : r))}
-                  className="px-2 py-1 bg-theme-card border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[#3b82f6] w-36" />
+                  className="px-2 py-1 bg-theme-card border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[var(--accent-blue)] w-36" />
                 <div className="flex items-center gap-1 flex-1">
                   <span className="text-xs text-slate-500">$</span>
                   <input type="number" value={row.value} placeholder={t('Valor total', 'Total value')}
                     onChange={e => setSnapshotRows(prev => prev.map((r, idx) => idx === i ? { ...r, value: e.target.value } : r))}
-                    className="w-full px-2 py-1 bg-theme-card border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[#3b82f6]" />
+                    className="w-full px-2 py-1 bg-theme-card border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[var(--accent-blue)]" />
                 </div>
                 {snapshotRows.length > 1 && (
                   <button onClick={() => setSnapshotRows(prev => prev.filter((_, idx) => idx !== i))}

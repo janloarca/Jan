@@ -174,7 +174,7 @@ export default function AssetAllocation({ items, lang, transactions, convert, ba
             : null
 
           return (
-            <div key={seg.name} className="rounded-lg px-2 -mx-2 transition-colors hover:bg-white/[0.03]" style={{ paddingTop: 6, paddingBottom: 6 }}>
+            <div key={seg.name} className="rounded-lg px-2 -mx-2 transition-colors hover:bg-theme-elevated" style={{ paddingTop: 6, paddingBottom: 6 }}>
               {/* Top row: label left, contribution + value + pct right */}
               <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-2 min-w-0">

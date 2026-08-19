@@ -69,7 +69,7 @@ export default function PortfolioSelector({ portfolios, activePortfolio, onSelec
                 ...(focusIdx === 0 ? { boxShadow: 'inset 0 0 0 1px rgba(37,99,235,0.5)' } : {}),
                 ...(activePortfolio === '__all__'
                   ? { backgroundColor: 'rgba(37,99,235,0.1)', color: 'var(--accent-blue)' }
-                  : { color: '#cbd5e1' }
+                  : { color: 'var(--text-muted)' }
                 ),
               }}>
               <span>📊</span> {allLabel}
@@ -87,7 +87,7 @@ export default function PortfolioSelector({ portfolios, activePortfolio, onSelec
                     ...(focusIdx === i + 1 ? { boxShadow: 'inset 0 0 0 1px rgba(37,99,235,0.5)' } : {}),
                     ...(activePortfolio === p.id
                       ? { backgroundColor: 'rgba(37,99,235,0.1)', color: 'var(--accent-blue)' }
-                      : { color: '#cbd5e1' }
+                      : { color: 'var(--text-muted)' }
                     ),
                   }}>
                   <span>{p.icon || '💼'}</span> {p.name}

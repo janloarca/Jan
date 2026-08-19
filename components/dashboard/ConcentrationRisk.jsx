@@ -39,9 +39,13 @@ export default function ConcentrationRisk({ items, lang }) {
 
   const displayHHI = dimension === 'asset' ? individualHHI : data
   const levelLabel = {
-    high: { es: 'Alta Concentración', en: 'High Concentration', textColor: '#f87171', borderColor: 'rgba(239,68,68,0.4)' },
-    medium: { es: 'Media Concentración', en: 'Medium Concentration', textColor: '#fbbf24', borderColor: 'rgba(245,158,11,0.4)' },
-    low: { es: 'Baja Concentración', en: 'Low Concentration', textColor: '#34d399', borderColor: 'rgba(52,211,153,0.4)' },
+    // Los tres colores eran los valores del tema OSCURO escritos a mano, así que
+    // en tema claro el badge medía 2.77:1, 1.67:1 y 1.92:1 sobre la card blanca:
+    // ilegible. Por tokens, cada tema usa el suyo. La palabra ("Alta/Media/Baja")
+    // sigue llevando el significado, así que el color nunca estuvo solo.
+    high: { es: 'Alta Concentración', en: 'High Concentration', textColor: 'var(--alert-error-icon)', borderColor: 'var(--alert-error-border)' },
+    medium: { es: 'Media Concentración', en: 'Medium Concentration', textColor: 'var(--alert-warn-icon)', borderColor: 'var(--alert-warn-border)' },
+    low: { es: 'Baja Concentración', en: 'Low Concentration', textColor: 'var(--alert-success-icon)', borderColor: 'var(--alert-success-border)' },
   }
 
   const topPosition = data.groups[0]

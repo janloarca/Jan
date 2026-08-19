@@ -57,7 +57,7 @@ export default function DataQualityCard({
   const score = assessment.score
   const nextKey = assessment.next
   const next = nextKey ? STAGES[nextKey] : null
-  const ringColor = score >= 100 ? 'var(--accent-green)' : score >= 60 ? 'var(--accent-blue)' : '#fbbf24'
+  const ringColor = score >= 100 ? 'var(--accent-green)' : score >= 60 ? 'var(--accent-blue)' : 'var(--alert-warn-icon)'
 
   return (
     <div>
@@ -164,8 +164,10 @@ export default function DataQualityCard({
           {/* Market is a residual, so when nothing else is recorded it silently
               absorbs missing deposits and dividends. Say so rather than letting
               the user read an invented return. */}
+          {/* El color era `#fcd34d`, que medía 1.44:1 sobre la card blanca:
+              amarillo pálido sobre blanco, el peor contraste de la página. */}
           {bridge.recordedShare < 0.15 && (
-            <p className="text-[11px] mt-2" style={{ color: '#fcd34d' }}>
+            <p className="text-micro mt-2" style={{ color: 'var(--alert-warn-icon)' }}>
               {t('Casi todo tu cambio está cayendo en "Mercado" porque no tenemos tus movimientos registrados. Con ellos, esta cuenta se vuelve exacta.',
                  'Almost all of your change is landing in "Market" because we have no movements recorded. With them, this breakdown becomes exact.')}
             </p>

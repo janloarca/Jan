@@ -78,7 +78,7 @@ export default function SavingsRate({ goals, transactions, netWorth, snapshots, 
   if (recurring.length === 0 && !growthFromSavings) return null
 
   const ringPct = Math.min(rates.savingsRate, 100)
-  const ringColor = rates.savingsRate >= 30 ? '#34d399' : rates.savingsRate >= 15 ? '#f59e0b' : '#ef4444'
+  const ringColor = rates.savingsRate >= 30 ? 'var(--accent-green)' : rates.savingsRate >= 15 ? 'var(--alert-warn-icon)' : 'var(--text-negative)'
 
   return (
     <div className="card p-4 sm:p-5">
@@ -121,13 +121,13 @@ export default function SavingsRate({ goals, transactions, netWorth, snapshots, 
           <div className="text-xs text-slate-500 mb-2">{t('Crecimiento del portafolio', 'Portfolio growth breakdown')}</div>
           <div className="grid grid-cols-2 gap-3">
             <div className="text-center">
-              <div className="text-sm font-bold" style={{ color: growthFromSavings.fromFlows >= 0 ? 'var(--accent-blue-soft)' : '#f87171' }}>
+              <div className="text-sm font-bold" style={{ color: growthFromSavings.fromFlows >= 0 ? 'var(--accent-blue-soft)' : 'var(--text-negative)' }}>
                 {formatCurrency(growthFromSavings.fromFlows)}
               </div>
               <div className="text-xs text-slate-500">{t('De aportes netos', 'From net deposits')}</div>
             </div>
             <div className="text-center">
-              <div className="text-sm font-bold" style={{ color: growthFromSavings.fromInvestment >= 0 ? '#34d399' : '#f87171' }}>
+              <div className="text-sm font-bold" style={{ color: growthFromSavings.fromInvestment >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                 {formatCurrency(growthFromSavings.fromInvestment)}
               </div>
               <div className="text-xs text-slate-500">{t('De inversiones', 'From investments')}</div>

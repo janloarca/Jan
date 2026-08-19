@@ -1213,7 +1213,7 @@ export default function DashboardPage() {
                 </button>
                 <button onClick={() => setModal('ibkr')}
                   className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-                  style={{ backgroundColor: '#d97706', color: '#fff' }}>
+                  style={{ backgroundColor: 'var(--alert-warn-icon)', color: '#fff' }}>
                   {lang === 'es' ? 'Actualizar' : 'Update'}
                 </button>
               </div>
@@ -1235,7 +1235,7 @@ export default function DashboardPage() {
                 </button>
                 <button onClick={() => setModal('ibkr')}
                   className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-                  style={{ backgroundColor: '#d97706', color: '#fff' }}>
+                  style={{ backgroundColor: 'var(--alert-warn-icon)', color: '#fff' }}>
                   {lang === 'es' ? 'Configurar' : 'Configure'}
                 </button>
               </div>
@@ -1267,7 +1267,7 @@ export default function DashboardPage() {
                 </button>
                 <button onClick={() => setModal('ibkr')}
                   className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-                  style={{ backgroundColor: '#d97706', color: '#fff' }}>
+                  style={{ backgroundColor: 'var(--alert-warn-icon)', color: '#fff' }}>
                   {lang === 'es' ? 'Revisar credenciales' : 'Check credentials'}
                 </button>
               </div>
@@ -1292,7 +1292,7 @@ export default function DashboardPage() {
                 </button>
                 <button onClick={() => setModal('ibkr')}
                   className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-                  style={{ backgroundColor: '#d97706', color: '#fff' }}>
+                  style={{ backgroundColor: 'var(--alert-warn-icon)', color: '#fff' }}>
                   {lang === 'es' ? 'Resolver' : 'Resolve'}
                 </button>
               </div>
@@ -1310,7 +1310,7 @@ export default function DashboardPage() {
               </div>
               <button onClick={() => setModal('ibkr')}
                 className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
-                style={{ backgroundColor: '#d97706', color: '#fff' }}>
+                style={{ backgroundColor: 'var(--alert-warn-icon)', color: '#fff' }}>
                 {lang === 'es' ? 'Reintentar' : 'Retry'}
               </button>
             </div>
@@ -1331,7 +1331,7 @@ export default function DashboardPage() {
               </div>
               <button onClick={handleRefresh}
                 className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
-                style={{ backgroundColor: '#d97706', color: '#fff' }}>
+                style={{ backgroundColor: 'var(--alert-warn-icon)', color: '#fff' }}>
                 {lang === 'es' ? 'Reintentar' : 'Retry'}
               </button>
             </div>
@@ -1372,11 +1372,11 @@ export default function DashboardPage() {
           {dataAge === 0 ? (
             <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
           ) : dataAge != null && dataAge >= 14 ? (
-            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#fbbf24' }} />
+            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--alert-warn-icon)' }} />
           ) : (
             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--text-muted)' }} />
           )}
-          <span className="text-xs" style={{ color: dataAge != null && dataAge >= 14 ? '#fbbf24' : 'var(--text-muted)' }}>
+          <span className="text-xs" style={{ color: dataAge != null && dataAge >= 14 ? 'var(--alert-warn-icon)' : 'var(--text-muted)' }}>
             {dataAge === 0
               ? (lang === 'es' ? 'Datos al día' : 'Data up to date')
               : dataAge != null
@@ -1643,7 +1643,7 @@ export default function DashboardPage() {
           {/* Una sola entrada (FASE HT): el modal trae período, vista previa,
               Imprimir y Descargar PDF, todos sobre los mismos datos. */}
           <button onClick={handleOpenPrint}
-            className="px-5 py-2.5 text-sm font-medium text-slate-400 bg-theme-surface border border-glass-border/60 rounded-xl hover:bg-theme-elevated hover:text-white hover:border-[#475569] transition-all inline-flex items-center gap-2">
+            className="px-5 py-2.5 text-sm font-medium text-slate-400 bg-theme-surface border border-glass-border/60 rounded-xl hover:bg-theme-elevated hover:text-white hover:border-[var(--text-muted)] transition-all inline-flex items-center gap-2">
             {lang === 'es' ? 'Generar reporte' : 'Generate report'}
           </button>
         </div>

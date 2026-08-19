@@ -135,10 +135,12 @@ export default function NotificationCenter({ items, transactions, lang, settings
   if (notifications.length === 0 && pushPermission !== 'default') return null
 
   const typeStyles = {
-    urgent: { bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.2)', color: 'var(--text-negative)' },
-    warning: { bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.2)', color: '#fbbf24' },
-    positive: { bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)', color: 'var(--accent-green)' },
-    info: { bg: 'rgba(37,99,235,0.08)', border: 'rgba(37,99,235,0.2)', color: 'var(--accent-blue)' },
+    // Los cuatro reimplementaban a mano los tokens `--alert-*` que ya existen,
+    // y el de warning se quedó con el hex del tema oscuro (1.67:1 sobre blanco).
+    urgent: { bg: 'var(--alert-error-bg)', border: 'var(--alert-error-border)', color: 'var(--alert-error-icon)' },
+    warning: { bg: 'var(--alert-warn-bg)', border: 'var(--alert-warn-border)', color: 'var(--alert-warn-icon)' },
+    positive: { bg: 'var(--alert-success-bg)', border: 'var(--alert-success-border)', color: 'var(--alert-success-icon)' },
+    info: { bg: 'var(--alert-info-bg)', border: 'var(--alert-info-border)', color: 'var(--alert-info-icon)' },
   }
 
   return (

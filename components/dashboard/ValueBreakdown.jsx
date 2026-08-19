@@ -4,18 +4,18 @@ import { useState, useMemo } from 'react'
 import { formatCurrency, getItemValue, getTypeCategory } from './utils'
 
 const SECTOR_COLORS = [
-  '#34d399', '#f59e0b', 'var(--accent-blue)', '#a855f7', '#ec4899',
-  '#06b6d4', '#ef4444', '#84cc16', '#f97316', '#6366f1',
+  'var(--accent-green)', 'var(--alert-warn-icon)', 'var(--accent-blue)', '#a855f7', '#ec4899',
+  '#06b6d4', 'var(--text-negative)', '#84cc16', '#f97316', '#6366f1',
   '#14b8a6', '#eab308',
 ]
 
 const INSTITUTION_COLORS = [
-  'var(--accent-blue)', '#34d399', '#f59e0b', '#a855f7', '#06b6d4',
-  '#ef4444', '#ec4899', '#84cc16',
+  'var(--accent-blue)', 'var(--accent-green)', 'var(--alert-warn-icon)', '#a855f7', '#06b6d4',
+  'var(--text-negative)', '#ec4899', '#84cc16',
 ]
 
 const CURRENCY_COLORS = [
-  '#34d399', 'var(--accent-blue)', '#f59e0b', '#a855f7', '#ef4444',
+  'var(--accent-green)', 'var(--accent-blue)', 'var(--alert-warn-icon)', '#a855f7', 'var(--text-negative)',
   '#06b6d4', '#ec4899', '#84cc16',
 ]
 
@@ -62,7 +62,7 @@ export default function ValueBreakdown({ items, lang }) {
     <div className="card p-4">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#c084fc' }} />
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-purple)' }} />
           {lang === 'es' ? 'DESGLOSE DE VALOR' : 'VALUE BREAKDOWN'}
         </h3>
         <div className="flex gap-0.5 bg-theme-base rounded-lg p-0.5">
