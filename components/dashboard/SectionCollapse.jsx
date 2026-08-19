@@ -25,10 +25,17 @@ export default function SectionCollapse({ title, id, children, defaultOpen = fal
 
   return (
     <>
+      {/* El título de SECCIÓN tiene que verse distinto del de una card, y no lo
+          era: los dos iban en `text-sm text-slate-400`, así que un <h2> y un
+          <h3> pesaban exactamente lo mismo y la página no tenía jerarquía que
+          escanear. Ahora la sección usa `text-h2` (17px/600) en tinta primaria y
+          la card `text-caption` (13px) en tinta apagada: dos niveles que se
+          distinguen de un vistazo. */}
       <button onClick={toggle} aria-expanded={open} aria-controls={id ? `section-${id}` : undefined} className="flex items-center gap-3 pt-8 pb-3 w-full group">
-        <h2 className="text-sm font-semibold text-slate-400 tracking-wide uppercase">{title}</h2>
+        <h2 className="text-h2" style={{ color: 'var(--text-primary)' }}>{title}</h2>
         <div className="flex-1 h-px" style={{ backgroundColor: 'var(--border-primary)' }} />
-        <span className={`text-slate-500 text-xs transition-transform duration-200 group-hover:text-slate-300 ${open ? 'rotate-0' : '-rotate-90'}`}>
+        <span aria-hidden="true" className={`text-caption transition-transform duration-200 ${open ? 'rotate-0' : '-rotate-90'}`}
+          style={{ color: 'var(--text-muted)' }}>
           ▾
         </span>
       </button>

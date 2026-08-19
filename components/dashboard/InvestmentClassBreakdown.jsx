@@ -69,7 +69,7 @@ export default function InvestmentClassBreakdown({ items, lang }) {
               </div>
             </div>
 
-            <p className="text-lg font-bold text-white mb-0.5">{formatCurrency(value)}</p>
+            <p className="text-h1 text-white mb-0.5">{formatCurrency(value)}</p>
 
             <div className="flex items-center gap-2 mb-2">
               <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{pct.toFixed(1)}%</span>

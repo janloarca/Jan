@@ -66,7 +66,7 @@ export default function CurrencyImpact({ items, convert, baseCurrency, rates, la
 
   return (
     <div>
-      <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
+      <h3 className="card-title mb-4">
         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
         {t('IMPACTO CAMBIARIO', 'CURRENCY IMPACT')}
       </h3>

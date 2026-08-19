@@ -79,7 +79,7 @@ export default function Watchlist({ lang }) {
     return (
       <div className="card p-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
+          <h3 className="card-title">
             <span className="w-2 h-2 rounded-full bg-slate-500" />
             {t('WATCHLIST', 'WATCHLIST')}
           </h3>
@@ -96,7 +96,7 @@ export default function Watchlist({ lang }) {
   return (
     <div className="card p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
+        <h3 className="card-title">
           <span className="w-2 h-2 rounded-full bg-slate-500" />
           {t('WATCHLIST', 'WATCHLIST')}
         </h3>

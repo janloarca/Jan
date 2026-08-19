@@ -153,7 +153,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, on
   return (
     <div className="card p-5">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-base font-semibold text-white">
+        <h3 className="card-title">
           {lang === 'es' ? 'Transacciones' : 'Transactions'}
         </h3>
         {onExportCSV && transactions && transactions.length > 0 && (

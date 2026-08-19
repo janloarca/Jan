@@ -53,7 +53,7 @@ export default function TopMovers({ items, transactions, lang }) {
 
   return (
     <div className="card p-4">
-      <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-3">
+      <h3 className="card-title mb-3">
         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
         {lang === 'es' ? 'TOP POSICIONES' : 'TOP HOLDINGS'}
       </h3>

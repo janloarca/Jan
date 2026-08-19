@@ -102,7 +102,7 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
   return (
     <div className="card p-5">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-base font-semibold text-white">
+        <h3 className="card-title">
           {t('Chispu te sugiere', 'Chispu suggests')}
         </h3>
         <span className="text-xs px-2 py-1 rounded-full font-medium"

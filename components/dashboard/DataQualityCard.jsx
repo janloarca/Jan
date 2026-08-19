@@ -73,7 +73,7 @@ export default function DataQualityCard({
             />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-2xl font-bold" style={{ color: ringColor }}>{score}%</span>
+            <span className="text-h1" style={{ color: ringColor }}>{score}%</span>
             <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
               {t('datos reales', 'real data')}
             </span>
@@ -81,8 +81,11 @@ export default function DataQualityCard({
         </div>
 
         <div className="flex-1 min-w-0">
-          <h3 className="text-base font-semibold text-white mb-0.5">
-            {t('Qué tan real es tu historia', 'How real is your history')}
+          {/* Iba en oración y a 16px mientras el resto de las pestañas de
+              Análisis van en mayúsculas a 13px. */}
+          <h3 className="card-title mb-1">
+            <span aria-hidden="true" className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: 'var(--accent-purple)' }} />
+            {t('QUÉ TAN REAL ES TU HISTORIA', 'HOW REAL IS YOUR HISTORY')}
           </h3>
           <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
             {score >= 100

@@ -159,7 +159,7 @@ function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, 
     <div className="card p-4">
       {/* Header — mirrors AssetAllocation's so the two read as one pair */}
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
+        <h3 className="card-title">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-purple)' }} />
           {t('ANÁLISIS', 'ANALYSIS')}
           <InfoTip text={t(

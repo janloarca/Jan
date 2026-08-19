@@ -218,7 +218,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
   if (!hasData) {
     return (
       <div className="card p-4">
-        <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-3">
+        <h3 className="card-title mb-3">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
           {t('INGRESOS PASIVOS', 'PASSIVE INCOME')}
         </h3>
@@ -235,7 +235,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
 
   return (
     <div className="card p-4">
-      <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
+      <h3 className="card-title mb-4">
         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
         {t('INGRESOS PASIVOS', 'PASSIVE INCOME')}
       </h3>
@@ -243,15 +243,15 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       <div className="grid grid-cols-3 gap-3 mb-4">
         <div>
           <span className="text-xs text-slate-500 block">{t('Ingreso anual est.', 'Est. Annual Income')}</span>
-          <span className="text-lg font-bold font-mono tabular-nums" style={{ color: 'var(--accent-green)' }}>{formatCurrency(estAnnual)}</span>
+          <span className="text-h1 font-mono tabular-nums" style={{ color: 'var(--accent-green)' }}>{formatCurrency(estAnnual)}</span>
         </div>
         <div className="text-center">
           <span className="text-xs text-slate-500 block">{t('Rendimiento', 'Yield')}</span>
-          <span className="text-lg font-bold font-mono tabular-nums" style={{ color: 'var(--text-muted)' }}>{portfolioYield.toFixed(2)}%</span>
+          <span className="text-h1 font-mono tabular-nums" style={{ color: 'var(--text-muted)' }}>{portfolioYield.toFixed(2)}%</span>
         </div>
         <div className="text-right">
           <span className="text-xs text-slate-500 block">YTD {t('recibido', 'received')}</span>
-          <span className="text-lg font-bold text-white font-mono tabular-nums">{formatCurrency(stats.totalYTD)}</span>
+          <span className="text-h1 text-white font-mono tabular-nums">{formatCurrency(stats.totalYTD)}</span>
         </div>
       </div>
 

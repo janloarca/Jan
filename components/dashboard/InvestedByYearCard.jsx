@@ -40,7 +40,7 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
   return (
     <div data-card-id="INV-01" className="card p-4 h-full flex flex-col">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
+        <h3 className="card-title">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
           {t('INVERTIDO POR AÑO', 'INVESTED BY YEAR')}
         </h3>

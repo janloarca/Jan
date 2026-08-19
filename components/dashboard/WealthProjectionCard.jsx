@@ -161,7 +161,7 @@ export default function WealthProjectionCard({
             <ArrowRight size={14} className="mb-1 shrink-0" style={{ color: 'var(--text-muted)' }} aria-hidden="true" />
             <div className="min-w-0">
               <span className="text-[11px] block" style={{ color: 'var(--text-muted)' }}>{t('Diciembre (proyectado)', 'December (projected)')}</span>
-              <span className="text-lg font-bold font-mono tabular-nums" style={{ color: 'var(--accent-blue)' }}>{fmt(projection.endValue)}</span>
+              <span className="text-h1 font-mono tabular-nums" style={{ color: 'var(--accent-blue)' }}>{fmt(projection.endValue)}</span>
             </div>
           </div>
           <p className="text-[11px] font-mono tabular-nums mb-3" style={{ color: 'var(--text-muted)' }}>

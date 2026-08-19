@@ -135,7 +135,7 @@ export default function PortfolioMap({ items, lang }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+        <h3 className="card-title">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-cyan)' }} />
           {t('MAPA DEL PORTAFOLIO', 'PORTFOLIO MAP')}
         </h3>
