@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic'
 import { useDashboardData } from '@/hooks/useDashboardData'
 import { useSpreadsheetContext } from '@/hooks/useSpreadsheetContext'
 import SheetTabs from '@/components/spreadsheet/SheetTabs'
+import SegmentedTabs from '@/components/ui/SegmentedTabs'
 import { SkeletonTable } from '@/components/dashboard/Skeleton'
 import PageTour from '@/components/dashboard/PageTour'
 import Header from '@/components/dashboard/Header'
@@ -213,10 +214,14 @@ export default function SpreadsheetPage() {
       {/* View switcher. The global Header above owns navigation now; this bar only
           carries the view tabs and view-specific actions, in theme tokens. */}
       <div id="main-content" className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 flex items-center justify-between gap-3 flex-wrap">
-        <h1 className="text-h1 font-bold text-white">{t('Hoja de Cálculo', 'Spreadsheet')}</h1>
+        <h1 className="text-h1" style={{ color: 'var(--text-primary)' }}>{t('Hoja de Cálculo', 'Spreadsheet')}</h1>
         <div className="flex items-center gap-2">
-          <div className="flex rounded-lg border p-0.5" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--card-border)' }}>
-            {[
+          {/* Otro SegmentedTabs escrito a mano, y este DIVERGÍA: su estado activo
+              era un relleno sólido `var(--accent-blue)` mientras el primitivo usa
+              una pastilla elevada `var(--bg-card)`. O sea la app decía "esta
+              pestaña está activa" de dos formas distintas según la pantalla. */}
+          <SegmentedTabs
+            tabs={[
               { key: 'portfolio', label: 'Portfolio' },
               { key: 'debts', label: t('Deudas', 'Debts') },
               // "Bienes", not "Patrimonio" — this tab sums only estate assets
@@ -225,14 +230,12 @@ export default function SpreadsheetPage() {
               // different numbers was misleading.
               { key: 'patrimonio', label: t('Bienes', 'Estate') },
               { key: 'custom', label: t('Hojas', 'Sheets') },
-            ].map(tab => (
-              <button key={tab.key} onClick={() => setView(tab.key)}
-                className="px-3 py-1 text-xs rounded-md transition-colors"
-                style={view === tab.key ? { backgroundColor: 'var(--accent-blue)', color: '#ffffff' } : { color: 'var(--text-muted)' }}>
-                {tab.label}
-              </button>
-            ))}
-          </div>
+            ]}
+            value={view}
+            onChange={setView}
+            deps={[lang]}
+            ariaLabel={t('Vista de la hoja', 'Sheet view')}
+          />
           {['portfolio', 'debts', 'patrimonio'].includes(view) && (portfolioItems || enrichedItems)?.length > 0 && (
             <button onClick={() => setShowReview(true)}
               className="px-3 py-1.5 text-xs rounded-lg border transition-colors hover:bg-theme-elevated"
@@ -259,7 +262,14 @@ export default function SpreadsheetPage() {
               <button
                 key={tmpl.id}
                 onClick={() => handleApplyTemplate(tmpl)}
-                className="px-3 py-1.5 text-xs bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded hover:bg-blue-500/20 transition-colors"
+                // Era paleta cruda de Tailwind (`text-blue-400`), el único azul
+                // de la app que no sale del token de marca.
+                className="px-3 py-1.5 text-caption min-h-[28px] rounded border transition-colors"
+                style={{
+                  color: 'var(--accent-blue)',
+                  backgroundColor: 'color-mix(in srgb, var(--accent-blue) 10%, transparent)',
+                  borderColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)',
+                }}
               >
                 {lang === 'es' ? tmpl.nameEs : tmpl.name}
               </button>
@@ -271,7 +281,12 @@ export default function SpreadsheetPage() {
       {view === 'portfolio' && (portfolioItems || enrichedItems)?.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
           <div className="text-5xl mb-4">📈</div>
-          <p className="font-semibold mb-2" style={{ color: '#0f172a' }}>{t('Aún no tienes activos', 'No assets yet')}</p>
+          {/* Era `#0f172a` fijo, un casi-negro de tema CLARO. Sobre el fondo
+              oscuro (que es el tema por DEFECTO de la app) mide 1.10:1, o sea
+              este mensaje era invisible justo para quien acaba de entrar y
+              todavía no tiene nada cargado. El espejo exacto del defecto que el
+              guardián persigue al revés. */}
+          <p className="font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>{t('Aún no tienes activos', 'No assets yet')}</p>
           <p className="text-sm mb-4" style={{ color: '#64748b' }}>
             {t('Agrega tu primer activo desde el dashboard para ver tu historial mensual aquí.',
                'Add your first asset from the dashboard to see your monthly history here.')}

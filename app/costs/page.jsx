@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useDashboardData } from '@/hooks/useDashboardData'
 import { computeCosts } from '@/lib/costsSummary'
 import PageShell, { PageTitle } from '@/components/PageShell'
+import SegmentedTabs from '@/components/ui/SegmentedTabs'
 import { SkeletonCard } from '@/components/dashboard/Skeleton'
 import { Receipt, TrendingDown, Landmark, Percent, ArrowDownRight, Wallet } from 'lucide-react'
 
@@ -108,26 +109,27 @@ export default function CostsPage() {
 
   return (
     <PageShell user={user} lang={lang} setLang={handleSetLang} settings={settings} width="narrow">
+        {/* El selector de año era la firma exacta de SegmentedTabs (pastillas
+            sobre un riel `--bg-tertiary`) escrita a mano: sin `role="tablist"`,
+            sin el difuminado que avisa que la fila sigue, y con `py-1`, o sea un
+            objetivo de ~24px donde el primitivo exige 28. */}
         <PageTitle icon={Receipt}
           title={t('Costos', 'Costs')}
           subtitle={t('Lo que pagas por invertir: comisiones, cargos, impuestos e intereses.',
                       'What you pay to invest: commissions, fees, taxes and interest.')}
           actions={years.length > 0 && (
-            <div className="flex items-center gap-1 p-1 rounded-lg overflow-x-auto max-w-full" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-              {['all', ...years].map((y) => (
-                <button key={y} onClick={() => setYear(y)}
-                  className="px-3 py-1 text-xs font-medium rounded-md whitespace-nowrap transition-colors"
-                  style={year === y
-                    ? { backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)' }
-                    : { color: 'var(--text-muted)' }}>
-                  {y === 'all' ? t('Todo', 'All') : y}
-                </button>
-              ))}
-            </div>
+            <SegmentedTabs
+              variant="range"
+              tabs={['all', ...years].map((y) => ({ key: y, label: y === 'all' ? t('Todo', 'All') : y }))}
+              value={year}
+              onChange={setYear}
+              deps={[lang, years.length]}
+              ariaLabel={t('Filtrar por año', 'Filter by year')}
+            />
           )} />
 
         {!costs.hasData ? (
-          <div className="rounded-2xl p-8 text-center border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--card-border)' }}>
+          <div className="card p-8 text-center">
             <Receipt size={36} className="mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
             <p className="text-sm font-medium text-white mb-1">{t('Aún no hay costos registrados', 'No costs recorded yet')}</p>
             <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
@@ -138,10 +140,10 @@ export default function CostsPage() {
         ) : (
           <>
             {/* Total cost hero */}
-            <div className="rounded-2xl p-5 border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--card-border)', boxShadow: 'var(--shadow-card)' }}>
-              <p className="text-xs uppercase tracking-wider text-slate-500 mb-1">
+            <div className="card p-4 sm:p-5">
+              <h2 className="card-title mb-1">
                 {t('Costo total', 'Total cost')} {year !== 'all' && `· ${year}`}
-              </p>
+              </h2>
               <p className="text-3xl font-bold text-white tracking-tight">{fmt(costs.totalCost)}</p>
               <p className="text-xs text-slate-500 mt-1">
                 {costs.count} {t('movimientos de costo', 'cost entries')}
@@ -158,21 +160,21 @@ export default function CostsPage() {
             {/* Breakdown cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               {breakdown.map(({ key, label, value, Icon, hint }) => (
-                <div key={key} className="rounded-2xl p-4 border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--card-border)' }}>
+                <div key={key} className="card p-4">
                   <div className="flex items-center gap-1.5 mb-2">
                     <Icon size={14} style={{ color: 'var(--accent-blue)' }} />
                     <span className="text-xs text-slate-400">{label}</span>
                   </div>
                   <p className="text-lg font-bold text-white">{fmt(value)}</p>
-                  <p className="text-[11px] text-slate-500 mt-0.5">{hint}</p>
+                  <p className="text-micro mt-0.5" style={{ color: 'var(--text-muted)' }}>{hint}</p>
                 </div>
               ))}
             </div>
 
             {/* By month */}
             {costs.months.length > 0 && (
-              <div className="rounded-2xl p-5 border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--card-border)' }}>
-                <p className="text-xs uppercase tracking-wider text-slate-500 mb-3">{t('Por mes', 'By month')}</p>
+              <div className="card p-4 sm:p-5">
+                <h2 className="card-title mb-3">{t('Por mes', 'By month')}</h2>
                 <div className="space-y-2">
                   {costs.months.slice(0, 12).map((mk) => {
                     const b = costs.byMonth[mk]
@@ -192,8 +194,8 @@ export default function CostsPage() {
 
             {/* By symbol */}
             {costs.bySymbol.length > 0 && (
-              <div className="rounded-2xl p-5 border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--card-border)' }}>
-                <p className="text-xs uppercase tracking-wider text-slate-500 mb-3">{t('Por activo', 'By asset')}</p>
+              <div className="card p-4 sm:p-5">
+                <h2 className="card-title mb-3">{t('Por activo', 'By asset')}</h2>
                 <div className="space-y-1.5">
                   {costs.bySymbol.slice(0, 15).map((s) => (
                     <div key={s.symbol} className="flex items-center justify-between text-sm">
