@@ -96,6 +96,7 @@ const ProjectionSimulator = dynamic(() => import('@/components/dashboard/Project
 const InstitutionPerformance = dynamic(() => import('@/components/dashboard/InstitutionPerformance'), { loading: () => <SkeletonCard /> })
 const InvestedByYearCard = dynamic(() => import('@/components/dashboard/InvestedByYearCard'), { loading: () => <SkeletonCard /> })
 const RebalanceSuggestions = dynamic(() => import('@/components/dashboard/RebalanceSuggestions'), { loading: () => <SkeletonCard /> })
+const WealthProjectionCard = dynamic(() => import('@/components/dashboard/WealthProjectionCard'), { loading: () => <SkeletonCard /> })
 
 // How long a finished IBKR-journey step stays on screen before it carries the
 // user to the next one (FASE GQ4). Long enough to read the one-line "Listo:
@@ -375,7 +376,7 @@ export default function DashboardPage() {
     addPortfolio, deletePortfolio,
     addFinanceTransaction, updateFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     bulkImport,
-    saveGoals, saveSettings, saveProfile,
+    saveGoals, saveSettings, saveProfile, incomePlan, saveIncomePlan,
     enrichedItems, portfolioItems: rawPortfolioItems, entityTransactions, entityFinanceTransactions,
     marketPrices,
     pricesLoading, pricesError, pricesUpdate,
@@ -1601,6 +1602,29 @@ export default function DashboardPage() {
         {/* La sección "Análisis" que vivía aquí abajo se movió arriba, a la
             grilla de composición, como card hermana de Asignación de Activos.
             Estaba repetida al dejarla en los dos lugares. */}
+        </SectionCollapse></div>
+
+        {/* ═══ PROYECCIONES ═══ — lo único de esta página que mira hacia
+            ADELANTE. Va al final a propósito: todo lo de arriba mide lo que
+            pasó, y esto es un supuesto. El comparador de inversiones se suma
+            acá arriba. */}
+        <div className="stagger-6"><SectionCollapse title={lang === 'es' ? 'Proyecciones' : 'Projections'} id="projections" defaultOpen={false}>
+          <ErrorBoundary lang={lang}>
+            <CardBoundary id="PROJ-02">
+              <WealthProjectionCard
+                netWorth={netWorth}
+                plan={incomePlan}
+                onSavePlan={saveIncomePlan}
+                financeTransactions={entityFinanceTransactions}
+                convert={convert}
+                baseCurrency={baseCurrency}
+                returnSinceStart={returnSinceStart}
+                sinceStartDate={sinceStartDate}
+                onOpenFlow={() => router.push('/finances')}
+                lang={lang}
+              />
+            </CardBoundary>
+          </ErrorBoundary>
         </SectionCollapse></div>
 
         <InstallPrompt lang={lang} />
