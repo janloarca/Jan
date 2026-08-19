@@ -5,7 +5,7 @@ comercio y ubicación. Hay dos caminos y están pensados para usarse juntos.
 
 | | Camino A: atajo | Camino C: correo |
 |---|---|---|
-| Qué captura | Pagos con Apple Pay | Todo lo que el banco avisa por correo |
+| Qué captura | Apple Pay acercando el teléfono. Apple Pay dentro de una app o un sitio: **sin verificar**, ver abajo | Todo lo que el banco avisa por correo |
 | Cuándo entra | Al instante | Barrido diario (o "Sincronizar ahora") |
 | Cubre tarjeta física | No | Sí |
 | Trae ubicación GPS | Sí | No (solo la que traiga el texto) |
@@ -17,6 +17,23 @@ Los dos escriben en el mismo lugar y el mismo cobro nunca se guarda dos veces
 > "llegó una notificación". El push de tu banco no se puede leer. Por eso el
 > camino A se cuelga de la automatización *Transacción* de Wallet, que solo ve
 > Apple Pay, y el camino C existe para cubrir el resto.
+
+> ⚠️ **Duda abierta, sin resolver: ¿Apple Pay EN LÍNEA dispara la
+> automatización?** iOS rotula ese disparador como *"When Any Card is **tapped**"*,
+> y "tapped" apunta literalmente a acercar el teléfono. No está verificado si un
+> pago con Apple Pay dentro de una app o un sitio web cuenta como la misma
+> transacción de Wallet.
+>
+> Esta guía llegó a afirmar las dos cosas en distintos momentos y una de las dos
+> estaba mal, así que queda escrito como pregunta hasta que haya evidencia.
+>
+> **Cómo se resuelve, con un A/B de dos compras:** hacer una compra en tienda
+> acercando el teléfono, mirar la línea de "último uso" del token en
+> Configuración → Automático, y después una compra con Apple Pay en línea y
+> mirar otra vez. Si la primera registra y la segunda no, la respuesta es que
+> solo cubre el toque físico, y esta tabla se corrige con ese dato.
+>
+> No cambia qué hacer mientras tanto: el camino C cubre las dos igual.
 
 ## Paso 1: generar el token
 
@@ -209,7 +226,7 @@ guardar reglas a partir de descripciones sueltas.
 | El atajo responde 401 | Token mal copiado, o falta el prefijo `Bearer ` |
 | El atajo responde 400 `MISSING_AMOUNT` | No llegó ningún monto. Causa dominante: correr la automatización **a mano** desde Atajos, donde no hay ninguna transacción de Wallet de la cual sacarlo. Probar con una compra real de Apple Pay |
 | El atajo responde 400 `INVALID_AMOUNT` | Llegó un monto pero no se puede leer como número. Revisar que el campo use la variable Transacción → Monto y no texto escrito |
-| La automatización no dispara | Cubre **Apple Pay**, tanto la compra en tienda como la de una app o un sitio web: las dos son transacciones de Wallet. Lo que NO cubre es un cargo al número de tarjeta sin Apple Pay (tarjeta física, o una tarjeta guardada en un sitio) — eso lo recoge el camino de correo. Si el cobro SÍ fue con Apple Pay y aun así no disparó, revisar en Atajos → Automatización: **Ejecutar inmediatamente** encendido, la automatización **sin filtro** de tarjeta ni de comercio, y que esté en el mismo teléfono con que se pagó (las automatizaciones no se sincronizan entre dispositivos) |
+| La automatización no dispara | Lo seguro: un cargo al número de tarjeta **sin** Apple Pay (tarjeta física, o una guardada en un sitio) nunca la dispara, y eso lo recoge el camino de correo. Si el cobro SÍ fue con Apple Pay: revisar en Atajos → Automatización que **Ejecutar inmediatamente** esté encendido, que **no** tenga filtro de tarjeta ni de comercio, y que esté en el mismo teléfono con que se pagó (las automatizaciones no se sincronizan entre dispositivos). Si todo eso está bien y aun así no disparó **con un pago en línea**, ver la duda abierta al inicio de esta guía |
 | No sé si el atajo llegó al servidor | Configuración → Automático muestra, bajo cada token, **cuándo se usó por última vez y cómo terminó**. "Nunca se ha usado" significa que la petición no llegó ni una vez: el problema está en el teléfono, no en el servidor |
 | Responde `"status": "duplicate"` | Ya estaba registrado, no es error |
 | El correo no entra | La regla de reenvío perdió el `+<token>`, o el correo llegó sin monto reconocible |
