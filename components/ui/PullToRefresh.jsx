@@ -65,6 +65,19 @@ function blockedByInnerScroller(el, boundary) {
   return false
 }
 
+// ¿El toque empezó sobre algo que declara su propio arrastre? Mismo recorrido
+// del DOM que `blockedByInnerScroller`, y por la misma razón: es el único
+// momento con un `target` en la mano. Un componente que mueve piezas con el
+// dedo se marca con `data-ptr-ignore` y este gesto no le compite.
+function blockedByDragHandle(el, boundary) {
+  let n = el
+  while (n && n !== boundary && n !== document.body && n.nodeType === 1) {
+    if (n.hasAttribute && n.hasAttribute('data-ptr-ignore')) return true
+    n = n.parentElement
+  }
+  return false
+}
+
 const SIZE = 34
 const BOLT = Math.round(SIZE * 0.46)
 // Cuánto se queda el check verde antes de recogerse. Mismo criterio (y mismo
@@ -146,6 +159,7 @@ export default function PullToRefresh({
         // Se resuelve en el touchstart, que es el único momento con un `target`
         // y con el scroller todavía en su posición inicial.
         blockedByScroller: scope ? blockedByInnerScroller(tch.target, scope) : false,
+        blockedByDragHandle: scope ? blockedByDragHandle(tch.target, scope) : false,
       }
     }
 
@@ -160,7 +174,7 @@ export default function PullToRefresh({
       if (!s.claimed) {
         // Antes del mínimo no se decide nada: a 1-2px la dirección es ruido.
         if (Math.abs(dx) < DIRECTION_LOCK_PX && Math.abs(dy) < DIRECTION_LOCK_PX) return
-        if (!shouldClaim({ dx, dy, atTop: atTop(), insideMain: s.insideMain, blockedByScroller: s.blockedByScroller })) {
+        if (!shouldClaim({ dx, dy, atTop: atTop(), insideMain: s.insideMain, blockedByScroller: s.blockedByScroller, blockedByDragHandle: s.blockedByDragHandle })) {
           s.released = true
           return
         }
