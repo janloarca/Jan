@@ -83,6 +83,32 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
     return `${user}+${token}@${domain}`
   }
 
+
+  // Último uso del token, en palabras. "Nunca" es la respuesta más informativa
+  // de todas: significa que el atajo no ha llegado ni una vez al servidor, o sea
+  // el problema está en el teléfono y no acá.
+  const lastUse = (tk) => {
+    if (!tk.lastUsedAt) {
+      return { text: t('Nunca se ha usado', 'Never used'), tone: 'var(--alert-warn-icon)' }
+    }
+    const ms = Date.now() - new Date(tk.lastUsedAt).getTime()
+    const ago = !isFinite(ms) || ms < 0 ? null
+      : ms < 60000 ? t('hace instantes', 'moments ago')
+        : ms < 3600000 ? t(`hace ${Math.round(ms / 60000)} min`, `${Math.round(ms / 60000)} min ago`)
+          : ms < 86400000 ? t(`hace ${Math.round(ms / 3600000)} h`, `${Math.round(ms / 3600000)} h ago`)
+            : t(`hace ${Math.round(ms / 86400000)} d`, `${Math.round(ms / 86400000)} d`)
+    const r = tk.lastResult
+    const outcome = r === 'created' ? t('gasto registrado', 'expense recorded')
+      : r === 'duplicate' ? t('ya estaba registrado', 'already recorded')
+        : r ? t(`rechazado: ${r}`, `rejected: ${r}`)
+          : null
+    const bad = r && r !== 'created' && r !== 'duplicate'
+    return {
+      text: [t('Último uso ', 'Last used '), ago, outcome ? ` · ${outcome}` : ''].filter(Boolean).join(''),
+      tone: bad ? 'var(--alert-warn-icon)' : 'var(--text-muted)',
+    }
+  }
+
   const copyIngest = (token, what, value) => {
     navigator.clipboard.writeText(value)
     setIngestCopied(`${token}:${what}`)
@@ -200,6 +226,11 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-white font-medium truncate">📱 {tk.label}</p>
                         <p className="text-xs text-slate-500 font-mono truncate">{tk.token.slice(0, 8)}…{tk.token.slice(-4)}</p>
+                        {/* La línea que contesta "¿funcionó?". Sin ella, un gasto
+                            que no aparece puede ser que la automatización nunca
+                            disparó, que disparó y la rechazamos, o que era
+                            duplicado — y las tres se ven exactamente igual. */}
+                        <p className="text-xs mt-0.5" style={{ color: lastUse(tk).tone }}>{lastUse(tk).text}</p>
                       </div>
                       <button onClick={() => handleRevokeIngestToken(tk.token)} disabled={ingestLoading} aria-label={t('Revocar', 'Revoke')}
                         className="shrink-0 px-2 py-1 text-xs hover:opacity-100 transition-opacity" style={{ color: 'var(--text-negative)', opacity: 0.6 }}>
