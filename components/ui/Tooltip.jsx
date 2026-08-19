@@ -120,9 +120,12 @@ export function InfoTip({ text }) {
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
-          width: '14px',
-          height: '14px',
-          fontSize: '10px',
+          // 14px con la "i" a 10px quedaba en el límite de lo que se distingue
+          // de una mota. Sube a 16/11, que es el cambio más grande que no mueve
+          // el alto de línea de los encabezados donde va embebida.
+          width: '16px',
+          height: '16px',
+          fontSize: '11px',
           lineHeight: 1,
           color: 'var(--text-muted)',
           borderRadius: '50%',

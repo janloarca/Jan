@@ -41,11 +41,22 @@ function BarStrip({ bars, max, color, dim, label, monthName, selected, onSelect,
           {sel ? `${monthName(sel.month)} · ${formatCurrency(sel.value)}` : ''}
         </span>
       </div>
-      <div className="flex items-end gap-1 h-16">
-        {bars.map((b) => {
+      {/* `min-w-[24px]` mantiene la separación entre centros por encima de los
+          24px que pide WCAG 2.2 SC 2.5.8 por su excepción de espaciado, en
+          cualquier ancho de pantalla; si doce barras ya no caben, la tira
+          scrollea en vez de encoger las barras hasta que no se puedan tocar. */}
+      <div className="flex items-end gap-1 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+        {bars.map((b, i) => {
           const paid = b.value > 0
           const h = paid && max > 0 ? (b.value / max) * 100 : 0
           const on = b.key === selected
+          // Rótulo cada tres meses, más el seleccionado. Doce nombres de mes a
+          // 13px no caben en un teléfono y se tocaban entre sí; a 10px sí
+          // cabían, pero 10px queda por debajo del piso de legibilidad. Adelgazar
+          // el eje es lo que hace cualquier gráfica ante lo mismo, y no esconde
+          // nada: tocar una barra nombra su mes y su monto arriba de la tira, y
+          // cada barra lo lleva en su `aria-label` para un lector de pantalla.
+          const showLabel = i % 3 === 0 || on
           return (
             <button
               key={b.key}
@@ -53,18 +64,28 @@ function BarStrip({ bars, max, color, dim, label, monthName, selected, onSelect,
               onClick={() => onSelect(on ? null : b.key)}
               aria-pressed={on}
               aria-label={`${monthName(b.month)}: ${paid ? formatCurrency(b.value) : (lang === 'es' ? 'sin pagos' : 'no payments')}`}
-              className="flex-1 flex flex-col items-center justify-end h-full rounded-t transition-opacity"
+              className="flex-1 min-w-[24px] shrink-0 flex flex-col items-center gap-1 transition-opacity"
               style={{ opacity: selected && !on ? 0.55 : 1 }}
             >
-              <span className="w-full rounded-t block" style={{
-                height: paid ? `${Math.max(h, 6)}%` : '4px',
-                backgroundColor: paid ? color : 'var(--bg-tertiary)',
-                opacity: dim && paid ? 0.75 : 1,
-                outline: on ? '2px solid var(--accent-blue)' : 'none',
-                outlineOffset: '1px',
-              }} />
-              <span className="text-caption mt-1" style={{ color: on ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-                {monthName(b.month)}
+              {/* Caja de alto FIJO para la barra. Antes el `height: N%` competía
+                  con el rótulo del mes dentro del mismo flex column, así que el
+                  porcentaje no resolvía contra una altura estable y dos valores
+                  distintos podían dibujarse a la misma altura: justo lo que un
+                  eje compartido existe para impedir. */}
+              <span className="w-full h-12 flex items-end">
+                <span className="w-full rounded-t block" style={{
+                  height: paid ? `${Math.max(h, 6)}%` : '4px',
+                  backgroundColor: paid ? color : 'var(--bg-tertiary)',
+                  opacity: dim && paid ? 0.75 : 1,
+                  outline: on ? '2px solid var(--accent-blue)' : 'none',
+                  outlineOffset: '1px',
+                }} />
+              </span>
+              {/* La ranura existe siempre aunque el rótulo no se dibuje, para
+                  que las barras no queden a alturas distintas entre sí. */}
+              <span className="text-caption min-h-[1.15rem] whitespace-nowrap"
+                style={{ color: on ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                {showLabel ? monthName(b.month) : ''}
               </span>
             </button>
           )
