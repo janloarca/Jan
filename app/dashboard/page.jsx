@@ -12,6 +12,7 @@ import PullToRefresh from '@/components/ui/PullToRefresh'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
 import { InfoTip } from '@/components/ui/Tooltip'
 import { useEdgeFade } from '@/hooks/useEdgeFade'
+import SegmentedTabs from '@/components/ui/SegmentedTabs'
 import AdBanner from '@/components/AdBanner'
 import MonthEndCheckin, { hasLiveSync } from '@/components/dashboard/MonthEndCheckin'
 import DashboardLoading from './loading'
@@ -134,84 +135,140 @@ import { authFetch, safeJson } from '@/lib/authFetch'
 // were already built as components and had simply never been mounted anywhere,
 // and Data quality moved up from "Recent activity".
 function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, lots, transactions, convert, baseCurrency, rates, benchmarkData, benchmarkName, benchmarkReturn, portfolioReturn, volatility, goalValue, beginnerMode, onConnect, onImportBroker }) {
-  const [tab, setTab] = useState('health')
   const t = (es, en) => lang === 'es' ? es : en
   const hasLots = lots && lots.length > 0
-  // Nine tabs in a half-width card overflow horizontally. Same affordance the
-  // period selector and the Settings tabs already use: fade only the edge that
-  // is really hiding something.
-  const tabsFade = useEdgeFade([lang, beginnerMode, hasLots])
-  // Beginner mode hides the most jargon-heavy tabs (Risk metrics, Attribution)
-  const tabs = [
-    { key: 'health', label: t('Salud', 'Health') },
-    ...(beginnerMode ? [] : [{ key: 'risk', label: t('Riesgo', 'Risk') }]),
-    { key: 'concentration', label: t('Concentración', 'Concentration') },
-    ...(hasLots ? [{ key: 'gains', label: t('Ganancias', 'Gains') }] : []),
-    ...(beginnerMode ? [] : [{ key: 'attribution', label: t('Atribución', 'Attribution') }]),
-    { key: 'benchmark', label: t('Benchmark', 'Benchmark') },
-    { key: 'currency', label: t('Moneda', 'Currency') },
-    { key: 'fees', label: t('Comisiones', 'Fees') },
-    { key: 'quality', label: t('Calidad', 'Quality') },
-    { key: 'map', label: t('Mapa', 'Map') },
-    { key: 'projection', label: t('Proyección', 'Projection') },
-  ]
+
+  // Once vistas en UNA fila plana no son pestañas, son una lista que se sale de
+  // la pantalla: en el iPad del usuario la última quedaba cortada, y la guía de
+  // NN/g es explícita en que las pestañas sirven para "unas pocas secciones".
+  //
+  // Se agrupan en cuatro familias, y ninguna vista desaparece. El criterio es la
+  // PREGUNTA que contesta cada una, no de dónde salió el componente:
+  //   Rendimiento  -> cómo me fue y qué lo movió
+  //   Riesgo       -> qué tan expuesto estoy a que salga mal
+  //   Exposición   -> a qué estoy expuesto, y qué me cuesta
+  //   Proyección   -> lo que viene, y qué tan confiable es lo que estoy viendo
+  //
+  // Cuatro chips entran completos hasta en un teléfono, y dentro de cada familia
+  // quedan dos o tres vistas: los dos niveles son cortos.
+  const families = [
+    {
+      key: 'performance', label: t('Rendimiento', 'Performance'),
+      views: [
+        { key: 'benchmark', label: t('Benchmark', 'Benchmark') },
+        ...(beginnerMode ? [] : [{ key: 'attribution', label: t('Atribución', 'Attribution') }]),
+        ...(hasLots ? [{ key: 'gains', label: t('Ganancias', 'Gains') }] : []),
+      ],
+    },
+    {
+      key: 'risk', label: t('Riesgo', 'Risk'),
+      views: [
+        { key: 'health', label: t('Salud', 'Health') },
+        ...(beginnerMode ? [] : [{ key: 'risk', label: t('Métricas', 'Metrics') }]),
+        { key: 'concentration', label: t('Concentración', 'Concentration') },
+      ],
+    },
+    {
+      key: 'exposure', label: t('Exposición', 'Exposure'),
+      views: [
+        { key: 'map', label: t('Mapa', 'Map') },
+        { key: 'currency', label: t('Moneda', 'Currency') },
+        { key: 'fees', label: t('Comisiones', 'Fees') },
+      ],
+    },
+    {
+      key: 'outlook', label: t('Proyección', 'Outlook'),
+      views: [
+        { key: 'projection', label: t('Proyección', 'Projection') },
+        { key: 'quality', label: t('Calidad de datos', 'Data quality') },
+      ],
+    },
+  ].filter((f) => f.views.length > 0)
+
+  const [family, setFamily] = useState('risk')
+  const activeFamily = families.find((f) => f.key === family) || families[0]
+  // La vista arranca en la primera de su familia y se re-ancla al cambiar de
+  // familia, así que nunca queda una vista activa que no esté en la fila de
+  // abajo (por ejemplo al entrar o salir de modo principiante).
+  const [tab, setTab] = useState(activeFamily.views[0].key)
+  const activeTab = activeFamily.views.some((v) => v.key === tab) ? tab : activeFamily.views[0].key
+
   return (
     <div className="card p-4">
       {/* Header — mirrors AssetAllocation's so the two read as one pair */}
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-3">
         <h3 className="card-title">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-purple)' }} />
           {t('ANÁLISIS', 'ANALYSIS')}
           <InfoTip text={t(
-            'Distintas lecturas del mismo portafolio: qué tan sano está, cuánto riesgo carga, qué tan concentrado, cómo le fue contra el mercado y qué te están costando las comisiones. Ninguna pestaña cambia tus datos.',
-            'Different readings of the same portfolio: how healthy it is, how much risk it carries, how concentrated it is, how it did against the market and what fees are costing you. No tab changes your data.'
+            'Distintas lecturas del mismo portafolio, agrupadas por la pregunta que contestan. Ninguna pestaña cambia tus datos.',
+            'Different readings of the same portfolio, grouped by the question each one answers. No tab changes your data.'
           )} />
         </h3>
       </div>
 
-      <div ref={tabsFade.ref} className="flex items-center gap-0.5 p-1 rounded-[10px] mb-5 max-w-full overflow-x-auto" style={{ backgroundColor: 'var(--bg-tertiary)', ...tabsFade.maskStyle }}>
-        {tabs.map(tb => (
-          <button key={tb.key} onClick={() => setTab(tb.key)}
-            className="px-2.5 py-1 text-xs font-medium rounded-md transition-all whitespace-nowrap shrink-0"
-            style={tab === tb.key
-              ? { backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 2px rgba(0,0,0,0.08)' }
-              : { color: 'var(--text-muted)' }}>
-            {tb.label}
-          </button>
-        ))}
-      </div>
-      {tab === 'health' && (
+      <SegmentedTabs
+        tabs={families.map((f) => ({ key: f.key, label: f.label }))}
+        value={activeFamily.key}
+        onChange={(k) => {
+          setFamily(k)
+          const next = families.find((f) => f.key === k)
+          if (next) setTab(next.views[0].key)
+        }}
+        deps={[lang, beginnerMode, hasLots]}
+        ariaLabel={t('Familias de análisis', 'Analysis families')}
+        className="mb-2"
+      />
+      {/* El segundo nivel solo aparece cuando de verdad hay algo que elegir. */}
+      {activeFamily.views.length > 1 && (
+        <div className="flex flex-wrap items-center gap-1 mb-4">
+          {activeFamily.views.map((v) => {
+            const on = v.key === activeTab
+            return (
+              <button key={v.key} onClick={() => setTab(v.key)}
+                aria-pressed={on}
+                className="px-2.5 min-h-[28px] text-caption rounded-md transition-colors"
+                style={on
+                  ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 10%, transparent)', fontWeight: 600 }
+                  : { color: 'var(--text-muted)' }}>
+                {v.label}
+              </button>
+            )
+          })}
+        </div>
+      )}
+      {activeTab === 'health' && (
         // Concentration lives in its own dedicated tab; don't duplicate it here.
         <CardBoundary id="AN-01"><FinancialHealth items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} /></CardBoundary>
       )}
-      {tab === 'risk' && !beginnerMode && (
+      {activeTab === 'risk' && !beginnerMode && (
         <CardBoundary id="AN-05"><RiskMetrics snapshots={snapshots} benchmarkData={benchmarkData} netWorth={netWorth} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} benchmarkName={benchmarkName} /></CardBoundary>
       )}
-      {tab === 'concentration' && (
+      {activeTab === 'concentration' && (
         <CardBoundary id="AN-02b"><ConcentrationRisk items={portfolioItems} lang={lang} /></CardBoundary>
       )}
-      {tab === 'gains' && hasLots && (
+      {activeTab === 'gains' && hasLots && (
         <CardBoundary id="AN-03"><GainsReport lots={lots} items={portfolioItems} lang={lang} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
       )}
-      {tab === 'attribution' && !beginnerMode && (
+      {activeTab === 'attribution' && !beginnerMode && (
         <CardBoundary id="AN-04"><PerformanceAttribution items={portfolioItems} lang={lang} /></CardBoundary>
       )}
-      {tab === 'benchmark' && (
+      {activeTab === 'benchmark' && (
         <CardBoundary id="OL-02"><BenchmarkComparison benchmarkReturn={benchmarkReturn} portfolioReturn={portfolioReturn} benchmarkName={benchmarkName} lang={lang} /></CardBoundary>
       )}
-      {tab === 'currency' && (
+      {activeTab === 'currency' && (
         <CardBoundary id="PR-04"><CurrencyImpact items={portfolioItems} convert={convert} baseCurrency={baseCurrency} rates={rates} lang={lang} /></CardBoundary>
       )}
-      {tab === 'fees' && (
+      {activeTab === 'fees' && (
         <CardBoundary id="IG-09"><FeeAnalysis items={portfolioItems} netWorth={netWorth} lang={lang} /></CardBoundary>
       )}
-      {tab === 'quality' && (
+      {activeTab === 'quality' && (
         <CardBoundary id="HO-03"><DataQualityCard items={portfolioItems} transactions={transactions} snapshots={snapshots} convert={convert} baseCurrency={baseCurrency} lang={lang} onConnect={onConnect} onImportBroker={onImportBroker} /></CardBoundary>
       )}
-      {tab === 'map' && (
+      {activeTab === 'map' && (
         <CardBoundary id="OR-06"><PortfolioMap items={portfolioItems} lang={lang} /></CardBoundary>
       )}
-      {tab === 'projection' && (
+      {activeTab === 'projection' && (
         <CardBoundary id="IG-11"><ProjectionSimulator netWorth={netWorth} lang={lang} volatility={volatility} goalValue={goalValue} /></CardBoundary>
       )}
     </div>

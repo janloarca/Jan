@@ -12,6 +12,7 @@ import { computeTWRSeries, computeAnchoredReturnSeries, computeAnchoredMWRSeries
 import { authFetch, safeJson } from '@/lib/authFetch'
 import ErrorState from '@/components/ui/ErrorState'
 import { useEdgeFade } from '@/hooks/useEdgeFade'
+import SegmentedTabs from '@/components/ui/SegmentedTabs'
 import BusyLabel, { BusyRing } from '@/components/ui/BusyLabel'
 
 function polyline(pts) {
@@ -174,7 +175,9 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   // FASE GP: fade the scroll edge only where the row actually hides content —
   // scrollbarWidth:'none' hides the native bar on these rows, so without this
   // the last pill just clips at the phone's edge with no sign there's more.
-  const periodFade = useEdgeFade([periods.length])
+  // La fila de períodos ya no la necesita: `SegmentedTabs` trae su propio
+  // difuminado adentro, así que declararla acá sería medir dos veces la misma
+  // fila. El filtro de institución sigue siendo una fila propia.
   const instFade = useEdgeFade([institutions.length])
 
   const scopedItems = useMemo(() => {
@@ -1656,17 +1659,17 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const periodSelector = (
     // Single row with horizontal scroll on mobile (9 pills used to wrap to 2 rows
     // and fatten the card); desktop unaffected because everything fits.
-    <div ref={periodFade.ref} className="flex flex-nowrap sm:flex-wrap overflow-x-auto max-w-full gap-0.5 bg-theme-base rounded-lg p-0.5 border border-glass-border/50" style={{ scrollbarWidth: 'none', ...periodFade.maskStyle }}>
-      {periods.map((p) => (
-        <button key={p} onClick={() => {
-          setPeriod(p)
-          if (p === 'CUSTOM') setShowCustomRange(true)
-          else setShowCustomRange(false)
-        }}
-          className={`px-3 py-2 text-xs font-semibold rounded-md transition-all border ${period === p ? 'pill-active' : 'border-transparent'}`}
-          style={period === p ? { color: 'var(--text-primary)' } : { color: 'var(--text-muted)' }}>{p === 'CUSTOM' ? (lang === 'es' ? 'Rango' : 'Range') : p}</button>
-      ))}
-    </div>
+    <SegmentedTabs
+      variant="range"
+      tabs={periods.map((p) => ({ key: p, label: p === 'CUSTOM' ? (lang === 'es' ? 'Rango' : 'Range') : p }))}
+      value={period}
+      onChange={(p) => {
+        setPeriod(p)
+        setShowCustomRange(p === 'CUSTOM')
+      }}
+      deps={[lang, periods.length]}
+      ariaLabel={t('Período', 'Period')}
+    />
   )
 
   if (loading && chartData.length < 2) {
@@ -1727,29 +1730,22 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           of the user's own deposits counts. Both run over whatever
           institution scope is selected below. */}
       <div className="flex items-center gap-4 mb-4 flex-wrap">
-        <button onClick={() => setViewMode('value')}
-          className="text-sm font-medium pb-1 transition-all border-b-2"
-          style={viewMode === 'value'
-            ? { color: 'var(--text-primary)', borderColor: 'var(--text-primary)' }
-            : { color: 'var(--text-muted)', borderColor: 'transparent' }}>
-          {t('Valor', 'Value')}
-        </button>
-        <button onClick={() => setViewMode('performance')}
-          className="text-sm font-medium pb-1 transition-all border-b-2"
-          style={viewMode === 'performance'
-            ? { color: 'var(--text-primary)', borderColor: 'var(--text-primary)' }
-            : { color: 'var(--text-muted)', borderColor: 'transparent' }}
-          title={t('Retorno ponderado por tiempo: mide la estrategia, ignora el timing de tus aportes', 'Time-weighted return: measures the strategy, ignores the timing of your contributions')}>
-          {t('Rendimiento TWR', 'Performance TWR')}
-        </button>
-        <button onClick={() => setViewMode('performance-mwr')}
-          className="text-sm font-medium pb-1 transition-all border-b-2"
-          style={viewMode === 'performance-mwr'
-            ? { color: 'var(--text-primary)', borderColor: 'var(--text-primary)' }
-            : { color: 'var(--text-muted)', borderColor: 'transparent' }}
-          title={t('Retorno ponderado por dinero: tu rendimiento real, el timing de tus aportes cuenta', 'Money-weighted return: your actual return, the timing of your contributions counts')}>
-          {t('Rendimiento MWR', 'Performance MWR')}
-        </button>
+        {/* Era el TERCER lenguaje de pestaña de la pantalla (subrayado), al lado
+            de las pastillas de Análisis y de Asignación. Mismo primitivo; qué
+            hace cada modo no cambia. */}
+        <SegmentedTabs
+          tabs={[
+            { key: 'value', label: t('Valor', 'Value') },
+            { key: 'performance', label: t('Rendimiento TWR', 'Performance TWR'),
+              title: t('Retorno ponderado por tiempo: mide la estrategia, ignora el timing de tus aportes', 'Time-weighted return: measures the strategy, ignores the timing of your contributions') },
+            { key: 'performance-mwr', label: t('Rendimiento MWR', 'Performance MWR'),
+              title: t('Retorno ponderado por dinero: tu rendimiento real, el timing de tus aportes cuenta', 'Money-weighted return: your actual return, the timing of your contributions counts') },
+          ]}
+          value={viewMode}
+          onChange={setViewMode}
+          deps={[lang]}
+          ariaLabel={t('Qué muestra la gráfica', 'What the chart shows')}
+        />
         <div className="ml-auto flex items-center gap-2">
           {shownMode === 'value' && contributionLine && (
             <button onClick={() => setShowContributions(!showContributions)}
