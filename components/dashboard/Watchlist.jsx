@@ -77,7 +77,7 @@ export default function Watchlist({ lang }) {
 
   if (items.length === 0 && !adding) {
     return (
-      <div className="card p-4">
+      <div className="card p-4 sm:p-5">
         <div className="flex items-center justify-between">
           <h3 className="card-title">
             <span className="w-2 h-2 rounded-full bg-slate-500" />
@@ -94,7 +94,7 @@ export default function Watchlist({ lang }) {
   }
 
   return (
-    <div className="card p-4">
+    <div className="card p-4 sm:p-5">
       <div className="flex items-center justify-between mb-3">
         <h3 className="card-title">
           <span className="w-2 h-2 rounded-full bg-slate-500" />

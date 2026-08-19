@@ -100,7 +100,7 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
   const scoreColor = globalScore >= 85 ? 'var(--accent-green)' : globalScore >= 60 ? 'var(--accent-orange)' : 'var(--alert-error-icon)'
 
   return (
-    <div className="card p-5">
+    <div className="card p-4 sm:p-5">
       <div className="flex items-center justify-between mb-3">
         <h3 className="card-title">
           {t('Chispu te sugiere', 'Chispu suggests')}

@@ -1,9 +1,84 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { formatCurrency, getTypeCategory, projectItemAnnualIncome } from './utils'
 
+// Subtítulo de grupo. La card llevaba ONCE bloques bajo un solo título, así que
+// no había forma de saber si un número era algo que ya entró o algo proyectado:
+// "YTD recibido" y "Próximos 12 meses" se veían igual de firmes. Cada bloque
+// sigue estando; ahora cada uno dice de qué lado del tiempo habla.
+function Group({ children }) {
+  return (
+    <p className="text-micro font-semibold uppercase tracking-wide mt-5 mb-2 pt-3 border-t"
+      style={{ color: 'var(--text-muted)', borderColor: 'var(--card-border)' }}>
+      {children}
+    </p>
+  )
+}
+
+// Las dos tiras de barras (historial y proyección) eran DOS bloques copiados a
+// mano, y ya habían divergido en lo único que no podían: la de historial
+// escalaba contra su propio máximo y la de proyección contra el suyo, mientras
+// el comentario que tenían encima afirmaba que compartían eje. O sea una barra
+// de $50 se dibujaba a dos alturas distintas según en cuál de las dos cayera,
+// que es exactamente lo que ese comentario creía estar evitando. Ahora el
+// máximo entra por parámetro y las dos reciben el mismo.
+//
+// Y el valor de cada barra vivía SOLO en un tooltip de hover. En el iPad del
+// usuario eso significa que estas dos gráficas son barras sin una sola cifra:
+// `:hover` en Safari táctil o no aparece o se queda pegado tras el primer
+// toque. Ahora la barra es un botón: al tocarla su valor se queda escrito
+// arriba de la tira, y sigue funcionando con mouse y con teclado.
+function BarStrip({ bars, max, color, dim, label, monthName, selected, onSelect, lang }) {
+  const sel = bars.find((b) => b.key === selected)
+  return (
+    <div className="mb-4">
+      <div className="flex items-baseline justify-between mb-2 gap-2">
+        <span className="text-caption" style={{ color: 'var(--text-muted)' }}>{label}</span>
+        {/* Ranura de alto fijo: sin ella la tira salta 18px al tocar la primera
+            barra, y el salto se lee como que algo se rompió. */}
+        <span className="text-caption font-mono tabular-nums min-h-[1.15rem]" style={{ color: 'var(--text-secondary)' }}>
+          {sel ? `${monthName(sel.month)} · ${formatCurrency(sel.value)}` : ''}
+        </span>
+      </div>
+      <div className="flex items-end gap-1 h-16">
+        {bars.map((b) => {
+          const paid = b.value > 0
+          const h = paid && max > 0 ? (b.value / max) * 100 : 0
+          const on = b.key === selected
+          return (
+            <button
+              key={b.key}
+              type="button"
+              onClick={() => onSelect(on ? null : b.key)}
+              aria-pressed={on}
+              aria-label={`${monthName(b.month)}: ${paid ? formatCurrency(b.value) : (lang === 'es' ? 'sin pagos' : 'no payments')}`}
+              className="flex-1 flex flex-col items-center justify-end h-full rounded-t transition-opacity"
+              style={{ opacity: selected && !on ? 0.55 : 1 }}
+            >
+              <span className="w-full rounded-t block" style={{
+                height: paid ? `${Math.max(h, 6)}%` : '4px',
+                backgroundColor: paid ? color : 'var(--bg-tertiary)',
+                opacity: dim && paid ? 0.75 : 1,
+                outline: on ? '2px solid var(--accent-blue)' : 'none',
+                outlineOffset: '1px',
+              }} />
+              <span className="text-caption mt-1" style={{ color: on ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                {monthName(b.month)}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function DividendIncome({ transactions, items, convert, baseCurrency, lang, totalAssets }) {
+  // Una sola selección para las dos tiras: son la misma historia en dos
+  // direcciones del tiempo, así que tener dos meses resaltados a la vez
+  // invitaría a compararlos como si fueran el mismo dato.
+  const [selectedBar, setSelectedBar] = useState(null)
   const t = (es, en) => lang === 'es' ? es : en
   const now = new Date()
 
@@ -217,7 +292,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
   // left an expandable header that opened to nothing. Show guidance instead.
   if (!hasData) {
     return (
-      <div className="card p-4">
+      <div className="card p-4 sm:p-5">
         <h3 className="card-title mb-3">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
           {t('INGRESOS PASIVOS', 'PASSIVE INCOME')}
@@ -232,9 +307,18 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
 
   const monthName = (m) => new Date(2024, m).toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short' })
   const calendarMax = Math.max(...incomeCalendar, 1)
+  // UN solo máximo para las dos tiras de barras. Cada una escalaba contra el
+  // suyo, así que una barra de $50 salía alta en la tira floja y baja en la
+  // otra: comparar "lo que cobré" con "lo que viene" a ojo, que es para lo que
+  // están una encima de la otra, daba la respuesta equivocada.
+  const barMax = Math.max(
+    stats.maxBar12 || 0,
+    ...(projected.next12 || []).map((b) => b.value || 0),
+    1
+  )
 
   return (
-    <div className="card p-4">
+    <div className="card p-4 sm:p-5">
       <h3 className="card-title mb-4">
         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
         {t('INGRESOS PASIVOS', 'PASSIVE INCOME')}
@@ -286,41 +370,9 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
         )
       })()}
 
-      {incomeByType.length > 1 && (
-        <div className="flex items-center gap-2 mb-3">
-          {incomeByType.map((bt) => (
-            <div key={bt.type} className="flex-1 bg-theme-base rounded-lg p-2 border border-glass-border/50 text-center">
-              <span className="text-xs text-slate-500 block">{bt.label}</span>
-              <span className="text-xs font-semibold text-white">{formatCurrency(bt.annual)}/yr</span>
-            </div>
-          ))}
-        </div>
-      )}
+      <Group>{t('Lo que ya cobraste', 'What you have received')}</Group>
 
-      {incomeByCurrency.length > 1 && (
-        <div className="mb-3 p-2.5 bg-theme-base rounded-lg border border-glass-border/50">
-          <span className="text-xs text-slate-500 mb-1.5 block">{t('Ingreso por moneda', 'Income by currency')}</span>
-          <div className="space-y-1">
-            {incomeByCurrency.map((c) => (
-              <div key={c.currency} className="flex items-center justify-between">
-                <span className="text-xs font-medium text-white">{c.currency}</span>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-slate-400">{formatCurrency(c.original, c.currency)}/yr</span>
-                  {c.currency !== (baseCurrency || 'USD') && (
-                    <span className="text-xs text-slate-500">= {formatCurrency(c.converted)}</span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50">
-          <span className="text-xs text-slate-500">{t('Mensual est.', 'Monthly est.')}</span>
-          <span className="text-sm font-semibold text-white block">{formatCurrency(estAnnual / 12)}</span>
-        </div>
+      <div className="grid grid-cols-2 gap-3 mb-4">
         <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50">
           <span className="text-xs text-slate-500">{t('Este mes', 'This month')}</span>
           <span className="text-sm font-semibold text-white block">{formatCurrency(stats.totalThisMonth)}</span>
@@ -328,6 +380,29 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
         <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50">
           <span className="text-xs text-slate-500">{t('Pagos', 'Payments')}</span>
           <span className="text-sm font-semibold text-white block">{stats.divCount}</span>
+        </div>
+      </div>
+
+      {/* Mini bar chart - trailing 12 months */}
+      {stats.divCount > 0 && (
+        <BarStrip
+          bars={stats.monthly12}
+          max={barMax}
+          color="var(--accent-green)"
+          label={t('Historial (12 meses)', 'History (12 months)')}
+          monthName={monthName}
+          selected={selectedBar}
+          onSelect={setSelectedBar}
+          lang={lang}
+        />
+      )}
+
+      <Group>{t('Lo que viene', 'What is coming')}</Group>
+
+      <div className="grid grid-cols-1 gap-3 mb-4">
+        <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50">
+          <span className="text-xs text-slate-500">{t('Mensual est.', 'Monthly est.')}</span>
+          <span className="text-sm font-semibold text-white block">{formatCurrency(estAnnual / 12)}</span>
         </div>
       </div>
 
@@ -363,78 +438,24 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
         </div>
       )}
 
-      {/* Mini bar chart - trailing 12 months */}
-      {stats.divCount > 0 && (
-        <div className="mb-4">
-          <span className="text-xs text-slate-500 mb-2 block">{t('Historial (12 meses)', 'History (12 months)')}</span>
-          <div className="flex items-end gap-1 h-16">
-            {stats.monthly12.map((b) => {
-              const paid = b.value > 0
-              const h = paid ? (b.value / stats.maxBar12) * 100 : 0
-              return (
-                <div key={b.key} className="flex-1 flex flex-col items-center justify-end h-full group relative">
-                  {paid && (
-                    <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 -translate-y-full opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 px-2 py-1 rounded text-xs font-mono tabular-nums whitespace-nowrap"
-                      style={{ backgroundColor: 'var(--text-primary)', color: 'var(--bg-primary)' }}>
-                      {formatCurrency(b.value)}
-                    </div>
-                  )}
-                  <div className="w-full rounded-t" style={{ height: paid ? `${Math.max(h, 6)}%` : '4px', backgroundColor: paid ? 'var(--accent-green)' : 'var(--bg-tertiary)' }} />
-                  <span className="text-[10px] text-slate-500 mt-1">{monthName(b.month)}</span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
       {/* Mini bar chart - forward-looking 12 months, mirrors the trailing
-          history chart above (same axis, opposite direction in time) so
-          "what I got" and "what's projected" read as one continuous strip. */}
+          history chart above: MISMO eje (`barMax`), dirección opuesta en el
+          tiempo, así que "lo que cobré" y "lo que se proyecta" se leen como una
+          sola tira continua. El título decía "Próximos 12 meses (proyectado)",
+          exactamente el mismo rótulo que la CIFRA de arriba, para dos cosas
+          distintas: esa es el total, esta es el reparto mes a mes. */}
       {projected.next12Total > 0 && (
-        <div className="mb-4">
-          <span className="text-xs text-slate-500 mb-2 block">{t('Próximos 12 meses (proyectado)', 'Next 12 months (projected)')}</span>
-          <div className="flex items-end gap-1 h-16">
-            {projected.next12.map((b) => {
-              const paid = b.value > 0
-              const maxNext12 = Math.max(...projected.next12.map((x) => x.value), 1)
-              const h = paid ? (b.value / maxNext12) * 100 : 0
-              return (
-                <div key={b.key} className="flex-1 flex flex-col items-center justify-end h-full group relative">
-                  {paid && (
-                    <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 -translate-y-full opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 px-2 py-1 rounded text-xs font-mono tabular-nums whitespace-nowrap"
-                      style={{ backgroundColor: 'var(--text-primary)', color: 'var(--bg-primary)' }}>
-                      {formatCurrency(b.value)}
-                    </div>
-                  )}
-                  <div className="w-full rounded-t" style={{ height: paid ? `${Math.max(h, 6)}%` : '4px', backgroundColor: paid ? 'var(--accent-blue)' : 'var(--bg-tertiary)', opacity: paid ? 0.75 : 1 }} />
-                  <span className="text-[10px] text-slate-500 mt-1">{monthName(b.month)}</span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Top income sources - from items data + transaction history */}
-      {projected.sources.length > 0 && (
-        <div>
-          <span className="text-xs text-slate-500 mb-2 block">{t('Fuentes de ingreso', 'Income sources')}</span>
-          <div className="space-y-1.5">
-            {projected.sources.slice(0, 5).map((s) => {
-              const pct = estAnnual > 0 ? (s.annual / estAnnual) * 100 : 0
-              return (
-                <div key={s.symbol} className="flex items-center gap-2">
-                  <span className="text-xs text-white font-medium w-16 truncate">{s.symbol}</span>
-                  <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                    <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: 'var(--accent-green)' }} />
-                  </div>
-                  <span className="text-xs text-slate-400 w-20 text-right">{formatCurrency(s.annual)}/yr</span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
+        <BarStrip
+          bars={projected.next12}
+          max={barMax}
+          color="var(--accent-blue)"
+          dim
+          label={t('Mes a mes (proyectado)', 'Month by month (projected)')}
+          monthName={monthName}
+          selected={selectedBar}
+          onSelect={setSelectedBar}
+          lang={lang}
+        />
       )}
 
       {/* 12-month income calendar */}
@@ -458,6 +479,60 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
           </div>
         </div>
       )}
+
+      <Group>{t('De dónde sale', 'Where it comes from')}</Group>
+
+      {incomeByType.length > 1 && (
+        <div className="flex items-center gap-2 mb-3">
+          {incomeByType.map((bt) => (
+            <div key={bt.type} className="flex-1 bg-theme-base rounded-lg p-2 border border-glass-border/50 text-center">
+              <span className="text-xs text-slate-500 block">{bt.label}</span>
+              <span className="text-xs font-semibold text-white">{formatCurrency(bt.annual)}/yr</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {incomeByCurrency.length > 1 && (
+        <div className="mb-3 p-2.5 bg-theme-base rounded-lg border border-glass-border/50">
+          <span className="text-xs text-slate-500 mb-1.5 block">{t('Ingreso por moneda', 'Income by currency')}</span>
+          <div className="space-y-1">
+            {incomeByCurrency.map((c) => (
+              <div key={c.currency} className="flex items-center justify-between">
+                <span className="text-xs font-medium text-white">{c.currency}</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-slate-400">{formatCurrency(c.original, c.currency)}/yr</span>
+                  {c.currency !== (baseCurrency || 'USD') && (
+                    <span className="text-xs text-slate-500">= {formatCurrency(c.converted)}</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Top income sources - from items data + transaction history */}
+      {projected.sources.length > 0 && (
+        <div className="mb-4">
+          <span className="text-xs text-slate-500 mb-2 block">{t('Fuentes de ingreso', 'Income sources')}</span>
+          <div className="space-y-1.5">
+            {projected.sources.slice(0, 5).map((s) => {
+              const pct = estAnnual > 0 ? (s.annual / estAnnual) * 100 : 0
+              return (
+                <div key={s.symbol} className="flex items-center gap-2">
+                  <span className="text-xs text-white font-medium w-16 truncate">{s.symbol}</span>
+                  <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                    <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: 'var(--accent-green)' }} />
+                  </div>
+                  <span className="text-xs text-slate-400 w-20 text-right">{formatCurrency(s.annual)}/yr</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
 
       {/* Fallback: top payers from transactions if no projected sources */}
       {projected.sources.length === 0 && stats.topPayers && stats.topPayers.length > 0 && (

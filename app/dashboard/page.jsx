@@ -90,11 +90,12 @@ const CurrencyImpact = dynamic(() => import('@/components/dashboard/CurrencyImpa
 const FeeAnalysis = dynamic(() => import('@/components/dashboard/FeeAnalysis'), { loading: () => <SkeletonCard /> })
 const PortfolioMap = dynamic(() => import('@/components/dashboard/PortfolioMap'), { loading: () => <SkeletonCard /> })
 const ProjectionSimulator = dynamic(() => import('@/components/dashboard/ProjectionSimulator'), { loading: () => <SkeletonCard /> })
-// InstitutionPerformance is intentionally still imported and still on disk: its
-// six rows duplicated Asset Allocation's "Inst." view number for number, so the
-// dashboard stopped rendering it (see the composition grid below). Nothing about
-// the component or its formula changed, and remounting it is one line.
-const InstitutionPerformance = dynamic(() => import('@/components/dashboard/InstitutionPerformance'), { loading: () => <SkeletonCard /> })
+// InstitutionPerformance sigue EN DISCO y sin un solo cambio: sus seis filas
+// duplicaban número por número la vista "Inst." de Asignación de Activos, así
+// que el tablero dejó de renderizarla (ver la grilla de composición más abajo).
+// El `dynamic()` que estaba acá sí se quitó: un import dinámico sin punto de
+// montaje igual emite su chunk, o sea todo el mundo pagaba la descarga de una
+// card que nadie pide. Remontarla sigue siendo una línea, ahora dos.
 const InvestedByYearCard = dynamic(() => import('@/components/dashboard/InvestedByYearCard'), { loading: () => <SkeletonCard /> })
 const RebalanceSuggestions = dynamic(() => import('@/components/dashboard/RebalanceSuggestions'), { loading: () => <SkeletonCard /> })
 const WealthProjectionCard = dynamic(() => import('@/components/dashboard/WealthProjectionCard'), { loading: () => <SkeletonCard /> })
@@ -194,7 +195,7 @@ function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, 
   const activeTab = activeFamily.views.some((v) => v.key === tab) ? tab : activeFamily.views[0].key
 
   return (
-    <div className="card p-4">
+    <div className="card p-4 sm:p-5">
       {/* Header — mirrors AssetAllocation's so the two read as one pair */}
       <div className="flex items-center justify-between mb-3">
         <h3 className="card-title">

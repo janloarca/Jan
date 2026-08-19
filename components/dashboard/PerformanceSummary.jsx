@@ -135,7 +135,7 @@ export default function PerformanceSummary({ items, lots, transactions, convert,
   const t = (es, en) => lang === 'es' ? es : en
 
   return (
-    <div className="card p-5">
+    <div className="card p-4 sm:p-5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-purple)' }} />

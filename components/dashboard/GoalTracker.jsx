@@ -77,7 +77,7 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
   }
 
   return (
-    <div className="card p-4">
+    <div className="card p-4 sm:p-5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="card-title">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />

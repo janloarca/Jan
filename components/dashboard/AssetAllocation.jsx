@@ -132,7 +132,7 @@ export default function AssetAllocation({ items, lang, transactions, convert, ba
   ]
 
   return (
-    <div className="card p-4">
+    <div className="card p-4 sm:p-5">
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
         <h3 className="card-title">

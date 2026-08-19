@@ -39,7 +39,7 @@ export default function CostsCard({ transactions, items, convert, baseCurrency =
   // despues en globals.css) ganaba por orden de fuente y el translate del JSX
   // nunca se renderizo.
   return (
-    <Link href="/costs" data-card-id="COST-01"
+    <Link href="/costs"
       className="card card-interactive p-5 block">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">

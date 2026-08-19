@@ -92,9 +92,15 @@ export default function PortfolioSelector({ portfolios, activePortfolio, onSelec
                   }}>
                   <span>{p.icon || '💼'}</span> {p.name}
                 </button>
+                {/* Era `opacity-0 group-hover:opacity-100`: en táctil o no
+                    aparecía nunca o se quedaba pegado tras el primer toque, así
+                    que borrar un portafolio dependía de tener mouse. Visible y
+                    apagado, con 24x24 de objetivo (WCAG 2.2 SC 2.5.8). */}
                 {!p.isDefault && onDelete && (
                   <button onClick={() => onDelete(p.id)}
-                    className="px-2 text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all">
+                    aria-label={t('Borrar portafolio', 'Delete portfolio')}
+                    className="px-2 min-w-[24px] min-h-[24px] flex items-center justify-center opacity-40 hover:opacity-100 transition-opacity"
+                    style={{ color: 'var(--text-muted)' }}>
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>

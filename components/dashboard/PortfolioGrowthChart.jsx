@@ -1751,7 +1751,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
   if (loading && chartData.length < 2) {
     return (
-      <div className="card p-5">
+      <div className="card p-4 sm:p-5">
         <div className="flex items-center justify-center min-h-[260px]">
           <div className="flex items-center gap-2 text-slate-500 text-sm">
             <BusyRing size="16px" />
@@ -1764,7 +1764,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
   if (fetchError && chartData.length < 2) {
     return (
-      <div className="card p-5">
+      <div className="card p-4 sm:p-5">
         <ErrorState
           title={t('Error cargando gráfico', 'Error loading chart')}
           message={fetchError}
@@ -1777,7 +1777,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
   if (chartData.length < 2) {
     return (
-      <div className="card p-5">
+      <div className="card p-4 sm:p-5">
         <div className="flex flex-col items-center justify-center min-h-[200px] gap-2 text-slate-500 text-sm">
           {period === 'DAY' ? (
             <>
@@ -1799,7 +1799,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const hd = hoverIdx != null ? chartData[hoverIdx] : null
 
   return (
-    <div ref={containerRef} className="card p-5">
+    <div ref={containerRef} className="card p-4 sm:p-5">
       {/* Tab bar: Value | Performance TWR | Performance MWR (FASE FP).
           Value is untouched. TWR is the frozen anchored series and the
           default return view (the strategy's return, IBKR's headline

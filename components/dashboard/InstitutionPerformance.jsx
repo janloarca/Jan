@@ -56,7 +56,7 @@ export default function InstitutionPerformance({ items, lang, baseCurrency, tran
 
 
   return (
-    <div className="card p-4">
+    <div className="card p-4 sm:p-5">
       {/* Header */}
       <h3 className="card-title mb-4">
         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue)' }} />

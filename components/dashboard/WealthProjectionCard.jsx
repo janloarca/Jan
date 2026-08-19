@@ -126,7 +126,7 @@ export default function WealthProjectionCard({
   if (fromMonth >= 12) return null
 
   return (
-    <div className="card p-4">
+    <div className="card p-4 sm:p-5">
       <div className="flex items-baseline justify-between gap-3 mb-1">
         <h3 className="text-sm font-semibold flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
           {t(`Proyección a diciembre ${year}`, `Projection to December ${year}`)}

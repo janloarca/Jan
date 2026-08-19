@@ -91,7 +91,7 @@ export default function MaturityCalendar({ items, lang }) {
   }
 
   return (
-    <div className="card p-4">
+    <div className="card p-4 sm:p-5">
       <h3 className="text-sm font-medium flex items-center gap-2 mb-3" style={{ color: 'var(--text-secondary)' }}>
         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-orange)' }} />
         {t('CALENDARIO', 'CALENDAR')}
