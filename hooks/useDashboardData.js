@@ -129,6 +129,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     portfolios, addPortfolio, deletePortfolio,
     financeTransactions, addFinanceTransaction, updateFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     saveGoals, saveSettings, saveProfile,
+    incomePlan, saveIncomePlan,
     saveItemSnapshots, loadItemSnapshots,
   } = firestoreData
 
@@ -2920,6 +2921,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     addFinanceTransaction, updateFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     bulkImport,
     saveGoals, saveSettings, saveProfile,
+    // El plan de ingresos que se arma en Flujo: la proyección del tablero lo
+    // LEE (y guarda ahí mismo su tasa de ahorro y de rendimiento). Sin
+    // re-exportarlo, el tablero recibía `undefined` y mostraba "todavía no hay
+    // ingresos planeados" sobre un plan que sí existía.
+    incomePlan, saveIncomePlan,
     saveItemSnapshots, loadItemSnapshots,
 
     // Market data
