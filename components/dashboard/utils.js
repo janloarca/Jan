@@ -35,9 +35,19 @@ export function formatCompact(value, currency) {
 // Compact axis-tick label whose decimal precision adapts to the gap between
 // ticks, so a small value range (e.g. $6,000–$6,300) doesn't collapse every
 // tick to the same rounded "$6.0K". `step` is the value distance between ticks.
-export function formatAxisTick(value, step, currency) {
-  if (value == null || !isFinite(value)) return '$0'
-  const sym = CURRENCY_SYMBOLS[currency || _baseCurrency] || '$'
+// `opts` es puramente aditivo: sin él el resultado es idéntico al de siempre.
+//   symbol:false     -> sin símbolo de moneda, porque la unidad ya se dice UNA
+//                       vez en el rótulo del eje en vez de en cada marca.
+//   exactSteps:true  -> las marcas caen en múltiplos exactos del paso (ejes
+//                       "nice"), así que redondear al paso no miente y no hace
+//                       falta el decimal de más. El piso de 1 decimal existe
+//                       para un paso arbitrario, donde $6,700 impreso como "$7K"
+//                       sí sería una mentira del 4.5%; con marcas redondas ese
+//                       caso no puede darse y "10.0K" solo es ruido.
+export function formatAxisTick(value, step, currency, opts) {
+  if (value == null || !isFinite(value)) return opts?.symbol === false ? '0' : '$0'
+  const sym = opts?.symbol === false ? '' : (CURRENCY_SYMBOLS[currency || _baseCurrency] || '$')
+  const minDec = opts?.exactSteps ? 0 : 1
   const abs = Math.abs(value)
   // Decimals needed at a given scale so one step changes a shown digit.
   const decimalsFor = (scaledStep, min) => {
@@ -45,10 +55,10 @@ export function formatAxisTick(value, step, currency) {
     return Math.min(3, Math.max(min, Math.ceil(-Math.log10(scaledStep))))
   }
   if (abs >= 1000000) {
-    return sym + (value / 1e6).toFixed(decimalsFor((step || 0) / 1e6, 1)) + 'M'
+    return sym + (value / 1e6).toFixed(decimalsFor((step || 0) / 1e6, minDec)) + 'M'
   }
   if (abs >= 1000) {
-    return sym + (value / 1e3).toFixed(decimalsFor((step || 0) / 1e3, 1)) + 'K'
+    return sym + (value / 1e3).toFixed(decimalsFor((step || 0) / 1e3, minDec)) + 'K'
   }
   return sym + value.toFixed(decimalsFor(step || 0, 0))
 }

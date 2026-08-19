@@ -249,7 +249,7 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
         {points.filter((_, i) => i % Math.max(1, Math.floor(points.length / 6)) === 0 || i === points.length - 1).map((p, i) => {
           const idx = points.indexOf(p)
           return (
-            <text key={i} x={balancePts[idx].x} y={height - 6} textAnchor="middle" fill="var(--text-muted)" fontSize="9" fontFamily="system-ui">
+            <text key={i} x={balancePts[idx].x} y={height - 6} textAnchor="middle" fill="var(--text-muted)" fontSize="9">
               {t(`Año ${p.year}`, `Yr ${p.year}`)}
             </text>
           )
