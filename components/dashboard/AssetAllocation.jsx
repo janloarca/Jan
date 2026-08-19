@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react'
 import { formatCurrency, getTypeCategory, TYPE_COLORS, CHART_PALETTE, getItemValue, getSectorFromItem, getGeographyFromItem, getInvestmentClass, INVESTMENT_CLASS_META, isExcludedFromNetWorth, getDividendIncomeByItem, getIncomeReceivedByItem, getInvestedCapital, getItemPrincipalCost, getMaturityInfo } from './utils'
 import { InfoTip } from '../ui/Tooltip'
+import SegmentedTabs from '@/components/ui/SegmentedTabs'
 
 // Maturity buckets, ordered soonest-first. `order` exists only so this view can
 // read as a ladder; every other view leaves it at 0 and therefore keeps sorting
@@ -131,10 +132,10 @@ export default function AssetAllocation({ items, lang, transactions, convert, ba
   ]
 
   return (
-    <div className="card p-4">
+    <div className="card p-4 sm:p-5">
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
+        <h3 className="card-title">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
           {t('ASIGNACIÓN DE ACTIVOS', 'ASSET ALLOCATION')}
           <InfoTip text={t(
@@ -148,20 +149,19 @@ export default function AssetAllocation({ items, lang, transactions, convert, ba
       </div>
 
       {/* View toggle — segmented control */}
-      <div className="inline-flex items-center gap-0.5 p-1 rounded-[10px] mb-5 max-w-full overflow-x-auto" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-        {views.map((v) => {
-          const active = view === v.key
-          return (
-            <button key={v.key} onClick={() => setView(v.key)}
-              className="px-2.5 py-1 text-xs font-medium rounded-md transition-all whitespace-nowrap"
-              style={active
-                ? { backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 2px rgba(0,0,0,0.08)' }
-                : { color: 'var(--text-muted)' }}>
-              {v.label}
-            </button>
-          )
-        })}
-      </div>
+      {/* Estas siete SÍ se quedan planas: son siete formas paralelas de agrupar
+          el mismo dinero, una dimensión cada una, así que meterlas en familias
+          sería una jerarquía inventada. Lo que les faltaba era el difuminado de
+          borde (esta fila lo había perdido al copiarse a mano desde Análisis) y
+          un objetivo táctil que no midiera exactamente el mínimo. */}
+      <SegmentedTabs
+        tabs={views}
+        value={view}
+        onChange={setView}
+        deps={[lang]}
+        ariaLabel={t('Agrupar por', 'Group by')}
+        className="mb-5"
+      />
 
       {/* Horizontal bar breakdown */}
       <div className="space-y-0">
@@ -174,7 +174,7 @@ export default function AssetAllocation({ items, lang, transactions, convert, ba
             : null
 
           return (
-            <div key={seg.name} className="rounded-lg px-2 -mx-2 transition-colors hover:bg-white/[0.03]" style={{ paddingTop: 6, paddingBottom: 6 }}>
+            <div key={seg.name} className="rounded-lg px-2 -mx-2 transition-colors hover:bg-theme-elevated" style={{ paddingTop: 6, paddingBottom: 6 }}>
               {/* Top row: label left, contribution + value + pct right */}
               <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-2 min-w-0">

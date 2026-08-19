@@ -34,12 +34,12 @@ export default function EmptyState({ onAdd, onImport, onTemplate, onDemo, onConn
 
   const assetTypes = [
     { Icon: TrendingUp, label: 'Stocks & ETFs', color: 'var(--accent-blue)' },
-    { Icon: Bitcoin, label: 'Crypto & DeFi', color: '#fbbf24' },
+    { Icon: Bitcoin, label: 'Crypto & DeFi', color: 'var(--alert-warn-icon)' },
     { Icon: Landmark, label: t('Bonos & CDTs', 'Bonds & CDs'), color: 'var(--accent-green)' },
-    { Icon: Briefcase, label: t('Fondos', 'Funds'), color: '#c084fc' },
-    { Icon: Home, label: t('Inmuebles', 'Real Estate'), color: '#fb923c' },
-    { Icon: Gem, label: 'SAFEs & VC', color: '#f472b6' },
-    { Icon: Building2, label: t('Bancos & Cash', 'Banks & Cash'), color: '#94a3b8' },
+    { Icon: Briefcase, label: t('Fondos', 'Funds'), color: 'var(--accent-purple)' },
+    { Icon: Home, label: t('Inmuebles', 'Real Estate'), color: 'var(--accent-orange)' },
+    { Icon: Gem, label: 'SAFEs & VC', color: 'var(--accent-pink)' },
+    { Icon: Building2, label: t('Bancos & Cash', 'Banks & Cash'), color: 'var(--text-muted)' },
     { Icon: CreditCard, label: t('Deudas', 'Debts'), color: 'var(--text-negative)' },
   ]
 

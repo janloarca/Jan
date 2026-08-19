@@ -66,7 +66,7 @@ export default function CurrencyImpact({ items, convert, baseCurrency, rates, la
 
   return (
     <div>
-      <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
+      <h3 className="card-title mb-4">
         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
         {t('IMPACTO CAMBIARIO', 'CURRENCY IMPACT')}
       </h3>
@@ -119,10 +119,13 @@ export default function CurrencyImpact({ items, convert, baseCurrency, rates, la
                     ? t(`${baseCurrency} se debilita ${s.pct}%`, `${baseCurrency} weakens ${s.pct}%`)
                     : t(`${baseCurrency} se fortalece ${Math.abs(s.pct)}%`, `${baseCurrency} strengthens ${Math.abs(s.pct)}%`)}
                 </span>
-                <span className="text-sm font-bold" style={{ color: isNeg ? '#f87171' : '#34d399' }}>
+                {/* Eran los hexes del tema oscuro: 2.77:1 y 1.92:1 sobre la card
+                    blanca. El `+` de abajo ya lleva el signo, así que el color
+                    es redundante y solo hacía falta que fuera legible. */}
+                <span className="text-sm font-bold" style={{ color: isNeg ? 'var(--text-negative)' : 'var(--accent-green)' }}>
                   {isNeg ? '' : '+'}{formatCurrency(s.impact)}
                 </span>
-                <span className="text-xs ml-1" style={{ color: isNeg ? 'rgba(239,68,68,0.7)' : 'rgba(52,211,153,0.7)' }}>
+                <span className="text-xs ml-1" style={{ color: 'var(--text-muted)' }}>
                   ({isNeg ? '' : '+'}{s.impactPct.toFixed(2)}%)
                 </span>
               </div>

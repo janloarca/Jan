@@ -12,6 +12,7 @@ import { computeTWRSeries, computeAnchoredReturnSeries, computeAnchoredMWRSeries
 import { authFetch, safeJson } from '@/lib/authFetch'
 import ErrorState from '@/components/ui/ErrorState'
 import { useEdgeFade } from '@/hooks/useEdgeFade'
+import SegmentedTabs from '@/components/ui/SegmentedTabs'
 import BusyLabel, { BusyRing } from '@/components/ui/BusyLabel'
 
 function polyline(pts) {
@@ -22,6 +23,58 @@ function polyline(pts) {
 // stray spaces in user data never split one custodian into two.
 function normInst(s) {
   return (s || '').trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
+// Marcas de eje en valores REDONDOS (Heckbert, "Nice Numbers for Graph Labels",
+// Graphics Gems 1990).
+//
+// Partir el rango crudo en cuatro pasos iguales pone las marcas donde caigan: en
+// la gráfica del usuario salían $11.0K, $15.3K, $19.6K, $23.8K y $28.1K, cinco
+// cifras que nadie compara de un vistazo. Con esto salen $10K, $15K, $20K, $25K,
+// $30K, que es lo que hace un eje legible: no que la línea suba más o menos,
+// sino que las referencias contra las que se lee sean números que uno ya tiene
+// en la cabeza.
+//
+// Cambia QUÉ líneas se dibujan y hasta dónde llega el eje, NUNCA cuánto vale un
+// punto: los valores de la serie no se tocan, solo el marco contra el que se
+// dibujan.
+function niceNum(x, round) {
+  if (!isFinite(x) || x <= 0) return 1
+  const exp = Math.floor(Math.log10(x))
+  const f = x / Math.pow(10, exp)
+  const nf = round
+    ? (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10)
+    : (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10)
+  return nf * Math.pow(10, exp)
+}
+
+// El eje se ensancha a lo sumo UN paso por lado, así que el rango crece como
+// mucho a ~1.7x: el piso anti-ruido de una serie plana (el `paddingVal` de abajo)
+// sobrevive intacto, y una gráfica que hoy se lee bien no se aplasta.
+//
+// Devuelve null cuando el reparto redondo no sirve (rango cero, o un paso que
+// deja el eje con una sola marca o con once). En ese caso se conserva el
+// reparto de siempre, que es el comportamiento previo exacto.
+function niceScale(lo, hi, count) {
+  const span = hi - lo
+  if (!isFinite(span) || span <= 0) return null
+  const step = niceNum(span / Math.max(count - 1, 1), true)
+  if (!isFinite(step) || step <= 0) return null
+  const min = Math.floor(lo / step) * step
+  const max = Math.ceil(hi / step) * step
+  const n = Math.round((max - min) / step) + 1
+  if (!isFinite(n) || n < 2 || n > 11) return null
+  // toPrecision mata el polvo de coma flotante (0.1+0.2 sobre un paso de 0.05
+  // imprime "0.15000000000000002" en el rótulo si no se limpia).
+  const clean = (v) => parseFloat(v.toPrecision(12))
+  return { min: clean(min), max: clean(max), step: clean(step), count: n }
+}
+
+// Decimales que un porcentaje necesita para que dos marcas vecinas no impriman
+// lo mismo. Con pasos redondos (5, 2, 1) da 0 y el eje sale "+5%", no "+5.00%".
+function pctDecimals(step) {
+  if (!isFinite(step) || step <= 0) return 2
+  return Math.min(2, Math.max(0, Math.ceil(-Math.log10(step))))
 }
 
 function buildGeometry(values, mode, height, width, pad, extraSeries, timestamps) {
@@ -50,8 +103,20 @@ function buildGeometry(values, mode, height, width, pad, extraSeries, timestamps
     const level = Math.max(Math.abs(max), Math.abs(min), 1)
     paddingVal = Math.max(paddingVal, level * 0.0075)
   }
-  const adjustedMin = mode === 'performance' ? Math.min(min, 0) - Math.abs(min || 1) * 0.1 : min - paddingVal
-  const adjustedMax = mode === 'performance' ? Math.max(max, 0) + Math.abs(max || 1) * 0.1 : max + paddingVal
+  let adjustedMin = mode === 'performance' ? Math.min(min, 0) - Math.abs(min || 1) * 0.1 : min - paddingVal
+  let adjustedMax = mode === 'performance' ? Math.max(max, 0) + Math.abs(max || 1) * 0.1 : max + paddingVal
+
+  // Los extremos se llevan al múltiplo redondo más cercano hacia afuera, así que
+  // toda marca cae en un número entero de pasos. En modo rendimiento eso además
+  // garantiza que el 0% caiga EXACTO sobre una línea de la cuadrícula (0 es
+  // múltiplo de cualquier paso), y el 0% ya está adentro del rango por
+  // construcción, así que ensanchar no lo puede dejar fuera.
+  const tickCount = 5
+  const nice = niceScale(adjustedMin, adjustedMax, tickCount)
+  if (nice) {
+    adjustedMin = nice.min
+    adjustedMax = nice.max
+  }
   const range = adjustedMax - adjustedMin || 1
 
   // X positions proportional to TIME when timestamps are supplied — index-based
@@ -74,13 +139,18 @@ function buildGeometry(values, mode, height, width, pad, extraSeries, timestamps
     ? pad.top + ch - ((0 - adjustedMin) / range) * ch
     : pad.top + ch
 
-  const tickCount = 5
-  const tickStep = range / (tickCount - 1)
-  const yTicks = Array.from({ length: tickCount }, (_, i) => ({
-    val: adjustedMin + (range * i) / (tickCount - 1),
-    y: pad.top + ch - (i / (tickCount - 1)) * ch,
-    step: tickStep,
-  }))
+  const tickStep = nice ? nice.step : range / (tickCount - 1)
+  const yTicks = nice
+    ? Array.from({ length: nice.count }, (_, i) => {
+        const val = parseFloat((nice.min + nice.step * i).toPrecision(12))
+        return { val, y: pad.top + ch - ((val - adjustedMin) / range) * ch, step: nice.step, nice: true }
+      })
+    : Array.from({ length: tickCount }, (_, i) => ({
+        val: adjustedMin + (range * i) / (tickCount - 1),
+        y: pad.top + ch - (i / (tickCount - 1)) * ch,
+        step: tickStep,
+        nice: false,
+      }))
 
   return { points, baselineY, yTicks, cw, ch, adjustedMin, range }
 }
@@ -174,7 +244,9 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   // FASE GP: fade the scroll edge only where the row actually hides content —
   // scrollbarWidth:'none' hides the native bar on these rows, so without this
   // the last pill just clips at the phone's edge with no sign there's more.
-  const periodFade = useEdgeFade([periods.length])
+  // La fila de períodos ya no la necesita: `SegmentedTabs` trae su propio
+  // difuminado adentro, así que declararla acá sería medir dos veces la misma
+  // fila. El filtro de institución sigue siendo una fila propia.
   const instFade = useEdgeFade([institutions.length])
 
   const scopedItems = useMemo(() => {
@@ -1456,8 +1528,16 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const width = chartWidth
   // 200px on phones — the card stacks header+banner+legend+pills and 260 made it
   // very tall on small screens; buildGeometry takes height as a param.
-  const chartHeight = width < 480 ? 200 : 260
-  const pad = { top: 16, right: 16, bottom: 32, left: 52 }
+  // Sube 18px respecto de los 200/260 de antes, exactamente lo que crecieron
+  // `pad.top` (rótulo de unidad del eje) y `pad.bottom` (carril propio para los
+  // marcadores de dinero que entra y sale). El ÁREA DE TRAZO queda idéntica a la
+  // de siempre: la línea se dibuja igual, la card es un poco más alta.
+  const chartHeight = width < 480 ? 218 : 278
+  // `top` sube de 16 a 26 para que quepa el rótulo de unidad del eje. Repetir el
+  // símbolo de moneda en las cinco marcas es tinta que no informa: la unidad se
+  // dice UNA vez arriba del eje (la convención de cualquier factsheet) y las
+  // marcas quedan siendo solo el número.
+  const pad = { top: 26, right: 16, bottom: 40, left: 52 }
 
   const step = Math.max(1, Math.floor(chartData.length / 6))
   const xLabels = useMemo(() => {
@@ -1656,22 +1736,22 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const periodSelector = (
     // Single row with horizontal scroll on mobile (9 pills used to wrap to 2 rows
     // and fatten the card); desktop unaffected because everything fits.
-    <div ref={periodFade.ref} className="flex flex-nowrap sm:flex-wrap overflow-x-auto max-w-full gap-0.5 bg-theme-base rounded-lg p-0.5 border border-glass-border/50" style={{ scrollbarWidth: 'none', ...periodFade.maskStyle }}>
-      {periods.map((p) => (
-        <button key={p} onClick={() => {
-          setPeriod(p)
-          if (p === 'CUSTOM') setShowCustomRange(true)
-          else setShowCustomRange(false)
-        }}
-          className={`px-3 py-2 text-xs font-semibold rounded-md transition-all border ${period === p ? 'pill-active' : 'border-transparent'}`}
-          style={period === p ? { color: 'var(--text-primary)' } : { color: 'var(--text-muted)' }}>{p === 'CUSTOM' ? (lang === 'es' ? 'Rango' : 'Range') : p}</button>
-      ))}
-    </div>
+    <SegmentedTabs
+      variant="range"
+      tabs={periods.map((p) => ({ key: p, label: p === 'CUSTOM' ? (lang === 'es' ? 'Rango' : 'Range') : p }))}
+      value={period}
+      onChange={(p) => {
+        setPeriod(p)
+        setShowCustomRange(p === 'CUSTOM')
+      }}
+      deps={[lang, periods.length]}
+      ariaLabel={t('Período', 'Period')}
+    />
   )
 
   if (loading && chartData.length < 2) {
     return (
-      <div className="card p-5">
+      <div className="card p-4 sm:p-5">
         <div className="flex items-center justify-center min-h-[260px]">
           <div className="flex items-center gap-2 text-slate-500 text-sm">
             <BusyRing size="16px" />
@@ -1684,7 +1764,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
   if (fetchError && chartData.length < 2) {
     return (
-      <div className="card p-5">
+      <div className="card p-4 sm:p-5">
         <ErrorState
           title={t('Error cargando gráfico', 'Error loading chart')}
           message={fetchError}
@@ -1697,7 +1777,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
   if (chartData.length < 2) {
     return (
-      <div className="card p-5">
+      <div className="card p-4 sm:p-5">
         <div className="flex flex-col items-center justify-center min-h-[200px] gap-2 text-slate-500 text-sm">
           {period === 'DAY' ? (
             <>
@@ -1719,7 +1799,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const hd = hoverIdx != null ? chartData[hoverIdx] : null
 
   return (
-    <div ref={containerRef} className="card p-5">
+    <div ref={containerRef} className="card p-4 sm:p-5">
       {/* Tab bar: Value | Performance TWR | Performance MWR (FASE FP).
           Value is untouched. TWR is the frozen anchored series and the
           default return view (the strategy's return, IBKR's headline
@@ -1727,29 +1807,22 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           of the user's own deposits counts. Both run over whatever
           institution scope is selected below. */}
       <div className="flex items-center gap-4 mb-4 flex-wrap">
-        <button onClick={() => setViewMode('value')}
-          className="text-sm font-medium pb-1 transition-all border-b-2"
-          style={viewMode === 'value'
-            ? { color: 'var(--text-primary)', borderColor: 'var(--text-primary)' }
-            : { color: 'var(--text-muted)', borderColor: 'transparent' }}>
-          {t('Valor', 'Value')}
-        </button>
-        <button onClick={() => setViewMode('performance')}
-          className="text-sm font-medium pb-1 transition-all border-b-2"
-          style={viewMode === 'performance'
-            ? { color: 'var(--text-primary)', borderColor: 'var(--text-primary)' }
-            : { color: 'var(--text-muted)', borderColor: 'transparent' }}
-          title={t('Retorno ponderado por tiempo: mide la estrategia, ignora el timing de tus aportes', 'Time-weighted return: measures the strategy, ignores the timing of your contributions')}>
-          {t('Rendimiento TWR', 'Performance TWR')}
-        </button>
-        <button onClick={() => setViewMode('performance-mwr')}
-          className="text-sm font-medium pb-1 transition-all border-b-2"
-          style={viewMode === 'performance-mwr'
-            ? { color: 'var(--text-primary)', borderColor: 'var(--text-primary)' }
-            : { color: 'var(--text-muted)', borderColor: 'transparent' }}
-          title={t('Retorno ponderado por dinero: tu rendimiento real, el timing de tus aportes cuenta', 'Money-weighted return: your actual return, the timing of your contributions counts')}>
-          {t('Rendimiento MWR', 'Performance MWR')}
-        </button>
+        {/* Era el TERCER lenguaje de pestaña de la pantalla (subrayado), al lado
+            de las pastillas de Análisis y de Asignación. Mismo primitivo; qué
+            hace cada modo no cambia. */}
+        <SegmentedTabs
+          tabs={[
+            { key: 'value', label: t('Valor', 'Value') },
+            { key: 'performance', label: t('Rendimiento TWR', 'Performance TWR'),
+              title: t('Retorno ponderado por tiempo: mide la estrategia, ignora el timing de tus aportes', 'Time-weighted return: measures the strategy, ignores the timing of your contributions') },
+            { key: 'performance-mwr', label: t('Rendimiento MWR', 'Performance MWR'),
+              title: t('Retorno ponderado por dinero: tu rendimiento real, el timing de tus aportes cuenta', 'Money-weighted return: your actual return, the timing of your contributions counts') },
+          ]}
+          value={viewMode}
+          onChange={setViewMode}
+          deps={[lang]}
+          ariaLabel={t('Qué muestra la gráfica', 'What the chart shows')}
+        />
         <div className="ml-auto flex items-center gap-2">
           {shownMode === 'value' && contributionLine && (
             <button onClick={() => setShowContributions(!showContributions)}
@@ -1880,18 +1953,31 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         </div>
       )}
 
-      {/* Drawdown indicator */}
+      {/* La caída máxima es un HECHO del período, no una alarma: toda gráfica de
+          patrimonio con historia suficiente tiene una, y venía envuelta en la
+          misma caja roja con borde que la app usa para un error que hay que
+          atender. Dos razones para sacarla de ahí. La de producto: en esta app
+          el rojo está reservado para algo grave (`lib/toastStyle.js`), y esto es
+          una estadística descriptiva. La dura: Chartability (POUR-CAF, EuroVis
+          2022) pide limitar las áreas rojas prominentes por riesgo de
+          fotosensibilidad, no por gusto.
+
+          Pasa a ser una línea de anotación bajo el encabezado. El porcentaje y
+          las dos fechas se conservan íntegros: no se quita información, cambia
+          dónde y con qué peso se dice. */}
       {shownMode === 'value' && drawdown && (
-        <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs mb-3"
-          style={{ backgroundColor: 'var(--alert-error-bg)', border: '1px solid var(--alert-error-border)', color: 'var(--text-negative)' }}>
-          <span>↓</span>
+        <p className="text-caption mb-3 flex items-center gap-1.5" style={{ color: 'var(--text-muted)' }}>
+          <span aria-hidden="true">↓</span>
           <span>
-            Max drawdown: -{drawdown.pct.toFixed(1)}%
-            <span className="text-slate-500 ml-1">
+            {t('Mayor caída del período', 'Largest drop in the period')}{' '}
+            <span className="font-medium tabular-nums" style={{ color: 'var(--text-secondary)' }}>
+              -{drawdown.pct.toFixed(1)}%
+            </span>
+            <span className="ml-1">
               ({chartData[drawdown.start] && formatDate(chartData[drawdown.start].date.toISOString())} → {chartData[drawdown.end] && formatDate(chartData[drawdown.end].date.toISOString())})
             </span>
           </span>
-        </div>
+        </p>
       )}
 
       {/* Short-history notice: real broker NAV starts well after Jan 1. The Value
@@ -2019,14 +2105,23 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
             {/* Y-axis grid lines and labels. In performance mode a tick can land a
                 few px from the dedicated "0%" baseline label — skip its text (keep
                 the gridline) so the two never collide ("-1.20%" over "0%"). */}
+            {/* Rótulo de unidad: la moneda (o el "%") se dice una vez, arriba del
+                eje, en vez de repetirse en cada marca. */}
+            <text x={0} y={11} textAnchor="start" fill="var(--text-muted)" fontSize="10" fontWeight="600">
+              {isPerf ? '%' : (baseCurrency || 'USD')}
+            </text>
+
             {geo.yTicks.map((tk, i) => {
               const collidesWithBaseline = isPerf && Math.abs(tk.y - geo.baselineY) < 12
               return (
                 <g key={i}>
                   <line x1={pad.left} y1={tk.y} x2={width - pad.right} y2={tk.y} stroke="var(--card-border)" strokeDasharray="4 4" strokeOpacity="0.8" />
                   {!collidesWithBaseline && (
-                    <text x={pad.left - 8} y={tk.y + 4} textAnchor="end" fill="var(--text-muted)" fontSize="10" fontFamily="system-ui">
-                      {isPerf ? `${tk.val >= 0 ? '+' : ''}${tk.val.toFixed(tk.val === 0 ? 0 : 2)}%` : formatAxisTick(tk.val, tk.step, baseCurrency)}
+                    <text x={pad.left - 8} y={tk.y + 4} textAnchor="end" fill="var(--text-muted)" fontSize="10"
+                      style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      {isPerf
+                        ? `${tk.val > 0 ? '+' : ''}${tk.val.toFixed(pctDecimals(tk.step))}`
+                        : formatAxisTick(tk.val, tk.step, baseCurrency, { symbol: false, exactSteps: tk.nice })}
                     </text>
                   )}
                 </g>
@@ -2052,14 +2147,16 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                   )}
                 </defs>
 
-                {/* Drawdown shaded zone */}
+                {/* Drawdown shaded zone. En neutro, no en rojo: la banda marca
+                    DÓNDE ocurrió la mayor caída, que es orientación, y pintarla
+                    del color de error decía que ese tramo está mal. */}
                 {drawdown && geo.points[drawdown.start] && geo.points[drawdown.end] && (
                   <rect
                     x={geo.points[drawdown.start].x}
                     y={pad.top}
                     width={geo.points[drawdown.end].x - geo.points[drawdown.start].x}
                     height={chartHeight - pad.top - pad.bottom}
-                    fill="var(--text-negative)" opacity="0.06" rx="2" />
+                    fill="var(--text-muted)" opacity="0.07" rx="2" />
                 )}
 
                 {/* Main value area + line. When part of the curve is a reconstruction
@@ -2088,7 +2185,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                       <path d={areaPath} fill="var(--text-muted)" opacity="0.1" clipPath="url(#clip-estimate-value)" />
                       <path d={areaPath} fill="url(#grad-value)" clipPath="url(#clip-real-value)" />
                       <line x1={splitX} y1={pad.top} x2={splitX} y2={chartHeight - pad.bottom} stroke="var(--text-muted)" strokeWidth="1" strokeDasharray="3 3" strokeOpacity="0.6" />
-                      <text x={splitX + (labelOnLeft ? -4 : 4)} y={pad.top + 10} textAnchor={labelOnLeft ? 'end' : 'start'} fill="var(--text-muted)" fontSize="9" fontFamily="system-ui">
+                      <text x={splitX + (labelOnLeft ? -4 : 4)} y={pad.top + 10} textAnchor={labelOnLeft ? 'end' : 'start'} fill="var(--text-muted)" fontSize="9">
                         {t('datos reales →', 'real data →')}
                       </text>
                       <path d={polyline(geo.points.slice(0, splitIdx + 1))} fill="none" stroke="var(--text-muted)" strokeWidth="1.5"
@@ -2105,6 +2202,13 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                 )}
 
                 {/* Transaction markers (aggregated: one triangle per point+direction) */}
+                {/* Carril propio, separado del piso del eje. Antes los triángulos
+                    colgaban pegados a la última línea de la cuadrícula, así que se
+                    leían como parte de la serie; ahora viven en la banda que
+                    `pad.bottom` reserva para ellos, con aire arriba y abajo.
+                    El `×N` sube de 8px a 12px: 8px queda por debajo del piso de
+                    legibilidad de Chartability, y ese contador es la única pista
+                    de que un punto agrupa varios movimientos. */}
                 {txMarkers.map((m, i) => {
                   const pt = geo.points[m.chartIdx]
                   if (!pt) return null
@@ -2114,11 +2218,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                     <g key={i}>
                       <polygon
                         points={m.isBuy
-                          ? `${pt.x},${markerY + 2} ${pt.x - 4},${markerY + 10} ${pt.x + 4},${markerY + 10}`
-                          : `${pt.x},${markerY + 10} ${pt.x - 4},${markerY + 2} ${pt.x + 4},${markerY + 2}`}
+                          ? `${pt.x},${markerY + 6} ${pt.x - 4},${markerY + 14} ${pt.x + 4},${markerY + 14}`
+                          : `${pt.x},${markerY + 14} ${pt.x - 4},${markerY + 6} ${pt.x + 4},${markerY + 6}`}
                         fill={color} opacity="0.6" />
                       {m.count > 1 && (
-                        <text x={pt.x + 6} y={markerY + 9} fill={color} fontSize="8" fontFamily="system-ui" opacity="0.8">×{m.count}</text>
+                        <text x={pt.x + 6} y={markerY + 15} fill={color} fontSize="12" opacity="0.9"
+                          style={{ fontVariantNumeric: 'tabular-nums' }}>×{m.count}</text>
                       )}
                     </g>
                   )
@@ -2147,7 +2252,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
                 <line x1={pad.left} y1={geo.baselineY} x2={width - pad.right} y2={geo.baselineY}
                   stroke="var(--text-muted)" strokeWidth="1" strokeDasharray="6 4" />
-                <text x={pad.left - 8} y={geo.baselineY + 4} textAnchor="end" fill="var(--text-muted)" fontSize="10" fontFamily="system-ui" fontWeight="600">0%</text>
+                {/* Sin "%": la unidad la dice el rótulo del eje, igual que las
+                    demás marcas. Con eje redondo el cero cae EXACTO sobre esta
+                    línea, así que la marca de 0 se suprime por colisión y esta
+                    etiqueta es la única que lo nombra. */}
+                <text x={pad.left - 8} y={geo.baselineY + 4} textAnchor="end" fill="var(--text-muted)" fontSize="10" fontWeight="600"
+                  style={{ fontVariantNumeric: 'tabular-nums' }}>0</text>
 
                 <path
                   d={`${polyline(geo.points)} L ${geo.points[geo.points.length - 1].x} ${geo.baselineY} L ${geo.points[0].x} ${geo.baselineY} Z`}
@@ -2167,7 +2277,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
             {/* X-axis labels */}
             {resolvedXLabels.map((xl, i) => (
-              <text key={i} x={xl.x} y={chartHeight - 8} textAnchor="middle" fill="var(--text-muted)" fontSize="10" fontFamily="system-ui">{xl.label}</text>
+              <text key={i} x={xl.x} y={chartHeight - 8} textAnchor="middle" fill="var(--text-muted)" fontSize="10">{xl.label}</text>
             ))}
 
             {/* Hover crosshair */}
@@ -2287,12 +2397,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           <input type="date" value={customRange.from}
             onChange={e => setCustomRange(prev => ({ ...prev, from: e.target.value }))}
             max={customRange.to || new Date().toISOString().split('T')[0]}
-            className="px-2 py-1 bg-theme-base border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[#3b82f6]" />
+            className="px-2 py-1 bg-theme-base border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[var(--accent-blue)]" />
           <label className="text-xs text-slate-400">{t('Hasta', 'To')}:</label>
           <input type="date" value={customRange.to}
             onChange={e => setCustomRange(prev => ({ ...prev, to: e.target.value }))}
             max={new Date().toISOString().split('T')[0]}
-            className="px-2 py-1 bg-theme-base border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[#3b82f6]" />
+            className="px-2 py-1 bg-theme-base border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[var(--accent-blue)]" />
         </div>
       )}
 
@@ -2341,12 +2451,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
               <div key={i} className="flex gap-2 items-center">
                 <input type="date" value={row.date}
                   onChange={e => setSnapshotRows(prev => prev.map((r, idx) => idx === i ? { ...r, date: e.target.value } : r))}
-                  className="px-2 py-1 bg-theme-card border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[#3b82f6] w-36" />
+                  className="px-2 py-1 bg-theme-card border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[var(--accent-blue)] w-36" />
                 <div className="flex items-center gap-1 flex-1">
                   <span className="text-xs text-slate-500">$</span>
                   <input type="number" value={row.value} placeholder={t('Valor total', 'Total value')}
                     onChange={e => setSnapshotRows(prev => prev.map((r, idx) => idx === i ? { ...r, value: e.target.value } : r))}
-                    className="w-full px-2 py-1 bg-theme-card border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[#3b82f6]" />
+                    className="w-full px-2 py-1 bg-theme-card border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[var(--accent-blue)]" />
                 </div>
                 {snapshotRows.length > 1 && (
                   <button onClick={() => setSnapshotRows(prev => prev.filter((_, idx) => idx !== i))}

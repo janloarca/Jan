@@ -57,7 +57,7 @@ export default function DataQualityCard({
   const score = assessment.score
   const nextKey = assessment.next
   const next = nextKey ? STAGES[nextKey] : null
-  const ringColor = score >= 100 ? 'var(--accent-green)' : score >= 60 ? 'var(--accent-blue)' : '#fbbf24'
+  const ringColor = score >= 100 ? 'var(--accent-green)' : score >= 60 ? 'var(--accent-blue)' : 'var(--alert-warn-icon)'
 
   return (
     <div>
@@ -73,7 +73,7 @@ export default function DataQualityCard({
             />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-2xl font-bold" style={{ color: ringColor }}>{score}%</span>
+            <span className="text-h1" style={{ color: ringColor }}>{score}%</span>
             <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
               {t('datos reales', 'real data')}
             </span>
@@ -81,8 +81,11 @@ export default function DataQualityCard({
         </div>
 
         <div className="flex-1 min-w-0">
-          <h3 className="text-base font-semibold text-white mb-0.5">
-            {t('Qué tan real es tu historia', 'How real is your history')}
+          {/* Iba en oración y a 16px mientras el resto de las pestañas de
+              Análisis van en mayúsculas a 13px. */}
+          <h3 className="card-title mb-1">
+            <span aria-hidden="true" className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: 'var(--accent-purple)' }} />
+            {t('QUÉ TAN REAL ES TU HISTORIA', 'HOW REAL IS YOUR HISTORY')}
           </h3>
           <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
             {score >= 100
@@ -164,8 +167,10 @@ export default function DataQualityCard({
           {/* Market is a residual, so when nothing else is recorded it silently
               absorbs missing deposits and dividends. Say so rather than letting
               the user read an invented return. */}
+          {/* El color era `#fcd34d`, que medía 1.44:1 sobre la card blanca:
+              amarillo pálido sobre blanco, el peor contraste de la página. */}
           {bridge.recordedShare < 0.15 && (
-            <p className="text-[11px] mt-2" style={{ color: '#fcd34d' }}>
+            <p className="text-micro mt-2" style={{ color: 'var(--alert-warn-icon)' }}>
               {t('Casi todo tu cambio está cayendo en "Mercado" porque no tenemos tus movimientos registrados. Con ellos, esta cuenta se vuelve exacta.',
                  'Almost all of your change is landing in "Market" because we have no movements recorded. With them, this breakdown becomes exact.')}
             </p>

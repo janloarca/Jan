@@ -125,7 +125,7 @@ export default function SnapshotComparison({ snapshots, items, lang }) {
             </div>
             <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50 text-center">
               <div className="text-xs text-slate-500 mb-1">{t('Cambio', 'Change')}</div>
-              <div className="text-sm font-bold" style={{ color: comparison.change >= 0 ? '#34d399' : '#f87171' }}>
+              <div className="text-sm font-bold" style={{ color: comparison.change >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                 {comparison.change >= 0 ? '+' : ''}{comparison.changePct.toFixed(2)}%
               </div>
               <div className="text-xs" style={{ color: comparison.change >= 0 ? 'rgba(52,211,153,0.7)' : 'rgba(239,68,68,0.7)' }}>
@@ -141,7 +141,7 @@ export default function SnapshotComparison({ snapshots, items, lang }) {
           {comparison.annualized != null && (
             <div className="flex items-center justify-between text-xs mb-3 px-1">
               <span className="text-slate-500">{comparison.daysBetween}d · {t('Anualizado', 'Annualized')}</span>
-              <span className="font-medium" style={{ color: comparison.annualized >= 0 ? '#34d399' : '#f87171' }}>
+              <span className="font-medium" style={{ color: comparison.annualized >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                 {comparison.annualized >= 0 ? '+' : ''}{comparison.annualized.toFixed(2)}%
               </span>
             </div>
@@ -151,7 +151,7 @@ export default function SnapshotComparison({ snapshots, items, lang }) {
             <div className="mb-3">
               <svg viewBox={`0 0 ${sparkline.w} ${sparkline.h}`} className="w-full h-12" preserveAspectRatio="none">
                 <polyline points={sparkline.points} fill="none"
-                  stroke={comparison.change >= 0 ? '#34d399' : '#ef4444'} strokeWidth="1.5" />
+                  stroke={comparison.change >= 0 ? 'var(--accent-green)' : 'var(--text-negative)'} strokeWidth="1.5" />
               </svg>
             </div>
           )}

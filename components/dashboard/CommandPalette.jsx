@@ -144,7 +144,7 @@ export default function CommandPalette({ open, onClose, items, lang, onAction })
               }`}
               style={i === selectedIdx
                 ? { backgroundColor: 'rgba(37,99,235,0.2)', color: '#ffffff' }
-                : { color: '#cbd5e1' }
+                : { color: 'var(--text-muted)' }
               }
             >
               <span className="w-6 text-center shrink-0 flex items-center justify-center"><Icon name={r.icon} size={16} className="text-slate-400" /></span>

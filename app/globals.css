@@ -611,6 +611,35 @@ html[data-ptr="on"] body {
   box-shadow: var(--shadow-card);
 }
 
+/* El título de una card. UNA definición, como .card y .btn-primary.
+ *
+ * Antes había CINCO tratamientos para lo mismo en la misma pantalla: trece
+ * cards con `text-sm font-medium text-slate-400`, dos con `text-base
+ * font-semibold text-white`, dos con un style inline, una con emoji y sin
+ * punto, y una en oración mientras sus hermanas iban en mayúsculas.
+ *
+ * Importa más de lo que parece: el patrón de escaneo más eficiente que
+ * documenta NN/g (layer-cake) salta de encabezado en encabezado, y solo
+ * funciona cuando los encabezados son visualmente distintos ENTRE SÍ pero
+ * iguales en su nivel. Cinco tratamientos rompen las capas.
+ *
+ * El tamaño sale de la escala (text-caption, 13px) y el color de un token, no
+ * de una clase de Tailwind: `.text-slate-400` solo se ve bien en tema claro
+ * porque globals lo remapea con !important más abajo, que es una indirección
+ * que no hace falta pagar acá. */
+.card-title {
+  font-size: 0.8125rem;
+  line-height: 1.38;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
 /* Opt-in, y SOLO para cards que de verdad son un enlace o un botón. Safari en
    iPadOS aplica :hover al primer toque y lo deja pegado hasta que tocás en otro
    lado, así que una card no clickeable que se levanta al tocarla es una

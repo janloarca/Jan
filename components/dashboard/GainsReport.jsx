@@ -53,7 +53,7 @@ export default function GainsReport({ lots, items, lang, convert, baseCurrency }
 
   return (
     <div>
-      <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
+      <h3 className="card-title mb-4">
         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
         {t('GANANCIAS Y PÉRDIDAS', 'GAINS & LOSSES')}
       </h3>

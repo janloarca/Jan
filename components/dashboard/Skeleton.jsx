@@ -14,7 +14,7 @@ export function Shimmer({ className }) {
 
 export function SkeletonCard() {
   return (
-    <div className="card p-5">
+    <div className="card p-4 sm:p-5">
       <Shimmer className="h-4 w-24 mb-4" />
       <Shimmer className="h-8 w-40 mb-2" />
       <Shimmer className="h-3 w-32" />
@@ -24,7 +24,7 @@ export function SkeletonCard() {
 
 export function SkeletonChart() {
   return (
-    <div className="card p-5">
+    <div className="card p-4 sm:p-5">
       <div className="flex items-center justify-between mb-4">
         <Shimmer className="h-4 w-32" />
         <div className="flex gap-2">
@@ -40,7 +40,7 @@ export function SkeletonChart() {
 
 export function SkeletonTable() {
   return (
-    <div className="card p-5">
+    <div className="card p-4 sm:p-5">
       <Shimmer className="h-4 w-40 mb-4" />
       {[...Array(5)].map((_, i) => (
         <div key={i} className="flex items-center gap-3 mb-3">

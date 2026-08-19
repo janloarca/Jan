@@ -35,15 +35,15 @@ const CATEGORY_LABELS = {
 }
 
 const CATEGORY_ACCENT = {
-  banks: '#94a3b8',
+  banks: 'var(--text-muted)',
   funds: '#818cf8',
   stocks: 'var(--accent-blue)',
   crypto: '#f97316',
   alternatives: '#a78bfa',
-  bonds: '#f59e0b',
-  realestate: '#34d399',
+  bonds: 'var(--alert-warn-icon)',
+  realestate: 'var(--accent-green)',
   receivables: '#06b6d4',
-  debts: '#ef4444',
+  debts: 'var(--text-negative)',
   other: '#64748b',
 }
 

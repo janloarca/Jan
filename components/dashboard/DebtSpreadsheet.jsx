@@ -206,7 +206,7 @@ export default function DebtSpreadsheet({ items, lang, onEditItem, onAdd }) {
                         <span className="font-mono text-sm text-red-600 font-medium">${fmt(debt.balance)}</span>
                       </td>
                       <td className="px-3 py-2.5 text-right">
-                        <span className={`font-mono text-sm ${debt.rate > 20 ? 'font-semibold' : ''}`} style={{ color: debt.rate > 20 ? '#ef4444' : debt.rate > 0 ? '#d97706' : '#94a3b8' }}>
+                        <span className={`font-mono text-sm ${debt.rate > 20 ? 'font-semibold' : ''}`} style={{ color: debt.rate > 20 ? 'var(--text-negative)' : debt.rate > 0 ? '#d97706' : 'var(--text-muted)' }}>
                           {debt.rate > 0 ? pctFmt(debt.rate) : '-'}
                         </span>
                       </td>
@@ -220,7 +220,7 @@ export default function DebtSpreadsheet({ items, lang, onEditItem, onAdd }) {
                         <span className="font-mono text-sm text-slate-700">{debt.remaining > 0 ? debt.remaining : '-'}</span>
                       </td>
                       <td className="px-3 py-2.5 text-right">
-                        <span className="font-mono text-sm" style={{ color: debt.monthlyInterest > 100 ? '#ef4444' : '#f59e0b' }}>
+                        <span className="font-mono text-sm" style={{ color: debt.monthlyInterest > 100 ? 'var(--text-negative)' : 'var(--alert-warn-icon)' }}>
                           {debt.monthlyInterest > 0 ? `$${fmt(debt.monthlyInterest)}` : '-'}
                         </span>
                       </td>
