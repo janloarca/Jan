@@ -200,8 +200,8 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
 
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           <p className="text-xs text-slate-500">{t(
-            'Cada compra con tarjeta entra sola a tu Flujo, con categoría, monto, moneda, comercio y ubicación. Hay dos caminos y conviene usar los dos: el atajo del iPhone captura al instante lo que pagas con Apple Pay, y el reenvío de correo recoge todo lo demás una vez al día. Si un cobro llega por los dos, se guarda una sola vez.',
-            'Every card purchase lands in your Flujo on its own, with category, amount, currency, merchant and location. There are two paths and both are worth using: the iPhone shortcut captures Apple Pay charges instantly, and email forwarding picks up everything else once a day. If a charge arrives through both, it is stored only once.'
+            'Cada compra con tarjeta entra sola a tu Flujo, con categoría, monto, moneda, comercio y ubicación. Hay dos caminos y conviene usar los dos: el atajo del iPhone captura al instante los pagos con Apple Pay, y el reenvío de correo recoge todo lo demás una vez al día (tarjeta física y cobros en línea). Si un cobro llega por los dos, se guarda una sola vez.',
+            'Every card purchase lands in your Flujo on its own, with category, amount, currency, merchant and location. There are two paths and both are worth using: the iPhone shortcut captures Apple Pay charges instantly, and email forwarding picks up everything else once a day (physical card and online charges). If a charge arrives through both, it is stored only once.'
           )}</p>
 
           {initialError ? (
