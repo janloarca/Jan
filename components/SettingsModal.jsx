@@ -147,7 +147,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emailSig])
 
-  // FASE JZ. Tu nombre, para la portada del reporte PDF y para Amigos. Vive en
+  // FASE KB. Tu nombre, para la portada del reporte PDF y para Amigos. Vive en
   // `settings/profile` (doc aparte de las preferencias) y hasta ahora SOLO se
   // podía escribir desde el lápiz de la tarjeta de Amigos, que además se
   // esconde entera cuando esa pestaña está apagada: quien nunca pasó por ahí

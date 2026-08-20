@@ -38,7 +38,7 @@ export default function FinancialProfileCard({ profile, onSaveProfile, analysis,
     riskTolerance: profile?.riskTolerance || 'moderate',
   })
 
-  // FASE JZ. El perfil financiero tiene su PROPIO reloj. `saveProfile` estampa
+  // FASE KB. El perfil financiero tiene su PROPIO reloj. `saveProfile` estampa
   // `updatedAt` en cada escritura del doc, y ese doc también guarda el nombre,
   // así que guardar un nombre (desde Amigos, o desde el campo nuevo de Ajustes)
   // reiniciaba esta fecha: el perfil quedaba como recién revisado sin serlo, y
