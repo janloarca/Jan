@@ -5,7 +5,7 @@ import { useFocusTrap } from '@/hooks/useFocusTrap'
 import {
   Settings, Building2, Users, X, SlidersHorizontal, Share2, Database, Palette,
   ToggleLeft, Bell, GraduationCap, Link2, Download, AlertTriangle, ChevronDown,
-  Trash2, CheckCircle2,
+  Trash2, CheckCircle2, User,
 } from 'lucide-react'
 import EntityManager from '@/components/dashboard/EntityManager'
 import { authFetch, safeJson } from '@/lib/authFetch'
@@ -77,7 +77,7 @@ function ToggleCard({ active, onClick, icon: Icon, title, description }) {
   )
 }
 
-export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onDeleteFinanceTransactionsByIds, financeTransactions = [], onDeleteItemGroup, onExportBackup, onOpenConnections, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, beginnerMode = false, onToggleBeginner, lang = 'es', onSetLang, portfolioItems = [], userEmail = '' }) {
+export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onDeleteFinanceTransactionsByIds, financeTransactions = [], onDeleteItemGroup, onExportBackup, onOpenConnections, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, beginnerMode = false, onToggleBeginner, lang = 'es', onSetLang, portfolioItems = [], userEmail = '', profile = null, onSaveProfile, userDisplayName = '' }) {
   const trapRef = useFocusTrap()
   const [baseCurrency, setBaseCurrency] = useState(settings?.baseCurrency || 'USD')
   const [benchmarkSymbol, setBenchmarkSymbol] = useState(settings?.benchmarkSymbol || '%5EGSPC')
@@ -146,6 +146,30 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
     setEmailPrefs(Object.fromEntries(EMAIL_CADENCES.map((c) => [c.key, settings?.[c.key] === true])))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emailSig])
+
+  // FASE JZ. Tu nombre, para la portada del reporte PDF y para Amigos. Vive en
+  // `settings/profile` (doc aparte de las preferencias) y hasta ahora SOLO se
+  // podía escribir desde el lápiz de la tarjeta de Amigos, que además se
+  // esconde entera cuando esa pestaña está apagada: quien nunca pasó por ahí
+  // no tenía ninguna forma de guardarlo, y su reporte salía sin nombre.
+  //
+  // Guarda con el MISMO `onSaveProfile` que usa Amigos, nunca con una función
+  // nueva: los dos escriben el mismo doc y el mismo campo, así que no pueden
+  // divergir. Y con el campo vacío se ofrece el `displayName` de la cuenta
+  // como valor inicial: eso MATERIALIZA ese nombre en `settings/profile`, que
+  // es el único lugar que el servidor lee (el cron no tiene el registro de
+  // Auth a mano), en vez de dejarlo como una segunda fuente que consultar.
+  const savedName = typeof profile?.name === 'string' ? profile.name : ''
+  const [nameDraft, setNameDraft] = useState(savedName || userDisplayName || '')
+  const [savingName, setSavingName] = useState(false)
+  // Misma lección que los interruptores de correo de arriba: el estado inicial
+  // se calcula UNA vez, así que si el perfil todavía no había llegado al montar
+  // (o su lectura falló) el campo se quedaría vacío mostrando lo contrario de
+  // lo que hay guardado. Solo se resiembra cuando cambia el valor GUARDADO,
+  // para no pisar lo que el usuario está tecleando.
+  useEffect(() => {
+    setNameDraft(savedName || userDisplayName || '')
+  }, [savedName, userDisplayName])
   const [testingEmail, setTestingEmail] = useState(null) // la cadencia en vuelo, o null
   const [testResult, setTestResult] = useState(null)
   // El error crudo del servidor se muestra tal cual (es lo que ahorra rondas
@@ -261,6 +285,23 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   }, [portfolioItems])
 
   const flash = (type, msg) => { setSaveStatus({ type, msg }); setTimeout(() => setSaveStatus(null), 3000) }
+
+  const trimmedName = nameDraft.trim()
+  const nameDirty = !!onSaveProfile && trimmedName !== savedName
+  const handleSaveName = async () => {
+    if (!nameDirty || savingName) return
+    setSavingName(true)
+    try {
+      await onSaveProfile({ name: trimmedName })
+      flash('ok', t('Nombre guardado', 'Name saved'))
+    } catch (e) {
+      flash('err', isFirestoreQuotaError(e)
+        ? t('La base alcanzó su límite diario. Intenta más tarde.', 'The database hit its daily limit. Try again later.')
+        : (e.message || t('Error al guardar', 'Error saving')))
+    } finally {
+      setSavingName(false)
+    }
+  }
 
   useEffect(() => {
     const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
@@ -456,6 +497,42 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
         <div className="flex-1 overflow-y-auto p-5">
           {tab === 'general' && (
             <div className="space-y-4">
+              {/* Tu nombre va PRIMERO: es quién sos, y precede a cualquier
+                  preferencia. El caption dice para qué sirve, porque un campo
+                  de nombre sin motivo aparente en una app de finanzas se lee
+                  como un dato que se pide porque sí. */}
+              {onSaveProfile && (
+                <SectionCard icon={User} title={t('Tu nombre', 'Your name')}>
+                  <div>
+                    <label htmlFor="settings-name" className="text-xs mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>
+                      {t('Nombre para mostrar', 'Display name')}
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        id="settings-name" type="text" value={nameDraft} maxLength={60}
+                        onChange={(e) => setNameDraft(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleSaveName() }}
+                        placeholder={t('Tu nombre', 'Your name')}
+                        className="flex-1 min-w-0 px-3 py-2.5 bg-theme-card border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50"
+                      />
+                      <button type="button" onClick={handleSaveName} disabled={!nameDirty || savingName}
+                        className="px-4 py-2.5 text-sm font-medium rounded-lg transition-colors shrink-0 border disabled:opacity-40 disabled:cursor-default"
+                        style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
+                        <BusyLabel busy={savingName} lang={lang}>{t('Guardar', 'Save')}</BusyLabel>
+                      </button>
+                    </div>
+                    {/* `--text-muted` y no la clase `text-slate-600` que usan
+                        los captions vecinos: medido, esa resuelve a 4.00:1 en
+                        tema oscuro, o sea bajo el piso de texto. Igualar a un
+                        vecino que no llega seria propagar el defecto a codigo
+                        nuevo. El token esta en 6.7 oscuro / 7.2 claro. */}
+                    <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                      {t('Aparece en la portada de tu reporte PDF y en Amigos.', 'Appears on your PDF report cover and in Friends.')}
+                    </p>
+                  </div>
+                </SectionCard>
+              )}
+
               {/* Broker syncs moved to their own hub — keep a pointer for discoverability */}
               {onOpenConnections && (
                 <div className="flex items-center justify-between gap-3 p-3.5 bg-theme-base border border-glass-border rounded-xl">

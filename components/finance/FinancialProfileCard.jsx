@@ -38,10 +38,20 @@ export default function FinancialProfileCard({ profile, onSaveProfile, analysis,
     riskTolerance: profile?.riskTolerance || 'moderate',
   })
 
-  const age = profileAge(profile?.updatedAt, t)
+  // FASE JZ. El perfil financiero tiene su PROPIO reloj. `saveProfile` estampa
+  // `updatedAt` en cada escritura del doc, y ese doc también guarda el nombre,
+  // así que guardar un nombre (desde Amigos, o desde el campo nuevo de Ajustes)
+  // reiniciaba esta fecha: el perfil quedaba como recién revisado sin serlo, y
+  // el aviso de los 90 días no volvía a sonar nunca.
+  //
+  // El respaldo a `updatedAt` importa: quien ya tiene perfil guardado solo
+  // tiene esa fecha, y sin el fallback su rótulo diría "nunca revisado" de
+  // golpe. Se corrige solo en el primer guardado del perfil.
+  const financialTs = profile?.financialUpdatedAt || profile?.updatedAt
+  const age = profileAge(financialTs, t)
   // Nudge when the profile has gone stale — this data is time-sensitive.
-  const isStale = profile?.updatedAt
-    ? Date.now() - new Date(profile.updatedAt).getTime() > 90 * 86400000
+  const isStale = financialTs
+    ? Date.now() - new Date(financialTs).getTime() > 90 * 86400000
     : false
   const isEmpty = !profile?.monthlyIncome && !profile?.monthlyExpenses
 
@@ -60,6 +70,8 @@ export default function FinancialProfileCard({ profile, onSaveProfile, analysis,
         if (k === 'riskTolerance') { data[k] = v; return }
         if (v !== '' && v != null) data[k] = Number(v)
       })
+      // El reloj de frescura de ESTE perfil, movido solo por ESTE formulario.
+      data.financialUpdatedAt = new Date().toISOString()
       await onSaveProfile(data)
       setSavedFlash(true)
       setTimeout(() => setSavedFlash(false), 2500)
