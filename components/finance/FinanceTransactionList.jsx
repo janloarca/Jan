@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { CATEGORY_COLORS } from '@/lib/financeCategories'
 import { cashFlowOf, flowSign, flowMagnitude, isReversal } from '@/lib/financeAmount'
+import { formatFinanceDate } from '@/lib/financeMonth'
 import CategoryEditor from '@/components/finance/CategoryEditor'
 
 // The month's ledger. Two layouts on purpose: a table from `sm` up, and one
@@ -186,7 +187,7 @@ export default function FinanceTransactionList({ transactions, onDelete, onRecat
                   <p className="text-xs truncate" style={{ color: 'var(--text-primary)' }}><Description tx={tx} /></p>
                   <div className="flex items-center gap-2 mt-1 text-xs min-w-0">
                     <span className="font-mono tabular-nums shrink-0" style={{ color: 'var(--text-muted)' }}>
-                      {tx.date}{timeOf(tx) ? ` ${timeOf(tx)}` : ''}
+                      {formatFinanceDate(tx.date)}{timeOf(tx) ? ` ${timeOf(tx)}` : ''}
                     </span>
                     <span className="shrink-0" style={{ color: 'var(--text-muted)' }}>·</span>
                     <CategoryCell tx={tx} i={i} />
@@ -215,7 +216,7 @@ export default function FinanceTransactionList({ transactions, onDelete, onRecat
                 {filtered.map((tx, i) => (
                   <tr key={keyOf(tx, i)} className="border-b border-glass-border/50 hover:bg-theme-elevated">
                     <td className="py-2 px-2 font-mono tabular-nums whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
-                      {tx.date}
+                      {formatFinanceDate(tx.date)}
                       {/* Espacio de verdad, no solo un margen: si no, copiar la
                           celda o leerla con lector de pantalla da "2026-08-0320:32". */}
                       {timeOf(tx) && <span className="opacity-70">{' '}{timeOf(tx)}</span>}
