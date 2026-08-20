@@ -26,6 +26,7 @@ import FileImportModal from '@/components/FileImportModal'
 import { SkeletonCard, SkeletonTable } from '@/components/dashboard/Skeleton'
 import InlineNotice from '@/components/ui/InlineNotice'
 import { computeMonthlyAnalysis, buildFinanceInsights, investmentIncomeOfMonth } from '@/lib/financeMonth'
+import { financeReportCsv, downloadCsv } from '@/lib/financeCsv'
 import { planRecategorize, isMachineDescribed } from '@/lib/recategorize'
 import PageTour from '@/components/dashboard/PageTour'
 import { Wallet, Zap } from 'lucide-react'
@@ -256,24 +257,13 @@ export default function FinancesPage() {
   const handleExportCsv = () => {
     if (monthTransactions.length === 0) return
     // Amounts here are already GTQ-normalized (monthTransactions), so the
-    // Currency column is always GTQ; converted rows keep their original next to it.
-    const header = 'Date,Type,Category,Description,Amount,Currency,OriginalAmount,OriginalCurrency'
-    const rows = monthTransactions.map(tx => {
-      const esc = (v) => `"${String(v || '').replace(/"/g, '""')}"`
-      return [
-        esc(tx.date || ''), esc(tx.type || ''), esc(tx.category || ''), esc(tx.description || ''),
-        tx.amount || 0, esc(FINANCE_CURRENCY),
-        tx._originalCurrency ? (tx._originalAmount || 0) : '', esc(tx._originalCurrency || ''),
-      ].join(',')
-    })
-    const csv = [header, ...rows].join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `chispudo-finances-${year}-${String(month + 1).padStart(2, '0')}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+    // Currency column is always GTQ; converted rows keep their original next to
+    // it. El RESPALDO previo a un borrado usa el otro constructor del mismo
+    // módulo, que sale del monto crudo: ver lib/financeCsv.js.
+    downloadCsv(
+      financeReportCsv(monthTransactions, { currency: FINANCE_CURRENCY }),
+      `chispudo-finances-${year}-${String(month + 1).padStart(2, '0')}.csv`,
+    )
   }
 
   if (authLoading || (user && dataLoading)) {

@@ -435,6 +435,7 @@ export default function DashboardPage() {
     addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution,
     addPortfolio, deletePortfolio,
     addFinanceTransaction, updateFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
+    deleteFinanceTransactionsByIds,
     bulkImport,
     saveGoals, saveSettings, saveProfile, incomePlan, saveIncomePlan,
     enrichedItems, portfolioItems: rawPortfolioItems, entityTransactions, entityFinanceTransactions,
@@ -1859,6 +1860,8 @@ export default function DashboardPage() {
           onDeleteAllItems={handleDeleteAllItems} onDeleteAllSnapshots={deleteAllSnapshots}
           onDeleteAllTransactions={deleteAllTransactions}
           onDeleteAllFinanceTransactions={deleteAllFinanceTransactions}
+          onDeleteFinanceTransactionsByIds={deleteFinanceTransactionsByIds}
+          financeTransactions={financeTransactions}
           onDeleteItemGroup={handleDeleteItemGroup}
           onSetLang={() => handleSetLang('toggle')}
           entities={entities}

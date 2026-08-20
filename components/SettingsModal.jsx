@@ -15,6 +15,7 @@ import { disconnectAllSyncs, IBKR_DISCONNECTED_FIELDS } from '@/lib/brokerRegist
 import { useEdgeFade } from '@/hooks/useEdgeFade'
 import { isFirestoreQuotaError } from '@/lib/firestoreErrors'
 import BusyLabel from '@/components/ui/BusyLabel'
+import FinanceWipePanel from '@/components/settings/FinanceWipePanel'
 
 const CURRENCIES = [
   { code: 'USD', name: 'US Dollar', symbol: '$' },
@@ -76,7 +77,7 @@ function ToggleCard({ active, onClick, icon: Icon, title, description }) {
   )
 }
 
-export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onDeleteItemGroup, onExportBackup, onOpenConnections, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, beginnerMode = false, onToggleBeginner, lang = 'es', onSetLang, portfolioItems = [], userEmail = '' }) {
+export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onDeleteFinanceTransactionsByIds, financeTransactions = [], onDeleteItemGroup, onExportBackup, onOpenConnections, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, beginnerMode = false, onToggleBeginner, lang = 'es', onSetLang, portfolioItems = [], userEmail = '' }) {
   const trapRef = useFocusTrap()
   const [baseCurrency, setBaseCurrency] = useState(settings?.baseCurrency || 'USD')
   const [benchmarkSymbol, setBenchmarkSymbol] = useState(settings?.benchmarkSymbol || '%5EGSPC')
@@ -291,7 +292,9 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
       if (type === 'items') await onDeleteAllItems({ cascade: true })
       if (type === 'snapshots') await onDeleteAllSnapshots()
       if (type === 'transactions') await onDeleteAllTransactions()
-      if (type === 'financeTransactions' && onDeleteAllFinanceTransactions) await onDeleteAllFinanceTransactions()
+      // 'financeTransactions' ya no llega acá: Flujo tiene su propio panel
+      // (FinanceWipePanel), que borra por mes y por método. "Eliminar todo"
+      // sigue llamando a onDeleteAllFinanceTransactions más abajo.
       if (type === 'all') {
         await onDeleteAllItems({ cascade: true })
         await onDeleteAllSnapshots()
@@ -928,9 +931,23 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                         {[
                           { key: 'items', label: t('Eliminar todas las cuentas', 'Delete all accounts'), desc: t('Instrumentos y posiciones (con sus lots y transacciones).', 'Instruments and positions (with their lots and transactions).'), warn: t('Se borrarán cuentas, lots y transacciones asociadas.', 'This will delete accounts, lots, and associated transactions.') },
                           { key: 'transactions', label: t('Eliminar transacciones', 'Delete transactions'), desc: t('Solo el historial de movimientos del portafolio.', 'Only the portfolio movement history.'), warn: t('Los retornos YTD y Modified Dietz serán menos precisos.', 'YTD returns and Modified Dietz will be less accurate.') },
-                          { key: 'financeTransactions', label: t('Eliminar finanzas', 'Delete finance data'), desc: t('Solo los ingresos y gastos personales.', 'Only personal income and expense data.'), warn: t('Se perderá el historial de ingresos y gastos.', 'Income and expense history will be lost.') },
                           { key: 'snapshots', label: t('Eliminar snapshots', 'Delete snapshots'), desc: t('Solo el historial del gráfico de crecimiento.', 'Only the growth chart history.'), warn: t('El gráfico de crecimiento perderá datos históricos.', 'The growth chart will lose historical data.') },
                         ].map(renderAction)}
+
+                        {/* Finanzas tiene su propio panel: es la única de estas
+                            colecciones donde acotar por mes y por método de
+                            captura tiene sentido, y donde un borrado puede ser
+                            irrecuperable (lo del atajo y el correo no vuelve
+                            solo), así que ofrece el respaldo antes. */}
+                        {onDeleteFinanceTransactionsByIds && (
+                          <FinanceWipePanel
+                            transactions={financeTransactions}
+                            onDeleteByIds={onDeleteFinanceTransactionsByIds}
+                            onDeleteAll={onDeleteAllFinanceTransactions}
+                            lang={lang}
+                            onDone={(n) => flash('ok', n === 1 ? t('1 movimiento eliminado', '1 movement deleted') : t(`${n} movimientos eliminados`, `${n} movements deleted`))}
+                          />
+                        )}
 
                         {/* Per-account delete: wipe one origin (e.g. IBKR API) without
                             touching another (manual IDC). Only when >1 account exists. */}
