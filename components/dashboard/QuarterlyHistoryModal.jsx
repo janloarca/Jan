@@ -24,6 +24,7 @@ import { quartersBetween, quarterSnapshotDate, formatCurrency } from './utils'
 import BrokerSteps from '@/components/ui/BrokerSteps'
 import { CURRENCIES, currencyOptions } from '@/lib/currencies'
 import BusyLabel from '@/components/ui/BusyLabel'
+import { planQuarterlyNavWrite } from '@/lib/ibkrSnapshotPlan'
 
 
 // Made-up figures. The point is the SHAPE of what to read off the chart, not a
@@ -230,15 +231,27 @@ export default function QuarterlyHistoryModal({
     }
     setSaving(true)
     try {
+      // ⛔ FASE KA. Cada fila pasa por el planificador antes de escribirse. Una
+      // transcripción es NAV de UNA cuenta: no puede fusionarse encima de la
+      // observación de portafolio completo que ya viva en esa fecha (el caso
+      // más común es el trimestre EN CURSO, que se fecha HOY, donde casi
+      // siempre hay un doc 'daily'), ni pisar el NAV diario real del mismo
+      // broker, que es la misma medición pero más fina.
+      let saved = 0
+      let skipped = 0
       for (const j of jobs) {
+        const plan = planQuarterlyNavWrite(j.date, snapshots)
+        if (plan.action !== 'write') { skipped++; continue }
         await saveSnapshot({
           date: j.date,
           netWorthUSD: j.netWorthUSD,
           totalActivosUSD: j.netWorthUSD,
           _source: 'ibkr_quarterly',
+          ...(plan.docId ? { _docId: plan.docId } : {}),
           ...(j.marker ? { _flowMarker: j.marker } : {}),
           ...(j.flowAmount ? { _flowAmount: j.flowAmount } : {}),
         })
+        saved++
       }
       // FASE GI (Fase 2a del plan): the screenshot's own summary table is
       // EVIDENCE, not just a cross-check to throw away. Beginning 0.00 dates
@@ -260,11 +273,18 @@ export default function QuarterlyHistoryModal({
           })
         } catch { /* quarters saved; summary is supplementary evidence */ }
       }
+      // Un trimestre saltado se DICE, nunca se calla: desde afuera "guardé 14"
+      // sobre 12 escritos se lee igual que un guardado completo, y el usuario
+      // no tendría forma de saber que dos filas no entraron ni por qué.
+      const skippedNote = skipped === 0 ? '' : t(
+        ` ${skipped} ${skipped === 1 ? 'trimestre ya tenía' : 'trimestres ya tenían'} el NAV diario real de IBKR, que es más preciso: se dejó ese.`,
+        ` ${skipped} ${skipped === 1 ? 'quarter already had' : 'quarters already had'} IBKR's real daily NAV, which is more precise: that one was kept.`
+      )
       setDoneMsg(t(
-        `Listo: ${jobs.length} ${jobs.length === 1 ? 'trimestre guardado' : 'trimestres guardados'}. Tu gráfica ya arranca desde ahí.`,
-        `Done: ${jobs.length} ${jobs.length === 1 ? 'quarter saved' : 'quarters saved'}. Your chart now starts from there.`
+        `Listo: ${saved} ${saved === 1 ? 'trimestre guardado' : 'trimestres guardados'}. Tu gráfica ya arranca desde ahí.${skippedNote}`,
+        `Done: ${saved} ${saved === 1 ? 'quarter saved' : 'quarters saved'}. Your chart now starts from there.${skippedNote}`
       ))
-      if (onSaved) onSaved(jobs.length)
+      if (onSaved) onSaved(saved)
     } catch {
       setError(t('No se pudo guardar. Intenta de nuevo.', 'Could not save. Try again.'))
     } finally {

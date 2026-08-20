@@ -351,10 +351,17 @@ export function useFirestoreItems() {
     // (a YTD calibration sits on Jan 1, where a daily snapshot may also live):
     // a compound id keeps them from overwriting each other. Portfolio-wide
     // snapshots keep the plain date id so dedup/precedence logic is untouched.
-    const id = snapshot._account
+    // FASE KA: `_docId` es la MISMA decisión explícita del caller que bulkImport
+    // ya honraba (escribir un doc PARALELO en vez de pelear por el slot plano
+    // de la fecha). Que solo uno de los dos escritores la respetara es la
+    // asimetría por la que la transcripción trimestral podía fusionarse encima
+    // del snapshot diario del portafolio completo. No se escribe como campo:
+    // es una instrucción de ruteo, no un dato del snapshot.
+    const { _docId, ...body } = snapshot
+    const id = _docId || (snapshot._account
       ? `${dateStr}~${snapshot._calibrationKind || 'cal'}~${String(snapshot._account).replace(/[^a-z0-9]+/gi, '-')}`
-      : dateStr
-    const clean = Object.fromEntries(Object.entries({ ...snapshot, createdAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
+      : dateStr)
+    const clean = Object.fromEntries(Object.entries({ ...body, createdAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
     await fs.setDoc(fs.doc(db, `users/${uid}/snapshots`, id), clean, { merge: true })
   }, [uid, items])
 
