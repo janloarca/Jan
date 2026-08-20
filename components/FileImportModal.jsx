@@ -14,6 +14,8 @@ import { FIELD_MAP, BROKER_PRESETS, guessMapping } from '@/lib/importMapping'
 import { FINANCE_CATEGORIES, CATEGORY_COLORS } from '@/lib/financeCategories'
 import { matchStatement } from '@/lib/statementMatcher'
 import { reconcileStatement, enrichmentFor } from '@/lib/statementReconcile'
+import { flowSign, flowMagnitude } from '@/lib/financeAmount'
+import { walletCoverage } from '@/lib/walletCoverage'
 import { validateItem, sanitizeImportItem, sanitizeCell } from '@/lib/validation'
 import { getBrokerHowTo } from '@/lib/brokerHowTo'
 import BrokerSteps from '@/components/ui/BrokerSteps'
@@ -109,6 +111,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   // Statement reconciliation: buckets from lib/statementMatcher + which rows the
   // user checked for import (new rows pre-checked, likely-duplicates unchecked).
   const [biMatch, setBiMatch] = useState(null)
+  const [walletStats, setWalletStats] = useState(null)
   const [biSelected, setBiSelected] = useState(new Set())
   const [stmtAccount, setStmtAccount] = useState('')
 
@@ -210,6 +213,9 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
           const mainCurrency = Object.entries(freq).sort((a, b) => b[1] - a[1])[0]?.[0] || 'GTQ'
           setBiData({ transactions: parsed.transactions, finalBalance: 0, currency: mainCurrency, card: parsed })
           setBiMatch(match)
+          // Cuánto de este estado ya lo había capturado sola la app. Se calcula
+          // acá, con el emparejamiento recién hecho, en vez de re-emparejar.
+          setWalletStats(walletCoverage(match))
           // New rows import by default. A review row is checked only when the
           // evidence says it is a SEPARATE charge; left unchecked it means
           // "same charge" and the statement's amount is applied to the row
@@ -1311,6 +1317,36 @@ When done, give me the .xlsx file ready to download.`
                   ))}
                 </div>
               )}
+              {/* Cobertura de la captura automática, medida contra los
+                  marcadores APPLEPAY que el propio estado imprime. Es la única
+                  forma de saber si la automatización del teléfono está
+                  disparando sin tener que deducirlo de los síntomas: el
+                  resultado final se ve igual capturara quien capturara. */}
+              {walletStats && walletStats.total > 0 && (
+                <div className="px-3 py-2 mb-3 rounded-lg border text-xs"
+                  style={walletStats.missing === 0
+                    ? { borderColor: 'var(--alert-success-border)', backgroundColor: 'var(--alert-success-bg)', color: 'var(--alert-success-icon)' }
+                    : { borderColor: 'var(--alert-warn-border)', backgroundColor: 'var(--alert-warn-bg)', color: 'var(--alert-warn-icon)' }}>
+                  <span className="block font-medium">
+                    {t(`Captura automática: ${walletStats.captured} de ${walletStats.total} compras con billetera (${Math.round(walletStats.pct)}%)`,
+                       `Automatic capture: ${walletStats.captured} of ${walletStats.total} wallet purchases (${Math.round(walletStats.pct)}%)`)}
+                  </span>
+                  {Object.keys(walletStats.byTransport).length > 0 && (
+                    <span className="block mt-0.5 opacity-80">
+                      {Object.entries(walletStats.byTransport)
+                        .map(([via, n]) => `${via === 'shortcut' ? t('atajo', 'shortcut') : via === 'email' ? t('correo', 'email') : via} ${n}`)
+                        .join(' · ')}
+                      {walletStats.byHand > 0 && ` · ${t('a mano', 'by hand')} ${walletStats.byHand}`}
+                    </span>
+                  )}
+                  {walletStats.missing > 0 && (
+                    <span className="block mt-0.5 opacity-80">
+                      {t(`${walletStats.missing} no las capturó nada: la automatización no disparó en esas.`,
+                         `${walletStats.missing} were captured by nothing: the automation did not fire on those.`)}
+                    </span>
+                  )}
+                </div>
+              )}
               <p className="text-slate-400 text-sm mb-3">
                 {t(`${biData.transactions.length} transacciones en el estado`, `${biData.transactions.length} transactions in the statement`)}
                 {biMatch && (Array.isArray(biMatch.confirmed)
@@ -1411,7 +1447,7 @@ When done, give me the .xlsx file ready to download.`
                                   </select>
                                 </td>
                                 <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap" style={{ color: tx.type === 'INCOME' ? 'var(--accent-green)' : 'var(--accent-red)' }}>
-                                  {tx.type === 'INCOME' ? '+' : '-'}{tx.currency === 'USD' ? '$' : 'Q'}{tx.amount.toLocaleString()}
+                                  {flowSign(tx)}{tx.currency === 'USD' ? '$' : 'Q'}{flowMagnitude(tx).toLocaleString()}
                                 </td>
                               </tr>
                             ))}
@@ -1442,7 +1478,7 @@ When done, give me the .xlsx file ready to download.`
                                 <td className="py-1.5 px-2 text-slate-400 whitespace-nowrap">{parsed.date}</td>
                                 <td className="py-1.5 px-2 text-white max-w-[150px] truncate">{parsed.description}</td>
                                 <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap" style={{ color: parsed.type === 'INCOME' ? 'var(--accent-green)' : 'var(--accent-red)' }}>
-                                  {parsed.type === 'INCOME' ? '+' : '-'}{parsed.currency === 'USD' ? '$' : 'Q'}{parsed.amount.toLocaleString()}
+                                  {flowSign(parsed)}{parsed.currency === 'USD' ? '$' : 'Q'}{flowMagnitude(parsed).toLocaleString()}
                                 </td>
                                 <td className="py-1.5 px-2 text-slate-500 max-w-[150px] truncate">
                                   ≈ {match.date} · {match.description}

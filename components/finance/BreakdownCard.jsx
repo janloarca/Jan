@@ -38,11 +38,26 @@ export default function BreakdownCard({
     })
   }, [])
 
-  const fmt = (v) => `Q${(Math.round((v || 0) * 100) / 100).toLocaleString(lang === 'es' ? 'es-GT' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  // Un negativo va en paréntesis contables, que es la convención que el reporte
+  // impreso ya usa. Aparece cuando los reembolsos de una categoría superan lo
+  // gastado en ella ese mes: una devolución grande que cae en un mes distinto
+  // al de la compra. Es real y hay que mostrarlo.
+  const fmt = (v) => {
+    const n = Math.round((v || 0) * 100) / 100
+    const s = Math.abs(n).toLocaleString(lang === 'es' ? 'es-GT' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    return n < 0 ? `(Q${s})` : `Q${s}`
+  }
 
-  const rows = [...groups].sort((a, b) => b.amount - a.amount).filter((g) => g.amount > 0)
-  // La MISMA escala para grupos y categorías: el grupo más grande del mes.
-  const max = Math.max(...rows.map((g) => g.amount), 1)
+  // Se muestra todo lo que se movió, en cualquier dirección. Filtrar los
+  // negativos haría DESAPARECER una categoría en la que hubo actividad real, y
+  // desde afuera una fila omitida y una fila rota se ven igual.
+  const rows = [...groups].sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount)).filter((g) => g.amount !== 0)
+  // La MISMA escala para grupos y categorías: el movimiento más grande del mes,
+  // en magnitud, para que un negativo se dibuje del largo que le toca.
+  const max = Math.max(...rows.map((g) => Math.abs(g.amount)), 1)
+  // El ancho nunca puede ser negativo (CSS lo clampa a 0 y la barra desaparece
+  // sin decir por qué): la magnitud da el largo y el signo lo carga el número.
+  const barWidth = (v) => `${Math.min(100, (Math.abs(v || 0) / max) * 100)}%`
 
   return (
     <div className="card p-4">
@@ -103,7 +118,7 @@ export default function BreakdownCard({
                     </span>
                   </div>
                   <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-card-hover)' }}>
-                    <div className="h-full rounded-full" style={{ width: `${(g.amount / max) * 100}%`, backgroundColor: color }} />
+                    <div className="h-full rounded-full" style={{ width: barWidth(g.amount), backgroundColor: color }} />
                   </div>
                 </button>
 
@@ -141,7 +156,7 @@ export default function BreakdownCard({
                         </div>
                         {/* Misma escala que el grupo de arriba. */}
                         <div className="h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-card-hover)' }}>
-                          <div className="h-full rounded-full" style={{ width: `${(c.amount / max) * 100}%`, backgroundColor: color, opacity: 0.55 }} />
+                          <div className="h-full rounded-full" style={{ width: barWidth(c.amount), backgroundColor: color, opacity: 0.55 }} />
                         </div>
                       </li>
                     ))}

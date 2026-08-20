@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { CATEGORY_COLORS } from '@/lib/financeCategories'
+import { cashFlowOf, flowSign, flowMagnitude, isReversal } from '@/lib/financeAmount'
 import CategoryEditor from '@/components/finance/CategoryEditor'
 
 // The month's ledger. Two layouts on purpose: a table from `sm` up, and one
@@ -55,7 +56,7 @@ export default function FinanceTransactionList({ transactions, onDelete, onRecat
     if (isNaN(d.getTime())) return null
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
   }
-  const shownTotal = filtered.reduce((s, tx) => s + (tx.type === 'INCOME' ? 1 : -1) * (tx.amount || 0), 0)
+  const shownTotal = filtered.reduce((s, tx) => s + cashFlowOf(tx), 0)
 
   const keyOf = (tx, i) => tx.id || i
 
@@ -108,10 +109,13 @@ export default function FinanceTransactionList({ transactions, onDelete, onRecat
     )
   }
 
+  // Sign and colour both follow the CASH FLOW, not the row's type: a refund is
+  // an expense with a negative amount, so reading the type alone printed
+  // "-Q-488.07" in the red of a purchase for money that came back.
   const Amount = ({ tx }) => (
     <span className="font-medium font-mono tabular-nums whitespace-nowrap"
-      style={{ color: tx.type === 'INCOME' ? 'var(--accent-green)' : 'var(--text-negative)' }}>
-      {tx.type === 'INCOME' ? '+' : '-'}Q{fmt(tx.amount)}
+      style={{ color: cashFlowOf(tx) >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
+      {flowSign(tx)}Q{fmt(flowMagnitude(tx))}
     </span>
   )
 
@@ -121,6 +125,15 @@ export default function FinanceTransactionList({ transactions, onDelete, onRecat
         <span title={t('Capturado automáticamente', 'Captured automatically')} className="mr-1">⚡</span>
       )}
       {tx.description || '-'}
+      {/* A negative expense with nothing saying why reads as a bug, so the row
+          names what it is. It stays in the merchant's category on purpose:
+          that is what makes the category report net spend. */}
+      {isReversal(tx) && (
+        <span className="ml-1 text-[10px] px-1 py-0.5 rounded"
+          style={{ color: 'var(--alert-success-icon)', backgroundColor: 'var(--alert-success-bg)' }}>
+          {t('reembolso', 'refund')}
+        </span>
+      )}
       {tx.location && <span style={{ color: 'var(--text-muted)' }}> · {tx.location}</span>}
     </>
   )
