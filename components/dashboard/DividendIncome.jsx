@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { formatCurrency, getTypeCategory, projectItemAnnualIncome } from './utils'
+import { isReinvestedDividend, reinvestIndex } from '@/lib/dividendCash'
 
 // Subtítulo de grupo. La card llevaba ONCE bloques bajo un solo título, así que
 // no había forma de saber si un número era algo que ya entró o algo proyectado:
@@ -174,8 +175,11 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
 
   const stats = useMemo(() => {
     // Exclude reinvested dividends — same filter as the dashboard's annualDividends,
-    // so "YTD recibido" here matches the headline figure.
-    const divs = (transactions || []).filter((tx) => (tx.type || '').toUpperCase() === 'DIVIDEND' && !tx._reinvested)
+    // so "YTD recibido" here matches the headline figure. FASE JW: la regla
+    // compartida, no la bandera sola (que se estampa al escribir, así que un
+    // pago anterior a que la cuenta pasara a reinvertir no la lleva).
+    const divIdx = reinvestIndex(items)
+    const divs = (transactions || []).filter((tx) => (tx.type || '').toUpperCase() === 'DIVIDEND' && !isReinvestedDividend(tx, divIdx))
 
     const now = new Date()
     const thisYear = now.getFullYear()
@@ -244,7 +248,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       totalAll, totalYTD, totalThisMonth, avgMonthly, dailyAvg,
       divCount: divs.length, byMonth, last6, maxBar, topPayers, monthly12, maxBar12,
     }
-  }, [transactions, convert, baseCurrency])
+  }, [transactions, items, convert, baseCurrency])
 
   const estAnnual = projected.annualTotal > 0 ? projected.annualTotal : (stats.avgMonthly * 12)
   // Yield over total assets — dividing by net worth (assets − debt) would inflate
@@ -253,7 +257,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
 
   const yoyComparison = useMemo(() => {
     if (!transactions || transactions.length === 0) return null
-    const divs = transactions.filter(tx => (tx.type || '').toUpperCase() === 'DIVIDEND' && !tx._reinvested)
+    const divs = transactions.filter(tx => (tx.type || '').toUpperCase() === 'DIVIDEND' && !isReinvestedDividend(tx, reinvestIndex(items)))
     if (divs.length === 0) return null
     const now = new Date()
     const thisYear = now.getFullYear()
@@ -269,7 +273,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
     if (lastYearTotal === 0 && thisYearTotal === 0) return null
     const growth = lastYearTotal > 0 ? ((thisYearTotal - lastYearTotal) / lastYearTotal) * 100 : null
     return { thisYear: thisYearTotal, lastYear: lastYearTotal, growth }
-  }, [transactions, convert, baseCurrency])
+  }, [transactions, items, convert, baseCurrency])
 
   const incomeByType = useMemo(() => {
     const types = { dividend: 0, coupon: 0, interest: 0 }

@@ -7,6 +7,7 @@ import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced, effectiveAcqTs, entryFeeAddbacks, getEffectiveYield } from '@/components/dashboard/utils'
 import { buildHistoryRequestBody } from '@/lib/historyPayload'
+import { isReinvestedDividend, reinvestIndex } from '@/lib/dividendCash'
 import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget } from '@/lib/autoDividends'
 import { unlinkedOpeningDeposits } from '@/lib/originDeposits'
 import { corruptSnapshotRunIds, feEraSuspectDailyIds } from '@/lib/corruptSnapshots'
@@ -2205,8 +2206,14 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // and the PDF report, so a lifetime sum would overstate it more every year.
     // Undated dividends can't be placed in time and are excluded.
     const cutoff = Date.now() - 365 * 86400000
+    // FASE JW: la regla compartida, no la bandera sola. Un pago escrito cuando
+    // la cuenta estaba en "recibo el efectivo" no lleva `_reinvested`, así que
+    // se contaba como cobrado aunque la cuenta ahora reinvierta y el dinero
+    // nunca haya salido del activo.
+    const divIdx = reinvestIndex(enrichedItems)
     const divs = (transactions || []).filter((tx) => {
-      if ((tx.type || '').toUpperCase() !== 'DIVIDEND' || tx._reinvested) return false
+      if ((tx.type || '').toUpperCase() !== 'DIVIDEND') return false
+      if (isReinvestedDividend(tx, divIdx)) return false
       const ts = tx.date ? new Date(tx.date).getTime() : NaN
       return !isNaN(ts) && ts >= cutoff
     })
@@ -2214,7 +2221,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       const amt = tx.totalAmount ?? 0
       return s + convert(amt, tx.currency || 'USD', baseCurrency)
     }, 0)
-  }, [transactions, convert, baseCurrency])
+  }, [transactions, enrichedItems, convert, baseCurrency])
 
   const estimatedAnnualIncome = useMemo(() => {
     let total = 0
