@@ -11,6 +11,7 @@ import { isReinvestedDividend, reinvestIndex } from '@/lib/dividendCash'
 import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget } from '@/lib/autoDividends'
 import { unlinkedOpeningDeposits } from '@/lib/originDeposits'
 import { staleTradeDateFixes } from '@/lib/ibkrTradeDateFix'
+import { vanishedIbkrPositionIds } from '@/lib/ibkrVanishedPositions'
 import { corruptSnapshotRunIds, feEraSuspectDailyIds } from '@/lib/corruptSnapshots'
 import { planEquitySnapshotWrites, misplacedPlainNavMigrations } from '@/lib/ibkrSnapshotPlan'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
@@ -868,6 +869,18 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         deleteIds.push(it.id)
       }
     })
+    // Y las que el broker YA NO reporta. La regla de arriba solo alcanza a lo
+    // que SÍ viene en el feed, y el formateador filtra las posiciones en cero
+    // antes de armarlo, así que una posición liquidada nunca volvía a aparecer
+    // y por lo tanto nunca se borraba: seguía en el portafolio para siempre con
+    // su última cantidad y precio. Los guardas que impiden que un reporte
+    // parcial vacíe la cartera viven en lib/ibkrVanishedPositions.js.
+    vanishedIbkrPositionIds({
+      storedItems: items,
+      feedItems: data.items || [],
+      feedAccounts: data.accounts || [],
+      hasCashSection: (data.sections?.cashReport || 0) > 0,
+    }).forEach((id) => { if (!deleteIds.includes(id)) deleteIds.push(id) })
     const deleteSet = new Set(deleteIds)
     const afterCleanup = items.filter(it => !deleteSet.has(it.id))
     afterCleanup.forEach(it => {
