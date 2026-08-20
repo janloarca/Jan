@@ -164,7 +164,7 @@ function buildGeometry(values, mode, height, width, pad, extraSeries, timestamps
 // sintéticos de calibración, que no existen en Firestore y hacen que fechas sin
 // dato real se lean como cubiertas. Sin estos props el comportamiento es el de
 // antes.
-export default function PortfolioGrowthChart({ items, lots, snapshots, transactions, lang, convert, baseCurrency, onSaveSnapshot, ibkrSyncSummary = null, onImportBroker = null, repairItems = null, repairSnapshots = null }) {
+export default function PortfolioGrowthChart({ items, lots, snapshots, transactions, lang, convert, baseCurrency, onSaveSnapshot, ibkrSyncSummary = null, onImportBroker = null, repairItems = null, repairSnapshots = null, onMigrateNav = null }) {
   const [period, setPeriod] = useState('YTD')
   const [hoverIdx, setHoverIdx] = useState(null)
   const [dataPoints, setDataPoints] = useState([])
@@ -1335,6 +1335,25 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       const srcSnapshots = repairSnapshots || snapshots
       const all = (srcItems || []).filter((it) => !isExcludedFromNetWorth(it))
       const hasBroker = all.some((it) => it && it._source === 'ibkr')
+      // ⛔ FASE JZ, ANTES de cualquier escritura. Un NAV de broker atrapado en
+      // el slot plano de la fecha (id === fecha) hace que ese día cuente como
+      // HUECO (staleBackfillDates, rank 0), así que este botón escribía su
+      // total compuesto con id = fecha y saveSnapshot lo fusionaba ENCIMA del
+      // NAV: la medición real del broker reemplazada por una estimación, y el
+      // día perdido para la vista escopada. El backfill automático ya migraba
+      // esos docs a su id paralelo; el botón, que escribe los MISMOS docs, no.
+      // Si la migración falla se aborta: un hueco es mejor que un dato real
+      // destruido.
+      if (onMigrateNav) {
+        try {
+          const moved = await onMigrateNav(srcSnapshots)
+          if (moved > 0) push(`${t('NAV del broker movido a su propio doc', 'Broker NAV moved to its own doc')}: ${moved}`)
+        } catch (e) {
+          push(`${t('No se pudo proteger el NAV del broker: no se escribe nada.', 'Could not protect the broker NAV: nothing written.')} (${e?.message || ''})`)
+          setRepairState({ running: false, lines })
+          return
+        }
+      }
       const navByDate = buildNavByDate(srcSnapshots)
       const composing = hasBroker && navByDate.size > 0
       push(`${t('NAV real del broker', 'Real broker NAV')}: ${navByDate.size} ${t('días', 'days')}`)
@@ -1495,7 +1514,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       lines.push(`Error: ${err?.message || err}`)
       setRepairState({ running: false, lines })
     }
-  }, [items, snapshots, repairItems, repairSnapshots, transactions, lots, convert, onSaveSnapshot, t])
+  }, [items, snapshots, repairItems, repairSnapshots, transactions, lots, convert, onSaveSnapshot, onMigrateNav, t])
 
   const drawdown = useMemo(() => {
     if (chartData.length < 3) return null
