@@ -871,6 +871,30 @@ export function useFirestoreItems() {
     await deleteAllDocsIn(db, fs, `users/${uid}/financeTransactions`)
   }, [uid])
 
+  // Borrado selectivo de Flujo: por mes, por método de captura, o ambos.
+  //
+  // Los ids llegan ya resueltos por lib/financeWipe.js sobre la lista que este
+  // hook ya tiene en memoria, así que decidir QUÉ borrar no cuesta una sola
+  // lectura de Firestore (importa: esta app ya tocó el techo de cuota diario).
+  // Acá solo queda escribir.
+  //
+  // Mismos lotes de DELETE_CHUNK que deleteAllDocsIn. Cuando el filtro abarca
+  // todo, el caller usa deleteAllFinanceTransactions en vez de esto: es una
+  // operación de colección en lugar de cientos de deletes.
+  const deleteFinanceTransactionsByIds = useCallback(async (ids) => {
+    if (!uid || !Array.isArray(ids) || ids.length === 0) return 0
+    const { db, fs } = await getFirebase()
+    const clean = ids.filter((id) => typeof id === 'string' && id)
+    for (let i = 0; i < clean.length; i += DELETE_CHUNK) {
+      const batch = fs.writeBatch(db)
+      for (const id of clean.slice(i, i + DELETE_CHUNK)) {
+        batch.delete(fs.doc(db, `users/${uid}/financeTransactions`, id))
+      }
+      await batch.commit()
+    }
+    return clean.length
+  }, [uid])
+
   const addPortfolio = useCallback(async (portfolio) => {
     if (!uid) return
     const { db, fs } = await getFirebase()
@@ -1135,6 +1159,7 @@ export function useFirestoreItems() {
     saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,
     addFinanceTransaction, updateFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
+    deleteFinanceTransactionsByIds,
     addAlert, deleteAlert, updateAlert,
     addLot, updateLot, closeLotsFIFO,
     transferFunds, executeSaleAtomic, executeContribution,

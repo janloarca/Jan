@@ -61,6 +61,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     lots, addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution, bulkImport, bulkWriting, deletionEpoch,
     portfolios, addPortfolio, deletePortfolio,
     financeTransactions, addFinanceTransaction, updateFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
+    deleteFinanceTransactionsByIds,
     saveGoals, saveSettings, saveProfile,
     incomePlan, saveIncomePlan,
     saveItemSnapshots, loadItemSnapshots,
@@ -2834,6 +2835,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution,
     addPortfolio, deletePortfolio,
     addFinanceTransaction, updateFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
+    deleteFinanceTransactionsByIds,
     bulkImport,
     saveGoals, saveSettings, saveProfile,
     // El plan de ingresos que se arma en Flujo: la proyección del tablero lo
