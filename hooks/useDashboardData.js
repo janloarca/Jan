@@ -14,7 +14,7 @@ import { staleTradeDateFixes } from '@/lib/ibkrTradeDateFix'
 import { ibkrSyncIntervalMs, nextFailCount } from '@/lib/ibkrRetryPolicy'
 import { vanishedIbkrPositionIds } from '@/lib/ibkrVanishedPositions'
 import { corruptSnapshotRunIds, feEraSuspectDailyIds } from '@/lib/corruptSnapshots'
-import { planEquitySnapshotWrites, misplacedPlainNavMigrations } from '@/lib/ibkrSnapshotPlan'
+import { planEquitySnapshotWrites, misplacedPlainNavMigrations, applyNavMigrations } from '@/lib/ibkrSnapshotPlan'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
 import { staleBackfillDates, buildNavByDate, composeDailyTotals, windowDates, divergentDailyDates, navAsOf, navEntryAsOf, brokerConnectedTsOf } from '@/lib/snapshotBackfill'
 import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanDays, earliestNeededDays as computeEarliestNeededDays } from '@/lib/brokerCompletion'
@@ -243,6 +243,19 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       backfillAttemptRef.current = { dayKey: null, ts: 0, tries: 0 }
     }
   }, [deletionEpoch])
+  // ⛔ FASE JZ. Liberar el slot plano de una fecha ocupado por un NAV de broker
+  // (FASE GD). Se expone además de usarse acá porque "Reparar ahora"
+  // (PortfolioGrowthChart) escribe los MISMOS docs y NO corría esta migración:
+  // staleBackfillDates no cuenta un NAV de broker como cobertura del día, así
+  // que esa fecha entra como hueco, el botón escribe su total compuesto con
+  // id = fecha, y saveSnapshot fusiona encima del doc del NAV. La medición real
+  // del broker quedaba reemplazada por una estimación, sin aviso, y el día
+  // desaparecía de la vista escopada a IBKR. Una sola implementación para los
+  // dos caminos: dos copias de esto es exactamente cómo una se queda atrás.
+  const migrateMisplacedNav = useCallback(
+    (snaps) => applyNavMigrations({ snapshots: snaps, bulkImport, deleteSnapshot }),
+    [bulkImport, deleteSnapshot]
+  )
   useEffect(() => {
     // FASE IR: la compuerta de "ya corri hoy" lleva la VERSION de la logica de
     // reconstruccion, no solo el dia. Una pasada que ya completo con el codigo
@@ -315,14 +328,21 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         // slot plano de la fecha a su doc paralelo. Si se rellenara primero,
         // el saveSnapshot del gap escribiría ENCIMA del NAV y lo destruiría.
         if (navMigrations.length > 0) {
+          // FASE JZ: si la migración FALLA no se sigue. Antes se logueaba y se
+          // continuaba, o sea el fallo terminaba destruyendo justo lo que la
+          // migración existe para proteger: el NAV sigue ocupando el slot
+          // plano, esa fecha cuenta como hueco, y el saveSnapshot de abajo
+          // escribe su total compuesto encima. Un hueco es mejor que eso.
+          // (El chequeo de `cancelled` entre borrados también se fue: llegar
+          // hasta acá significa que los docs paralelos YA se escribieron, y
+          // dejar la migración a medias solo la repite la próxima sesión.)
           try {
-            await bulkImport({ snapshots: navMigrations.map((m) => m.snap) })
-            for (const m of navMigrations) {
-              if (cancelled) return
-              await deleteSnapshot(m.plainId)
-            }
-            console.info(`[nav-migration] moved ${navMigrations.length} broker NAV doc(s) to parallel ids`)
-          } catch (e) { console.error('[nav-migration]', e?.message) }
+            const moved = await migrateMisplacedNav(snapshots)
+            console.info(`[nav-migration] moved ${moved} broker NAV doc(s) to parallel ids`)
+          } catch (e) {
+            console.error('[nav-migration] no se escribe nada esta sesión:', e?.message)
+            return
+          }
         }
         if (cancelled) return
         // Only ASSETS go to portfolio-history (it has no isDebt notion, so a debt
@@ -445,7 +465,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
     doBackfill()
     return () => { cancelled = true }
-  }, [user, dataLoading, pricesLoading, pricesFetching, ratesLoading, bulkWriting, ibkrAutoSyncing, enrichedItems, snapshots, lots, transactions, saveSnapshot, convert, bulkImport, deleteSnapshot])
+  }, [user, dataLoading, pricesLoading, pricesFetching, ratesLoading, bulkWriting, ibkrAutoSyncing, enrichedItems, snapshots, lots, transactions, saveSnapshot, convert, migrateMisplacedNav])
 
   // Dividend processing
   const dividendsProcessedRef = useRef(null)
@@ -2888,6 +2908,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // Firestore actions
     addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
     saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
+    migrateMisplacedNav,
     addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,
     deleteTransactionWithReversal, updateTransactionWithReversal,
     addAlert, deleteAlert, updateAlert,
