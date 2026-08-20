@@ -6,7 +6,7 @@ import { InfoTip } from '@/components/ui/Tooltip'
 import { formatCurrency, formatCompact } from './utils'
 import { CHART_PALETTE } from '@/lib/colors'
 import {
-  COMPOUND_OPTIONS, compareScenarios, newScenario, termMonthsOf,
+  COMPOUND_OPTIONS, compareScenarios, newScenario, termMonthsOf, leadershipSegments,
 } from '@/lib/investmentCompare'
 
 // Tres inversiones con plazos y tasas distintas, en el mismo eje de años.
@@ -23,6 +23,14 @@ import {
 // vez de inventar tres tonos nuevos para esta pantalla.
 const SERIES_COLORS = [CHART_PALETTE[0], CHART_PALETTE[1], CHART_PALETTE[3]]
 const MAX_SCENARIOS = 3
+
+// La efectiva se imprime con dos decimales y sin ceros de relleno: 7.45%, no
+// 7.4500%.
+const pctOf = (rate) => String(Math.round((Number(rate) || 0) * 10000) / 100)
+// "Difiere" con una tolerancia de una centésima de punto: por debajo de eso
+// los dos números se ven iguales en pantalla y repetirlos es ruido.
+const effDiffers = (result, scenario) =>
+  Math.abs((Number(result?.effectiveRate) || 0) * 100 - (Number(scenario?.ratePct) || 0)) >= 0.01
 
 const DEFAULTS = [
   { name: 'A', ratePct: 7, compound: 'annually', years: 10 },
@@ -89,6 +97,24 @@ export default function InvestmentComparator({
     return { lines, max, min }
   }, [comparison])
 
+  // Un solo tramo significa que nadie pasó a nadie, y ahí la fila "mejor" ya
+  // lo dice todo: la frase solo aparece cuando de verdad hubo un cruce.
+  const leadText = useMemo(() => {
+    const segs = leadershipSegments(comparison)
+    if (segs.length < 2) return null
+    const nameOf = (i) => comparison.results[i]?.name || `${i + 1}`
+    if (segs.length === 2) {
+      return t(
+        `${nameOf(segs[0].index)} va arriba hasta el año ${segs[0].endYear}. ${nameOf(segs[1].index)} la pasa en el año ${segs[1].startYear} y ya no la suelta.`,
+        `${nameOf(segs[0].index)} leads through year ${segs[0].endYear}. ${nameOf(segs[1].index)} takes over in year ${segs[1].startYear} and never gives it back.`
+      )
+    }
+    const parts = segs.map((sg, i) => (i === segs.length - 1
+      ? t(`${nameOf(sg.index)} desde el año ${sg.startYear}`, `${nameOf(sg.index)} from year ${sg.startYear}`)
+      : t(`${nameOf(sg.index)} hasta el año ${sg.endYear}`, `${nameOf(sg.index)} through year ${sg.endYear}`)))
+    return `${parts.join(' · ')}.`
+  }, [comparison, t])
+
   const cur = scenarios[editing]
   const labelCls = 'block text-[11px] mb-1'
   const labelStyle = { color: 'var(--text-muted)' }
@@ -119,22 +145,43 @@ export default function InvestmentComparator({
       {/* Resumen: una fila por escenario, con su color de serie */}
       <div className="space-y-1.5 mb-3">
         {comparison.results.map((r, i) => (
-          <div key={r.id} data-result={i} className="flex items-center gap-2 rounded-lg border px-2 py-1.5"
+          <div key={r.id} data-result={i} className="rounded-lg border px-2 py-1.5"
             style={{ borderColor: i === comparison.winnerIndex ? SERIES_COLORS[i] : 'var(--card-border)' }}>
-            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: SERIES_COLORS[i] }} aria-hidden="true" />
-            <span className="text-xs font-medium truncate min-w-0" style={{ color: 'var(--text-primary)' }}>{r.name}</span>
-            <span className="text-[10px] shrink-0" style={{ color: 'var(--text-muted)' }}>
-              {scenarios[i].ratePct}% · {Math.round(r.termMonths / 12 * 10) / 10}{t('a', 'y')}
-            </span>
-            <span className="ml-auto text-right shrink-0">
-              <span className="block text-xs font-mono tabular-nums font-semibold" style={{ color: 'var(--text-primary)' }}>{fmt(r.endBalance)}</span>
-              <span className="block text-[10px] font-mono tabular-nums" style={{ color: r.deltaVsBest < 0 ? 'var(--text-muted)' : SERIES_COLORS[i] }}>
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: SERIES_COLORS[i] }} aria-hidden="true" />
+              <span className="text-xs font-medium truncate min-w-0" style={{ color: 'var(--text-primary)' }}>{r.name}</span>
+              <span className="ml-auto text-xs font-mono tabular-nums font-semibold shrink-0" style={{ color: 'var(--text-primary)' }}>{fmt(r.endBalance)}</span>
+            </div>
+            <div className="flex items-center gap-2 mt-0.5">
+              {/* La tasa EFECTIVA es la única comparable entre frecuencias
+                  distintas: 7.25% capitalizado trimestral rinde más que 7.25%
+                  anual, y la nominal invita a comparar el número equivocado.
+                  Se muestra solo cuando difiere, para no repetir el mismo
+                  número dos veces en el caso de capitalización anual. */}
+              <span className="text-[10px] min-w-0 truncate" style={{ color: 'var(--text-muted)' }}>
+                {scenarios[i].ratePct}%
+                {effDiffers(r, scenarios[i]) && (
+                  <> · <span data-effective={i} style={{ color: 'var(--text-secondary)' }}>{pctOf(r.effectiveRate)}% {t('efectivo', 'effective')}</span></>
+                )}
+                {' · '}{Math.round(r.termMonths / 12 * 10) / 10}{t('a', 'y')}
+              </span>
+              <span className="ml-auto text-[10px] font-mono tabular-nums shrink-0" style={{ color: r.deltaVsBest < 0 ? 'var(--text-muted)' : SERIES_COLORS[i] }}>
                 {r.deltaVsBest < 0 ? fmt(r.deltaVsBest) : t('mejor', 'best')}
               </span>
-            </span>
+            </div>
           </div>
         ))}
       </div>
+
+      {/* El cruce, dicho. Es lo que la fila "mejor" esconde: con un plazo de 7
+          años contra uno de 3, el ganador final gana por DURAR, no por rendir,
+          y hasta ahora eso había que deducirlo leyendo la tabla fila por fila. */}
+      {leadText && (
+        <p data-lead className="text-[11px] rounded-lg px-2 py-1.5 mb-3"
+          style={{ color: 'var(--text-secondary)', backgroundColor: 'var(--alert-info-bg)' }}>
+          {leadText}
+        </p>
+      )}
 
       {chart && (
         <div className="mb-3">
