@@ -11,6 +11,7 @@ import { isReinvestedDividend, reinvestIndex } from '@/lib/dividendCash'
 import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget } from '@/lib/autoDividends'
 import { unlinkedOpeningDeposits } from '@/lib/originDeposits'
 import { staleTradeDateFixes } from '@/lib/ibkrTradeDateFix'
+import { ibkrSyncIntervalMs, nextFailCount } from '@/lib/ibkrRetryPolicy'
 import { vanishedIbkrPositionIds } from '@/lib/ibkrVanishedPositions'
 import { corruptSnapshotRunIds, feEraSuspectDailyIds } from '@/lib/corruptSnapshots'
 import { planEquitySnapshotWrites, misplacedPlainNavMigrations } from '@/lib/ibkrSnapshotPlan'
@@ -946,8 +947,14 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // After a LOCKED error, back off to a long cadence so we let IBKR's temporary
     // lock expire (retrying too soon can refresh it) — but still retry, so a working
     // token self-heals and the banner clears without manual action.
-    const isLocked = settings?._ibkrAutoSyncErrorCode === 'LOCKED'
-    const SYNC_INTERVAL = isLocked ? 12 * 60 * 60 * 1000 : 30 * 60 * 1000
+    // Y lo mismo tras VARIOS fallos seguidos, sea cual sea su código: la
+    // cadencia de 30 minutos indefinida convertía cualquier error no mapeado en
+    // ~48 intentos fallidos por día contra IBKR, que es el disparador de su
+    // bloqueo (lib/ibkrRetryPolicy.js).
+    const SYNC_INTERVAL = ibkrSyncIntervalMs({
+      errorCode: settings?._ibkrAutoSyncErrorCode,
+      failCount: settings?._ibkrAutoSyncFailCount,
+    })
     // Space attempts by the LAST ATTEMPT, not the last success — otherwise every
     // page load while in an error state fired another immediate try, hammering
     // IBKR with failed logins (which is what triggers its lockout).
@@ -999,6 +1006,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           _ibkrAutoSyncStatus: 'ok',
           _ibkrAutoSyncError: null,
           _ibkrAutoSyncErrorCode: null,
+          _ibkrAutoSyncFailCount: 0,
           _ibkrLastSyncSummary: { ...autoSummary, changes: ibkrSyncChanges(settings?._ibkrLastSyncSummary, autoSummary) },
         })
       } catch (err) {
@@ -1009,6 +1017,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           _ibkrAutoSyncError: err.message,
           _ibkrAutoSyncErrorCode: code,
           _ibkrLastAutoSyncAttempt: new Date().toISOString(),
+          _ibkrAutoSyncFailCount: nextFailCount(settings?._ibkrAutoSyncFailCount),
         })
       } finally {
         // SIEMPRE, aunque cancelled: la bandera es estado del hook (vive entre
@@ -1056,6 +1065,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         _ibkrAutoSyncStatus: 'ok',
         _ibkrAutoSyncError: null,
         _ibkrAutoSyncErrorCode: null,
+        // Un sync manual exitoso también saca al auto-sync de la cadencia larga:
+        // si funcionó, lo que fallaba se arregló.
+        _ibkrAutoSyncFailCount: 0,
       })
       // Surface how much VALUE HISTORY the Flex actually delivered: the whole
       // "returns don't match the broker" class of bugs came down to a short query

@@ -185,7 +185,12 @@ export async function POST(request) {
 
     const errMatch = fetchXml.match(/<ErrorMessage>([^<]+)<\/ErrorMessage>/)
     if (errMatch) {
-      const classified = classifyError(errMatch[1])
+      // El CÓDIGO también, no solo el mensaje: los códigos numéricos de IBKR son
+      // mucho más estables que su redacción en inglés, y esta rama los estaba
+      // tirando, así que aquí toda la clasificación dependía de adivinar por
+      // texto (un token vencido terminaba en UNKNOWN aunque el XML dijera 1012).
+      const codeMatch = fetchXml.match(/<ErrorCode>(\d+)<\/ErrorCode>/)
+      const classified = classifyError(errMatch[1], codeMatch ? codeMatch[1] : '')
       return NextResponse.json({ ...classified, status: 'error' }, { status: 502 })
     }
 

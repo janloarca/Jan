@@ -1732,7 +1732,7 @@ export default function DashboardPage() {
           }}
           savedToken={settings?.ibkrToken || ''} savedQueryId={settings?.ibkrQueryId || ''}
           vaultMigrated={!!settings?._ibkrVaultMigrated} syncSummary={ibkrSyncSummary}
-          onSaveCredentials={(creds) => { saveSettings({ ...creds, _ibkrLastSync: new Date().toISOString(), _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
+          onSaveCredentials={(creds) => { saveSettings({ ...creds, _ibkrLastSync: new Date().toISOString(), _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null, _ibkrAutoSyncFailCount: 0 }) }}
           // FASE GQ: fired by the non-blocking first-connect (handleQuickConnect
           // in IBKRSyncModal) BEFORE any sync has actually run — deliberately
           // does NOT stamp _ibkrLastSync (that would lie about a sync that
@@ -1748,7 +1748,7 @@ export default function DashboardPage() {
           // apagaba una alarma cuyo reloj seguía corriendo desde el primer
           // intento. No puede spamear escrituras: handleQuickConnect corre a
           // lo sumo una vez por apertura del modal (autoStartedRef).
-          onSaveCredentialsPending={(creds) => { saveSettings({ ...creds, _ibkrConnectedAt: new Date().toISOString(), _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
+          onSaveCredentialsPending={(creds) => { saveSettings({ ...creds, _ibkrConnectedAt: new Date().toISOString(), _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null, _ibkrAutoSyncFailCount: 0 }) }}
           onApiSyncSuccess={() => { saveSettings({ _ibkrLastSync: new Date().toISOString(), _ibkrAutoSyncStatus: 'ok', _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
           onDisconnect={handleIbkrDisconnect}
           uid={user?.uid} lang={lang}
@@ -1905,7 +1905,7 @@ export default function DashboardPage() {
           onOpenLedger={() => setModal('ledger')}
           onCalibrate={() => setModal('calibrate')}
           onOpenBrokerChecklist={(brokerId) => setBrokerCompletionId(brokerId)}
-          onSaveCredentials={(creds) => { saveSettings({ ...creds, _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null }) }}
+          onSaveCredentials={(creds) => { saveSettings({ ...creds, _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null, _ibkrAutoSyncFailCount: 0 }) }}
           onSyncBroker={async (brokerId, data) => {
             const positions = data?.positions || data || []
             const posArray = Array.isArray(positions) ? positions : []
