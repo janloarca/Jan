@@ -7,7 +7,7 @@ import { formatCurrency } from './utils'
 import {
   normalizePlan, planTotalsByMonth, firstPlannedMonth, serializePlan, REPEAT_MONTHLY,
 } from '@/lib/incomePlan'
-import { projectWealth, suggestSavingsRate, annualizedReturnPct } from '@/lib/wealthProjection'
+import { projectWealth, suggestSavingsRate, annualizedReturnPct, savingsRateFromProfile } from '@/lib/wealthProjection'
 
 // El otro lado del plan de ingresos: en Flujo se arma el calendario, acá se
 // juega con lo que ese calendario le hace al patrimonio de aquí a diciembre.
@@ -22,11 +22,16 @@ import { projectWealth, suggestSavingsRate, annualizedReturnPct } from '@/lib/we
 // para empezar a jugar, no una medición.
 const FALLBACK_SAVINGS = 50
 
+// Cuántos meses cerrados hacen falta para que "lo que ahorraste" sea una
+// medición y no una muestra. Con dos meses de ingreso a medio registrar, el
+// resultado era un 0% presentado con la misma autoridad que un dato bueno.
+const MIN_MEASURED_MONTHS = 3
+
 const MONTHS_ES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 export default function WealthProjectionCard({
-  netWorth = 0, plan: rawPlan, onSavePlan, financeTransactions = [],
+  netWorth = 0, plan: rawPlan, onSavePlan, financeTransactions = [], profile,
   convert, baseCurrency = 'USD', returnSinceStart, sinceStartDate,
   lang = 'es', today = new Date(), onOpenFlow,
 }) {
@@ -53,9 +58,12 @@ export default function WealthProjectionCard({
   )
 
   const suggestedSavings = useMemo(
-    () => suggestSavingsRate(financeTransactions, { year, month: today.getUTCMonth(), convert, to: 'GTQ' }),
+    () => suggestSavingsRate(financeTransactions, {
+      year, month: today.getUTCMonth(), minMonths: MIN_MEASURED_MONTHS, convert, to: 'GTQ',
+    }),
     [financeTransactions, year, today, convert]
   )
+  const declaredSavings = useMemo(() => savingsRateFromProfile(profile), [profile])
   const suggestedReturn = useMemo(
     () => annualizedReturnPct(returnSinceStart, sinceStartDate, today),
     [returnSinceStart, sinceStartDate, today]
@@ -65,9 +73,18 @@ export default function WealthProjectionCard({
   // medir, y si no un punto de partida declarado. Cero sería igual de
   // arbitrario y además deja la card inerte: una proyección plana no enseña
   // que los controles hacen algo.
-  const savingsDefault = plan.defaultSavingsRate != null
-    ? plan.defaultSavingsRate
-    : (suggestedSavings ? suggestedSavings.pct : FALLBACK_SAVINGS)
+  // La prioridad, y el orden importa: una medición sobre meses SUFICIENTES le
+  // gana a un auto-reporte, y un auto-reporte le gana a una muestra de dos
+  // meses o a un número inventado. Lo que el usuario haya tecleado manda sobre
+  // todo lo demás.
+  const savingsSource = plan.defaultSavingsRate != null ? 'user'
+    : suggestedSavings ? 'measured'
+    : declaredSavings ? 'profile'
+    : 'fallback'
+  const savingsDefault = plan.defaultSavingsRate != null ? plan.defaultSavingsRate
+    : suggestedSavings ? suggestedSavings.pct
+    : declaredSavings ? declaredSavings.pct
+    : FALLBACK_SAVINGS
 
   // La tasa NO se precarga con el retorno histórico, y es a propósito. Un
   // portafolio que hizo +100% en tres años anualiza a ~26%, y usar eso como
@@ -216,11 +233,13 @@ export default function WealthProjectionCard({
                 />
                 <span className="text-xs" style={{ color: 'var(--text-muted)' }}>%</span>
               </span>
-              {plan.defaultSavingsRate == null && (
-                <span className="text-[10px] block mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                  {suggestedSavings
-                    ? t(`lo que ahorraste en ${suggestedSavings.months} mes(es)`, `what you saved over ${suggestedSavings.months} month(s)`)
-                    : t('punto de partida, cambialo', 'a starting point, change it')}
+              {savingsSource !== 'user' && (
+                <span data-savings-source={savingsSource} className="text-[10px] block mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                  {savingsSource === 'measured'
+                    ? t(`lo que ahorraste en ${suggestedSavings.months} meses`, `what you saved over ${suggestedSavings.months} months`)
+                    : savingsSource === 'profile'
+                      ? t('de tu perfil financiero', 'from your financial profile')
+                      : t('punto de partida, cambialo', 'a starting point, change it')}
                 </span>
               )}
             </label>

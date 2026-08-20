@@ -1595,6 +1595,7 @@ export default function DashboardPage() {
                 plan={incomePlan}
                 onSavePlan={saveIncomePlan}
                 financeTransactions={entityFinanceTransactions}
+                profile={profile}
                 convert={convert}
                 baseCurrency={baseCurrency}
                 returnSinceStart={returnSinceStart}
