@@ -10,6 +10,7 @@ import { buildHistoryRequestBody } from '@/lib/historyPayload'
 import { isReinvestedDividend, reinvestIndex } from '@/lib/dividendCash'
 import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget } from '@/lib/autoDividends'
 import { unlinkedOpeningDeposits } from '@/lib/originDeposits'
+import { staleTradeDateFixes } from '@/lib/ibkrTradeDateFix'
 import { corruptSnapshotRunIds, feEraSuspectDailyIds } from '@/lib/corruptSnapshots'
 import { planEquitySnapshotWrites, misplacedPlainNavMigrations } from '@/lib/ibkrSnapshotPlan'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
@@ -2540,6 +2541,39 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     })()
     return () => { cancelled = true }
   }, [transactions, portfolioItems, updateTransaction])
+
+  // Self-heal: trades de IBKR guardados con la fecha CRUDA del Flex
+  // ("20260115"). El parser ya normaliza (lib/parsers/ibkrFlex.js), pero el id
+  // del documento se deriva de la fecha, así que sin esto el primer sync con el
+  // parser arreglado escribiría el doc corregido AL LADO del viejo y el usuario
+  // vería cada operación dos veces. Se re-sella: alta del corregido primero
+  // (bulkImport le deriva el id nuevo con el esquema de siempre) y recién
+  // después el borrado del viejo, para que un alta fallida no deje el dato
+  // huérfano. Una sola pasada por sesión: al corregirse, la próxima no
+  // encuentra nada.
+  const tradeDateFixRef = useRef(false)
+  useEffect(() => {
+    if (dataLoading || bulkWriting || ibkrAutoSyncing) return
+    if (!bulkImport || !deleteTransaction) return
+    if (tradeDateFixRef.current) return
+    const fixes = staleTradeDateFixes(transactions)
+    if (fixes.length === 0) return
+    tradeDateFixRef.current = true
+    let cancelled = false
+    ;(async () => {
+      try {
+        await bulkImport({ transactions: fixes.map((f) => f.tx) })
+        for (const { oldId } of fixes) {
+          if (cancelled) return
+          await deleteTransaction(oldId)
+        }
+      } catch (e) {
+        console.error('[ibkr-trade-date-fix]', e?.message)
+        tradeDateFixRef.current = false
+      }
+    })()
+    return () => { cancelled = true }
+  }, [dataLoading, bulkWriting, ibkrAutoSyncing, transactions, bulkImport, deleteTransaction])
 
   // FASE EP. Deleting or editing a DIVIDEND transaction by hand (EditAccountModal's
   // per-row delete/edit, RecentTransactions' delete) used to just touch the
