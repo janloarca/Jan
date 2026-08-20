@@ -15,6 +15,7 @@ import { FINANCE_CATEGORIES, CATEGORY_COLORS } from '@/lib/financeCategories'
 import { matchStatement } from '@/lib/statementMatcher'
 import { reconcileStatement, enrichmentFor } from '@/lib/statementReconcile'
 import { flowSign, flowMagnitude } from '@/lib/financeAmount'
+import { formatFinanceDate } from '@/lib/financeMonth'
 import { walletCoverage } from '@/lib/walletCoverage'
 import { validateItem, sanitizeImportItem, sanitizeCell } from '@/lib/validation'
 import { getBrokerHowTo } from '@/lib/brokerHowTo'
@@ -1390,16 +1391,16 @@ When done, give me the .xlsx file ready to download.`
                                     setBiSelected(next)
                                   }} />
                                 </td>
-                                <td className="py-1.5 px-2 text-slate-400 whitespace-nowrap">{row.date}</td>
+                                <td className="py-1.5 px-2 text-slate-400 whitespace-nowrap">{formatFinanceDate(row.date)}</td>
                                 <td className="py-1.5 px-2 text-white max-w-[150px] truncate">{row.description}</td>
                                 <td className="py-1.5 px-2 text-right whitespace-nowrap" style={{ color: 'var(--text-negative)' }}>
                                   {row.currency === 'USD' ? '$' : 'Q'}{row.amount.toLocaleString()}
                                 </td>
                                 <td className="py-1.5 px-2 text-slate-500 max-w-[170px] truncate">
                                   {relation === 'adjusted'
-                                    ? t(`ya tienes ${match.currency === 'USD' ? '$' : 'Q'}${match.amount.toLocaleString()} el ${match.date}`,
-                                        `you have ${match.currency === 'USD' ? '$' : 'Q'}${match.amount.toLocaleString()} on ${match.date}`)
-                                    : `≈ ${match.date} · ${match.description}`}
+                                    ? t(`ya tienes ${match.currency === 'USD' ? '$' : 'Q'}${match.amount.toLocaleString()} el ${formatFinanceDate(match.date)}`,
+                                        `you have ${match.currency === 'USD' ? '$' : 'Q'}${match.amount.toLocaleString()} on ${formatFinanceDate(match.date)}`)
+                                    : `≈ ${formatFinanceDate(match.date)} · ${match.description}`}
                                 </td>
                               </tr>
                             ))}
@@ -1431,7 +1432,7 @@ When done, give me the .xlsx file ready to download.`
                                     setBiSelected(next)
                                   }} />
                                 </td>
-                                <td className="py-1.5 px-2 text-slate-400 whitespace-nowrap">{tx.date}</td>
+                                <td className="py-1.5 px-2 text-slate-400 whitespace-nowrap">{formatFinanceDate(tx.date)}</td>
                                 <td className="py-1.5 px-2 text-white max-w-[160px] truncate">{tx.description}</td>
                                 <td className="py-1.5 px-2">
                                   <select value={tx.category}
@@ -1475,13 +1476,13 @@ When done, give me the .xlsx file ready to download.`
                                     setBiSelected(next)
                                   }} />
                                 </td>
-                                <td className="py-1.5 px-2 text-slate-400 whitespace-nowrap">{parsed.date}</td>
+                                <td className="py-1.5 px-2 text-slate-400 whitespace-nowrap">{formatFinanceDate(parsed.date)}</td>
                                 <td className="py-1.5 px-2 text-white max-w-[150px] truncate">{parsed.description}</td>
                                 <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap" style={{ color: parsed.type === 'INCOME' ? 'var(--accent-green)' : 'var(--accent-red)' }}>
                                   {flowSign(parsed)}{parsed.currency === 'USD' ? '$' : 'Q'}{flowMagnitude(parsed).toLocaleString()}
                                 </td>
                                 <td className="py-1.5 px-2 text-slate-500 max-w-[150px] truncate">
-                                  ≈ {match.date} · {match.description}
+                                  ≈ {formatFinanceDate(match.date)} · {match.description}
                                 </td>
                               </tr>
                             ))}
@@ -1503,10 +1504,10 @@ When done, give me the .xlsx file ready to download.`
                       <div className="mt-1 max-h-40 overflow-y-auto border border-glass-border/40 rounded-lg p-2 space-y-0.5">
                         {biMatch.confirmed.map(({ row, changes }, i) => (
                           <p key={i} className="text-slate-500 truncate">
-                            {row.date} · {row.description} · {row.currency === 'USD' ? '$' : 'Q'}{row.amount.toLocaleString()}
+                            {formatFinanceDate(row.date)} · {row.description} · {row.currency === 'USD' ? '$' : 'Q'}{row.amount.toLocaleString()}
                             {changes.length > 0 && (
                               <span style={{ color: 'var(--alert-warn-icon)' }}>
-                                {' → '}{changes.map((c) => `${c.field}: ${c.from} → ${c.to}`).join(', ')}
+                                {' → '}{changes.map((c) => `${c.field}: ${c.field === 'date' ? formatFinanceDate(c.from) : c.from} → ${c.field === 'date' ? formatFinanceDate(c.to) : c.to}`).join(', ')}
                               </span>
                             )}
                           </p>
@@ -1531,7 +1532,7 @@ When done, give me the .xlsx file ready to download.`
                         </p>
                         {biMatch.orphans.map((o, i) => (
                           <p key={i} className="text-slate-500 truncate">
-                            {o.date} · {o.description} · {o.currency === 'USD' ? '$' : 'Q'}{(o.amount || 0).toLocaleString()}
+                            {formatFinanceDate(o.date)} · {o.description} · {o.currency === 'USD' ? '$' : 'Q'}{(o.amount || 0).toLocaleString()}
                           </p>
                         ))}
                       </div>
@@ -1546,7 +1547,7 @@ When done, give me the .xlsx file ready to download.`
                       </summary>
                       <div className="mt-1 max-h-32 overflow-y-auto border border-glass-border/40 rounded-lg p-2 space-y-0.5">
                         {biMatch.exact.map(({ parsed }, i) => (
-                          <p key={i} className="text-slate-500 truncate">{parsed.date} · {parsed.description} · {parsed.currency === 'USD' ? '$' : 'Q'}{parsed.amount.toLocaleString()}</p>
+                          <p key={i} className="text-slate-500 truncate">{formatFinanceDate(parsed.date)} · {parsed.description} · {parsed.currency === 'USD' ? '$' : 'Q'}{parsed.amount.toLocaleString()}</p>
                         ))}
                       </div>
                     </details>
@@ -1563,7 +1564,7 @@ When done, give me the .xlsx file ready to download.`
                       </summary>
                       <div className="mt-1 max-h-32 overflow-y-auto border border-glass-border/40 rounded-lg p-2 space-y-0.5">
                         {biData.card.excluded.map((e, i) => (
-                          <p key={i} className="text-slate-500 truncate">{e.date} · {e.description} · {e.currency === 'USD' ? '$' : 'Q'}{e.amount.toLocaleString()}</p>
+                          <p key={i} className="text-slate-500 truncate">{formatFinanceDate(e.date)} · {e.description} · {e.currency === 'USD' ? '$' : 'Q'}{e.amount.toLocaleString()}</p>
                         ))}
                       </div>
                     </details>
