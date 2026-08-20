@@ -175,7 +175,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
 
   const stats = useMemo(() => {
     // Exclude reinvested dividends — same filter as the dashboard's annualDividends,
-    // so "YTD recibido" here matches the headline figure. FASE JV: la regla
+    // so "YTD recibido" here matches the headline figure. FASE JW: la regla
     // compartida, no la bandera sola (que se estampa al escribir, así que un
     // pago anterior a que la cuenta pasara a reinvertir no la lleva).
     const divIdx = reinvestIndex(items)

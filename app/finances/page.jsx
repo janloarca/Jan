@@ -133,7 +133,7 @@ export default function FinancesPage() {
 
   // ── Motor mensual: análisis, insights, ingreso de inversión (solo lectura) ──
   const investmentIncome = useMemo(
-    // portfolioItems va a propósito (FASE JV): sin ellos, un pago escrito antes
+    // portfolioItems va a propósito (FASE JW): sin ellos, un pago escrito antes
     // de que la cuenta pasara a reinvertir entra acá como ingreso del mes sin
     // haber tocado ninguna cuenta bancaria.
     () => investmentIncomeOfMonth(portfolioTransactions, { month, year }, convert, portfolioItems),

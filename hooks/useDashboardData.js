@@ -2206,7 +2206,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // and the PDF report, so a lifetime sum would overstate it more every year.
     // Undated dividends can't be placed in time and are excluded.
     const cutoff = Date.now() - 365 * 86400000
-    // FASE JV: la regla compartida, no la bandera sola. Un pago escrito cuando
+    // FASE JW: la regla compartida, no la bandera sola. Un pago escrito cuando
     // la cuenta estaba en "recibo el efectivo" no lleva `_reinvested`, así que
     // se contaba como cobrado aunque la cuenta ahora reinvierta y el dinero
     // nunca haya salido del activo.

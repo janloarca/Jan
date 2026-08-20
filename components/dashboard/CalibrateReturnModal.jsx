@@ -142,7 +142,7 @@ export default function CalibrateReturnModal({ onClose, onSaved, preferredAccoun
   // entero y a la cuenta de IBKR; las cuentas manuales no tienen historial
   // real propio, así que ahí la calibración es todo lo que hay.
   //
-  // ⛔ FASE JV. Esta lista era literal (`'ibkr'` o `'daily'`) y dejaba fuera
+  // ⛔ FASE JW. Esta lista era literal (`'ibkr'` o `'daily'`) y dejaba fuera
   // 'backfill', que desde FASE GD/HN es la fuente de CASI TODOS los días
   // históricos, más 'manual', 'ibkr_quarterly' y los docs viejos sin `_source`.
   // Una calibración global escribe en el id PLANO de la fecha, así que sobre
@@ -241,7 +241,7 @@ export default function CalibrateReturnModal({ onClose, onSaved, preferredAccoun
         await saveSnapshot({
           date: s.dateStr,
           netWorthUSD,
-          // FASE JV: los dos totales, siempre. saveSnapshot fusiona, así que
+          // FASE JW: los dos totales, siempre. saveSnapshot fusiona, así que
           // escribir solo `netWorthUSD` dejaba vivo el `totalActivosUSD` de lo
           // que hubiera antes en esa fecha: un doc con dos totales distintos,
           // y cada consumidor eligiendo uno. Con el guard de arriba ya no debería
