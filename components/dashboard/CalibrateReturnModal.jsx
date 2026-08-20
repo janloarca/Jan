@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Info } from 'lucide-react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { solveDietzStartValue, accountKeyOfItem, heldFlatAccountValueUSD } from '@/components/dashboard/utils'
+import { hasRealObservationAt } from '@/lib/snapshotSelect'
 
 // Return calibration, PER ACCOUNT: every broker app shows its own return, so a
 // single % for the whole portfolio cannot represent accounts with different
@@ -136,12 +137,25 @@ export default function CalibrateReturnModal({ onClose, onSaved, preferredAccoun
     selKey === 'ibkr' ? tx._source === 'ibkr' : (tx._linkedItemId && accountItemIds.has(tx._linkedItemId))
   ))
 
-  // Never clobber a real observation at the anchor date: if the broker or the
-  // daily tracker already stored that day, calibration has nothing to add.
-  // Applies to the whole portfolio and to the IBKR account; manual accounts
-  // have no real per-account history, so calibration is all there is.
-  const realSnapshotAt = (dateStr) =>
-    (snapshots || []).find((s) => s && s.date === dateStr && !s._calibrated && (s._source === 'ibkr' || s._source === 'daily'))
+  // Never clobber a real observation at the anchor date: si ese día ya está
+  // guardado, la calibración no tiene nada que agregar. Aplica al portafolio
+  // entero y a la cuenta de IBKR; las cuentas manuales no tienen historial
+  // real propio, así que ahí la calibración es todo lo que hay.
+  //
+  // ⛔ FASE JV. Esta lista era literal (`'ibkr'` o `'daily'`) y dejaba fuera
+  // 'backfill', que desde FASE GD/HN es la fuente de CASI TODOS los días
+  // históricos, más 'manual', 'ibkr_quarterly' y los docs viejos sin `_source`.
+  // Una calibración global escribe en el id PLANO de la fecha, así que sobre
+  // uno de esos días hacía merge ENCIMA del doc real: pisaba `netWorthUSD`,
+  // estampaba `_calibrated`/`_source:'manual'`, y dejaba el `totalActivosUSD`
+  // viejo al lado — un solo doc afirmando dos totales distintos, y la fecha
+  // congelada contra el backfill para siempre. El 1 de enero (o sea el ancla
+  // del YTD, el caso más común de todos) caía justo ahí.
+  //
+  // La regla correcta no es una lista de fuentes sino la pregunta de fondo:
+  // ¿hay ya una observación con valor en ese día? Una calibración propia no
+  // cuenta (por eso `!s._calibrated`: recalibrar el mismo día sí se permite).
+  const realSnapshotAt = (dateStr) => hasRealObservationAt(snapshots, dateStr)
   const guardedByRealData = isGlobal || selKey === 'ibkr'
 
   const save = async () => {
@@ -227,6 +241,12 @@ export default function CalibrateReturnModal({ onClose, onSaved, preferredAccoun
         await saveSnapshot({
           date: s.dateStr,
           netWorthUSD,
+          // FASE JV: los dos totales, siempre. saveSnapshot fusiona, así que
+          // escribir solo `netWorthUSD` dejaba vivo el `totalActivosUSD` de lo
+          // que hubiera antes en esa fecha: un doc con dos totales distintos,
+          // y cada consumidor eligiendo uno. Con el guard de arriba ya no debería
+          // haber nada debajo, pero un doc tiene que ser consistente por sí solo.
+          totalActivosUSD: netWorthUSD,
           _source: 'manual',
           _calibrated: true,
           _calibrationKind: s.kind,

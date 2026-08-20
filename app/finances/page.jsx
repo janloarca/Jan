@@ -97,6 +97,7 @@ export default function FinancesPage() {
     incomePlan,
     saveIncomePlan,
     transactions: portfolioTransactions,
+    items: portfolioItems,
   } = useFirestoreItems()
 
   const { convert, loading: ratesLoading, refresh: refreshRates } = useExchangeRates()
@@ -132,8 +133,11 @@ export default function FinancesPage() {
 
   // ── Motor mensual: análisis, insights, ingreso de inversión (solo lectura) ──
   const investmentIncome = useMemo(
-    () => investmentIncomeOfMonth(portfolioTransactions, { month, year }, convert),
-    [portfolioTransactions, month, year, convert]
+    // portfolioItems va a propósito (FASE JV): sin ellos, un pago escrito antes
+    // de que la cuenta pasara a reinvertir entra acá como ingreso del mes sin
+    // haber tocado ninguna cuenta bancaria.
+    () => investmentIncomeOfMonth(portfolioTransactions, { month, year }, convert, portfolioItems),
+    [portfolioTransactions, portfolioItems, month, year, convert]
   )
   const analysis = useMemo(() => {
     // The read-only investment income counts as income in every compared month,
@@ -141,10 +145,10 @@ export default function FinancesPage() {
     const prevMY = month === 0 ? { month: 11, year: year - 1 } : { month: month - 1, year }
     return computeMonthlyAnalysis(financeTransactions, { month, year }, convert, {
       extraIncome: investmentIncome.total,
-      prevExtraIncome: investmentIncomeOfMonth(portfolioTransactions, prevMY, convert).total,
-      yoyExtraIncome: investmentIncomeOfMonth(portfolioTransactions, { month, year: year - 1 }, convert).total,
+      prevExtraIncome: investmentIncomeOfMonth(portfolioTransactions, prevMY, convert, portfolioItems).total,
+      yoyExtraIncome: investmentIncomeOfMonth(portfolioTransactions, { month, year: year - 1 }, convert, portfolioItems).total,
     })
-  }, [financeTransactions, portfolioTransactions, investmentIncome, month, year, convert])
+  }, [financeTransactions, portfolioTransactions, portfolioItems, investmentIncome, month, year, convert])
   const monthInsights = useMemo(() => buildFinanceInsights(analysis, lang), [analysis, lang])
 
   // El desglose por grupo (y por categoría dentro de cada grupo) sale del MISMO
